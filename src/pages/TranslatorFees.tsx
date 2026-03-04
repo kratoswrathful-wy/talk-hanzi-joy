@@ -501,12 +501,7 @@ export default function TranslatorFees() {
           });
 
           if (hitIds.length > 0) {
-            // Set selection to exactly the marquee-hit rows
-            rowSelection.deselectAll();
-            for (const id of hitIds) {
-              rowSelection.selectAll(); // We need a setSelectedIds; workaround:
-            }
-            // Actually, let's use a more direct approach
+            rowSelection.setSelectedIds(new Set(hitIds));
           }
         }
         setMarquee(null);
