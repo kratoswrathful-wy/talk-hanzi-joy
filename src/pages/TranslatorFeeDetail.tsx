@@ -452,6 +452,7 @@ export default function TranslatorFeeDetail() {
   const [duplicateDialogStep, setDuplicateDialogStep] = useState<null | "choose" | "assignRole" | "confirmSwap">(null);
   const [disableOption12A, setDisableOption12A] = useState(false);
   const [swapResolved, setSwapResolved] = useState(false);
+  const confirmSwapOriginRef = useRef<"choose" | "assignRole">("choose");
 
   // Find the other fee that is firstFee in the same case group
   const otherFirstFee = (() => {
