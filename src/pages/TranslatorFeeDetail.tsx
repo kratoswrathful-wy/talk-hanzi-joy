@@ -32,6 +32,13 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useState } from "react";
 
+type UserRole = "assignee" | "pm" | "executive";
+const roleLabels: Record<UserRole, string> = {
+  assignee: "開單對象",
+  pm: "PM",
+  executive: "執行官",
+};
+
 const taskTypeOptions: TaskType[] = ["翻譯", "審稿", "MTPE", "LQA"];
 const billingUnitOptions: BillingUnit[] = ["字", "小時"];
 
@@ -45,6 +52,7 @@ export default function TranslatorFeeDetail() {
   const [internalNoteUrl, setInternalNoteUrl] = useState(feeData?.internalNoteUrl ?? "");
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [tempUrl, setTempUrl] = useState("");
+  const [currentRole, setCurrentRole] = useState<UserRole>("pm");
 
   if (!feeData) {
     return (
@@ -56,6 +64,18 @@ export default function TranslatorFeeDetail() {
 
   const isDraft = status === "draft";
   const isFinalized = status === "finalized";
+
+  // Role-based permissions
+  const canEdit = currentRole === "pm" && isDraft;
+  const canSubmit = currentRole === "pm" && isDraft;
+  const canRecall = currentRole === "pm" && isFinalized;
+  const canDelete = currentRole === "pm" && isDraft;
+
+  const handleUpdateItem = (itemId: string, field: keyof FeeTaskItem, value: any) => {
+    setTaskItems((prev) =>
+      prev.map((item) => (item.id === itemId ? { ...item, [field]: value } : item))
+    );
+  };
 
   const handleAddItem = () => {
     setTaskItems((prev) => [
@@ -107,6 +127,22 @@ export default function TranslatorFeeDetail() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
+      {/* Role Switcher */}
+      <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+        <span className="font-medium">測試角色：</span>
+        {(Object.keys(roleLabels) as UserRole[]).map((role) => (
+          <Button
+            key={role}
+            variant={currentRole === role ? "default" : "outline"}
+            size="sm"
+            className="h-6 text-xs px-2.5"
+            onClick={() => setCurrentRole(role)}
+          >
+            {roleLabels[role]}
+          </Button>
+        ))}
+      </div>
+
       <Link
         to="/fees"
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -124,22 +160,22 @@ export default function TranslatorFeeDetail() {
         <div className="flex items-start justify-between gap-4">
           <Input
             defaultValue={feeData.title}
-            disabled={isFinalized}
+            disabled={!canEdit}
             className="text-lg font-semibold bg-transparent border-0 shadow-none px-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
             placeholder="標題"
           />
           <div className="flex items-center gap-2 shrink-0">
-            {isDraft && (
-              <>
-                <Button variant="destructive" size="sm" className="text-xs">
-                  刪除
-                </Button>
-                <Button size="sm" className="text-xs" onClick={handleSubmit}>
-                  送出
-                </Button>
-              </>
+            {canDelete && (
+              <Button variant="destructive" size="sm" className="text-xs">
+                刪除
+              </Button>
             )}
-            {isFinalized && (
+            {canSubmit && (
+              <Button size="sm" className="text-xs" onClick={handleSubmit}>
+                送出
+              </Button>
+            )}
+            {canRecall && (
               <Button variant="outline" size="sm" className="text-xs" onClick={handleRecall}>
                 收回
               </Button>
@@ -151,11 +187,10 @@ export default function TranslatorFeeDetail() {
 
         {/* Fields */}
         <div className="grid gap-5">
-          {/* 開單對象 + 狀態 same row */}
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label className="text-xs text-muted-foreground">開單對象</Label>
-              <Select defaultValue={feeData.assignee} disabled={isFinalized}>
+              <Select defaultValue={feeData.assignee} disabled={!canEdit}>
                 <SelectTrigger className="bg-secondary/50">
                   <SelectValue />
                 </SelectTrigger>
@@ -169,7 +204,7 @@ export default function TranslatorFeeDetail() {
             </div>
             <div className="grid gap-1.5">
               <Label className="text-xs text-muted-foreground">狀態</Label>
-              <div className="flex items-center h-10 px-3 rounded-md bg-secondary/50 border border-input">
+              <div className="flex items-center h-10">
                 <Badge
                   variant={isDraft ? "outline" : "default"}
                   className={
@@ -202,13 +237,13 @@ export default function TranslatorFeeDetail() {
                   <Input
                     value={internalNote}
                     onChange={(e) => setInternalNote(e.target.value)}
-                    disabled={isFinalized}
+                    disabled={!canEdit}
                     className="bg-secondary/50"
                     placeholder="輸入備註文字"
                   />
                 )}
               </div>
-              {!isFinalized && (
+              {canEdit && (
                 <Button
                   variant="outline"
                   size="icon"
@@ -229,7 +264,7 @@ export default function TranslatorFeeDetail() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <Label className="text-sm font-medium">任務項目</Label>
-            {isDraft && (
+            {canEdit && (
               <Button
                 variant="outline"
                 size="sm"
@@ -251,14 +286,14 @@ export default function TranslatorFeeDetail() {
                   <TableHead className="text-xs">單價</TableHead>
                   <TableHead className="text-xs">計費單位數</TableHead>
                   <TableHead className="text-xs text-right">小計</TableHead>
-                  {isDraft && <TableHead className="text-xs w-12" />}
+                  {canEdit && <TableHead className="text-xs w-12" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {taskItems.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={isDraft ? 6 : 5}
+                      colSpan={canEdit ? 6 : 5}
                       className="text-center text-sm text-muted-foreground py-6"
                     >
                       尚無任務項目
@@ -268,7 +303,11 @@ export default function TranslatorFeeDetail() {
                   taskItems.map((item, index) => (
                     <TableRow key={item.id}>
                       <TableCell>
-                        <Select defaultValue={item.taskType} disabled={isFinalized}>
+                        <Select
+                          value={item.taskType}
+                          disabled={!canEdit}
+                          onValueChange={(v) => handleUpdateItem(item.id, "taskType", v)}
+                        >
                           <SelectTrigger className="h-8 text-xs bg-transparent border-0 shadow-none px-0">
                             <SelectValue />
                           </SelectTrigger>
@@ -280,7 +319,11 @@ export default function TranslatorFeeDetail() {
                         </Select>
                       </TableCell>
                       <TableCell>
-                        <Select defaultValue={item.billingUnit} disabled={isFinalized}>
+                        <Select
+                          value={item.billingUnit}
+                          disabled={!canEdit}
+                          onValueChange={(v) => handleUpdateItem(item.id, "billingUnit", v)}
+                        >
                           <SelectTrigger className="h-8 text-xs bg-transparent border-0 shadow-none px-0">
                             <SelectValue />
                           </SelectTrigger>
@@ -294,23 +337,25 @@ export default function TranslatorFeeDetail() {
                       <TableCell>
                         <Input
                           type="number"
-                          defaultValue={item.unitPrice}
-                          disabled={isFinalized}
+                          value={item.unitPrice}
+                          onChange={(e) => handleUpdateItem(item.id, "unitPrice", Number(e.target.value))}
+                          disabled={!canEdit}
                           className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-20"
                         />
                       </TableCell>
                       <TableCell>
                         <Input
                           type="number"
-                          defaultValue={item.unitCount}
-                          disabled={isFinalized}
+                          value={item.unitCount}
+                          onChange={(e) => handleUpdateItem(item.id, "unitCount", Number(e.target.value))}
+                          disabled={!canEdit}
                           className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-24"
                         />
                       </TableCell>
                       <TableCell className="text-right text-xs font-medium">
                         {(item.unitCount * item.unitPrice).toLocaleString()}
                       </TableCell>
-                      {isDraft && (
+                      {canEdit && (
                         <TableCell>
                           {index > 0 ? (
                             <Button
@@ -339,7 +384,7 @@ export default function TranslatorFeeDetail() {
                     <TableCell className="text-right text-sm font-bold">
                       {totalAmount.toLocaleString()}
                     </TableCell>
-                    {isDraft && <TableCell />}
+                    {canEdit && <TableCell />}
                   </TableRow>
                 </TableFooter>
               )}
