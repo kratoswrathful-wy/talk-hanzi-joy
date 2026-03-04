@@ -151,7 +151,14 @@ export default function ColorSelect({
                     />
                     <span className="truncate flex-1">{opt.label}</span>
                     {value === opt.label && (
-                      <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
+                      <span
+                        role="button"
+                        className="rounded-full hover:bg-destructive/20 p-0.5 transition-colors shrink-0"
+                        onClick={(e) => { e.stopPropagation(); onValueChange(""); setOpen(false); }}
+                        title="取消選取"
+                      >
+                        <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                      </span>
                     )}
                   </button>
                   {/* "..." menu */}
