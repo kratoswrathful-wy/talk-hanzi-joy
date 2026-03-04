@@ -47,6 +47,7 @@ export default function ClientInfoSection({
   allFees,
   currentFeeId,
   currentInternalNote,
+  onFirstFeeConflict,
 }: ClientInfoSectionProps) {
   const [showUncheckWarning, setShowUncheckWarning] = useState(false);
 
