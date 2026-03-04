@@ -784,6 +784,12 @@ export default function TranslatorFeeDetail() {
             className="text-lg font-semibold bg-transparent border-0 shadow-none px-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
             placeholder="輸入稿費單標題"
           />
+          {notionLoading && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span>正在從 Notion 載入…</span>
+            </div>
+          )}
           <div className="flex items-center gap-2 shrink-0">
             {canDelete && (
               <Button variant="destructive" size="sm" className="text-xs" onClick={() => setDeleteDialogOpen(true)}>
