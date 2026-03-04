@@ -311,7 +311,7 @@ function FeeRow({
           <td
             key={col.key}
             style={{ width: columnWidths[col.key] ?? col.defaultWidth, maxWidth: columnWidths[col.key] ?? col.defaultWidth }}
-            className="px-3 py-3 overflow-hidden"
+            className="px-3 py-3 overflow-hidden border-r border-border/40 last:border-r-0"
           >
             {col.render(fee)}
           </td>
