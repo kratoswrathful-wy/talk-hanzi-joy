@@ -248,7 +248,7 @@ export default function ClientInfoSection({
             <TableFooter>
               <TableRow>
                 <TableCell colSpan={4} className="text-sm font-medium text-right">
-                  營收總計
+                  營收總額
                 </TableCell>
                 <TableCell className="text-right text-sm font-bold">
                   {clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}
