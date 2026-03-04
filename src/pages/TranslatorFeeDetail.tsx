@@ -101,6 +101,7 @@ const fieldLabels: Record<string, string> = {
 // --- Rich Comment Components ---
 
 function CommentContent({ content, imageUrls }: { content: string; imageUrls?: string[] }) {
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const regex = /(@\S+)|\[([^\]]+)\]\(([^)]+)\)/g;
   const rendered: React.ReactNode[] = [];
   let lastIndex = 0;
@@ -134,8 +135,29 @@ function CommentContent({ content, imageUrls }: { content: string; imageUrls?: s
       {imageUrls && imageUrls.length > 0 && (
         <div className="flex flex-wrap gap-2 mt-2">
           {imageUrls.map((url, idx) => (
-            <img key={idx} src={url} alt={`附圖 ${idx + 1}`} className="max-w-xs max-h-48 rounded-md border border-border" />
+            <img
+              key={idx}
+              src={url}
+              alt={`附圖 ${idx + 1}`}
+              className="max-w-xs max-h-48 rounded-md border border-border cursor-pointer hover:opacity-80 transition-opacity"
+              onDoubleClick={() => setLightboxUrl(url)}
+            />
           ))}
+        </div>
+      )}
+      {/* Lightbox overlay */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => setLightboxUrl(null)}
+          onDoubleClick={() => setLightboxUrl(null)}
+        >
+          <img
+            src={lightboxUrl}
+            alt="原圖"
+            className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>
