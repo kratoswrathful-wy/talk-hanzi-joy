@@ -236,18 +236,22 @@ function CommentInput({
         )}
       </div>
 
-      {/* Image preview */}
-      {imagePreview && (
-        <div className="relative inline-block">
-          <img src={imagePreview} alt="預覽" className="max-w-xs max-h-32 rounded-md border border-border" />
-          <Button
-            variant="destructive"
-            size="icon"
-            className="absolute -top-2 -right-2 h-5 w-5 rounded-full"
-            onClick={() => setImagePreview(null)}
-          >
-            <X className="h-3 w-3" />
-          </Button>
+      {/* Image previews */}
+      {imagePreviews.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {imagePreviews.map((img, idx) => (
+            <div key={idx} className="relative inline-block">
+              <img src={img} alt={`預覽 ${idx + 1}`} className="max-w-[120px] max-h-24 rounded-md border border-border" />
+              <Button
+                variant="destructive"
+                size="icon"
+                className="absolute -top-2 -right-2 h-5 w-5 rounded-full"
+                onClick={() => setImagePreviews((prev) => prev.filter((_, i) => i !== idx))}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          ))}
         </div>
       )}
 
