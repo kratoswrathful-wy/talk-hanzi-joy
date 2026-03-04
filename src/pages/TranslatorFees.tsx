@@ -80,7 +80,7 @@ const columnDefs: ColumnDef[] = [
       const total = f.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
       return (
         <span className="text-sm tabular-nums">
-          {f.taskItems.length} 項 · {formatCurrency(total)}
+          {formatCurrency(total)}
         </span>
       );
     },
