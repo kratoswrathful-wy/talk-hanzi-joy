@@ -280,6 +280,7 @@ function ClientLabel({ value }: { value: string }) {
   );
 }
 
+function OpenButton({ feeId }: { feeId: string }) {
   const navigate = useNavigate();
   return (
     <button
