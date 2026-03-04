@@ -72,7 +72,7 @@ export default function NewTranslatorFee() {
         const unitCount = data["計費單位數"] || null;
 
         if (caseId) {
-          setTitle(caseId);
+          setTitle(`${caseId}_Payment`);
         }
 
         if (Array.isArray(people) && people.length > 0) {
