@@ -4,15 +4,37 @@ import { motion, AnimatePresence } from "framer-motion";
 import { feeStatusLabels, type TranslatorFee } from "@/data/fee-mock-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useFees, feeStore } from "@/hooks/use-fee-store";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
+
+type UserRole = "assignee" | "pm" | "executive";
+const roleLabels: Record<UserRole, string> = {
+  assignee: "開單對象",
+  pm: "PM",
+  executive: "執行官",
+};
+
+// Fields that only PM+ can see
+const managerOnlyFields = new Set([
+  "client", "contact", "clientCaseId", "clientPoNumber", "hdPath",
+  "reconciled", "rateConfirmed", "invoiced", "sameCase",
+  "clientRevenue", "profit", "internalNote",
+]);
+
+// Fields related to client info for edit log filtering
+const clientInfoLogKeywords = [
+  "客戶", "聯絡人", "案號", "PO", "硬碟", "對帳", "費率", "請款",
+  "同一案件", "首筆", "營收", "利潤", "客戶端",
+];
 
 interface ColumnDef {
   key: string;
   label: string;
   minWidth: number;
   defaultWidth: number;
+  managerOnly?: boolean;
   render: (fee: TranslatorFee) => React.ReactNode;
 }
 
@@ -24,7 +46,7 @@ const formatDate = (iso: string) => {
 const formatCurrency = (n: number) =>
   n.toLocaleString("zh-TW", { style: "currency", currency: "TWD", minimumFractionDigits: 0 });
 
-const columnDefs: ColumnDef[] = [
+const allColumnDefs: ColumnDef[] = [
   {
     key: "title",
     label: "標題",
@@ -65,6 +87,7 @@ const columnDefs: ColumnDef[] = [
     label: "關聯案件",
     minWidth: 100,
     defaultWidth: 160,
+    managerOnly: true,
     render: (f) => (
       <span className="truncate text-sm text-muted-foreground">
         {f.internalNote || "—"}
@@ -73,17 +96,99 @@ const columnDefs: ColumnDef[] = [
   },
   {
     key: "taskSummary",
-    label: "稿費項目",
+    label: "稿費總額",
     minWidth: 80,
     defaultWidth: 120,
     render: (f) => {
       const total = f.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
-      return (
-        <span className="text-sm tabular-nums">
-          {formatCurrency(total)}
-        </span>
-      );
+      return <span className="text-sm tabular-nums">{formatCurrency(total)}</span>;
     },
+  },
+  {
+    key: "client",
+    label: "客戶",
+    minWidth: 70,
+    defaultWidth: 100,
+    managerOnly: true,
+    render: (f) => <span className="truncate text-sm">{f.clientInfo?.client || "—"}</span>,
+  },
+  {
+    key: "clientCaseId",
+    label: "案號",
+    minWidth: 80,
+    defaultWidth: 120,
+    managerOnly: true,
+    render: (f) => <span className="truncate text-sm text-muted-foreground">{f.clientInfo?.clientCaseId || f.clientInfo?.eciKeywords || "—"}</span>,
+  },
+  {
+    key: "clientPoNumber",
+    label: "客戶 PO",
+    minWidth: 80,
+    defaultWidth: 100,
+    managerOnly: true,
+    render: (f) => <span className="truncate text-sm text-muted-foreground">{f.clientInfo?.clientPoNumber || "—"}</span>,
+  },
+  {
+    key: "clientRevenue",
+    label: "營收",
+    minWidth: 80,
+    defaultWidth: 100,
+    managerOnly: true,
+    render: (f) => {
+      if (!f.clientInfo || f.clientInfo.notFirstFee) return <span className="text-sm text-muted-foreground">N/A</span>;
+      const rev = f.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
+      return <span className="text-sm tabular-nums">{formatCurrency(rev)}</span>;
+    },
+  },
+  {
+    key: "profit",
+    label: "利潤",
+    minWidth: 80,
+    defaultWidth: 100,
+    managerOnly: true,
+    render: (f) => {
+      if (!f.clientInfo || f.clientInfo.notFirstFee) return <span className="text-sm text-muted-foreground">N/A</span>;
+      const rev = f.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
+      const cost = f.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
+      const p = rev - cost;
+      return <span className={cn("text-sm tabular-nums font-medium", p >= 0 ? "text-success" : "text-destructive")}>{formatCurrency(p)}</span>;
+    },
+  },
+  {
+    key: "reconciled",
+    label: "對帳",
+    minWidth: 50,
+    defaultWidth: 60,
+    managerOnly: true,
+    render: (f) => (
+      <div className="flex justify-center">
+        <Checkbox checked={!!f.clientInfo?.reconciled} disabled className="pointer-events-none" />
+      </div>
+    ),
+  },
+  {
+    key: "rateConfirmed",
+    label: "費率",
+    minWidth: 50,
+    defaultWidth: 60,
+    managerOnly: true,
+    render: (f) => (
+      <div className="flex justify-center">
+        <Checkbox checked={!!f.clientInfo?.rateConfirmed} disabled className="pointer-events-none" />
+      </div>
+    ),
+  },
+  {
+    key: "invoiced",
+    label: "請款",
+    minWidth: 50,
+    defaultWidth: 60,
+    managerOnly: true,
+    render: (f) => (
+      <div className="flex justify-center">
+        <Checkbox checked={!!f.clientInfo?.invoiced} disabled className="pointer-events-none" />
+      </div>
+    ),
   },
   {
     key: "createdBy",
@@ -106,23 +211,23 @@ type ExpandType = "notes" | "editLog";
 export default function TranslatorFees() {
   const navigate = useNavigate();
   const fees = useFees();
+  const [currentRole, setCurrentRole] = useState<UserRole>("pm");
 
-  // Column order (array of keys)
-  const [columnOrder, setColumnOrder] = useState<string[]>(() => columnDefs.map((c) => c.key));
-  // Column widths
+  const isManager = currentRole === "pm" || currentRole === "executive";
+  const columnDefs = allColumnDefs.filter((c) => !c.managerOnly || isManager);
+
+  const [columnOrder, setColumnOrder] = useState<string[]>(() => allColumnDefs.map((c) => c.key));
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() =>
-    Object.fromEntries(columnDefs.map((c) => [c.key, c.defaultWidth]))
+    Object.fromEntries(allColumnDefs.map((c) => [c.key, c.defaultWidth]))
   );
-  // Expanded rows
   const [expandedRows, setExpandedRows] = useState<Record<string, ExpandType | null>>({});
 
-  // --- Column resizing ---
   const resizingRef = useRef<{ key: string; startX: number; startWidth: number } | null>(null);
 
   const handleResizeStart = useCallback((e: React.MouseEvent, key: string) => {
     e.preventDefault();
     e.stopPropagation();
-    const col = columnDefs.find((c) => c.key === key);
+    const col = allColumnDefs.find((c) => c.key === key);
     resizingRef.current = { key, startX: e.clientX, startWidth: columnWidths[key] ?? col?.defaultWidth ?? 100 };
 
     const onMove = (ev: MouseEvent) => {
@@ -141,14 +246,12 @@ export default function TranslatorFees() {
     document.addEventListener("mouseup", onUp);
   }, [columnWidths]);
 
-  // --- Column drag reorder ---
   const dragColRef = useRef<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
 
   const handleDragStart = (e: React.DragEvent, key: string) => {
     dragColRef.current = key;
     e.dataTransfer.effectAllowed = "move";
-    // Minimal drag image
     const el = e.currentTarget as HTMLElement;
     e.dataTransfer.setDragImage(el, 20, 20);
   };
@@ -181,7 +284,6 @@ export default function TranslatorFees() {
     setDragOverCol(null);
   };
 
-  // --- Expand toggle ---
   const toggleExpand = (feeId: string, type: ExpandType) => {
     setExpandedRows((prev) => ({
       ...prev,
@@ -198,20 +300,42 @@ export default function TranslatorFees() {
     .map((key) => columnDefs.find((c) => c.key === key))
     .filter(Boolean) as ColumnDef[];
 
-  // Total table width for sticky sizing
-  const totalWidth = orderedCols.reduce((s, c) => s + (columnWidths[c.key] ?? c.defaultWidth), 0) + 100; // +100 for action cols
+  const totalWidth = orderedCols.reduce((s, c) => s + (columnWidths[c.key] ?? c.defaultWidth), 0) + 100;
+
+  // Filter fees for assignee role: hide drafts
+  const visibleFees = currentRole === "assignee"
+    ? fees.filter((f) => f.status !== "draft")
+    : fees;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
+      {/* Role Switcher */}
+      <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+        <span className="font-medium">測試角色：</span>
+        {(Object.keys(roleLabels) as UserRole[]).map((role) => (
+          <Button
+            key={role}
+            variant={currentRole === role ? "default" : "outline"}
+            size="sm"
+            className="h-6 text-xs px-2.5"
+            onClick={() => setCurrentRole(role)}
+          >
+            {roleLabels[role]}
+          </Button>
+        ))}
+      </div>
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">稿費管理</h1>
           <p className="mt-1 text-sm text-muted-foreground">管理譯者稿費請款單</p>
         </div>
-        <Button size="sm" className="gap-1.5" onClick={handleCreate}>
-          <Plus className="h-4 w-4" />
-          新增稿費
-        </Button>
+        {isManager && (
+          <Button size="sm" className="gap-1.5" onClick={handleCreate}>
+            <Plus className="h-4 w-4" />
+            新增稿費
+          </Button>
+        )}
       </div>
 
       <motion.div
@@ -220,7 +344,6 @@ export default function TranslatorFees() {
         className="rounded-xl border border-border bg-card overflow-x-auto"
       >
         <table style={{ minWidth: totalWidth }} className="w-full text-sm">
-          {/* Header */}
           <thead>
             <tr className="border-b border-border bg-muted/40">
               {orderedCols.map((col) => (
@@ -241,14 +364,12 @@ export default function TranslatorFees() {
                     <GripVertical className="h-3 w-3 opacity-0 group-hover:opacity-40 shrink-0" />
                     <span>{col.label}</span>
                   </div>
-                  {/* Resize handle */}
                   <div
                     onMouseDown={(e) => handleResizeStart(e, col.key)}
                     className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize bg-border/50 hover:bg-primary/40 transition-colors"
                   />
                 </th>
               ))}
-              {/* Action columns for expandable sections */}
               <th className="w-[50px] px-2 py-2.5 text-center text-xs font-medium text-muted-foreground" title="備註">
                 <MessageSquare className="h-3.5 w-3.5 mx-auto" />
               </th>
@@ -258,7 +379,7 @@ export default function TranslatorFees() {
             </tr>
           </thead>
           <tbody>
-            {fees.map((fee) => {
+            {visibleFees.map((fee) => {
               const expanded = expandedRows[fee.id];
               return (
                 <FeeRow
@@ -269,10 +390,11 @@ export default function TranslatorFees() {
                   expanded={expanded}
                   onToggleExpand={toggleExpand}
                   onNavigate={() => navigate(`/fees/${fee.id}`)}
+                  currentRole={currentRole}
                 />
               );
             })}
-            {fees.length === 0 && (
+            {visibleFees.length === 0 && (
               <tr>
                 <td colSpan={orderedCols.length + 2} className="text-center py-12 text-muted-foreground">
                   尚無稿費紀錄
@@ -293,6 +415,7 @@ function FeeRow({
   expanded,
   onToggleExpand,
   onNavigate,
+  currentRole,
 }: {
   fee: TranslatorFee;
   orderedCols: ColumnDef[];
@@ -300,6 +423,7 @@ function FeeRow({
   expanded: ExpandType | null | undefined;
   onToggleExpand: (id: string, type: ExpandType) => void;
   onNavigate: () => void;
+  currentRole: UserRole;
 }) {
   return (
     <>
@@ -316,7 +440,6 @@ function FeeRow({
             {col.render(fee)}
           </td>
         ))}
-        {/* Notes expand button */}
         <td className="px-2 py-3 text-center">
           {fee.notes.length > 0 && (
             <button
@@ -332,7 +455,6 @@ function FeeRow({
             </button>
           )}
         </td>
-        {/* Edit log expand button */}
         <td className="px-2 py-3 text-center">
           {fee.editLogs.length > 0 && (
             <button
@@ -349,7 +471,6 @@ function FeeRow({
           )}
         </td>
       </tr>
-      {/* Expanded content row */}
       <AnimatePresence>
         {expanded && (
           <tr>
@@ -363,7 +484,7 @@ function FeeRow({
               >
                 <div className="px-5 py-4 bg-muted/20 border-b border-border">
                   {expanded === "notes" && <NotesPanel fee={fee} />}
-                  {expanded === "editLog" && <EditLogPanel fee={fee} />}
+                  {expanded === "editLog" && <EditLogPanel fee={fee} currentRole={currentRole} />}
                 </div>
               </motion.div>
             </td>
@@ -398,18 +519,28 @@ function NotesPanel({ fee }: { fee: TranslatorFee }) {
   );
 }
 
-function EditLogPanel({ fee }: { fee: TranslatorFee }) {
+function isClientInfoLog(action: string): boolean {
+  return clientInfoLogKeywords.some((kw) => action.includes(kw));
+}
+
+function EditLogPanel({ fee, currentRole }: { fee: TranslatorFee; currentRole: UserRole }) {
+  const isManager = currentRole === "pm" || currentRole === "executive";
+  // Filter edit logs: assignee can only see non-client-info logs
+  const filteredLogs = isManager
+    ? fee.editLogs
+    : fee.editLogs.filter((log) => !isClientInfoLog(log.action));
+
   return (
     <div className="space-y-2">
       <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
         <History className="h-3.5 w-3.5" />
-        修改紀錄（{fee.editLogs.length}）
+        修改紀錄（{filteredLogs.length}）
       </h4>
-      {fee.editLogs.length === 0 ? (
+      {filteredLogs.length === 0 ? (
         <p className="text-sm text-muted-foreground italic">尚無修改紀錄</p>
       ) : (
         <ul className="space-y-1.5">
-          {fee.editLogs.map((log) => (
+          {filteredLogs.map((log) => (
             <li key={log.id} className="text-sm flex items-baseline gap-2">
               <span className="font-medium text-card-foreground">{log.author}</span>
               <span className="text-muted-foreground">{log.action}</span>
