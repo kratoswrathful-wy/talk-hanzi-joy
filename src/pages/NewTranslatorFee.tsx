@@ -72,7 +72,7 @@ export default function NewTranslatorFee() {
         const unitCount = data["計費單位數"] || null;
 
         if (caseId) {
-          setTitle(caseId);
+          setTitle(`${caseId}_Payment`);
         }
 
         if (Array.isArray(people) && people.length > 0) {
@@ -210,7 +210,7 @@ export default function NewTranslatorFee() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">關聯內部紀錄</Label>
+              <Label className="text-xs">相關案件</Label>
               <Input
                 value={internalNote}
                 onChange={(e) => setInternalNote(e.target.value)}
@@ -219,7 +219,7 @@ export default function NewTranslatorFee() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">內部紀錄連結</Label>
+              <Label className="text-xs">案件連結</Label>
               <Input
                 value={internalNoteUrl}
                 onChange={(e) => setInternalNoteUrl(e.target.value)}

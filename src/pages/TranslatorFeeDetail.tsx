@@ -1,5 +1,5 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, X, Link as LinkIcon, Send, AtSign, Image, Link2, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, X, Send, AtSign, Image, Link2, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import { feeStatusLabels, type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus } from "@/data/fee-mock-data";
@@ -26,13 +26,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -98,7 +91,7 @@ const fieldLabels: Record<string, string> = {
   unitCount: "計費單位數",
   title: "標題",
   assignee: "開單對象",
-  internalNote: "關聯內部紀錄",
+  internalNote: "相關案件",
 };
 
 // --- Rich Comment Components ---
@@ -434,9 +427,8 @@ export default function TranslatorFeeDetail() {
   const [assignee, setAssignee] = useState(feeData?.assignee ?? "");
   const [internalNote, setInternalNote] = useState(feeData?.internalNote ?? "");
   const [internalNoteUrl, setInternalNoteUrl] = useState(feeData?.internalNoteUrl ?? "");
-  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [tempUrl, setTempUrl] = useState("");
+  const [notionUrlInput, setNotionUrlInput] = useState(internalNoteUrl || "");
   const [currentRole, setCurrentRole] = useState<UserRole>("pm");
 
   // Comments — initialize from feeData
@@ -650,11 +642,6 @@ export default function TranslatorFeeDetail() {
     setStatus("draft");
   };
 
-  const handleOpenLinkDialog = () => {
-    setTempUrl(internalNoteUrl);
-    setLinkDialogOpen(true);
-  };
-
   const extractNotionPageId = (url: string): string | null => {
     // Match Notion URLs like: https://www.notion.so/workspace/Page-Title-<32-hex-id>
     // or https://notion.so/<32-hex-id>
@@ -662,13 +649,25 @@ export default function TranslatorFeeDetail() {
     return match ? match[1] : null;
   };
 
-  const handleSaveLink = async () => {
-    setInternalNoteUrl(tempUrl);
-    setLinkDialogOpen(false);
+  const handleFetchFromUrl = async () => {
+    const url = notionUrlInput.trim();
+    if (!url) return;
+
+    setInternalNoteUrl(url);
+    if (id) feeStore.updateFee(id, { internalNoteUrl: url });
+
+    // Check if it's a database URL (contains ?v=)
+    if (url.includes("notion.so") && url.includes("?v=")) {
+      toast.error("這是資料庫的連結，請開啟單一案件頁面後複製該頁面的 URL");
+      return;
+    }
 
     // Auto-detect Notion URL and fetch data
-    const pageId = extractNotionPageId(tempUrl);
-    if (!pageId || !tempUrl.includes("notion.so")) return;
+    const pageId = extractNotionPageId(url);
+    if (!pageId || !url.includes("notion.so")) {
+      toast.info("已儲存連結");
+      return;
+    }
 
     setNotionLoading(true);
     try {
@@ -687,9 +686,9 @@ export default function TranslatorFeeDetail() {
       const workTypes = data["工作類型"] || [];
       const unitCount = data["計費單位數"] || null;
 
-      // 案件編號 > 標題（預填為「案件編號_Pt」）
+      // 案件編號 > 標題（預填為「案件編號_Payment」）
       if (caseId) {
-        const newTitle = `${caseId}_Pt`;
+        const newTitle = `${caseId}_Payment`;
         setTitle(newTitle);
         if (id) feeStore.updateFee(id, { title: newTitle });
       }
@@ -849,42 +848,42 @@ export default function TranslatorFeeDetail() {
             </div>
           </div>
 
-          {/* 關聯內部紀錄 */}
+          {/* 相關案件 */}
           <div className="grid gap-1.5">
-            <Label className="text-xs text-muted-foreground">關聯內部紀錄</Label>
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                {internalNoteUrl && internalNote ? (
-                  <a
-                    href={internalNoteUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors cursor-pointer"
-                  >
-                    {internalNote}
-                  </a>
-                ) : (
-                  <Input
-                    value={internalNote}
-                    onChange={(e) => setInternalNote(e.target.value)}
-                    disabled={!canEdit}
-                    className="bg-secondary/50"
-                    placeholder="輸入備註文字"
-                  />
-                )}
-              </div>
-              {canEdit && (
+            <Label className="text-xs text-muted-foreground">相關案件</Label>
+            {canEdit ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={notionUrlInput}
+                  onChange={(e) => setNotionUrlInput(e.target.value)}
+                  className="bg-secondary/50 flex-1"
+                  placeholder="貼上 Notion 案件頁面網址"
+                  onKeyDown={(e) => { if (e.key === "Enter") handleFetchFromUrl(); }}
+                />
                 <Button
                   variant="outline"
-                  size="icon"
-                  className="shrink-0"
-                  onClick={handleOpenLinkDialog}
-                  title="設定超連結"
+                  size="sm"
+                  className="shrink-0 text-xs"
+                  disabled={!notionUrlInput.trim() || notionLoading}
+                  onClick={handleFetchFromUrl}
                 >
-                  <LinkIcon className="h-4 w-4" />
+                  {notionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "確認"}
                 </Button>
-              )}
-            </div>
+              </div>
+            ) : internalNoteUrl ? (
+              <a
+                href={internalNoteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors cursor-pointer"
+              >
+                {internalNote || internalNoteUrl}
+              </a>
+            ) : (
+              <div className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-muted-foreground">
+                未設定
+              </div>
+            )}
           </div>
         </div>
 
@@ -1146,31 +1145,6 @@ export default function TranslatorFeeDetail() {
           </>
         )}
       </motion.div>
-
-      {/* Link Dialog */}
-      <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>設定超連結</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-2">
-            <Label className="text-xs text-muted-foreground">連結網址</Label>
-            <Input
-              value={tempUrl}
-              onChange={(e) => setTempUrl(e.target.value)}
-              placeholder="https://..."
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setLinkDialogOpen(false)}>
-              取消
-            </Button>
-            <Button size="sm" onClick={handleSaveLink}>
-              儲存
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
