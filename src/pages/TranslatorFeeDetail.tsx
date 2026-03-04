@@ -995,13 +995,22 @@ export default function TranslatorFeeDetail() {
             setDraft={setCommentDraft}
             placeholder="輸入留言..."
             onSubmit={(content, imageUrls) => {
-              setComments((prev) => [...prev, {
+              const newNote = {
                 id: `comment-${Date.now()}`,
                 author: roleLabels[currentRole],
                 content,
                 imageUrls,
                 timestamp: formatTimestamp(new Date()),
-              }]);
+              };
+              setComments((prev) => [...prev, newNote]);
+              // Sync to store
+              if (id) {
+                const storeNote = { id: newNote.id, content, author: newNote.author, createdAt: new Date().toISOString() };
+                const currentFee = feeStore.getFeeById(id);
+                if (currentFee) {
+                  feeStore.updateFee(id, { notes: [...currentFee.notes, storeNote] });
+                }
+              }
             }}
           />
         </div>
