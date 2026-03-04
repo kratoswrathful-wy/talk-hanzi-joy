@@ -786,10 +786,12 @@ export default function TranslatorFeeDetail() {
                 size="sm"
                 className="text-xs"
                 onClick={() => {
-                  // Clone current fee
+                  // Clone current fee with incrementing copy count
+                  const copyCount = (window as any).__copyCount ?? 0;
+                  (window as any).__copyCount = copyCount + 1;
                   const draft = feeStore.createDraft();
                   feeStore.updateFee(draft.id, {
-                    title: title ? `${title} (複製)` : "",
+                    title: title ? `${title} 副本${copyCount + 1}` : "",
                     assignee,
                     taskItems: taskItems.map((item, idx) => ({ ...item, id: `item-clone-${Date.now()}-${idx}` })),
                     internalNote,

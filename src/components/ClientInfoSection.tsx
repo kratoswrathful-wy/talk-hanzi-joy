@@ -208,11 +208,11 @@ export default function ClientInfoSection({
 
       <Separator />
 
-      {/* Checkboxes & Fields — 2-column grid */}
-      <div className="grid grid-cols-2 gap-x-8 gap-y-0">
-        {/* Row 1: 與他筆費用為同一案件 + 對帳完成 | 客戶端案號或關鍵字 */}
-        <div className="flex items-center gap-x-8 h-10">
-          <div className="flex items-center gap-2 shrink-0">
+      {/* 4-quadrant layout */}
+      <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+        {/* Left-top: 同一案件組 */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
             <Checkbox
               id="sameCase"
               checked={clientInfo.sameCase}
@@ -229,35 +229,7 @@ export default function ClientInfoSection({
               與他筆費用為同一案件
             </Label>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Checkbox
-              id="reconciled"
-              checked={clientInfo.reconciled}
-              disabled={!canEdit}
-              onCheckedChange={(checked) => update("reconciled", !!checked)}
-            />
-            <Label htmlFor="reconciled" className="text-xs cursor-pointer whitespace-nowrap">
-              對帳完成
-            </Label>
-          </div>
-        </div>
-        <div className="grid gap-1.5 py-1.5">
-          <Label className="text-xs text-muted-foreground">客戶端案號或關鍵字</Label>
-          <Input
-            value={clientInfo.eciKeywords || clientInfo.clientCaseId}
-            onChange={(e) => {
-              update("eciKeywords", e.target.value);
-              update("clientCaseId", e.target.value);
-            }}
-            disabled={!canEdit}
-            placeholder="輸入關鍵字或案號"
-            className="text-sm"
-          />
-        </div>
-
-        {/* Row 2: 為首筆費用 + 費率無誤 | 客戶 PO 編號 */}
-        <div className="flex items-center gap-x-8 h-10">
-          <div className="flex items-center gap-2 ml-6 shrink-0">
+          <div className="flex items-center gap-2 ml-6">
             <Checkbox
               id="isFirstFee"
               checked={clientInfo.isFirstFee}
@@ -274,32 +246,7 @@ export default function ClientInfoSection({
               為首筆費用
             </Label>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Checkbox
-              id="rateConfirmed"
-              checked={clientInfo.rateConfirmed}
-              disabled={!canEdit}
-              onCheckedChange={(checked) => update("rateConfirmed", !!checked)}
-            />
-            <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">
-              費率無誤
-            </Label>
-          </div>
-        </div>
-        <div className="grid gap-1.5 py-1.5">
-          <Label className="text-xs text-muted-foreground">客戶 PO 編號</Label>
-          <Input
-            value={clientInfo.clientPoNumber}
-            onChange={(e) => update("clientPoNumber", e.target.value)}
-            disabled={!canEdit}
-            placeholder="輸入 PO 編號"
-            className="text-sm"
-          />
-        </div>
-
-        {/* Row 3: 非首筆費用 + 請款完成 | (empty) */}
-        <div className="flex items-center gap-x-8 h-10">
-          <div className="flex items-center gap-2 ml-6 shrink-0">
+          <div className="flex items-center gap-2 ml-6">
             <Checkbox
               id="notFirstFee"
               checked={clientInfo.notFirstFee}
@@ -316,7 +263,33 @@ export default function ClientInfoSection({
               非首筆費用
             </Label>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+        </div>
+
+        {/* Right-top: 財務狀態組 */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="reconciled"
+              checked={clientInfo.reconciled}
+              disabled={!canEdit}
+              onCheckedChange={(checked) => update("reconciled", !!checked)}
+            />
+            <Label htmlFor="reconciled" className="text-xs cursor-pointer whitespace-nowrap">
+              對帳完成
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="rateConfirmed"
+              checked={clientInfo.rateConfirmed}
+              disabled={!canEdit}
+              onCheckedChange={(checked) => update("rateConfirmed", !!checked)}
+            />
+            <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">
+              費率無誤
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
             <Checkbox
               id="invoiced"
               checked={clientInfo.invoiced}
@@ -328,32 +301,57 @@ export default function ClientInfoSection({
             </Label>
           </div>
         </div>
-        <div /> {/* empty cell */}
 
-        {/* Row 4-5: 客戶 & 聯絡人 */}
-        <div className="grid gap-1.5 py-2">
-          <Label className="text-xs text-muted-foreground">客戶</Label>
-          <ColorSelect
-            fieldKey="client"
-            value={clientInfo.client}
-            disabled={!canEdit}
-            onValueChange={(v) => update("client", v)}
-            placeholder="選擇客戶"
-          />
+        {/* Left-bottom: 客戶 + 聯絡人 */}
+        <div className="space-y-3">
+          <div className="grid gap-1.5">
+            <Label className="text-xs text-muted-foreground">客戶</Label>
+            <ColorSelect
+              fieldKey="client"
+              value={clientInfo.client}
+              disabled={!canEdit}
+              onValueChange={(v) => update("client", v)}
+              placeholder="選擇客戶"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label className="text-xs text-muted-foreground">聯絡人</Label>
+            <ColorSelect
+              fieldKey="contact"
+              value={clientInfo.contact}
+              disabled={!canEdit}
+              onValueChange={(v) => update("contact", v)}
+              placeholder="選擇聯絡人"
+            />
+          </div>
         </div>
-        <div /> {/* empty cell */}
 
-        <div className="grid gap-1.5 py-2">
-          <Label className="text-xs text-muted-foreground">聯絡人</Label>
-          <ColorSelect
-            fieldKey="contact"
-            value={clientInfo.contact}
-            disabled={!canEdit}
-            onValueChange={(v) => update("contact", v)}
-            placeholder="選擇聯絡人"
-          />
+        {/* Right-bottom: 客戶端案號 + PO */}
+        <div className="space-y-3">
+          <div className="grid gap-1.5">
+            <Label className="text-xs text-muted-foreground">客戶端案號或關鍵字</Label>
+            <Input
+              value={clientInfo.eciKeywords || clientInfo.clientCaseId}
+              onChange={(e) => {
+                update("eciKeywords", e.target.value);
+                update("clientCaseId", e.target.value);
+              }}
+              disabled={!canEdit}
+              placeholder="輸入關鍵字或案號"
+              className="text-sm"
+            />
+          </div>
+          <div className="grid gap-1.5">
+            <Label className="text-xs text-muted-foreground">客戶 PO 編號</Label>
+            <Input
+              value={clientInfo.clientPoNumber}
+              onChange={(e) => update("clientPoNumber", e.target.value)}
+              disabled={!canEdit}
+              placeholder="輸入 PO 編號"
+              className="text-sm"
+            />
+          </div>
         </div>
-        <div /> {/* empty cell */}
       </div>
     </div>
   );

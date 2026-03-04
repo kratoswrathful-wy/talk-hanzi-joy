@@ -333,7 +333,7 @@ export default function TranslatorFees() {
         {isManager && (
           <Button size="sm" className="gap-1.5" onClick={handleCreate}>
             <Plus className="h-4 w-4" />
-            新增稿費
+            新增費用
           </Button>
         )}
       </div>
