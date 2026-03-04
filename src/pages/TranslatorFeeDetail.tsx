@@ -649,11 +649,6 @@ export default function TranslatorFeeDetail() {
     setStatus("draft");
   };
 
-  const handleOpenLinkDialog = () => {
-    setTempUrl(internalNoteUrl);
-    setLinkDialogOpen(true);
-  };
-
   const extractNotionPageId = (url: string): string | null => {
     // Match Notion URLs like: https://www.notion.so/workspace/Page-Title-<32-hex-id>
     // or https://notion.so/<32-hex-id>
