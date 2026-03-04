@@ -1113,6 +1113,58 @@ export default function TranslatorFeeDetail() {
               </div>
             )}
           </div>
+
+          {/* 客戶 + 聯絡人 */}
+          {isManager && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">客戶</Label>
+                <ColorSelect
+                  fieldKey="client"
+                  value={clientInfo.client}
+                  disabled={!canEdit}
+                  onValueChange={(clientName) => {
+                    const updatedInfo = { ...clientInfo, client: clientName };
+                    if (clientName) {
+                      // Auto-fill client task item prices
+                      updatedInfo.clientTaskItems = updatedInfo.clientTaskItems.map(item => {
+                        if (Number(item.clientPrice) !== 0) return item;
+                        const price = defaultPricingStore.getClientPrice(clientName, item.taskType);
+                        return price !== undefined ? { ...item, clientPrice: price } : item;
+                      });
+                      // Auto-fill translator task item prices via tiers
+                      const updatedTaskItems = taskItems.map(item => {
+                        if (Number(item.unitPrice) !== 0) return item;
+                        const cp = defaultPricingStore.getClientPrice(clientName, item.taskType);
+                        if (cp === undefined) return item;
+                        const tp = defaultPricingStore.getTranslatorPrice(cp);
+                        return tp !== undefined ? { ...item, unitPrice: tp } : item;
+                      });
+                      setTaskItems(updatedTaskItems);
+                      if (id) feeStore.updateFee(id, { taskItems: updatedTaskItems });
+                    }
+                    setClientInfo(updatedInfo);
+                    if (id) feeStore.updateFee(id, { clientInfo: updatedInfo });
+                  }}
+                  placeholder="選擇客戶"
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">聯絡人</Label>
+                <ColorSelect
+                  fieldKey="contact"
+                  value={clientInfo.contact}
+                  disabled={!canEdit}
+                  onValueChange={(v) => {
+                    const updated = { ...clientInfo, contact: v };
+                    setClientInfo(updated);
+                    if (id) feeStore.updateFee(id, { clientInfo: updated });
+                  }}
+                  placeholder="選擇聯絡人"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <Separator />
