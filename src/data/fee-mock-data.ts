@@ -91,6 +91,8 @@ export const translatorFees: TranslatorFee[] = [
       { id: "item-4", taskType: "審稿", billingUnit: "小時", unitCount: 8, unitPrice: 500 },
       { id: "item-5", taskType: "LQA", billingUnit: "小時", unitCount: 3, unitPrice: 600 },
     ],
+    notes: [],
+    editLogs: [],
     createdBy: "王小明",
     createdAt: "2026-01-28T09:15:00",
   },
