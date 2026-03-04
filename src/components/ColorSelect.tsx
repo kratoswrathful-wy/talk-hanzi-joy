@@ -25,6 +25,7 @@ interface ColorSelectProps {
   placeholder?: string;
   className?: string;
   triggerClassName?: string;
+  defaultOpen?: boolean;
 }
 
 export default function ColorSelect({
@@ -35,9 +36,10 @@ export default function ColorSelect({
   placeholder = "選擇...",
   className,
   triggerClassName,
+  defaultOpen,
 }: ColorSelectProps) {
   const { options, customColors } = useSelectOptions(fieldKey);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen ?? false);
   const [addingNew, setAddingNew] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);

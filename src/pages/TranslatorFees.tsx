@@ -10,7 +10,8 @@ import { useRowSelection } from "@/hooks/use-row-selection";
 import { useTableViews, fieldMetas } from "@/hooks/use-table-views";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { InlineEditCell } from "@/components/fees/InlineEditCell";
-import { useState, useRef, useCallback } from "react";
+import { useUndoRedo, type UndoEntry } from "@/hooks/use-undo-redo";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-store";
 
@@ -385,6 +386,25 @@ export default function TranslatorFees() {
 
   const totalWidth = orderedCols.reduce((s, c) => s + (activeView.columnWidths[c.key] ?? 100), 0) + 140;
 
+  // Undo/redo
+  const applyUndoEntry = useCallback((entry: UndoEntry, isUndo: boolean) => {
+    const val = isUndo ? entry.oldValue : entry.newValue;
+    const fee = feeStore.getFeeById(entry.feeId);
+    if (!fee) return;
+    if (["client", "clientCaseId", "clientPoNumber", "reconciled", "rateConfirmed", "invoiced"].includes(entry.field)) {
+      const ci = fee.clientInfo || {
+        clientTaskItems: [], sameCase: false, isFirstFee: false, notFirstFee: false,
+        client: "", contact: "", clientCaseId: "", eciKeywords: "", clientPoNumber: "",
+        reconciled: false, rateConfirmed: false, invoiced: false,
+      };
+      feeStore.updateFee(entry.feeId, { clientInfo: { ...ci, [entry.field]: val } });
+    } else {
+      feeStore.updateFee(entry.feeId, { [entry.field]: val });
+    }
+  }, []);
+
+  const undoRedo = useUndoRedo({ onApply: applyUndoEntry });
+
   // Inline edit commit: applies to selected fees if multiple selected, otherwise just the one
   const handleCellCommit = useCallback((feeId: string, field: string, value: string | boolean) => {
     const targetIds = rowSelection.selectedIds.has(feeId) && rowSelection.selectedCount > 1
@@ -394,6 +414,16 @@ export default function TranslatorFees() {
     for (const id of targetIds) {
       const fee = feeStore.getFeeById(id);
       if (!fee) continue;
+
+      // Get old value for undo
+      let oldValue: string | boolean;
+      if (["client", "clientCaseId", "clientPoNumber", "reconciled", "rateConfirmed", "invoiced"].includes(field)) {
+        oldValue = (fee.clientInfo as any)?.[field] ?? (typeof value === "boolean" ? false : "");
+      } else {
+        oldValue = (fee as any)[field] ?? "";
+      }
+
+      undoRedo.push({ feeId: id, field, oldValue, newValue: value });
 
       // Client info fields
       if (["client", "clientCaseId", "clientPoNumber", "reconciled", "rateConfirmed", "invoiced"].includes(field)) {
@@ -407,7 +437,84 @@ export default function TranslatorFees() {
         feeStore.updateFee(id, { [field]: value });
       }
     }
-  }, [rowSelection.selectedIds, rowSelection.selectedCount]);
+  }, [rowSelection.selectedIds, rowSelection.selectedCount, undoRedo]);
+
+  // Marquee (rubber-band) selection
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const [marquee, setMarquee] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null);
+  const marqueeRef = useRef(marquee);
+  marqueeRef.current = marquee;
+  const rowRefsMap = useRef<Map<string, HTMLTableRowElement>>(new Map());
+
+  const registerRowRef = useCallback((id: string, el: HTMLTableRowElement | null) => {
+    if (el) rowRefsMap.current.set(id, el);
+    else rowRefsMap.current.delete(id);
+  }, []);
+
+  useEffect(() => {
+    const container = tableContainerRef.current;
+    if (!container) return;
+
+    let isMarquee = false;
+    let startX = 0, startY = 0;
+
+    const onMouseDown = (e: MouseEvent) => {
+      // Only start marquee on left click, not on interactive elements
+      if (e.button !== 0) return;
+      const target = e.target as HTMLElement;
+      if (target.closest("input, button, [role=checkbox], a, [data-no-marquee]")) return;
+
+      const rect = container.getBoundingClientRect();
+      startX = e.clientX - rect.left + container.scrollLeft;
+      startY = e.clientY - rect.top + container.scrollTop;
+      isMarquee = false;
+
+      const onMouseMove = (ev: MouseEvent) => {
+        const dx = ev.clientX - rect.left + container.scrollLeft;
+        const dy = ev.clientY - rect.top + container.scrollTop;
+        if (!isMarquee && (Math.abs(dx - startX) > 5 || Math.abs(dy - startY) > 5)) {
+          isMarquee = true;
+        }
+        if (isMarquee) {
+          setMarquee({ startX, startY, currentX: dx, currentY: dy });
+        }
+      };
+
+      const onMouseUp = () => {
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        if (isMarquee && marqueeRef.current) {
+          const m = marqueeRef.current;
+          const boxTop = Math.min(m.startY, m.currentY);
+          const boxBottom = Math.max(m.startY, m.currentY);
+
+          // Find rows that intersect with the marquee box
+          const containerRect = container.getBoundingClientRect();
+          const hitIds: string[] = [];
+          rowRefsMap.current.forEach((rowEl, id) => {
+            const rowRect = rowEl.getBoundingClientRect();
+            const rowTop = rowRect.top - containerRect.top + container.scrollTop;
+            const rowBottom = rowTop + rowRect.height;
+            if (rowBottom >= boxTop && rowTop <= boxBottom) {
+              hitIds.push(id);
+            }
+          });
+
+          if (hitIds.length > 0) {
+            rowSelection.setSelectedIds(new Set(hitIds));
+          }
+        }
+        setMarquee(null);
+        isMarquee = false;
+      };
+
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+    };
+
+    container.addEventListener("mousedown", onMouseDown);
+    return () => container.removeEventListener("mousedown", onMouseDown);
+  }, [rowSelection]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
@@ -453,10 +560,24 @@ export default function TranslatorFees() {
       />
 
       <motion.div
+        ref={tableContainerRef}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="rounded-xl border border-border bg-card overflow-x-auto"
+        className="rounded-xl border border-border bg-card overflow-x-auto relative select-none"
+        style={{ userSelect: marquee ? "none" : undefined }}
       >
+        {/* Marquee overlay */}
+        {marquee && (
+          <div
+            className="absolute border border-primary/50 bg-primary/10 pointer-events-none z-20"
+            style={{
+              left: Math.min(marquee.startX, marquee.currentX),
+              top: Math.min(marquee.startY, marquee.currentY),
+              width: Math.abs(marquee.currentX - marquee.startX),
+              height: Math.abs(marquee.currentY - marquee.startY),
+            }}
+          />
+        )}
         <table style={{ minWidth: totalWidth }} className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40">
@@ -520,6 +641,7 @@ export default function TranslatorFees() {
                   isSelected={isSelected}
                   onSelect={rowSelection.handleClick}
                   onCellCommit={handleCellCommit}
+                  registerRowRef={registerRowRef}
                 />
               );
             })}
@@ -539,7 +661,7 @@ export default function TranslatorFees() {
 
 function FeeRow({
   fee, orderedCols, columnWidths, expanded, onToggleExpand, currentRole, isManager,
-  isSelected, onSelect, onCellCommit,
+  isSelected, onSelect, onCellCommit, registerRowRef,
 }: {
   fee: TranslatorFee;
   orderedCols: ColumnDef[];
@@ -551,15 +673,19 @@ function FeeRow({
   isSelected: boolean;
   onSelect: (id: string, e: React.MouseEvent) => void;
   onCellCommit: (feeId: string, field: string, value: string | boolean) => void;
+  registerRowRef: (id: string, el: HTMLTableRowElement | null) => void;
 }) {
   const canEdit = isManager; // Only PM+ can edit in table
 
   return (
     <>
-      <tr className={cn(
-        "border-b border-border transition-colors group",
-        isSelected ? "bg-primary/5" : "hover:bg-secondary/50"
-      )}>
+      <tr
+        ref={(el) => registerRowRef(fee.id, el)}
+        className={cn(
+          "border-b border-border transition-colors group",
+          isSelected ? "bg-primary/5" : "hover:bg-secondary/50"
+        )}
+      >
         <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
           <Checkbox
             checked={isSelected}

@@ -54,6 +54,7 @@ export function useRowSelection(itemIds: string[]) {
 
   return {
     selectedIds,
+    setSelectedIds,
     handleClick,
     selectAll,
     deselectAll,
