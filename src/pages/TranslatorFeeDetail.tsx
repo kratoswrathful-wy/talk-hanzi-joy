@@ -701,7 +701,7 @@ export default function TranslatorFeeDetail() {
       // 案件編號 > 相關案件文字
       if (caseId) {
         setInternalNote(caseId);
-        if (id) feeStore.updateFee(id, { internalNote: caseId, internalNoteUrl: url });
+        if (id) feeStore.updateFee(id, { internalNote: caseId });
       }
 
       // 工作類型 > 任務項目 + 計費單位數 > 第一項
