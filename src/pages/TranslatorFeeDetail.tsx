@@ -449,9 +449,10 @@ export default function TranslatorFeeDetail() {
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
   const snapshotRef = useRef<{ taskItems: FeeTaskItem[]; title: string; assignee: string; internalNote: string } | null>(null);
   const hasBeenSubmittedRef = useRef(feeData?.status === "finalized");
-  const [duplicateDialogStep, setDuplicateDialogStep] = useState<null | "choose" | "confirmSwap">(null);
+  const [duplicateDialogStep, setDuplicateDialogStep] = useState<null | "choose" | "assignRole" | "confirmSwap">(null);
   const [disableOption12A, setDisableOption12A] = useState(false);
   const [swapResolved, setSwapResolved] = useState(false);
+  const confirmSwapOriginRef = useRef<"choose" | "assignRole">("choose");
 
   // Find the other fee that is firstFee in the same case group
   const otherFirstFee = (() => {
@@ -467,6 +468,12 @@ export default function TranslatorFeeDetail() {
 
   // Detect duplicate isFirstFee in the same case group
   const hasDuplicateFirstFee = clientInfo.sameCase && clientInfo.isFirstFee && !!otherFirstFee;
+
+  // Detect sameCase checked but no role assigned (neither isFirstFee nor notFirstFee)
+  const needsRoleAssignment = clientInfo.sameCase && !clientInfo.isFirstFee && !clientInfo.notFirstFee;
+
+  // Combined blocking condition
+  const isNavigationBlocked = hasDuplicateFirstFee || needsRoleAssignment;
 
   // Show warning on mount if duplicate detected (but not after a successful swap)
   useEffect(() => {
@@ -789,14 +796,19 @@ export default function TranslatorFeeDetail() {
 
       {/* Sticky top bar */}
       <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border -mx-4 px-4 py-3 flex items-center justify-between gap-4">
-        {hasDuplicateFirstFee ? (
+        {isNavigationBlocked ? (
           <button
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-not-allowed"
             onClick={(e) => {
               e.preventDefault();
-              toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容再離開此頁面");
-              setDisableOption12A(false);
-              setDuplicateDialogStep("choose");
+              if (needsRoleAssignment) {
+                toast.error("請將本頁面指定為相關案件的主要或非主要營收紀錄。");
+                setDuplicateDialogStep("assignRole");
+              } else {
+                toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容再離開此頁面");
+                setDisableOption12A(false);
+                setDuplicateDialogStep("choose");
+              }
             }}
           >
             <ArrowLeft className="h-4 w-4" />
@@ -834,10 +846,15 @@ export default function TranslatorFeeDetail() {
                 size="sm"
                 className="text-xs"
                 onClick={() => {
-                  if (hasDuplicateFirstFee) {
-                    toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
-                    setDisableOption12A(false);
-                    setDuplicateDialogStep("choose");
+                  if (isNavigationBlocked) {
+                    if (needsRoleAssignment) {
+                      toast.error("請將本頁面指定為相關案件的主要或非主要營收紀錄。");
+                      setDuplicateDialogStep("assignRole");
+                    } else {
+                      toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
+                      setDisableOption12A(false);
+                      setDuplicateDialogStep("choose");
+                    }
                     return;
                   }
                   // Clone current fee with incrementing copy count
@@ -862,10 +879,15 @@ export default function TranslatorFeeDetail() {
                 size="sm"
                 className="text-xs"
                 onClick={() => {
-                  if (hasDuplicateFirstFee) {
-                    toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
-                    setDisableOption12A(false);
-                    setDuplicateDialogStep("choose");
+                  if (isNavigationBlocked) {
+                    if (needsRoleAssignment) {
+                      toast.error("請將本頁面指定為相關案件的主要或非主要營收紀錄。");
+                      setDuplicateDialogStep("assignRole");
+                    } else {
+                      toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
+                      setDisableOption12A(false);
+                      setDuplicateDialogStep("choose");
+                    }
                     return;
                   }
                   const draft = feeStore.createDraft();
@@ -1325,7 +1347,7 @@ export default function TranslatorFeeDetail() {
             <Button
               variant="outline"
               disabled={disableOption12A}
-              onClick={() => setDuplicateDialogStep("confirmSwap")}
+              onClick={() => { confirmSwapOriginRef.current = "choose"; setDuplicateDialogStep("confirmSwap"); }}
             >
               將本頁設為主要營收紀錄
             </Button>
@@ -1358,7 +1380,7 @@ export default function TranslatorFeeDetail() {
           <AlertDialogFooter>
             <Button variant="outline" onClick={() => {
               setDisableOption12A(true);
-              setDuplicateDialogStep("choose");
+              setDuplicateDialogStep(confirmSwapOriginRef.current);
             }}>
               否
             </Button>
@@ -1378,6 +1400,49 @@ export default function TranslatorFeeDetail() {
               toast.success("已將本頁設為主要營收紀錄");
             }}>
               是
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Assign Role Dialog — sameCase checked but no role selected */}
+      <AlertDialog open={duplicateDialogStep === "assignRole"} onOpenChange={() => {}}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>請指定營收紀錄角色</AlertDialogTitle>
+            <AlertDialogDescription>
+              請將本頁面指定為相關案件的主要或非主要營收紀錄。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (otherFirstFee) {
+                  // There's already a primary — need to go through confirmSwap
+                  confirmSwapOriginRef.current = "assignRole";
+                  setDuplicateDialogStep("confirmSwap");
+                } else {
+                  const updated = { ...clientInfo, isFirstFee: true, notFirstFee: false };
+                  setClientInfo(updated);
+                  if (id) feeStore.updateFee(id, { clientInfo: updated });
+                  setDuplicateDialogStep(null);
+                  toast.success("已將本頁設為主要營收紀錄");
+                }
+              }}
+            >
+              將本頁設為主要營收紀錄
+            </Button>
+            <Button
+              onClick={() => {
+                const updated = { ...clientInfo, isFirstFee: false, notFirstFee: true };
+                setClientInfo(updated);
+                if (id) feeStore.updateFee(id, { clientInfo: updated });
+                setDuplicateDialogStep(null);
+                toast.success("已將本頁設為非主要營收紀錄");
+              }}
+            >
+              將本頁設為非主要營收紀錄
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
