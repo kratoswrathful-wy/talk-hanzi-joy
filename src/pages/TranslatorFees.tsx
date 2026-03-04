@@ -560,10 +560,24 @@ export default function TranslatorFees() {
       />
 
       <motion.div
+        ref={tableContainerRef}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="rounded-xl border border-border bg-card overflow-x-auto"
+        className="rounded-xl border border-border bg-card overflow-x-auto relative select-none"
+        style={{ userSelect: marquee ? "none" : undefined }}
       >
+        {/* Marquee overlay */}
+        {marquee && (
+          <div
+            className="absolute border border-primary/50 bg-primary/10 pointer-events-none z-20"
+            style={{
+              left: Math.min(marquee.startX, marquee.currentX),
+              top: Math.min(marquee.startY, marquee.currentY),
+              width: Math.abs(marquee.currentX - marquee.startX),
+              height: Math.abs(marquee.currentY - marquee.startY),
+            }}
+          />
+        )}
         <table style={{ minWidth: totalWidth }} className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40">
