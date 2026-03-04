@@ -36,6 +36,7 @@ export default function ColorSelect({
   placeholder = "選擇...",
   className,
   triggerClassName,
+  defaultOpen,
 }: ColorSelectProps) {
   const { options, customColors } = useSelectOptions(fieldKey);
   const [open, setOpen] = useState(defaultOpen ?? false);
