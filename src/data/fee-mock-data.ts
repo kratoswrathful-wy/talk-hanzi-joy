@@ -72,6 +72,7 @@ export interface TranslatorFee {
   assignee: string;
   status: FeeStatus;
   internalNote: string;
+  internalNoteUrl?: string;
   taskItems: FeeTaskItem[];
   clientInfo?: ClientInfo;
   notes: Note[];
