@@ -152,11 +152,12 @@ export function useTableViews(currentRole?: string) {
       id: `view-${Date.now()}`,
       name,
       isDefault: false,
+      createdByRole: currentRole,
     };
     setViews((prev) => [...prev, newView]);
     setActiveViewId(newView.id);
     return newView.id;
-  }, []);
+  }, [currentRole]);
 
   const deleteView = useCallback((viewId: string) => {
     if (viewId === "default") return;
