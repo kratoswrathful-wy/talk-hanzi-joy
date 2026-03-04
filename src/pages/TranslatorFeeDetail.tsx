@@ -40,7 +40,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 type UserRole = "assignee" | "pm" | "executive";
 const roleLabels: Record<UserRole, string> = {
@@ -51,6 +51,31 @@ const roleLabels: Record<UserRole, string> = {
 
 const taskTypeOptions: TaskType[] = ["翻譯", "審稿", "MTPE", "LQA"];
 const billingUnitOptions: BillingUnit[] = ["字", "小時"];
+
+interface EditLogEntry {
+  id: string;
+  timestamp: string;
+  description: string;
+}
+
+interface PendingChange {
+  field: string;
+  oldValue: string;
+  newValue: string;
+  changedAt: number; // Date.now()
+}
+
+const COMMIT_DELAY_MS = 5 * 60 * 1000; // 5 minutes
+
+const fieldLabels: Record<string, string> = {
+  taskType: "任務類型",
+  billingUnit: "計費單位",
+  unitPrice: "單價",
+  unitCount: "計費單位數",
+  title: "標題",
+  assignee: "開單對象",
+  internalNote: "關聯內部紀錄",
+};
 
 export default function TranslatorFeeDetail() {
   const { id } = useParams();
@@ -65,6 +90,55 @@ export default function TranslatorFeeDetail() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [tempUrl, setTempUrl] = useState("");
   const [currentRole, setCurrentRole] = useState<UserRole>("pm");
+
+  // Edit history tracking
+  const [editLog, setEditLog] = useState<EditLogEntry[]>([]);
+  const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
+  const snapshotRef = useRef<{ taskItems: FeeTaskItem[]; title: string; assignee: string; internalNote: string } | null>(null);
+  const hasBeenSubmittedRef = useRef(feeData?.status === "finalized");
+
+  // Commit pending changes that have persisted for 5+ minutes
+  useEffect(() => {
+    if (pendingChanges.length === 0) return;
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const ready = pendingChanges.filter((c) => now - c.changedAt >= COMMIT_DELAY_MS);
+      if (ready.length > 0) {
+        setEditLog((prev) => [
+          ...prev,
+          ...ready.map((c) => ({
+            id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            timestamp: new Date().toLocaleString("zh-TW"),
+            description: `${c.field} ${c.oldValue} → ${c.newValue}`,
+          })),
+        ]);
+        setPendingChanges((prev) => prev.filter((c) => !ready.includes(c)));
+        // Update snapshot to reflect committed values
+        snapshotRef.current = {
+          taskItems: [...taskItems],
+          title: feeData?.title ?? "",
+          assignee: feeData?.assignee ?? "",
+          internalNote,
+        };
+      }
+    }, 10000); // check every 10 seconds
+    return () => clearInterval(timer);
+  }, [pendingChanges, taskItems, internalNote, feeData]);
+
+  const trackChange = useCallback((field: string, oldValue: string | number, newValue: string | number) => {
+    if (!hasBeenSubmittedRef.current || String(oldValue) === String(newValue)) return;
+    setPendingChanges((prev) => {
+      const existing = prev.find((c) => c.field === field);
+      if (existing) {
+        // If reverted to original, remove the pending change
+        if (String(existing.oldValue) === String(newValue)) {
+          return prev.filter((c) => c.field !== field);
+        }
+        return prev.map((c) => c.field === field ? { ...c, newValue: String(newValue), changedAt: Date.now() } : c);
+      }
+      return [...prev, { field, oldValue: String(oldValue), newValue: String(newValue), changedAt: Date.now() }];
+    });
+  }, []);
 
   if (!feeData) {
     return (
@@ -104,13 +178,21 @@ export default function TranslatorFeeDetail() {
     );
   }
 
-  // Role-based permissions
-  const canEdit = currentRole === "pm" && isDraft;
-  const canSubmit = currentRole === "pm" && isDraft;
-  const canRecall = currentRole === "pm" && isFinalized;
-  const canDelete = currentRole === "pm" && isDraft;
+  // Role-based permissions — executive has same permissions as PM for now
+  const isManager = currentRole === "pm" || currentRole === "executive";
+  const canEdit = isManager && isDraft;
+  const canSubmit = isManager && isDraft;
+  const canRecall = isManager && isFinalized;
+  const canDelete = isManager && isDraft;
 
   const handleUpdateItem = (itemId: string, field: keyof FeeTaskItem, value: any) => {
+    if (hasBeenSubmittedRef.current && field !== "id") {
+      const oldItem = (snapshotRef.current?.taskItems ?? taskItems).find((i) => i.id === itemId);
+      if (oldItem) {
+        const label = `${fieldLabels[field] ?? field}（項目 ${itemId.slice(-3)}）`;
+        trackChange(label, oldItem[field], value);
+      }
+    }
     setTaskItems((prev) =>
       prev.map((item) => (item.id === itemId ? { ...item, [field]: value } : item))
     );
@@ -127,20 +209,45 @@ export default function TranslatorFeeDetail() {
         unitPrice: 0,
       },
     ]);
+    if (hasBeenSubmittedRef.current) {
+      setPendingChanges((prev) => [
+        ...prev,
+        { field: "新增任務項目", oldValue: "-", newValue: "新項目已新增", changedAt: Date.now() },
+      ]);
+    }
   };
 
   const handleRemoveItem = (itemId: string) => {
+    if (hasBeenSubmittedRef.current) {
+      const removedItem = taskItems.find((i) => i.id === itemId);
+      if (removedItem) {
+        setPendingChanges((prev) => [
+          ...prev,
+          { field: "刪除任務項目", oldValue: `${removedItem.taskType}`, newValue: "已刪除", changedAt: Date.now() },
+        ]);
+      }
+    }
     setTaskItems((prev) => prev.filter((i) => i.id !== itemId));
   };
 
   const handleNumberBlur = (itemId: string, field: "unitPrice" | "unitCount", rawValue: string) => {
-    let cleaned = rawValue.replace(/^0+(\d)/, "$1"); // remove leading zeros
-    if (cleaned.startsWith(".")) cleaned = "0" + cleaned; // .xxx → 0.xxx
+    let cleaned = rawValue.replace(/^0+(\d)/, "$1");
+    if (cleaned.startsWith(".")) cleaned = "0" + cleaned;
     if (cleaned === "" || cleaned === "0.") cleaned = "0";
     handleUpdateItem(itemId, field, Number(cleaned));
   };
 
   const handleSubmit = () => {
+    // Take snapshot on first submit
+    if (!hasBeenSubmittedRef.current) {
+      snapshotRef.current = {
+        taskItems: [...taskItems],
+        title: feeData.title,
+        assignee: feeData.assignee,
+        internalNote,
+      };
+      hasBeenSubmittedRef.current = true;
+    }
     setStatus("finalized");
   };
 
@@ -455,6 +562,31 @@ export default function TranslatorFeeDetail() {
           <span>建立者：{feeData.createdBy}</span>
           <span>建立時間：{formattedDate}</span>
         </div>
+
+        {/* Edit History */}
+        {(editLog.length > 0 || pendingChanges.length > 0) && (
+          <>
+            <Separator />
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">編輯紀錄</Label>
+              <div className="space-y-1.5">
+                {editLog.map((entry) => (
+                  <div key={entry.id} className="flex items-start gap-2 text-xs">
+                    <span className="text-muted-foreground shrink-0">{entry.timestamp}</span>
+                    <span>{entry.description}</span>
+                  </div>
+                ))}
+                {pendingChanges.map((change, idx) => (
+                  <div key={`pending-${idx}`} className="flex items-start gap-2 text-xs text-muted-foreground/60 italic">
+                    <span className="shrink-0">待確認</span>
+                    <span>{change.field} {change.oldValue} → {change.newValue}</span>
+                    <span className="text-[10px]">（變更未滿 5 分鐘）</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </motion.div>
 
       {/* Link Dialog */}
