@@ -466,7 +466,7 @@ export default function TranslatorFeeDetail() {
           // Sync to store
           if (id) {
             feeStore.updateFee(id, {
-              editLogs: updated.map((e) => ({ id: e.id, action: e.description, author: e.changedBy, createdAt: e.timestamp })),
+              editLogs: updated.map((e) => ({ id: e.id, field: "", oldValue: "", newValue: e.description, author: e.changedBy, timestamp: e.timestamp })),
             });
           }
           return updated;
