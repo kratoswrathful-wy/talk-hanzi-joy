@@ -656,6 +656,7 @@ export default function TranslatorFeeDetail() {
     if (!url) return;
 
     setInternalNoteUrl(url);
+    if (id) feeStore.updateFee(id, { internalNoteUrl: url });
 
     // Check if it's a database URL (contains ?v=)
     if (url.includes("notion.so") && url.includes("?v=")) {
