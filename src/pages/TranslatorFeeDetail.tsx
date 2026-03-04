@@ -1158,6 +1158,10 @@ export default function TranslatorFeeDetail() {
                 allFees={allFees}
                 currentFeeId={id ?? ""}
                 currentInternalNote={internalNote}
+                onFirstFeeConflict={() => {
+                  setDisableOption12A(false);
+                  setDuplicateDialogStep("choose");
+                }}
               />
             </div>
           </>
