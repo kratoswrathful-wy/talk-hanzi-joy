@@ -24,6 +24,8 @@ export interface TableView {
   sorts: TableSort[];
   columnOrder: string[];
   columnWidths: Record<string, number>;
+  /** Role that created this view; undefined for default view */
+  createdByRole?: string;
 }
 
 export interface FieldMeta {
@@ -128,11 +130,17 @@ function createDefaultView(): TableView {
   };
 }
 
-export function useTableViews() {
+export function useTableViews(currentRole?: string) {
   const [views, setViews] = useState<TableView[]>(() => [createDefaultView()]);
   const [activeViewId, setActiveViewId] = useState("default");
 
-  const activeView = useMemo(() => views.find((v) => v.id === activeViewId) || views[0], [views, activeViewId]);
+  /** Views visible to current role: default + views created by this role */
+  const visibleViews = useMemo(() =>
+    views.filter((v) => v.isDefault || v.createdByRole === currentRole),
+    [views, currentRole]
+  );
+
+  const activeView = useMemo(() => visibleViews.find((v) => v.id === activeViewId) || visibleViews[0], [visibleViews, activeViewId]);
 
   const updateView = useCallback((viewId: string, updates: Partial<TableView>) => {
     setViews((prev) => prev.map((v) => v.id === viewId ? { ...v, ...updates } : v));
@@ -144,11 +152,12 @@ export function useTableViews() {
       id: `view-${Date.now()}`,
       name,
       isDefault: false,
+      createdByRole: currentRole,
     };
     setViews((prev) => [...prev, newView]);
     setActiveViewId(newView.id);
     return newView.id;
-  }, []);
+  }, [currentRole]);
 
   const deleteView = useCallback((viewId: string) => {
     if (viewId === "default") return;
@@ -211,10 +220,21 @@ export function useTableViews() {
     return result;
   }, [activeView]);
 
+  // Auto-correct activeViewId when switching roles makes current view invisible
+  const safeActiveViewId = useMemo(() => {
+    if (visibleViews.some((v) => v.id === activeViewId)) return activeViewId;
+    return "default";
+  }, [visibleViews, activeViewId]);
+
+  // Sync state if corrected
+  if (safeActiveViewId !== activeViewId) {
+    setActiveViewId(safeActiveViewId);
+  }
+
   return {
-    views,
+    views: visibleViews,
     activeView,
-    activeViewId,
+    activeViewId: safeActiveViewId,
     setActiveViewId,
     addView,
     deleteView,
