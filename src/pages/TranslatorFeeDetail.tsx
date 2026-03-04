@@ -449,6 +449,26 @@ export default function TranslatorFeeDetail() {
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
   const snapshotRef = useRef<{ taskItems: FeeTaskItem[]; title: string; assignee: string; internalNote: string } | null>(null);
   const hasBeenSubmittedRef = useRef(feeData?.status === "finalized");
+  const [duplicateFirstFeeWarning, setDuplicateFirstFeeWarning] = useState(false);
+
+  // Detect duplicate isFirstFee in the same case group
+  const hasDuplicateFirstFee = (() => {
+    if (!clientInfo.sameCase || !clientInfo.isFirstFee || !internalNote) return false;
+    return allFees.some(
+      (f) =>
+        f.id !== id &&
+        f.clientInfo?.sameCase &&
+        f.clientInfo?.isFirstFee &&
+        f.internalNote === internalNote
+    );
+  })();
+
+  // Show warning on mount if duplicate detected
+  useEffect(() => {
+    if (hasDuplicateFirstFee) {
+      setDuplicateFirstFeeWarning(true);
+    }
+  }, [hasDuplicateFirstFee]);
 
   // Commit pending changes that have persisted for 5+ minutes
   useEffect(() => {
