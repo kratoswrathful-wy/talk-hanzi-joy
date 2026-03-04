@@ -1036,6 +1036,25 @@ export default function TranslatorFeeDetail() {
           </div>
         </div>
 
+        {/* Client Info Section — PM+ only */}
+        {isManager && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">客戶資訊</Label>
+              <ClientInfoSection
+                clientInfo={clientInfo}
+                onChange={(info) => {
+                  setClientInfo(info);
+                  if (id) feeStore.updateFee(id, { clientInfo: info });
+                }}
+                canEdit={canEdit}
+                translatorTotal={totalAmount}
+              />
+            </div>
+          </>
+        )}
+
         <Separator />
 
         {/* Meta info */}
