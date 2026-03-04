@@ -514,7 +514,7 @@ function NotesPanel({ fee }: { fee: TranslatorFee }) {
           {fee.notes.map((n) => (
             <li key={n.id} className="text-sm flex items-baseline gap-2">
               <span className="font-medium text-card-foreground">{n.author}</span>
-              <span className="text-muted-foreground">{n.content}</span>
+              <span className="text-muted-foreground">{n.text}</span>
               <span className="text-xs text-muted-foreground/60 ml-auto whitespace-nowrap">{formatDate(n.createdAt)}</span>
             </li>
           ))}
