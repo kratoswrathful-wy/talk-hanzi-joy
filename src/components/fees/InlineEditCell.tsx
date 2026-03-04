@@ -2,19 +2,22 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import ColorSelect from "@/components/ColorSelect";
 import { cn } from "@/lib/utils";
 
 interface Props {
   value: string | boolean;
-  type: "text" | "select" | "checkbox";
+  type: "text" | "select" | "checkbox" | "colorSelect";
   options?: { value: string; label: string }[];
+  /** For colorSelect type: the field key in selectOptionsStore */
+  fieldKey?: string;
   editable: boolean;
   onCommit: (newValue: string | boolean) => void;
   className?: string;
   children: React.ReactNode;
 }
 
-export function InlineEditCell({ value, type, options, editable, onCommit, className, children }: Props) {
+export function InlineEditCell({ value, type, options, fieldKey, editable, onCommit, className, children }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value));
   const inputRef = useRef<HTMLInputElement>(null);
@@ -79,6 +82,19 @@ export function InlineEditCell({ value, type, options, editable, onCommit, class
           ))}
         </SelectContent>
       </Select>
+    );
+  }
+
+  if (editing && type === "colorSelect" && fieldKey) {
+    return (
+      <div onClick={(e) => e.stopPropagation()}>
+        <ColorSelect
+          fieldKey={fieldKey}
+          value={String(value)}
+          onValueChange={(v) => { onCommit(v); setEditing(false); }}
+          triggerClassName="h-7 text-xs"
+        />
+      </div>
     );
   }
 
