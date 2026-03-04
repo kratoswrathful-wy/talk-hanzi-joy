@@ -905,7 +905,7 @@ export default function TranslatorFeeDetail() {
                       setInternalNote("");
                       setInternalNoteUrl("");
                       setNotionUrlInput("");
-                      if (id) feeStore.updateFee(id, { internalNote: "", internalNoteUrl: "" });
+                      if (id) feeStore.updateFee(id, { internalNote: "" });
                     }}
                     title="清除"
                   >
