@@ -10,13 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import ColorSelect from "@/components/ColorSelect";
 import {
   Table,
   TableBody,
@@ -48,7 +42,6 @@ const roleLabels: Record<UserRole, string> = {
 };
 
 const taskTypeOptions: TaskType[] = ["翻譯", "審稿", "MTPE", "LQA"];
-const billingUnitOptions: BillingUnit[] = ["字", "小時"];
 
 interface EditLogEntry {
   id: string;
@@ -816,21 +809,17 @@ export default function TranslatorFeeDetail() {
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label className="text-xs text-muted-foreground">開單對象</Label>
-              <Select value={assignee} disabled={!canEdit} onValueChange={(v) => {
-                trackChange("開單對象", assignee, v);
-                setAssignee(v);
-                if (id) feeStore.updateFee(id, { assignee: v });
-              }}>
-                <SelectTrigger className="bg-secondary/50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="王小明">王小明</SelectItem>
-                  <SelectItem value="李美玲">李美玲</SelectItem>
-                  <SelectItem value="張大偉">張大偉</SelectItem>
-                  <SelectItem value="陳雅婷">陳雅婷</SelectItem>
-                </SelectContent>
-              </Select>
+              <ColorSelect
+                fieldKey="assignee"
+                value={assignee}
+                disabled={!canEdit}
+                onValueChange={(v) => {
+                  trackChange("開單對象", assignee, v);
+                  setAssignee(v);
+                  if (id) feeStore.updateFee(id, { assignee: v });
+                }}
+                placeholder="選擇開單對象"
+              />
             </div>
             <div className="grid gap-1.5">
               <Label className="text-xs text-muted-foreground">狀態</Label>
@@ -960,36 +949,22 @@ export default function TranslatorFeeDetail() {
                   taskItems.map((item, index) => (
                     <TableRow key={item.id}>
                       <TableCell>
-                        <Select
+                        <ColorSelect
+                          fieldKey="taskType"
                           value={item.taskType}
                           disabled={!canEdit}
                           onValueChange={(v) => handleUpdateItem(item.id, "taskType", v)}
-                        >
-                          <SelectTrigger className="h-8 text-xs bg-transparent border-0 shadow-none px-0">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {taskTypeOptions.map((t) => (
-                              <SelectItem key={t} value={t}>{t}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0"
+                        />
                       </TableCell>
                       <TableCell>
-                        <Select
+                        <ColorSelect
+                          fieldKey="billingUnit"
                           value={item.billingUnit}
                           disabled={!canEdit}
                           onValueChange={(v) => handleUpdateItem(item.id, "billingUnit", v)}
-                        >
-                          <SelectTrigger className="h-8 text-xs bg-transparent border-0 shadow-none px-0">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {billingUnitOptions.map((u) => (
-                              <SelectItem key={u} value={u}>{u}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0"
+                        />
                       </TableCell>
                       <TableCell>
                         <Input

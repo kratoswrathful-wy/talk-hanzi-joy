@@ -6,13 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import ColorSelect from "@/components/ColorSelect";
 import {
   Table,
   TableBody,
@@ -27,7 +21,6 @@ import { type TaskType, type BillingUnit, type FeeTaskItem } from "@/data/fee-mo
 import { toast } from "sonner";
 
 const taskTypeOptions: TaskType[] = ["翻譯", "審稿", "MTPE", "LQA"];
-const billingUnitOptions: BillingUnit[] = ["字", "小時"];
 
 export default function NewTranslatorFee() {
   const [searchParams] = useSearchParams();
@@ -256,34 +249,20 @@ export default function NewTranslatorFee() {
                 {taskItems.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>
-                      <Select
+                      <ColorSelect
+                        fieldKey="taskType"
                         value={item.taskType}
                         onValueChange={(v) => updateItem(item.id, "taskType", v)}
-                      >
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {taskTypeOptions.map((t) => (
-                            <SelectItem key={t} value={t}>{t}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        triggerClassName="h-8 text-xs"
+                      />
                     </TableCell>
                     <TableCell>
-                      <Select
+                      <ColorSelect
+                        fieldKey="billingUnit"
                         value={item.billingUnit}
                         onValueChange={(v) => updateItem(item.id, "billingUnit", v)}
-                      >
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {billingUnitOptions.map((u) => (
-                            <SelectItem key={u} value={u}>{u}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        triggerClassName="h-8 text-xs"
+                      />
                     </TableCell>
                     <TableCell className="text-right">
                       <Input
