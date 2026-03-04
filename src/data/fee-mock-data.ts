@@ -10,6 +10,48 @@ export interface FeeTaskItem {
   unitPrice: number;
 }
 
+export interface ClientTaskItem {
+  id: string;
+  taskType: TaskType;
+  billingUnit: BillingUnit;
+  unitCount: number;
+  clientPrice: number;
+}
+
+export interface ClientInfo {
+  clientTaskItems: ClientTaskItem[];
+  sameCase: boolean;        // 與他筆費用為同一案件
+  isFirstFee: boolean;      // 為首筆費用
+  notFirstFee: boolean;     // 非首筆費用
+  client: string;           // 客戶
+  contact: string;          // 聯絡人
+  clientCaseId: string;     // 客戶端案號或關鍵字
+  eciKeywords: string;      // ECI Keywords
+  hdPath: string;           // 硬碟路徑
+  clientPoNumber: string;   // 客戶PO編號
+  reconciled: boolean;      // 對帳完成
+  rateConfirmed: boolean;   // 費率無誤
+  invoiced: boolean;        // 請款完成
+}
+
+export const defaultClientInfo: ClientInfo = {
+  clientTaskItems: [
+    { id: "ci-1", taskType: "翻譯", billingUnit: "字", unitCount: 0, clientPrice: 0 },
+  ],
+  sameCase: false,
+  isFirstFee: true,
+  notFirstFee: false,
+  client: "",
+  contact: "",
+  clientCaseId: "",
+  eciKeywords: "",
+  hdPath: "",
+  clientPoNumber: "",
+  reconciled: false,
+  rateConfirmed: false,
+  invoiced: false,
+};
+
 export interface FeeNote {
   id: string;
   content: string;
@@ -32,6 +74,7 @@ export interface TranslatorFee {
   internalNote: string;
   internalNoteUrl?: string;
   taskItems: FeeTaskItem[];
+  clientInfo?: ClientInfo;
   notes: FeeNote[];
   editLogs: FeeEditLog[];
   createdBy: string;
