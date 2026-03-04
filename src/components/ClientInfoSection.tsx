@@ -355,7 +355,7 @@ export default function ClientInfoSection({
                         {f.title || "（未命名）"}
                       </span>
                       <span className="text-muted-foreground shrink-0 ml-2">
-                        {f.clientInfo?.isFirstFee ? "首筆" : f.clientInfo?.notFirstFee ? "非首筆" : "—"}
+                        {f.clientInfo?.isFirstFee ? "主要" : f.clientInfo?.notFirstFee ? "非主要" : "—"}
                       </span>
                     </Link>
                   ))}
