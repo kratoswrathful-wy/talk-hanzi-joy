@@ -834,8 +834,9 @@ export default function TranslatorFeeDetail() {
                 className="text-xs"
                 onClick={() => {
                   if (hasDuplicateFirstFee) {
-                    toast.error("同一案件中有多個「為首筆費用」，請先更改勾選內容");
-                    setDuplicateFirstFeeWarning(true);
+                    toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
+                    setDisableOption12A(false);
+                    setDuplicateDialogStep("choose");
                     return;
                   }
                   // Clone current fee with incrementing copy count
