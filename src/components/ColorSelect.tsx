@@ -1,11 +1,10 @@
 import { useState, useRef, useEffect } from "react";
-import { MoreHorizontal, Plus, Trash2, Palette, Check, Pencil, X, DollarSign } from "lucide-react";
+import { MoreHorizontal, Plus, Trash2, Palette, Check, Pencil, X, Search } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useSelectOptions, selectOptionsStore, type SelectOption, PRESET_COLORS } from "@/stores/select-options-store";
-import { defaultPricingStore } from "@/stores/default-pricing-store";
 import ColorPicker from "@/components/ColorPicker";
 import {
   AlertDialog,
@@ -29,11 +28,6 @@ interface ColorSelectProps {
   defaultOpen?: boolean;
 }
 
-const PRICING_FIELD_MAP: Record<string, { pricingKey: "assignee" | "client"; label: string }> = {
-  assignee: { pricingKey: "assignee", label: "預設單價" },
-  client: { pricingKey: "client", label: "預設報價" },
-};
-
 export default function ColorSelect({
   fieldKey,
   value,
@@ -54,13 +48,10 @@ export default function ColorSelect({
   const [renamingOptionId, setRenamingOptionId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
-  const [pricingOptionId, setPricingOptionId] = useState<string | null>(null);
-  const [pricingValue, setPricingValue] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const newInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
-  const pricingInputRef = useRef<HTMLInputElement>(null);
-
-  const pricingConfig = PRICING_FIELD_MAP[fieldKey];
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (addingNew) newInputRef.current?.focus();
@@ -70,16 +61,26 @@ export default function ColorSelect({
     if (renamingOptionId) renameInputRef.current?.focus();
   }, [renamingOptionId]);
 
+  // Focus search on open
   useEffect(() => {
-    if (pricingOptionId) pricingInputRef.current?.focus();
-  }, [pricingOptionId]);
+    if (open) {
+      setSearchQuery("");
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+    }
+  }, [open]);
 
   const selectedOption = options.find((o) => o.label === value);
+
+  // Filter options by search query
+  const filteredOptions = searchQuery.trim()
+    ? options.filter((o) => o.label.toLowerCase().includes(searchQuery.toLowerCase()))
+    : options;
 
   const handleSelect = (opt: SelectOption) => {
     onValueChange(opt.label);
     setOpen(false);
     setAddingNew(false);
+    setSearchQuery("");
   };
 
   const handleAdd = () => {
@@ -92,6 +93,7 @@ export default function ColorSelect({
     setNewColor(PRESET_COLORS[0]);
     setAddingNew(false);
     setOpen(false);
+    setSearchQuery("");
   };
 
   const handleDelete = (optId: string) => {
@@ -110,15 +112,6 @@ export default function ColorSelect({
     selectOptionsStore.renameOption(fieldKey, optId, trimmed);
     if (opt && opt.label === value) onValueChange(trimmed);
     setRenamingOptionId(null);
-    setMenuOpenId(null);
-  };
-
-  const handleSavePricing = (optLabel: string) => {
-    if (!pricingConfig) return;
-    const num = Number(pricingValue);
-    if (isNaN(num) || num < 0) return;
-    defaultPricingStore.setPrice(pricingConfig.pricingKey, optLabel, num);
-    setPricingOptionId(null);
     setMenuOpenId(null);
   };
 
@@ -162,9 +155,32 @@ export default function ColorSelect({
           sideOffset={4}
         >
           <div className="flex flex-col">
+            {/* Search input */}
+            <div className="px-2 pt-2 pb-1">
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md border border-input bg-background">
+                <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="搜尋..."
+                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                />
+                {searchQuery && (
+                  <button
+                    className="shrink-0"
+                    onClick={() => setSearchQuery("")}
+                  >
+                    <X className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Options list - max 15 visible */}
             <div className="max-h-[330px] overflow-y-auto p-1">
-              {options.map((opt) => (
+              {filteredOptions.map((opt) => (
                 <div key={opt.id} className="relative group">
                   <button
                     className={cn(
@@ -207,7 +223,6 @@ export default function ColorSelect({
                       setMenuOpenId(v ? opt.id : null);
                       setColorPickerOptionId(null);
                       setRenamingOptionId(null);
-                      setPricingOptionId(null);
                     }}
                   >
                     <PopoverTrigger asChild>
@@ -260,34 +275,6 @@ export default function ColorSelect({
                             </Button>
                           </div>
                         </div>
-                      ) : pricingOptionId === opt.id && pricingConfig ? (
-                        <div className="p-3 space-y-2">
-                          <p className="text-xs text-muted-foreground">{pricingConfig.label}</p>
-                          <Input
-                            ref={pricingInputRef}
-                            type="text"
-                            inputMode="decimal"
-                            value={pricingValue}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              if (/^[0-9]*\.?[0-9]*$/.test(v)) setPricingValue(v);
-                            }}
-                            className="h-8 text-sm"
-                            placeholder="輸入預設價格"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") handleSavePricing(opt.label);
-                              if (e.key === "Escape") setPricingOptionId(null);
-                            }}
-                          />
-                          <div className="flex gap-1.5 justify-end">
-                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setPricingOptionId(null)}>
-                              取消
-                            </Button>
-                            <Button size="sm" className="h-7 text-xs" disabled={!pricingValue.trim()} onClick={() => handleSavePricing(opt.label)}>
-                              儲存
-                            </Button>
-                          </div>
-                        </div>
                       ) : (
                         <div className="p-1">
                           <button
@@ -308,26 +295,6 @@ export default function ColorSelect({
                             <Palette className="h-3.5 w-3.5" />
                             變更顏色
                           </button>
-                          {pricingConfig && (
-                            <button
-                              className="flex items-center gap-2 w-full px-3 py-2 rounded text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const currentPrice = defaultPricingStore.getPrice(pricingConfig.pricingKey, opt.label);
-                                setPricingValue(currentPrice !== undefined ? String(currentPrice) : "");
-                                setPricingOptionId(opt.id);
-                              }}
-                            >
-                              <DollarSign className="h-3.5 w-3.5" />
-                              {pricingConfig.label}
-                              {(() => {
-                                const p = defaultPricingStore.getPrice(pricingConfig.pricingKey, opt.label);
-                                return p !== undefined ? (
-                                  <span className="ml-auto text-xs text-muted-foreground">{p}</span>
-                                ) : null;
-                              })()}
-                            </button>
-                          )}
                           <button
                             className="flex items-center gap-2 w-full px-3 py-2 rounded text-sm text-destructive hover:bg-destructive/10 transition-colors"
                             onClick={(e) => {
@@ -344,8 +311,10 @@ export default function ColorSelect({
                   </Popover>
                 </div>
               ))}
-              {options.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-3">尚無選項</p>
+              {filteredOptions.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-3">
+                  {searchQuery ? "沒有符合的選項" : "尚無選項"}
+                </p>
               )}
             </div>
 
@@ -397,13 +366,13 @@ export default function ColorSelect({
         </PopoverContent>
       </Popover>
 
-      {/* Delete confirmation dialog */}
+      {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deleteConfirm} onOpenChange={(v) => { if (!v) setDeleteConfirm(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>確認刪除</AlertDialogTitle>
+            <AlertDialogTitle>確認刪除選項</AlertDialogTitle>
             <AlertDialogDescription>
-              確定要刪除選項「{deleteConfirm?.label}」嗎？此操作無法復原。
+              確定要刪除「{deleteConfirm?.label}」嗎？此操作無法復原。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -421,13 +390,11 @@ export default function ColorSelect({
   );
 }
 
-/** Map color (uppercase hex) → list of option labels using it */
 function getColorUsageMap(options: SelectOption[]): Record<string, string[]> {
   const map: Record<string, string[]> = {};
   for (const opt of options) {
-    const key = opt.color.toUpperCase();
-    if (!map[key]) map[key] = [];
-    map[key].push(opt.label);
+    if (!map[opt.color]) map[opt.color] = [];
+    map[opt.color].push(opt.label);
   }
   return map;
 }

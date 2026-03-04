@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ColorSelect from "@/components/ColorSelect";
@@ -435,7 +436,7 @@ export default function TranslatorFeeDetail() {
 
   // Comments — initialize from feeData
   const [comments, setComments] = useState<CommentEntry[]>(() =>
-    (feeData?.notes ?? []).map((n) => ({ id: n.id, author: n.author, content: n.text, timestamp: n.createdAt }))
+    (feeData?.notes ?? []).map((n) => ({ id: n.id, author: n.author, content: n.text, timestamp: formatTimestamp(n.createdAt) }))
   );
   const [internalComments, setInternalComments] = useState<CommentEntry[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
@@ -445,7 +446,7 @@ export default function TranslatorFeeDetail() {
 
   // Edit history tracking — initialize from feeData
   const [editLog, setEditLog] = useState<EditLogEntry[]>(() =>
-    (feeData?.editLogs ?? []).map((l) => ({ id: l.id, changedBy: l.author, description: `${l.field} ${l.oldValue} → ${l.newValue}`, timestamp: l.timestamp }))
+    (feeData?.editLogs ?? []).map((l) => ({ id: l.id, changedBy: l.author, description: `${l.field} ${l.oldValue} → ${l.newValue}`, timestamp: formatTimestamp(l.timestamp) }))
   );
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
   const snapshotRef = useRef<{ taskItems: FeeTaskItem[]; title: string; assignee: string; internalNote: string } | null>(null);
@@ -791,9 +792,16 @@ export default function TranslatorFeeDetail() {
       }
 
       // 工作類型 > 任務項目 + 計費單位數 > 第一項
-      const assigneeDefaultPrice = (Array.isArray(people) && people.length > 0)
-        ? defaultPricingStore.getPrice("assignee", people[0])
-        : undefined;
+      const getAutoPrice = (taskType: string) => {
+        if (clientInfo.client) {
+          const cp = defaultPricingStore.getClientPrice(clientInfo.client, taskType);
+          if (cp !== undefined) {
+            const tp = defaultPricingStore.getTranslatorPrice(cp);
+            return tp ?? 0;
+          }
+        }
+        return 0;
+      };
 
       if (Array.isArray(workTypes) && workTypes.length > 0) {
         const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
@@ -803,7 +811,7 @@ export default function TranslatorFeeDetail() {
             taskType: matchedType as TaskType,
             billingUnit: "字" as BillingUnit,
             unitCount: idx === 0 && unitCount ? unitCount : 0,
-            unitPrice: assigneeDefaultPrice ?? 0,
+            unitPrice: getAutoPrice(matchedType as string),
           };
         });
         setTaskItems(mapped);
@@ -1014,19 +1022,6 @@ export default function TranslatorFeeDetail() {
                   trackChange("開單對象", assignee, v);
                   setAssignee(v);
                   if (id) feeStore.updateFee(id, { assignee: v });
-                  // Auto-fill default price for assignee
-                  if (v) {
-                    const defaultPrice = defaultPricingStore.getPrice("assignee", v);
-                    if (defaultPrice !== undefined) {
-                      setTaskItems((prev) => {
-                        const updated = prev.map((item) =>
-                          item.unitPrice === 0 ? { ...item, unitPrice: defaultPrice } : item
-                        );
-                        if (id) feeStore.updateFee(id, { taskItems: updated });
-                        return updated;
-                      });
-                    }
-                  }
                 }}
                 placeholder="選擇開單對象"
               />
@@ -1118,6 +1113,58 @@ export default function TranslatorFeeDetail() {
               </div>
             )}
           </div>
+
+          {/* 客戶 + 聯絡人 */}
+          {isManager && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">客戶</Label>
+                <ColorSelect
+                  fieldKey="client"
+                  value={clientInfo.client}
+                  disabled={!canEdit}
+                  onValueChange={(clientName) => {
+                    const updatedInfo = { ...clientInfo, client: clientName };
+                    if (clientName) {
+                      // Auto-fill client task item prices
+                      updatedInfo.clientTaskItems = updatedInfo.clientTaskItems.map(item => {
+                        if (Number(item.clientPrice) !== 0) return item;
+                        const price = defaultPricingStore.getClientPrice(clientName, item.taskType);
+                        return price !== undefined ? { ...item, clientPrice: price } : item;
+                      });
+                      // Auto-fill translator task item prices via tiers
+                      const updatedTaskItems = taskItems.map(item => {
+                        if (Number(item.unitPrice) !== 0) return item;
+                        const cp = defaultPricingStore.getClientPrice(clientName, item.taskType);
+                        if (cp === undefined) return item;
+                        const tp = defaultPricingStore.getTranslatorPrice(cp);
+                        return tp !== undefined ? { ...item, unitPrice: tp } : item;
+                      });
+                      setTaskItems(updatedTaskItems);
+                      if (id) feeStore.updateFee(id, { taskItems: updatedTaskItems });
+                    }
+                    setClientInfo(updatedInfo);
+                    if (id) feeStore.updateFee(id, { clientInfo: updatedInfo });
+                  }}
+                  placeholder="選擇客戶"
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">聯絡人</Label>
+                <ColorSelect
+                  fieldKey="contact"
+                  value={clientInfo.contact}
+                  disabled={!canEdit}
+                  onValueChange={(v) => {
+                    const updated = { ...clientInfo, contact: v };
+                    setClientInfo(updated);
+                    if (id) feeStore.updateFee(id, { clientInfo: updated });
+                  }}
+                  placeholder="選擇聯絡人"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <Separator />
@@ -1126,17 +1173,34 @@ export default function TranslatorFeeDetail() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <Label className="text-sm font-medium">任務項目</Label>
-            {canEdit && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1 text-xs"
-                onClick={handleAddItem}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                新增項目
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {isManager && (
+                <div className="flex items-center gap-1.5">
+                  <Checkbox
+                    id="rateConfirmed"
+                    checked={clientInfo.rateConfirmed}
+                    disabled={!canEdit}
+                    onCheckedChange={(checked) => {
+                      const updated = { ...clientInfo, rateConfirmed: !!checked };
+                      setClientInfo(updated);
+                      if (id) feeStore.updateFee(id, { clientInfo: updated });
+                    }}
+                  />
+                  <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">費率無誤</Label>
+                </div>
+              )}
+              {canEdit && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1 text-xs"
+                  onClick={handleAddItem}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  新增項目
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="rounded-lg border border-border overflow-hidden">
