@@ -1403,6 +1403,49 @@ export default function TranslatorFeeDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Assign Role Dialog — sameCase checked but no role selected */}
+      <AlertDialog open={duplicateDialogStep === "assignRole"} onOpenChange={() => {}}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>請指定營收紀錄角色</AlertDialogTitle>
+            <AlertDialogDescription>
+              請將本頁面指定為相關案件的主要或非主要營收紀錄。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              disabled={!!otherFirstFee}
+              onClick={() => {
+                if (otherFirstFee) {
+                  // There's already a primary — need to go through confirmSwap
+                  setDuplicateDialogStep("confirmSwap");
+                } else {
+                  const updated = { ...clientInfo, isFirstFee: true, notFirstFee: false };
+                  setClientInfo(updated);
+                  if (id) feeStore.updateFee(id, { clientInfo: updated });
+                  setDuplicateDialogStep(null);
+                  toast.success("已將本頁設為主要營收紀錄");
+                }
+              }}
+            >
+              將本頁設為主要營收紀錄
+            </Button>
+            <Button
+              onClick={() => {
+                const updated = { ...clientInfo, isFirstFee: false, notFirstFee: true };
+                setClientInfo(updated);
+                if (id) feeStore.updateFee(id, { clientInfo: updated });
+                setDuplicateDialogStep(null);
+                toast.success("已將本頁設為非主要營收紀錄");
+              }}
+            >
+              將本頁設為非主要營收紀錄
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
