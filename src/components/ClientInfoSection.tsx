@@ -14,6 +14,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
 import { type ClientInfo, type ClientTaskItem, type TaskType, type BillingUnit } from "@/data/fee-mock-data";
 
@@ -30,8 +40,14 @@ export default function ClientInfoSection({
   canEdit,
   translatorTotal,
 }: ClientInfoSectionProps) {
+  const [showUncheckWarning, setShowUncheckWarning] = useState(false);
+
   const update = <K extends keyof ClientInfo>(key: K, value: ClientInfo[K]) => {
     onChange({ ...clientInfo, [key]: value });
+  };
+
+  const updateMultiple = (updates: Partial<ClientInfo>) => {
+    onChange({ ...clientInfo, ...updates });
   };
 
   const updateItem = (id: string, field: keyof ClientTaskItem, value: any) => {
@@ -77,6 +93,11 @@ export default function ClientInfoSection({
   );
 
   const profit = revenueTotal - translatorTotal;
+
+  // Checkbox 2 (isFirstFee) disabled when: sameCase unchecked, OR notFirstFee checked
+  const isFirstFeeDisabled = !canEdit || !clientInfo.sameCase || clientInfo.notFirstFee;
+  // Checkbox 3 (notFirstFee) disabled when: sameCase unchecked, OR isFirstFee checked
+  const notFirstFeeDisabled = !canEdit || !clientInfo.sameCase || clientInfo.isFirstFee;
 
   return (
     <div className="space-y-5">
@@ -218,10 +239,11 @@ export default function ClientInfoSection({
               checked={clientInfo.sameCase}
               disabled={!canEdit}
               onCheckedChange={(checked) => {
-                update("sameCase", !!checked);
-                if (!checked) {
-                  update("notFirstFee", false);
-                  update("isFirstFee", false);
+                if (!checked && clientInfo.sameCase) {
+                  // Show confirmation before unchecking
+                  setShowUncheckWarning(true);
+                } else {
+                  update("sameCase", !!checked);
                 }
               }}
             />
@@ -233,34 +255,32 @@ export default function ClientInfoSection({
             <Checkbox
               id="isFirstFee"
               checked={clientInfo.isFirstFee}
-              disabled={!canEdit || !clientInfo.sameCase}
+              disabled={isFirstFeeDisabled}
               onCheckedChange={(checked) => {
                 update("isFirstFee", !!checked);
-                if (checked) update("notFirstFee", false);
               }}
             />
             <Label
               htmlFor="isFirstFee"
-              className={`text-xs cursor-pointer whitespace-nowrap ${!clientInfo.sameCase ? "text-muted-foreground/50" : ""}`}
+              className={`text-xs cursor-pointer ${isFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
             >
-              為首筆費用
+              為首筆費用（於總表列入營收統計）
             </Label>
           </div>
           <div className="flex items-center gap-2 ml-6">
             <Checkbox
               id="notFirstFee"
               checked={clientInfo.notFirstFee}
-              disabled={!canEdit || !clientInfo.sameCase}
+              disabled={notFirstFeeDisabled}
               onCheckedChange={(checked) => {
                 update("notFirstFee", !!checked);
-                if (checked) update("isFirstFee", false);
               }}
             />
             <Label
               htmlFor="notFirstFee"
-              className={`text-xs cursor-pointer whitespace-nowrap ${!clientInfo.sameCase ? "text-muted-foreground/50" : ""}`}
+              className={`text-xs cursor-pointer ${notFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
             >
-              非首筆費用
+              非首筆費用（於總表不列入營收統計）
             </Label>
           </div>
         </div>
@@ -333,8 +353,7 @@ export default function ClientInfoSection({
             <Input
               value={clientInfo.eciKeywords || clientInfo.clientCaseId}
               onChange={(e) => {
-                update("eciKeywords", e.target.value);
-                update("clientCaseId", e.target.value);
+                updateMultiple({ eciKeywords: e.target.value, clientCaseId: e.target.value });
               }}
               disabled={!canEdit}
               placeholder="輸入關鍵字或案號"
@@ -353,6 +372,32 @@ export default function ClientInfoSection({
           </div>
         </div>
       </div>
+
+      {/* Confirmation dialog for unchecking sameCase */}
+      <AlertDialog open={showUncheckWarning} onOpenChange={setShowUncheckWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>確定取消勾選？</AlertDialogTitle>
+            <AlertDialogDescription>
+              取消勾選「與他筆費用為同一案件」將會同時清除「為首筆費用」與「非首筆費用」的勾選狀態。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                updateMultiple({
+                  sameCase: false,
+                  isFirstFee: false,
+                  notFirstFee: false,
+                });
+              }}
+            >
+              確定
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

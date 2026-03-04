@@ -27,7 +27,6 @@ export interface ClientInfo {
   contact: string;          // 聯絡人
   clientCaseId: string;     // 客戶端案號或關鍵字
   eciKeywords: string;      // ECI Keywords
-  hdPath: string;           // 硬碟路徑
   clientPoNumber: string;   // 客戶PO編號
   reconciled: boolean;      // 對帳完成
   rateConfirmed: boolean;   // 費率無誤
@@ -39,31 +38,32 @@ export const defaultClientInfo: ClientInfo = {
     { id: "ci-1", taskType: "翻譯", billingUnit: "字", unitCount: 0, clientPrice: 0 },
   ],
   sameCase: false,
-  isFirstFee: true,
+  isFirstFee: false,
   notFirstFee: false,
   client: "",
   contact: "",
   clientCaseId: "",
   eciKeywords: "",
-  hdPath: "",
   clientPoNumber: "",
   reconciled: false,
   rateConfirmed: false,
   invoiced: false,
 };
 
-export interface FeeNote {
+export interface Note {
   id: string;
-  content: string;
   author: string;
+  text: string;
   createdAt: string;
 }
 
-export interface FeeEditLog {
+export interface EditLog {
   id: string;
-  action: string;
   author: string;
-  createdAt: string;
+  field: string;
+  oldValue: string;
+  newValue: string;
+  timestamp: string;
 }
 
 export interface TranslatorFee {
@@ -72,86 +72,80 @@ export interface TranslatorFee {
   assignee: string;
   status: FeeStatus;
   internalNote: string;
-  internalNoteUrl?: string;
   taskItems: FeeTaskItem[];
   clientInfo?: ClientInfo;
-  notes: FeeNote[];
-  editLogs: FeeEditLog[];
+  notes: Note[];
+  editLogs: EditLog[];
   createdBy: string;
   createdAt: string;
+  finalizedBy?: string;
+  finalizedAt?: string;
 }
-
-export const feeStatusLabels: Record<FeeStatus, string> = {
-  draft: "草稿",
-  finalized: "開立完成",
-};
 
 export const translatorFees: TranslatorFee[] = [
   {
     id: "fee-1",
-    title: "2026年2月 王小明 翻譯費",
-    assignee: "王小明",
+    title: "潤稿：專利說明書",
+    assignee: "譯者甲",
     status: "draft",
-    internalNote: "案件 A-2026-001 相關",
-    internalNoteUrl: "https://example.com/case/A-2026-001",
+    internalNote: "本案為AAA公司急件，請優先處理",
     taskItems: [
-      { id: "item-1", taskType: "翻譯", billingUnit: "字", unitCount: 5000, unitPrice: 1.2 },
-      { id: "item-2", taskType: "審稿", billingUnit: "字", unitCount: 2000, unitPrice: 0.8 },
+      { id: "item-1", taskType: "翻譯", billingUnit: "字", unitCount: 1200, unitPrice: 2.2 },
+      { id: "item-2", taskType: "審稿", billingUnit: "小時", unitCount: 3, unitPrice: 1200 },
     ],
+    clientInfo: defaultClientInfo,
     notes: [
-      { id: "n-1", content: "請確認單價是否正確", author: "陳雅婷", createdAt: "2026-02-21T09:00:00" },
+      {
+        id: "note-1",
+        author: "專案經理乙",
+        text: "譯者已確認交件時間",
+        createdAt: "2024-01-18T10:30:00.000Z",
+      },
     ],
-    editLogs: [],
-    createdBy: "張大偉",
-    createdAt: "2026-02-20T10:30:00",
+    editLogs: [
+      {
+        id: "log-1",
+        author: "專案經理乙",
+        field: "status",
+        oldValue: "new",
+        newValue: "draft",
+        timestamp: "2024-01-17T15:00:00.000Z",
+      },
+    ],
+    createdBy: "專案經理乙",
+    createdAt: "2024-01-17T14:00:00.000Z",
   },
   {
     id: "fee-2",
-    title: "2026年2月 李美玲 MTPE費用",
-    assignee: "李美玲",
+    title: "翻譯：網站本地化",
+    assignee: "譯者丙",
     status: "finalized",
-    internalNote: "案件 B-2026-003",
+    internalNote: "客戶要求採用特定術語",
     taskItems: [
-      { id: "item-3", taskType: "MTPE", billingUnit: "字", unitCount: 12000, unitPrice: 0.5 },
+      { id: "item-3", taskType: "翻譯", billingUnit: "字", unitCount: 5000, unitPrice: 1.8 },
     ],
-    notes: [],
-    editLogs: [],
-    createdBy: "陳雅婷",
-    createdAt: "2026-02-18T14:00:00",
-  },
-  {
-    id: "fee-3",
-    title: "2026年1月 張大偉 審稿與LQA",
-    assignee: "張大偉",
-    status: "draft",
-    internalNote: "",
-    taskItems: [
-      { id: "item-4", taskType: "審稿", billingUnit: "小時", unitCount: 8, unitPrice: 500 },
-      { id: "item-5", taskType: "LQA", billingUnit: "小時", unitCount: 3, unitPrice: 600 },
-    ],
-    notes: [],
-    editLogs: [],
-    createdBy: "王小明",
-    createdAt: "2026-01-28T09:15:00",
-  },
-  {
-    id: "fee-4",
-    title: "2026年2月 陳雅婷 翻譯費",
-    assignee: "陳雅婷",
-    status: "finalized",
-    internalNote: "急件處理",
-    internalNoteUrl: "https://example.com/case/C-2026-005",
-    taskItems: [
-      { id: "item-6", taskType: "翻譯", billingUnit: "字", unitCount: 8500, unitPrice: 1.2 },
-      { id: "item-7", taskType: "審稿", billingUnit: "字", unitCount: 3200, unitPrice: 0.8 },
-      { id: "item-8", taskType: "MTPE", billingUnit: "字", unitCount: 6000, unitPrice: 0.5 },
-    ],
+    clientInfo: defaultClientInfo,
     notes: [
-      { id: "n-2", content: "急件加價已包含", author: "張大偉", createdAt: "2026-02-15T12:00:00" },
-      { id: "n-3", content: "已確認金額無誤", author: "陳雅婷", createdAt: "2026-02-16T09:00:00" },
+      {
+        id: "note-2",
+        author: "專案經理丁",
+        text: "已通知譯者客戶的術語要求",
+        createdAt: "2024-01-15T09:00:00.000Z",
+      },
     ],
-    editLogs: [],
-    createdBy: "張大偉",
-    createdAt: "2026-02-15T11:45:00",
+    editLogs: [
+      {
+        id: "log-2",
+        author: "專案經理丁",
+        field: "unitPrice",
+        oldValue: "2.0",
+        newValue: "1.8",
+        timestamp: "2024-01-14T16:00:00.000Z",
+      },
+    ],
+    createdBy: "專案經理丁",
+    createdAt: "2024-01-14T10:00:00.000Z",
+    finalizedBy: "專案經理丁",
+    finalizedAt: "2024-01-16T12:00:00.000Z",
   },
 ];
