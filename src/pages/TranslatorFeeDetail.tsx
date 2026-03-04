@@ -914,7 +914,7 @@ export default function TranslatorFeeDetail() {
                       setInternalNote("");
                       setInternalNoteUrl("");
                       setNotionUrlInput("");
-                      if (id) feeStore.updateFee(id, { internalNote: "" });
+                      if (id) feeStore.updateFee(id, { internalNote: "", internalNoteUrl: "" });
                     }}
                     title="清除"
                   >
