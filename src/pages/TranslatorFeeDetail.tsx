@@ -483,6 +483,55 @@ export default function TranslatorFeeDetail() {
     }
   }, [hasDuplicateFirstFee, swapResolved]);
 
+  // Block browser back/forward and sidebar navigation when isNavigationBlocked
+  useEffect(() => {
+    if (!isNavigationBlocked) return;
+
+    // Block browser back/forward via popstate
+    const handlePopState = (e: PopStateEvent) => {
+      // Push state back to prevent leaving
+      window.history.pushState(null, "", window.location.href);
+      if (needsRoleAssignment) {
+        toast.error("請將本頁面指定為相關案件的主要或非主要營收紀錄。");
+        setDuplicateDialogStep("assignRole");
+      } else {
+        toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容再離開此頁面");
+        setDisableOption12A(false);
+        setDuplicateDialogStep("choose");
+      }
+    };
+
+    // Push an extra history entry so we can intercept back
+    window.history.pushState(null, "", window.location.href);
+    window.addEventListener("popstate", handlePopState);
+
+    // Block clicks on sidebar links and any internal <a> tags
+    const handleClick = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement).closest("a[href]");
+      if (!target) return;
+      const href = target.getAttribute("href");
+      if (href && href.startsWith("/")) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (needsRoleAssignment) {
+          toast.error("請將本頁面指定為相關案件的主要或非主要營收紀錄。");
+          setDuplicateDialogStep("assignRole");
+        } else {
+          toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容再離開此頁面");
+          setDisableOption12A(false);
+          setDuplicateDialogStep("choose");
+        }
+      }
+    };
+
+    document.addEventListener("click", handleClick, true);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      document.removeEventListener("click", handleClick, true);
+    };
+  }, [isNavigationBlocked, needsRoleAssignment]);
+
   // Commit pending changes that have persisted for 5+ minutes
   useEffect(() => {
     if (pendingChanges.length === 0) return;
