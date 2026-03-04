@@ -533,7 +533,7 @@ function EditLogPanel({ fee, currentRole }: { fee: TranslatorFee; currentRole: U
   // Filter edit logs: assignee can only see non-client-info logs
   const filteredLogs = isManager
     ? fee.editLogs
-    : fee.editLogs.filter((log) => !isClientInfoLog(log.action));
+    : fee.editLogs.filter((log) => !isClientInfoLog(`${log.field} ${log.oldValue} → ${log.newValue}`));
 
   return (
     <div className="space-y-2">
