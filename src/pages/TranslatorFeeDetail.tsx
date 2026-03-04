@@ -100,13 +100,9 @@ const fieldLabels: Record<string, string> = {
 
 // --- Rich Comment Components ---
 
-function CommentContent({ content, imageUrl }: { content: string; imageUrl?: string }) {
-  // Parse content for @mentions and [text](url) links
-  const parts = content.split(/(@\S+|\[([^\]]+)\]\(([^)]+)\))/g);
-  const rendered: React.ReactNode[] = [];
-  let i = 0;
-  // Simple regex-based rendering
+function CommentContent({ content, imageUrls }: { content: string; imageUrls?: string[] }) {
   const regex = /(@\S+)|\[([^\]]+)\]\(([^)]+)\)/g;
+  const rendered: React.ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(content)) !== null) {
@@ -114,14 +110,12 @@ function CommentContent({ content, imageUrl }: { content: string; imageUrl?: str
       rendered.push(<span key={`t-${lastIndex}`}>{content.slice(lastIndex, match.index)}</span>);
     }
     if (match[1]) {
-      // @mention
       rendered.push(
         <span key={`m-${match.index}`} className="text-primary font-medium bg-primary/10 rounded px-0.5">
           {match[1]}
         </span>
       );
     } else if (match[2] && match[3]) {
-      // [text](url)
       rendered.push(
         <a key={`l-${match.index}`} href={match[3]} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:text-primary/80">
           {match[2]}
@@ -137,8 +131,12 @@ function CommentContent({ content, imageUrl }: { content: string; imageUrl?: str
   return (
     <div>
       <p className="whitespace-pre-wrap">{rendered}</p>
-      {imageUrl && (
-        <img src={imageUrl} alt="附圖" className="mt-2 max-w-xs rounded-md border border-border" />
+      {imageUrls && imageUrls.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-2">
+          {imageUrls.map((url, idx) => (
+            <img key={idx} src={url} alt={`附圖 ${idx + 1}`} className="max-w-xs max-h-48 rounded-md border border-border" />
+          ))}
+        </div>
       )}
     </div>
   );
