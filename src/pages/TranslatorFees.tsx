@@ -52,9 +52,9 @@ const editableFields = new Set([
   "reconciled", "rateConfirmed", "invoiced",
 ]);
 
-function getEditType(key: string): "text" | "select" | "checkbox" {
-  if (["status"].includes(key)) return "select";
-  if (["assignee", "client"].includes(key)) return "select";
+function getEditType(key: string): "text" | "select" | "checkbox" | "colorSelect" {
+  if (key === "status") return "select";
+  if (["assignee", "client"].includes(key)) return "colorSelect";
   if (["reconciled", "rateConfirmed", "invoiced"].includes(key)) return "checkbox";
   return "text";
 }
@@ -65,6 +65,13 @@ function getSelectOptions(key: string): { value: string; label: string }[] {
     { value: "finalized", label: "開立完成" },
   ];
   return [];
+}
+
+/** Map field keys to their selectOptionsStore keys for colorSelect fields */
+function getColorSelectFieldKey(key: string): string | undefined {
+  if (key === "assignee") return "assignee";
+  if (key === "client") return "client";
+  return undefined;
 }
 
 interface ColumnDef {
