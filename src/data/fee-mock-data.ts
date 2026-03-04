@@ -107,10 +107,7 @@ export const translatorFees: TranslatorFee[] = [
       { id: "n-2", content: "急件加價已包含", author: "張大偉", createdAt: "2026-02-15T12:00:00" },
       { id: "n-3", content: "已確認金額無誤", author: "陳雅婷", createdAt: "2026-02-16T09:00:00" },
     ],
-    editLogs: [
-      { id: "el-4", action: "建立草稿", author: "張大偉", createdAt: "2026-02-15T11:45:00" },
-      { id: "el-5", action: "標記為開立完成", author: "張大偉", createdAt: "2026-02-16T10:00:00" },
-    ],
+    editLogs: [],
     createdBy: "張大偉",
     createdAt: "2026-02-15T11:45:00",
   },
