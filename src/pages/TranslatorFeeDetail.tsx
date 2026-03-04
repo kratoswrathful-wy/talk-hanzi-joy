@@ -140,7 +140,7 @@ function CommentContent({ content, imageUrls }: { content: string; imageUrls?: s
               src={url}
               alt={`附圖 ${idx + 1}`}
               className="max-w-xs max-h-48 rounded-md border border-border cursor-pointer hover:opacity-80 transition-opacity"
-              onDoubleClick={() => setLightboxUrl(url)}
+              onClick={() => setLightboxUrl(url)}
             />
           ))}
         </div>
@@ -150,7 +150,6 @@ function CommentContent({ content, imageUrls }: { content: string; imageUrls?: s
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
           onClick={() => setLightboxUrl(null)}
-          onDoubleClick={() => setLightboxUrl(null)}
         >
           <img
             src={lightboxUrl}
