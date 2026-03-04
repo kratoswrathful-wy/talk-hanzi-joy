@@ -210,7 +210,7 @@ export default function NewTranslatorFee() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">關聯內部紀錄</Label>
+              <Label className="text-xs">相關案件</Label>
               <Input
                 value={internalNote}
                 onChange={(e) => setInternalNote(e.target.value)}
