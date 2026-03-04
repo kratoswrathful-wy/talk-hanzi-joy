@@ -890,7 +890,7 @@ export default function TranslatorFeeDetail() {
                     <div className="flex flex-wrap gap-x-4 gap-y-0.5 italic">
                       <span><span className="text-muted-foreground">變更者：</span>{roleLabels[currentRole]}</span>
                       <span><span className="text-muted-foreground">變更內容：</span>{change.field} {change.oldValue} → {change.newValue}</span>
-                      <span><span className="text-muted-foreground">變更時間：</span>{new Date(change.changedAt).toLocaleString("zh-TW")}</span>
+                      <span><span className="text-muted-foreground">變更時間：</span>{formatTimestamp(new Date(change.changedAt))}</span>
                       <span className="text-muted-foreground">（未滿 5 分鐘，尚未正式紀錄）</span>
                     </div>
                   </div>
