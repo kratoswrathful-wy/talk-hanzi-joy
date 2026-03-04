@@ -432,7 +432,7 @@ export default function TranslatorFeeDetail() {
 
   // Comments — initialize from feeData
   const [comments, setComments] = useState<CommentEntry[]>(() =>
-    (feeData?.notes ?? []).map((n) => ({ id: n.id, author: n.author, content: n.content, timestamp: n.createdAt }))
+    (feeData?.notes ?? []).map((n) => ({ id: n.id, author: n.author, content: n.text, timestamp: n.createdAt }))
   );
   const [internalComments, setInternalComments] = useState<CommentEntry[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
