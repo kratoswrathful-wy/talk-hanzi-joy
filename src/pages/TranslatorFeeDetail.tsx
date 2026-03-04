@@ -809,6 +809,25 @@ export default function TranslatorFeeDetail() {
         );
       }
 
+      // 同步計費單位數到客戶資訊
+      if (unitCount) {
+        setClientInfo((prev) => ({
+          ...prev,
+          clientTaskItems: prev.clientTaskItems.map((item, idx) =>
+            idx === 0 ? { ...item, unitCount, billingUnit: "字" as BillingUnit } : item
+          ),
+        }));
+        if (id) {
+          const updatedClientInfo = {
+            ...clientInfo,
+            clientTaskItems: clientInfo.clientTaskItems.map((item, idx) =>
+              idx === 0 ? { ...item, unitCount, billingUnit: "字" as BillingUnit } : item
+            ),
+          };
+          feeStore.updateFee(id, { clientInfo: updatedClientInfo });
+        }
+      }
+
       toast.success("已從 Notion 載入案件資料");
     } catch (err: any) {
       console.error("Failed to fetch Notion data:", err);
