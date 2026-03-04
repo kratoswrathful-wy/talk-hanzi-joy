@@ -1010,6 +1010,19 @@ export default function TranslatorFeeDetail() {
                   trackChange("開單對象", assignee, v);
                   setAssignee(v);
                   if (id) feeStore.updateFee(id, { assignee: v });
+                  // Auto-fill default price for assignee
+                  if (v) {
+                    const defaultPrice = defaultPricingStore.getPrice("assignee", v);
+                    if (defaultPrice !== undefined) {
+                      setTaskItems((prev) => {
+                        const updated = prev.map((item) =>
+                          item.unitPrice === 0 ? { ...item, unitPrice: defaultPrice } : item
+                        );
+                        if (id) feeStore.updateFee(id, { taskItems: updated });
+                        return updated;
+                      });
+                    }
+                  }
                 }}
                 placeholder="選擇開單對象"
               />
