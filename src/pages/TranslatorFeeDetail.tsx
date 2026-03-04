@@ -1070,7 +1070,7 @@ export default function TranslatorFeeDetail() {
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => navigate("/fees")}
+              onClick={() => { if (id) feeStore.deleteFee(id); navigate("/fees"); }}
             >
               確定
             </AlertDialogAction>
