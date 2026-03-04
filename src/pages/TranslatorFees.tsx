@@ -1,18 +1,22 @@
 import { useNavigate } from "react-router-dom";
-import { Plus, ChevronDown, MessageSquare, History, GripVertical } from "lucide-react";
+import { Plus, ChevronDown, MessageSquare, History, GripVertical, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type TranslatorFee, type FeeStatus } from "@/data/fee-mock-data";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useFees, feeStore } from "@/hooks/use-fee-store";
+import { useRowSelection } from "@/hooks/use-row-selection";
+import { useTableViews, fieldMetas } from "@/hooks/use-table-views";
+import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
+import { InlineEditCell } from "@/components/fees/InlineEditCell";
+import { useState, useRef, useCallback } from "react";
+import { cn } from "@/lib/utils";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
   draft: "草稿",
   finalized: "開立完成",
 };
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { useFees, feeStore } from "@/hooks/use-fee-store";
-import { useState, useRef, useCallback } from "react";
-import { cn } from "@/lib/utils";
 
 type UserRole = "assignee" | "pm" | "executive";
 const roleLabels: Record<UserRole, string> = {
@@ -21,27 +25,16 @@ const roleLabels: Record<UserRole, string> = {
   executive: "執行官",
 };
 
-// Fields that only PM+ can see
 const managerOnlyFields = new Set([
   "client", "contact", "clientCaseId", "clientPoNumber", "hdPath",
   "reconciled", "rateConfirmed", "invoiced", "sameCase",
   "clientRevenue", "profit", "internalNote",
 ]);
 
-// Fields related to client info for edit log filtering
 const clientInfoLogKeywords = [
   "客戶", "聯絡人", "案號", "PO", "硬碟", "對帳", "費率", "請款",
   "同一案件", "主要營收", "營收", "利潤", "客戶端",
 ];
-
-interface ColumnDef {
-  key: string;
-  label: string;
-  minWidth: number;
-  defaultWidth: number;
-  managerOnly?: boolean;
-  render: (fee: TranslatorFee) => React.ReactNode;
-}
 
 const formatDate = (iso: string) => {
   const d = new Date(iso);
@@ -51,59 +44,95 @@ const formatDate = (iso: string) => {
 const formatCurrency = (n: number) =>
   n.toLocaleString("zh-TW", { style: "currency", currency: "TWD", minimumFractionDigits: 0 });
 
+// Editable fields - computed/date/createdBy are not editable
+const editableFields = new Set([
+  "title", "status", "assignee", "internalNote",
+  "client", "clientCaseId", "clientPoNumber",
+  "reconciled", "rateConfirmed", "invoiced",
+]);
+
+function getEditType(key: string): "text" | "select" | "checkbox" {
+  if (["status"].includes(key)) return "select";
+  if (["assignee", "client"].includes(key)) return "select";
+  if (["reconciled", "rateConfirmed", "invoiced"].includes(key)) return "checkbox";
+  return "text";
+}
+
+function getSelectOptions(key: string): { value: string; label: string }[] {
+  if (key === "status") return [
+    { value: "draft", label: "草稿" },
+    { value: "finalized", label: "開立完成" },
+  ];
+  return [];
+}
+
+interface ColumnDef {
+  key: string;
+  label: string;
+  minWidth: number;
+  managerOnly?: boolean;
+  render: (fee: TranslatorFee, opts: { isManager: boolean; editable: boolean; onCommit: (field: string, value: string | boolean) => void }) => React.ReactNode;
+}
+
 const allColumnDefs: ColumnDef[] = [
   {
     key: "title",
     label: "標題",
     minWidth: 120,
-    defaultWidth: 220,
-    render: (f) => (
-      <span className="truncate font-medium text-card-foreground">
-        {f.title || <span className="text-muted-foreground italic">未命名稿費單</span>}
-      </span>
+    render: (f, { editable, onCommit }) => (
+      <div className="flex items-center gap-1 group/title">
+        <InlineEditCell value={f.title} type="text" editable={editable} onCommit={(v) => onCommit("title", v)}>
+          <span className="truncate font-medium text-card-foreground">
+            {f.title || <span className="text-muted-foreground italic">未命名稿費單</span>}
+          </span>
+        </InlineEditCell>
+        <OpenButton feeId={f.id} />
+      </div>
     ),
   },
   {
     key: "status",
     label: "狀態",
     minWidth: 70,
-    defaultWidth: 90,
-    render: (f) => (
-      <Badge
-        variant={f.status === "draft" ? "outline" : "default"}
-        className={cn(
-          "text-xs whitespace-nowrap",
-          f.status === "finalized" && "bg-success/15 text-success border-success/30 hover:bg-success/20"
-        )}
-      >
-        {feeStatusLabels[f.status]}
-      </Badge>
+    render: (f, { editable, onCommit }) => (
+      <InlineEditCell value={f.status} type="select" options={getSelectOptions("status")} editable={editable} onCommit={(v) => onCommit("status", v)}>
+        <Badge
+          variant={f.status === "draft" ? "outline" : "default"}
+          className={cn(
+            "text-xs whitespace-nowrap",
+            f.status === "finalized" && "bg-success/15 text-success border-success/30 hover:bg-success/20"
+          )}
+        >
+          {feeStatusLabels[f.status]}
+        </Badge>
+      </InlineEditCell>
     ),
   },
   {
     key: "assignee",
     label: "開單對象",
     minWidth: 70,
-    defaultWidth: 100,
-    render: (f) => <span className="truncate text-sm">{f.assignee || "—"}</span>,
+    render: (f, { editable, onCommit }) => (
+      <InlineEditCell value={f.assignee} type="text" editable={editable} onCommit={(v) => onCommit("assignee", v)}>
+        <span className="truncate text-sm">{f.assignee || "—"}</span>
+      </InlineEditCell>
+    ),
   },
   {
     key: "internalNote",
     label: "關聯案件",
     minWidth: 100,
-    defaultWidth: 160,
     managerOnly: true,
-    render: (f) => (
-      <span className="truncate text-sm text-muted-foreground">
-        {f.internalNote || "—"}
-      </span>
+    render: (f, { editable, onCommit }) => (
+      <InlineEditCell value={f.internalNote} type="text" editable={editable} onCommit={(v) => onCommit("internalNote", v)}>
+        <span className="truncate text-sm text-muted-foreground">{f.internalNote || "—"}</span>
+      </InlineEditCell>
     ),
   },
   {
     key: "taskSummary",
     label: "稿費總額",
     minWidth: 80,
-    defaultWidth: 120,
     render: (f) => {
       const total = f.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
       return <span className="text-sm tabular-nums">{formatCurrency(total)}</span>;
@@ -113,31 +142,39 @@ const allColumnDefs: ColumnDef[] = [
     key: "client",
     label: "客戶",
     minWidth: 70,
-    defaultWidth: 100,
     managerOnly: true,
-    render: (f) => <span className="truncate text-sm">{f.clientInfo?.client || "—"}</span>,
+    render: (f, { editable, onCommit }) => (
+      <InlineEditCell value={f.clientInfo?.client || ""} type="text" editable={editable} onCommit={(v) => onCommit("client", v)}>
+        <span className="truncate text-sm">{f.clientInfo?.client || "—"}</span>
+      </InlineEditCell>
+    ),
   },
   {
     key: "clientCaseId",
     label: "案號",
     minWidth: 80,
-    defaultWidth: 120,
     managerOnly: true,
-    render: (f) => <span className="truncate text-sm text-muted-foreground">{f.clientInfo?.clientCaseId || f.clientInfo?.eciKeywords || "—"}</span>,
+    render: (f, { editable, onCommit }) => (
+      <InlineEditCell value={f.clientInfo?.clientCaseId || ""} type="text" editable={editable} onCommit={(v) => onCommit("clientCaseId", v)}>
+        <span className="truncate text-sm text-muted-foreground">{f.clientInfo?.clientCaseId || f.clientInfo?.eciKeywords || "—"}</span>
+      </InlineEditCell>
+    ),
   },
   {
     key: "clientPoNumber",
     label: "客戶 PO",
     minWidth: 80,
-    defaultWidth: 100,
     managerOnly: true,
-    render: (f) => <span className="truncate text-sm text-muted-foreground">{f.clientInfo?.clientPoNumber || "—"}</span>,
+    render: (f, { editable, onCommit }) => (
+      <InlineEditCell value={f.clientInfo?.clientPoNumber || ""} type="text" editable={editable} onCommit={(v) => onCommit("clientPoNumber", v)}>
+        <span className="truncate text-sm text-muted-foreground">{f.clientInfo?.clientPoNumber || "—"}</span>
+      </InlineEditCell>
+    ),
   },
   {
     key: "clientRevenue",
     label: "營收",
     minWidth: 80,
-    defaultWidth: 100,
     managerOnly: true,
     render: (f) => {
       if (!f.clientInfo || f.clientInfo.notFirstFee) return <span className="text-sm text-muted-foreground">N/A</span>;
@@ -149,7 +186,6 @@ const allColumnDefs: ColumnDef[] = [
     key: "profit",
     label: "利潤",
     minWidth: 80,
-    defaultWidth: 100,
     managerOnly: true,
     render: (f) => {
       if (!f.clientInfo || f.clientInfo.notFirstFee) return <span className="text-sm text-muted-foreground">N/A</span>;
@@ -163,53 +199,67 @@ const allColumnDefs: ColumnDef[] = [
     key: "reconciled",
     label: "對帳",
     minWidth: 50,
-    defaultWidth: 60,
     managerOnly: true,
-    render: (f) => (
-      <div className="flex justify-center">
-        <Checkbox checked={!!f.clientInfo?.reconciled} disabled className="pointer-events-none" />
-      </div>
+    render: (f, { editable, onCommit }) => (
+      <InlineEditCell value={!!f.clientInfo?.reconciled} type="checkbox" editable={editable} onCommit={(v) => onCommit("reconciled", v)}>
+        <div className="flex justify-center">
+          <Checkbox checked={!!f.clientInfo?.reconciled} disabled className="pointer-events-none" />
+        </div>
+      </InlineEditCell>
     ),
   },
   {
     key: "rateConfirmed",
     label: "費率",
     minWidth: 50,
-    defaultWidth: 60,
     managerOnly: true,
-    render: (f) => (
-      <div className="flex justify-center">
-        <Checkbox checked={!!f.clientInfo?.rateConfirmed} disabled className="pointer-events-none" />
-      </div>
+    render: (f, { editable, onCommit }) => (
+      <InlineEditCell value={!!f.clientInfo?.rateConfirmed} type="checkbox" editable={editable} onCommit={(v) => onCommit("rateConfirmed", v)}>
+        <div className="flex justify-center">
+          <Checkbox checked={!!f.clientInfo?.rateConfirmed} disabled className="pointer-events-none" />
+        </div>
+      </InlineEditCell>
     ),
   },
   {
     key: "invoiced",
     label: "請款",
     minWidth: 50,
-    defaultWidth: 60,
     managerOnly: true,
-    render: (f) => (
-      <div className="flex justify-center">
-        <Checkbox checked={!!f.clientInfo?.invoiced} disabled className="pointer-events-none" />
-      </div>
+    render: (f, { editable, onCommit }) => (
+      <InlineEditCell value={!!f.clientInfo?.invoiced} type="checkbox" editable={editable} onCommit={(v) => onCommit("invoiced", v)}>
+        <div className="flex justify-center">
+          <Checkbox checked={!!f.clientInfo?.invoiced} disabled className="pointer-events-none" />
+        </div>
+      </InlineEditCell>
     ),
   },
   {
     key: "createdBy",
     label: "建立者",
     minWidth: 60,
-    defaultWidth: 80,
     render: (f) => <span className="truncate text-sm">{f.createdBy}</span>,
   },
   {
     key: "createdAt",
     label: "建立時間",
     minWidth: 90,
-    defaultWidth: 110,
     render: (f) => <span className="text-sm text-muted-foreground tabular-nums">{formatDate(f.createdAt)}</span>,
   },
 ];
+
+function OpenButton({ feeId }: { feeId: string }) {
+  const navigate = useNavigate();
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); navigate(`/fees/${feeId}`); }}
+      className="shrink-0 opacity-0 group-hover/title:opacity-100 p-0.5 rounded hover:bg-muted transition-all"
+      title="開啟"
+    >
+      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+    </button>
+  );
+}
 
 type ExpandType = "notes" | "editLog";
 
@@ -217,30 +267,39 @@ export default function TranslatorFees() {
   const navigate = useNavigate();
   const fees = useFees();
   const [currentRole, setCurrentRole] = useState<UserRole>("pm");
-
   const isManager = currentRole === "pm" || currentRole === "executive";
+
+  const visibleFieldKeys = allColumnDefs
+    .filter((c) => !c.managerOnly || isManager)
+    .map((c) => c.key);
+
   const columnDefs = allColumnDefs.filter((c) => !c.managerOnly || isManager);
 
-  const [columnOrder, setColumnOrder] = useState<string[]>(() => allColumnDefs.map((c) => c.key));
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() =>
-    Object.fromEntries(allColumnDefs.map((c) => [c.key, c.defaultWidth]))
-  );
+  const tableViews = useTableViews();
+  const { activeView } = tableViews;
+
   const [expandedRows, setExpandedRows] = useState<Record<string, ExpandType | null>>({});
 
-  const resizingRef = useRef<{ key: string; startX: number; startWidth: number } | null>(null);
+  // Filter fees for assignee role
+  const baseFees = currentRole === "assignee" ? fees.filter((f) => f.status !== "draft") : fees;
+  const visibleFees = tableViews.applyFiltersAndSorts(baseFees);
 
+  const rowSelection = useRowSelection(visibleFees.map((f) => f.id));
+
+  // Column resize
+  const resizingRef = useRef<{ key: string; startX: number; startWidth: number } | null>(null);
   const handleResizeStart = useCallback((e: React.MouseEvent, key: string) => {
     e.preventDefault();
     e.stopPropagation();
     const col = allColumnDefs.find((c) => c.key === key);
-    resizingRef.current = { key, startX: e.clientX, startWidth: columnWidths[key] ?? col?.defaultWidth ?? 100 };
-
+    const startWidth = activeView.columnWidths[key] ?? 100;
+    resizingRef.current = { key, startX: e.clientX, startWidth };
     const onMove = (ev: MouseEvent) => {
       if (!resizingRef.current) return;
       const delta = ev.clientX - resizingRef.current.startX;
       const minW = col?.minWidth ?? 60;
       const newW = Math.max(minW, resizingRef.current.startWidth + delta);
-      setColumnWidths((prev) => ({ ...prev, [resizingRef.current!.key]: newW }));
+      tableViews.setColumnWidth(resizingRef.current.key, newW);
     };
     const onUp = () => {
       resizingRef.current = null;
@@ -249,51 +308,37 @@ export default function TranslatorFees() {
     };
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
-  }, [columnWidths]);
+  }, [activeView.columnWidths, tableViews]);
 
+  // Column drag reorder
   const dragColRef = useRef<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
 
   const handleDragStart = (e: React.DragEvent, key: string) => {
     dragColRef.current = key;
     e.dataTransfer.effectAllowed = "move";
-    const el = e.currentTarget as HTMLElement;
-    e.dataTransfer.setDragImage(el, 20, 20);
   };
-
   const handleDragOver = (e: React.DragEvent, key: string) => {
     e.preventDefault();
-    if (dragColRef.current && dragColRef.current !== key) {
-      setDragOverCol(key);
-    }
+    if (dragColRef.current && dragColRef.current !== key) setDragOverCol(key);
   };
-
   const handleDrop = (e: React.DragEvent, targetKey: string) => {
     e.preventDefault();
     const sourceKey = dragColRef.current;
     if (!sourceKey || sourceKey === targetKey) return;
-    setColumnOrder((prev) => {
-      const next = [...prev];
-      const srcIdx = next.indexOf(sourceKey);
-      const tgtIdx = next.indexOf(targetKey);
-      next.splice(srcIdx, 1);
-      next.splice(tgtIdx, 0, sourceKey);
-      return next;
-    });
+    const next = [...activeView.columnOrder];
+    const srcIdx = next.indexOf(sourceKey);
+    const tgtIdx = next.indexOf(targetKey);
+    next.splice(srcIdx, 1);
+    next.splice(tgtIdx, 0, sourceKey);
+    tableViews.setColumnOrder(next);
     dragColRef.current = null;
     setDragOverCol(null);
   };
-
-  const handleDragEnd = () => {
-    dragColRef.current = null;
-    setDragOverCol(null);
-  };
+  const handleDragEnd = () => { dragColRef.current = null; setDragOverCol(null); };
 
   const toggleExpand = (feeId: string, type: ExpandType) => {
-    setExpandedRows((prev) => ({
-      ...prev,
-      [feeId]: prev[feeId] === type ? null : type,
-    }));
+    setExpandedRows((prev) => ({ ...prev, [feeId]: prev[feeId] === type ? null : type }));
   };
 
   const handleCreate = () => {
@@ -301,30 +346,44 @@ export default function TranslatorFees() {
     navigate(`/fees/${newFee.id}`);
   };
 
-  const orderedCols = columnOrder
+  // Apply column order from the view
+  const orderedCols = activeView.columnOrder
     .map((key) => columnDefs.find((c) => c.key === key))
     .filter(Boolean) as ColumnDef[];
 
-  const totalWidth = orderedCols.reduce((s, c) => s + (columnWidths[c.key] ?? c.defaultWidth), 0) + 100;
+  const totalWidth = orderedCols.reduce((s, c) => s + (activeView.columnWidths[c.key] ?? 100), 0) + 140;
 
-  // Filter fees for assignee role: hide drafts
-  const visibleFees = currentRole === "assignee"
-    ? fees.filter((f) => f.status !== "draft")
-    : fees;
+  // Inline edit commit: applies to selected fees if multiple selected, otherwise just the one
+  const handleCellCommit = useCallback((feeId: string, field: string, value: string | boolean) => {
+    const targetIds = rowSelection.selectedIds.has(feeId) && rowSelection.selectedCount > 1
+      ? Array.from(rowSelection.selectedIds)
+      : [feeId];
+
+    for (const id of targetIds) {
+      const fee = feeStore.getFeeById(id);
+      if (!fee) continue;
+
+      // Client info fields
+      if (["client", "clientCaseId", "clientPoNumber", "reconciled", "rateConfirmed", "invoiced"].includes(field)) {
+        const ci = fee.clientInfo || {
+          clientTaskItems: [], sameCase: false, isFirstFee: false, notFirstFee: false,
+          client: "", contact: "", clientCaseId: "", eciKeywords: "", clientPoNumber: "",
+          reconciled: false, rateConfirmed: false, invoiced: false,
+        };
+        feeStore.updateFee(id, { clientInfo: { ...ci, [field]: value } });
+      } else {
+        feeStore.updateFee(id, { [field]: value });
+      }
+    }
+  }, [rowSelection.selectedIds, rowSelection.selectedCount]);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto max-w-7xl space-y-4">
       {/* Role Switcher */}
       <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
         <span className="font-medium">測試角色：</span>
         {(Object.keys(roleLabels) as UserRole[]).map((role) => (
-          <Button
-            key={role}
-            variant={currentRole === role ? "default" : "outline"}
-            size="sm"
-            className="h-6 text-xs px-2.5"
-            onClick={() => setCurrentRole(role)}
-          >
+          <Button key={role} variant={currentRole === role ? "default" : "outline"} size="sm" className="h-6 text-xs px-2.5" onClick={() => setCurrentRole(role)}>
             {roleLabels[role]}
           </Button>
         ))}
@@ -343,6 +402,24 @@ export default function TranslatorFees() {
         )}
       </div>
 
+      {/* Filter/Sort/View toolbar */}
+      <FilterSortToolbar
+        views={tableViews.views}
+        activeView={activeView}
+        activeViewId={tableViews.activeViewId}
+        onSetActiveView={tableViews.setActiveViewId}
+        onAddView={tableViews.addView}
+        onDeleteView={tableViews.deleteView}
+        onAddFilter={tableViews.addFilter}
+        onRemoveFilter={tableViews.removeFilter}
+        onUpdateFilter={tableViews.updateFilter}
+        onAddSort={tableViews.addSort}
+        onRemoveSort={tableViews.removeSort}
+        onUpdateSort={tableViews.updateSort}
+        visibleFieldKeys={visibleFieldKeys}
+        selectedCount={rowSelection.selectedCount}
+      />
+
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -351,6 +428,17 @@ export default function TranslatorFees() {
         <table style={{ minWidth: totalWidth }} className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40">
+              {/* Select-all checkbox */}
+              <th className="w-[40px] px-2 py-2.5 text-center">
+                <Checkbox
+                  checked={rowSelection.isAllSelected}
+                  onCheckedChange={(checked) => {
+                    if (checked) rowSelection.selectAll();
+                    else rowSelection.deselectAll();
+                  }}
+                  className="mx-auto"
+                />
+              </th>
               {orderedCols.map((col) => (
                 <th
                   key={col.key}
@@ -359,7 +447,7 @@ export default function TranslatorFees() {
                   onDragOver={(e) => handleDragOver(e, col.key)}
                   onDrop={(e) => handleDrop(e, col.key)}
                   onDragEnd={handleDragEnd}
-                  style={{ width: columnWidths[col.key] ?? col.defaultWidth }}
+                  style={{ width: activeView.columnWidths[col.key] ?? 100 }}
                   className={cn(
                     "relative select-none px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap group border-r border-border/40 last:border-r-0",
                     dragOverCol === col.key && "bg-primary/10"
@@ -386,22 +474,26 @@ export default function TranslatorFees() {
           <tbody>
             {visibleFees.map((fee) => {
               const expanded = expandedRows[fee.id];
+              const isSelected = rowSelection.selectedIds.has(fee.id);
               return (
                 <FeeRow
                   key={fee.id}
                   fee={fee}
                   orderedCols={orderedCols}
-                  columnWidths={columnWidths}
+                  columnWidths={activeView.columnWidths}
                   expanded={expanded}
                   onToggleExpand={toggleExpand}
-                  onNavigate={() => navigate(`/fees/${fee.id}`)}
                   currentRole={currentRole}
+                  isManager={isManager}
+                  isSelected={isSelected}
+                  onSelect={rowSelection.handleClick}
+                  onCellCommit={handleCellCommit}
                 />
               );
             })}
             {visibleFees.length === 0 && (
               <tr>
-                <td colSpan={orderedCols.length + 2} className="text-center py-12 text-muted-foreground">
+                <td colSpan={orderedCols.length + 3} className="text-center py-12 text-muted-foreground">
                   尚無稿費紀錄
                 </td>
               </tr>
@@ -414,35 +506,47 @@ export default function TranslatorFees() {
 }
 
 function FeeRow({
-  fee,
-  orderedCols,
-  columnWidths,
-  expanded,
-  onToggleExpand,
-  onNavigate,
-  currentRole,
+  fee, orderedCols, columnWidths, expanded, onToggleExpand, currentRole, isManager,
+  isSelected, onSelect, onCellCommit,
 }: {
   fee: TranslatorFee;
   orderedCols: ColumnDef[];
   columnWidths: Record<string, number>;
   expanded: ExpandType | null | undefined;
   onToggleExpand: (id: string, type: ExpandType) => void;
-  onNavigate: () => void;
   currentRole: UserRole;
+  isManager: boolean;
+  isSelected: boolean;
+  onSelect: (id: string, e: React.MouseEvent) => void;
+  onCellCommit: (feeId: string, field: string, value: string | boolean) => void;
 }) {
+  const canEdit = isManager; // Only PM+ can edit in table
+
   return (
     <>
-      <tr
-        className="border-b border-border hover:bg-secondary/50 transition-colors cursor-pointer group"
-        onClick={onNavigate}
-      >
+      <tr className={cn(
+        "border-b border-border transition-colors group",
+        isSelected ? "bg-primary/5" : "hover:bg-secondary/50"
+      )}>
+        <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={() => {}}
+            onClick={(e) => onSelect(fee.id, e as unknown as React.MouseEvent)}
+            className="mx-auto"
+          />
+        </td>
         {orderedCols.map((col) => (
           <td
             key={col.key}
-            style={{ width: columnWidths[col.key] ?? col.defaultWidth, maxWidth: columnWidths[col.key] ?? col.defaultWidth }}
+            style={{ width: columnWidths[col.key] ?? 100, maxWidth: columnWidths[col.key] ?? 100 }}
             className="px-3 py-3 overflow-hidden border-r border-border/40 last:border-r-0"
           >
-            {col.render(fee)}
+            {col.render(fee, {
+              isManager,
+              editable: canEdit && editableFields.has(col.key),
+              onCommit: (field, value) => onCellCommit(fee.id, field, value),
+            })}
           </td>
         ))}
         <td className="px-2 py-3 text-center">
@@ -453,7 +557,6 @@ function FeeRow({
                 "inline-flex items-center justify-center gap-0.5 h-6 min-w-6 px-1 rounded transition-colors text-xs tabular-nums",
                 expanded === "notes" ? "bg-primary/15 text-primary" : "hover:bg-muted text-muted-foreground"
               )}
-              title="備註"
             >
               <span>{fee.notes.length}</span>
               <ChevronDown className={cn("h-3 w-3 transition-transform", expanded === "notes" && "rotate-180")} />
@@ -468,7 +571,6 @@ function FeeRow({
                 "inline-flex items-center justify-center gap-0.5 h-6 min-w-6 px-1 rounded transition-colors text-xs tabular-nums",
                 expanded === "editLog" ? "bg-primary/15 text-primary" : "hover:bg-muted text-muted-foreground"
               )}
-              title="修改紀錄"
             >
               <span>{fee.editLogs.length}</span>
               <ChevronDown className={cn("h-3 w-3 transition-transform", expanded === "editLog" && "rotate-180")} />
@@ -479,7 +581,7 @@ function FeeRow({
       <AnimatePresence>
         {expanded && (
           <tr>
-            <td colSpan={orderedCols.length + 2} className="p-0">
+            <td colSpan={orderedCols.length + 3} className="p-0">
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
@@ -530,7 +632,6 @@ function isClientInfoLog(action: string): boolean {
 
 function EditLogPanel({ fee, currentRole }: { fee: TranslatorFee; currentRole: UserRole }) {
   const isManager = currentRole === "pm" || currentRole === "executive";
-  // Filter edit logs: assignee can only see non-client-info logs
   const filteredLogs = isManager
     ? fee.editLogs
     : fee.editLogs.filter((log) => !isClientInfoLog(`${log.field} ${log.oldValue} → ${log.newValue}`));
