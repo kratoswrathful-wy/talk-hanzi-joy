@@ -2,7 +2,8 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, X, Link as LinkIcon, Send, AtSign, Image, Link2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
-import { translatorFees, feeStatusLabels, type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus } from "@/data/fee-mock-data";
+import { feeStatusLabels, type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus } from "@/data/fee-mock-data";
+import { useFee, feeStore } from "@/hooks/use-fee-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -422,9 +423,10 @@ function CommentInput({
 export default function TranslatorFeeDetail() {
 
   const { id } = useParams();
-  const feeData = translatorFees.find((f) => f.id === id);
+  const feeData = useFee(id);
 
   const navigate = useNavigate();
+  const [title, setTitle] = useState(feeData?.title ?? "");
   const [taskItems, setTaskItems] = useState<FeeTaskItem[]>(feeData?.taskItems ?? []);
   const [status, setStatus] = useState<FeeStatus>(feeData?.status ?? "draft");
   const [assignee, setAssignee] = useState(feeData?.assignee ?? "");
@@ -679,10 +681,14 @@ export default function TranslatorFeeDetail() {
         {/* Title + actions */}
         <div className="flex items-start justify-between gap-4">
           <Input
-            defaultValue={feeData.title}
+            value={title}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              if (id) feeStore.updateFee(id, { title: e.target.value });
+            }}
             disabled={!canEdit}
             className="text-lg font-semibold bg-transparent border-0 shadow-none px-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
-            placeholder="標題"
+            placeholder="輸入稿費單標題"
           />
           <div className="flex items-center gap-2 shrink-0">
             {canDelete && (
@@ -713,6 +719,7 @@ export default function TranslatorFeeDetail() {
               <Select value={assignee} disabled={!canEdit} onValueChange={(v) => {
                 trackChange("開單對象", assignee, v);
                 setAssignee(v);
+                if (id) feeStore.updateFee(id, { assignee: v });
               }}>
                 <SelectTrigger className="bg-secondary/50">
                   <SelectValue />
@@ -1069,7 +1076,7 @@ export default function TranslatorFeeDetail() {
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => navigate("/fees")}
+              onClick={() => { if (id) feeStore.deleteFee(id); navigate("/fees"); }}
             >
               確定
             </AlertDialogAction>
