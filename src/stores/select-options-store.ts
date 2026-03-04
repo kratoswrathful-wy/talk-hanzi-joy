@@ -109,6 +109,18 @@ export const selectOptionsStore = {
     notify();
   },
 
+  renameOption: (fieldKey: string, optionId: string, newLabel: string) => {
+    const field = selectOptionsStore.getField(fieldKey);
+    store = {
+      ...store,
+      [fieldKey]: {
+        ...field,
+        options: field.options.map((o) => (o.id === optionId ? { ...o, label: newLabel } : o)),
+      },
+    };
+    notify();
+  },
+
   updateOptionColor: (fieldKey: string, optionId: string, color: string) => {
     const field = selectOptionsStore.getField(fieldKey);
     store = {
