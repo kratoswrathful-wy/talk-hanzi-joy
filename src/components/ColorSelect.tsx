@@ -157,7 +157,6 @@ export default function ColorSelect({
                       </span>
                     )}
                   </button>
-                  </button>
                   {/* "..." menu */}
                   <Popover
                     open={menuOpenId === opt.id}
