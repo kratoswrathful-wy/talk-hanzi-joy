@@ -1160,6 +1160,7 @@ export default function TranslatorFeeDetail() {
                 currentFeeId={id ?? ""}
                 currentInternalNote={internalNote}
                 onFirstFeeConflict={() => {
+                  setSwapResolved(false);
                   setDisableOption12A(false);
                   setDuplicateDialogStep("choose");
                 }}
