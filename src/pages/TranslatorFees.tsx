@@ -548,8 +548,8 @@ function EditLogPanel({ fee, currentRole }: { fee: TranslatorFee; currentRole: U
           {filteredLogs.map((log) => (
             <li key={log.id} className="text-sm flex items-baseline gap-2">
               <span className="font-medium text-card-foreground">{log.author}</span>
-              <span className="text-muted-foreground">{log.action}</span>
-              <span className="text-xs text-muted-foreground/60 ml-auto whitespace-nowrap">{formatDate(log.createdAt)}</span>
+              <span className="text-muted-foreground">{log.field} {log.oldValue} → {log.newValue}</span>
+              <span className="text-xs text-muted-foreground/60 ml-auto whitespace-nowrap">{formatDate(log.timestamp)}</span>
             </li>
           ))}
         </ul>

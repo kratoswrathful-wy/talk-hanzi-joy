@@ -1174,7 +1174,7 @@ export default function TranslatorFeeDetail() {
               setComments((prev) => [...prev, newNote]);
               // Sync to store
               if (id) {
-                const storeNote = { id: newNote.id, content, author: newNote.author, createdAt: new Date().toISOString() };
+                const storeNote = { id: newNote.id, text: content, author: newNote.author, createdAt: new Date().toISOString() };
                 const currentFee = feeStore.getFeeById(id);
                 if (currentFee) {
                   feeStore.updateFee(id, { notes: [...currentFee.notes, storeNote] });
