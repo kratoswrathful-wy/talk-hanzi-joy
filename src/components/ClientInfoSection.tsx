@@ -36,6 +36,7 @@ interface ClientInfoSectionProps {
   allFees: TranslatorFee[];
   currentFeeId: string;
   currentInternalNote: string;
+  onFirstFeeConflict?: () => void;
 }
 
 export default function ClientInfoSection({
