@@ -2,7 +2,12 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, X, Send, AtSign, Image, Link2, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
-import { feeStatusLabels, type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, defaultClientInfo } from "@/data/fee-mock-data";
+import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, defaultClientInfo } from "@/data/fee-mock-data";
+
+const feeStatusLabels: Record<FeeStatus, string> = {
+  draft: "草稿",
+  finalized: "開立完成",
+};
 import ClientInfoSection from "@/components/ClientInfoSection";
 import { useFee, feeStore } from "@/hooks/use-fee-store";
 import { supabase } from "@/integrations/supabase/client";
