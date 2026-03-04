@@ -268,3 +268,82 @@ export function FilterSortToolbar({
     </div>
   );
 }
+
+const statusOptions = [
+  { value: "draft", label: "草稿" },
+  { value: "finalized", label: "開立完成" },
+];
+
+function getFilterValueOptions(fieldKey: string, storeKey: string | undefined): { value: string; label: string }[] | null {
+  if (fieldKey === "status") return statusOptions;
+  if (!storeKey) return null;
+  return null; // will be handled by FilterRow with useSelectOptions
+}
+
+interface FilterRowProps {
+  filter: TableFilter;
+  meta: (typeof fieldMetas)[number] | undefined;
+  ops: FilterOperator[];
+  visibleFields: (typeof fieldMetas)[number][];
+  onUpdateFilter: (id: string, updates: Partial<TableFilter>) => void;
+  onRemoveFilter: (id: string) => void;
+}
+
+function FilterRow({ filter, meta, ops, visibleFields, onUpdateFilter, onRemoveFilter }: FilterRowProps) {
+  const storeKey = meta ? fieldToStoreKey[meta.key] : undefined;
+  const isSelectType = meta?.type === "select";
+  
+  // Get options from store for select-type fields
+  const { options: storeOptions } = useSelectOptions(storeKey || "__noop__");
+  
+  const selectOpts: { value: string; label: string }[] | null = (() => {
+    if (filter.field === "status") return statusOptions;
+    if (isSelectType && storeKey) {
+      return storeOptions.map((o) => ({ value: o.label, label: o.label }));
+    }
+    return null;
+  })();
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <Select value={filter.field} onValueChange={(v) => onUpdateFilter(filter.id, { field: v, value: "" })}>
+        <SelectTrigger className="h-7 text-xs w-[100px]"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {visibleFields.map((f) => (
+            <SelectItem key={f.key} value={f.key} className="text-xs">{f.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select value={filter.operator} onValueChange={(v) => onUpdateFilter(filter.id, { operator: v as FilterOperator })}>
+        <SelectTrigger className="h-7 text-xs w-[80px]"><SelectValue /></SelectTrigger>
+        <SelectContent>
+          {ops.map((op) => (
+            <SelectItem key={op} value={op} className="text-xs">{operatorLabels[op]}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {needsValueInput(filter.operator) && (
+        selectOpts ? (
+          <Select value={filter.value} onValueChange={(v) => onUpdateFilter(filter.id, { value: v })}>
+            <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder="選擇..." /></SelectTrigger>
+            <SelectContent>
+              {selectOpts.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Input
+            value={filter.value}
+            onChange={(e) => onUpdateFilter(filter.id, { value: e.target.value })}
+            className="h-7 text-xs flex-1"
+            placeholder="值"
+          />
+        )
+      )}
+      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onRemoveFilter(filter.id)}>
+        <X className="h-3 w-3" />
+      </Button>
+    </div>
+  );
+}
