@@ -152,8 +152,8 @@ const allColumnDefs: ColumnDef[] = [
     minWidth: 70,
     managerOnly: true,
     render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={f.clientInfo?.client || ""} type="text" editable={editable} onCommit={(v) => onCommit("client", v)}>
-        <span className="truncate text-sm">{f.clientInfo?.client || "—"}</span>
+      <InlineEditCell value={f.clientInfo?.client || ""} type="colorSelect" fieldKey="client" editable={editable} onCommit={(v) => onCommit("client", v)}>
+        <ClientLabel value={f.clientInfo?.client || ""} />
       </InlineEditCell>
     ),
   },
