@@ -37,13 +37,13 @@ Deno.serve(async (req) => {
     if (!res.ok) {
       const errBody = await res.text();
 
-      // If it's a database, not a page — return a helpful error
+      // If it's a database, not a page — return 200 with error so client can read it
       if (errBody.includes('is a database')) {
-        console.error('Provided ID is a database, not a page. User should paste a page URL.');
+        console.error('Provided ID is a database, not a page.');
         return new Response(JSON.stringify({
           error: '請貼上案件頁面的連結，而非資料庫的連結。請在 Notion 中開啟單一案件後，複製該頁面的 URL。',
         }), {
-          status: 400,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
