@@ -853,24 +853,51 @@ export default function TranslatorFeeDetail() {
           <div className="grid gap-1.5">
             <Label className="text-xs text-muted-foreground">相關案件</Label>
             {canEdit ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  value={notionUrlInput}
-                  onChange={(e) => setNotionUrlInput(e.target.value)}
-                  className="bg-secondary/50 flex-1"
-                  placeholder="貼上 Notion 案件頁面網址"
-                  onKeyDown={(e) => { if (e.key === "Enter") handleFetchFromUrl(); }}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 text-xs"
-                  disabled={!notionUrlInput.trim() || notionLoading}
-                  onClick={handleFetchFromUrl}
-                >
-                  {notionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "確認"}
-                </Button>
-              </div>
+              internalNote && internalNoteUrl ? (
+                <div className="flex items-center gap-2">
+                  <a
+                    href={internalNoteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center h-10 flex-1 rounded-md border border-input bg-secondary/50 px-3 text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors cursor-pointer"
+                  >
+                    {internalNote}
+                  </a>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 h-8 w-8"
+                    onClick={() => {
+                      setInternalNote("");
+                      setInternalNoteUrl("");
+                      setNotionUrlInput("");
+                      if (id) feeStore.updateFee(id, { internalNote: "", internalNoteUrl: "" });
+                    }}
+                    title="清除"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={notionUrlInput}
+                    onChange={(e) => setNotionUrlInput(e.target.value)}
+                    className="bg-secondary/50 flex-1"
+                    placeholder="貼上 Notion 案件頁面網址"
+                    onKeyDown={(e) => { if (e.key === "Enter") handleFetchFromUrl(); }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 text-xs"
+                    disabled={!notionUrlInput.trim() || notionLoading}
+                    onClick={handleFetchFromUrl}
+                  >
+                    {notionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "確認"}
+                  </Button>
+                </div>
+              )
             ) : internalNoteUrl ? (
               <a
                 href={internalNoteUrl}
