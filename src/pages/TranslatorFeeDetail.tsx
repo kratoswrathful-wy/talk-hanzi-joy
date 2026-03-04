@@ -98,7 +98,7 @@ const fieldLabels: Record<string, string> = {
   unitCount: "計費單位數",
   title: "標題",
   assignee: "開單對象",
-  internalNote: "關聯內部紀錄",
+  internalNote: "相關案件",
 };
 
 // --- Rich Comment Components ---
