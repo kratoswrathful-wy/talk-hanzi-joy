@@ -1380,7 +1380,7 @@ export default function TranslatorFeeDetail() {
           <AlertDialogFooter>
             <Button variant="outline" onClick={() => {
               setDisableOption12A(true);
-              setDuplicateDialogStep("choose");
+              setDuplicateDialogStep(confirmSwapOriginRef.current);
             }}>
               否
             </Button>
