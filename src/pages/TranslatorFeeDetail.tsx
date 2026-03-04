@@ -1366,6 +1366,7 @@ export default function TranslatorFeeDetail() {
             </AlertDialogCancel>
             <AlertDialogAction onClick={() => {
               // Swap: other fee becomes notFirstFee, this page becomes isFirstFee
+              justResolvedRef.current = true;
               if (otherFirstFee) {
                 const otherClientInfo = { ...otherFirstFee.clientInfo!, isFirstFee: false, notFirstFee: true };
                 feeStore.updateFee(otherFirstFee.id, { clientInfo: otherClientInfo });
