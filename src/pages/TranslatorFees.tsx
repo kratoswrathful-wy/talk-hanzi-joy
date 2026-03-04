@@ -233,7 +233,7 @@ export default function TranslatorFees() {
                   onDragEnd={handleDragEnd}
                   style={{ width: columnWidths[col.key] ?? col.defaultWidth }}
                   className={cn(
-                    "relative select-none px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap group",
+                    "relative select-none px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap group border-r border-border/40 last:border-r-0",
                     dragOverCol === col.key && "bg-primary/10"
                   )}
                 >
