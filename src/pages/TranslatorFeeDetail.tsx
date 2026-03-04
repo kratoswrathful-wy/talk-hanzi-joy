@@ -656,13 +656,19 @@ export default function TranslatorFeeDetail() {
     return match ? match[1] : null;
   };
 
-  const handleSaveLink = async () => {
-    setInternalNoteUrl(tempUrl);
-    setLinkDialogOpen(false);
+  const handleFetchFromUrl = async () => {
+    const url = notionUrlInput.trim();
+    if (!url) return;
+
+    setInternalNoteUrl(url);
+    if (id) feeStore.updateFee(id, { internalNoteUrl: url });
 
     // Auto-detect Notion URL and fetch data
-    const pageId = extractNotionPageId(tempUrl);
-    if (!pageId || !tempUrl.includes("notion.so")) return;
+    const pageId = extractNotionPageId(url);
+    if (!pageId || !url.includes("notion.so")) {
+      toast.info("已儲存連結");
+      return;
+    }
 
     setNotionLoading(true);
     try {
