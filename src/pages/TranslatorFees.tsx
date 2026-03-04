@@ -244,7 +244,7 @@ export default function TranslatorFees() {
                   {/* Resize handle */}
                   <div
                     onMouseDown={(e) => handleResizeStart(e, col.key)}
-                    className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/30 transition-colors"
+                    className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize bg-border/50 hover:bg-primary/40 transition-colors"
                   />
                 </th>
               ))}
