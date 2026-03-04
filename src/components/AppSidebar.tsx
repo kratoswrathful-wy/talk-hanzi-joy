@@ -16,7 +16,7 @@ const navItems = [
   { title: "儀表板", url: "/", icon: LayoutDashboard },
   { title: "專案", url: "/projects", icon: FolderKanban },
   { title: "所有任務", url: "/tasks", icon: ListChecks },
-  { title: "稿費管理", url: "/fees", icon: Receipt },
+  { title: "費用管理", url: "/fees", icon: Receipt },
   { title: "設定", url: "/settings", icon: Settings },
 ];
 

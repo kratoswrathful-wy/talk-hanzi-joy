@@ -19,9 +19,10 @@ export const PRESET_COLORS = [
   "#3B82F6", // blue
   "#6366F1", // indigo
   "#8B5CF6", // violet
-  "#A855F7", // purple
   "#D946EF", // fuchsia
   "#EC4899", // pink
+  "#1F2937", // black
+  "#9CA3AF", // gray
 ];
 
 // Sort: English alphabetical, Chinese by stroke count

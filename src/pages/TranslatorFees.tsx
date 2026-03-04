@@ -327,13 +327,13 @@ export default function TranslatorFees() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">稿費管理</h1>
-          <p className="mt-1 text-sm text-muted-foreground">管理譯者稿費請款單</p>
+          <h1 className="text-2xl font-semibold tracking-tight">費用管理</h1>
+          <p className="mt-1 text-sm text-muted-foreground">管理譯者費用請款單</p>
         </div>
         {isManager && (
           <Button size="sm" className="gap-1.5" onClick={handleCreate}>
             <Plus className="h-4 w-4" />
-            新增稿費
+            新增費用
           </Button>
         )}
       </div>

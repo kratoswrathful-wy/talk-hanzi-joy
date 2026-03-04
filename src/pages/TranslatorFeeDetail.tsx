@@ -761,7 +761,7 @@ export default function TranslatorFeeDetail() {
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
         >
           <ArrowLeft className="h-4 w-4" />
-          返回稿費列表
+          返回費用清單
         </Link>
         <div className="flex items-center gap-2 shrink-0">
           {canDelete && (
@@ -786,10 +786,12 @@ export default function TranslatorFeeDetail() {
                 size="sm"
                 className="text-xs"
                 onClick={() => {
-                  // Clone current fee
+                  // Clone current fee with incrementing copy count
+                  const copyCount = (window as any).__copyCount ?? 0;
+                  (window as any).__copyCount = copyCount + 1;
                   const draft = feeStore.createDraft();
                   feeStore.updateFee(draft.id, {
-                    title: title ? `${title} (複製)` : "",
+                    title: title ? `${title} 副本${copyCount + 1}` : "",
                     assignee,
                     taskItems: taskItems.map((item, idx) => ({ ...item, id: `item-clone-${Date.now()}-${idx}` })),
                     internalNote,
