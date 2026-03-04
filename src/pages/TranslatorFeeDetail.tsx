@@ -809,6 +809,25 @@ export default function TranslatorFeeDetail() {
         );
       }
 
+      // 同步計費單位數到客戶資訊
+      if (unitCount) {
+        setClientInfo((prev) => ({
+          ...prev,
+          clientTaskItems: prev.clientTaskItems.map((item, idx) =>
+            idx === 0 ? { ...item, unitCount, billingUnit: "字" as BillingUnit } : item
+          ),
+        }));
+        if (id) {
+          const updatedClientInfo = {
+            ...clientInfo,
+            clientTaskItems: clientInfo.clientTaskItems.map((item, idx) =>
+              idx === 0 ? { ...item, unitCount, billingUnit: "字" as BillingUnit } : item
+            ),
+          };
+          feeStore.updateFee(id, { clientInfo: updatedClientInfo });
+        }
+      }
+
       toast.success("已從 Notion 載入案件資料");
     } catch (err: any) {
       console.error("Failed to fetch Notion data:", err);
@@ -1106,11 +1125,11 @@ export default function TranslatorFeeDetail() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/30">
-                  <TableHead className="text-xs">任務類型</TableHead>
-                  <TableHead className="text-xs">計費單位</TableHead>
-                  <TableHead className="text-xs">單價</TableHead>
-                  <TableHead className="text-xs">計費單位數</TableHead>
-                  <TableHead className="text-xs text-right">小計</TableHead>
+                  <TableHead className="text-xs w-[25%]">任務類型</TableHead>
+                  <TableHead className="text-xs w-[15%]">計費單位</TableHead>
+                  <TableHead className="text-xs w-[18%]">單價</TableHead>
+                  <TableHead className="text-xs w-[22%]">計費單位數</TableHead>
+                  <TableHead className="text-xs text-right w-[20%]">小計</TableHead>
                   {canEdit && <TableHead className="text-xs w-12" />}
                 </TableRow>
               </TableHeader>

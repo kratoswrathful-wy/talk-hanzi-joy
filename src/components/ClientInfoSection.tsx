@@ -164,11 +164,11 @@ export default function ClientInfoSection({
           <Table>
             <TableHeader>
               <TableRow className="bg-secondary/30">
-                <TableHead className="text-xs">客戶端任務類型</TableHead>
-                <TableHead className="text-xs">計費單位</TableHead>
-                <TableHead className="text-xs">客戶報價</TableHead>
-                <TableHead className="text-xs">計費單位數</TableHead>
-                <TableHead className="text-xs text-right">小計</TableHead>
+                <TableHead className="text-xs w-[25%]">客戶端任務類型</TableHead>
+                <TableHead className="text-xs w-[15%]">計費單位</TableHead>
+                <TableHead className="text-xs w-[18%]">客戶報價</TableHead>
+                <TableHead className="text-xs w-[22%]">計費單位數</TableHead>
+                <TableHead className="text-xs text-right w-[20%]">小計</TableHead>
                 {canEdit && !clientItemsLocked && <TableHead className="text-xs w-12" />}
               </TableRow>
             </TableHeader>
