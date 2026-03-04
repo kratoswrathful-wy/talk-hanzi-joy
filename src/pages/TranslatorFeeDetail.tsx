@@ -147,13 +147,13 @@ function CommentInput({
   placeholder: string;
   onSubmit: (content: string, imageUrl?: string) => void;
 }) {
-  const [imageUrl, setImageUrl] = useState("");
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [linkText, setLinkText] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
-  const [showImageInput, setShowImageInput] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const insertAtCursor = (text: string) => {
     const el = textareaRef.current;
@@ -171,12 +171,33 @@ function CommentInput({
     }
   };
 
+  const handleFileSelect = (file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setImagePreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith("image/")) {
+        e.preventDefault();
+        const file = items[i].getAsFile();
+        if (file) handleFileSelect(file);
+        return;
+      }
+    }
+  };
+
   const handleSubmit = () => {
-    if (!draft.trim() && !imageUrl.trim()) return;
-    onSubmit(draft.trim(), imageUrl.trim() || undefined);
+    if (!draft.trim() && !imagePreview) return;
+    onSubmit(draft.trim(), imagePreview || undefined);
     setDraft("");
-    setImageUrl("");
-    setShowImageInput(false);
+    setImagePreview(null);
   };
 
   return (
@@ -186,6 +207,7 @@ function CommentInput({
           ref={textareaRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
+          onPaste={handlePaste}
           placeholder={placeholder}
           className="min-h-[60px] text-xs pr-2"
         />
@@ -208,20 +230,33 @@ function CommentInput({
         )}
       </div>
 
-      {/* Image URL input */}
-      {showImageInput && (
-        <div className="flex gap-2">
-          <Input
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            placeholder="輸入圖片網址..."
-            className="text-xs h-8"
-          />
-          <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => setShowImageInput(false)}>
-            取消
+      {/* Image preview */}
+      {imagePreview && (
+        <div className="relative inline-block">
+          <img src={imagePreview} alt="預覽" className="max-w-xs max-h-32 rounded-md border border-border" />
+          <Button
+            variant="destructive"
+            size="icon"
+            className="absolute -top-2 -right-2 h-5 w-5 rounded-full"
+            onClick={() => setImagePreview(null)}
+          >
+            <X className="h-3 w-3" />
           </Button>
         </div>
       )}
+
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFileSelect(file);
+          e.target.value = "";
+        }}
+      />
 
       {/* Link insertion dialog */}
       {showLinkDialog && (
@@ -274,8 +309,8 @@ function CommentInput({
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            title="插入圖片"
-            onClick={() => setShowImageInput(!showImageInput)}
+            title="上傳圖片"
+            onClick={() => fileInputRef.current?.click()}
           >
             <Image className="h-3.5 w-3.5" />
           </Button>
@@ -296,7 +331,7 @@ function CommentInput({
         <Button
           size="sm"
           className="gap-1 text-xs"
-          disabled={!draft.trim() && !imageUrl.trim()}
+          disabled={!draft.trim() && !imagePreview}
           onClick={handleSubmit}
         >
           <Send className="h-3 w-3" />
