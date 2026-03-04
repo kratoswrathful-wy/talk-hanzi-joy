@@ -121,6 +121,13 @@ export default function TranslatorFeeDetail() {
     setTaskItems((prev) => prev.filter((i) => i.id !== itemId));
   };
 
+  const handleNumberBlur = (itemId: string, field: "unitPrice" | "unitCount", rawValue: string) => {
+    let cleaned = rawValue.replace(/^0+(\d)/, "$1"); // remove leading zeros
+    if (cleaned.startsWith(".")) cleaned = "0" + cleaned; // .xxx → 0.xxx
+    if (cleaned === "" || cleaned === "0.") cleaned = "0";
+    handleUpdateItem(itemId, field, Number(cleaned));
+  };
+
   const handleSubmit = () => {
     setStatus("finalized");
   };
@@ -140,7 +147,7 @@ export default function TranslatorFeeDetail() {
   };
 
   const totalAmount = taskItems.reduce(
-    (sum, item) => sum + item.unitCount * item.unitPrice,
+    (sum, item) => sum + Number(item.unitCount) * Number(item.unitPrice),
     0
   );
 
@@ -363,24 +370,34 @@ export default function TranslatorFeeDetail() {
                       </TableCell>
                       <TableCell>
                         <Input
-                          type="number"
+                          type="text"
+                          inputMode="decimal"
                           value={item.unitPrice}
-                          onChange={(e) => handleUpdateItem(item.id, "unitPrice", Number(e.target.value))}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitPrice", v as any);
+                          }}
+                          onBlur={(e) => handleNumberBlur(item.id, "unitPrice", e.target.value)}
                           disabled={!canEdit}
                           className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-20"
                         />
                       </TableCell>
                       <TableCell>
                         <Input
-                          type="number"
+                          type="text"
+                          inputMode="decimal"
                           value={item.unitCount}
-                          onChange={(e) => handleUpdateItem(item.id, "unitCount", Number(e.target.value))}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitCount", v as any);
+                          }}
+                          onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
                           disabled={!canEdit}
                           className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-24"
                         />
                       </TableCell>
                       <TableCell className="text-right text-xs font-medium">
-                        {(item.unitCount * item.unitPrice).toLocaleString()}
+                        {(Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}
                       </TableCell>
                       {canEdit && (
                         <TableCell>
