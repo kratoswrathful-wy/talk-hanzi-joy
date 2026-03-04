@@ -114,8 +114,12 @@ export default function ColorSelect({
           >
             {selectedOption ? (
               <span
-                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium"
-                style={{ backgroundColor: selectedOption.color + "22", color: selectedOption.color }}
+                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                style={{
+                  backgroundColor: selectedOption.color + "22",
+                  color: selectedOption.color,
+                  borderColor: selectedOption.color + "44",
+                }}
               >
                 <span
                   className="w-2 h-2 rounded-full shrink-0"
