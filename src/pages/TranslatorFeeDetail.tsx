@@ -1416,7 +1416,6 @@ export default function TranslatorFeeDetail() {
           <AlertDialogFooter className="flex-col sm:flex-row gap-2">
             <Button
               variant="outline"
-              disabled={!!otherFirstFee}
               onClick={() => {
                 if (otherFirstFee) {
                   // There's already a primary — need to go through confirmSwap
