@@ -1,29 +1,32 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * Default pricing store for translators (assignees) and clients.
- * Each person can have a default unit price (for translator task items)
- * or a default client price (for client task items).
+ * Default pricing store — restructured for client+taskType based pricing
+ * and translator tier-based pricing.
+ *
+ * Client pricing: clientName → taskType → price
+ * Translator tiers: clientPrice range → translatorPrice
  */
 
-export interface DefaultPricing {
-  /** The person's label (must match a select option label) */
-  name: string;
-  /** Default unit price (譯者預設單價) or client price (客戶預設報價) */
-  defaultPrice: number;
+export interface TranslatorTier {
+  id: string;
+  minPrice: number;
+  maxPrice: number;
+  translatorPrice: number;
 }
 
 type Listener = () => void;
 
 interface PricingStore {
-  /** fieldKey → name → price */
-  assignee: Record<string, number>; // 譯者 name → 預設單價
-  client: Record<string, number>;   // 客戶 name → 預設報價
+  /** clientName → taskType → clientPrice */
+  clientPricing: Record<string, Record<string, number>>;
+  /** Translator price tiers based on client price ranges */
+  translatorTiers: TranslatorTier[];
 }
 
 let store: PricingStore = {
-  assignee: {},
-  client: {},
+  clientPricing: {},
+  translatorTiers: [],
 };
 
 const listeners = new Set<Listener>();
@@ -33,26 +36,79 @@ function notify() {
 }
 
 export const defaultPricingStore = {
-  getPrice: (fieldKey: "assignee" | "client", name: string): number | undefined => {
-    return store[fieldKey][name];
+  // --- Client pricing ---
+  getClientPrice: (client: string, taskType: string): number | undefined => {
+    return store.clientPricing[client]?.[taskType];
   },
 
-  setPrice: (fieldKey: "assignee" | "client", name: string, price: number) => {
+  setClientPrice: (client: string, taskType: string, price: number) => {
     store = {
       ...store,
-      [fieldKey]: { ...store[fieldKey], [name]: price },
+      clientPricing: {
+        ...store.clientPricing,
+        [client]: { ...(store.clientPricing[client] || {}), [taskType]: price },
+      },
     };
     notify();
   },
 
-  removePrice: (fieldKey: "assignee" | "client", name: string) => {
-    const { [name]: _, ...rest } = store[fieldKey];
-    store = { ...store, [fieldKey]: rest };
+  removeClientPrice: (client: string, taskType: string) => {
+    const { [taskType]: _, ...rest } = store.clientPricing[client] || {};
+    store = {
+      ...store,
+      clientPricing: { ...store.clientPricing, [client]: rest },
+    };
     notify();
   },
 
-  getAllPrices: (fieldKey: "assignee" | "client"): Record<string, number> => {
-    return store[fieldKey];
+  getClientPricing: (client: string): Record<string, number> => {
+    return store.clientPricing[client] || {};
+  },
+
+  getAllClientPricing: (): Record<string, Record<string, number>> => {
+    return store.clientPricing;
+  },
+
+  // --- Translator tiers ---
+  getTranslatorTiers: (): TranslatorTier[] => store.translatorTiers,
+
+  addTier: (minPrice: number, maxPrice: number, translatorPrice: number) => {
+    const tier: TranslatorTier = {
+      id: `tier-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+      minPrice,
+      maxPrice,
+      translatorPrice,
+    };
+    store = { ...store, translatorTiers: [...store.translatorTiers, tier] };
+    notify();
+    return tier.id;
+  },
+
+  updateTier: (id: string, updates: Partial<Omit<TranslatorTier, "id">>) => {
+    store = {
+      ...store,
+      translatorTiers: store.translatorTiers.map((t) =>
+        t.id === id ? { ...t, ...updates } : t
+      ),
+    };
+    notify();
+  },
+
+  removeTier: (id: string) => {
+    store = {
+      ...store,
+      translatorTiers: store.translatorTiers.filter((t) => t.id !== id),
+    };
+    notify();
+  },
+
+  /** Look up translator price from a given client price using tiers */
+  getTranslatorPrice: (clientPrice: number): number | undefined => {
+    // Sort tiers by minPrice to find the first matching range
+    const tier = store.translatorTiers.find(
+      (t) => clientPrice >= t.minPrice && clientPrice <= t.maxPrice
+    );
+    return tier?.translatorPrice;
   },
 
   subscribe: (listener: Listener) => {
@@ -63,12 +119,24 @@ export const defaultPricingStore = {
   getSnapshot: () => store,
 };
 
-export function useDefaultPricing(fieldKey: "assignee" | "client") {
+export function useClientPricing() {
   useSyncExternalStore(defaultPricingStore.subscribe, defaultPricingStore.getSnapshot);
   return {
-    prices: defaultPricingStore.getAllPrices(fieldKey),
-    getPrice: (name: string) => defaultPricingStore.getPrice(fieldKey, name),
-    setPrice: (name: string, price: number) => defaultPricingStore.setPrice(fieldKey, name, price),
-    removePrice: (name: string) => defaultPricingStore.removePrice(fieldKey, name),
+    getAllClientPricing: defaultPricingStore.getAllClientPricing,
+    getClientPrice: defaultPricingStore.getClientPrice,
+    setClientPrice: defaultPricingStore.setClientPrice,
+    removeClientPrice: defaultPricingStore.removeClientPrice,
+    getClientPricing: defaultPricingStore.getClientPricing,
+  };
+}
+
+export function useTranslatorTiers() {
+  useSyncExternalStore(defaultPricingStore.subscribe, defaultPricingStore.getSnapshot);
+  return {
+    tiers: defaultPricingStore.getTranslatorTiers(),
+    addTier: defaultPricingStore.addTier,
+    updateTier: defaultPricingStore.updateTier,
+    removeTier: defaultPricingStore.removeTier,
+    getTranslatorPrice: defaultPricingStore.getTranslatorPrice,
   };
 }

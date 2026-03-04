@@ -1173,17 +1173,34 @@ export default function TranslatorFeeDetail() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <Label className="text-sm font-medium">任務項目</Label>
-            {canEdit && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1 text-xs"
-                onClick={handleAddItem}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                新增項目
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {isManager && (
+                <div className="flex items-center gap-1.5">
+                  <Checkbox
+                    id="rateConfirmed"
+                    checked={clientInfo.rateConfirmed}
+                    disabled={!canEdit}
+                    onCheckedChange={(checked) => {
+                      const updated = { ...clientInfo, rateConfirmed: !!checked };
+                      setClientInfo(updated);
+                      if (id) feeStore.updateFee(id, { clientInfo: updated });
+                    }}
+                  />
+                  <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">費率無誤</Label>
+                </div>
+              )}
+              {canEdit && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1 text-xs"
+                  onClick={handleAddItem}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  新增項目
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="rounded-lg border border-border overflow-hidden">

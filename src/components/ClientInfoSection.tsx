@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { defaultPricingStore } from "@/stores/default-pricing-store";
 import { Plus, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -153,12 +152,32 @@ export default function ClientInfoSection({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label className="text-sm font-medium">客戶端計費項目</Label>
-          {canEdit && !clientItemsLocked && (
-            <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={addItem}>
-              <Plus className="h-3.5 w-3.5" />
-              新增項目
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <Checkbox
+                id="reconciled"
+                checked={clientInfo.reconciled}
+                disabled={!canEdit}
+                onCheckedChange={(checked) => update("reconciled", !!checked)}
+              />
+              <Label htmlFor="reconciled" className="text-xs cursor-pointer whitespace-nowrap">對帳完成</Label>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Checkbox
+                id="invoiced"
+                checked={clientInfo.invoiced}
+                disabled={!canEdit}
+                onCheckedChange={(checked) => update("invoiced", !!checked)}
+              />
+              <Label htmlFor="invoiced" className="text-xs cursor-pointer whitespace-nowrap">請款完成</Label>
+            </div>
+            {canEdit && !clientItemsLocked && (
+              <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={addItem}>
+                <Plus className="h-3.5 w-3.5" />
+                新增項目
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="rounded-lg border-2 border-border overflow-hidden">
@@ -248,7 +267,16 @@ export default function ClientInfoSection({
             </TableBody>
             <TableFooter>
               <TableRow>
-                <TableCell colSpan={4} className="text-sm font-medium text-right">
+                <TableCell colSpan={2} className="text-left">
+                  <Input
+                    value={clientInfo.eciKeywords || clientInfo.clientCaseId}
+                    onChange={(e) => updateMultiple({ eciKeywords: e.target.value, clientCaseId: e.target.value })}
+                    disabled={!canEdit}
+                    placeholder="客戶端案號或關鍵字"
+                    className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
+                  />
+                </TableCell>
+                <TableCell colSpan={2} className="text-sm font-medium text-right">
                   營收總額
                 </TableCell>
                 <TableCell className="text-right text-sm font-bold">
@@ -257,7 +285,16 @@ export default function ClientInfoSection({
                 {canEdit && !clientItemsLocked && <TableCell />}
               </TableRow>
               <TableRow>
-                <TableCell colSpan={4} className="text-sm font-medium text-right">
+                <TableCell colSpan={2} className="text-left">
+                  <Input
+                    value={clientInfo.clientPoNumber}
+                    onChange={(e) => update("clientPoNumber", e.target.value)}
+                    disabled={!canEdit}
+                    placeholder="客戶 PO 編號"
+                    className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
+                  />
+                </TableCell>
+                <TableCell colSpan={2} className="text-sm font-medium text-right">
                   {clientInfo.sameCase && profitFeeCount > 0
                     ? `利潤（${profitFeeCount} 筆稿費）`
                     : "利潤"}
@@ -274,166 +311,97 @@ export default function ClientInfoSection({
 
       <Separator />
 
-      {/* 4-quadrant layout */}
-      <div className="grid grid-cols-2 gap-x-8 gap-y-4">
-        {/* Left-top: 同一案件組 */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="sameCase"
-              checked={clientInfo.sameCase}
-              disabled={!canEdit}
-              onCheckedChange={(checked) => {
-                if (!checked && clientInfo.sameCase) {
-                  setShowUncheckWarning(true);
-                } else {
-                  update("sameCase", !!checked);
+      {/* 同一案件 section */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="sameCase"
+            checked={clientInfo.sameCase}
+            disabled={!canEdit}
+            onCheckedChange={(checked) => {
+              if (!checked && clientInfo.sameCase) {
+                setShowUncheckWarning(true);
+              } else {
+                update("sameCase", !!checked);
+              }
+            }}
+          />
+          <Label htmlFor="sameCase" className="text-xs cursor-pointer whitespace-nowrap">
+            與他筆費用為同一案件
+          </Label>
+        </div>
+        <div className="flex items-center gap-2 ml-6">
+          <Checkbox
+            id="isFirstFee"
+            checked={clientInfo.isFirstFee}
+            disabled={isFirstFeeDisabled}
+            onCheckedChange={(checked) => {
+              if (checked) {
+                const hasExisting = currentInternalNote && allFees.some(
+                  (f) => f.id !== currentFeeId && f.clientInfo?.sameCase && f.clientInfo?.isFirstFee && f.internalNote === currentInternalNote
+                );
+                if (hasExisting) {
+                  update("isFirstFee", true);
+                  onFirstFeeConflict?.();
+                  return;
                 }
-              }}
-            />
-            <Label htmlFor="sameCase" className="text-xs cursor-pointer whitespace-nowrap">
-              與他筆費用為同一案件
+              }
+              update("isFirstFee", !!checked);
+            }}
+          />
+          <Label
+            htmlFor="isFirstFee"
+            className={`text-xs cursor-pointer ${isFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
+          >
+            為主要營收紀錄（於總表列入營收統計）
+          </Label>
+        </div>
+        <div className="flex items-center gap-2 ml-6">
+          <Checkbox
+            id="notFirstFee"
+            checked={clientInfo.notFirstFee}
+            disabled={notFirstFeeDisabled}
+            onCheckedChange={(checked) => update("notFirstFee", !!checked)}
+          />
+          <Label
+            htmlFor="notFirstFee"
+            className={`text-xs cursor-pointer ${notFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
+          >
+            非主要營收紀錄（於總表不列入營收統計）
+          </Label>
+        </div>
+
+        {/* Related Fees list */}
+        {clientInfo.sameCase && currentInternalNote && (
+          <div className="ml-6 mt-2">
+            <Label className="text-xs text-muted-foreground">
+              同案件費用頁面（{relatedFees.length} 筆）
             </Label>
+            {relatedFees.length > 0 ? (
+              <div className="space-y-1 mt-1">
+                {relatedFees.map((f) => (
+                  <Link
+                    key={f.id}
+                    to={`/fees/${f.id}`}
+                    className="flex items-center justify-between text-xs px-2 py-1.5 rounded-md border border-border bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                  >
+                    <span className="text-foreground font-medium truncate">
+                      {f.title || "（未命名）"}
+                    </span>
+                    <span className="text-muted-foreground shrink-0 ml-2">
+                      {f.clientInfo?.isFirstFee ? "主要" : f.clientInfo?.notFirstFee ? "非主要" : "—"}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground mt-1">無相關費用頁面</p>
+            )}
           </div>
-          <div className="flex items-center gap-2 ml-6">
-            <Checkbox
-              id="isFirstFee"
-              checked={clientInfo.isFirstFee}
-              disabled={isFirstFeeDisabled}
-              onCheckedChange={(checked) => {
-                if (checked) {
-                  // Check if there's already a firstFee in the group
-                  const hasExisting = currentInternalNote && allFees.some(
-                    (f) => f.id !== currentFeeId && f.clientInfo?.sameCase && f.clientInfo?.isFirstFee && f.internalNote === currentInternalNote
-                  );
-                  if (hasExisting) {
-                    // First apply the change, then trigger conflict dialog
-                    update("isFirstFee", true);
-                    onFirstFeeConflict?.();
-                    return;
-                  }
-                }
-                update("isFirstFee", !!checked);
-              }}
-            />
-            <Label
-              htmlFor="isFirstFee"
-              className={`text-xs cursor-pointer ${isFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
-            >
-              為主要營收紀錄（於總表列入營收統計）
-            </Label>
-          </div>
-          <div className="flex items-center gap-2 ml-6">
-            <Checkbox
-              id="notFirstFee"
-              checked={clientInfo.notFirstFee}
-              disabled={notFirstFeeDisabled}
-              onCheckedChange={(checked) => update("notFirstFee", !!checked)}
-            />
-            <Label
-              htmlFor="notFirstFee"
-              className={`text-xs cursor-pointer ${notFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
-            >
-              非主要營收紀錄（於總表不列入營收統計）
-            </Label>
-          </div>
-
-          {/* Related Fees list — shown when sameCase is checked */}
-          {clientInfo.sameCase && currentInternalNote && (
-            <div className="ml-6 mt-2">
-              <Label className="text-xs text-muted-foreground">
-                同案件費用頁面（{relatedFees.length} 筆）
-              </Label>
-              {relatedFees.length > 0 ? (
-                <div className="space-y-1 mt-1">
-                  {relatedFees.map((f) => (
-                    <Link
-                      key={f.id}
-                      to={`/fees/${f.id}`}
-                      className="flex items-center justify-between text-xs px-2 py-1.5 rounded-md border border-border bg-secondary/30 hover:bg-secondary/50 transition-colors"
-                    >
-                      <span className="text-foreground font-medium truncate">
-                        {f.title || "（未命名）"}
-                      </span>
-                      <span className="text-muted-foreground shrink-0 ml-2">
-                        {f.clientInfo?.isFirstFee ? "主要" : f.clientInfo?.notFirstFee ? "非主要" : "—"}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground mt-1">無相關費用頁面</p>
-              )}
-            </div>
-          )}
-          {clientInfo.sameCase && !currentInternalNote && (
-            <p className="ml-6 mt-2 text-xs text-muted-foreground">請先填寫「相關案件」欄位以比對同案件費用</p>
-          )}
-        </div>
-
-        {/* Right-top: 財務狀態組 */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Checkbox id="reconciled" checked={clientInfo.reconciled} disabled={!canEdit}
-              onCheckedChange={(checked) => update("reconciled", !!checked)} />
-            <Label htmlFor="reconciled" className="text-xs cursor-pointer whitespace-nowrap">對帳完成</Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Checkbox id="rateConfirmed" checked={clientInfo.rateConfirmed} disabled={!canEdit}
-              onCheckedChange={(checked) => update("rateConfirmed", !!checked)} />
-            <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">費率無誤</Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Checkbox id="invoiced" checked={clientInfo.invoiced} disabled={!canEdit}
-              onCheckedChange={(checked) => update("invoiced", !!checked)} />
-            <Label htmlFor="invoiced" className="text-xs cursor-pointer whitespace-nowrap">請款完成</Label>
-          </div>
-        </div>
-
-        {/* Left-bottom: 客戶 + 聯絡人 */}
-        <div className="space-y-3">
-          <div className="grid gap-1.5">
-            <Label className="text-xs text-muted-foreground">客戶</Label>
-            <ColorSelect fieldKey="client" value={clientInfo.client} disabled={!canEdit}
-              onValueChange={(v) => {
-                update("client", v);
-                // Auto-fill default client price
-                if (v) {
-                  const defaultPrice = defaultPricingStore.getPrice("client", v);
-                  if (defaultPrice !== undefined) {
-                    const updated = clientInfo.clientTaskItems.map((item) =>
-                      item.clientPrice === 0 ? { ...item, clientPrice: defaultPrice } : item
-                    );
-                    onChange({ ...clientInfo, client: v, clientTaskItems: updated });
-                  }
-                }
-              }} placeholder="選擇客戶" />
-          </div>
-          <div className="grid gap-1.5">
-            <Label className="text-xs text-muted-foreground">聯絡人</Label>
-            <ColorSelect fieldKey="contact" value={clientInfo.contact} disabled={!canEdit}
-              onValueChange={(v) => update("contact", v)} placeholder="選擇聯絡人" />
-          </div>
-        </div>
-
-        {/* Right-bottom: 客戶端案號 + PO */}
-        <div className="space-y-3">
-          <div className="grid gap-1.5">
-            <Label className="text-xs text-muted-foreground">客戶端案號或關鍵字</Label>
-            <Input
-              value={clientInfo.eciKeywords || clientInfo.clientCaseId}
-              onChange={(e) => updateMultiple({ eciKeywords: e.target.value, clientCaseId: e.target.value })}
-              disabled={!canEdit} placeholder="輸入關鍵字或案號" className="text-sm"
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label className="text-xs text-muted-foreground">客戶 PO 編號</Label>
-            <Input value={clientInfo.clientPoNumber}
-              onChange={(e) => update("clientPoNumber", e.target.value)}
-              disabled={!canEdit} placeholder="輸入 PO 編號" className="text-sm"
-            />
-          </div>
-        </div>
+        )}
+        {clientInfo.sameCase && !currentInternalNote && (
+          <p className="ml-6 mt-2 text-xs text-muted-foreground">請先填寫「相關案件」欄位以比對同案件費用</p>
+        )}
       </div>
 
       {/* Confirmation dialog */}
