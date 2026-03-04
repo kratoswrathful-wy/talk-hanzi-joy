@@ -1125,11 +1125,11 @@ export default function TranslatorFeeDetail() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/30">
-                  <TableHead className="text-xs">任務類型</TableHead>
-                  <TableHead className="text-xs">計費單位</TableHead>
-                  <TableHead className="text-xs">單價</TableHead>
-                  <TableHead className="text-xs">計費單位數</TableHead>
-                  <TableHead className="text-xs text-right">小計</TableHead>
+                  <TableHead className="text-xs w-[25%]">任務類型</TableHead>
+                  <TableHead className="text-xs w-[15%]">計費單位</TableHead>
+                  <TableHead className="text-xs w-[18%]">單價</TableHead>
+                  <TableHead className="text-xs w-[22%]">計費單位數</TableHead>
+                  <TableHead className="text-xs text-right w-[20%]">小計</TableHead>
                   {canEdit && <TableHead className="text-xs w-12" />}
                 </TableRow>
               </TableHeader>
