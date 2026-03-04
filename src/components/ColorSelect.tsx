@@ -316,12 +316,13 @@ export default function ColorSelect({
   );
 }
 
-/** Count how many options use each color */
-function getColorUsageCounts(options: SelectOption[]): Record<string, number> {
-  const counts: Record<string, number> = {};
+/** Map color (uppercase hex) → list of option labels using it */
+function getColorUsageMap(options: SelectOption[]): Record<string, string[]> {
+  const map: Record<string, string[]> = {};
   for (const opt of options) {
     const key = opt.color.toUpperCase();
-    counts[key] = (counts[key] || 0) + 1;
+    if (!map[key]) map[key] = [];
+    map[key].push(opt.label);
   }
-  return counts;
+  return map;
 }
