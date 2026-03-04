@@ -24,6 +24,8 @@ export interface TableView {
   sorts: TableSort[];
   columnOrder: string[];
   columnWidths: Record<string, number>;
+  /** Role that created this view; undefined for default view */
+  createdByRole?: string;
 }
 
 export interface FieldMeta {
