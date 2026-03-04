@@ -2,7 +2,8 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, X, Send, AtSign, Image, Link2, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
-import { feeStatusLabels, type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus } from "@/data/fee-mock-data";
+import { feeStatusLabels, type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, defaultClientInfo } from "@/data/fee-mock-data";
+import ClientInfoSection from "@/components/ClientInfoSection";
 import { useFee, feeStore } from "@/hooks/use-fee-store";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -432,6 +433,7 @@ export default function TranslatorFeeDetail() {
   const [commentDraft, setCommentDraft] = useState("");
   const [internalCommentDraft, setInternalCommentDraft] = useState("");
   const [notionLoading, setNotionLoading] = useState(false);
+  const [clientInfo, setClientInfo] = useState<ClientInfo>(feeData?.clientInfo ?? { ...defaultClientInfo });
 
   // Edit history tracking — initialize from feeData
   const [editLog, setEditLog] = useState<EditLogEntry[]>(() =>
@@ -1033,6 +1035,25 @@ export default function TranslatorFeeDetail() {
             </Table>
           </div>
         </div>
+
+        {/* Client Info Section — PM+ only */}
+        {isManager && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">客戶資訊</Label>
+              <ClientInfoSection
+                clientInfo={clientInfo}
+                onChange={(info) => {
+                  setClientInfo(info);
+                  if (id) feeStore.updateFee(id, { clientInfo: info });
+                }}
+                canEdit={canEdit}
+                translatorTotal={totalAmount}
+              />
+            </div>
+          </>
+        )}
 
         <Separator />
 
