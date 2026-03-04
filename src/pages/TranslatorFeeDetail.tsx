@@ -793,8 +793,9 @@ export default function TranslatorFeeDetail() {
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-not-allowed"
             onClick={(e) => {
               e.preventDefault();
-              toast.error("同一案件中有多個「為首筆費用」，請先更改勾選內容再離開此頁面");
-              setDuplicateFirstFeeWarning(true);
+              toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容再離開此頁面");
+              setDisableOption12A(false);
+              setDuplicateDialogStep("choose");
             }}
           >
             <ArrowLeft className="h-4 w-4" />
