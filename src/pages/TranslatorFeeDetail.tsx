@@ -151,9 +151,9 @@ function CommentInput({
   draft: string;
   setDraft: (v: string) => void;
   placeholder: string;
-  onSubmit: (content: string, imageUrl?: string) => void;
+  onSubmit: (content: string, imageUrls?: string[]) => void;
 }) {
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [linkText, setLinkText] = useState("");
@@ -181,7 +181,7 @@ function CommentInput({
     if (!file.type.startsWith("image/")) return;
     const reader = new FileReader();
     reader.onload = (e) => {
-      setImagePreview(e.target?.result as string);
+      setImagePreviews((prev) => [...prev, e.target?.result as string]);
     };
     reader.readAsDataURL(file);
   };
@@ -200,10 +200,10 @@ function CommentInput({
   };
 
   const handleSubmit = () => {
-    if (!draft.trim() && !imagePreview) return;
-    onSubmit(draft.trim(), imagePreview || undefined);
+    if (!draft.trim() && imagePreviews.length === 0) return;
+    onSubmit(draft.trim(), imagePreviews.length > 0 ? imagePreviews : undefined);
     setDraft("");
-    setImagePreview(null);
+    setImagePreviews([]);
   };
 
   return (
