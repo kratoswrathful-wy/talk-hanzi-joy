@@ -451,6 +451,7 @@ export default function TranslatorFeeDetail() {
   const hasBeenSubmittedRef = useRef(feeData?.status === "finalized");
   const [duplicateDialogStep, setDuplicateDialogStep] = useState<null | "choose" | "confirmSwap">(null);
   const [disableOption12A, setDisableOption12A] = useState(false);
+  const justResolvedRef = useRef(false);
 
   // Find the other fee that is firstFee in the same case group
   const otherFirstFee = (() => {
@@ -469,9 +470,12 @@ export default function TranslatorFeeDetail() {
 
   // Show warning on mount if duplicate detected
   useEffect(() => {
-    if (hasDuplicateFirstFee) {
+    if (hasDuplicateFirstFee && !justResolvedRef.current) {
       setDisableOption12A(false);
       setDuplicateDialogStep("choose");
+    }
+    if (!hasDuplicateFirstFee) {
+      justResolvedRef.current = false;
     }
   }, [hasDuplicateFirstFee]);
 
