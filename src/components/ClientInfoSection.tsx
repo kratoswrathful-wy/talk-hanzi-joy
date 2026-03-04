@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus, X } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,13 +26,15 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
-import { type ClientInfo, type ClientTaskItem, type TaskType, type BillingUnit } from "@/data/fee-mock-data";
+import { type ClientInfo, type ClientTaskItem, type TaskType, type BillingUnit, type TranslatorFee } from "@/data/fee-mock-data";
 
 interface ClientInfoSectionProps {
   clientInfo: ClientInfo;
   onChange: (info: ClientInfo) => void;
   canEdit: boolean;
   translatorTotal: number;
+  allFees: TranslatorFee[];
+  currentFeeId: string;
 }
 
 export default function ClientInfoSection({
@@ -39,6 +42,8 @@ export default function ClientInfoSection({
   onChange,
   canEdit,
   translatorTotal,
+  allFees,
+  currentFeeId,
 }: ClientInfoSectionProps) {
   const [showUncheckWarning, setShowUncheckWarning] = useState(false);
 
@@ -87,17 +92,59 @@ export default function ClientInfoSection({
     updateItem(itemId, field, Number(cleaned));
   };
 
-  const revenueTotal = clientInfo.clientTaskItems.reduce(
-    (sum, item) => sum + Number(item.unitCount) * Number(item.clientPrice),
-    0
-  );
+  // Find related fees (same caseGroupId, sameCase=true, excluding current)
+  const relatedFees = clientInfo.sameCase && clientInfo.caseGroupId
+    ? allFees.filter(
+        (f) =>
+          f.id !== currentFeeId &&
+          f.clientInfo?.sameCase &&
+          f.clientInfo?.caseGroupId === clientInfo.caseGroupId
+      )
+    : [];
 
-  const profit = revenueTotal - translatorTotal;
+  // Find the "first fee" page among related fees (the one with isFirstFee=true)
+  const firstFeePage = relatedFees.find((f) => f.clientInfo?.isFirstFee);
 
-  // Checkbox 2 (isFirstFee) disabled when: sameCase unchecked, OR notFirstFee checked
+  // For notFirstFee pages, use the firstFeePage's client task items
+  const displayClientTaskItems = clientInfo.notFirstFee && firstFeePage?.clientInfo
+    ? firstFeePage.clientInfo.clientTaskItems
+    : clientInfo.clientTaskItems;
+
+  const revenueTotal = clientInfo.notFirstFee
+    ? (firstFeePage?.clientInfo?.clientTaskItems.reduce(
+        (sum, item) => sum + Number(item.unitCount) * Number(item.clientPrice), 0
+      ) ?? 0)
+    : clientInfo.clientTaskItems.reduce(
+        (sum, item) => sum + Number(item.unitCount) * Number(item.clientPrice), 0
+      );
+
+  // For sameCase fees, profit = revenue - sum of ALL related translator totals
+  const allSameCaseFees = clientInfo.sameCase && clientInfo.caseGroupId
+    ? allFees.filter(
+        (f) =>
+          f.clientInfo?.sameCase &&
+          f.clientInfo?.caseGroupId === clientInfo.caseGroupId
+      )
+    : [];
+
+  const totalTranslatorCost = clientInfo.sameCase
+    ? allSameCaseFees.reduce((sum, f) => {
+        const feeTotal = f.taskItems.reduce(
+          (s, item) => s + Number(item.unitCount) * Number(item.unitPrice), 0
+        );
+        return sum + feeTotal;
+      }, 0)
+    : translatorTotal;
+
+  const profitFeeCount = allSameCaseFees.length;
+  const profit = revenueTotal - totalTranslatorCost;
+
+  // Checkbox disabled logic
   const isFirstFeeDisabled = !canEdit || !clientInfo.sameCase || clientInfo.notFirstFee;
-  // Checkbox 3 (notFirstFee) disabled when: sameCase unchecked, OR isFirstFee checked
   const notFirstFeeDisabled = !canEdit || !clientInfo.sameCase || clientInfo.isFirstFee;
+
+  // Whether client billing items are locked (notFirstFee checked)
+  const clientItemsLocked = clientInfo.notFirstFee;
 
   return (
     <div className="space-y-5">
@@ -105,7 +152,7 @@ export default function ClientInfoSection({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label className="text-sm font-medium">客戶端計費項目</Label>
-          {canEdit && (
+          {canEdit && !clientItemsLocked && (
             <Button
               variant="outline"
               size="sm"
@@ -127,17 +174,17 @@ export default function ClientInfoSection({
                 <TableHead className="text-xs">客戶報價</TableHead>
                 <TableHead className="text-xs">計費單位數</TableHead>
                 <TableHead className="text-xs text-right">小計</TableHead>
-                {canEdit && <TableHead className="text-xs w-12" />}
+                {canEdit && !clientItemsLocked && <TableHead className="text-xs w-12" />}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {clientInfo.clientTaskItems.map((item, index) => (
-                <TableRow key={item.id}>
+              {displayClientTaskItems.map((item, index) => (
+                <TableRow key={item.id} className={clientItemsLocked ? "opacity-50" : ""}>
                   <TableCell>
                     <ColorSelect
                       fieldKey="clientTaskType"
                       value={item.taskType}
-                      disabled={!canEdit || clientInfo.notFirstFee}
+                      disabled={!canEdit || clientItemsLocked}
                       onValueChange={(v) => updateItem(item.id, "taskType", v)}
                       triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0"
                     />
@@ -146,7 +193,7 @@ export default function ClientInfoSection({
                     <ColorSelect
                       fieldKey="clientBillingUnit"
                       value={item.billingUnit}
-                      disabled={!canEdit || clientInfo.notFirstFee}
+                      disabled={!canEdit || clientItemsLocked}
                       onValueChange={(v) => updateItem(item.id, "billingUnit", v)}
                       triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0"
                     />
@@ -155,13 +202,13 @@ export default function ClientInfoSection({
                     <Input
                       type="text"
                       inputMode="decimal"
-                      value={clientInfo.notFirstFee ? "N/A" : item.clientPrice}
+                      value={clientItemsLocked ? (clientInfo.notFirstFee && firstFeePage ? item.clientPrice : "N/A") : item.clientPrice}
                       onChange={(e) => {
                         const v = e.target.value;
                         if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "clientPrice", v as any);
                       }}
                       onBlur={(e) => handleNumberBlur(item.id, "clientPrice", e.target.value)}
-                      disabled={!canEdit || clientInfo.notFirstFee}
+                      disabled={!canEdit || clientItemsLocked}
                       className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-20 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     />
                   </TableCell>
@@ -169,24 +216,24 @@ export default function ClientInfoSection({
                     <Input
                       type="text"
                       inputMode="decimal"
-                      value={clientInfo.notFirstFee ? "N/A" : item.unitCount}
+                      value={clientItemsLocked ? (clientInfo.notFirstFee && firstFeePage ? item.unitCount : "N/A") : item.unitCount}
                       onChange={(e) => {
                         const v = e.target.value;
                         if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "unitCount", v as any);
                       }}
                       onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
-                      disabled={!canEdit || clientInfo.notFirstFee}
+                      disabled={!canEdit || clientItemsLocked}
                       className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-24 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     />
                   </TableCell>
                   <TableCell className="text-right text-xs font-medium">
-                    {clientInfo.notFirstFee
+                    {clientItemsLocked && !firstFeePage
                       ? "N/A"
                       : (Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
                   </TableCell>
-                  {canEdit && (
+                  {canEdit && !clientItemsLocked && (
                     <TableCell>
-                      {index > 0 && !clientInfo.notFirstFee ? (
+                      {index > 0 ? (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -209,18 +256,20 @@ export default function ClientInfoSection({
                   營收總計
                 </TableCell>
                 <TableCell className="text-right text-sm font-bold">
-                  {clientInfo.notFirstFee ? "N/A" : revenueTotal.toLocaleString()}
+                  {clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}
                 </TableCell>
-                {canEdit && <TableCell />}
+                {canEdit && !clientItemsLocked && <TableCell />}
               </TableRow>
               <TableRow>
                 <TableCell colSpan={4} className="text-sm font-medium text-right">
-                  利潤（營收 − 稿費）
+                  {clientInfo.sameCase && profitFeeCount > 0
+                    ? `利潤（${profitFeeCount} 筆稿費）`
+                    : "利潤"}
                 </TableCell>
-                <TableCell className={`text-right text-sm font-bold ${clientInfo.notFirstFee ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
-                  {clientInfo.notFirstFee ? "N/A" : profit.toLocaleString()}
+                <TableCell className={`text-right text-sm font-bold ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
+                  {clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}
                 </TableCell>
-                {canEdit && <TableCell />}
+                {canEdit && !clientItemsLocked && <TableCell />}
               </TableRow>
             </TableFooter>
           </Table>
@@ -240,7 +289,6 @@ export default function ClientInfoSection({
               disabled={!canEdit}
               onCheckedChange={(checked) => {
                 if (!checked && clientInfo.sameCase) {
-                  // Show confirmation before unchecking
                   setShowUncheckWarning(true);
                 } else {
                   update("sameCase", !!checked);
@@ -283,6 +331,49 @@ export default function ClientInfoSection({
               非首筆費用（於總表不列入營收統計）
             </Label>
           </div>
+
+          {/* Case Group ID + Related Fees — shown when sameCase is checked */}
+          {clientInfo.sameCase && (
+            <div className="ml-6 space-y-2 mt-2">
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">案件群組 ID</Label>
+                <Input
+                  value={clientInfo.caseGroupId}
+                  onChange={(e) => update("caseGroupId", e.target.value)}
+                  disabled={!canEdit}
+                  placeholder="輸入案件群組識別碼"
+                  className="text-xs h-8"
+                />
+              </div>
+              {clientInfo.caseGroupId && (
+                <div className="grid gap-1.5">
+                  <Label className="text-xs text-muted-foreground">
+                    同案件費用頁面（{relatedFees.length} 筆）
+                  </Label>
+                  {relatedFees.length > 0 ? (
+                    <div className="space-y-1">
+                      {relatedFees.map((f) => (
+                        <Link
+                          key={f.id}
+                          to={`/fees/${f.id}`}
+                          className="flex items-center justify-between text-xs px-2 py-1.5 rounded-md border border-border bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                        >
+                          <span className="text-foreground font-medium truncate">
+                            {f.title || "（未命名）"}
+                          </span>
+                          <span className="text-muted-foreground shrink-0 ml-2">
+                            {f.clientInfo?.isFirstFee ? "首筆" : f.clientInfo?.notFirstFee ? "非首筆" : "—"}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">無相關費用頁面</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right-top: 財務狀態組 */}
@@ -390,6 +481,7 @@ export default function ClientInfoSection({
                   sameCase: false,
                   isFirstFee: false,
                   notFirstFee: false,
+                  caseGroupId: "",
                 });
               }}
             >

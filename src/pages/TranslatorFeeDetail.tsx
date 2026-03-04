@@ -1,5 +1,6 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, X, Send, AtSign, Image, Link2, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, defaultClientInfo } from "@/data/fee-mock-data";
@@ -9,7 +10,7 @@ const feeStatusLabels: Record<FeeStatus, string> = {
   finalized: "開立完成",
 };
 import ClientInfoSection from "@/components/ClientInfoSection";
-import { useFee, feeStore } from "@/hooks/use-fee-store";
+import { useFee, useFees, feeStore } from "@/hooks/use-fee-store";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -418,6 +419,7 @@ export default function TranslatorFeeDetail() {
 
   const { id } = useParams();
   const feeData = useFee(id);
+  const allFees = useFees();
 
   const navigate = useNavigate();
   const [title, setTitle] = useState(feeData?.title ?? "");
@@ -1093,6 +1095,8 @@ export default function TranslatorFeeDetail() {
                 }}
                 canEdit={canEdit}
                 translatorTotal={totalAmount}
+                allFees={allFees}
+                currentFeeId={id ?? ""}
               />
             </div>
           </>
