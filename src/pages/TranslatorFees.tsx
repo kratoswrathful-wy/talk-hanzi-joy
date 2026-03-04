@@ -403,11 +403,21 @@ function EditLogPanel({ fee }: { fee: TranslatorFee }) {
     <div className="space-y-2">
       <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
         <History className="h-3.5 w-3.5" />
-        修改紀錄
+        修改紀錄（{fee.editLogs.length}）
       </h4>
-      <p className="text-sm text-muted-foreground italic">
-        尚無修改紀錄
-      </p>
+      {fee.editLogs.length === 0 ? (
+        <p className="text-sm text-muted-foreground italic">尚無修改紀錄</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {fee.editLogs.map((log) => (
+            <li key={log.id} className="text-sm flex items-baseline gap-2">
+              <span className="font-medium text-card-foreground">{log.author}</span>
+              <span className="text-muted-foreground">{log.action}</span>
+              <span className="text-xs text-muted-foreground/60 ml-auto whitespace-nowrap">{formatDate(log.createdAt)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
