@@ -799,7 +799,6 @@ export default function TranslatorFeeDetail() {
                     assignee,
                     taskItems: taskItems.map((item, idx) => ({ ...item, id: `item-clone-${Date.now()}-${idx}` })),
                     internalNote,
-                    internalNoteUrl,
                     clientInfo: { ...clientInfo },
                   });
                   navigate(`/fees/${draft.id}`);
