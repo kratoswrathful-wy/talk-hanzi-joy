@@ -451,7 +451,7 @@ export default function TranslatorFeeDetail() {
   const hasBeenSubmittedRef = useRef(feeData?.status === "finalized");
   const [duplicateDialogStep, setDuplicateDialogStep] = useState<null | "choose" | "confirmSwap">(null);
   const [disableOption12A, setDisableOption12A] = useState(false);
-  const justResolvedRef = useRef(false);
+  const [swapResolved, setSwapResolved] = useState(false);
 
   // Find the other fee that is firstFee in the same case group
   const otherFirstFee = (() => {
@@ -468,16 +468,13 @@ export default function TranslatorFeeDetail() {
   // Detect duplicate isFirstFee in the same case group
   const hasDuplicateFirstFee = clientInfo.sameCase && clientInfo.isFirstFee && !!otherFirstFee;
 
-  // Show warning on mount if duplicate detected
+  // Show warning on mount if duplicate detected (but not after a successful swap)
   useEffect(() => {
-    if (hasDuplicateFirstFee && !justResolvedRef.current) {
+    if (hasDuplicateFirstFee && !swapResolved) {
       setDisableOption12A(false);
       setDuplicateDialogStep("choose");
     }
-    if (!hasDuplicateFirstFee) {
-      justResolvedRef.current = false;
-    }
-  }, [hasDuplicateFirstFee]);
+  }, [hasDuplicateFirstFee, swapResolved]);
 
   // Commit pending changes that have persisted for 5+ minutes
   useEffect(() => {
@@ -1163,6 +1160,7 @@ export default function TranslatorFeeDetail() {
                 currentFeeId={id ?? ""}
                 currentInternalNote={internalNote}
                 onFirstFeeConflict={() => {
+                  setSwapResolved(false);
                   setDisableOption12A(false);
                   setDuplicateDialogStep("choose");
                 }}
@@ -1366,7 +1364,7 @@ export default function TranslatorFeeDetail() {
             </AlertDialogCancel>
             <AlertDialogAction onClick={() => {
               // Swap: other fee becomes notFirstFee, this page becomes isFirstFee
-              justResolvedRef.current = true;
+              setSwapResolved(true);
               if (otherFirstFee) {
                 const otherClientInfo = { ...otherFirstFee.clientInfo!, isFirstFee: false, notFirstFee: true };
                 feeStore.updateFee(otherFirstFee.id, { clientInfo: otherClientInfo });
