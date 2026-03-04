@@ -11,6 +11,14 @@ import {
   fieldMetas,
 } from "@/hooks/use-table-views";
 import { cn } from "@/lib/utils";
+import { useSelectOptions } from "@/stores/select-options-store";
+
+/** Maps field keys to their selectOptionsStore keys */
+const fieldToStoreKey: Record<string, string> = {
+  assignee: "assignee",
+  client: "client",
+  status: "status",
+};
 
 const operatorLabels: Record<FilterOperator, string> = {
   equals: "等於",
