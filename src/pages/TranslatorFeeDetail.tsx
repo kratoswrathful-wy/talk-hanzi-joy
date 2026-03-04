@@ -72,9 +72,17 @@ interface CommentEntry {
   id: string;
   author: string;
   content: string; // supports markdown-like: @user, [text](url), ![img](url)
-  imageUrl?: string;
+  imageUrls?: string[];
   timestamp: string;
 }
+
+const formatTimestamp = (date: Date | string) => {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleString("zh-TW", {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+};
 
 const mentionUsers = ["王小明", "李美玲", "張大偉", "陳雅婷"];
 
@@ -92,13 +100,9 @@ const fieldLabels: Record<string, string> = {
 
 // --- Rich Comment Components ---
 
-function CommentContent({ content, imageUrl }: { content: string; imageUrl?: string }) {
-  // Parse content for @mentions and [text](url) links
-  const parts = content.split(/(@\S+|\[([^\]]+)\]\(([^)]+)\))/g);
-  const rendered: React.ReactNode[] = [];
-  let i = 0;
-  // Simple regex-based rendering
+function CommentContent({ content, imageUrls }: { content: string; imageUrls?: string[] }) {
   const regex = /(@\S+)|\[([^\]]+)\]\(([^)]+)\)/g;
+  const rendered: React.ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(content)) !== null) {
@@ -106,14 +110,12 @@ function CommentContent({ content, imageUrl }: { content: string; imageUrl?: str
       rendered.push(<span key={`t-${lastIndex}`}>{content.slice(lastIndex, match.index)}</span>);
     }
     if (match[1]) {
-      // @mention
       rendered.push(
         <span key={`m-${match.index}`} className="text-primary font-medium bg-primary/10 rounded px-0.5">
           {match[1]}
         </span>
       );
     } else if (match[2] && match[3]) {
-      // [text](url)
       rendered.push(
         <a key={`l-${match.index}`} href={match[3]} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:text-primary/80">
           {match[2]}
@@ -129,8 +131,12 @@ function CommentContent({ content, imageUrl }: { content: string; imageUrl?: str
   return (
     <div>
       <p className="whitespace-pre-wrap">{rendered}</p>
-      {imageUrl && (
-        <img src={imageUrl} alt="附圖" className="mt-2 max-w-xs rounded-md border border-border" />
+      {imageUrls && imageUrls.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-2">
+          {imageUrls.map((url, idx) => (
+            <img key={idx} src={url} alt={`附圖 ${idx + 1}`} className="max-w-xs max-h-48 rounded-md border border-border" />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -145,9 +151,9 @@ function CommentInput({
   draft: string;
   setDraft: (v: string) => void;
   placeholder: string;
-  onSubmit: (content: string, imageUrl?: string) => void;
+  onSubmit: (content: string, imageUrls?: string[]) => void;
 }) {
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [linkText, setLinkText] = useState("");
@@ -175,7 +181,7 @@ function CommentInput({
     if (!file.type.startsWith("image/")) return;
     const reader = new FileReader();
     reader.onload = (e) => {
-      setImagePreview(e.target?.result as string);
+      setImagePreviews((prev) => [...prev, e.target?.result as string]);
     };
     reader.readAsDataURL(file);
   };
@@ -194,10 +200,10 @@ function CommentInput({
   };
 
   const handleSubmit = () => {
-    if (!draft.trim() && !imagePreview) return;
-    onSubmit(draft.trim(), imagePreview || undefined);
+    if (!draft.trim() && imagePreviews.length === 0) return;
+    onSubmit(draft.trim(), imagePreviews.length > 0 ? imagePreviews : undefined);
     setDraft("");
-    setImagePreview(null);
+    setImagePreviews([]);
   };
 
   return (
@@ -230,18 +236,22 @@ function CommentInput({
         )}
       </div>
 
-      {/* Image preview */}
-      {imagePreview && (
-        <div className="relative inline-block">
-          <img src={imagePreview} alt="預覽" className="max-w-xs max-h-32 rounded-md border border-border" />
-          <Button
-            variant="destructive"
-            size="icon"
-            className="absolute -top-2 -right-2 h-5 w-5 rounded-full"
-            onClick={() => setImagePreview(null)}
-          >
-            <X className="h-3 w-3" />
-          </Button>
+      {/* Image previews */}
+      {imagePreviews.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {imagePreviews.map((img, idx) => (
+            <div key={idx} className="relative inline-block">
+              <img src={img} alt={`預覽 ${idx + 1}`} className="max-w-[120px] max-h-24 rounded-md border border-border" />
+              <Button
+                variant="destructive"
+                size="icon"
+                className="absolute -top-2 -right-2 h-5 w-5 rounded-full"
+                onClick={() => setImagePreviews((prev) => prev.filter((_, i) => i !== idx))}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -250,10 +260,13 @@ function CommentInput({
         ref={fileInputRef}
         type="file"
         accept="image/*"
+        multiple
         className="hidden"
         onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleFileSelect(file);
+          const files = e.target.files;
+          if (files) {
+            Array.from(files).forEach((file) => handleFileSelect(file));
+          }
           e.target.value = "";
         }}
       />
@@ -331,7 +344,7 @@ function CommentInput({
         <Button
           size="sm"
           className="gap-1 text-xs"
-          disabled={!draft.trim() && !imagePreview}
+          disabled={!draft.trim() && imagePreviews.length === 0}
           onClick={handleSubmit}
         >
           <Send className="h-3 w-3" />
@@ -383,7 +396,7 @@ export default function TranslatorFeeDetail() {
             id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             changedBy: roleLabels[currentRole],
             description: `${c.field} ${c.oldValue} → ${c.newValue}`,
-            timestamp: new Date(c.changedAt).toLocaleString("zh-TW"),
+            timestamp: formatTimestamp(new Date(c.changedAt)),
           })),
         ]);
         setPendingChanges((prev) => prev.filter((c) => !ready.includes(c)));
@@ -520,7 +533,7 @@ export default function TranslatorFeeDetail() {
           id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           changedBy: roleLabels[currentRole],
           description: `${c.field} ${c.oldValue} → ${c.newValue}`,
-          timestamp: new Date(c.changedAt).toLocaleString("zh-TW"),
+          timestamp: formatTimestamp(new Date(c.changedAt)),
         })),
       ]);
       setPendingChanges([]);
@@ -566,13 +579,7 @@ export default function TranslatorFeeDetail() {
     0
   );
 
-  const formattedDate = new Date(feeData.createdAt).toLocaleString("zh-TW", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const formattedDate = formatTimestamp(feeData.createdAt);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -883,7 +890,7 @@ export default function TranslatorFeeDetail() {
                     <div className="flex flex-wrap gap-x-4 gap-y-0.5 italic">
                       <span><span className="text-muted-foreground">變更者：</span>{roleLabels[currentRole]}</span>
                       <span><span className="text-muted-foreground">變更內容：</span>{change.field} {change.oldValue} → {change.newValue}</span>
-                      <span><span className="text-muted-foreground">變更時間：</span>{new Date(change.changedAt).toLocaleString("zh-TW")}</span>
+                      <span><span className="text-muted-foreground">變更時間：</span>{formatTimestamp(new Date(change.changedAt))}</span>
                       <span className="text-muted-foreground">（未滿 5 分鐘，尚未正式紀錄）</span>
                     </div>
                   </div>
@@ -904,7 +911,7 @@ export default function TranslatorFeeDetail() {
                   <span className="font-medium">{c.author}</span>
                   <span className="text-muted-foreground">{c.timestamp}</span>
                 </div>
-                <CommentContent content={c.content} imageUrl={c.imageUrl} />
+                <CommentContent content={c.content} imageUrls={c.imageUrls} />
               </div>
             ))}
           </div>
@@ -912,13 +919,13 @@ export default function TranslatorFeeDetail() {
             draft={commentDraft}
             setDraft={setCommentDraft}
             placeholder="輸入留言..."
-            onSubmit={(content, imageUrl) => {
+            onSubmit={(content, imageUrls) => {
               setComments((prev) => [...prev, {
                 id: `comment-${Date.now()}`,
                 author: roleLabels[currentRole],
                 content,
-                imageUrl,
-                timestamp: new Date().toLocaleString("zh-TW"),
+                imageUrls,
+                timestamp: formatTimestamp(new Date()),
               }]);
             }}
           />
@@ -937,7 +944,7 @@ export default function TranslatorFeeDetail() {
                       <span className="font-medium">{c.author}</span>
                       <span className="text-muted-foreground">{c.timestamp}</span>
                     </div>
-                    <CommentContent content={c.content} imageUrl={c.imageUrl} />
+                    <CommentContent content={c.content} imageUrls={c.imageUrls} />
                   </div>
                 ))}
               </div>
@@ -945,13 +952,13 @@ export default function TranslatorFeeDetail() {
                 draft={internalCommentDraft}
                 setDraft={setInternalCommentDraft}
                 placeholder="輸入內部備註..."
-                onSubmit={(content, imageUrl) => {
+                onSubmit={(content, imageUrls) => {
                   setInternalComments((prev) => [...prev, {
                     id: `icomment-${Date.now()}`,
                     author: roleLabels[currentRole],
                     content,
-                    imageUrl,
-                    timestamp: new Date().toLocaleString("zh-TW"),
+                    imageUrls,
+                    timestamp: formatTimestamp(new Date()),
                   }]);
                 }}
               />
