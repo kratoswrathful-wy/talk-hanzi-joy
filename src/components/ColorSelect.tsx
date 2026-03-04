@@ -177,7 +177,7 @@ export default function ColorSelect({
                             customColors={customColors}
                             onAddCustomColor={(c) => selectOptionsStore.addCustomColor(fieldKey, c)}
                             onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor(fieldKey, c)}
-                            colorUsageCounts={getColorUsageCounts(options)}
+                            colorUsageMap={getColorUsageMap(options)}
                           />
                         </div>
                       ) : renamingOptionId === opt.id ? (
