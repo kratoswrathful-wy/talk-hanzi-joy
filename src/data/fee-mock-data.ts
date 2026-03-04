@@ -23,7 +23,6 @@ export interface ClientInfo {
   sameCase: boolean;        // 與他筆費用為同一案件
   isFirstFee: boolean;      // 為首筆費用
   notFirstFee: boolean;     // 非首筆費用
-  caseGroupId: string;      // 同案件群組識別碼
   client: string;           // 客戶
   contact: string;          // 聯絡人
   clientCaseId: string;     // 客戶端案號或關鍵字
@@ -41,7 +40,6 @@ export const defaultClientInfo: ClientInfo = {
   sameCase: false,
   isFirstFee: false,
   notFirstFee: false,
-  caseGroupId: "",
   client: "",
   contact: "",
   clientCaseId: "",

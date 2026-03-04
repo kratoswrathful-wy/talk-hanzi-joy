@@ -35,6 +35,7 @@ interface ClientInfoSectionProps {
   translatorTotal: number;
   allFees: TranslatorFee[];
   currentFeeId: string;
+  currentInternalNote: string;
 }
 
 export default function ClientInfoSection({
@@ -44,6 +45,7 @@ export default function ClientInfoSection({
   translatorTotal,
   allFees,
   currentFeeId,
+  currentInternalNote,
 }: ClientInfoSectionProps) {
   const [showUncheckWarning, setShowUncheckWarning] = useState(false);
 
@@ -92,20 +94,20 @@ export default function ClientInfoSection({
     updateItem(itemId, field, Number(cleaned));
   };
 
-  // Find related fees (same caseGroupId, sameCase=true, excluding current)
-  const relatedFees = clientInfo.sameCase && clientInfo.caseGroupId
+  // Related fees: same internalNote, sameCase=true, excluding current
+  const relatedFees = clientInfo.sameCase && currentInternalNote
     ? allFees.filter(
         (f) =>
           f.id !== currentFeeId &&
           f.clientInfo?.sameCase &&
-          f.clientInfo?.caseGroupId === clientInfo.caseGroupId
+          f.internalNote === currentInternalNote
       )
     : [];
 
-  // Find the "first fee" page among related fees (the one with isFirstFee=true)
+  // Find the "first fee" page among related fees
   const firstFeePage = relatedFees.find((f) => f.clientInfo?.isFirstFee);
 
-  // For notFirstFee pages, use the firstFeePage's client task items
+  // For notFirstFee pages, display the firstFeePage's client task items
   const displayClientTaskItems = clientInfo.notFirstFee && firstFeePage?.clientInfo
     ? firstFeePage.clientInfo.clientTaskItems
     : clientInfo.clientTaskItems;
@@ -118,32 +120,28 @@ export default function ClientInfoSection({
         (sum, item) => sum + Number(item.unitCount) * Number(item.clientPrice), 0
       );
 
-  // For sameCase fees, profit = revenue - sum of ALL related translator totals
-  const allSameCaseFees = clientInfo.sameCase && clientInfo.caseGroupId
+  // All fees in the same case group (including current)
+  const allSameCaseFees = clientInfo.sameCase && currentInternalNote
     ? allFees.filter(
         (f) =>
           f.clientInfo?.sameCase &&
-          f.clientInfo?.caseGroupId === clientInfo.caseGroupId
+          f.internalNote === currentInternalNote
       )
     : [];
 
   const totalTranslatorCost = clientInfo.sameCase
     ? allSameCaseFees.reduce((sum, f) => {
-        const feeTotal = f.taskItems.reduce(
+        return sum + f.taskItems.reduce(
           (s, item) => s + Number(item.unitCount) * Number(item.unitPrice), 0
         );
-        return sum + feeTotal;
       }, 0)
     : translatorTotal;
 
   const profitFeeCount = allSameCaseFees.length;
   const profit = revenueTotal - totalTranslatorCost;
 
-  // Checkbox disabled logic
   const isFirstFeeDisabled = !canEdit || !clientInfo.sameCase || clientInfo.notFirstFee;
   const notFirstFeeDisabled = !canEdit || !clientInfo.sameCase || clientInfo.isFirstFee;
-
-  // Whether client billing items are locked (notFirstFee checked)
   const clientItemsLocked = clientInfo.notFirstFee;
 
   return (
@@ -153,12 +151,7 @@ export default function ClientInfoSection({
         <div className="flex items-center justify-between">
           <Label className="text-sm font-medium">客戶端計費項目</Label>
           {canEdit && !clientItemsLocked && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1 text-xs"
-              onClick={addItem}
-            >
+            <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={addItem}>
               <Plus className="h-3.5 w-3.5" />
               新增項目
             </Button>
@@ -202,7 +195,7 @@ export default function ClientInfoSection({
                     <Input
                       type="text"
                       inputMode="decimal"
-                      value={clientItemsLocked ? (clientInfo.notFirstFee && firstFeePage ? item.clientPrice : "N/A") : item.clientPrice}
+                      value={clientItemsLocked ? (firstFeePage ? item.clientPrice : "N/A") : item.clientPrice}
                       onChange={(e) => {
                         const v = e.target.value;
                         if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "clientPrice", v as any);
@@ -216,7 +209,7 @@ export default function ClientInfoSection({
                     <Input
                       type="text"
                       inputMode="decimal"
-                      value={clientItemsLocked ? (clientInfo.notFirstFee && firstFeePage ? item.unitCount : "N/A") : item.unitCount}
+                      value={clientItemsLocked ? (firstFeePage ? item.unitCount : "N/A") : item.unitCount}
                       onChange={(e) => {
                         const v = e.target.value;
                         if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "unitCount", v as any);
@@ -304,9 +297,7 @@ export default function ClientInfoSection({
               id="isFirstFee"
               checked={clientInfo.isFirstFee}
               disabled={isFirstFeeDisabled}
-              onCheckedChange={(checked) => {
-                update("isFirstFee", !!checked);
-              }}
+              onCheckedChange={(checked) => update("isFirstFee", !!checked)}
             />
             <Label
               htmlFor="isFirstFee"
@@ -320,9 +311,7 @@ export default function ClientInfoSection({
               id="notFirstFee"
               checked={clientInfo.notFirstFee}
               disabled={notFirstFeeDisabled}
-              onCheckedChange={(checked) => {
-                update("notFirstFee", !!checked);
-              }}
+              onCheckedChange={(checked) => update("notFirstFee", !!checked)}
             />
             <Label
               htmlFor="notFirstFee"
@@ -332,84 +321,55 @@ export default function ClientInfoSection({
             </Label>
           </div>
 
-          {/* Case Group ID + Related Fees — shown when sameCase is checked */}
-          {clientInfo.sameCase && (
-            <div className="ml-6 space-y-2 mt-2">
-              <div className="grid gap-1.5">
-                <Label className="text-xs text-muted-foreground">案件群組 ID</Label>
-                <Input
-                  value={clientInfo.caseGroupId}
-                  onChange={(e) => update("caseGroupId", e.target.value)}
-                  disabled={!canEdit}
-                  placeholder="輸入案件群組識別碼"
-                  className="text-xs h-8"
-                />
-              </div>
-              {clientInfo.caseGroupId && (
-                <div className="grid gap-1.5">
-                  <Label className="text-xs text-muted-foreground">
-                    同案件費用頁面（{relatedFees.length} 筆）
-                  </Label>
-                  {relatedFees.length > 0 ? (
-                    <div className="space-y-1">
-                      {relatedFees.map((f) => (
-                        <Link
-                          key={f.id}
-                          to={`/fees/${f.id}`}
-                          className="flex items-center justify-between text-xs px-2 py-1.5 rounded-md border border-border bg-secondary/30 hover:bg-secondary/50 transition-colors"
-                        >
-                          <span className="text-foreground font-medium truncate">
-                            {f.title || "（未命名）"}
-                          </span>
-                          <span className="text-muted-foreground shrink-0 ml-2">
-                            {f.clientInfo?.isFirstFee ? "首筆" : f.clientInfo?.notFirstFee ? "非首筆" : "—"}
-                          </span>
-                        </Link>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">無相關費用頁面</p>
-                  )}
+          {/* Related Fees list — shown when sameCase is checked */}
+          {clientInfo.sameCase && currentInternalNote && (
+            <div className="ml-6 mt-2">
+              <Label className="text-xs text-muted-foreground">
+                同案件費用頁面（{relatedFees.length} 筆）
+              </Label>
+              {relatedFees.length > 0 ? (
+                <div className="space-y-1 mt-1">
+                  {relatedFees.map((f) => (
+                    <Link
+                      key={f.id}
+                      to={`/fees/${f.id}`}
+                      className="flex items-center justify-between text-xs px-2 py-1.5 rounded-md border border-border bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                    >
+                      <span className="text-foreground font-medium truncate">
+                        {f.title || "（未命名）"}
+                      </span>
+                      <span className="text-muted-foreground shrink-0 ml-2">
+                        {f.clientInfo?.isFirstFee ? "首筆" : f.clientInfo?.notFirstFee ? "非首筆" : "—"}
+                      </span>
+                    </Link>
+                  ))}
                 </div>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-1">無相關費用頁面</p>
               )}
             </div>
+          )}
+          {clientInfo.sameCase && !currentInternalNote && (
+            <p className="ml-6 mt-2 text-xs text-muted-foreground">請先填寫「相關案件」欄位以比對同案件費用</p>
           )}
         </div>
 
         {/* Right-top: 財務狀態組 */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <Checkbox
-              id="reconciled"
-              checked={clientInfo.reconciled}
-              disabled={!canEdit}
-              onCheckedChange={(checked) => update("reconciled", !!checked)}
-            />
-            <Label htmlFor="reconciled" className="text-xs cursor-pointer whitespace-nowrap">
-              對帳完成
-            </Label>
+            <Checkbox id="reconciled" checked={clientInfo.reconciled} disabled={!canEdit}
+              onCheckedChange={(checked) => update("reconciled", !!checked)} />
+            <Label htmlFor="reconciled" className="text-xs cursor-pointer whitespace-nowrap">對帳完成</Label>
           </div>
           <div className="flex items-center gap-2">
-            <Checkbox
-              id="rateConfirmed"
-              checked={clientInfo.rateConfirmed}
-              disabled={!canEdit}
-              onCheckedChange={(checked) => update("rateConfirmed", !!checked)}
-            />
-            <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">
-              費率無誤
-            </Label>
+            <Checkbox id="rateConfirmed" checked={clientInfo.rateConfirmed} disabled={!canEdit}
+              onCheckedChange={(checked) => update("rateConfirmed", !!checked)} />
+            <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">費率無誤</Label>
           </div>
           <div className="flex items-center gap-2">
-            <Checkbox
-              id="invoiced"
-              checked={clientInfo.invoiced}
-              disabled={!canEdit}
-              onCheckedChange={(checked) => update("invoiced", !!checked)}
-            />
-            <Label htmlFor="invoiced" className="text-xs cursor-pointer whitespace-nowrap">
-              請款完成
-            </Label>
+            <Checkbox id="invoiced" checked={clientInfo.invoiced} disabled={!canEdit}
+              onCheckedChange={(checked) => update("invoiced", !!checked)} />
+            <Label htmlFor="invoiced" className="text-xs cursor-pointer whitespace-nowrap">請款完成</Label>
           </div>
         </div>
 
@@ -417,23 +377,13 @@ export default function ClientInfoSection({
         <div className="space-y-3">
           <div className="grid gap-1.5">
             <Label className="text-xs text-muted-foreground">客戶</Label>
-            <ColorSelect
-              fieldKey="client"
-              value={clientInfo.client}
-              disabled={!canEdit}
-              onValueChange={(v) => update("client", v)}
-              placeholder="選擇客戶"
-            />
+            <ColorSelect fieldKey="client" value={clientInfo.client} disabled={!canEdit}
+              onValueChange={(v) => update("client", v)} placeholder="選擇客戶" />
           </div>
           <div className="grid gap-1.5">
             <Label className="text-xs text-muted-foreground">聯絡人</Label>
-            <ColorSelect
-              fieldKey="contact"
-              value={clientInfo.contact}
-              disabled={!canEdit}
-              onValueChange={(v) => update("contact", v)}
-              placeholder="選擇聯絡人"
-            />
+            <ColorSelect fieldKey="contact" value={clientInfo.contact} disabled={!canEdit}
+              onValueChange={(v) => update("contact", v)} placeholder="選擇聯絡人" />
           </div>
         </div>
 
@@ -443,28 +393,21 @@ export default function ClientInfoSection({
             <Label className="text-xs text-muted-foreground">客戶端案號或關鍵字</Label>
             <Input
               value={clientInfo.eciKeywords || clientInfo.clientCaseId}
-              onChange={(e) => {
-                updateMultiple({ eciKeywords: e.target.value, clientCaseId: e.target.value });
-              }}
-              disabled={!canEdit}
-              placeholder="輸入關鍵字或案號"
-              className="text-sm"
+              onChange={(e) => updateMultiple({ eciKeywords: e.target.value, clientCaseId: e.target.value })}
+              disabled={!canEdit} placeholder="輸入關鍵字或案號" className="text-sm"
             />
           </div>
           <div className="grid gap-1.5">
             <Label className="text-xs text-muted-foreground">客戶 PO 編號</Label>
-            <Input
-              value={clientInfo.clientPoNumber}
+            <Input value={clientInfo.clientPoNumber}
               onChange={(e) => update("clientPoNumber", e.target.value)}
-              disabled={!canEdit}
-              placeholder="輸入 PO 編號"
-              className="text-sm"
+              disabled={!canEdit} placeholder="輸入 PO 編號" className="text-sm"
             />
           </div>
         </div>
       </div>
 
-      {/* Confirmation dialog for unchecking sameCase */}
+      {/* Confirmation dialog */}
       <AlertDialog open={showUncheckWarning} onOpenChange={setShowUncheckWarning}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -476,14 +419,7 @@ export default function ClientInfoSection({
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
-                updateMultiple({
-                  sameCase: false,
-                  isFirstFee: false,
-                  notFirstFee: false,
-                  caseGroupId: "",
-                });
-              }}
+              onClick={() => updateMultiple({ sameCase: false, isFirstFee: false, notFirstFee: false })}
             >
               確定
             </AlertDialogAction>
