@@ -1,7 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import { Plus, ChevronDown, MessageSquare, History, GripVertical } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { feeStatusLabels, type TranslatorFee } from "@/data/fee-mock-data";
+import { type TranslatorFee, type FeeStatus } from "@/data/fee-mock-data";
+
+const feeStatusLabels: Record<FeeStatus, string> = {
+  draft: "草稿",
+  finalized: "開立完成",
+};
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
