@@ -4,6 +4,7 @@ import { ArrowLeft, Plus, X, Send, AtSign, Image, Link2, ChevronLeft, ChevronRig
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, defaultClientInfo } from "@/data/fee-mock-data";
+import { defaultPricingStore } from "@/stores/default-pricing-store";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
   draft: "草稿",
