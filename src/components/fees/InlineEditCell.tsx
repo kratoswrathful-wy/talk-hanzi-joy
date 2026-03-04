@@ -93,6 +93,7 @@ export function InlineEditCell({ value, type, options, fieldKey, editable, onCom
           value={String(value)}
           onValueChange={(v) => { onCommit(v); setEditing(false); }}
           triggerClassName="h-7 text-xs"
+          defaultOpen
         />
       </div>
     );
