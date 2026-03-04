@@ -783,13 +783,27 @@ export default function TranslatorFeeDetail() {
 
       {/* Sticky top bar */}
       <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border -mx-4 px-4 py-3 flex items-center justify-between gap-4">
-        <Link
-          to="/fees"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          返回費用清單
-        </Link>
+        {hasDuplicateFirstFee ? (
+          <button
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-not-allowed"
+            onClick={(e) => {
+              e.preventDefault();
+              toast.error("同一案件中有多個「為首筆費用」，請先更改勾選內容再離開此頁面");
+              setDuplicateFirstFeeWarning(true);
+            }}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            返回費用清單
+          </button>
+        ) : (
+          <Link
+            to="/fees"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            返回費用清單
+          </Link>
+        )}
         <div className="flex items-center gap-2 shrink-0">
           {canDelete && (
             <Button variant="destructive" size="sm" className="text-xs" onClick={() => setDeleteDialogOpen(true)}>
