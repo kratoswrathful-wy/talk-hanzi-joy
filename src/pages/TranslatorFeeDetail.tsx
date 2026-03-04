@@ -449,12 +449,13 @@ export default function TranslatorFeeDetail() {
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
   const snapshotRef = useRef<{ taskItems: FeeTaskItem[]; title: string; assignee: string; internalNote: string } | null>(null);
   const hasBeenSubmittedRef = useRef(feeData?.status === "finalized");
-  const [duplicateFirstFeeWarning, setDuplicateFirstFeeWarning] = useState(false);
+  const [duplicateDialogStep, setDuplicateDialogStep] = useState<null | "choose" | "confirmSwap">(null);
+  const [disableOption12A, setDisableOption12A] = useState(false);
 
-  // Detect duplicate isFirstFee in the same case group
-  const hasDuplicateFirstFee = (() => {
-    if (!clientInfo.sameCase || !clientInfo.isFirstFee || !internalNote) return false;
-    return allFees.some(
+  // Find the other fee that is firstFee in the same case group
+  const otherFirstFee = (() => {
+    if (!clientInfo.sameCase || !internalNote) return undefined;
+    return allFees.find(
       (f) =>
         f.id !== id &&
         f.clientInfo?.sameCase &&
@@ -463,10 +464,14 @@ export default function TranslatorFeeDetail() {
     );
   })();
 
+  // Detect duplicate isFirstFee in the same case group
+  const hasDuplicateFirstFee = clientInfo.sameCase && clientInfo.isFirstFee && !!otherFirstFee;
+
   // Show warning on mount if duplicate detected
   useEffect(() => {
     if (hasDuplicateFirstFee) {
-      setDuplicateFirstFeeWarning(true);
+      setDisableOption12A(false);
+      setDuplicateDialogStep("choose");
     }
   }, [hasDuplicateFirstFee]);
 
@@ -788,8 +793,9 @@ export default function TranslatorFeeDetail() {
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-not-allowed"
             onClick={(e) => {
               e.preventDefault();
-              toast.error("同一案件中有多個「為首筆費用」，請先更改勾選內容再離開此頁面");
-              setDuplicateFirstFeeWarning(true);
+              toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容再離開此頁面");
+              setDisableOption12A(false);
+              setDuplicateDialogStep("choose");
             }}
           >
             <ArrowLeft className="h-4 w-4" />
@@ -828,8 +834,9 @@ export default function TranslatorFeeDetail() {
                 className="text-xs"
                 onClick={() => {
                   if (hasDuplicateFirstFee) {
-                    toast.error("同一案件中有多個「為首筆費用」，請先更改勾選內容");
-                    setDuplicateFirstFeeWarning(true);
+                    toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
+                    setDisableOption12A(false);
+                    setDuplicateDialogStep("choose");
                     return;
                   }
                   // Clone current fee with incrementing copy count
@@ -855,8 +862,9 @@ export default function TranslatorFeeDetail() {
                 className="text-xs"
                 onClick={() => {
                   if (hasDuplicateFirstFee) {
-                    toast.error("同一案件中有多個「為首筆費用」，請先更改勾選內容");
-                    setDuplicateFirstFeeWarning(true);
+                    toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
+                    setDisableOption12A(false);
+                    setDuplicateDialogStep("choose");
                     return;
                   }
                   const draft = feeStore.createDraft();
@@ -1120,7 +1128,7 @@ export default function TranslatorFeeDetail() {
                 <TableFooter>
                   <TableRow>
                     <TableCell colSpan={4} className="text-sm font-medium text-right">
-                      總額
+                      稿費總額
                     </TableCell>
                     <TableCell className="text-right text-sm font-bold">
                       {totalAmount.toLocaleString()}
@@ -1150,6 +1158,10 @@ export default function TranslatorFeeDetail() {
                 allFees={allFees}
                 currentFeeId={id ?? ""}
                 currentInternalNote={internalNote}
+                onFirstFeeConflict={() => {
+                  setDisableOption12A(false);
+                  setDuplicateDialogStep("choose");
+                }}
               />
             </div>
           </>
@@ -1165,7 +1177,7 @@ export default function TranslatorFeeDetail() {
 
         {/* Edit History — only show when there are committed or pending entries */}
         {(() => {
-          const clientInfoKeywords = ["客戶", "聯絡人", "案號", "PO", "硬碟", "對帳", "費率", "請款", "同一案件", "首筆", "營收", "利潤", "客戶端"];
+          const clientInfoKeywords = ["客戶", "聯絡人", "案號", "PO", "硬碟", "對帳", "費率", "請款", "同一案件", "主要營收", "營收", "利潤", "客戶端"];
           const isClientLog = (desc: string) => clientInfoKeywords.some((kw) => desc.includes(kw));
           const filteredEditLog = isManager ? editLog : editLog.filter((e) => !isClientLog(e.description));
           const filteredPending = isManager ? pendingChanges : pendingChanges.filter((c) => !isClientLog(c.field));
@@ -1298,17 +1310,68 @@ export default function TranslatorFeeDetail() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Duplicate isFirstFee Warning */}
-      <AlertDialog open={duplicateFirstFeeWarning} onOpenChange={setDuplicateFirstFeeWarning}>
+      {/* Duplicate isFirstFee Warning — Step 1: Choose */}
+      <AlertDialog open={duplicateDialogStep === "choose"} onOpenChange={(open) => { if (!open && !hasDuplicateFirstFee) setDuplicateDialogStep(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>同一案件中有多個「為首筆費用」</AlertDialogTitle>
+            <AlertDialogTitle>同一案件中有多個「主要營收紀錄」</AlertDialogTitle>
             <AlertDialogDescription>
-              同一案件群組中已有其他費用頁面勾選了「為首筆費用」。請在此頁面或其他頁面中取消勾選，確保每個案件只有一筆「為首筆費用」。在修正之前，無法離開此頁面或進行複製操作。
+              同一案件群組中已有其他費用頁面被設為主要營收紀錄。請選擇本頁的角色：
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              disabled={disableOption12A}
+              onClick={() => setDuplicateDialogStep("confirmSwap")}
+            >
+              將本頁設為主要營收紀錄
+            </Button>
+            <Button
+              onClick={() => {
+                // Set this page as notFirstFee
+                const updated = { ...clientInfo, isFirstFee: false, notFirstFee: true };
+                setClientInfo(updated);
+                if (id) feeStore.updateFee(id, { clientInfo: updated });
+                setDuplicateDialogStep(null);
+                setDisableOption12A(false);
+                toast.success("已將本頁設為非主要營收紀錄");
+              }}
+            >
+              將本頁設為非主要營收紀錄
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Duplicate isFirstFee Warning — Step 2: Confirm swap */}
+      <AlertDialog open={duplicateDialogStep === "confirmSwap"} onOpenChange={(open) => { if (!open) setDuplicateDialogStep("choose"); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>確認變更主要營收紀錄？</AlertDialogTitle>
+            <AlertDialogDescription>
+              原本的主要營收紀錄頁面「{otherFirstFee?.title || "（未命名）"}」將會自動變更為非主要營收紀錄，由本頁取代。是否確定？
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction>我知道了</AlertDialogAction>
+            <AlertDialogCancel onClick={() => {
+              setDisableOption12A(true);
+              setDuplicateDialogStep("choose");
+            }}>
+              否
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              // Swap: other fee becomes notFirstFee, this page stays isFirstFee
+              if (otherFirstFee) {
+                const otherClientInfo = { ...otherFirstFee.clientInfo!, isFirstFee: false, notFirstFee: true };
+                feeStore.updateFee(otherFirstFee.id, { clientInfo: otherClientInfo });
+              }
+              setDuplicateDialogStep(null);
+              setDisableOption12A(false);
+              toast.success("已將本頁設為主要營收紀錄");
+            }}>
+              是
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

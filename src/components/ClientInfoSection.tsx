@@ -36,6 +36,7 @@ interface ClientInfoSectionProps {
   allFees: TranslatorFee[];
   currentFeeId: string;
   currentInternalNote: string;
+  onFirstFeeConflict?: () => void;
 }
 
 export default function ClientInfoSection({
@@ -46,6 +47,7 @@ export default function ClientInfoSection({
   allFees,
   currentFeeId,
   currentInternalNote,
+  onFirstFeeConflict,
 }: ClientInfoSectionProps) {
   const [showUncheckWarning, setShowUncheckWarning] = useState(false);
 
@@ -297,13 +299,27 @@ export default function ClientInfoSection({
               id="isFirstFee"
               checked={clientInfo.isFirstFee}
               disabled={isFirstFeeDisabled}
-              onCheckedChange={(checked) => update("isFirstFee", !!checked)}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  // Check if there's already a firstFee in the group
+                  const hasExisting = currentInternalNote && allFees.some(
+                    (f) => f.id !== currentFeeId && f.clientInfo?.sameCase && f.clientInfo?.isFirstFee && f.internalNote === currentInternalNote
+                  );
+                  if (hasExisting) {
+                    // First apply the change, then trigger conflict dialog
+                    update("isFirstFee", true);
+                    onFirstFeeConflict?.();
+                    return;
+                  }
+                }
+                update("isFirstFee", !!checked);
+              }}
             />
             <Label
               htmlFor="isFirstFee"
               className={`text-xs cursor-pointer ${isFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
             >
-              為首筆費用（於總表列入營收統計）
+              為主要營收紀錄（於總表列入營收統計）
             </Label>
           </div>
           <div className="flex items-center gap-2 ml-6">
@@ -317,7 +333,7 @@ export default function ClientInfoSection({
               htmlFor="notFirstFee"
               className={`text-xs cursor-pointer ${notFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
             >
-              非首筆費用（於總表不列入營收統計）
+              非主要營收紀錄（於總表不列入營收統計）
             </Label>
           </div>
 
@@ -339,7 +355,7 @@ export default function ClientInfoSection({
                         {f.title || "（未命名）"}
                       </span>
                       <span className="text-muted-foreground shrink-0 ml-2">
-                        {f.clientInfo?.isFirstFee ? "首筆" : f.clientInfo?.notFirstFee ? "非首筆" : "—"}
+                        {f.clientInfo?.isFirstFee ? "主要" : f.clientInfo?.notFirstFee ? "非主要" : "—"}
                       </span>
                     </Link>
                   ))}
@@ -413,7 +429,7 @@ export default function ClientInfoSection({
           <AlertDialogHeader>
             <AlertDialogTitle>確定取消勾選？</AlertDialogTitle>
             <AlertDialogDescription>
-              取消勾選「與他筆費用為同一案件」將會同時清除「為首筆費用」與「非首筆費用」的勾選狀態。
+              取消勾選「與他筆費用為同一案件」將會同時清除「主要營收紀錄」與「非主要營收紀錄」的勾選狀態。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

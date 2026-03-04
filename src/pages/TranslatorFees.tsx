@@ -31,7 +31,7 @@ const managerOnlyFields = new Set([
 // Fields related to client info for edit log filtering
 const clientInfoLogKeywords = [
   "客戶", "聯絡人", "案號", "PO", "硬碟", "對帳", "費率", "請款",
-  "同一案件", "首筆", "營收", "利潤", "客戶端",
+  "同一案件", "主要營收", "營收", "利潤", "客戶端",
 ];
 
 interface ColumnDef {
