@@ -318,29 +318,35 @@ function FeeRow({
         ))}
         {/* Notes expand button */}
         <td className="px-2 py-3 text-center">
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleExpand(fee.id, "notes"); }}
-            className={cn(
-              "inline-flex items-center justify-center h-6 w-6 rounded transition-colors",
-              expanded === "notes" ? "bg-primary/15 text-primary" : "hover:bg-muted text-muted-foreground"
-            )}
-            title="備註"
-          >
-            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", expanded === "notes" && "rotate-180")} />
-          </button>
+          {fee.notes.length > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleExpand(fee.id, "notes"); }}
+              className={cn(
+                "inline-flex items-center justify-center gap-0.5 h-6 min-w-6 px-1 rounded transition-colors text-xs tabular-nums",
+                expanded === "notes" ? "bg-primary/15 text-primary" : "hover:bg-muted text-muted-foreground"
+              )}
+              title="備註"
+            >
+              <span>{fee.notes.length}</span>
+              <ChevronDown className={cn("h-3 w-3 transition-transform", expanded === "notes" && "rotate-180")} />
+            </button>
+          )}
         </td>
         {/* Edit log expand button */}
         <td className="px-2 py-3 text-center">
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleExpand(fee.id, "editLog"); }}
-            className={cn(
-              "inline-flex items-center justify-center h-6 w-6 rounded transition-colors",
-              expanded === "editLog" ? "bg-primary/15 text-primary" : "hover:bg-muted text-muted-foreground"
-            )}
-            title="修改紀錄"
-          >
-            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", expanded === "editLog" && "rotate-180")} />
-          </button>
+          {fee.editLogs.length > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleExpand(fee.id, "editLog"); }}
+              className={cn(
+                "inline-flex items-center justify-center gap-0.5 h-6 min-w-6 px-1 rounded transition-colors text-xs tabular-nums",
+                expanded === "editLog" ? "bg-primary/15 text-primary" : "hover:bg-muted text-muted-foreground"
+              )}
+              title="修改紀錄"
+            >
+              <span>{fee.editLogs.length}</span>
+              <ChevronDown className={cn("h-3 w-3 transition-transform", expanded === "editLog" && "rotate-180")} />
+            </button>
+          )}
         </td>
       </tr>
       {/* Expanded content row */}
