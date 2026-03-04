@@ -686,9 +686,9 @@ export default function TranslatorFeeDetail() {
       const workTypes = data["工作類型"] || [];
       const unitCount = data["計費單位數"] || null;
 
-      // 案件編號 > 標題（預填為「案件編號_Payment」）
+      // 案件編號 > 標題（預填為「PO_案件編號」）
       if (caseId) {
-        const newTitle = `${caseId}_Payment`;
+        const newTitle = `PO_${caseId}`;
         setTitle(newTitle);
         if (id) feeStore.updateFee(id, { title: newTitle });
       }
