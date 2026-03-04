@@ -449,7 +449,7 @@ export default function TranslatorFeeDetail() {
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
   const snapshotRef = useRef<{ taskItems: FeeTaskItem[]; title: string; assignee: string; internalNote: string } | null>(null);
   const hasBeenSubmittedRef = useRef(feeData?.status === "finalized");
-  const [duplicateDialogStep, setDuplicateDialogStep] = useState<null | "choose" | "confirmSwap">(null);
+  const [duplicateDialogStep, setDuplicateDialogStep] = useState<null | "choose" | "assignRole" | "confirmSwap">(null);
   const [disableOption12A, setDisableOption12A] = useState(false);
   const [swapResolved, setSwapResolved] = useState(false);
 
