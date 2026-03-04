@@ -40,7 +40,6 @@ export const defaultClientInfo: ClientInfo = {
   sameCase: false,
   isFirstFee: false,
   notFirstFee: false,
-  caseGroupId: "",
   client: "",
   contact: "",
   clientCaseId: "",
