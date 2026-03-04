@@ -1095,7 +1095,7 @@ export default function TranslatorFeeDetail() {
                 }}
                 canEdit={canEdit}
                 translatorTotal={totalAmount}
-                allFees={useFees()}
+                allFees={allFees}
                 currentFeeId={id ?? ""}
               />
             </div>
