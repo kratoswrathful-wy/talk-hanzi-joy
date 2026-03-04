@@ -208,11 +208,11 @@ export default function ClientInfoSection({
 
       <Separator />
 
-      {/* Checkboxes & Fields — aligned grid */}
+      {/* Checkboxes & Fields — 2-column grid */}
       <div className="grid grid-cols-2 gap-x-8 gap-y-0">
-        {/* Row 1: 與他筆費用為同一案件 | 客戶端案號或關鍵字 */}
-        <div className="flex items-start gap-x-6 min-h-[4.5rem] py-2">
-          <div className="flex items-center gap-2 min-w-0 shrink-0">
+        {/* Row 1: 與他筆費用為同一案件 + 對帳完成 | 客戶端案號或關鍵字 */}
+        <div className="flex items-center gap-x-8 h-10">
+          <div className="flex items-center gap-2 shrink-0">
             <Checkbox
               id="sameCase"
               checked={clientInfo.sameCase}
@@ -229,7 +229,7 @@ export default function ClientInfoSection({
               與他筆費用為同一案件
             </Label>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Checkbox
               id="reconciled"
               checked={clientInfo.reconciled}
@@ -241,7 +241,7 @@ export default function ClientInfoSection({
             </Label>
           </div>
         </div>
-        <div className="grid gap-1.5 py-2">
+        <div className="grid gap-1.5 py-1.5">
           <Label className="text-xs text-muted-foreground">客戶端案號或關鍵字</Label>
           <Input
             value={clientInfo.eciKeywords || clientInfo.clientCaseId}
@@ -255,9 +255,9 @@ export default function ClientInfoSection({
           />
         </div>
 
-        {/* Row 2: 為首筆費用 | 客戶 PO 編號 */}
-        <div className="flex items-start gap-x-6 min-h-[4.5rem] py-2">
-          <div className="flex items-center gap-2 ml-6 min-w-0 shrink-0">
+        {/* Row 2: 為首筆費用 + 費率無誤 | 客戶 PO 編號 */}
+        <div className="flex items-center gap-x-8 h-10">
+          <div className="flex items-center gap-2 ml-6 shrink-0">
             <Checkbox
               id="isFirstFee"
               checked={clientInfo.isFirstFee}
@@ -274,7 +274,7 @@ export default function ClientInfoSection({
               為首筆費用
             </Label>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Checkbox
               id="rateConfirmed"
               checked={clientInfo.rateConfirmed}
@@ -286,7 +286,7 @@ export default function ClientInfoSection({
             </Label>
           </div>
         </div>
-        <div className="grid gap-1.5 py-2">
+        <div className="grid gap-1.5 py-1.5">
           <Label className="text-xs text-muted-foreground">客戶 PO 編號</Label>
           <Input
             value={clientInfo.clientPoNumber}
@@ -297,9 +297,9 @@ export default function ClientInfoSection({
           />
         </div>
 
-        {/* Row 3: 非首筆費用 | (empty right) */}
-        <div className="flex items-start gap-x-6 min-h-[2.5rem] py-2">
-          <div className="flex items-center gap-2 ml-6 min-w-0 shrink-0">
+        {/* Row 3: 非首筆費用 + 請款完成 | (empty) */}
+        <div className="flex items-center gap-x-8 h-10">
+          <div className="flex items-center gap-2 ml-6 shrink-0">
             <Checkbox
               id="notFirstFee"
               checked={clientInfo.notFirstFee}
@@ -316,7 +316,7 @@ export default function ClientInfoSection({
               非首筆費用
             </Label>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Checkbox
               id="invoiced"
               checked={clientInfo.invoiced}
@@ -328,9 +328,9 @@ export default function ClientInfoSection({
             </Label>
           </div>
         </div>
-        <div className="py-2" /> {/* empty cell for alignment */}
+        <div /> {/* empty cell */}
 
-        {/* Row 4-5: 客戶 & 聯絡人 | 硬碟路徑 */}
+        {/* Row 4-5: 客戶 & 聯絡人 */}
         <div className="grid gap-1.5 py-2">
           <Label className="text-xs text-muted-foreground">客戶</Label>
           <ColorSelect
@@ -341,16 +341,7 @@ export default function ClientInfoSection({
             placeholder="選擇客戶"
           />
         </div>
-        <div className="grid gap-1.5 py-2">
-          <Label className="text-xs text-muted-foreground">硬碟路徑</Label>
-          <Input
-            value={clientInfo.hdPath}
-            onChange={(e) => update("hdPath", e.target.value)}
-            disabled={!canEdit}
-            placeholder="輸入硬碟路徑"
-            className="text-sm"
-          />
-        </div>
+        <div /> {/* empty cell */}
 
         <div className="grid gap-1.5 py-2">
           <Label className="text-xs text-muted-foreground">聯絡人</Label>
@@ -362,7 +353,7 @@ export default function ClientInfoSection({
             placeholder="選擇聯絡人"
           />
         </div>
-        <div className="py-2" /> {/* empty cell */}
+        <div /> {/* empty cell */}
       </div>
     </div>
   );

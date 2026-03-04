@@ -754,20 +754,75 @@ export default function TranslatorFeeDetail() {
         ))}
       </div>
 
-      <Link
-        to="/fees"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        返回稿費列表
-      </Link>
+      {/* Sticky top bar */}
+      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border -mx-4 px-4 py-3 flex items-center justify-between gap-4">
+        <Link
+          to="/fees"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          返回稿費列表
+        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          {canDelete && (
+            <Button variant="destructive" size="sm" className="text-xs" onClick={() => setDeleteDialogOpen(true)}>
+              刪除
+            </Button>
+          )}
+          {canSubmit && (
+            <Button size="sm" className="text-xs" onClick={handleSubmit}>
+              開立稿費條
+            </Button>
+          )}
+          {canRecall && (
+            <Button variant="outline" size="sm" className="text-xs" onClick={handleRecall}>
+              收回
+            </Button>
+          )}
+          {isManager && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                onClick={() => {
+                  // Clone current fee
+                  const draft = feeStore.createDraft();
+                  feeStore.updateFee(draft.id, {
+                    title: title ? `${title} (複製)` : "",
+                    assignee,
+                    taskItems: taskItems.map((item, idx) => ({ ...item, id: `item-clone-${Date.now()}-${idx}` })),
+                    internalNote,
+                    internalNoteUrl,
+                    clientInfo: { ...clientInfo },
+                  });
+                  navigate(`/fees/${draft.id}`);
+                }}
+              >
+                複製本頁
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                onClick={() => {
+                  const draft = feeStore.createDraft();
+                  navigate(`/fees/${draft.id}`);
+                }}
+              >
+                建立新費用頁面
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
 
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         className="rounded-xl border border-border bg-card p-6 space-y-6"
       >
-        {/* Title + actions */}
+        {/* Title */}
         <div className="flex items-start justify-between gap-4">
           <Input
             value={title}
@@ -785,23 +840,6 @@ export default function TranslatorFeeDetail() {
               <span>正在從 Notion 載入…</span>
             </div>
           )}
-          <div className="flex items-center gap-2 shrink-0">
-            {canDelete && (
-              <Button variant="destructive" size="sm" className="text-xs" onClick={() => setDeleteDialogOpen(true)}>
-                刪除
-              </Button>
-            )}
-            {canSubmit && (
-              <Button size="sm" className="text-xs" onClick={handleSubmit}>
-                送出
-              </Button>
-            )}
-            {canRecall && (
-              <Button variant="outline" size="sm" className="text-xs" onClick={handleRecall}>
-                收回
-              </Button>
-            )}
-          </div>
         </div>
 
         <Separator />
