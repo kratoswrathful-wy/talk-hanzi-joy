@@ -1,5 +1,6 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, X, Link as LinkIcon } from "lucide-react";
+import { ArrowLeft, Plus, X, Link as LinkIcon, Send } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import { translatorFees, feeStatusLabels, type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus } from "@/data/fee-mock-data";
 import { Badge } from "@/components/ui/badge";
@@ -66,6 +67,13 @@ interface PendingChange {
   changedAt: number; // Date.now()
 }
 
+interface CommentEntry {
+  id: string;
+  author: string;
+  content: string;
+  timestamp: string;
+}
+
 const COMMIT_DELAY_MS = 5 * 60 * 1000; // 5 minutes
 
 const fieldLabels: Record<string, string> = {
@@ -85,12 +93,19 @@ export default function TranslatorFeeDetail() {
   const navigate = useNavigate();
   const [taskItems, setTaskItems] = useState<FeeTaskItem[]>(feeData?.taskItems ?? []);
   const [status, setStatus] = useState<FeeStatus>(feeData?.status ?? "draft");
+  const [assignee, setAssignee] = useState(feeData?.assignee ?? "");
   const [internalNote, setInternalNote] = useState(feeData?.internalNote ?? "");
   const [internalNoteUrl, setInternalNoteUrl] = useState(feeData?.internalNoteUrl ?? "");
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [tempUrl, setTempUrl] = useState("");
   const [currentRole, setCurrentRole] = useState<UserRole>("pm");
+
+  // Comments
+  const [comments, setComments] = useState<CommentEntry[]>([]);
+  const [internalComments, setInternalComments] = useState<CommentEntry[]>([]);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [internalCommentDraft, setInternalCommentDraft] = useState("");
 
   // Edit history tracking
   const [editLog, setEditLog] = useState<EditLogEntry[]>([]);
@@ -345,7 +360,10 @@ export default function TranslatorFeeDetail() {
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label className="text-xs text-muted-foreground">開單對象</Label>
-              <Select defaultValue={feeData.assignee} disabled={!canEdit}>
+              <Select value={assignee} disabled={!canEdit} onValueChange={(v) => {
+                trackChange("開單對象", assignee, v);
+                setAssignee(v);
+              }}>
                 <SelectTrigger className="bg-secondary/50">
                   <SelectValue />
                 </SelectTrigger>
@@ -564,6 +582,94 @@ export default function TranslatorFeeDetail() {
           <span>建立者：{feeData.createdBy}</span>
           <span>建立時間：{formattedDate}</span>
         </div>
+
+        {/* 備註 — visible to assignee + PM+ */}
+        <Separator />
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">備註</Label>
+          <div className="space-y-2">
+            {comments.map((c) => (
+              <div key={c.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-medium">{c.author}</span>
+                  <span className="text-muted-foreground">{c.timestamp}</span>
+                </div>
+                <p className="whitespace-pre-wrap">{c.content}</p>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <Textarea
+              value={commentDraft}
+              onChange={(e) => setCommentDraft(e.target.value)}
+              placeholder="輸入備註..."
+              className="min-h-[60px] text-xs"
+            />
+            <Button
+              size="sm"
+              className="shrink-0 self-end gap-1 text-xs"
+              disabled={!commentDraft.trim()}
+              onClick={() => {
+                setComments((prev) => [...prev, {
+                  id: `comment-${Date.now()}`,
+                  author: roleLabels[currentRole],
+                  content: commentDraft.trim(),
+                  timestamp: new Date().toLocaleString("zh-TW"),
+                }]);
+                setCommentDraft("");
+              }}
+            >
+              <Send className="h-3 w-3" />
+              送出
+            </Button>
+          </div>
+        </div>
+
+        {/* 內部備註 — visible to PM+ only */}
+        {isManager && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">內部備註</Label>
+              <div className="space-y-2">
+                {internalComments.map((c) => (
+                  <div key={c.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium">{c.author}</span>
+                      <span className="text-muted-foreground">{c.timestamp}</span>
+                    </div>
+                    <p className="whitespace-pre-wrap">{c.content}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Textarea
+                  value={internalCommentDraft}
+                  onChange={(e) => setInternalCommentDraft(e.target.value)}
+                  placeholder="輸入內部備註..."
+                  className="min-h-[60px] text-xs"
+                />
+                <Button
+                  size="sm"
+                  className="shrink-0 self-end gap-1 text-xs"
+                  disabled={!internalCommentDraft.trim()}
+                  onClick={() => {
+                    setInternalComments((prev) => [...prev, {
+                      id: `icomment-${Date.now()}`,
+                      author: roleLabels[currentRole],
+                      content: internalCommentDraft.trim(),
+                      timestamp: new Date().toLocaleString("zh-TW"),
+                    }]);
+                    setInternalCommentDraft("");
+                  }}
+                >
+                  <Send className="h-3 w-3" />
+                  送出
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Edit History — only show when there are committed or pending entries */}
         {(editLog.length > 0 || pendingChanges.length > 0) && (
