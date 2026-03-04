@@ -299,13 +299,27 @@ export default function ClientInfoSection({
               id="isFirstFee"
               checked={clientInfo.isFirstFee}
               disabled={isFirstFeeDisabled}
-              onCheckedChange={(checked) => update("isFirstFee", !!checked)}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  // Check if there's already a firstFee in the group
+                  const hasExisting = currentInternalNote && allFees.some(
+                    (f) => f.id !== currentFeeId && f.clientInfo?.sameCase && f.clientInfo?.isFirstFee && f.internalNote === currentInternalNote
+                  );
+                  if (hasExisting) {
+                    // First apply the change, then trigger conflict dialog
+                    update("isFirstFee", true);
+                    onFirstFeeConflict?.();
+                    return;
+                  }
+                }
+                update("isFirstFee", !!checked);
+              }}
             />
             <Label
               htmlFor="isFirstFee"
               className={`text-xs cursor-pointer ${isFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
             >
-              為首筆費用（於總表列入營收統計）
+              為主要營收紀錄（於總表列入營收統計）
             </Label>
           </div>
           <div className="flex items-center gap-2 ml-6">
