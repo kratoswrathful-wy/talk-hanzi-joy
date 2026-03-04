@@ -460,15 +460,22 @@ export default function TranslatorFeeDetail() {
       const now = Date.now();
       const ready = pendingChanges.filter((c) => now - c.changedAt >= COMMIT_DELAY_MS);
       if (ready.length > 0) {
-        setEditLog((prev) => [
-          ...prev,
-          ...ready.map((c) => ({
+        setEditLog((prev) => {
+          const newEntries = ready.map((c) => ({
             id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             changedBy: roleLabels[currentRole],
             description: `${c.field} ${c.oldValue} → ${c.newValue}`,
             timestamp: formatTimestamp(new Date(c.changedAt)),
-          })),
-        ]);
+          }));
+          const updated = [...prev, ...newEntries];
+          // Sync to store
+          if (id) {
+            feeStore.updateFee(id, {
+              editLogs: updated.map((e) => ({ id: e.id, action: e.description, author: e.changedBy, createdAt: e.timestamp })),
+            });
+          }
+          return updated;
+        });
         setPendingChanges((prev) => prev.filter((c) => !ready.includes(c)));
         // Update snapshot to reflect committed values
         snapshotRef.current = {
@@ -597,15 +604,21 @@ export default function TranslatorFeeDetail() {
   const handleSubmit = () => {
     // Force-commit all pending changes immediately
     if (pendingChanges.length > 0) {
-      setEditLog((prev) => [
-        ...prev,
-        ...pendingChanges.map((c) => ({
-          id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          changedBy: roleLabels[currentRole],
-          description: `${c.field} ${c.oldValue} → ${c.newValue}`,
-          timestamp: formatTimestamp(new Date(c.changedAt)),
-        })),
-      ]);
+      const newEntries = pendingChanges.map((c) => ({
+        id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        changedBy: roleLabels[currentRole],
+        description: `${c.field} ${c.oldValue} → ${c.newValue}`,
+        timestamp: formatTimestamp(new Date(c.changedAt)),
+      }));
+      setEditLog((prev) => {
+        const updated = [...prev, ...newEntries];
+        if (id) {
+          feeStore.updateFee(id, {
+            editLogs: updated.map((e) => ({ id: e.id, action: e.description, author: e.changedBy, createdAt: e.timestamp })),
+          });
+        }
+        return updated;
+      });
       setPendingChanges([]);
     }
 
@@ -995,13 +1008,22 @@ export default function TranslatorFeeDetail() {
             setDraft={setCommentDraft}
             placeholder="輸入留言..."
             onSubmit={(content, imageUrls) => {
-              setComments((prev) => [...prev, {
+              const newNote = {
                 id: `comment-${Date.now()}`,
                 author: roleLabels[currentRole],
                 content,
                 imageUrls,
                 timestamp: formatTimestamp(new Date()),
-              }]);
+              };
+              setComments((prev) => [...prev, newNote]);
+              // Sync to store
+              if (id) {
+                const storeNote = { id: newNote.id, content, author: newNote.author, createdAt: new Date().toISOString() };
+                const currentFee = feeStore.getFeeById(id);
+                if (currentFee) {
+                  feeStore.updateFee(id, { notes: [...currentFee.notes, storeNote] });
+                }
+              }
             }}
           />
         </div>
