@@ -426,6 +426,7 @@ export default function TranslatorFeeDetail() {
   const feeData = useFee(id);
 
   const navigate = useNavigate();
+  const [title, setTitle] = useState(feeData?.title ?? "");
   const [taskItems, setTaskItems] = useState<FeeTaskItem[]>(feeData?.taskItems ?? []);
   const [status, setStatus] = useState<FeeStatus>(feeData?.status ?? "draft");
   const [assignee, setAssignee] = useState(feeData?.assignee ?? "");
