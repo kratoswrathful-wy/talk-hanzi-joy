@@ -1313,7 +1313,7 @@ export default function TranslatorFeeDetail() {
       </AlertDialog>
 
       {/* Duplicate isFirstFee Warning — Step 1: Choose */}
-      <AlertDialog open={duplicateDialogStep === "choose"} onOpenChange={(open) => { if (!open && !hasDuplicateFirstFee) setDuplicateDialogStep(null); }}>
+      <AlertDialog open={duplicateDialogStep === "choose"} onOpenChange={() => {}}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>同一案件中有多個「主要營收紀錄」</AlertDialogTitle>
