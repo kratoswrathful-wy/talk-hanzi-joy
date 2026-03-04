@@ -952,13 +952,13 @@ export default function TranslatorFeeDetail() {
                 draft={internalCommentDraft}
                 setDraft={setInternalCommentDraft}
                 placeholder="輸入內部備註..."
-                onSubmit={(content, imageUrl) => {
+                onSubmit={(content, imageUrls) => {
                   setInternalComments((prev) => [...prev, {
                     id: `icomment-${Date.now()}`,
                     author: roleLabels[currentRole],
                     content,
-                    imageUrl,
-                    timestamp: new Date().toLocaleString("zh-TW"),
+                    imageUrls,
+                    timestamp: formatTimestamp(new Date()),
                   }]);
                 }}
               />
