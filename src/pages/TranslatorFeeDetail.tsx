@@ -427,7 +427,7 @@ export default function TranslatorFeeDetail() {
   const [status, setStatus] = useState<FeeStatus>(feeData?.status ?? "draft");
   const [assignee, setAssignee] = useState(feeData?.assignee ?? "");
   const [internalNote, setInternalNote] = useState(feeData?.internalNote ?? "");
-  const [internalNoteUrl, setInternalNoteUrl] = useState("");
+  const [internalNoteUrl, setInternalNoteUrl] = useState(feeData?.internalNoteUrl ?? "");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [notionUrlInput, setNotionUrlInput] = useState(internalNoteUrl || "");
   const [currentRole, setCurrentRole] = useState<UserRole>("pm");
@@ -449,6 +449,26 @@ export default function TranslatorFeeDetail() {
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
   const snapshotRef = useRef<{ taskItems: FeeTaskItem[]; title: string; assignee: string; internalNote: string } | null>(null);
   const hasBeenSubmittedRef = useRef(feeData?.status === "finalized");
+  const [duplicateFirstFeeWarning, setDuplicateFirstFeeWarning] = useState(false);
+
+  // Detect duplicate isFirstFee in the same case group
+  const hasDuplicateFirstFee = (() => {
+    if (!clientInfo.sameCase || !clientInfo.isFirstFee || !internalNote) return false;
+    return allFees.some(
+      (f) =>
+        f.id !== id &&
+        f.clientInfo?.sameCase &&
+        f.clientInfo?.isFirstFee &&
+        f.internalNote === internalNote
+    );
+  })();
+
+  // Show warning on mount if duplicate detected
+  useEffect(() => {
+    if (hasDuplicateFirstFee) {
+      setDuplicateFirstFeeWarning(true);
+    }
+  }, [hasDuplicateFirstFee]);
 
   // Commit pending changes that have persisted for 5+ minutes
   useEffect(() => {
@@ -656,6 +676,7 @@ export default function TranslatorFeeDetail() {
     if (!url) return;
 
     setInternalNoteUrl(url);
+    if (id) feeStore.updateFee(id, { internalNoteUrl: url });
 
     // Check if it's a database URL (contains ?v=)
     if (url.includes("notion.so") && url.includes("?v=")) {
@@ -762,13 +783,27 @@ export default function TranslatorFeeDetail() {
 
       {/* Sticky top bar */}
       <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border -mx-4 px-4 py-3 flex items-center justify-between gap-4">
-        <Link
-          to="/fees"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          返回費用清單
-        </Link>
+        {hasDuplicateFirstFee ? (
+          <button
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-not-allowed"
+            onClick={(e) => {
+              e.preventDefault();
+              toast.error("同一案件中有多個「為首筆費用」，請先更改勾選內容再離開此頁面");
+              setDuplicateFirstFeeWarning(true);
+            }}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            返回費用清單
+          </button>
+        ) : (
+          <Link
+            to="/fees"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            返回費用清單
+          </Link>
+        )}
         <div className="flex items-center gap-2 shrink-0">
           {canDelete && (
             <Button variant="destructive" size="sm" className="text-xs" onClick={() => setDeleteDialogOpen(true)}>
@@ -792,6 +827,11 @@ export default function TranslatorFeeDetail() {
                 size="sm"
                 className="text-xs"
                 onClick={() => {
+                  if (hasDuplicateFirstFee) {
+                    toast.error("同一案件中有多個「為首筆費用」，請先更改勾選內容");
+                    setDuplicateFirstFeeWarning(true);
+                    return;
+                  }
                   // Clone current fee with incrementing copy count
                   const copyCount = (window as any).__copyCount ?? 0;
                   (window as any).__copyCount = copyCount + 1;
@@ -801,6 +841,7 @@ export default function TranslatorFeeDetail() {
                     assignee,
                     taskItems: taskItems.map((item, idx) => ({ ...item, id: `item-clone-${Date.now()}-${idx}` })),
                     internalNote,
+                    internalNoteUrl,
                     clientInfo: { ...clientInfo },
                   });
                   navigate(`/fees/${draft.id}`);
@@ -813,6 +854,11 @@ export default function TranslatorFeeDetail() {
                 size="sm"
                 className="text-xs"
                 onClick={() => {
+                  if (hasDuplicateFirstFee) {
+                    toast.error("同一案件中有多個「為首筆費用」，請先更改勾選內容");
+                    setDuplicateFirstFeeWarning(true);
+                    return;
+                  }
                   const draft = feeStore.createDraft();
                   navigate(`/fees/${draft.id}`);
                 }}
@@ -913,7 +959,7 @@ export default function TranslatorFeeDetail() {
                       setInternalNote("");
                       setInternalNoteUrl("");
                       setNotionUrlInput("");
-                      if (id) feeStore.updateFee(id, { internalNote: "" });
+                      if (id) feeStore.updateFee(id, { internalNote: "", internalNoteUrl: "" });
                     }}
                     title="清除"
                   >
@@ -1248,6 +1294,21 @@ export default function TranslatorFeeDetail() {
             >
               確定
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Duplicate isFirstFee Warning */}
+      <AlertDialog open={duplicateFirstFeeWarning} onOpenChange={setDuplicateFirstFeeWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>同一案件中有多個「為首筆費用」</AlertDialogTitle>
+            <AlertDialogDescription>
+              同一案件群組中已有其他費用頁面勾選了「為首筆費用」。請在此頁面或其他頁面中取消勾選，確保每個案件只有一筆「為首筆費用」。在修正之前，無法離開此頁面或進行複製操作。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction>我知道了</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
