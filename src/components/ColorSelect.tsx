@@ -144,7 +144,19 @@ export default function ColorSelect({
                       style={{ backgroundColor: opt.color }}
                     />
                     <span className="truncate flex-1">{opt.label}</span>
-                    {value === opt.label && <Check className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                    {value === opt.label && (
+                      <span className="flex items-center gap-0.5 shrink-0">
+                        <span
+                          role="button"
+                          className="rounded hover:bg-destructive/20 p-0.5 transition-colors"
+                          onClick={(e) => { e.stopPropagation(); onValueChange(""); setOpen(false); }}
+                          title="取消選取"
+                        >
+                          <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                        </span>
+                      </span>
+                    )}
+                  </button>
                   </button>
                   {/* "..." menu */}
                   <Popover
