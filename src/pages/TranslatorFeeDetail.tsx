@@ -42,7 +42,6 @@ const roleLabels: Record<UserRole, string> = {
 };
 
 const taskTypeOptions: TaskType[] = ["翻譯", "審稿", "MTPE", "LQA"];
-const billingUnitOptions: BillingUnit[] = ["字", "小時"];
 
 interface EditLogEntry {
   id: string;
