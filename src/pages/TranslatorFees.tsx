@@ -62,7 +62,7 @@ const columnDefs: ColumnDef[] = [
   },
   {
     key: "internalNote",
-    label: "關聯內部紀錄",
+    label: "關聯案件",
     minWidth: 100,
     defaultWidth: 160,
     render: (f) => (
