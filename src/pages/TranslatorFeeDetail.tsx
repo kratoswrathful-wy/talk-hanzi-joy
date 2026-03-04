@@ -423,7 +423,7 @@ function CommentInput({
 export default function TranslatorFeeDetail() {
 
   const { id } = useParams();
-  const feeData = translatorFees.find((f) => f.id === id);
+  const feeData = useFee(id);
 
   const navigate = useNavigate();
   const [taskItems, setTaskItems] = useState<FeeTaskItem[]>(feeData?.taskItems ?? []);
