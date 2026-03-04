@@ -911,7 +911,7 @@ export default function TranslatorFeeDetail() {
                   <span className="font-medium">{c.author}</span>
                   <span className="text-muted-foreground">{c.timestamp}</span>
                 </div>
-                <CommentContent content={c.content} imageUrl={c.imageUrl} />
+                <CommentContent content={c.content} imageUrls={c.imageUrls} />
               </div>
             ))}
           </div>
