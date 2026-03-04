@@ -55,6 +55,12 @@ export const translatorFees: TranslatorFee[] = [
       { id: "item-1", taskType: "翻譯", billingUnit: "字", unitCount: 5000, unitPrice: 1.2 },
       { id: "item-2", taskType: "審稿", billingUnit: "字", unitCount: 2000, unitPrice: 0.8 },
     ],
+    notes: [
+      { id: "n-1", content: "請確認單價是否正確", author: "陳雅婷", createdAt: "2026-02-21T09:00:00" },
+    ],
+    editLogs: [
+      { id: "el-1", action: "建立草稿", author: "張大偉", createdAt: "2026-02-20T10:30:00" },
+    ],
     createdBy: "張大偉",
     createdAt: "2026-02-20T10:30:00",
   },
