@@ -1306,17 +1306,68 @@ export default function TranslatorFeeDetail() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Duplicate isFirstFee Warning */}
-      <AlertDialog open={duplicateFirstFeeWarning} onOpenChange={setDuplicateFirstFeeWarning}>
+      {/* Duplicate isFirstFee Warning — Step 1: Choose */}
+      <AlertDialog open={duplicateDialogStep === "choose"} onOpenChange={(open) => { if (!open && !hasDuplicateFirstFee) setDuplicateDialogStep(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>同一案件中有多個「為首筆費用」</AlertDialogTitle>
+            <AlertDialogTitle>同一案件中有多個「主要營收紀錄」</AlertDialogTitle>
             <AlertDialogDescription>
-              同一案件群組中已有其他費用頁面勾選了「為首筆費用」。請在此頁面或其他頁面中取消勾選，確保每個案件只有一筆「為首筆費用」。在修正之前，無法離開此頁面或進行複製操作。
+              同一案件群組中已有其他費用頁面被設為主要營收紀錄。請選擇本頁的角色：
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              disabled={disableOption12A}
+              onClick={() => setDuplicateDialogStep("confirmSwap")}
+            >
+              將本頁設為主要營收紀錄
+            </Button>
+            <Button
+              onClick={() => {
+                // Set this page as notFirstFee
+                const updated = { ...clientInfo, isFirstFee: false, notFirstFee: true };
+                setClientInfo(updated);
+                if (id) feeStore.updateFee(id, { clientInfo: updated });
+                setDuplicateDialogStep(null);
+                setDisableOption12A(false);
+                toast.success("已將本頁設為非主要營收紀錄");
+              }}
+            >
+              將本頁設為非主要營收紀錄
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Duplicate isFirstFee Warning — Step 2: Confirm swap */}
+      <AlertDialog open={duplicateDialogStep === "confirmSwap"} onOpenChange={(open) => { if (!open) setDuplicateDialogStep("choose"); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>確認變更主要營收紀錄？</AlertDialogTitle>
+            <AlertDialogDescription>
+              原本的主要營收紀錄頁面「{otherFirstFee?.title || "（未命名）"}」將會自動變更為非主要營收紀錄，由本頁取代。是否確定？
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction>我知道了</AlertDialogAction>
+            <AlertDialogCancel onClick={() => {
+              setDisableOption12A(true);
+              setDuplicateDialogStep("choose");
+            }}>
+              否
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              // Swap: other fee becomes notFirstFee, this page stays isFirstFee
+              if (otherFirstFee) {
+                const otherClientInfo = { ...otherFirstFee.clientInfo!, isFirstFee: false, notFirstFee: true };
+                feeStore.updateFee(otherFirstFee.id, { clientInfo: otherClientInfo });
+              }
+              setDuplicateDialogStep(null);
+              setDisableOption12A(false);
+              toast.success("已將本頁設為主要營收紀錄");
+            }}>
+              是
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

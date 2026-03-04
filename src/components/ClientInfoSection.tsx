@@ -429,7 +429,7 @@ export default function ClientInfoSection({
           <AlertDialogHeader>
             <AlertDialogTitle>確定取消勾選？</AlertDialogTitle>
             <AlertDialogDescription>
-              取消勾選「與他筆費用為同一案件」將會同時清除「為首筆費用」與「非首筆費用」的勾選狀態。
+              取消勾選「與他筆費用為同一案件」將會同時清除「主要營收紀錄」與「非主要營收紀錄」的勾選狀態。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
