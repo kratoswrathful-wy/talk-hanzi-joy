@@ -219,7 +219,7 @@ export default function NewTranslatorFee() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">內部紀錄連結</Label>
+              <Label className="text-xs">案件連結</Label>
               <Input
                 value={internalNoteUrl}
                 onChange={(e) => setInternalNoteUrl(e.target.value)}
