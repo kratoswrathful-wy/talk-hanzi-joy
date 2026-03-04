@@ -878,10 +878,15 @@ export default function TranslatorFeeDetail() {
                 size="sm"
                 className="text-xs"
                 onClick={() => {
-                  if (hasDuplicateFirstFee) {
-                    toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
-                    setDisableOption12A(false);
-                    setDuplicateDialogStep("choose");
+                  if (isNavigationBlocked) {
+                    if (needsRoleAssignment) {
+                      toast.error("請將本頁面指定為相關案件的主要或非主要營收紀錄。");
+                      setDuplicateDialogStep("assignRole");
+                    } else {
+                      toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
+                      setDisableOption12A(false);
+                      setDuplicateDialogStep("choose");
+                    }
                     return;
                   }
                   const draft = feeStore.createDraft();
