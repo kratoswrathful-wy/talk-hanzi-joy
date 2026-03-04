@@ -10,6 +10,20 @@ export interface FeeTaskItem {
   unitPrice: number;
 }
 
+export interface FeeNote {
+  id: string;
+  content: string;
+  author: string;
+  createdAt: string;
+}
+
+export interface FeeEditLog {
+  id: string;
+  action: string;
+  author: string;
+  createdAt: string;
+}
+
 export interface TranslatorFee {
   id: string;
   title: string;
@@ -18,6 +32,8 @@ export interface TranslatorFee {
   internalNote: string;
   internalNoteUrl?: string;
   taskItems: FeeTaskItem[];
+  notes: FeeNote[];
+  editLogs: FeeEditLog[];
   createdBy: string;
   createdAt: string;
 }
