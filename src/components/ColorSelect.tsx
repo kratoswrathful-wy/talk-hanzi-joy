@@ -37,7 +37,7 @@ export default function ColorSelect({
   triggerClassName,
 }: ColorSelectProps) {
   const { options, customColors } = useSelectOptions(fieldKey);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen ?? false);
   const [addingNew, setAddingNew] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
