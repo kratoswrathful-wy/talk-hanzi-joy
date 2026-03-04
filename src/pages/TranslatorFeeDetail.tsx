@@ -1347,7 +1347,7 @@ export default function TranslatorFeeDetail() {
             <Button
               variant="outline"
               disabled={disableOption12A}
-              onClick={() => setDuplicateDialogStep("confirmSwap")}
+              onClick={() => { confirmSwapOriginRef.current = "choose"; setDuplicateDialogStep("confirmSwap"); }}
             >
               將本頁設為主要營收紀錄
             </Button>
