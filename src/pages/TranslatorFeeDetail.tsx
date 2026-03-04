@@ -950,20 +950,13 @@ export default function TranslatorFeeDetail() {
                   taskItems.map((item, index) => (
                     <TableRow key={item.id}>
                       <TableCell>
-                        <Select
+                        <ColorSelect
+                          fieldKey="taskType"
                           value={item.taskType}
                           disabled={!canEdit}
                           onValueChange={(v) => handleUpdateItem(item.id, "taskType", v)}
-                        >
-                          <SelectTrigger className="h-8 text-xs bg-transparent border-0 shadow-none px-0">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {taskTypeOptions.map((t) => (
-                              <SelectItem key={t} value={t}>{t}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0"
+                        />
                       </TableCell>
                       <TableCell>
                         <Select
