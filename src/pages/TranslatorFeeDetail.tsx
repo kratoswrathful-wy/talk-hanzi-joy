@@ -434,9 +434,8 @@ export default function TranslatorFeeDetail() {
   const [assignee, setAssignee] = useState(feeData?.assignee ?? "");
   const [internalNote, setInternalNote] = useState(feeData?.internalNote ?? "");
   const [internalNoteUrl, setInternalNoteUrl] = useState(feeData?.internalNoteUrl ?? "");
-  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [tempUrl, setTempUrl] = useState("");
+  const [notionUrlInput, setNotionUrlInput] = useState(internalNoteUrl || "");
   const [currentRole, setCurrentRole] = useState<UserRole>("pm");
 
   // Comments — initialize from feeData
