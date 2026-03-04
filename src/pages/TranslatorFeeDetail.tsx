@@ -1064,35 +1064,42 @@ export default function TranslatorFeeDetail() {
         </div>
 
         {/* Edit History — only show when there are committed or pending entries */}
-        {(editLog.length > 0 || pendingChanges.length > 0) && (
-          <>
-            <Separator />
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">變更紀錄</Label>
-              <div className="space-y-2">
-                {editLog.map((entry) => (
-                  <div key={entry.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs space-y-0.5">
-                    <div className="flex flex-wrap gap-x-4 gap-y-0.5">
-                      <span><span className="text-muted-foreground">變更者：</span>{entry.changedBy}</span>
-                      <span><span className="text-muted-foreground">變更內容：</span>{entry.description}</span>
-                      <span><span className="text-muted-foreground">變更時間：</span>{entry.timestamp}</span>
+        {(() => {
+          const clientInfoKeywords = ["客戶", "聯絡人", "案號", "PO", "硬碟", "對帳", "費率", "請款", "同一案件", "首筆", "營收", "利潤", "客戶端"];
+          const isClientLog = (desc: string) => clientInfoKeywords.some((kw) => desc.includes(kw));
+          const filteredEditLog = isManager ? editLog : editLog.filter((e) => !isClientLog(e.description));
+          const filteredPending = isManager ? pendingChanges : pendingChanges.filter((c) => !isClientLog(c.field));
+          if (filteredEditLog.length === 0 && filteredPending.length === 0) return null;
+          return (
+            <>
+              <Separator />
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">變更紀錄</Label>
+                <div className="space-y-2">
+                  {filteredEditLog.map((entry) => (
+                    <div key={entry.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs space-y-0.5">
+                      <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                        <span><span className="text-muted-foreground">變更者：</span>{entry.changedBy}</span>
+                        <span><span className="text-muted-foreground">變更內容：</span>{entry.description}</span>
+                        <span><span className="text-muted-foreground">變更時間：</span>{entry.timestamp}</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
-                {pendingChanges.map((change, idx) => (
-                  <div key={`pending-${idx}`} className="rounded-md border border-dashed border-border bg-secondary/15 px-3 py-2 text-xs space-y-0.5 opacity-60">
-                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 italic">
-                      <span><span className="text-muted-foreground">變更者：</span>{roleLabels[currentRole]}</span>
-                      <span><span className="text-muted-foreground">變更內容：</span>{change.field} {change.oldValue} → {change.newValue}</span>
-                      <span><span className="text-muted-foreground">變更時間：</span>{formatTimestamp(new Date(change.changedAt))}</span>
-                      <span className="text-muted-foreground">（未滿 5 分鐘，尚未正式紀錄）</span>
+                  ))}
+                  {filteredPending.map((change, idx) => (
+                    <div key={`pending-${idx}`} className="rounded-md border border-dashed border-border bg-secondary/15 px-3 py-2 text-xs space-y-0.5 opacity-60">
+                      <div className="flex flex-wrap gap-x-4 gap-y-0.5 italic">
+                        <span><span className="text-muted-foreground">變更者：</span>{roleLabels[currentRole]}</span>
+                        <span><span className="text-muted-foreground">變更內容：</span>{change.field} {change.oldValue} → {change.newValue}</span>
+                        <span><span className="text-muted-foreground">變更時間：</span>{formatTimestamp(new Date(change.changedAt))}</span>
+                        <span className="text-muted-foreground">（未滿 5 分鐘，尚未正式紀錄）</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          </>
-        )}
+            </>
+          );
+        })()}
 
         {/* 留言與備註 — visible to assignee + PM+ */}
         <Separator />
