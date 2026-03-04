@@ -656,6 +656,12 @@ export default function TranslatorFeeDetail() {
     setInternalNoteUrl(url);
     if (id) feeStore.updateFee(id, { internalNoteUrl: url });
 
+    // Check if it's a database URL (contains ?v=)
+    if (url.includes("notion.so") && url.includes("?v=")) {
+      toast.error("這是資料庫的連結，請開啟單一案件頁面後複製該頁面的 URL");
+      return;
+    }
+
     // Auto-detect Notion URL and fetch data
     const pageId = extractNotionPageId(url);
     if (!pageId || !url.includes("notion.so")) {
