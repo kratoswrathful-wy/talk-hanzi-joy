@@ -4,6 +4,7 @@ import { ArrowLeft, Plus, X, Send, AtSign, Image, Link2, ChevronLeft, ChevronRig
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, defaultClientInfo } from "@/data/fee-mock-data";
+import { defaultPricingStore } from "@/stores/default-pricing-store";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
   draft: "草稿",
@@ -790,6 +791,10 @@ export default function TranslatorFeeDetail() {
       }
 
       // 工作類型 > 任務項目 + 計費單位數 > 第一項
+      const assigneeDefaultPrice = (Array.isArray(people) && people.length > 0)
+        ? defaultPricingStore.getPrice("assignee", people[0])
+        : undefined;
+
       if (Array.isArray(workTypes) && workTypes.length > 0) {
         const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
           const matchedType = taskTypeOptions.find((t) => wt.includes(t)) || "翻譯";
@@ -798,7 +803,7 @@ export default function TranslatorFeeDetail() {
             taskType: matchedType as TaskType,
             billingUnit: "字" as BillingUnit,
             unitCount: idx === 0 && unitCount ? unitCount : 0,
-            unitPrice: 0,
+            unitPrice: assigneeDefaultPrice ?? 0,
           };
         });
         setTaskItems(mapped);
@@ -1009,6 +1014,19 @@ export default function TranslatorFeeDetail() {
                   trackChange("開單對象", assignee, v);
                   setAssignee(v);
                   if (id) feeStore.updateFee(id, { assignee: v });
+                  // Auto-fill default price for assignee
+                  if (v) {
+                    const defaultPrice = defaultPricingStore.getPrice("assignee", v);
+                    if (defaultPrice !== undefined) {
+                      setTaskItems((prev) => {
+                        const updated = prev.map((item) =>
+                          item.unitPrice === 0 ? { ...item, unitPrice: defaultPrice } : item
+                        );
+                        if (id) feeStore.updateFee(id, { taskItems: updated });
+                        return updated;
+                      });
+                    }
+                  }
                 }}
                 placeholder="選擇開單對象"
               />

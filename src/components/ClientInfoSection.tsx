@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { defaultPricingStore } from "@/stores/default-pricing-store";
 import { Plus, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -394,7 +395,19 @@ export default function ClientInfoSection({
           <div className="grid gap-1.5">
             <Label className="text-xs text-muted-foreground">客戶</Label>
             <ColorSelect fieldKey="client" value={clientInfo.client} disabled={!canEdit}
-              onValueChange={(v) => update("client", v)} placeholder="選擇客戶" />
+              onValueChange={(v) => {
+                update("client", v);
+                // Auto-fill default client price
+                if (v) {
+                  const defaultPrice = defaultPricingStore.getPrice("client", v);
+                  if (defaultPrice !== undefined) {
+                    const updated = clientInfo.clientTaskItems.map((item) =>
+                      item.clientPrice === 0 ? { ...item, clientPrice: defaultPrice } : item
+                    );
+                    onChange({ ...clientInfo, client: v, clientTaskItems: updated });
+                  }
+                }
+              }} placeholder="選擇客戶" />
           </div>
           <div className="grid gap-1.5">
             <Label className="text-xs text-muted-foreground">聯絡人</Label>
