@@ -959,20 +959,13 @@ export default function TranslatorFeeDetail() {
                         />
                       </TableCell>
                       <TableCell>
-                        <Select
+                        <ColorSelect
+                          fieldKey="billingUnit"
                           value={item.billingUnit}
                           disabled={!canEdit}
                           onValueChange={(v) => handleUpdateItem(item.id, "billingUnit", v)}
-                        >
-                          <SelectTrigger className="h-8 text-xs bg-transparent border-0 shadow-none px-0">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {billingUnitOptions.map((u) => (
-                              <SelectItem key={u} value={u}>{u}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0"
+                        />
                       </TableCell>
                       <TableCell>
                         <Input
