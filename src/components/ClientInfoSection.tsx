@@ -333,7 +333,7 @@ export default function ClientInfoSection({
               htmlFor="notFirstFee"
               className={`text-xs cursor-pointer ${notFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
             >
-              非首筆費用（於總表不列入營收統計）
+              非主要營收紀錄（於總表不列入營收統計）
             </Label>
           </div>
 
