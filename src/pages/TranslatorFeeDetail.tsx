@@ -425,7 +425,7 @@ export default function TranslatorFeeDetail() {
   const [status, setStatus] = useState<FeeStatus>(feeData?.status ?? "draft");
   const [assignee, setAssignee] = useState(feeData?.assignee ?? "");
   const [internalNote, setInternalNote] = useState(feeData?.internalNote ?? "");
-  const [internalNoteUrl, setInternalNoteUrl] = useState(feeData?.internalNoteUrl ?? "");
+  const [internalNoteUrl, setInternalNoteUrl] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [notionUrlInput, setNotionUrlInput] = useState(internalNoteUrl || "");
   const [currentRole, setCurrentRole] = useState<UserRole>("pm");
