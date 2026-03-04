@@ -25,6 +25,7 @@ interface ColorSelectProps {
   placeholder?: string;
   className?: string;
   triggerClassName?: string;
+  defaultOpen?: boolean;
 }
 
 export default function ColorSelect({
