@@ -686,9 +686,9 @@ export default function TranslatorFeeDetail() {
       const workTypes = data["工作類型"] || [];
       const unitCount = data["計費單位數"] || null;
 
-      // 案件編號 > 標題（預填為「案件編號_Payment」）
+      // 案件編號 > 標題（預填為「PO_案件編號」）
       if (caseId) {
-        const newTitle = `${caseId}_Payment`;
+        const newTitle = `PO_${caseId}`;
         setTitle(newTitle);
         if (id) feeStore.updateFee(id, { title: newTitle });
       }
@@ -699,9 +699,10 @@ export default function TranslatorFeeDetail() {
         if (id) feeStore.updateFee(id, { assignee: people[0] });
       }
 
-      // 案件編號 > 關聯內部紀錄文字（URL 保持不變）
+      // 案件編號 > 相關案件文字
       if (caseId) {
         setInternalNote(caseId);
+        if (id) feeStore.updateFee(id, { internalNote: caseId, internalNoteUrl: url });
       }
 
       // 工作類型 > 任務項目 + 計費單位數 > 第一項
@@ -852,24 +853,51 @@ export default function TranslatorFeeDetail() {
           <div className="grid gap-1.5">
             <Label className="text-xs text-muted-foreground">相關案件</Label>
             {canEdit ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  value={notionUrlInput}
-                  onChange={(e) => setNotionUrlInput(e.target.value)}
-                  className="bg-secondary/50 flex-1"
-                  placeholder="貼上 Notion 案件頁面網址"
-                  onKeyDown={(e) => { if (e.key === "Enter") handleFetchFromUrl(); }}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 text-xs"
-                  disabled={!notionUrlInput.trim() || notionLoading}
-                  onClick={handleFetchFromUrl}
-                >
-                  {notionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "確認"}
-                </Button>
-              </div>
+              internalNote && internalNoteUrl ? (
+                <div className="flex items-center gap-2">
+                  <a
+                    href={internalNoteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center h-10 flex-1 rounded-md border border-input bg-secondary/50 px-3 text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors cursor-pointer"
+                  >
+                    {internalNote}
+                  </a>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 h-8 w-8"
+                    onClick={() => {
+                      setInternalNote("");
+                      setInternalNoteUrl("");
+                      setNotionUrlInput("");
+                      if (id) feeStore.updateFee(id, { internalNote: "", internalNoteUrl: "" });
+                    }}
+                    title="清除"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={notionUrlInput}
+                    onChange={(e) => setNotionUrlInput(e.target.value)}
+                    className="bg-secondary/50 flex-1"
+                    placeholder="貼上 Notion 案件頁面網址"
+                    onKeyDown={(e) => { if (e.key === "Enter") handleFetchFromUrl(); }}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 text-xs"
+                    disabled={!notionUrlInput.trim() || notionLoading}
+                    onClick={handleFetchFromUrl}
+                  >
+                    {notionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "確認"}
+                  </Button>
+                </div>
+              )
             ) : internalNoteUrl ? (
               <a
                 href={internalNoteUrl}
