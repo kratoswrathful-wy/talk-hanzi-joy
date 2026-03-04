@@ -661,7 +661,7 @@ export default function TranslatorFees() {
 
 function FeeRow({
   fee, orderedCols, columnWidths, expanded, onToggleExpand, currentRole, isManager,
-  isSelected, onSelect, onCellCommit,
+  isSelected, onSelect, onCellCommit, registerRowRef,
 }: {
   fee: TranslatorFee;
   orderedCols: ColumnDef[];
@@ -673,15 +673,19 @@ function FeeRow({
   isSelected: boolean;
   onSelect: (id: string, e: React.MouseEvent) => void;
   onCellCommit: (feeId: string, field: string, value: string | boolean) => void;
+  registerRowRef: (id: string, el: HTMLTableRowElement | null) => void;
 }) {
   const canEdit = isManager; // Only PM+ can edit in table
 
   return (
     <>
-      <tr className={cn(
-        "border-b border-border transition-colors group",
-        isSelected ? "bg-primary/5" : "hover:bg-secondary/50"
-      )}>
+      <tr
+        ref={(el) => registerRowRef(fee.id, el)}
+        className={cn(
+          "border-b border-border transition-colors group",
+          isSelected ? "bg-primary/5" : "hover:bg-secondary/50"
+        )}
+      >
         <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
           <Checkbox
             checked={isSelected}
