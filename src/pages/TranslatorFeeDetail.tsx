@@ -699,9 +699,10 @@ export default function TranslatorFeeDetail() {
         if (id) feeStore.updateFee(id, { assignee: people[0] });
       }
 
-      // 案件編號 > 關聯內部紀錄文字（URL 保持不變）
+      // 案件編號 > 相關案件文字
       if (caseId) {
         setInternalNote(caseId);
+        if (id) feeStore.updateFee(id, { internalNote: caseId, internalNoteUrl: url });
       }
 
       // 工作類型 > 任務項目 + 計費單位數 > 第一項
