@@ -795,14 +795,19 @@ export default function TranslatorFeeDetail() {
 
       {/* Sticky top bar */}
       <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border -mx-4 px-4 py-3 flex items-center justify-between gap-4">
-        {hasDuplicateFirstFee ? (
+        {isNavigationBlocked ? (
           <button
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-not-allowed"
             onClick={(e) => {
               e.preventDefault();
-              toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容再離開此頁面");
-              setDisableOption12A(false);
-              setDuplicateDialogStep("choose");
+              if (needsRoleAssignment) {
+                toast.error("請將本頁面指定為相關案件的主要或非主要營收紀錄。");
+                setDuplicateDialogStep("assignRole");
+              } else {
+                toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容再離開此頁面");
+                setDisableOption12A(false);
+                setDuplicateDialogStep("choose");
+              }
             }}
           >
             <ArrowLeft className="h-4 w-4" />
