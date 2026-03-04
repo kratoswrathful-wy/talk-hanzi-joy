@@ -260,10 +260,13 @@ function CommentInput({
         ref={fileInputRef}
         type="file"
         accept="image/*"
+        multiple
         className="hidden"
         onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleFileSelect(file);
+          const files = e.target.files;
+          if (files) {
+            Array.from(files).forEach((file) => handleFileSelect(file));
+          }
           e.target.value = "";
         }}
       />
