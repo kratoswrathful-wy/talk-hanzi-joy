@@ -102,25 +102,43 @@ export default function ColorSelect({
     <>
       <Popover open={open} onOpenChange={(v) => { if (!disabled) setOpen(v); }}>
         <PopoverTrigger asChild>
-          <button
-            disabled={disabled}
+          <div
+            role="button"
+            tabIndex={disabled ? -1 : 0}
+            aria-disabled={disabled}
             className={cn(
-              "flex items-center gap-1.5 h-10 px-3 rounded-md border border-input bg-secondary/50 text-sm transition-colors hover:bg-secondary/70 disabled:opacity-50 disabled:cursor-not-allowed text-left w-full",
+              "flex items-center gap-1.5 h-10 px-3 rounded-md border border-input bg-secondary/50 text-sm transition-colors hover:bg-secondary/70 text-left w-full",
+              disabled && "opacity-50 cursor-not-allowed",
               triggerClassName
             )}
           >
             {selectedOption ? (
-              <>
+              <span className="inline-flex items-center gap-1 max-w-full">
                 <span
-                  className="w-3 h-3 rounded-full shrink-0"
-                  style={{ backgroundColor: selectedOption.color }}
-                />
-                <span className="truncate">{selectedOption.label}</span>
-              </>
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium"
+                  style={{ backgroundColor: selectedOption.color + "22", color: selectedOption.color }}
+                >
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: selectedOption.color }}
+                  />
+                  <span className="truncate">{selectedOption.label}</span>
+                </span>
+                {!disabled && (
+                  <span
+                    role="button"
+                    className="inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-destructive/20 transition-colors shrink-0"
+                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); onValueChange(""); }}
+                    title="取消選取"
+                  >
+                    <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                  </span>
+                )}
+              </span>
             ) : (
               <span className="text-muted-foreground">{placeholder}</span>
             )}
-          </button>
+          </div>
         </PopoverTrigger>
         <PopoverContent
           className={cn("p-0 w-[220px]", className)}
@@ -145,16 +163,7 @@ export default function ColorSelect({
                     />
                     <span className="truncate flex-1">{opt.label}</span>
                     {value === opt.label && (
-                      <span className="flex items-center gap-0.5 shrink-0">
-                        <span
-                          role="button"
-                          className="rounded hover:bg-destructive/20 p-0.5 transition-colors"
-                          onClick={(e) => { e.stopPropagation(); onValueChange(""); setOpen(false); }}
-                          title="取消選取"
-                        >
-                          <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                        </span>
-                      </span>
+                      <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
                     )}
                   </button>
                   {/* "..." menu */}
