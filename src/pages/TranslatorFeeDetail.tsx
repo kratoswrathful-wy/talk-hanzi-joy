@@ -1173,7 +1173,7 @@ export default function TranslatorFeeDetail() {
 
         {/* Edit History — only show when there are committed or pending entries */}
         {(() => {
-          const clientInfoKeywords = ["客戶", "聯絡人", "案號", "PO", "硬碟", "對帳", "費率", "請款", "同一案件", "首筆", "營收", "利潤", "客戶端"];
+          const clientInfoKeywords = ["客戶", "聯絡人", "案號", "PO", "硬碟", "對帳", "費率", "請款", "同一案件", "主要營收", "營收", "利潤", "客戶端"];
           const isClientLog = (desc: string) => clientInfoKeywords.some((kw) => desc.includes(kw));
           const filteredEditLog = isManager ? editLog : editLog.filter((e) => !isClientLog(e.description));
           const filteredPending = isManager ? pendingChanges : pendingChanges.filter((c) => !isClientLog(c.field));
