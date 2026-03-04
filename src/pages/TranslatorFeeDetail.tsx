@@ -468,6 +468,12 @@ export default function TranslatorFeeDetail() {
   // Detect duplicate isFirstFee in the same case group
   const hasDuplicateFirstFee = clientInfo.sameCase && clientInfo.isFirstFee && !!otherFirstFee;
 
+  // Detect sameCase checked but no role assigned (neither isFirstFee nor notFirstFee)
+  const needsRoleAssignment = clientInfo.sameCase && !clientInfo.isFirstFee && !clientInfo.notFirstFee;
+
+  // Combined blocking condition
+  const isNavigationBlocked = hasDuplicateFirstFee || needsRoleAssignment;
+
   // Show warning on mount if duplicate detected (but not after a successful swap)
   useEffect(() => {
     if (hasDuplicateFirstFee && !swapResolved) {
