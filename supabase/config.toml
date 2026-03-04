@@ -1,1 +1,4 @@
 project_id = "dnsnvlzwkhoudgjvkigo"
+
+[functions.fetch-notion-page]
+verify_jwt = false
