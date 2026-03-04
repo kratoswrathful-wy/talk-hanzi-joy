@@ -719,6 +719,7 @@ export default function TranslatorFeeDetail() {
               <Select value={assignee} disabled={!canEdit} onValueChange={(v) => {
                 trackChange("開單對象", assignee, v);
                 setAssignee(v);
+                if (id) feeStore.updateFee(id, { assignee: v });
               }}>
                 <SelectTrigger className="bg-secondary/50">
                   <SelectValue />
