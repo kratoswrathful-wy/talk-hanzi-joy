@@ -1,5 +1,5 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, X, Link as LinkIcon, Send, AtSign, Image, Link2 } from "lucide-react";
+import { ArrowLeft, Plus, X, Link as LinkIcon, Send, AtSign, Image, Link2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import { translatorFees, feeStatusLabels, type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus } from "@/data/fee-mock-data";
