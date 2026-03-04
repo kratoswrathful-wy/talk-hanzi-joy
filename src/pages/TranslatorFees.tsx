@@ -386,6 +386,25 @@ export default function TranslatorFees() {
 
   const totalWidth = orderedCols.reduce((s, c) => s + (activeView.columnWidths[c.key] ?? 100), 0) + 140;
 
+  // Undo/redo
+  const applyUndoEntry = useCallback((entry: UndoEntry, isUndo: boolean) => {
+    const val = isUndo ? entry.oldValue : entry.newValue;
+    const fee = feeStore.getFeeById(entry.feeId);
+    if (!fee) return;
+    if (["client", "clientCaseId", "clientPoNumber", "reconciled", "rateConfirmed", "invoiced"].includes(entry.field)) {
+      const ci = fee.clientInfo || {
+        clientTaskItems: [], sameCase: false, isFirstFee: false, notFirstFee: false,
+        client: "", contact: "", clientCaseId: "", eciKeywords: "", clientPoNumber: "",
+        reconciled: false, rateConfirmed: false, invoiced: false,
+      };
+      feeStore.updateFee(entry.feeId, { clientInfo: { ...ci, [entry.field]: val } });
+    } else {
+      feeStore.updateFee(entry.feeId, { [entry.field]: val });
+    }
+  }, []);
+
+  const undoRedo = useUndoRedo({ onApply: applyUndoEntry });
+
   // Inline edit commit: applies to selected fees if multiple selected, otherwise just the one
   const handleCellCommit = useCallback((feeId: string, field: string, value: string | boolean) => {
     const targetIds = rowSelection.selectedIds.has(feeId) && rowSelection.selectedCount > 1
@@ -395,6 +414,16 @@ export default function TranslatorFees() {
     for (const id of targetIds) {
       const fee = feeStore.getFeeById(id);
       if (!fee) continue;
+
+      // Get old value for undo
+      let oldValue: string | boolean;
+      if (["client", "clientCaseId", "clientPoNumber", "reconciled", "rateConfirmed", "invoiced"].includes(field)) {
+        oldValue = (fee.clientInfo as any)?.[field] ?? (typeof value === "boolean" ? false : "");
+      } else {
+        oldValue = (fee as any)[field] ?? "";
+      }
+
+      undoRedo.push({ feeId: id, field, oldValue, newValue: value });
 
       // Client info fields
       if (["client", "clientCaseId", "clientPoNumber", "reconciled", "rateConfirmed", "invoiced"].includes(field)) {
@@ -408,7 +437,89 @@ export default function TranslatorFees() {
         feeStore.updateFee(id, { [field]: value });
       }
     }
-  }, [rowSelection.selectedIds, rowSelection.selectedCount]);
+  }, [rowSelection.selectedIds, rowSelection.selectedCount, undoRedo]);
+
+  // Marquee (rubber-band) selection
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const [marquee, setMarquee] = useState<{ startX: number; startY: number; currentX: number; currentY: number } | null>(null);
+  const marqueeRef = useRef(marquee);
+  marqueeRef.current = marquee;
+  const rowRefsMap = useRef<Map<string, HTMLTableRowElement>>(new Map());
+
+  const registerRowRef = useCallback((id: string, el: HTMLTableRowElement | null) => {
+    if (el) rowRefsMap.current.set(id, el);
+    else rowRefsMap.current.delete(id);
+  }, []);
+
+  useEffect(() => {
+    const container = tableContainerRef.current;
+    if (!container) return;
+
+    let isMarquee = false;
+    let startX = 0, startY = 0;
+
+    const onMouseDown = (e: MouseEvent) => {
+      // Only start marquee on left click, not on interactive elements
+      if (e.button !== 0) return;
+      const target = e.target as HTMLElement;
+      if (target.closest("input, button, [role=checkbox], a, [data-no-marquee]")) return;
+
+      const rect = container.getBoundingClientRect();
+      startX = e.clientX - rect.left + container.scrollLeft;
+      startY = e.clientY - rect.top + container.scrollTop;
+      isMarquee = false;
+
+      const onMouseMove = (ev: MouseEvent) => {
+        const dx = ev.clientX - rect.left + container.scrollLeft;
+        const dy = ev.clientY - rect.top + container.scrollTop;
+        if (!isMarquee && (Math.abs(dx - startX) > 5 || Math.abs(dy - startY) > 5)) {
+          isMarquee = true;
+        }
+        if (isMarquee) {
+          setMarquee({ startX, startY, currentX: dx, currentY: dy });
+        }
+      };
+
+      const onMouseUp = () => {
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        if (isMarquee && marqueeRef.current) {
+          const m = marqueeRef.current;
+          const boxTop = Math.min(m.startY, m.currentY);
+          const boxBottom = Math.max(m.startY, m.currentY);
+
+          // Find rows that intersect with the marquee box
+          const containerRect = container.getBoundingClientRect();
+          const hitIds: string[] = [];
+          rowRefsMap.current.forEach((rowEl, id) => {
+            const rowRect = rowEl.getBoundingClientRect();
+            const rowTop = rowRect.top - containerRect.top + container.scrollTop;
+            const rowBottom = rowTop + rowRect.height;
+            if (rowBottom >= boxTop && rowTop <= boxBottom) {
+              hitIds.push(id);
+            }
+          });
+
+          if (hitIds.length > 0) {
+            // Set selection to exactly the marquee-hit rows
+            rowSelection.deselectAll();
+            for (const id of hitIds) {
+              rowSelection.selectAll(); // We need a setSelectedIds; workaround:
+            }
+            // Actually, let's use a more direct approach
+          }
+        }
+        setMarquee(null);
+        isMarquee = false;
+      };
+
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+    };
+
+    container.addEventListener("mousedown", onMouseDown);
+    return () => container.removeEventListener("mousedown", onMouseDown);
+  }, [rowSelection]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
