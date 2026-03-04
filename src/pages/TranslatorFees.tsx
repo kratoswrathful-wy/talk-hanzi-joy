@@ -12,6 +12,7 @@ import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { InlineEditCell } from "@/components/fees/InlineEditCell";
 import { useState, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
+import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-store";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
   draft: "草稿",
@@ -51,9 +52,9 @@ const editableFields = new Set([
   "reconciled", "rateConfirmed", "invoiced",
 ]);
 
-function getEditType(key: string): "text" | "select" | "checkbox" {
-  if (["status"].includes(key)) return "select";
-  if (["assignee", "client"].includes(key)) return "select";
+function getEditType(key: string): "text" | "select" | "checkbox" | "colorSelect" {
+  if (key === "status") return "select";
+  if (["assignee", "client"].includes(key)) return "colorSelect";
   if (["reconciled", "rateConfirmed", "invoiced"].includes(key)) return "checkbox";
   return "text";
 }
@@ -64,6 +65,13 @@ function getSelectOptions(key: string): { value: string; label: string }[] {
     { value: "finalized", label: "開立完成" },
   ];
   return [];
+}
+
+/** Map field keys to their selectOptionsStore keys for colorSelect fields */
+function getColorSelectFieldKey(key: string): string | undefined {
+  if (key === "assignee") return "assignee";
+  if (key === "client") return "client";
+  return undefined;
 }
 
 interface ColumnDef {
@@ -113,8 +121,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "開單對象",
     minWidth: 70,
     render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={f.assignee} type="text" editable={editable} onCommit={(v) => onCommit("assignee", v)}>
-        <span className="truncate text-sm">{f.assignee || "—"}</span>
+      <InlineEditCell value={f.assignee} type="colorSelect" fieldKey="assignee" editable={editable} onCommit={(v) => onCommit("assignee", v)}>
+        <AssigneeLabel value={f.assignee} />
       </InlineEditCell>
     ),
   },
@@ -144,8 +152,8 @@ const allColumnDefs: ColumnDef[] = [
     minWidth: 70,
     managerOnly: true,
     render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={f.clientInfo?.client || ""} type="text" editable={editable} onCommit={(v) => onCommit("client", v)}>
-        <span className="truncate text-sm">{f.clientInfo?.client || "—"}</span>
+      <InlineEditCell value={f.clientInfo?.client || ""} type="colorSelect" fieldKey="client" editable={editable} onCommit={(v) => onCommit("client", v)}>
+        <ClientLabel value={f.clientInfo?.client || ""} />
       </InlineEditCell>
     ),
   },
@@ -247,6 +255,30 @@ const allColumnDefs: ColumnDef[] = [
     render: (f) => <span className="text-sm text-muted-foreground tabular-nums">{formatDate(f.createdAt)}</span>,
   },
 ];
+
+function AssigneeLabel({ value }: { value: string }) {
+  const { options } = useSelectOptions("assignee");
+  const opt = options.find((o) => o.label === value);
+  if (!value) return <span className="truncate text-sm text-muted-foreground">—</span>;
+  return (
+    <span className="inline-flex items-center gap-1.5 truncate text-sm">
+      {opt && <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: opt.color }} />}
+      {value}
+    </span>
+  );
+}
+
+function ClientLabel({ value }: { value: string }) {
+  const { options } = useSelectOptions("client");
+  const opt = options.find((o) => o.label === value);
+  if (!value) return <span className="truncate text-sm text-muted-foreground">—</span>;
+  return (
+    <span className="inline-flex items-center gap-1.5 truncate text-sm">
+      {opt && <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: opt.color }} />}
+      {value}
+    </span>
+  );
+}
 
 function OpenButton({ feeId }: { feeId: string }) {
   const navigate = useNavigate();
