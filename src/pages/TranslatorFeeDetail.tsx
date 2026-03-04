@@ -437,14 +437,18 @@ export default function TranslatorFeeDetail() {
   const [tempUrl, setTempUrl] = useState("");
   const [currentRole, setCurrentRole] = useState<UserRole>("pm");
 
-  // Comments
-  const [comments, setComments] = useState<CommentEntry[]>([]);
+  // Comments — initialize from feeData
+  const [comments, setComments] = useState<CommentEntry[]>(() =>
+    (feeData?.notes ?? []).map((n) => ({ id: n.id, author: n.author, content: n.content, timestamp: n.createdAt }))
+  );
   const [internalComments, setInternalComments] = useState<CommentEntry[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
   const [internalCommentDraft, setInternalCommentDraft] = useState("");
 
-  // Edit history tracking
-  const [editLog, setEditLog] = useState<EditLogEntry[]>([]);
+  // Edit history tracking — initialize from feeData
+  const [editLog, setEditLog] = useState<EditLogEntry[]>(() =>
+    (feeData?.editLogs ?? []).map((l) => ({ id: l.id, changedBy: l.author, description: l.action, timestamp: l.createdAt }))
+  );
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
   const snapshotRef = useRef<{ taskItems: FeeTaskItem[]; title: string; assignee: string; internalNote: string } | null>(null);
   const hasBeenSubmittedRef = useRef(feeData?.status === "finalized");
