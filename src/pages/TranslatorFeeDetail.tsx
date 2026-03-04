@@ -791,6 +791,10 @@ export default function TranslatorFeeDetail() {
       }
 
       // 工作類型 > 任務項目 + 計費單位數 > 第一項
+      const assigneeDefaultPrice = (Array.isArray(people) && people.length > 0)
+        ? defaultPricingStore.getPrice("assignee", people[0])
+        : undefined;
+
       if (Array.isArray(workTypes) && workTypes.length > 0) {
         const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
           const matchedType = taskTypeOptions.find((t) => wt.includes(t)) || "翻譯";
@@ -799,7 +803,7 @@ export default function TranslatorFeeDetail() {
             taskType: matchedType as TaskType,
             billingUnit: "字" as BillingUnit,
             unitCount: idx === 0 && unitCount ? unitCount : 0,
-            unitPrice: 0,
+            unitPrice: assigneeDefaultPrice ?? 0,
           };
         });
         setTaskItems(mapped);
