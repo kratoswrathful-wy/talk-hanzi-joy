@@ -604,15 +604,21 @@ export default function TranslatorFeeDetail() {
   const handleSubmit = () => {
     // Force-commit all pending changes immediately
     if (pendingChanges.length > 0) {
-      setEditLog((prev) => [
-        ...prev,
-        ...pendingChanges.map((c) => ({
-          id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          changedBy: roleLabels[currentRole],
-          description: `${c.field} ${c.oldValue} → ${c.newValue}`,
-          timestamp: formatTimestamp(new Date(c.changedAt)),
-        })),
-      ]);
+      const newEntries = pendingChanges.map((c) => ({
+        id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        changedBy: roleLabels[currentRole],
+        description: `${c.field} ${c.oldValue} → ${c.newValue}`,
+        timestamp: formatTimestamp(new Date(c.changedAt)),
+      }));
+      setEditLog((prev) => {
+        const updated = [...prev, ...newEntries];
+        if (id) {
+          feeStore.updateFee(id, {
+            editLogs: updated.map((e) => ({ id: e.id, action: e.description, author: e.changedBy, createdAt: e.timestamp })),
+          });
+        }
+        return updated;
+      });
       setPendingChanges([]);
     }
 
