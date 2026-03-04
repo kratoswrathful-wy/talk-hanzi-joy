@@ -379,11 +379,21 @@ function NotesPanel({ fee }: { fee: TranslatorFee }) {
     <div className="space-y-2">
       <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
         <MessageSquare className="h-3.5 w-3.5" />
-        備註
+        備註（{fee.notes.length}）
       </h4>
-      <p className="text-sm text-muted-foreground italic">
-        尚無備註（請進入詳情頁面新增備註）
-      </p>
+      {fee.notes.length === 0 ? (
+        <p className="text-sm text-muted-foreground italic">尚無備註</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {fee.notes.map((n) => (
+            <li key={n.id} className="text-sm flex items-baseline gap-2">
+              <span className="font-medium text-card-foreground">{n.author}</span>
+              <span className="text-muted-foreground">{n.content}</span>
+              <span className="text-xs text-muted-foreground/60 ml-auto whitespace-nowrap">{formatDate(n.createdAt)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
