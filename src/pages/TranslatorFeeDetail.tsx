@@ -10,7 +10,7 @@ const feeStatusLabels: Record<FeeStatus, string> = {
   finalized: "開立完成",
 };
 import ClientInfoSection from "@/components/ClientInfoSection";
-import { useFee, feeStore } from "@/hooks/use-fee-store";
+import { useFee, useFees, feeStore } from "@/hooks/use-fee-store";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
