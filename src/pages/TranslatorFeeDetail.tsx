@@ -460,15 +460,22 @@ export default function TranslatorFeeDetail() {
       const now = Date.now();
       const ready = pendingChanges.filter((c) => now - c.changedAt >= COMMIT_DELAY_MS);
       if (ready.length > 0) {
-        setEditLog((prev) => [
-          ...prev,
-          ...ready.map((c) => ({
+        setEditLog((prev) => {
+          const newEntries = ready.map((c) => ({
             id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             changedBy: roleLabels[currentRole],
             description: `${c.field} ${c.oldValue} → ${c.newValue}`,
             timestamp: formatTimestamp(new Date(c.changedAt)),
-          })),
-        ]);
+          }));
+          const updated = [...prev, ...newEntries];
+          // Sync to store
+          if (id) {
+            feeStore.updateFee(id, {
+              editLogs: updated.map((e) => ({ id: e.id, action: e.description, author: e.changedBy, createdAt: e.timestamp })),
+            });
+          }
+          return updated;
+        });
         setPendingChanges((prev) => prev.filter((c) => !ready.includes(c)));
         // Update snapshot to reflect committed values
         snapshotRef.current = {
