@@ -121,8 +121,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "開單對象",
     minWidth: 70,
     render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={f.assignee} type="text" editable={editable} onCommit={(v) => onCommit("assignee", v)}>
-        <span className="truncate text-sm">{f.assignee || "—"}</span>
+      <InlineEditCell value={f.assignee} type="colorSelect" fieldKey="assignee" editable={editable} onCommit={(v) => onCommit("assignee", v)}>
+        <AssigneeLabel value={f.assignee} />
       </InlineEditCell>
     ),
   },
