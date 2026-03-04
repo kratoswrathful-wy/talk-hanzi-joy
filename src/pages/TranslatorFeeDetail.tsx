@@ -655,9 +655,83 @@ export default function TranslatorFeeDetail() {
     setLinkDialogOpen(true);
   };
 
-  const handleSaveLink = () => {
+  const extractNotionPageId = (url: string): string | null => {
+    // Match Notion URLs like: https://www.notion.so/workspace/Page-Title-<32-hex-id>
+    // or https://notion.so/<32-hex-id>
+    const match = url.match(/([a-f0-9]{32})/);
+    return match ? match[1] : null;
+  };
+
+  const handleSaveLink = async () => {
     setInternalNoteUrl(tempUrl);
     setLinkDialogOpen(false);
+
+    // Auto-detect Notion URL and fetch data
+    const pageId = extractNotionPageId(tempUrl);
+    if (!pageId || !tempUrl.includes("notion.so")) return;
+
+    setNotionLoading(true);
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke("fetch-notion-page", {
+        body: { page_id: pageId },
+      });
+
+      if (fnError) throw fnError;
+      if (data?.error) throw new Error(data.error);
+
+      const taskTypeOptions: TaskType[] = ["翻譯", "審稿", "MTPE", "LQA"];
+
+      // Extract fields
+      const caseId = data["案件編號"] || data["Name"] || data["title"] || "";
+      const people = data["譯者"] || data["審稿人員"] || [];
+      const workTypes = data["工作類型"] || [];
+      const unitCount = data["計費單位數"] || null;
+
+      // 案件編號 > 標題（預填為「案件編號_Pt」）
+      if (caseId) {
+        const newTitle = `${caseId}_Pt`;
+        setTitle(newTitle);
+        if (id) feeStore.updateFee(id, { title: newTitle });
+      }
+
+      // 譯者 > 開單對象
+      if (Array.isArray(people) && people.length > 0) {
+        setAssignee(people[0]);
+        if (id) feeStore.updateFee(id, { assignee: people[0] });
+      }
+
+      // 案件編號 > 關聯內部紀錄文字（URL 保持不變）
+      if (caseId) {
+        setInternalNote(caseId);
+      }
+
+      // 工作類型 > 任務項目 + 計費單位數 > 第一項
+      if (Array.isArray(workTypes) && workTypes.length > 0) {
+        const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
+          const matchedType = taskTypeOptions.find((t) => wt.includes(t)) || "翻譯";
+          return {
+            id: `item-notion-${Date.now()}-${idx}`,
+            taskType: matchedType as TaskType,
+            billingUnit: "字" as BillingUnit,
+            unitCount: idx === 0 && unitCount ? unitCount : 0,
+            unitPrice: 0,
+          };
+        });
+        setTaskItems(mapped);
+      } else if (unitCount) {
+        // No work types but has unit count — update first item
+        setTaskItems((prev) =>
+          prev.map((item, idx) => idx === 0 ? { ...item, unitCount } : item)
+        );
+      }
+
+      toast.success("已從 Notion 載入案件資料");
+    } catch (err: any) {
+      console.error("Failed to fetch Notion data:", err);
+      toast.error("Notion 資料載入失敗：" + (err.message || "未知錯誤"));
+    } finally {
+      setNotionLoading(false);
+    }
   };
 
   const totalAmount = taskItems.reduce(
