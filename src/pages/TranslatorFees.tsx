@@ -308,7 +308,7 @@ export default function TranslatorFees() {
 
   const columnDefs = allColumnDefs.filter((c) => !c.managerOnly || isManager);
 
-  const tableViews = useTableViews();
+  const tableViews = useTableViews(currentRole);
   const { activeView } = tableViews;
 
   const [expandedRows, setExpandedRows] = useState<Record<string, ExpandType | null>>({});
