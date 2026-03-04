@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { PRESET_COLORS } from "@/stores/select-options-store";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Check, Plus, X } from "lucide-react";
 
@@ -11,6 +12,8 @@ interface ColorPickerProps {
   customColors?: string[];
   onAddCustomColor?: (color: string) => void;
   onRemoveCustomColor?: (color: string) => void;
+  /** Map of uppercase hex color → count of options using it */
+  colorUsageCounts?: Record<string, number>;
 }
 
 function hsvToHex(h: number, s: number, v: number): string {
@@ -45,12 +48,69 @@ function hexToHsv(hex: string): [number, number, number] {
   return [h, s, max];
 }
 
+/** Get usage label for tooltip */
+function getUsageLabel(count: number, colorHex: string): string {
+  if (count === 0) return `${colorHex}：目前沒有選項使用此顏色`;
+  return `${colorHex}：${count} 個選項使用此顏色`;
+}
+
+function ColorSwatch({
+  color,
+  selected,
+  count,
+  onSelect,
+  onRemove,
+}: {
+  color: string;
+  selected: boolean;
+  count: number;
+  onSelect: () => void;
+  onRemove?: () => void;
+}) {
+  return (
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="relative group">
+            <button
+              className={cn(
+                "w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 flex items-center justify-center",
+                selected ? "border-foreground scale-110" : "border-transparent"
+              )}
+              style={{ backgroundColor: color }}
+              onClick={onSelect}
+            >
+              {selected && !count ? (
+                <Check className="h-3 w-3 text-white drop-shadow" />
+              ) : count > 0 ? (
+                <span className="text-[9px] font-bold text-white drop-shadow-md leading-none">{count}</span>
+              ) : null}
+            </button>
+            {onRemove && (
+              <button
+                className="absolute -top-1.5 -right-1.5 h-3.5 w-3.5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => { e.stopPropagation(); onRemove(); }}
+              >
+                <X className="h-2 w-2" />
+              </button>
+            )}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="text-xs">
+          {getUsageLabel(count, color)}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 export default function ColorPicker({
   value,
   onChange,
   customColors = [],
   onAddCustomColor,
   onRemoveCustomColor,
+  colorUsageCounts = {},
 }: ColorPickerProps) {
   const [hsv, setHsv] = useState<[number, number, number]>(() => hexToHsv(value || "#FF0000"));
   const [hexInput, setHexInput] = useState(value || "#FF0000");
@@ -60,6 +120,8 @@ export default function ColorPicker({
   const sliderRef = useRef<HTMLCanvasElement>(null);
 
   const currentHex = hsvToHex(hsv[0], hsv[1], hsv[2]);
+
+  const getCount = (c: string) => colorUsageCounts[c.toUpperCase()] || 0;
 
   // Draw color wheel
   useEffect(() => {
@@ -153,21 +215,17 @@ export default function ColorPicker({
         <p className="text-xs text-muted-foreground mb-1.5">預設色彩</p>
         <div className="flex flex-wrap gap-1.5">
           {PRESET_COLORS.map((c) => (
-            <button
+            <ColorSwatch
               key={c}
-              className={cn(
-                "w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 flex items-center justify-center",
-                value === c ? "border-foreground scale-110" : "border-transparent"
-              )}
-              style={{ backgroundColor: c }}
-              onClick={() => {
+              color={c}
+              selected={value === c}
+              count={getCount(c)}
+              onSelect={() => {
                 onChange(c);
                 setHexInput(c);
                 setHsv(hexToHsv(c));
               }}
-            >
-              {value === c && <Check className="h-3 w-3 text-white drop-shadow" />}
-            </button>
+            />
           ))}
         </div>
       </div>
@@ -178,30 +236,18 @@ export default function ColorPicker({
           <p className="text-xs text-muted-foreground mb-1.5">自訂色彩</p>
           <div className="flex flex-wrap gap-1.5 items-center">
             {customColors.map((c) => (
-              <div key={c} className="relative group">
-                <button
-                  className={cn(
-                    "w-6 h-6 rounded-full border-2 transition-transform hover:scale-110 flex items-center justify-center",
-                    value === c ? "border-foreground scale-110" : "border-transparent"
-                  )}
-                  style={{ backgroundColor: c }}
-                  onClick={() => {
-                    onChange(c);
-                    setHexInput(c);
-                    setHsv(hexToHsv(c));
-                  }}
-                >
-                  {value === c && <Check className="h-3 w-3 text-white drop-shadow" />}
-                </button>
-                {onRemoveCustomColor && (
-                  <button
-                    className="absolute -top-1.5 -right-1.5 h-3.5 w-3.5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => { e.stopPropagation(); onRemoveCustomColor(c); }}
-                  >
-                    <X className="h-2 w-2" />
-                  </button>
-                )}
-              </div>
+              <ColorSwatch
+                key={c}
+                color={c}
+                selected={value === c}
+                count={getCount(c)}
+                onSelect={() => {
+                  onChange(c);
+                  setHexInput(c);
+                  setHsv(hexToHsv(c));
+                }}
+                onRemove={onRemoveCustomColor ? () => onRemoveCustomColor(c) : undefined}
+              />
             ))}
           </div>
         </div>
@@ -219,7 +265,6 @@ export default function ColorPicker({
 
       {showWheel && (
         <div className="space-y-2">
-          {/* Color wheel */}
           <div className="flex justify-center">
             <canvas
               ref={wheelRef}
@@ -230,7 +275,6 @@ export default function ColorPicker({
             />
           </div>
 
-          {/* Brightness slider */}
           <canvas
             ref={sliderRef}
             width={200}
@@ -239,7 +283,6 @@ export default function ColorPicker({
             onClick={handleSliderClick}
           />
 
-          {/* Hex input + preview + add */}
           <div className="flex items-center gap-2">
             <div
               className="w-8 h-8 rounded border border-border shrink-0"
