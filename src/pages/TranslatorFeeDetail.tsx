@@ -889,16 +889,22 @@ export default function TranslatorFeeDetail() {
           <div className="grid gap-1.5">
             <Label className="text-xs text-muted-foreground">相關案件</Label>
             {canEdit ? (
-              internalNote && internalNoteUrl ? (
+              internalNote ? (
                 <div className="flex items-center gap-2">
-                  <a
-                    href={internalNoteUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center h-10 flex-1 rounded-md border border-input bg-secondary/50 px-3 text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors cursor-pointer"
-                  >
-                    {internalNote}
-                  </a>
+                  {internalNoteUrl ? (
+                    <a
+                      href={internalNoteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center h-10 flex-1 rounded-md border border-input bg-secondary/50 px-3 text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors cursor-pointer"
+                    >
+                      {internalNote}
+                    </a>
+                  ) : (
+                    <div className="flex items-center h-10 flex-1 rounded-md border border-input bg-secondary/50 px-3 text-sm">
+                      {internalNote}
+                    </div>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
@@ -945,7 +951,7 @@ export default function TranslatorFeeDetail() {
               </a>
             ) : (
               <div className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-muted-foreground">
-                未設定
+                {internalNote || "未設定"}
               </div>
             )}
           </div>
