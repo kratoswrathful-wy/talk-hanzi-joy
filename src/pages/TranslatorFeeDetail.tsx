@@ -1128,7 +1128,7 @@ export default function TranslatorFeeDetail() {
                 <TableFooter>
                   <TableRow>
                     <TableCell colSpan={4} className="text-sm font-medium text-right">
-                      總額
+                      稿費總額
                     </TableCell>
                     <TableCell className="text-right text-sm font-bold">
                       {totalAmount.toLocaleString()}
