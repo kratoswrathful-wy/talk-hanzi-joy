@@ -54,8 +54,9 @@ const billingUnitOptions: BillingUnit[] = ["字", "小時"];
 
 interface EditLogEntry {
   id: string;
-  timestamp: string;
+  changedBy: string;
   description: string;
+  timestamp: string;
 }
 
 interface PendingChange {
@@ -108,8 +109,9 @@ export default function TranslatorFeeDetail() {
           ...prev,
           ...ready.map((c) => ({
             id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            timestamp: new Date().toLocaleString("zh-TW"),
+            changedBy: roleLabels[currentRole],
             description: `${c.field} ${c.oldValue} → ${c.newValue}`,
+            timestamp: new Date(c.changedAt).toLocaleString("zh-TW"),
           })),
         ]);
         setPendingChanges((prev) => prev.filter((c) => !ready.includes(c)));
@@ -563,24 +565,30 @@ export default function TranslatorFeeDetail() {
           <span>建立時間：{formattedDate}</span>
         </div>
 
-        {/* Edit History */}
+        {/* Edit History — only show when there are committed or pending entries */}
         {(editLog.length > 0 || pendingChanges.length > 0) && (
           <>
             <Separator />
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">編輯紀錄</Label>
-              <div className="space-y-1.5">
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">變更紀錄</Label>
+              <div className="space-y-2">
                 {editLog.map((entry) => (
-                  <div key={entry.id} className="flex items-start gap-2 text-xs">
-                    <span className="text-muted-foreground shrink-0">{entry.timestamp}</span>
-                    <span>{entry.description}</span>
+                  <div key={entry.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs space-y-0.5">
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                      <span><span className="text-muted-foreground">變更者：</span>{entry.changedBy}</span>
+                      <span><span className="text-muted-foreground">變更內容：</span>{entry.description}</span>
+                      <span><span className="text-muted-foreground">變更時間：</span>{entry.timestamp}</span>
+                    </div>
                   </div>
                 ))}
                 {pendingChanges.map((change, idx) => (
-                  <div key={`pending-${idx}`} className="flex items-start gap-2 text-xs text-muted-foreground/60 italic">
-                    <span className="shrink-0">待確認</span>
-                    <span>{change.field} {change.oldValue} → {change.newValue}</span>
-                    <span className="text-[10px]">（變更未滿 5 分鐘）</span>
+                  <div key={`pending-${idx}`} className="rounded-md border border-dashed border-border bg-secondary/15 px-3 py-2 text-xs space-y-0.5 opacity-60">
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 italic">
+                      <span><span className="text-muted-foreground">變更者：</span>{roleLabels[currentRole]}</span>
+                      <span><span className="text-muted-foreground">變更內容：</span>{change.field} {change.oldValue} → {change.newValue}</span>
+                      <span><span className="text-muted-foreground">變更時間：</span>{new Date(change.changedAt).toLocaleString("zh-TW")}</span>
+                      <span className="text-muted-foreground">（未滿 5 分鐘，尚未正式紀錄）</span>
+                    </div>
                   </div>
                 ))}
               </div>
