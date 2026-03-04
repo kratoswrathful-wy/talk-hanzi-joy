@@ -21,7 +21,6 @@ import { type TaskType, type BillingUnit, type FeeTaskItem } from "@/data/fee-mo
 import { toast } from "sonner";
 
 const taskTypeOptions: TaskType[] = ["翻譯", "審稿", "MTPE", "LQA"];
-const billingUnitOptions: BillingUnit[] = ["字", "小時"];
 
 export default function NewTranslatorFee() {
   const [searchParams] = useSearchParams();
