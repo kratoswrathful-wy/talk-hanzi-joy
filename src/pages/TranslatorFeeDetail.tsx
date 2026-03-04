@@ -1,5 +1,5 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, X, Link as LinkIcon, Send } from "lucide-react";
+import { ArrowLeft, Plus, X, Link as LinkIcon, Send, AtSign, Image, Link2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import { translatorFees, feeStatusLabels, type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus } from "@/data/fee-mock-data";
@@ -41,6 +41,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useState, useRef, useEffect, useCallback } from "react";
 
 type UserRole = "assignee" | "pm" | "executive";
@@ -70,9 +71,12 @@ interface PendingChange {
 interface CommentEntry {
   id: string;
   author: string;
-  content: string;
+  content: string; // supports markdown-like: @user, [text](url), ![img](url)
+  imageUrl?: string;
   timestamp: string;
 }
+
+const mentionUsers = ["王小明", "李美玲", "張大偉", "陳雅婷"];
 
 const COMMIT_DELAY_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -86,7 +90,225 @@ const fieldLabels: Record<string, string> = {
   internalNote: "關聯內部紀錄",
 };
 
+// --- Rich Comment Components ---
+
+function CommentContent({ content, imageUrl }: { content: string; imageUrl?: string }) {
+  // Parse content for @mentions and [text](url) links
+  const parts = content.split(/(@\S+|\[([^\]]+)\]\(([^)]+)\))/g);
+  const rendered: React.ReactNode[] = [];
+  let i = 0;
+  // Simple regex-based rendering
+  const regex = /(@\S+)|\[([^\]]+)\]\(([^)]+)\)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      rendered.push(<span key={`t-${lastIndex}`}>{content.slice(lastIndex, match.index)}</span>);
+    }
+    if (match[1]) {
+      // @mention
+      rendered.push(
+        <span key={`m-${match.index}`} className="text-primary font-medium bg-primary/10 rounded px-0.5">
+          {match[1]}
+        </span>
+      );
+    } else if (match[2] && match[3]) {
+      // [text](url)
+      rendered.push(
+        <a key={`l-${match.index}`} href={match[3]} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:text-primary/80">
+          {match[2]}
+        </a>
+      );
+    }
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < content.length) {
+    rendered.push(<span key="tail">{content.slice(lastIndex)}</span>);
+  }
+
+  return (
+    <div>
+      <p className="whitespace-pre-wrap">{rendered}</p>
+      {imageUrl && (
+        <img src={imageUrl} alt="附圖" className="mt-2 max-w-xs rounded-md border border-border" />
+      )}
+    </div>
+  );
+}
+
+function CommentInput({
+  draft,
+  setDraft,
+  placeholder,
+  onSubmit,
+}: {
+  draft: string;
+  setDraft: (v: string) => void;
+  placeholder: string;
+  onSubmit: (content: string, imageUrl?: string) => void;
+}) {
+  const [imageUrl, setImageUrl] = useState("");
+  const [showMentionPicker, setShowMentionPicker] = useState(false);
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [linkText, setLinkText] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
+  const [showImageInput, setShowImageInput] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const insertAtCursor = (text: string) => {
+    const el = textareaRef.current;
+    if (el) {
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      const newVal = draft.slice(0, start) + text + draft.slice(end);
+      setDraft(newVal);
+      setTimeout(() => {
+        el.selectionStart = el.selectionEnd = start + text.length;
+        el.focus();
+      }, 0);
+    } else {
+      setDraft(draft + text);
+    }
+  };
+
+  const handleSubmit = () => {
+    if (!draft.trim() && !imageUrl.trim()) return;
+    onSubmit(draft.trim(), imageUrl.trim() || undefined);
+    setDraft("");
+    setImageUrl("");
+    setShowImageInput(false);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="relative">
+        <Textarea
+          ref={textareaRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={placeholder}
+          className="min-h-[60px] text-xs pr-2"
+        />
+        {/* Mention picker dropdown */}
+        {showMentionPicker && (
+          <div className="absolute bottom-full left-0 mb-1 z-10 rounded-md border border-border bg-popover p-1 shadow-md">
+            {mentionUsers.map((user) => (
+              <button
+                key={user}
+                className="block w-full text-left px-3 py-1.5 text-xs rounded hover:bg-accent hover:text-accent-foreground transition-colors"
+                onClick={() => {
+                  insertAtCursor(`@${user} `);
+                  setShowMentionPicker(false);
+                }}
+              >
+                {user}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Image URL input */}
+      {showImageInput && (
+        <div className="flex gap-2">
+          <Input
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+            placeholder="輸入圖片網址..."
+            className="text-xs h-8"
+          />
+          <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => setShowImageInput(false)}>
+            取消
+          </Button>
+        </div>
+      )}
+
+      {/* Link insertion dialog */}
+      {showLinkDialog && (
+        <div className="flex flex-col gap-2 rounded-md border border-border bg-secondary/30 p-3">
+          <Input
+            value={linkText}
+            onChange={(e) => setLinkText(e.target.value)}
+            placeholder="連結文字"
+            className="text-xs h-8"
+          />
+          <Input
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            placeholder="https://..."
+            className="text-xs h-8"
+          />
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => setShowLinkDialog(false)}>
+              取消
+            </Button>
+            <Button
+              size="sm"
+              className="text-xs h-7"
+              disabled={!linkText.trim() || !linkUrl.trim()}
+              onClick={() => {
+                insertAtCursor(`[${linkText}](${linkUrl})`);
+                setLinkText("");
+                setLinkUrl("");
+                setShowLinkDialog(false);
+              }}
+            >
+              插入
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title="@提及使用者"
+            onClick={() => setShowMentionPicker(!showMentionPicker)}
+          >
+            <AtSign className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title="插入圖片"
+            onClick={() => setShowImageInput(!showImageInput)}
+          >
+            <Image className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title="插入超連結"
+            onClick={() => {
+              setShowLinkDialog(!showLinkDialog);
+              setLinkText("");
+              setLinkUrl("");
+            }}
+          >
+            <Link2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+        <Button
+          size="sm"
+          className="gap-1 text-xs"
+          disabled={!draft.trim() && !imageUrl.trim()}
+          onClick={handleSubmit}
+        >
+          <Send className="h-3 w-3" />
+          送出
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function TranslatorFeeDetail() {
+
   const { id } = useParams();
   const feeData = translatorFees.find((f) => f.id === id);
 
@@ -255,15 +477,37 @@ export default function TranslatorFeeDetail() {
   };
 
   const handleSubmit = () => {
+    // Force-commit all pending changes immediately
+    if (pendingChanges.length > 0) {
+      setEditLog((prev) => [
+        ...prev,
+        ...pendingChanges.map((c) => ({
+          id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          changedBy: roleLabels[currentRole],
+          description: `${c.field} ${c.oldValue} → ${c.newValue}`,
+          timestamp: new Date(c.changedAt).toLocaleString("zh-TW"),
+        })),
+      ]);
+      setPendingChanges([]);
+    }
+
     // Take snapshot on first submit
     if (!hasBeenSubmittedRef.current) {
       snapshotRef.current = {
         taskItems: [...taskItems],
         title: feeData.title,
-        assignee: feeData.assignee,
+        assignee,
         internalNote,
       };
       hasBeenSubmittedRef.current = true;
+    } else {
+      // Update snapshot after force-commit
+      snapshotRef.current = {
+        taskItems: [...taskItems],
+        title: feeData.title,
+        assignee,
+        internalNote,
+      };
     }
     setStatus("finalized");
   };
@@ -583,10 +827,10 @@ export default function TranslatorFeeDetail() {
           <span>建立時間：{formattedDate}</span>
         </div>
 
-        {/* 備註 — visible to assignee + PM+ */}
+        {/* 留言與備註 — visible to assignee + PM+ */}
         <Separator />
         <div className="space-y-3">
-          <Label className="text-sm font-medium">備註</Label>
+          <Label className="text-sm font-medium">留言與備註</Label>
           <div className="space-y-2">
             {comments.map((c) => (
               <div key={c.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
@@ -594,35 +838,24 @@ export default function TranslatorFeeDetail() {
                   <span className="font-medium">{c.author}</span>
                   <span className="text-muted-foreground">{c.timestamp}</span>
                 </div>
-                <p className="whitespace-pre-wrap">{c.content}</p>
+                <CommentContent content={c.content} imageUrl={c.imageUrl} />
               </div>
             ))}
           </div>
-          <div className="flex gap-2">
-            <Textarea
-              value={commentDraft}
-              onChange={(e) => setCommentDraft(e.target.value)}
-              placeholder="輸入備註..."
-              className="min-h-[60px] text-xs"
-            />
-            <Button
-              size="sm"
-              className="shrink-0 self-end gap-1 text-xs"
-              disabled={!commentDraft.trim()}
-              onClick={() => {
-                setComments((prev) => [...prev, {
-                  id: `comment-${Date.now()}`,
-                  author: roleLabels[currentRole],
-                  content: commentDraft.trim(),
-                  timestamp: new Date().toLocaleString("zh-TW"),
-                }]);
-                setCommentDraft("");
-              }}
-            >
-              <Send className="h-3 w-3" />
-              送出
-            </Button>
-          </div>
+          <CommentInput
+            draft={commentDraft}
+            setDraft={setCommentDraft}
+            placeholder="輸入留言..."
+            onSubmit={(content, imageUrl) => {
+              setComments((prev) => [...prev, {
+                id: `comment-${Date.now()}`,
+                author: roleLabels[currentRole],
+                content,
+                imageUrl,
+                timestamp: new Date().toLocaleString("zh-TW"),
+              }]);
+            }}
+          />
         </div>
 
         {/* 內部備註 — visible to PM+ only */}
@@ -638,35 +871,24 @@ export default function TranslatorFeeDetail() {
                       <span className="font-medium">{c.author}</span>
                       <span className="text-muted-foreground">{c.timestamp}</span>
                     </div>
-                    <p className="whitespace-pre-wrap">{c.content}</p>
+                    <CommentContent content={c.content} imageUrl={c.imageUrl} />
                   </div>
                 ))}
               </div>
-              <div className="flex gap-2">
-                <Textarea
-                  value={internalCommentDraft}
-                  onChange={(e) => setInternalCommentDraft(e.target.value)}
-                  placeholder="輸入內部備註..."
-                  className="min-h-[60px] text-xs"
-                />
-                <Button
-                  size="sm"
-                  className="shrink-0 self-end gap-1 text-xs"
-                  disabled={!internalCommentDraft.trim()}
-                  onClick={() => {
-                    setInternalComments((prev) => [...prev, {
-                      id: `icomment-${Date.now()}`,
-                      author: roleLabels[currentRole],
-                      content: internalCommentDraft.trim(),
-                      timestamp: new Date().toLocaleString("zh-TW"),
-                    }]);
-                    setInternalCommentDraft("");
-                  }}
-                >
-                  <Send className="h-3 w-3" />
-                  送出
-                </Button>
-              </div>
+              <CommentInput
+                draft={internalCommentDraft}
+                setDraft={setInternalCommentDraft}
+                placeholder="輸入內部備註..."
+                onSubmit={(content, imageUrl) => {
+                  setInternalComments((prev) => [...prev, {
+                    id: `icomment-${Date.now()}`,
+                    author: roleLabels[currentRole],
+                    content,
+                    imageUrl,
+                    timestamp: new Date().toLocaleString("zh-TW"),
+                  }]);
+                }}
+              />
             </div>
           </>
         )}
