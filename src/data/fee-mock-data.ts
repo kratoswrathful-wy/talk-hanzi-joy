@@ -10,6 +10,20 @@ export interface FeeTaskItem {
   unitPrice: number;
 }
 
+export interface FeeNote {
+  id: string;
+  content: string;
+  author: string;
+  createdAt: string;
+}
+
+export interface FeeEditLog {
+  id: string;
+  action: string;
+  author: string;
+  createdAt: string;
+}
+
 export interface TranslatorFee {
   id: string;
   title: string;
@@ -18,6 +32,8 @@ export interface TranslatorFee {
   internalNote: string;
   internalNoteUrl?: string;
   taskItems: FeeTaskItem[];
+  notes: FeeNote[];
+  editLogs: FeeEditLog[];
   createdBy: string;
   createdAt: string;
 }
@@ -39,6 +55,12 @@ export const translatorFees: TranslatorFee[] = [
       { id: "item-1", taskType: "翻譯", billingUnit: "字", unitCount: 5000, unitPrice: 1.2 },
       { id: "item-2", taskType: "審稿", billingUnit: "字", unitCount: 2000, unitPrice: 0.8 },
     ],
+    notes: [
+      { id: "n-1", content: "請確認單價是否正確", author: "陳雅婷", createdAt: "2026-02-21T09:00:00" },
+    ],
+    editLogs: [
+      { id: "el-1", action: "建立草稿", author: "張大偉", createdAt: "2026-02-20T10:30:00" },
+    ],
     createdBy: "張大偉",
     createdAt: "2026-02-20T10:30:00",
   },
@@ -50,6 +72,11 @@ export const translatorFees: TranslatorFee[] = [
     internalNote: "案件 B-2026-003",
     taskItems: [
       { id: "item-3", taskType: "MTPE", billingUnit: "字", unitCount: 12000, unitPrice: 0.5 },
+    ],
+    notes: [],
+    editLogs: [
+      { id: "el-2", action: "建立草稿", author: "陳雅婷", createdAt: "2026-02-18T14:00:00" },
+      { id: "el-3", action: "標記為開立完成", author: "陳雅婷", createdAt: "2026-02-19T10:00:00" },
     ],
     createdBy: "陳雅婷",
     createdAt: "2026-02-18T14:00:00",
@@ -64,6 +91,8 @@ export const translatorFees: TranslatorFee[] = [
       { id: "item-4", taskType: "審稿", billingUnit: "小時", unitCount: 8, unitPrice: 500 },
       { id: "item-5", taskType: "LQA", billingUnit: "小時", unitCount: 3, unitPrice: 600 },
     ],
+    notes: [],
+    editLogs: [],
     createdBy: "王小明",
     createdAt: "2026-01-28T09:15:00",
   },
@@ -78,6 +107,14 @@ export const translatorFees: TranslatorFee[] = [
       { id: "item-6", taskType: "翻譯", billingUnit: "字", unitCount: 8500, unitPrice: 1.2 },
       { id: "item-7", taskType: "審稿", billingUnit: "字", unitCount: 3200, unitPrice: 0.8 },
       { id: "item-8", taskType: "MTPE", billingUnit: "字", unitCount: 6000, unitPrice: 0.5 },
+    ],
+    notes: [
+      { id: "n-2", content: "急件加價已包含", author: "張大偉", createdAt: "2026-02-15T12:00:00" },
+      { id: "n-3", content: "已確認金額無誤", author: "陳雅婷", createdAt: "2026-02-16T09:00:00" },
+    ],
+    editLogs: [
+      { id: "el-4", action: "建立草稿", author: "張大偉", createdAt: "2026-02-15T11:45:00" },
+      { id: "el-5", action: "標記為開立完成", author: "張大偉", createdAt: "2026-02-16T10:00:00" },
     ],
     createdBy: "張大偉",
     createdAt: "2026-02-15T11:45:00",

@@ -52,6 +52,15 @@ export const feeStore = {
           unitPrice: 0,
         },
       ],
+      notes: [],
+      editLogs: [
+        {
+          id: `el-${Date.now()}`,
+          action: "建立草稿",
+          author: "目前使用者",
+          createdAt: now.toISOString(),
+        },
+      ],
       createdBy: "目前使用者",
       createdAt: now.toISOString(),
     };

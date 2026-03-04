@@ -318,29 +318,35 @@ function FeeRow({
         ))}
         {/* Notes expand button */}
         <td className="px-2 py-3 text-center">
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleExpand(fee.id, "notes"); }}
-            className={cn(
-              "inline-flex items-center justify-center h-6 w-6 rounded transition-colors",
-              expanded === "notes" ? "bg-primary/15 text-primary" : "hover:bg-muted text-muted-foreground"
-            )}
-            title="備註"
-          >
-            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", expanded === "notes" && "rotate-180")} />
-          </button>
+          {fee.notes.length > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleExpand(fee.id, "notes"); }}
+              className={cn(
+                "inline-flex items-center justify-center gap-0.5 h-6 min-w-6 px-1 rounded transition-colors text-xs tabular-nums",
+                expanded === "notes" ? "bg-primary/15 text-primary" : "hover:bg-muted text-muted-foreground"
+              )}
+              title="備註"
+            >
+              <span>{fee.notes.length}</span>
+              <ChevronDown className={cn("h-3 w-3 transition-transform", expanded === "notes" && "rotate-180")} />
+            </button>
+          )}
         </td>
         {/* Edit log expand button */}
         <td className="px-2 py-3 text-center">
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleExpand(fee.id, "editLog"); }}
-            className={cn(
-              "inline-flex items-center justify-center h-6 w-6 rounded transition-colors",
-              expanded === "editLog" ? "bg-primary/15 text-primary" : "hover:bg-muted text-muted-foreground"
-            )}
-            title="修改紀錄"
-          >
-            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", expanded === "editLog" && "rotate-180")} />
-          </button>
+          {fee.editLogs.length > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleExpand(fee.id, "editLog"); }}
+              className={cn(
+                "inline-flex items-center justify-center gap-0.5 h-6 min-w-6 px-1 rounded transition-colors text-xs tabular-nums",
+                expanded === "editLog" ? "bg-primary/15 text-primary" : "hover:bg-muted text-muted-foreground"
+              )}
+              title="修改紀錄"
+            >
+              <span>{fee.editLogs.length}</span>
+              <ChevronDown className={cn("h-3 w-3 transition-transform", expanded === "editLog" && "rotate-180")} />
+            </button>
+          )}
         </td>
       </tr>
       {/* Expanded content row */}
@@ -373,11 +379,21 @@ function NotesPanel({ fee }: { fee: TranslatorFee }) {
     <div className="space-y-2">
       <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
         <MessageSquare className="h-3.5 w-3.5" />
-        備註
+        備註（{fee.notes.length}）
       </h4>
-      <p className="text-sm text-muted-foreground italic">
-        尚無備註（請進入詳情頁面新增備註）
-      </p>
+      {fee.notes.length === 0 ? (
+        <p className="text-sm text-muted-foreground italic">尚無備註</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {fee.notes.map((n) => (
+            <li key={n.id} className="text-sm flex items-baseline gap-2">
+              <span className="font-medium text-card-foreground">{n.author}</span>
+              <span className="text-muted-foreground">{n.content}</span>
+              <span className="text-xs text-muted-foreground/60 ml-auto whitespace-nowrap">{formatDate(n.createdAt)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -387,11 +403,21 @@ function EditLogPanel({ fee }: { fee: TranslatorFee }) {
     <div className="space-y-2">
       <h4 className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
         <History className="h-3.5 w-3.5" />
-        修改紀錄
+        修改紀錄（{fee.editLogs.length}）
       </h4>
-      <p className="text-sm text-muted-foreground italic">
-        尚無修改紀錄
-      </p>
+      {fee.editLogs.length === 0 ? (
+        <p className="text-sm text-muted-foreground italic">尚無修改紀錄</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {fee.editLogs.map((log) => (
+            <li key={log.id} className="text-sm flex items-baseline gap-2">
+              <span className="font-medium text-card-foreground">{log.author}</span>
+              <span className="text-muted-foreground">{log.action}</span>
+              <span className="text-xs text-muted-foreground/60 ml-auto whitespace-nowrap">{formatDate(log.createdAt)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
