@@ -1,7 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import { Plus, ChevronDown, MessageSquare, History, GripVertical } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { feeStatusLabels, type TranslatorFee } from "@/data/fee-mock-data";
+import { type TranslatorFee, type FeeStatus } from "@/data/fee-mock-data";
+
+const feeStatusLabels: Record<FeeStatus, string> = {
+  draft: "草稿",
+  finalized: "開立完成",
+};
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -509,7 +514,7 @@ function NotesPanel({ fee }: { fee: TranslatorFee }) {
           {fee.notes.map((n) => (
             <li key={n.id} className="text-sm flex items-baseline gap-2">
               <span className="font-medium text-card-foreground">{n.author}</span>
-              <span className="text-muted-foreground">{n.content}</span>
+              <span className="text-muted-foreground">{n.text}</span>
               <span className="text-xs text-muted-foreground/60 ml-auto whitespace-nowrap">{formatDate(n.createdAt)}</span>
             </li>
           ))}
@@ -528,7 +533,7 @@ function EditLogPanel({ fee, currentRole }: { fee: TranslatorFee; currentRole: U
   // Filter edit logs: assignee can only see non-client-info logs
   const filteredLogs = isManager
     ? fee.editLogs
-    : fee.editLogs.filter((log) => !isClientInfoLog(log.action));
+    : fee.editLogs.filter((log) => !isClientInfoLog(`${log.field} ${log.oldValue} → ${log.newValue}`));
 
   return (
     <div className="space-y-2">
@@ -543,8 +548,8 @@ function EditLogPanel({ fee, currentRole }: { fee: TranslatorFee; currentRole: U
           {filteredLogs.map((log) => (
             <li key={log.id} className="text-sm flex items-baseline gap-2">
               <span className="font-medium text-card-foreground">{log.author}</span>
-              <span className="text-muted-foreground">{log.action}</span>
-              <span className="text-xs text-muted-foreground/60 ml-auto whitespace-nowrap">{formatDate(log.createdAt)}</span>
+              <span className="text-muted-foreground">{log.field} {log.oldValue} → {log.newValue}</span>
+              <span className="text-xs text-muted-foreground/60 ml-auto whitespace-nowrap">{formatDate(log.timestamp)}</span>
             </li>
           ))}
         </ul>

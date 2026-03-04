@@ -2,7 +2,12 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, X, Send, AtSign, Image, Link2, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
-import { feeStatusLabels, type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, defaultClientInfo } from "@/data/fee-mock-data";
+import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, defaultClientInfo } from "@/data/fee-mock-data";
+
+const feeStatusLabels: Record<FeeStatus, string> = {
+  draft: "草稿",
+  finalized: "開立完成",
+};
 import ClientInfoSection from "@/components/ClientInfoSection";
 import { useFee, feeStore } from "@/hooks/use-fee-store";
 import { supabase } from "@/integrations/supabase/client";
@@ -420,14 +425,14 @@ export default function TranslatorFeeDetail() {
   const [status, setStatus] = useState<FeeStatus>(feeData?.status ?? "draft");
   const [assignee, setAssignee] = useState(feeData?.assignee ?? "");
   const [internalNote, setInternalNote] = useState(feeData?.internalNote ?? "");
-  const [internalNoteUrl, setInternalNoteUrl] = useState(feeData?.internalNoteUrl ?? "");
+  const [internalNoteUrl, setInternalNoteUrl] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [notionUrlInput, setNotionUrlInput] = useState(internalNoteUrl || "");
   const [currentRole, setCurrentRole] = useState<UserRole>("pm");
 
   // Comments — initialize from feeData
   const [comments, setComments] = useState<CommentEntry[]>(() =>
-    (feeData?.notes ?? []).map((n) => ({ id: n.id, author: n.author, content: n.content, timestamp: n.createdAt }))
+    (feeData?.notes ?? []).map((n) => ({ id: n.id, author: n.author, content: n.text, timestamp: n.createdAt }))
   );
   const [internalComments, setInternalComments] = useState<CommentEntry[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
@@ -437,7 +442,7 @@ export default function TranslatorFeeDetail() {
 
   // Edit history tracking — initialize from feeData
   const [editLog, setEditLog] = useState<EditLogEntry[]>(() =>
-    (feeData?.editLogs ?? []).map((l) => ({ id: l.id, changedBy: l.author, description: l.action, timestamp: l.createdAt }))
+    (feeData?.editLogs ?? []).map((l) => ({ id: l.id, changedBy: l.author, description: `${l.field} ${l.oldValue} → ${l.newValue}`, timestamp: l.timestamp }))
   );
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
   const snapshotRef = useRef<{ taskItems: FeeTaskItem[]; title: string; assignee: string; internalNote: string } | null>(null);
@@ -461,7 +466,7 @@ export default function TranslatorFeeDetail() {
           // Sync to store
           if (id) {
             feeStore.updateFee(id, {
-              editLogs: updated.map((e) => ({ id: e.id, action: e.description, author: e.changedBy, createdAt: e.timestamp })),
+              editLogs: updated.map((e) => ({ id: e.id, field: "", oldValue: "", newValue: e.description, author: e.changedBy, timestamp: e.timestamp })),
             });
           }
           return updated;
@@ -604,7 +609,7 @@ export default function TranslatorFeeDetail() {
         const updated = [...prev, ...newEntries];
         if (id) {
           feeStore.updateFee(id, {
-            editLogs: updated.map((e) => ({ id: e.id, action: e.description, author: e.changedBy, createdAt: e.timestamp })),
+            editLogs: updated.map((e) => ({ id: e.id, field: "", oldValue: "", newValue: e.description, author: e.changedBy, timestamp: e.timestamp })),
           });
         }
         return updated;
@@ -649,7 +654,6 @@ export default function TranslatorFeeDetail() {
     if (!url) return;
 
     setInternalNoteUrl(url);
-    if (id) feeStore.updateFee(id, { internalNoteUrl: url });
 
     // Check if it's a database URL (contains ?v=)
     if (url.includes("notion.so") && url.includes("?v=")) {
@@ -697,7 +701,7 @@ export default function TranslatorFeeDetail() {
       // 案件編號 > 相關案件文字
       if (caseId) {
         setInternalNote(caseId);
-        if (id) feeStore.updateFee(id, { internalNote: caseId, internalNoteUrl: url });
+        if (id) feeStore.updateFee(id, { internalNote: caseId });
       }
 
       // 工作類型 > 任務項目 + 計費單位數 > 第一項
@@ -795,7 +799,6 @@ export default function TranslatorFeeDetail() {
                     assignee,
                     taskItems: taskItems.map((item, idx) => ({ ...item, id: `item-clone-${Date.now()}-${idx}` })),
                     internalNote,
-                    internalNoteUrl,
                     clientInfo: { ...clientInfo },
                   });
                   navigate(`/fees/${draft.id}`);
@@ -902,7 +905,7 @@ export default function TranslatorFeeDetail() {
                       setInternalNote("");
                       setInternalNoteUrl("");
                       setNotionUrlInput("");
-                      if (id) feeStore.updateFee(id, { internalNote: "", internalNoteUrl: "" });
+                      if (id) feeStore.updateFee(id, { internalNote: "" });
                     }}
                     title="清除"
                   >
@@ -1171,7 +1174,7 @@ export default function TranslatorFeeDetail() {
               setComments((prev) => [...prev, newNote]);
               // Sync to store
               if (id) {
-                const storeNote = { id: newNote.id, content, author: newNote.author, createdAt: new Date().toISOString() };
+                const storeNote = { id: newNote.id, text: content, author: newNote.author, createdAt: new Date().toISOString() };
                 const currentFee = feeStore.getFeeById(id);
                 if (currentFee) {
                   feeStore.updateFee(id, { notes: [...currentFee.notes, storeNote] });
