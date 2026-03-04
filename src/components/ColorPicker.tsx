@@ -3,6 +3,16 @@ import { PRESET_COLORS } from "@/stores/select-options-store";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { Check, Plus, X } from "lucide-react";
 
@@ -12,8 +22,8 @@ interface ColorPickerProps {
   customColors?: string[];
   onAddCustomColor?: (color: string) => void;
   onRemoveCustomColor?: (color: string) => void;
-  /** Map of uppercase hex color → count of options using it */
-  colorUsageCounts?: Record<string, number>;
+  /** Map of uppercase hex color → list of option labels using it */
+  colorUsageMap?: Record<string, string[]>;
 }
 
 function hsvToHex(h: number, s: number, v: number): string {
@@ -48,25 +58,25 @@ function hexToHsv(hex: string): [number, number, number] {
   return [h, s, max];
 }
 
-/** Get usage label for tooltip */
-function getUsageLabel(count: number, colorHex: string): string {
-  if (count === 0) return `${colorHex}：目前沒有選項使用此顏色`;
-  return `${colorHex}：${count} 個選項使用此顏色`;
+function getUsageTooltip(labels: string[], colorHex: string): string {
+  if (labels.length === 0) return `${colorHex}：目前沒有選項使用此顏色`;
+  return `${colorHex}：${labels.join("、")}`;
 }
 
 function ColorSwatch({
   color,
   selected,
-  count,
+  labels,
   onSelect,
   onRemove,
 }: {
   color: string;
   selected: boolean;
-  count: number;
+  labels: string[];
   onSelect: () => void;
   onRemove?: () => void;
 }) {
+  const count = labels.length;
   return (
     <TooltipProvider delayDuration={300}>
       <Tooltip>
@@ -97,7 +107,7 @@ function ColorSwatch({
           </div>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="text-xs">
-          {getUsageLabel(count, color)}
+          {getUsageTooltip(labels, color)}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -110,18 +120,19 @@ export default function ColorPicker({
   customColors = [],
   onAddCustomColor,
   onRemoveCustomColor,
-  colorUsageCounts = {},
+  colorUsageMap = {},
 }: ColorPickerProps) {
   const [hsv, setHsv] = useState<[number, number, number]>(() => hexToHsv(value || "#FF0000"));
   const [hexInput, setHexInput] = useState(value || "#FF0000");
   const [showWheel, setShowWheel] = useState(false);
+  const [deleteColorConfirm, setDeleteColorConfirm] = useState<string | null>(null);
 
   const wheelRef = useRef<HTMLCanvasElement>(null);
   const sliderRef = useRef<HTMLCanvasElement>(null);
 
   const currentHex = hsvToHex(hsv[0], hsv[1], hsv[2]);
 
-  const getCount = (c: string) => colorUsageCounts[c.toUpperCase()] || 0;
+  const getLabels = (c: string) => colorUsageMap[c.toUpperCase()] || [];
 
   // Draw color wheel
   useEffect(() => {
@@ -131,7 +142,6 @@ export default function ColorPicker({
     const ctx = canvas.getContext("2d")!;
     const size = canvas.width;
     const cx = size / 2, cy = size / 2, radius = size / 2;
-
     const imageData = ctx.createImageData(size, size);
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
@@ -209,109 +219,135 @@ export default function ColorPicker({
   };
 
   return (
-    <div className="space-y-3">
-      {/* Preset colors */}
-      <div>
-        <p className="text-xs text-muted-foreground mb-1.5">預設色彩</p>
-        <div className="flex flex-wrap gap-1.5">
-          {PRESET_COLORS.map((c) => (
-            <ColorSwatch
-              key={c}
-              color={c}
-              selected={value === c}
-              count={getCount(c)}
-              onSelect={() => {
-                onChange(c);
-                setHexInput(c);
-                setHsv(hexToHsv(c));
-              }}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Custom colors */}
-      {(customColors.length > 0 || onAddCustomColor) && (
+    <>
+      <div className="space-y-3">
+        {/* Preset colors */}
         <div>
-          <p className="text-xs text-muted-foreground mb-1.5">自訂色彩</p>
-          <div className="flex flex-wrap gap-1.5 items-center">
-            {customColors.map((c) => (
+          <p className="text-xs text-muted-foreground mb-1.5">預設色彩</p>
+          <div className="flex flex-wrap gap-1.5">
+            {PRESET_COLORS.map((c) => (
               <ColorSwatch
                 key={c}
                 color={c}
                 selected={value === c}
-                count={getCount(c)}
+                labels={getLabels(c)}
                 onSelect={() => {
                   onChange(c);
                   setHexInput(c);
                   setHsv(hexToHsv(c));
                 }}
-                onRemove={onRemoveCustomColor ? () => onRemoveCustomColor(c) : undefined}
               />
             ))}
           </div>
         </div>
-      )}
 
-      {/* Toggle color wheel */}
-      <Button
-        variant="outline"
-        size="sm"
-        className="text-xs w-full"
-        onClick={() => setShowWheel(!showWheel)}
-      >
-        {showWheel ? "收起調色盤" : "自訂顏色"}
-      </Button>
+        {/* Custom colors */}
+        {(customColors.length > 0 || onAddCustomColor) && (
+          <div>
+            <p className="text-xs text-muted-foreground mb-1.5">自訂色彩</p>
+            <div className="flex flex-wrap gap-1.5 items-center">
+              {customColors.map((c) => (
+                <ColorSwatch
+                  key={c}
+                  color={c}
+                  selected={value === c}
+                  labels={getLabels(c)}
+                  onSelect={() => {
+                    onChange(c);
+                    setHexInput(c);
+                    setHsv(hexToHsv(c));
+                  }}
+                  onRemove={onRemoveCustomColor ? () => setDeleteColorConfirm(c) : undefined}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
-      {showWheel && (
-        <div className="space-y-2">
-          <div className="flex justify-center">
+        {/* Toggle color wheel */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs w-full"
+          onClick={() => setShowWheel(!showWheel)}
+        >
+          {showWheel ? "收起調色盤" : "自訂顏色"}
+        </Button>
+
+        {showWheel && (
+          <div className="space-y-2">
+            <div className="flex justify-center">
+              <canvas
+                ref={wheelRef}
+                width={180}
+                height={180}
+                className="w-[180px] h-[180px] rounded-full cursor-crosshair"
+                onClick={handleWheelClick}
+              />
+            </div>
             <canvas
-              ref={wheelRef}
-              width={180}
-              height={180}
-              className="w-[180px] h-[180px] rounded-full cursor-crosshair"
-              onClick={handleWheelClick}
+              ref={sliderRef}
+              width={200}
+              height={20}
+              className="w-full h-5 rounded cursor-pointer"
+              onClick={handleSliderClick}
             />
+            <div className="flex items-center gap-2">
+              <div
+                className="w-8 h-8 rounded border border-border shrink-0"
+                style={{ backgroundColor: currentHex }}
+              />
+              <Input
+                value={hexInput}
+                onChange={(e) => handleHexChange(e.target.value)}
+                className="h-8 text-xs font-mono flex-1"
+                placeholder="#FF0000"
+              />
+              {onAddCustomColor && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs shrink-0 gap-1"
+                  onClick={() => {
+                    if (/^#[0-9a-fA-F]{6}$/.test(hexInput)) {
+                      onAddCustomColor(hexInput.toUpperCase());
+                    }
+                  }}
+                >
+                  <Plus className="h-3 w-3" />
+                  儲存
+                </Button>
+              )}
+            </div>
           </div>
+        )}
+      </div>
 
-          <canvas
-            ref={sliderRef}
-            width={200}
-            height={20}
-            className="w-full h-5 rounded cursor-pointer"
-            onClick={handleSliderClick}
-          />
-
-          <div className="flex items-center gap-2">
-            <div
-              className="w-8 h-8 rounded border border-border shrink-0"
-              style={{ backgroundColor: currentHex }}
-            />
-            <Input
-              value={hexInput}
-              onChange={(e) => handleHexChange(e.target.value)}
-              className="h-8 text-xs font-mono flex-1"
-              placeholder="#FF0000"
-            />
-            {onAddCustomColor && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 text-xs shrink-0 gap-1"
-                onClick={() => {
-                  if (/^#[0-9a-fA-F]{6}$/.test(hexInput)) {
-                    onAddCustomColor(hexInput.toUpperCase());
-                  }
-                }}
-              >
-                <Plus className="h-3 w-3" />
-                儲存
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+      {/* Delete custom color confirmation */}
+      <AlertDialog open={!!deleteColorConfirm} onOpenChange={(v) => { if (!v) setDeleteColorConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>確認刪除自訂色彩</AlertDialogTitle>
+            <AlertDialogDescription>
+              確定要刪除自訂色彩 {deleteColorConfirm} 嗎？此操作無法復原。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteColorConfirm && onRemoveCustomColor) {
+                  onRemoveCustomColor(deleteColorConfirm);
+                }
+                setDeleteColorConfirm(null);
+              }}
+            >
+              刪除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
