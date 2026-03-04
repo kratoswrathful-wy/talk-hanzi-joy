@@ -1147,31 +1147,6 @@ export default function TranslatorFeeDetail() {
         )}
       </motion.div>
 
-      {/* Link Dialog */}
-      <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>設定超連結</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-2">
-            <Label className="text-xs text-muted-foreground">連結網址</Label>
-            <Input
-              value={tempUrl}
-              onChange={(e) => setTempUrl(e.target.value)}
-              placeholder="https://..."
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setLinkDialogOpen(false)}>
-              取消
-            </Button>
-            <Button size="sm" onClick={handleSaveLink}>
-              儲存
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
