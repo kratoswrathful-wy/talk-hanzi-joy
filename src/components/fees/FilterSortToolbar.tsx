@@ -154,35 +154,15 @@ export function FilterSortToolbar({
                 const meta = fieldMetas.find((f) => f.key === filter.field);
                 const ops = meta ? getOperatorsForType(meta.type) : [];
                 return (
-                  <div key={filter.id} className="flex items-center gap-1.5">
-                    <Select value={filter.field} onValueChange={(v) => onUpdateFilter(filter.id, { field: v, value: "" })}>
-                      <SelectTrigger className="h-7 text-xs w-[100px]"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {visibleFields.map((f) => (
-                          <SelectItem key={f.key} value={f.key} className="text-xs">{f.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={filter.operator} onValueChange={(v) => onUpdateFilter(filter.id, { operator: v as FilterOperator })}>
-                      <SelectTrigger className="h-7 text-xs w-[80px]"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {ops.map((op) => (
-                          <SelectItem key={op} value={op} className="text-xs">{operatorLabels[op]}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {needsValueInput(filter.operator) && (
-                      <Input
-                        value={filter.value}
-                        onChange={(e) => onUpdateFilter(filter.id, { value: e.target.value })}
-                        className="h-7 text-xs flex-1"
-                        placeholder="值"
-                      />
-                    )}
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onRemoveFilter(filter.id)}>
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
+                  <FilterRow
+                    key={filter.id}
+                    filter={filter}
+                    meta={meta}
+                    ops={ops}
+                    visibleFields={visibleFields}
+                    onUpdateFilter={onUpdateFilter}
+                    onRemoveFilter={onRemoveFilter}
+                  />
                 );
               })}
               <Separator />
