@@ -1313,7 +1313,7 @@ export default function TranslatorFeeDetail() {
       </AlertDialog>
 
       {/* Duplicate isFirstFee Warning — Step 1: Choose */}
-      <AlertDialog open={duplicateDialogStep === "choose"} onOpenChange={(open) => { if (!open && !hasDuplicateFirstFee) setDuplicateDialogStep(null); }}>
+      <AlertDialog open={duplicateDialogStep === "choose"} onOpenChange={() => {}}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>同一案件中有多個「主要營收紀錄」</AlertDialogTitle>
@@ -1347,7 +1347,7 @@ export default function TranslatorFeeDetail() {
       </AlertDialog>
 
       {/* Duplicate isFirstFee Warning — Step 2: Confirm swap */}
-      <AlertDialog open={duplicateDialogStep === "confirmSwap"} onOpenChange={(open) => { if (!open) setDuplicateDialogStep("choose"); }}>
+      <AlertDialog open={duplicateDialogStep === "confirmSwap"} onOpenChange={() => {}}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>確認變更主要營收紀錄？</AlertDialogTitle>
@@ -1356,13 +1356,13 @@ export default function TranslatorFeeDetail() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => {
+            <Button variant="outline" onClick={() => {
               setDisableOption12A(true);
               setDuplicateDialogStep("choose");
             }}>
               否
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={() => {
+            </Button>
+            <Button onClick={() => {
               // Swap: other fee becomes notFirstFee, this page becomes isFirstFee
               setSwapResolved(true);
               if (otherFirstFee) {
@@ -1378,7 +1378,7 @@ export default function TranslatorFeeDetail() {
               toast.success("已將本頁設為主要營收紀錄");
             }}>
               是
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
