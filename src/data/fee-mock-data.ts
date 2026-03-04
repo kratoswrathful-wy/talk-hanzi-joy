@@ -7,6 +7,7 @@ export interface FeeTaskItem {
   taskType: TaskType;
   billingUnit: BillingUnit;
   unitCount: number;
+  unitPrice: number;
 }
 
 export interface TranslatorFee {
@@ -35,8 +36,8 @@ export const translatorFees: TranslatorFee[] = [
     internalNote: "案件 A-2026-001 相關",
     internalNoteUrl: "https://example.com/case/A-2026-001",
     taskItems: [
-      { id: "item-1", taskType: "翻譯", billingUnit: "字", unitCount: 5000 },
-      { id: "item-2", taskType: "審稿", billingUnit: "字", unitCount: 2000 },
+      { id: "item-1", taskType: "翻譯", billingUnit: "字", unitCount: 5000, unitPrice: 1.2 },
+      { id: "item-2", taskType: "審稿", billingUnit: "字", unitCount: 2000, unitPrice: 0.8 },
     ],
     createdBy: "張大偉",
     createdAt: "2026-02-20T10:30:00",
@@ -48,7 +49,7 @@ export const translatorFees: TranslatorFee[] = [
     status: "finalized",
     internalNote: "案件 B-2026-003",
     taskItems: [
-      { id: "item-3", taskType: "MTPE", billingUnit: "字", unitCount: 12000 },
+      { id: "item-3", taskType: "MTPE", billingUnit: "字", unitCount: 12000, unitPrice: 0.5 },
     ],
     createdBy: "陳雅婷",
     createdAt: "2026-02-18T14:00:00",
@@ -60,8 +61,8 @@ export const translatorFees: TranslatorFee[] = [
     status: "draft",
     internalNote: "",
     taskItems: [
-      { id: "item-4", taskType: "審稿", billingUnit: "小時", unitCount: 8 },
-      { id: "item-5", taskType: "LQA", billingUnit: "小時", unitCount: 3 },
+      { id: "item-4", taskType: "審稿", billingUnit: "小時", unitCount: 8, unitPrice: 500 },
+      { id: "item-5", taskType: "LQA", billingUnit: "小時", unitCount: 3, unitPrice: 600 },
     ],
     createdBy: "王小明",
     createdAt: "2026-01-28T09:15:00",
@@ -74,9 +75,9 @@ export const translatorFees: TranslatorFee[] = [
     internalNote: "急件處理",
     internalNoteUrl: "https://example.com/case/C-2026-005",
     taskItems: [
-      { id: "item-6", taskType: "翻譯", billingUnit: "字", unitCount: 8500 },
-      { id: "item-7", taskType: "審稿", billingUnit: "字", unitCount: 3200 },
-      { id: "item-8", taskType: "MTPE", billingUnit: "字", unitCount: 6000 },
+      { id: "item-6", taskType: "翻譯", billingUnit: "字", unitCount: 8500, unitPrice: 1.2 },
+      { id: "item-7", taskType: "審稿", billingUnit: "字", unitCount: 3200, unitPrice: 0.8 },
+      { id: "item-8", taskType: "MTPE", billingUnit: "字", unitCount: 6000, unitPrice: 0.5 },
     ],
     createdBy: "張大偉",
     createdAt: "2026-02-15T11:45:00",
