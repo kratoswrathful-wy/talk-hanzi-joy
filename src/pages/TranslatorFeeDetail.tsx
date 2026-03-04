@@ -919,13 +919,13 @@ export default function TranslatorFeeDetail() {
             draft={commentDraft}
             setDraft={setCommentDraft}
             placeholder="輸入留言..."
-            onSubmit={(content, imageUrl) => {
+            onSubmit={(content, imageUrls) => {
               setComments((prev) => [...prev, {
                 id: `comment-${Date.now()}`,
                 author: roleLabels[currentRole],
                 content,
-                imageUrl,
-                timestamp: new Date().toLocaleString("zh-TW"),
+                imageUrls,
+                timestamp: formatTimestamp(new Date()),
               }]);
             }}
           />
