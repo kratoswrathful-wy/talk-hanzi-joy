@@ -130,11 +130,17 @@ function createDefaultView(): TableView {
   };
 }
 
-export function useTableViews() {
+export function useTableViews(currentRole?: string) {
   const [views, setViews] = useState<TableView[]>(() => [createDefaultView()]);
   const [activeViewId, setActiveViewId] = useState("default");
 
-  const activeView = useMemo(() => views.find((v) => v.id === activeViewId) || views[0], [views, activeViewId]);
+  /** Views visible to current role: default + views created by this role */
+  const visibleViews = useMemo(() =>
+    views.filter((v) => v.isDefault || v.createdByRole === currentRole),
+    [views, currentRole]
+  );
+
+  const activeView = useMemo(() => visibleViews.find((v) => v.id === activeViewId) || visibleViews[0], [visibleViews, activeViewId]);
 
   const updateView = useCallback((viewId: string, updates: Partial<TableView>) => {
     setViews((prev) => prev.map((v) => v.id === viewId ? { ...v, ...updates } : v));
