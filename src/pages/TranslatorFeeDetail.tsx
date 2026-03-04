@@ -761,7 +761,7 @@ export default function TranslatorFeeDetail() {
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
         >
           <ArrowLeft className="h-4 w-4" />
-          返回稿費列表
+          返回費用清單
         </Link>
         <div className="flex items-center gap-2 shrink-0">
           {canDelete && (
