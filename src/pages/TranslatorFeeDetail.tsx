@@ -1097,6 +1097,7 @@ export default function TranslatorFeeDetail() {
                 translatorTotal={totalAmount}
                 allFees={allFees}
                 currentFeeId={id ?? ""}
+                currentInternalNote={internalNote}
               />
             </div>
           </>
