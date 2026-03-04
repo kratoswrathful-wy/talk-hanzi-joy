@@ -220,10 +220,21 @@ export function useTableViews(currentRole?: string) {
     return result;
   }, [activeView]);
 
+  // Auto-correct activeViewId when switching roles makes current view invisible
+  const safeActiveViewId = useMemo(() => {
+    if (visibleViews.some((v) => v.id === activeViewId)) return activeViewId;
+    return "default";
+  }, [visibleViews, activeViewId]);
+
+  // Sync state if corrected
+  if (safeActiveViewId !== activeViewId) {
+    setActiveViewId(safeActiveViewId);
+  }
+
   return {
-    views,
+    views: visibleViews,
     activeView,
-    activeViewId,
+    activeViewId: safeActiveViewId,
     setActiveViewId,
     addView,
     deleteView,
