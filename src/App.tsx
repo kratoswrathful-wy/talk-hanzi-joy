@@ -13,6 +13,12 @@ import NewTranslatorFee from "@/pages/NewTranslatorFee";
 import TranslatorFeeDetail from "@/pages/TranslatorFeeDetail";
 import SettingsPage from "@/pages/SettingsPage";
 import NotFound from "./pages/NotFound";
+import { useParams } from "react-router-dom";
+
+function TranslatorFeeDetailWrapper() {
+  const { id } = useParams();
+  return <TranslatorFeeDetail key={id} />;
+}
 
 const queryClient = new QueryClient();
 
