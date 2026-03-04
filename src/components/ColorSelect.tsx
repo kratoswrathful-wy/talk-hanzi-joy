@@ -113,27 +113,15 @@ export default function ColorSelect({
             )}
           >
             {selectedOption ? (
-              <span className="inline-flex items-center gap-1 max-w-full">
+              <span
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium"
+                style={{ backgroundColor: selectedOption.color + "22", color: selectedOption.color }}
+              >
                 <span
-                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium"
-                  style={{ backgroundColor: selectedOption.color + "22", color: selectedOption.color }}
-                >
-                  <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{ backgroundColor: selectedOption.color }}
-                  />
-                  <span className="truncate">{selectedOption.label}</span>
-                </span>
-                {!disabled && (
-                  <span
-                    role="button"
-                    className="inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-destructive/20 transition-colors shrink-0"
-                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); onValueChange(""); }}
-                    title="取消選取"
-                  >
-                    <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
-                  </span>
-                )}
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: selectedOption.color }}
+                />
+                <span className="truncate">{selectedOption.label}</span>
               </span>
             ) : (
               <span className="text-muted-foreground">{placeholder}</span>
