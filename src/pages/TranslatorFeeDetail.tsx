@@ -533,7 +533,7 @@ export default function TranslatorFeeDetail() {
           id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           changedBy: roleLabels[currentRole],
           description: `${c.field} ${c.oldValue} → ${c.newValue}`,
-          timestamp: new Date(c.changedAt).toLocaleString("zh-TW"),
+          timestamp: formatTimestamp(new Date(c.changedAt)),
         })),
       ]);
       setPendingChanges([]);
