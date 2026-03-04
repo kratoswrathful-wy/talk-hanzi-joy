@@ -344,7 +344,7 @@ function CommentInput({
         <Button
           size="sm"
           className="gap-1 text-xs"
-          disabled={!draft.trim() && !imagePreview}
+          disabled={!draft.trim() && imagePreviews.length === 0}
           onClick={handleSubmit}
         >
           <Send className="h-3 w-3" />
