@@ -29,7 +29,7 @@ const App = () => (
             <Route path="/projects/:id" element={<ProjectDetail />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/fees" element={<TranslatorFees />} />
-            
+            <Route path="/fees/new" element={<NewTranslatorFee />} />
             <Route path="/fees/:id" element={<TranslatorFeeDetail />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFound />} />
