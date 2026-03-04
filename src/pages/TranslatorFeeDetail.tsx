@@ -1297,6 +1297,21 @@ export default function TranslatorFeeDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Duplicate isFirstFee Warning */}
+      <AlertDialog open={duplicateFirstFeeWarning} onOpenChange={setDuplicateFirstFeeWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>同一案件中有多個「為首筆費用」</AlertDialogTitle>
+            <AlertDialogDescription>
+              同一案件群組中已有其他費用頁面勾選了「為首筆費用」。請在此頁面或其他頁面中取消勾選，確保每個案件只有一筆「為首筆費用」。在修正之前，無法離開此頁面或進行複製操作。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction>我知道了</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
