@@ -9,7 +9,7 @@ import Projects from "@/pages/Projects";
 import ProjectDetail from "@/pages/ProjectDetail";
 import Tasks from "@/pages/Tasks";
 import TranslatorFees from "@/pages/TranslatorFees";
-import NewTranslatorFee from "@/pages/NewTranslatorFee";
+
 import TranslatorFeeDetail from "@/pages/TranslatorFeeDetail";
 import SettingsPage from "@/pages/SettingsPage";
 import NotFound from "./pages/NotFound";
