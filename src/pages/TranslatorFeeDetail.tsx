@@ -1420,6 +1420,7 @@ export default function TranslatorFeeDetail() {
               onClick={() => {
                 if (otherFirstFee) {
                   // There's already a primary — need to go through confirmSwap
+                  confirmSwapOriginRef.current = "assignRole";
                   setDuplicateDialogStep("confirmSwap");
                 } else {
                   const updated = { ...clientInfo, isFirstFee: true, notFirstFee: false };
