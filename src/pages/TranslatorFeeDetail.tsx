@@ -1361,11 +1361,15 @@ export default function TranslatorFeeDetail() {
               否
             </AlertDialogCancel>
             <AlertDialogAction onClick={() => {
-              // Swap: other fee becomes notFirstFee, this page stays isFirstFee
+              // Swap: other fee becomes notFirstFee, this page becomes isFirstFee
               if (otherFirstFee) {
                 const otherClientInfo = { ...otherFirstFee.clientInfo!, isFirstFee: false, notFirstFee: true };
                 feeStore.updateFee(otherFirstFee.id, { clientInfo: otherClientInfo });
               }
+              // Ensure current page is set as primary and persisted
+              const updatedClientInfo = { ...clientInfo, isFirstFee: true, notFirstFee: false };
+              setClientInfo(updatedClientInfo);
+              if (id) feeStore.updateFee(id, { clientInfo: updatedClientInfo });
               setDuplicateDialogStep(null);
               setDisableOption12A(false);
               toast.success("已將本頁設為主要營收紀錄");
