@@ -446,7 +446,7 @@ export default function TranslatorFeeDetail() {
 
   // Edit history tracking — initialize from feeData
   const [editLog, setEditLog] = useState<EditLogEntry[]>(() =>
-    (feeData?.editLogs ?? []).map((l) => ({ id: l.id, changedBy: l.author, description: `${l.field} ${l.oldValue} → ${l.newValue}`, timestamp: l.timestamp }))
+    (feeData?.editLogs ?? []).map((l) => ({ id: l.id, changedBy: l.author, description: `${l.field} ${l.oldValue} → ${l.newValue}`, timestamp: formatTimestamp(l.timestamp) }))
   );
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
   const snapshotRef = useRef<{ taskItems: FeeTaskItem[]; title: string; assignee: string; internalNote: string } | null>(null);
