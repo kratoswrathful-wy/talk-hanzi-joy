@@ -257,19 +257,12 @@ export default function NewTranslatorFee() {
                       />
                     </TableCell>
                     <TableCell>
-                      <Select
+                      <ColorSelect
+                        fieldKey="billingUnit"
                         value={item.billingUnit}
                         onValueChange={(v) => updateItem(item.id, "billingUnit", v)}
-                      >
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {billingUnitOptions.map((u) => (
-                            <SelectItem key={u} value={u}>{u}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        triggerClassName="h-8 text-xs"
+                      />
                     </TableCell>
                     <TableCell className="text-right">
                       <Input
