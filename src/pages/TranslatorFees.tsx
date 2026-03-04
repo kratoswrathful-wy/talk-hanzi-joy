@@ -10,7 +10,8 @@ import { useRowSelection } from "@/hooks/use-row-selection";
 import { useTableViews, fieldMetas } from "@/hooks/use-table-views";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { InlineEditCell } from "@/components/fees/InlineEditCell";
-import { useState, useRef, useCallback } from "react";
+import { useUndoRedo, type UndoEntry } from "@/hooks/use-undo-redo";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-store";
 
