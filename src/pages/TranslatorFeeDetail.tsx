@@ -449,12 +449,13 @@ export default function TranslatorFeeDetail() {
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
   const snapshotRef = useRef<{ taskItems: FeeTaskItem[]; title: string; assignee: string; internalNote: string } | null>(null);
   const hasBeenSubmittedRef = useRef(feeData?.status === "finalized");
-  const [duplicateFirstFeeWarning, setDuplicateFirstFeeWarning] = useState(false);
+  const [duplicateDialogStep, setDuplicateDialogStep] = useState<null | "choose" | "confirmSwap">(null);
+  const [disableOption12A, setDisableOption12A] = useState(false);
 
-  // Detect duplicate isFirstFee in the same case group
-  const hasDuplicateFirstFee = (() => {
-    if (!clientInfo.sameCase || !clientInfo.isFirstFee || !internalNote) return false;
-    return allFees.some(
+  // Find the other fee that is firstFee in the same case group
+  const otherFirstFee = (() => {
+    if (!clientInfo.sameCase || !internalNote) return undefined;
+    return allFees.find(
       (f) =>
         f.id !== id &&
         f.clientInfo?.sameCase &&
@@ -463,10 +464,14 @@ export default function TranslatorFeeDetail() {
     );
   })();
 
+  // Detect duplicate isFirstFee in the same case group
+  const hasDuplicateFirstFee = clientInfo.sameCase && clientInfo.isFirstFee && !!otherFirstFee;
+
   // Show warning on mount if duplicate detected
   useEffect(() => {
     if (hasDuplicateFirstFee) {
-      setDuplicateFirstFeeWarning(true);
+      setDisableOption12A(false);
+      setDuplicateDialogStep("choose");
     }
   }, [hasDuplicateFirstFee]);
 
