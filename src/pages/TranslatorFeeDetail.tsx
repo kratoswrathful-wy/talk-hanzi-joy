@@ -1,4 +1,4 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, X, Link as LinkIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { translatorFees, feeStatusLabels, type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus } from "@/data/fee-mock-data";
@@ -29,6 +29,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
 import { useState } from "react";
 
@@ -46,11 +56,13 @@ export default function TranslatorFeeDetail() {
   const { id } = useParams();
   const feeData = translatorFees.find((f) => f.id === id);
 
+  const navigate = useNavigate();
   const [taskItems, setTaskItems] = useState<FeeTaskItem[]>(feeData?.taskItems ?? []);
   const [status, setStatus] = useState<FeeStatus>(feeData?.status ?? "draft");
   const [internalNote, setInternalNote] = useState(feeData?.internalNote ?? "");
   const [internalNoteUrl, setInternalNoteUrl] = useState(feeData?.internalNoteUrl ?? "");
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [tempUrl, setTempUrl] = useState("");
   const [currentRole, setCurrentRole] = useState<UserRole>("pm");
 
@@ -200,7 +212,7 @@ export default function TranslatorFeeDetail() {
           />
           <div className="flex items-center gap-2 shrink-0">
             {canDelete && (
-              <Button variant="destructive" size="sm" className="text-xs">
+              <Button variant="destructive" size="sm" className="text-xs" onClick={() => setDeleteDialogOpen(true)}>
                 刪除
               </Button>
             )}
@@ -469,6 +481,27 @@ export default function TranslatorFeeDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>是否確認刪除？</AlertDialogTitle>
+            <AlertDialogDescription>
+              刪除後將無法復原此稿費紀錄。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => navigate("/fees")}
+            >
+              確定
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
