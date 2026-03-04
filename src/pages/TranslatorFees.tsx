@@ -641,6 +641,7 @@ export default function TranslatorFees() {
                   isSelected={isSelected}
                   onSelect={rowSelection.handleClick}
                   onCellCommit={handleCellCommit}
+                  registerRowRef={registerRowRef}
                 />
               );
             })}
