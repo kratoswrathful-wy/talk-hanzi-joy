@@ -178,8 +178,8 @@ function TranslatorTierSection() {
 
       <div className="space-y-1">
         <div className="grid grid-cols-[1fr_1fr_1fr_36px] gap-2 px-2 py-1.5 text-xs text-muted-foreground font-medium border-b border-border">
-          <span>客戶報價下限</span>
-          <span>客戶報價上限</span>
+          <span>客戶報價下限 (&gt;)</span>
+          <span>客戶報價上限 (≦)</span>
           <span>對應譯者單價</span>
           <span />
         </div>
