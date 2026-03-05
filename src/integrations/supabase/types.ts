@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      fees: {
+        Row: {
+          assignee: string
+          client_info: Json | null
+          created_at: string
+          created_by: string | null
+          edit_logs: Json
+          finalized_at: string | null
+          finalized_by: string | null
+          id: string
+          internal_note: string
+          internal_note_url: string
+          notes: Json
+          status: string
+          task_items: Json
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee?: string
+          client_info?: Json | null
+          created_at?: string
+          created_by?: string | null
+          edit_logs?: Json
+          finalized_at?: string | null
+          finalized_by?: string | null
+          id?: string
+          internal_note?: string
+          internal_note_url?: string
+          notes?: Json
+          status?: string
+          task_items?: Json
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          assignee?: string
+          client_info?: Json | null
+          created_at?: string
+          created_by?: string | null
+          edit_logs?: Json
+          finalized_at?: string | null
+          finalized_by?: string | null
+          id?: string
+          internal_note?: string
+          internal_note_url?: string
+          notes?: Json
+          status?: string
+          task_items?: Json
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       invitations: {
         Row: {
           accepted_at: string | null
