@@ -12,6 +12,16 @@ import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { InlineEditCell } from "@/components/fees/InlineEditCell";
 import { useUndoRedo, type UndoEntry } from "@/hooks/use-undo-redo";
 import { useState, useRef, useCallback, useEffect } from "react";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-store";
 import { supabase } from "@/integrations/supabase/client";
