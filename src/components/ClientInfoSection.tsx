@@ -162,7 +162,7 @@ export default function ClientInfoSection({
             )}
           </div>
 
-          {/* Row 2: sameCase (left) + reconciled/invoiced (right) */}
+          {/* Row 2: sameCase (left) + dispatch route (right) */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Checkbox
@@ -181,6 +181,20 @@ export default function ClientInfoSection({
                 與他筆費用為同一案件
               </Label>
             </div>
+            <div className="flex items-center gap-1.5">
+              <Label className="text-xs text-muted-foreground whitespace-nowrap">派案途徑</Label>
+              <ColorSelect
+                fieldKey="dispatchRoute"
+                value={clientInfo.dispatchRoute || ""}
+                onValueChange={(v) => update("dispatchRoute", v)}
+                triggerClassName="h-7 text-xs min-w-[90px]"
+                placeholder="選擇"
+              />
+            </div>
+          </div>
+
+          {/* Row 3: reconciled/invoiced (right-aligned) */}
+          <div className="flex justify-end">
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5">
                 <Checkbox
@@ -280,20 +294,6 @@ export default function ClientInfoSection({
               )}
             </div>
           )}
-
-          {/* Dispatch route */}
-          <div className="flex justify-end">
-            <div className="flex items-center gap-1.5">
-              <Label className="text-xs text-muted-foreground whitespace-nowrap">派案途徑</Label>
-              <ColorSelect
-                fieldKey="dispatchRoute"
-                value={clientInfo.dispatchRoute || ""}
-                onValueChange={(v) => update("dispatchRoute", v)}
-                triggerClassName="h-7 text-xs min-w-[90px]"
-                placeholder="選擇"
-              />
-            </div>
-          </div>
         </div>
 
         <div className="rounded-lg border border-border overflow-hidden">
