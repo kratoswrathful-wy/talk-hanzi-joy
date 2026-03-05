@@ -247,7 +247,7 @@ const allColumnDefs: ColumnDef[] = [
     key: "createdBy",
     label: "建立者",
     minWidth: 60,
-    render: (f) => <span className="truncate text-sm">{f.createdBy}</span>,
+    render: (f) => <CreatorName uid={f.createdBy} />,
   },
   {
     key: "createdAt",
