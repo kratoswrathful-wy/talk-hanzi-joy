@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { MoreHorizontal, Plus, Trash2, Palette, Check, Pencil, X, Search } from "lucide-react";
+import { MoreHorizontal, Plus, Trash2, Palette, Check, Pencil, X, Search, MessageSquareText } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useSelectOptions, selectOptionsStore, type SelectOption, PRESET_COLORS } from "@/stores/select-options-store";
 import ColorPicker from "@/components/ColorPicker";
