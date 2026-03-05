@@ -774,14 +774,20 @@ function NewTierGroupButton({
   onAdd: (taskType: string, billingUnit: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [selectedTaskType, setSelectedTaskType] = useState("");
+  const [selectedTaskTypes, setSelectedTaskTypes] = useState<string[]>([]);
   const [selectedUnit, setSelectedUnit] = useState("字");
 
+  const toggleTaskType = (label: string) => {
+    setSelectedTaskTypes((prev) =>
+      prev.includes(label) ? prev.filter((t) => t !== label) : [...prev, label]
+    );
+  };
+
   const handleAdd = () => {
-    if (!selectedTaskType) return;
-    onAdd(selectedTaskType, selectedUnit);
+    if (selectedTaskTypes.length === 0) return;
+    selectedTaskTypes.forEach((tt) => onAdd(tt, selectedUnit));
     setOpen(false);
-    setSelectedTaskType("");
+    setSelectedTaskTypes([]);
     setSelectedUnit("字");
   };
 
