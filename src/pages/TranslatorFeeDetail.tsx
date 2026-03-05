@@ -481,6 +481,46 @@ export default function TranslatorFeeDetail() {
   // Combined blocking condition
   const isNavigationBlocked = hasDuplicateFirstFee || needsRoleAssignment;
 
+  // Check no-fee translator status
+  useEffect(() => {
+    if (!assignee) {
+      setIsNoFeeTranslator(false);
+      return;
+    }
+    // Look up by assignee label — find the email from assignee options, then check settings
+    // For now, check member_translator_settings by matching display_name or email
+    const checkNoFee = async () => {
+      const { data } = await supabase
+        .from("member_translator_settings")
+        .select("no_fee")
+        .or(`email.eq.${assignee}`)
+        .limit(1)
+        .maybeSingle();
+      
+      if (data) {
+        setIsNoFeeTranslator(data.no_fee);
+      } else {
+        // Also try matching by display_name via profiles
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("email")
+          .eq("display_name", assignee)
+          .maybeSingle();
+        if (profile?.email) {
+          const { data: setting } = await supabase
+            .from("member_translator_settings")
+            .select("no_fee")
+            .eq("email", profile.email)
+            .maybeSingle();
+          setIsNoFeeTranslator(setting?.no_fee || false);
+        } else {
+          setIsNoFeeTranslator(false);
+        }
+      }
+    };
+    checkNoFee();
+  }, [assignee]);
+
   // Show warning on mount if duplicate detected (but not after a successful swap)
   useEffect(() => {
     if (hasDuplicateFirstFee && !swapResolved) {
