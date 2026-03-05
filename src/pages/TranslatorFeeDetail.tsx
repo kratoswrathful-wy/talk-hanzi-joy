@@ -1254,8 +1254,8 @@ export default function TranslatorFeeDetail() {
                 <div className="flex items-center gap-1.5">
                   <Checkbox
                     id="rateConfirmed"
-                    checked={clientInfo.rateConfirmed}
-                    disabled={!canEdit}
+                    checked={isNoFeeTranslator ? true : clientInfo.rateConfirmed}
+                    disabled={!canEdit || isNoFeeTranslator}
                     onCheckedChange={(checked) => {
                       const updated = { ...clientInfo, rateConfirmed: !!checked };
                       setClientInfo(updated);
