@@ -381,7 +381,7 @@ export default function ClientInfoSection({
             </TableBody>
             <TableFooter>
               <TableRow>
-                <TableCell colSpan={4}>
+                <TableCell colSpan={4} className="px-4">
                   <div className="flex items-center gap-2">
                     <Label className="text-xs text-muted-foreground whitespace-nowrap">關鍵字</Label>
                     <Input
