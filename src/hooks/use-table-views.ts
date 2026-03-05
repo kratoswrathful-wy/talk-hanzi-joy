@@ -255,6 +255,8 @@ export function useTableViews(currentRole?: string) {
     setActiveViewId,
     addView,
     deleteView,
+    renameView,
+    reorderViews,
     addFilter,
     removeFilter,
     updateFilter,
