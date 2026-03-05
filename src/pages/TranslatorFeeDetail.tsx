@@ -1208,7 +1208,7 @@ export default function TranslatorFeeDetail() {
         {/* Task Items Table */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium">任務項目</Label>
+            <Label className="text-sm font-medium">稿費內容</Label>
             <div className="flex items-center gap-2">
               {isManager && (
                 <div className="flex items-center gap-1.5">
@@ -1243,9 +1243,9 @@ export default function TranslatorFeeDetail() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/30">
-                  <TableHead className="text-xs w-[25%]">任務類型</TableHead>
+                  <TableHead className="text-xs w-[25%]">譯者任務類型</TableHead>
                   <TableHead className="text-xs w-[15%]">計費單位</TableHead>
-                  <TableHead className="text-xs w-[18%]">單價</TableHead>
+                  <TableHead className="text-xs w-[18%]">稿費單價</TableHead>
                   <TableHead className="text-xs w-[22%]">計費單位數</TableHead>
                   <TableHead className="text-xs text-right w-[20%]">小計</TableHead>
                   {canEdit && <TableHead className="text-xs w-12" />}
