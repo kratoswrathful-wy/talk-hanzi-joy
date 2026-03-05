@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -6,8 +6,249 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
-import { Loader2, Camera } from "lucide-react";
+import { Loader2, Camera, ZoomIn, ZoomOut, Move } from "lucide-react";
+
+const AVATAR_SIZE = 256; // output px
+const MIN_DIMENSION = 128;
+
+// ─── Avatar Cropper Dialog ───
+function AvatarCropper({
+  open,
+  onOpenChange,
+  imageSrc,
+  onCrop,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  imageSrc: string;
+  onCrop: (blob: Blob) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const [zoom, setZoom] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const dragStart = useRef({ x: 0, y: 0, ox: 0, oy: 0 });
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgNatural, setImgNatural] = useState({ w: 0, h: 0 });
+
+  // Load image
+  useEffect(() => {
+    if (!imageSrc) return;
+    setImgLoaded(false);
+    const img = new Image();
+    img.onload = () => {
+      imgRef.current = img;
+      setImgNatural({ w: img.naturalWidth, h: img.naturalHeight });
+      setZoom(1);
+      setOffset({ x: 0, y: 0 });
+      setImgLoaded(true);
+    };
+    img.src = imageSrc;
+  }, [imageSrc]);
+
+  // Draw preview
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    const img = imgRef.current;
+    if (!canvas || !img || !imgLoaded) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const viewSize = 280; // preview canvas size
+    canvas.width = viewSize;
+    canvas.height = viewSize;
+
+    ctx.clearRect(0, 0, viewSize, viewSize);
+
+    // Circular clip
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(viewSize / 2, viewSize / 2, viewSize / 2, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Calculate image draw params
+    const scale = Math.max(viewSize / img.naturalWidth, viewSize / img.naturalHeight) * zoom;
+    const dw = img.naturalWidth * scale;
+    const dh = img.naturalHeight * scale;
+    const dx = (viewSize - dw) / 2 + offset.x;
+    const dy = (viewSize - dh) / 2 + offset.y;
+
+    ctx.drawImage(img, dx, dy, dw, dh);
+    ctx.restore();
+
+    // Draw circular border
+    ctx.strokeStyle = "hsl(217 91% 60%)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(viewSize / 2, viewSize / 2, viewSize / 2 - 1, 0, Math.PI * 2);
+    ctx.stroke();
+  }, [imgLoaded, zoom, offset]);
+
+  useEffect(() => {
+    draw();
+  }, [draw]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setDragging(true);
+    dragStart.current = { x: e.clientX, y: e.clientY, ox: offset.x, oy: offset.y };
+  };
+
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!dragging) return;
+      setOffset({
+        x: dragStart.current.ox + (e.clientX - dragStart.current.x),
+        y: dragStart.current.oy + (e.clientY - dragStart.current.y),
+      });
+    },
+    [dragging]
+  );
+
+  const handleMouseUp = useCallback(() => setDragging(false), []);
+
+  useEffect(() => {
+    if (dragging) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+      return () => {
+        window.removeEventListener("mousemove", handleMouseMove);
+        window.removeEventListener("mouseup", handleMouseUp);
+      };
+    }
+  }, [dragging, handleMouseMove, handleMouseUp]);
+
+  // Touch support
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    setDragging(true);
+    dragStart.current = { x: touch.clientX, y: touch.clientY, ox: offset.x, oy: offset.y };
+  };
+
+  useEffect(() => {
+    if (!dragging) return;
+    const handleTouchMove = (e: TouchEvent) => {
+      const touch = e.touches[0];
+      setOffset({
+        x: dragStart.current.ox + (touch.clientX - dragStart.current.x),
+        y: dragStart.current.oy + (touch.clientY - dragStart.current.y),
+      });
+    };
+    const handleTouchEnd = () => setDragging(false);
+    window.addEventListener("touchmove", handleTouchMove);
+    window.addEventListener("touchend", handleTouchEnd);
+    return () => {
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [dragging]);
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    setZoom((z) => Math.max(1, Math.min(5, z - e.deltaY * 0.002)));
+  };
+
+  const handleCrop = () => {
+    const img = imgRef.current;
+    if (!img) return;
+
+    const outCanvas = document.createElement("canvas");
+    outCanvas.width = AVATAR_SIZE;
+    outCanvas.height = AVATAR_SIZE;
+    const ctx = outCanvas.getContext("2d");
+    if (!ctx) return;
+
+    const viewSize = 280;
+    const scale = Math.max(viewSize / img.naturalWidth, viewSize / img.naturalHeight) * zoom;
+    // Map offset from view coords to output coords
+    const ratio = AVATAR_SIZE / viewSize;
+    const dw = img.naturalWidth * scale * ratio;
+    const dh = img.naturalHeight * scale * ratio;
+    const dx = (AVATAR_SIZE - dw) / 2 + offset.x * ratio;
+    const dy = (AVATAR_SIZE - dh) / 2 + offset.y * ratio;
+
+    // Circular clip
+    ctx.beginPath();
+    ctx.arc(AVATAR_SIZE / 2, AVATAR_SIZE / 2, AVATAR_SIZE / 2, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(img, dx, dy, dw, dh);
+
+    outCanvas.toBlob(
+      (blob) => {
+        if (blob) onCrop(blob);
+      },
+      "image/png",
+      0.95
+    );
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>裁切頭像</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex flex-col items-center gap-4">
+          {/* Preview */}
+          <div
+            ref={containerRef}
+            className="relative cursor-grab active:cursor-grabbing select-none"
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+            onWheel={handleWheel}
+          >
+            <canvas
+              ref={canvasRef}
+              width={280}
+              height={280}
+              className="rounded-full"
+              style={{ width: 280, height: 280 }}
+            />
+            {/* Move indicator */}
+            <div className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-background/80 text-muted-foreground pointer-events-none">
+              <Move className="h-3.5 w-3.5" />
+            </div>
+          </div>
+
+          {/* Zoom controls */}
+          <div className="flex items-center gap-3 w-full px-4">
+            <ZoomOut className="h-4 w-4 text-muted-foreground shrink-0" />
+            <Slider
+              value={[zoom]}
+              onValueChange={([v]) => setZoom(v)}
+              min={1}
+              max={5}
+              step={0.05}
+              className="flex-1"
+            />
+            <ZoomIn className="h-4 w-4 text-muted-foreground shrink-0" />
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            拖曳調整位置，滑鼠滾輪或滑桿調整縮放
+          </p>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            取消
+          </Button>
+          <Button onClick={handleCrop}>確認裁切</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Profile Page ───
 
 export default function ProfilePage() {
   const { user, profile, refetchProfile } = useAuth();
@@ -18,6 +259,10 @@ export default function ProfilePage() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Cropper state
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [rawImageSrc, setRawImageSrc] = useState<string>("");
+
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.display_name || "");
@@ -26,23 +271,53 @@ export default function ProfilePage() {
     }
   }, [profile]);
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user) return;
+    if (!file) return;
 
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const src = ev.target?.result as string;
+
+      // Check dimensions
+      const img = new Image();
+      img.onload = () => {
+        if (img.naturalWidth < MIN_DIMENSION || img.naturalHeight < MIN_DIMENSION) {
+          toast.error(`圖片太小，最低 ${MIN_DIMENSION}×${MIN_DIMENSION} 像素`);
+          return;
+        }
+        // Always open cropper for positioning
+        setRawImageSrc(src);
+        setCropperOpen(true);
+      };
+      img.src = src;
+    };
+    reader.readAsDataURL(file);
+
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+  };
+
+  const handleCroppedUpload = async (blob: Blob) => {
+    if (!user) return;
+    setCropperOpen(false);
     setUploading(true);
-    const ext = file.name.split(".").pop();
-    const path = `${user.id}/avatar.${ext}`;
 
-    const { error } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
+    const path = `${user.id}/avatar.png`;
+
+    const { error } = await supabase.storage
+      .from("avatars")
+      .upload(path, blob, { upsert: true, contentType: "image/png" });
+
     if (error) {
       toast.error("上傳失敗：" + error.message);
       setUploading(false);
       return;
     }
 
-    const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
-    // Add cache buster
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("avatars").getPublicUrl(path);
     const url = `${publicUrl}?t=${Date.now()}`;
 
     await supabase.from("profiles").update({ avatar_url: url }).eq("id", user.id);
@@ -56,7 +331,6 @@ export default function ProfilePage() {
     if (!user) return;
     setSaving(true);
 
-    // Update profile display_name
     const { error: profileError } = await supabase
       .from("profiles")
       .update({ display_name: displayName })
@@ -68,7 +342,6 @@ export default function ProfilePage() {
       return;
     }
 
-    // Update email if changed
     if (email !== user.email) {
       const { error: emailError } = await supabase.auth.updateUser({ email });
       if (emailError) {
@@ -108,11 +381,23 @@ export default function ProfilePage() {
               className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md hover:bg-primary/90"
               disabled={uploading}
             >
-              {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+              {uploading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Camera className="h-3.5 w-3.5" />
+              )}
             </button>
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
           </div>
-          <p className="text-sm text-muted-foreground">點擊相機圖示上傳新頭像</p>
+          <p className="text-sm text-muted-foreground">
+            點擊相機圖示上傳新頭像，可裁切選取顯示區域
+          </p>
         </CardContent>
       </Card>
 
@@ -123,12 +408,23 @@ export default function ProfilePage() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="displayName">顯示名稱</Label>
-            <Input id="displayName" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+            <Input
+              id="displayName"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">電子信箱</Label>
-            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <p className="text-xs text-muted-foreground">變更信箱後需至新信箱點擊驗證連結</p>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              變更信箱後需至新信箱點擊驗證連結
+            </p>
           </div>
           <Button onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -136,6 +432,14 @@ export default function ProfilePage() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Avatar Cropper Dialog */}
+      <AvatarCropper
+        open={cropperOpen}
+        onOpenChange={setCropperOpen}
+        imageSrc={rawImageSrc}
+        onCrop={handleCroppedUpload}
+      />
     </div>
   );
 }
