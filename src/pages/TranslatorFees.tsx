@@ -581,12 +581,25 @@ export default function TranslatorFees() {
             </span>
           )}
         </div>
-        {isManager && (
-          <Button size="sm" className="gap-1.5" onClick={handleCreate}>
-            <Plus className="h-4 w-4" />
-            新增費用
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {isManager && rowSelection.selectedCount > 0 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 text-muted-foreground hover:text-destructive"
+              onClick={() => setShowDeleteConfirm(true)}
+              title="刪除選取項目"
+            >
+              <Trash2 className="h-4.5 w-4.5" />
+            </Button>
+          )}
+          {isManager && (
+            <Button size="sm" className="gap-1.5" onClick={handleCreate}>
+              <Plus className="h-4 w-4" />
+              新增費用
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filter/Sort/View toolbar */}
