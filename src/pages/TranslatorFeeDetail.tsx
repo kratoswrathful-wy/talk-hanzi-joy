@@ -713,6 +713,22 @@ export default function TranslatorFeeDetail() {
       };
       hasBeenSubmittedRef.current = true;
     } else {
+      // Log status change (finalize) after first submission
+      const statusEntry = {
+        id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        changedBy: roleLabels[currentRole],
+        description: `狀態 草稿 → 開立完成`,
+        timestamp: formatTimestamp(new Date()),
+      };
+      setEditLog((prev) => {
+        const updated = [...prev, statusEntry];
+        if (id) {
+          feeStore.updateFee(id, {
+            editLogs: updated.map((e) => ({ id: e.id, field: "", oldValue: "", newValue: e.description, author: e.changedBy, timestamp: e.timestamp })),
+          });
+        }
+        return updated;
+      });
       // Update snapshot after force-commit
       snapshotRef.current = {
         taskItems: [...taskItems],
@@ -725,6 +741,24 @@ export default function TranslatorFeeDetail() {
   };
 
   const handleRecall = () => {
+    // Log status change (recall) — always log after first submission
+    if (hasBeenSubmittedRef.current) {
+      const statusEntry = {
+        id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        changedBy: roleLabels[currentRole],
+        description: `狀態 開立完成 → 草稿`,
+        timestamp: formatTimestamp(new Date()),
+      };
+      setEditLog((prev) => {
+        const updated = [...prev, statusEntry];
+        if (id) {
+          feeStore.updateFee(id, {
+            editLogs: updated.map((e) => ({ id: e.id, field: "", oldValue: "", newValue: e.description, author: e.changedBy, timestamp: e.timestamp })),
+          });
+        }
+        return updated;
+      });
+    }
     setStatus("draft");
   };
 
