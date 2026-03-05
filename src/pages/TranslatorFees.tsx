@@ -14,6 +14,7 @@ import { useUndoRedo, type UndoEntry } from "@/hooks/use-undo-redo";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-store";
+import { supabase } from "@/integrations/supabase/client";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
   draft: "草稿",
@@ -247,7 +248,7 @@ const allColumnDefs: ColumnDef[] = [
     key: "createdBy",
     label: "建立者",
     minWidth: 60,
-    render: (f) => <span className="truncate text-sm">{f.createdBy}</span>,
+    render: (f) => <CreatorName uid={f.createdBy} />,
   },
   {
     key: "createdAt",
@@ -256,6 +257,24 @@ const allColumnDefs: ColumnDef[] = [
     render: (f) => <span className="text-sm text-muted-foreground tabular-nums">{formatDate(f.createdAt)}</span>,
   },
 ];
+
+// Cache for creator UUID → display name
+const creatorNameCache = new Map<string, string>();
+
+function CreatorName({ uid }: { uid: string }) {
+  const [name, setName] = useState(creatorNameCache.get(uid) || uid);
+  useEffect(() => {
+    if (!uid || uid.length !== 36) return;
+    if (creatorNameCache.has(uid)) { setName(creatorNameCache.get(uid)!); return; }
+    supabase.from("profiles").select("display_name, email").eq("id", uid).maybeSingle()
+      .then(({ data }) => {
+        const resolved = data?.display_name || data?.email || uid;
+        creatorNameCache.set(uid, resolved);
+        setName(resolved);
+      });
+  }, [uid]);
+  return <span className="truncate text-sm">{name}</span>;
+}
 
 function AssigneeLabel({ value }: { value: string }) {
   const { options } = useSelectOptions("assignee");
