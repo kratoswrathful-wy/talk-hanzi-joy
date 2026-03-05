@@ -445,6 +445,7 @@ export default function TranslatorFeeDetail() {
   const [commentDraft, setCommentDraft] = useState("");
   const [internalCommentDraft, setInternalCommentDraft] = useState("");
   const [notionLoading, setNotionLoading] = useState(false);
+  const [isNoFeeTranslator, setIsNoFeeTranslator] = useState(false);
   const [clientInfo, setClientInfo] = useState<ClientInfo>(feeData?.clientInfo ?? { ...defaultClientInfo });
 
   // Edit history tracking — initialize from feeData
@@ -479,6 +480,46 @@ export default function TranslatorFeeDetail() {
 
   // Combined blocking condition
   const isNavigationBlocked = hasDuplicateFirstFee || needsRoleAssignment;
+
+  // Check no-fee translator status
+  useEffect(() => {
+    if (!assignee) {
+      setIsNoFeeTranslator(false);
+      return;
+    }
+    // Look up by assignee label — find the email from assignee options, then check settings
+    // For now, check member_translator_settings by matching display_name or email
+    const checkNoFee = async () => {
+      const { data } = await supabase
+        .from("member_translator_settings")
+        .select("no_fee")
+        .or(`email.eq.${assignee}`)
+        .limit(1)
+        .maybeSingle();
+      
+      if (data) {
+        setIsNoFeeTranslator(data.no_fee);
+      } else {
+        // Also try matching by display_name via profiles
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("email")
+          .eq("display_name", assignee)
+          .maybeSingle();
+        if (profile?.email) {
+          const { data: setting } = await supabase
+            .from("member_translator_settings")
+            .select("no_fee")
+            .eq("email", profile.email)
+            .maybeSingle();
+          setIsNoFeeTranslator(setting?.no_fee || false);
+        } else {
+          setIsNoFeeTranslator(false);
+        }
+      }
+    };
+    checkNoFee();
+  }, [assignee]);
 
   // Show warning on mount if duplicate detected (but not after a successful swap)
   useEffect(() => {
@@ -887,7 +928,7 @@ export default function TranslatorFeeDetail() {
     }
   };
 
-  const totalAmount = taskItems.reduce(
+  const totalAmount = isNoFeeTranslator ? 0 : taskItems.reduce(
     (sum, item) => sum + Number(item.unitCount) * Number(item.unitPrice),
     0
   );
@@ -1050,17 +1091,17 @@ export default function TranslatorFeeDetail() {
         <div className="grid gap-5">
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-1.5">
-              <Label className="text-xs text-muted-foreground">開單對象</Label>
+              <Label className="text-xs text-muted-foreground">譯者</Label>
               <ColorSelect
                 fieldKey="assignee"
                 value={assignee}
                 disabled={!canEdit}
                 onValueChange={(v) => {
-                  trackChange("開單對象", assignee, v);
+                  trackChange("譯者", assignee, v);
                   setAssignee(v);
                   if (id) feeStore.updateFee(id, { assignee: v });
                 }}
-                placeholder="選擇開單對象"
+                placeholder="選擇譯者"
               />
             </div>
             <div className="grid gap-1.5">
@@ -1211,7 +1252,9 @@ export default function TranslatorFeeDetail() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Label className="text-sm font-medium">稿費內容</Label>
-              {(() => {
+              {isNoFeeTranslator ? (
+                <span className="text-xs text-warning bg-warning/10 border border-warning/30 rounded px-2 py-0.5">無須開立稿費</span>
+              ) : (() => {
                 const assigneeOpt = selectOptionsStore.getField("assignee").options.find(o => o.label === assignee);
                 return assigneeOpt?.note ? (
                   <span className="text-xs text-muted-foreground bg-secondary/50 rounded px-2 py-0.5">{assigneeOpt.note}</span>
@@ -1234,7 +1277,7 @@ export default function TranslatorFeeDetail() {
                   <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">費率無誤</Label>
                 </div>
               )}
-              {canEdit && (
+              {canEdit && !isNoFeeTranslator && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -1272,12 +1315,12 @@ export default function TranslatorFeeDetail() {
                   </TableRow>
                 ) : (
                   taskItems.map((item, index) => (
-                    <TableRow key={item.id}>
+                    <TableRow key={item.id} className={isNoFeeTranslator ? "opacity-50" : ""}>
                       <TableCell>
                         <ColorSelect
                           fieldKey="taskType"
                           value={item.taskType}
-                          disabled={!canEdit}
+                          disabled={!canEdit || isNoFeeTranslator}
                           onValueChange={(v) => handleUpdateItem(item.id, "taskType", v)}
                           triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0"
                         />
@@ -1286,7 +1329,7 @@ export default function TranslatorFeeDetail() {
                         <ColorSelect
                           fieldKey="billingUnit"
                           value={item.billingUnit}
-                          disabled={!canEdit}
+                          disabled={!canEdit || isNoFeeTranslator}
                           onValueChange={(v) => handleUpdateItem(item.id, "billingUnit", v)}
                           triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0"
                         />
@@ -1295,13 +1338,13 @@ export default function TranslatorFeeDetail() {
                         <Input
                           type="text"
                           inputMode="decimal"
-                          value={item.unitPrice}
+                          value={isNoFeeTranslator ? 0 : item.unitPrice}
                           onChange={(e) => {
                             const v = e.target.value;
                             if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitPrice", v as any);
                           }}
                           onBlur={(e) => handleNumberBlur(item.id, "unitPrice", e.target.value)}
-                          disabled={!canEdit}
+                          disabled={!canEdit || isNoFeeTranslator}
                           className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-20"
                         />
                       </TableCell>
@@ -1315,12 +1358,12 @@ export default function TranslatorFeeDetail() {
                             if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitCount", v as any);
                           }}
                           onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
-                          disabled={!canEdit}
+                          disabled={!canEdit || isNoFeeTranslator}
                           className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-24"
                         />
                       </TableCell>
                       <TableCell className="text-right text-xs font-medium">
-                        {(Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}
+                        {isNoFeeTranslator ? 0 : (Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}
                       </TableCell>
                       {canEdit && (
                         <TableCell className="text-right px-1">
