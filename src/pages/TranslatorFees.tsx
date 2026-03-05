@@ -563,6 +563,8 @@ export default function TranslatorFees() {
         onAddSort={tableViews.addSort}
         onRemoveSort={tableViews.removeSort}
         onUpdateSort={tableViews.updateSort}
+        onRenameView={tableViews.renameView}
+        onReorderViews={tableViews.reorderViews}
         visibleFieldKeys={visibleFieldKeys}
         selectedCount={rowSelection.selectedCount}
       />
