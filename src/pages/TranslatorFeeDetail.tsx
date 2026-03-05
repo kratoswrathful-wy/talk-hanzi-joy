@@ -1323,7 +1323,7 @@ export default function TranslatorFeeDetail() {
                         {(Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}
                       </TableCell>
                       {canEdit && (
-                        <TableCell>
+                        <TableCell className="text-right">
                           {index > 0 ? (
                             <Button
                               variant="ghost"
