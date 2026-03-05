@@ -407,7 +407,7 @@ export default function ClientInfoSection({
                 )}
               </TableRow>
               <TableRow>
-                <TableCell colSpan={4} className="px-5">
+                <TableCell colSpan={4} className="px-[18px]">
                   <div className="flex items-center gap-2">
                     <Label className="text-xs text-muted-foreground whitespace-nowrap">PO #</Label>
                     <Input
