@@ -56,6 +56,8 @@ interface Props {
   onAddSort: (sort: Omit<TableSort, "id">) => void;
   onRemoveSort: (id: string) => void;
   onUpdateSort: (id: string, updates: Partial<TableSort>) => void;
+  onRenameView: (id: string, name: string) => void;
+  onReorderViews: (fromId: string, toId: string) => void;
   visibleFieldKeys: string[];
   selectedCount: number;
 }
