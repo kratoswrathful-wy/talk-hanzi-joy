@@ -71,9 +71,12 @@ Deno.serve(async (req) => {
       if (!prop || prop.type !== 'select' || !prop.select) return '';
       return prop.select.name;
     };
-    const extractPeople = (prop: any): string[] => {
+    const extractPeople = (prop: any): { name: string; email?: string }[] => {
       if (!prop || prop.type !== 'people') return [];
-      return prop.people.map((p: any) => p.name || p.id);
+      return prop.people.map((p: any) => ({
+        name: p.name || p.id,
+        email: p.person?.email || undefined,
+      }));
     };
     const extractDate = (prop: any): string => {
       if (!prop || prop.type !== 'date' || !prop.date) return '';
