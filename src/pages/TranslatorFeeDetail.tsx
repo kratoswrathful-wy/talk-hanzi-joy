@@ -1334,7 +1334,7 @@ export default function TranslatorFeeDetail() {
                               <X className="h-3.5 w-3.5" />
                             </Button>
                           ) : (
-                            <div className="h-7 w-7" />
+                            <div className="h-7 w-7 ml-auto" />
                           )}
                         </TableCell>
                       )}
