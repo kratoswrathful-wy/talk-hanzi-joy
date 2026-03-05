@@ -1438,7 +1438,7 @@ export default function TranslatorFeeDetail() {
                   <TableHead className="text-xs text-center w-[18%]">稿費單價</TableHead>
                   <TableHead className="text-xs text-center w-[22%]">計費單位數</TableHead>
                   <TableHead className="text-xs text-right w-[20%]">小計</TableHead>
-                  {canEdit && <TableHead className="text-xs w-10 px-1" />}
+                  {canEdit && <TableHead className="text-xs w-16 px-1" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1526,14 +1526,19 @@ export default function TranslatorFeeDetail() {
               {taskItems.length > 0 && (
                 <TableFooter>
                     <TableRow>
-                      <TableCell colSpan={3} />
+                      <TableCell colSpan={4} />
                       <TableCell className="text-sm font-medium text-right">
                         稿費總額
                       </TableCell>
-                      <TableCell className="text-right text-sm font-bold">
-                        {totalAmount.toLocaleString()}
-                      </TableCell>
-                      {canEdit && <TableCell className="px-1" />}
+                      {canEdit ? (
+                        <TableCell className="text-right text-sm font-bold px-1">
+                          {totalAmount.toLocaleString()}
+                        </TableCell>
+                      ) : (
+                        <TableCell className="text-right text-sm font-bold">
+                          {totalAmount.toLocaleString()}
+                        </TableCell>
+                      )}
                     </TableRow>
                 </TableFooter>
               )}
