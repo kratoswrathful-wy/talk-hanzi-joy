@@ -1050,17 +1050,17 @@ export default function TranslatorFeeDetail() {
         <div className="grid gap-5">
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-1.5">
-              <Label className="text-xs text-muted-foreground">開單對象</Label>
+              <Label className="text-xs text-muted-foreground">譯者</Label>
               <ColorSelect
                 fieldKey="assignee"
                 value={assignee}
                 disabled={!canEdit}
                 onValueChange={(v) => {
-                  trackChange("開單對象", assignee, v);
+                  trackChange("譯者", assignee, v);
                   setAssignee(v);
                   if (id) feeStore.updateFee(id, { assignee: v });
                 }}
-                placeholder="選擇開單對象"
+                placeholder="選擇譯者"
               />
             </div>
             <div className="grid gap-1.5">
