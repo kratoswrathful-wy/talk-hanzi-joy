@@ -14,7 +14,6 @@ export const PRESET_COLORS = [
   "#EAB308", // yellow
   "#84CC16", // lime
   "#22C55E", // green
-  "#14B8A6", // teal
   "#3B82F6", // blue
   "#6366F1", // indigo
   "#8B5CF6", // violet
