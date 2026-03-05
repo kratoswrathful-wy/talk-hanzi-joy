@@ -94,6 +94,8 @@ const fieldLabels: Record<string, string> = {
   title: "標題",
   assignee: "開單對象",
   internalNote: "相關案件",
+  client: "客戶",
+  contact: "聯絡人",
 };
 
 // --- Rich Comment Components ---
@@ -713,6 +715,22 @@ export default function TranslatorFeeDetail() {
       };
       hasBeenSubmittedRef.current = true;
     } else {
+      // Log status change (finalize) after first submission
+      const statusEntry = {
+        id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        changedBy: roleLabels[currentRole],
+        description: `狀態 草稿 → 開立完成`,
+        timestamp: formatTimestamp(new Date()),
+      };
+      setEditLog((prev) => {
+        const updated = [...prev, statusEntry];
+        if (id) {
+          feeStore.updateFee(id, {
+            editLogs: updated.map((e) => ({ id: e.id, field: "", oldValue: "", newValue: e.description, author: e.changedBy, timestamp: e.timestamp })),
+          });
+        }
+        return updated;
+      });
       // Update snapshot after force-commit
       snapshotRef.current = {
         taskItems: [...taskItems],
@@ -725,6 +743,24 @@ export default function TranslatorFeeDetail() {
   };
 
   const handleRecall = () => {
+    // Log status change (recall) — always log after first submission
+    if (hasBeenSubmittedRef.current) {
+      const statusEntry = {
+        id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        changedBy: roleLabels[currentRole],
+        description: `狀態 開立完成 → 草稿`,
+        timestamp: formatTimestamp(new Date()),
+      };
+      setEditLog((prev) => {
+        const updated = [...prev, statusEntry];
+        if (id) {
+          feeStore.updateFee(id, {
+            editLogs: updated.map((e) => ({ id: e.id, field: "", oldValue: "", newValue: e.description, author: e.changedBy, timestamp: e.timestamp })),
+          });
+        }
+        return updated;
+      });
+    }
     setStatus("draft");
   };
 
@@ -1124,17 +1160,16 @@ export default function TranslatorFeeDetail() {
                   value={clientInfo.client}
                   disabled={!canEdit}
                   onValueChange={(clientName) => {
+                    trackChange("客戶", clientInfo.client, clientName);
                     const updatedInfo = { ...clientInfo, client: clientName };
                     if (clientName) {
-                      // Auto-fill client task item prices
+                      // Auto-fill client task item prices (always overwrite on client change)
                       updatedInfo.clientTaskItems = updatedInfo.clientTaskItems.map(item => {
-                        if (Number(item.clientPrice) !== 0) return item;
                         const price = defaultPricingStore.getClientPrice(clientName, item.taskType);
                         return price !== undefined ? { ...item, clientPrice: price } : item;
                       });
-                      // Auto-fill translator task item prices via tiers
+                      // Auto-fill translator task item prices via tiers (always overwrite)
                       const updatedTaskItems = taskItems.map(item => {
-                        if (Number(item.unitPrice) !== 0) return item;
                         const cp = defaultPricingStore.getClientPrice(clientName, item.taskType);
                         if (cp === undefined) return item;
                         const tp = defaultPricingStore.getTranslatorPrice(cp);
@@ -1156,6 +1191,7 @@ export default function TranslatorFeeDetail() {
                   value={clientInfo.contact}
                   disabled={!canEdit}
                   onValueChange={(v) => {
+                    trackChange("聯絡人", clientInfo.contact, v);
                     const updated = { ...clientInfo, contact: v };
                     setClientInfo(updated);
                     if (id) feeStore.updateFee(id, { clientInfo: updated });
