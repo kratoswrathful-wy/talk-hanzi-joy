@@ -928,7 +928,7 @@ export default function TranslatorFeeDetail() {
     }
   };
 
-  const totalAmount = taskItems.reduce(
+  const totalAmount = isNoFeeTranslator ? 0 : taskItems.reduce(
     (sum, item) => sum + Number(item.unitCount) * Number(item.unitPrice),
     0
   );
