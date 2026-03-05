@@ -150,9 +150,20 @@ export default function ClientInfoSection({
     <div className="space-y-5">
       {/* Client Task Items Table */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col gap-1.5">
+        <div className="space-y-2">
+          {/* Row 1: Title + Add button */}
+          <div className="flex items-center justify-between">
             <Label className="text-sm font-medium">客戶端計費項目</Label>
+            {canEdit && !clientItemsLocked && (
+              <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={addItem}>
+                <Plus className="h-3.5 w-3.5" />
+                新增項目
+              </Button>
+            )}
+          </div>
+
+          {/* Row 2: sameCase (left) + reconciled/invoiced (right) */}
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Checkbox
                 id="sameCase"
@@ -170,8 +181,6 @@ export default function ClientInfoSection({
                 與他筆費用為同一案件
               </Label>
             </div>
-          </div>
-          <div className="flex flex-col items-end gap-1.5">
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5">
                 <Checkbox
@@ -191,13 +200,11 @@ export default function ClientInfoSection({
                 />
                 <Label htmlFor="invoiced" className="text-xs cursor-pointer whitespace-nowrap">請款完成</Label>
               </div>
-              {canEdit && !clientItemsLocked && (
-                <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={addItem}>
-                  <Plus className="h-3.5 w-3.5" />
-                  新增項目
-                </Button>
-              )}
             </div>
+          </div>
+
+          {/* Row 3: Dispatch route (right-aligned) */}
+          <div className="flex justify-end">
             <div className="flex items-center gap-1.5">
               <Label className="text-xs text-muted-foreground whitespace-nowrap">派案途徑</Label>
               <ColorSelect
@@ -209,222 +216,88 @@ export default function ClientInfoSection({
               />
             </div>
           </div>
-        </div>
 
-        <div className="rounded-lg border-2 border-border overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-secondary/30">
-                <TableHead className="text-xs w-[25%]">客戶端任務類型</TableHead>
-                <TableHead className="text-xs w-[15%]">計費單位</TableHead>
-                <TableHead className="text-xs w-[18%]">客戶報價</TableHead>
-                <TableHead className="text-xs w-[22%]">計費單位數</TableHead>
-                <TableHead className="text-xs text-right w-[20%]">小計</TableHead>
-                {canEdit && !clientItemsLocked && <TableHead className="text-xs w-12" />}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {displayClientTaskItems.map((item, index) => (
-                <TableRow key={item.id} className={clientItemsLocked ? "opacity-50" : ""}>
-                  <TableCell>
-                    <ColorSelect
-                      fieldKey="clientTaskType"
-                      value={item.taskType}
-                      disabled={!canEdit || clientItemsLocked}
-                      onValueChange={(v) => updateItem(item.id, "taskType", v)}
-                      triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <ColorSelect
-                      fieldKey="clientBillingUnit"
-                      value={item.billingUnit}
-                      disabled={!canEdit || clientItemsLocked}
-                      onValueChange={(v) => updateItem(item.id, "billingUnit", v)}
-                      triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      value={clientItemsLocked ? (firstFeePage ? item.clientPrice : "N/A") : item.clientPrice}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "clientPrice", v as any);
-                      }}
-                      onBlur={(e) => handleNumberBlur(item.id, "clientPrice", e.target.value)}
-                      disabled={!canEdit || clientItemsLocked}
-                      className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-20 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      value={clientItemsLocked ? (firstFeePage ? item.unitCount : "N/A") : item.unitCount}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "unitCount", v as any);
-                      }}
-                      onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
-                      disabled={!canEdit || clientItemsLocked}
-                      className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-24 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                    />
-                  </TableCell>
-                  <TableCell className="text-right text-xs font-medium">
-                    {clientItemsLocked && !firstFeePage
-                      ? "N/A"
-                      : (Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
-                  </TableCell>
-                  {canEdit && !clientItemsLocked && (
-                    <TableCell>
-                      {index > 0 ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                          onClick={() => removeItem(item.id)}
+          {/* Sub-options for sameCase */}
+          {clientInfo.sameCase && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 ml-6">
+                <Checkbox
+                  id="isFirstFee"
+                  checked={clientInfo.isFirstFee}
+                  disabled={isFirstFeeDisabled}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      const hasExisting = currentInternalNote && allFees.some(
+                        (f) => f.id !== currentFeeId && f.clientInfo?.sameCase && f.clientInfo?.isFirstFee && f.internalNote === currentInternalNote
+                      );
+                      if (hasExisting) {
+                        update("isFirstFee", true);
+                        onFirstFeeConflict?.();
+                        return;
+                      }
+                    }
+                    update("isFirstFee", !!checked);
+                  }}
+                />
+                <Label
+                  htmlFor="isFirstFee"
+                  className={`text-xs cursor-pointer ${isFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
+                >
+                  為主要營收紀錄（於總表列入營收統計）
+                </Label>
+              </div>
+              <div className="flex items-center gap-2 ml-6">
+                <Checkbox
+                  id="notFirstFee"
+                  checked={clientInfo.notFirstFee}
+                  disabled={notFirstFeeDisabled}
+                  onCheckedChange={(checked) => update("notFirstFee", !!checked)}
+                />
+                <Label
+                  htmlFor="notFirstFee"
+                  className={`text-xs cursor-pointer ${notFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
+                >
+                  非主要營收紀錄（於總表不列入營收統計）
+                </Label>
+              </div>
+
+              {/* Related Fees list */}
+              {currentInternalNote && (
+                <div className="ml-6 mt-2">
+                  <Label className="text-xs text-muted-foreground">
+                    同案件費用頁面（{relatedFees.length} 筆）
+                  </Label>
+                  {relatedFees.length > 0 ? (
+                    <div className="space-y-1 mt-1">
+                      {relatedFees.map((f) => (
+                        <Link
+                          key={f.id}
+                          to={`/fees/${f.id}`}
+                          className="flex items-center justify-between text-xs px-2 py-1.5 rounded-md border border-border bg-secondary/30 hover:bg-secondary/50 transition-colors"
                         >
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      ) : (
-                        <div className="h-7 w-7" />
-                      )}
-                    </TableCell>
+                          <span className="text-foreground font-medium truncate">
+                            {f.title || "（未命名）"}
+                          </span>
+                          <span className="text-muted-foreground shrink-0 ml-2">
+                            {f.clientInfo?.isFirstFee ? "主要" : f.clientInfo?.notFirstFee ? "非主要" : "—"}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">無相關費用頁面</p>
                   )}
-                </TableRow>
-              ))}
-            </TableBody>
-            <TableFooter>
-              <TableRow>
-                <TableCell colSpan={2} className="text-left">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">關鍵字</span>
-                    <Input
-                      value={clientInfo.eciKeywords || clientInfo.clientCaseId}
-                      onChange={(e) => updateMultiple({ eciKeywords: e.target.value, clientCaseId: e.target.value })}
-                      disabled={!canEdit}
-                      placeholder="客戶端案號或關鍵字"
-                      className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
-                    />
-                  </div>
-                </TableCell>
-                <TableCell colSpan={2} className="text-sm font-medium text-right">
-                  營收總額
-                </TableCell>
-                <TableCell className="text-right text-sm font-bold">
-                  {clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}
-                </TableCell>
-                {canEdit && !clientItemsLocked && <TableCell />}
-              </TableRow>
-              <TableRow>
-                <TableCell colSpan={2} className="text-left">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">PO #</span>
-                    <Input
-                      value={clientInfo.clientPoNumber}
-                      onChange={(e) => update("clientPoNumber", e.target.value)}
-                      disabled={!canEdit}
-                      placeholder="客戶 PO 編號"
-                      className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
-                    />
-                  </div>
-                </TableCell>
-                <TableCell colSpan={2} className="text-sm font-medium text-right">
-                  {clientInfo.sameCase && profitFeeCount > 0
-                    ? `利潤（${profitFeeCount} 筆稿費）`
-                    : "利潤"}
-                </TableCell>
-                <TableCell className={`text-right text-sm font-bold ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
-                  {clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}
-                </TableCell>
-                {canEdit && !clientItemsLocked && <TableCell />}
-              </TableRow>
-            </TableFooter>
-          </Table>
-        </div>
-      </div>
-
-      {/* Sub-options for sameCase */}
-      {clientInfo.sameCase && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 ml-6">
-            <Checkbox
-              id="isFirstFee"
-              checked={clientInfo.isFirstFee}
-              disabled={isFirstFeeDisabled}
-              onCheckedChange={(checked) => {
-                if (checked) {
-                  const hasExisting = currentInternalNote && allFees.some(
-                    (f) => f.id !== currentFeeId && f.clientInfo?.sameCase && f.clientInfo?.isFirstFee && f.internalNote === currentInternalNote
-                  );
-                  if (hasExisting) {
-                    update("isFirstFee", true);
-                    onFirstFeeConflict?.();
-                    return;
-                  }
-                }
-                update("isFirstFee", !!checked);
-              }}
-            />
-            <Label
-              htmlFor="isFirstFee"
-              className={`text-xs cursor-pointer ${isFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
-            >
-              為主要營收紀錄（於總表列入營收統計）
-            </Label>
-          </div>
-          <div className="flex items-center gap-2 ml-6">
-            <Checkbox
-              id="notFirstFee"
-              checked={clientInfo.notFirstFee}
-              disabled={notFirstFeeDisabled}
-              onCheckedChange={(checked) => update("notFirstFee", !!checked)}
-            />
-            <Label
-              htmlFor="notFirstFee"
-              className={`text-xs cursor-pointer ${notFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
-            >
-              非主要營收紀錄（於總表不列入營收統計）
-            </Label>
-          </div>
-
-          {/* Related Fees list */}
-          {currentInternalNote && (
-            <div className="ml-6 mt-2">
-              <Label className="text-xs text-muted-foreground">
-                同案件費用頁面（{relatedFees.length} 筆）
-              </Label>
-              {relatedFees.length > 0 ? (
-                <div className="space-y-1 mt-1">
-                  {relatedFees.map((f) => (
-                    <Link
-                      key={f.id}
-                      to={`/fees/${f.id}`}
-                      className="flex items-center justify-between text-xs px-2 py-1.5 rounded-md border border-border bg-secondary/30 hover:bg-secondary/50 transition-colors"
-                    >
-                      <span className="text-foreground font-medium truncate">
-                        {f.title || "（未命名）"}
-                      </span>
-                      <span className="text-muted-foreground shrink-0 ml-2">
-                        {f.clientInfo?.isFirstFee ? "主要" : f.clientInfo?.notFirstFee ? "非主要" : "—"}
-                      </span>
-                    </Link>
-                  ))}
                 </div>
-              ) : (
-                <p className="text-xs text-muted-foreground mt-1">無相關費用頁面</p>
+              )}
+              {!currentInternalNote && (
+                <p className="ml-6 mt-2 text-xs text-muted-foreground">請先填寫「相關案件」欄位以比對同案件費用</p>
               )}
             </div>
           )}
-          {!currentInternalNote && (
-            <p className="ml-6 mt-2 text-xs text-muted-foreground">請先填寫「相關案件」欄位以比對同案件費用</p>
-          )}
         </div>
-      )}
+      </div>
 
-      {/* Confirmation dialog */}
+
       <AlertDialog open={showUncheckWarning} onOpenChange={setShowUncheckWarning}>
         <AlertDialogContent>
           <AlertDialogHeader>
