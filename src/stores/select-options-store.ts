@@ -1,8 +1,10 @@
 import { useSyncExternalStore } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface SelectOption {
   id: string;
   label: string;
+  email?: string; // for assignee options: the member's email
   color: string; // hex color
   note?: string; // optional note (e.g. translator fee note)
 }
