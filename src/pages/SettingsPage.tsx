@@ -814,7 +814,7 @@ function NewTierGroupButton({
             key={tt.id}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all",
-              selectedTaskType === tt.label
+              selectedTaskTypes.includes(tt.label)
                 ? "ring-2 ring-primary/50 scale-105"
                 : "opacity-70 hover:opacity-100"
             )}
@@ -823,7 +823,7 @@ function NewTierGroupButton({
               color: tt.color,
               borderColor: tt.color + "44",
             }}
-            onClick={() => setSelectedTaskType(tt.label)}
+            onClick={() => toggleTaskType(tt.label)}
           >
             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tt.color }} />
             {tt.label}
