@@ -381,7 +381,7 @@ export default function ClientInfoSection({
             </TableBody>
             <TableFooter>
               <TableRow>
-                <TableCell colSpan={canEdit && !clientItemsLocked ? 4 : 3}>
+                <TableCell colSpan={4} className="text-sm font-medium text-right">
                   <div className="flex items-center gap-2">
                     <Label className="text-xs text-muted-foreground whitespace-nowrap">關鍵字</Label>
                     <Input
@@ -393,7 +393,7 @@ export default function ClientInfoSection({
                     />
                   </div>
                 </TableCell>
-                <TableCell colSpan={2} className="text-sm font-medium text-right">
+                <TableCell className="text-sm font-medium text-right">
                   營收總額
                 </TableCell>
                 <TableCell className="text-right text-sm font-bold tabular-nums">
@@ -402,7 +402,7 @@ export default function ClientInfoSection({
                 {canEdit && !clientItemsLocked && <TableCell />}
               </TableRow>
               <TableRow>
-                <TableCell colSpan={canEdit && !clientItemsLocked ? 4 : 3}>
+                <TableCell colSpan={4}>
                   <div className="flex items-center gap-2">
                     <Label className="text-xs text-muted-foreground whitespace-nowrap">PO #</Label>
                     <Input
@@ -414,7 +414,7 @@ export default function ClientInfoSection({
                     />
                   </div>
                 </TableCell>
-                <TableCell colSpan={2} className="text-sm font-medium text-right">
+                <TableCell className="text-sm font-medium text-right">
                   {clientInfo.sameCase && profitFeeCount > 0
                     ? `利潤（${profitFeeCount} 筆稿費）`
                     : "利潤"}
