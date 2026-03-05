@@ -819,8 +819,8 @@ export default function TranslatorFeeDetail() {
     }
 
     // Auto-detect Notion URL and fetch data
-    const pageId = extractNotionPageId(url);
-    if (!pageId || !url.includes("notion.so")) {
+    const pageId = extractNotionPageId(cleanedUrl);
+    if (!pageId || !cleanedUrl.includes("notion.so")) {
       toast.info("已儲存連結");
       return;
     }
