@@ -602,45 +602,49 @@ function TranslatorTierSection() {
   const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
-  const [tierErrors, setTierErrors] = useState<Record<string, string>>({});
 
-  /** Validate all tiers within a group after an edit; returns true if valid */
+  // Error modal state
+  const [errorModalOpen, setErrorModalOpen] = useState(false);
+  const [errorGroupKey, setErrorGroupKey] = useState<string | null>(null);
+  const [errorTierIds, setErrorTierIds] = useState<Record<string, string>>({});
+  const [modalEditingField, setModalEditingField] = useState<string | null>(null);
+  const [modalEditValue, setModalEditValue] = useState("");
+
+  /** Validate a group; if invalid, open blocking modal. Returns true if valid. */
   const validateGroup = useCallback((groupItems: TranslatorTier[]): boolean => {
-    const newErrors: Record<string, string> = {};
+    const errors: Record<string, string> = {};
     let valid = true;
 
     for (const tier of groupItems) {
-      // maxPrice != 0 means finite upper bound; must be > minPrice
       if (tier.maxPrice !== 0 && tier.maxPrice <= tier.minPrice) {
-        newErrors[tier.id] = `上限 (${tier.maxPrice}) 必須大於下限 (${tier.minPrice})，或填 0 表示無上限`;
+        errors[tier.id] = `上限 (${tier.maxPrice}) 必須大於下限 (${tier.minPrice})，或填 0 表示無上限`;
         valid = false;
       }
     }
 
-    // Check overlap between tiers (sorted by minPrice)
     const sorted = [...groupItems].sort((a, b) => a.minPrice - b.minPrice);
     for (let i = 0; i < sorted.length - 1; i++) {
       const curr = sorted[i];
       const next = sorted[i + 1];
       const currMax = curr.maxPrice === 0 ? Infinity : curr.maxPrice;
       if (currMax > next.minPrice) {
-        if (!newErrors[curr.id]) {
-          newErrors[curr.id] = `此級距與「${next.minPrice}」起的級距重疊`;
+        if (!errors[curr.id]) {
+          errors[curr.id] = `此級距與「${next.minPrice}」起的級距重疊`;
           valid = false;
         }
-        if (!newErrors[next.id]) {
-          newErrors[next.id] = `此級距與上限為「${curr.maxPrice === 0 ? "∞" : curr.maxPrice}」的級距重疊`;
+        if (!errors[next.id]) {
+          errors[next.id] = `此級距與上限為「${curr.maxPrice === 0 ? "∞" : curr.maxPrice}」的級距重疊`;
           valid = false;
         }
       }
     }
 
-    // Clear old errors for this group's tiers, then set new ones
-    setTierErrors((prev) => {
-      const next = { ...prev };
-      for (const t of groupItems) delete next[t.id];
-      return { ...next, ...newErrors };
-    });
+    if (!valid && groupItems.length > 0) {
+      setErrorTierIds(errors);
+      setErrorGroupKey(`${groupItems[0].taskType}::${groupItems[0].billingUnit}`);
+      setErrorModalOpen(true);
+    }
+
     return valid;
   }, []);
 
@@ -652,9 +656,50 @@ function TranslatorTierSection() {
     setEditingField(null);
   }, [editValue, updateTier]);
 
-  // After tiers change, sort each group and validate
+  const handleModalSaveField = useCallback((tierId: string, field: "minPrice" | "maxPrice" | "translatorPrice") => {
+    const num = Number(modalEditValue);
+    if (!isNaN(num) && num >= 0) {
+      updateTier(tierId, { [field]: num });
+    }
+    setModalEditingField(null);
+  }, [modalEditValue, updateTier]);
+
+  // After tiers change, validate groups
   useEffect(() => {
-    // Sort tiers by minPrice within each group
+    if (errorModalOpen && errorGroupKey) {
+      // Re-validate the error group to check if fixed
+      const [tt, bu] = errorGroupKey.split("::");
+      const groupItems = tiers.filter((t) => t.taskType === tt && t.billingUnit === bu);
+      // Re-run validation silently
+      const errors: Record<string, string> = {};
+      let valid = true;
+      for (const tier of groupItems) {
+        if (tier.maxPrice !== 0 && tier.maxPrice <= tier.minPrice) {
+          errors[tier.id] = `上限 (${tier.maxPrice}) 必須大於下限 (${tier.minPrice})，或填 0 表示無上限`;
+          valid = false;
+        }
+      }
+      const sorted = [...groupItems].sort((a, b) => a.minPrice - b.minPrice);
+      for (let i = 0; i < sorted.length - 1; i++) {
+        const curr = sorted[i];
+        const next = sorted[i + 1];
+        const currMax = curr.maxPrice === 0 ? Infinity : curr.maxPrice;
+        if (currMax > next.minPrice) {
+          if (!errors[curr.id]) { errors[curr.id] = `此級距與「${next.minPrice}」起的級距重疊`; valid = false; }
+          if (!errors[next.id]) { errors[next.id] = `此級距與上限為「${curr.maxPrice === 0 ? "∞" : curr.maxPrice}」的級距重疊`; valid = false; }
+        }
+      }
+      setErrorTierIds(errors);
+      if (valid) {
+        setErrorModalOpen(false);
+        setErrorGroupKey(null);
+      }
+    }
+  }, [tiers, errorModalOpen, errorGroupKey]);
+
+  // Trigger validation on edit (not in modal)
+  useEffect(() => {
+    if (errorModalOpen) return; // Don't trigger new modals while one is open
     const groupMap = new Map<string, TranslatorTier[]>();
     for (const t of tiers) {
       const gk = `${t.taskType}::${t.billingUnit}`;
@@ -662,22 +707,9 @@ function TranslatorTierSection() {
       groupMap.get(gk)!.push(t);
     }
     for (const items of groupMap.values()) {
-      // Check if already sorted
-      let needsSort = false;
-      for (let i = 1; i < items.length; i++) {
-        if (items[i].minPrice < items[i - 1].minPrice) { needsSort = true; break; }
-      }
-      if (needsSort) {
-        const sorted = [...items].sort((a, b) => a.minPrice - b.minPrice);
-        sorted.forEach((t, idx) => {
-          // Re-order by removing and re-adding — simpler: just update with same data to trigger reorder
-          // We'll use a different approach: bulk reorder via store isn't available,
-          // so we accept the visual sort below
-        });
-      }
       validateGroup(items);
     }
-  }, [tiers, validateGroup]);
+  }, [tiers, validateGroup, errorModalOpen]);
 
   const fieldKey = (tierId: string, field: string) => `${tierId}::${field}`;
 
@@ -692,7 +724,6 @@ function TranslatorTierSection() {
       groups.push({
         taskType: tier.taskType,
         billingUnit: tier.billingUnit,
-        // Sort items by minPrice for display
         items: tiers
           .filter((t) => t.taskType === tier.taskType && t.billingUnit === tier.billingUnit)
           .sort((a, b) => a.minPrice - b.minPrice),
@@ -700,9 +731,15 @@ function TranslatorTierSection() {
     }
   }
 
-  const renderTierValue = (tier: typeof tiers[0], field: "minPrice" | "maxPrice" | "translatorPrice") => {
+  const renderTierValue = (tier: typeof tiers[0], field: "minPrice" | "maxPrice" | "translatorPrice", inModal = false) => {
+    const currentEditingField = inModal ? modalEditingField : editingField;
+    const currentEditValue = inModal ? modalEditValue : editValue;
+    const setCurrentEditingField = inModal ? setModalEditingField : setEditingField;
+    const setCurrentEditValue = inModal ? setModalEditValue : setEditValue;
+    const saveFn = inModal ? handleModalSaveField : handleSaveField;
+
     const key = fieldKey(tier.id, field);
-    const isEditing = editingField === key;
+    const isEditing = currentEditingField === key;
     const displayValue = field === "maxPrice" && tier[field] === 0 ? "∞" : tier[field];
 
     return (
@@ -711,15 +748,15 @@ function TranslatorTierSection() {
           <Input
             type="text"
             inputMode="decimal"
-            value={editValue}
+            value={currentEditValue}
             onChange={(e) => {
-              if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setEditValue(e.target.value);
+              if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setCurrentEditValue(e.target.value);
             }}
-            onBlur={() => handleSaveField(tier.id, field)}
+            onBlur={() => saveFn(tier.id, field)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") handleSaveField(tier.id, field);
-              if (e.key === "Escape") setEditingField(null);
-              handleTabKeyDown(e, () => handleSaveField(tier.id, field));
+              if (e.key === "Enter") saveFn(tier.id, field);
+              if (e.key === "Escape") setCurrentEditingField(null);
+              if (!inModal) handleTabKeyDown(e, () => saveFn(tier.id, field));
             }}
             autoFocus
             className="h-7 text-xs"
@@ -729,8 +766,8 @@ function TranslatorTierSection() {
             data-editable-cell
             className="w-full text-left text-sm tabular-nums hover:text-primary transition-colors cursor-pointer"
             onClick={() => {
-              setEditingField(key);
-              setEditValue(String(tier[field]));
+              setCurrentEditingField(key);
+              setCurrentEditValue(String(tier[field]));
             }}
           >
             {displayValue}
@@ -739,6 +776,14 @@ function TranslatorTierSection() {
       </div>
     );
   };
+
+  // Error modal group data
+  const errorGroup = errorGroupKey
+    ? groups.find((g) => `${g.taskType}::${g.billingUnit}` === errorGroupKey)
+    : null;
+  const errorGroupTtOpt = errorGroup
+    ? taskTypeOptions.find((o) => o.label === errorGroup.taskType)
+    : null;
 
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
@@ -786,31 +831,24 @@ function TranslatorTierSection() {
                 </div>
 
                 {group.items.map((tier) => (
-                  <div key={tier.id}>
-                    <div
-                      className={cn(
-                        "grid grid-cols-[1fr_1fr_1fr_36px] gap-2 items-center px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors",
-                        tierErrors[tier.id] && "ring-1 ring-destructive/50 bg-destructive/5"
-                      )}
-                    >
-                      {renderTierValue(tier, "minPrice")}
-                      {renderTierValue(tier, "maxPrice")}
-                      {renderTierValue(tier, "translatorPrice")}
+                  <div
+                    key={tier.id}
+                    className="grid grid-cols-[1fr_1fr_1fr_36px] gap-2 items-center px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
+                  >
+                    {renderTierValue(tier, "minPrice")}
+                    {renderTierValue(tier, "maxPrice")}
+                    {renderTierValue(tier, "translatorPrice")}
 
-                      <div className="flex justify-center">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                          onClick={() => removeTier(tier.id)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
+                    <div className="flex justify-center">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeTier(tier.id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </div>
-                    {tierErrors[tier.id] && (
-                      <p className="text-xs text-destructive px-2 mt-0.5">{tierErrors[tier.id]}</p>
-                    )}
                   </div>
                 ))}
 
@@ -836,6 +874,81 @@ function TranslatorTierSection() {
         existingGroups={groups.map((g) => `${g.taskType}::${g.billingUnit}`)}
         onAdd={(taskType, billingUnit, min, max, price) => addTier(taskType, billingUnit, min, max, price)}
       />
+
+      {/* Blocking error modal */}
+      {errorModalOpen && errorGroup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-card border border-destructive/50 rounded-xl shadow-2xl p-6 max-w-lg w-full mx-4 space-y-4">
+            <div className="space-y-1">
+              <h3 className="text-base font-semibold text-destructive flex items-center gap-2">
+                <span className="inline-block w-2 h-2 rounded-full bg-destructive" />
+                級距設定錯誤
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                以下級距存在錯誤，請修正數值或刪除有問題的級距後才能繼續操作。
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                {errorGroupTtOpt ? (
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                    style={{
+                      backgroundColor: errorGroupTtOpt.color + "22",
+                      color: errorGroupTtOpt.color,
+                      borderColor: errorGroupTtOpt.color + "44",
+                    }}
+                  >
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: errorGroupTtOpt.color }} />
+                    {errorGroup.taskType}
+                  </span>
+                ) : (
+                  <span className="text-sm font-medium">{errorGroup.taskType}</span>
+                )}
+                <span className="text-xs text-muted-foreground">／{errorGroup.billingUnit}</span>
+              </div>
+
+              <div className="grid grid-cols-[1fr_1fr_1fr_36px] gap-2 px-2 py-1.5 text-xs text-muted-foreground font-medium border-b border-border">
+                <span>客戶報價下限 (&gt;)</span>
+                <span>客戶報價上限 (≦)</span>
+                <span>對應譯者單價</span>
+                <span />
+              </div>
+
+              {errorGroup.items.map((tier) => (
+                <div key={tier.id}>
+                  <div
+                    className={cn(
+                      "grid grid-cols-[1fr_1fr_1fr_36px] gap-2 items-center px-2 py-1.5 rounded-md transition-colors",
+                      errorTierIds[tier.id]
+                        ? "ring-1 ring-destructive/50 bg-destructive/5"
+                        : "hover:bg-secondary/30"
+                    )}
+                  >
+                    {renderTierValue(tier, "minPrice", true)}
+                    {renderTierValue(tier, "maxPrice", true)}
+                    {renderTierValue(tier, "translatorPrice", true)}
+                    <div className="flex justify-center">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeTier(tier.id)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  {errorTierIds[tier.id] && (
+                    <p className="text-xs text-destructive px-2 mt-0.5">{errorTierIds[tier.id]}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
