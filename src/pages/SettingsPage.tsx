@@ -831,7 +831,9 @@ function TranslatorTierSection() {
                   key={tier.id}
                   className="grid grid-cols-[80px_1fr_1fr_36px] gap-2 items-center px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
                 >
-                  {renderRange(group.rows, idx)}
+                  {uncommittedIds.has(tier.id)
+                    ? <span className="text-xs text-muted-foreground/50 italic">編輯中</span>
+                    : renderRange(group.rows.filter((r) => !uncommittedIds.has(r.id)), group.rows.filter((r) => !uncommittedIds.has(r.id)).indexOf(tier))}
                   {renderTierValue(tier, "threshold")}
                   {renderTierValue(tier, "translatorPrice")}
                   <div className="flex justify-center">
