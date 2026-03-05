@@ -834,7 +834,7 @@ function TranslatorTierSection() {
         taskTypeOptions={taskTypeOptions}
         billingUnits={billingUnits}
         existingGroups={groups.map((g) => `${g.taskType}::${g.billingUnit}`)}
-        onAdd={(taskType, billingUnit) => addTier(taskType, billingUnit, 0, 0, 0)}
+        onAdd={(taskType, billingUnit, min, max, price) => addTier(taskType, billingUnit, min, max, price)}
       />
     </div>
   );
