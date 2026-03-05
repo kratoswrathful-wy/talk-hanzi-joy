@@ -127,27 +127,29 @@ export default function AuthPage() {
               {isLogin ? "登入" : "註冊"}
             </Button>
           </form>
-          <div className="mt-4 text-center text-sm text-muted-foreground space-y-2">
-            {isLogin && (
-              <div className="flex items-center justify-center space-x-2">
-                <Checkbox
-                  id="keepLoggedIn"
-                  checked={keepLoggedIn}
-                  onCheckedChange={(checked) => setKeepLoggedIn(checked === true)}
-                />
-                <Label htmlFor="keepLoggedIn" className="text-sm font-normal cursor-pointer">
-                  保持登入
-                </Label>
+          <div className="mt-4 text-sm text-muted-foreground space-y-1">
+            <div className="flex items-center justify-between">
+              {isLogin ? (
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="keepLoggedIn"
+                    checked={keepLoggedIn}
+                    onCheckedChange={(checked) => setKeepLoggedIn(checked === true)}
+                  />
+                  <Label htmlFor="keepLoggedIn" className="text-sm font-normal cursor-pointer">
+                    保持登入
+                  </Label>
+                </div>
+              ) : <div />}
+              <div>
+                {isLogin ? "還沒有帳號？" : "已有帳號？"}{" "}
+                <button className="text-primary hover:underline" onClick={() => setIsLogin(!isLogin)}>
+                  {isLogin ? "註冊" : "登入"}
+                </button>
               </div>
-            )}
-            <div>
-              {isLogin ? "還沒有帳號？" : "已有帳號？"}{" "}
-              <button className="text-primary hover:underline" onClick={() => setIsLogin(!isLogin)}>
-                {isLogin ? "註冊" : "登入"}
-              </button>
             </div>
             {isLogin && (
-              <div>
+              <div className="text-right">
                 <button className="text-muted-foreground hover:text-foreground text-xs" onClick={() => setShowReset(true)}>
                   忘記密碼？
                 </button>
