@@ -93,7 +93,7 @@ const fieldLabels: Record<string, string> = {
   unitPrice: "單價",
   unitCount: "計費單位數",
   title: "標題",
-  assignee: "開單對象",
+  assignee: "譯者",
   internalNote: "相關案件",
   client: "客戶",
   contact: "聯絡人",
