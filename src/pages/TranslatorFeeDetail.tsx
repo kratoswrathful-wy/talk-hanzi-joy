@@ -643,21 +643,23 @@ export default function TranslatorFeeDetail() {
   if (currentRole === "assignee" && isDraft) {
     return (
       <div className="mx-auto max-w-3xl space-y-6">
-        {/* Role Switcher */}
-        <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
-          <span className="font-medium">測試角色：</span>
-          {(Object.keys(roleLabels) as UserRole[]).map((role) => (
-            <Button
-              key={role}
-              variant={currentRole === role ? "default" : "outline"}
-              size="sm"
-              className="h-6 text-xs px-2.5"
-              onClick={() => setCurrentRole(role)}
-            >
-              {roleLabels[role]}
-            </Button>
-          ))}
-        </div>
+        {/* Role Switcher — dev only */}
+        {import.meta.env.DEV && (
+          <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+            <span className="font-medium">測試角色：</span>
+            {(Object.keys(roleLabels) as UserRole[]).map((role) => (
+              <Button
+                key={role}
+                variant={currentRole === role ? "default" : "outline"}
+                size="sm"
+                className="h-6 text-xs px-2.5"
+                onClick={() => setCurrentRole(role)}
+              >
+                {roleLabels[role]}
+              </Button>
+            ))}
+          </div>
+        )}
         <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-2">
           <p className="text-sm">此稿費單尚未送出，譯者無法查看</p>
           <p className="text-xs">（實際環境中此紀錄不會出現在列表中）</p>
@@ -781,6 +783,7 @@ export default function TranslatorFeeDetail() {
       };
     }
     setStatus("finalized");
+    if (id) feeStore.updateFee(id, { status: "finalized" });
   };
 
   const handleRecall = () => {
@@ -803,6 +806,7 @@ export default function TranslatorFeeDetail() {
       });
     }
     setStatus("draft");
+    if (id) feeStore.updateFee(id, { status: "draft" });
   };
 
   const extractNotionPageId = (url: string): string | null => {
@@ -1074,21 +1078,23 @@ export default function TranslatorFeeDetail() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      {/* Role Switcher */}
-      <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
-        <span className="font-medium">測試角色：</span>
-        {(Object.keys(roleLabels) as UserRole[]).map((role) => (
-          <Button
-            key={role}
-            variant={currentRole === role ? "default" : "outline"}
-            size="sm"
-            className="h-6 text-xs px-2.5"
-            onClick={() => setCurrentRole(role)}
-          >
-            {roleLabels[role]}
-          </Button>
-        ))}
-      </div>
+      {/* Role Switcher — dev only */}
+      {import.meta.env.DEV && (
+        <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+          <span className="font-medium">測試角色：</span>
+          {(Object.keys(roleLabels) as UserRole[]).map((role) => (
+            <Button
+              key={role}
+              variant={currentRole === role ? "default" : "outline"}
+              size="sm"
+              className="h-6 text-xs px-2.5"
+              onClick={() => setCurrentRole(role)}
+            >
+              {roleLabels[role]}
+            </Button>
+          ))}
+        </div>
+      )}
 
       {/* Sticky top bar */}
       <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border -mx-4 px-4 py-3 flex items-center justify-between gap-4">
@@ -1136,63 +1142,63 @@ export default function TranslatorFeeDetail() {
             </Button>
           )}
           {isManager && isDraft && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs"
-                onClick={() => {
-                  if (isNavigationBlocked) {
-                    if (needsRoleAssignment) {
-                      toast.error("請將本頁面指定為相關案件的主要或非主要營收紀錄。");
-                      setDuplicateDialogStep("assignRole");
-                    } else {
-                      toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
-                      setDisableOption12A(false);
-                      setDuplicateDialogStep("choose");
-                    }
-                    return;
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() => {
+                if (isNavigationBlocked) {
+                  if (needsRoleAssignment) {
+                    toast.error("請將本頁面指定為相關案件的主要或非主要營收紀錄。");
+                    setDuplicateDialogStep("assignRole");
+                  } else {
+                    toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
+                    setDisableOption12A(false);
+                    setDuplicateDialogStep("choose");
                   }
-                  // Clone current fee with incrementing copy count
-                  const copyCount = (window as any).__copyCount ?? 0;
-                  (window as any).__copyCount = copyCount + 1;
-                  const draft = feeStore.createDraft();
-                  feeStore.updateFee(draft.id, {
-                    title: title ? `${title} 副本${copyCount + 1}` : "",
-                    assignee,
-                    taskItems: taskItems.map((item, idx) => ({ ...item, id: `item-clone-${Date.now()}-${idx}` })),
-                    internalNote,
-                    internalNoteUrl,
-                    clientInfo: { ...clientInfo },
-                  });
-                  navigate(`/fees/${draft.id}`);
-                }}
-              >
-                複製本頁
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs"
-                onClick={() => {
-                  if (isNavigationBlocked) {
-                    if (needsRoleAssignment) {
-                      toast.error("請將本頁面指定為相關案件的主要或非主要營收紀錄。");
-                      setDuplicateDialogStep("assignRole");
-                    } else {
-                      toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
-                      setDisableOption12A(false);
-                      setDuplicateDialogStep("choose");
-                    }
-                    return;
+                  return;
+                }
+                // Clone current fee with incrementing copy count
+                const copyCount = (window as any).__copyCount ?? 0;
+                (window as any).__copyCount = copyCount + 1;
+                const draft = feeStore.createDraft();
+                feeStore.updateFee(draft.id, {
+                  title: title ? `${title} 副本${copyCount + 1}` : "",
+                  assignee,
+                  taskItems: taskItems.map((item, idx) => ({ ...item, id: `item-clone-${Date.now()}-${idx}` })),
+                  internalNote,
+                  internalNoteUrl,
+                  clientInfo: { ...clientInfo },
+                });
+                navigate(`/fees/${draft.id}`);
+              }}
+            >
+              複製本頁
+            </Button>
+          )}
+          {isManager && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() => {
+                if (isNavigationBlocked) {
+                  if (needsRoleAssignment) {
+                    toast.error("請將本頁面指定為相關案件的主要或非主要營收紀錄。");
+                    setDuplicateDialogStep("assignRole");
+                  } else {
+                    toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
+                    setDisableOption12A(false);
+                    setDuplicateDialogStep("choose");
                   }
-                  const draft = feeStore.createDraft();
-                  navigate(`/fees/${draft.id}`);
-                }}
-              >
-                建立新費用頁面
-              </Button>
-            </>
+                  return;
+                }
+                const draft = feeStore.createDraft();
+                navigate(`/fees/${draft.id}`);
+              }}
+            >
+              建立新費用頁面
+            </Button>
           )}
         </div>
       </div>

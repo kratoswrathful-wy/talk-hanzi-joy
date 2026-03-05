@@ -559,15 +559,17 @@ export default function TranslatorFees() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
-      {/* Role Switcher */}
-      <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
-        <span className="font-medium">測試角色：</span>
-        {(Object.keys(roleLabels) as UserRole[]).map((role) => (
-          <Button key={role} variant={currentRole === role ? "default" : "outline"} size="sm" className="h-6 text-xs px-2.5" onClick={() => setCurrentRole(role)}>
-            {roleLabels[role]}
-          </Button>
-        ))}
-      </div>
+      {/* Role Switcher — dev only */}
+      {import.meta.env.DEV && (
+        <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+          <span className="font-medium">測試角色：</span>
+          {(Object.keys(roleLabels) as UserRole[]).map((role) => (
+            <Button key={role} variant={currentRole === role ? "default" : "outline"} size="sm" className="h-6 text-xs px-2.5" onClick={() => setCurrentRole(role)}>
+              {roleLabels[role]}
+            </Button>
+          ))}
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -575,6 +577,12 @@ export default function TranslatorFees() {
             <h1 className="text-2xl font-semibold tracking-tight">費用管理</h1>
             <p className="mt-1 text-sm text-muted-foreground">管理譯者費用請款單</p>
           </div>
+          {isManager && (
+            <Button size="sm" className="gap-1.5" onClick={handleCreate}>
+              <Plus className="h-4 w-4" />
+              新增費用
+            </Button>
+          )}
           {!activeView.isDefault && (
             <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
               此為自訂視圖，只有新增者本人可見
@@ -591,12 +599,6 @@ export default function TranslatorFees() {
               title="刪除選取項目"
             >
               <Trash2 className="h-4.5 w-4.5" />
-            </Button>
-          )}
-          {isManager && (
-            <Button size="sm" className="gap-1.5" onClick={handleCreate}>
-              <Plus className="h-4 w-4" />
-              新增費用
             </Button>
           )}
         </div>
