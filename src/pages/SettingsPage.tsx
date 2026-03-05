@@ -1,10 +1,43 @@
-import { useState } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { useSelectOptions } from "@/stores/select-options-store";
 import { useClientPricing, useTranslatorTiers } from "@/stores/default-pricing-store";
+
+/** Find the next editable cell in DOM order and click it */
+function focusNextEditableCell(currentElement: HTMLElement, reverse = false) {
+  const allCells = Array.from(
+    document.querySelectorAll<HTMLElement>("[data-editable-cell]")
+  );
+  if (allCells.length === 0) return;
+
+  // Find closest ancestor or self that is an editable cell, or find by parent
+  const container = currentElement.closest("[data-cell-container]");
+  const currentIndex = allCells.findIndex(
+    (cell) => cell === container || container?.contains(cell) || cell.contains(currentElement)
+  );
+
+  const nextIndex = reverse
+    ? (currentIndex - 1 + allCells.length) % allCells.length
+    : (currentIndex + 1) % allCells.length;
+
+  allCells[nextIndex]?.click();
+}
+
+function handleTabKeyDown(
+  e: React.KeyboardEvent<HTMLInputElement>,
+  onSave: () => void
+) {
+  if (e.key === "Tab") {
+    e.preventDefault();
+    onSave();
+    // Use rAF to wait for state update and re-render
+    requestAnimationFrame(() => {
+      focusNextEditableCell(e.target as HTMLElement, e.shiftKey);
+    });
+  }
+}
 
 function ClientPricingSection() {
   const { options: clientOptions } = useSelectOptions("client");
@@ -15,7 +48,7 @@ function ClientPricingSection() {
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
-  const handleSave = (client: string, taskType: string) => {
+  const handleSave = useCallback((client: string, taskType: string) => {
     const num = Number(editValue);
     if (!isNaN(num) && num >= 0) {
       if (num === 0) {
@@ -25,7 +58,7 @@ function ClientPricingSection() {
       }
     }
     setEditingCell(null);
-  };
+  }, [editValue, setClientPrice, removeClientPrice]);
 
   const cellKey = (client: string, taskType: string) => `${client}::${taskType}`;
 
@@ -97,35 +130,39 @@ function ClientPricingSection() {
                           {tt.label}
                         </span>
 
-                        {isEditing ? (
-                          <Input
-                            type="text"
-                            inputMode="decimal"
-                            value={editValue}
-                            onChange={(e) => {
-                              if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setEditValue(e.target.value);
-                            }}
-                            onBlur={() => handleSave(client.label, tt.label)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") handleSave(client.label, tt.label);
-                              if (e.key === "Escape") setEditingCell(null);
-                            }}
-                            autoFocus
-                            className="h-7 text-xs text-right"
-                          />
-                        ) : (
-                          <button
-                            className="text-right text-sm tabular-nums hover:text-primary transition-colors cursor-pointer"
-                            onClick={() => {
-                              setEditingCell(key);
-                              setEditValue(currentPrice !== undefined ? String(currentPrice) : "");
-                            }}
-                          >
-                            {currentPrice !== undefined ? currentPrice : (
-                              <span className="text-muted-foreground text-xs">未設定</span>
-                            )}
-                          </button>
-                        )}
+                        <div data-cell-container>
+                          {isEditing ? (
+                            <Input
+                              type="text"
+                              inputMode="decimal"
+                              value={editValue}
+                              onChange={(e) => {
+                                if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setEditValue(e.target.value);
+                              }}
+                              onBlur={() => handleSave(client.label, tt.label)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleSave(client.label, tt.label);
+                                if (e.key === "Escape") setEditingCell(null);
+                                handleTabKeyDown(e, () => handleSave(client.label, tt.label));
+                              }}
+                              autoFocus
+                              className="h-7 text-xs text-right"
+                            />
+                          ) : (
+                            <button
+                              data-editable-cell
+                              className="w-full text-right text-sm tabular-nums hover:text-primary transition-colors cursor-pointer"
+                              onClick={() => {
+                                setEditingCell(key);
+                                setEditValue(currentPrice !== undefined ? String(currentPrice) : "");
+                              }}
+                            >
+                              {currentPrice !== undefined ? currentPrice : (
+                                <span className="text-muted-foreground text-xs">未設定</span>
+                              )}
+                            </button>
+                          )}
+                        </div>
 
                         <div className="flex justify-center">
                           {currentPrice !== undefined && (
@@ -157,13 +194,13 @@ function TranslatorTierSection() {
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
-  const handleSaveField = (tierId: string, field: "minPrice" | "maxPrice" | "translatorPrice") => {
+  const handleSaveField = useCallback((tierId: string, field: "minPrice" | "maxPrice" | "translatorPrice") => {
     const num = Number(editValue);
     if (!isNaN(num) && num >= 0) {
       updateTier(tierId, { [field]: num });
     }
     setEditingField(null);
-  };
+  }, [editValue, updateTier]);
 
   const fieldKey = (tierId: string, field: string) => `${tierId}::${field}`;
 
@@ -198,34 +235,38 @@ function TranslatorTierSection() {
                 const key = fieldKey(tier.id, field);
                 const isEditing = editingField === key;
 
-                return isEditing ? (
-                  <Input
-                    key={field}
-                    type="text"
-                    inputMode="decimal"
-                    value={editValue}
-                    onChange={(e) => {
-                      if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setEditValue(e.target.value);
-                    }}
-                    onBlur={() => handleSaveField(tier.id, field)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleSaveField(tier.id, field);
-                      if (e.key === "Escape") setEditingField(null);
-                    }}
-                    autoFocus
-                    className="h-7 text-xs"
-                  />
-                ) : (
-                  <button
-                    key={field}
-                    className="text-left text-sm tabular-nums hover:text-primary transition-colors cursor-pointer"
-                    onClick={() => {
-                      setEditingField(key);
-                      setEditValue(String(tier[field]));
-                    }}
-                  >
-                    {tier[field]}
-                  </button>
+                return (
+                  <div key={field} data-cell-container>
+                    {isEditing ? (
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        value={editValue}
+                        onChange={(e) => {
+                          if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setEditValue(e.target.value);
+                        }}
+                        onBlur={() => handleSaveField(tier.id, field)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleSaveField(tier.id, field);
+                          if (e.key === "Escape") setEditingField(null);
+                          handleTabKeyDown(e, () => handleSaveField(tier.id, field));
+                        }}
+                        autoFocus
+                        className="h-7 text-xs"
+                      />
+                    ) : (
+                      <button
+                        data-editable-cell
+                        className="w-full text-left text-sm tabular-nums hover:text-primary transition-colors cursor-pointer"
+                        onClick={() => {
+                          setEditingField(key);
+                          setEditValue(String(tier[field]));
+                        }}
+                      >
+                        {tier[field]}
+                      </button>
+                    )}
+                  </div>
                 );
               })}
 
