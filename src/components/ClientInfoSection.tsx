@@ -162,7 +162,7 @@ export default function ClientInfoSection({
             )}
           </div>
 
-          {/* Row 2: sameCase (left) + reconciled/invoiced (right) */}
+          {/* Row 2: sameCase (left) + dispatch route (right) */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Checkbox
@@ -181,6 +181,20 @@ export default function ClientInfoSection({
                 與他筆費用為同一案件
               </Label>
             </div>
+            <div className="flex items-center gap-1.5">
+              <Label className="text-xs text-muted-foreground whitespace-nowrap">派案途徑</Label>
+              <ColorSelect
+                fieldKey="dispatchRoute"
+                value={clientInfo.dispatchRoute || ""}
+                onValueChange={(v) => update("dispatchRoute", v)}
+                triggerClassName="h-7 text-xs min-w-[90px]"
+                placeholder="選擇"
+              />
+            </div>
+          </div>
+
+          {/* Row 3: reconciled/invoiced (right-aligned) */}
+          <div className="flex justify-end">
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5">
                 <Checkbox
@@ -280,20 +294,6 @@ export default function ClientInfoSection({
               )}
             </div>
           )}
-
-          {/* Dispatch route */}
-          <div className="flex justify-end">
-            <div className="flex items-center gap-1.5">
-              <Label className="text-xs text-muted-foreground whitespace-nowrap">派案途徑</Label>
-              <ColorSelect
-                fieldKey="dispatchRoute"
-                value={clientInfo.dispatchRoute || ""}
-                onValueChange={(v) => update("dispatchRoute", v)}
-                triggerClassName="h-7 text-xs min-w-[90px]"
-                placeholder="選擇"
-              />
-            </div>
-          </div>
         </div>
 
         <div className="rounded-lg border border-border overflow-hidden">
@@ -305,7 +305,7 @@ export default function ClientInfoSection({
                 <TableHead className="text-xs w-[18%]">客戶報價</TableHead>
                 <TableHead className="text-xs w-[22%]">計費單位數</TableHead>
                 <TableHead className="text-xs text-right w-[20%]">小計</TableHead>
-                {canEdit && <TableHead className="text-xs w-12" />}
+                {canEdit && <TableHead className="text-xs w-10 px-1" />}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -361,7 +361,7 @@ export default function ClientInfoSection({
                     {(Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
                   </TableCell>
                   {canEdit && (
-                    <TableCell className="text-right">
+                    <TableCell className="text-right px-1">
                       {!clientItemsLocked && index > 0 ? (
                         <Button
                           variant="ghost"
@@ -399,7 +399,7 @@ export default function ClientInfoSection({
                 <TableCell className="text-right text-sm font-bold tabular-nums">
                   {clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}
                 </TableCell>
-                {canEdit && <TableCell />}
+                {canEdit && <TableCell className="px-1" />}
               </TableRow>
               <TableRow>
                 <TableCell colSpan={4}>
@@ -422,7 +422,7 @@ export default function ClientInfoSection({
                 <TableCell className={`text-right text-sm font-bold ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
                   {clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}
                 </TableCell>
-                {canEdit && <TableCell />}
+                {canEdit && <TableCell className="px-1" />}
               </TableRow>
             </TableFooter>
           </Table>

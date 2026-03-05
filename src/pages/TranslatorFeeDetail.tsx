@@ -1257,7 +1257,7 @@ export default function TranslatorFeeDetail() {
                   <TableHead className="text-xs w-[18%]">稿費單價</TableHead>
                   <TableHead className="text-xs w-[22%]">計費單位數</TableHead>
                   <TableHead className="text-xs text-right w-[20%]">小計</TableHead>
-                  {canEdit && <TableHead className="text-xs w-12" />}
+                  {canEdit && <TableHead className="text-xs w-10 px-1" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1323,7 +1323,7 @@ export default function TranslatorFeeDetail() {
                         {(Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}
                       </TableCell>
                       {canEdit && (
-                        <TableCell className="text-right">
+                        <TableCell className="text-right px-1">
                           {index > 0 ? (
                             <Button
                               variant="ghost"
@@ -1352,7 +1352,7 @@ export default function TranslatorFeeDetail() {
                       <TableCell className="text-right text-sm font-bold">
                         {totalAmount.toLocaleString()}
                       </TableCell>
-                      {canEdit && <TableCell />}
+                      {canEdit && <TableCell className="px-1" />}
                     </TableRow>
                 </TableFooter>
               )}
