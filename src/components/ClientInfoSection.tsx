@@ -295,8 +295,9 @@ export default function ClientInfoSection({
             </div>
           )}
         </div>
+      </div>
 
-      {/* Confirmation dialog */}
+
       <AlertDialog open={showUncheckWarning} onOpenChange={setShowUncheckWarning}>
         <AlertDialogContent>
           <AlertDialogHeader>
