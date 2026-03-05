@@ -635,7 +635,7 @@ export default function TranslatorFees() {
                     dragOverCol === col.key && "bg-primary/10"
                   )}
                 >
-                  <div className="flex items-center gap-1 cursor-grab active:cursor-grabbing">
+                  <div className="flex items-center justify-center gap-1 cursor-grab active:cursor-grabbing">
                     <GripVertical className="h-3 w-3 opacity-0 group-hover:opacity-40 shrink-0" />
                     <span>{col.label}</span>
                   </div>
