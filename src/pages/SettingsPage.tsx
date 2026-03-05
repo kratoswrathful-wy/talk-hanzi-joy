@@ -528,6 +528,16 @@ function TranslatorNotesSection() {
                     {member.isInvitation && (
                       <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">待接受</span>
                     )}
+                    <div className="flex items-center gap-1.5">
+                      <Checkbox
+                        id={`no-fee-${member.email}`}
+                        checked={member.no_fee}
+                        onCheckedChange={(checked) => handleToggleNoFee(member.email, !!checked)}
+                      />
+                      <Label htmlFor={`no-fee-${member.email}`} className="text-xs cursor-pointer text-muted-foreground">
+                        不開單譯者
+                      </Label>
+                    </div>
                   </div>
                   <Button
                     variant="ghost"
@@ -572,18 +582,6 @@ function TranslatorNotesSection() {
                     )}
                   </div>
                 )}
-
-                {/* No-fee checkbox always visible */}
-                <div className="flex items-center gap-1.5 pl-8 pt-0.5">
-                  <Checkbox
-                    id={`no-fee-${member.email}`}
-                    checked={member.no_fee}
-                    onCheckedChange={(checked) => handleToggleNoFee(member.email, !!checked)}
-                  />
-                  <Label htmlFor={`no-fee-${member.email}`} className="text-xs cursor-pointer text-muted-foreground">
-                    不開單譯者
-                  </Label>
-                </div>
               </div>
             );
           })
