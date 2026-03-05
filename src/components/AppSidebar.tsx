@@ -1,5 +1,6 @@
-import { LayoutDashboard, FolderKanban, ListChecks, Settings, Receipt } from "lucide-react";
+import { Receipt, Settings, Users, User } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
+import { useAuth } from "@/hooks/use-auth";
 import {
   Sidebar,
   SidebarContent,
@@ -10,23 +11,30 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarHeader,
+  SidebarFooter,
 } from "@/components/ui/sidebar";
-
-const navItems = [
-  { title: "儀表板", url: "/", icon: LayoutDashboard },
-  { title: "專案", url: "/projects", icon: FolderKanban },
-  { title: "所有任務", url: "/tasks", icon: ListChecks },
-  { title: "費用管理", url: "/fees", icon: Receipt },
-  { title: "設定", url: "/settings", icon: Settings },
-];
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
 
 export function AppSidebar() {
+  const { profile, isAdmin, signOut } = useAuth();
+
+  const navItems = [
+    { title: "費用管理", url: "/fees", icon: Receipt },
+    ...(isAdmin ? [{ title: "成員管理", url: "/members", icon: Users }] : []),
+    { title: "個人檔案", url: "/profile", icon: User },
+    { title: "設定", url: "/settings", icon: Settings },
+  ];
+
+  const initials = (profile?.display_name || profile?.email || "?").slice(0, 2).toUpperCase();
+
   return (
     <Sidebar className="border-r border-sidebar-border">
       <SidebarHeader className="px-4 py-5">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <FolderKanban className="h-4 w-4 text-primary-foreground" />
+            <Receipt className="h-4 w-4 text-primary-foreground" />
           </div>
           <span className="text-base font-semibold tracking-tight text-foreground">
             追蹤器
@@ -60,6 +68,23 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      <SidebarFooter className="border-t border-sidebar-border p-3">
+        <div className="flex items-center gap-2.5">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={profile?.avatar_url || undefined} />
+            <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-sidebar-foreground">
+              {profile?.display_name || profile?.email}
+            </p>
+          </div>
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-sidebar-foreground" onClick={signOut}>
+            <LogOut className="h-4 w-4" />
+          </Button>
+        </div>
+      </SidebarFooter>
     </Sidebar>
   );
 }
