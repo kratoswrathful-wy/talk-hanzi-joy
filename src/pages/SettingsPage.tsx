@@ -685,14 +685,16 @@ function TranslatorTierSection() {
       setErrorTierIds(errors);
       if (valid) { setErrorModalOpen(false); setErrorGroupId(null); }
     }
-  }, [tiers, errorModalOpen, errorGroupId, groups]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tiers, errorModalOpen, errorGroupId]);
 
   useEffect(() => {
     if (errorModalOpen) return;
     for (const group of groups) {
       validateRows(group.rows, group.groupId);
     }
-  }, [tiers, validateRows, errorModalOpen, groups]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tiers, errorModalOpen]);
 
   const fieldKey = (tierId: string, field: string) => `${tierId}::${field}`;
 
