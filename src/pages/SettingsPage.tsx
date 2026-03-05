@@ -673,7 +673,9 @@ function TranslatorTierSection() {
       const rk = `${t.threshold}::${t.translatorPrice}`;
       if (!rowMap.has(rk)) rowMap.set(rk, t);
     }
-    const rows = [...rowMap.values()].sort((a, b) => a.threshold - b.threshold);
+    const committedRows = [...rowMap.values()].filter((t) => !uncommittedIds.has(t.id));
+    const uncommittedRows = [...rowMap.values()].filter((t) => uncommittedIds.has(t.id));
+    const rows = [...committedRows.sort((a, b) => a.threshold - b.threshold), ...uncommittedRows];
     groups.push({ groupId: tier.groupId, taskTypes, billingUnit: tier.billingUnit, rows });
   }
 
