@@ -631,7 +631,7 @@ export default function TranslatorFees() {
                   onDragEnd={handleDragEnd}
                   style={{ width: activeView.columnWidths[col.key] ?? 100 }}
                   className={cn(
-                    "relative select-none px-3 py-2.5 text-left text-xs font-medium text-muted-foreground whitespace-nowrap group border-r border-border/40 last:border-r-0",
+                    "relative select-none px-3 py-2.5 text-center text-xs font-medium text-muted-foreground whitespace-nowrap group border-r border-border/40 last:border-r-0",
                     dragOverCol === col.key && "bg-primary/10"
                   )}
                 >
