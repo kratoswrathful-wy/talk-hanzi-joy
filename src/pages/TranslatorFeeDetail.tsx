@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, defaultClientInfo } from "@/data/fee-mock-data";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
+import { selectOptionsStore } from "@/stores/select-options-store";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
   draft: "草稿",
@@ -1208,7 +1209,15 @@ export default function TranslatorFeeDetail() {
         {/* Task Items Table */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium">稿費內容</Label>
+            <div className="flex items-center gap-2">
+              <Label className="text-sm font-medium">稿費內容</Label>
+              {(() => {
+                const assigneeOpt = selectOptionsStore.getField("assignee").options.find(o => o.label === assignee);
+                return assigneeOpt?.note ? (
+                  <span className="text-xs text-muted-foreground bg-secondary/50 rounded px-2 py-0.5">{assigneeOpt.note}</span>
+                ) : null;
+              })()}
+            </div>
             <div className="flex items-center gap-2">
               {isManager && (
                 <div className="flex items-center gap-1.5">
