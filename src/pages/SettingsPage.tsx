@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, GripVertical, Pencil, Shield } from "lucide-react";
+import { Plus, Trash2, GripVertical, Pencil, Shield, ChevronDown, ChevronRight } from "lucide-react";
 import { useSelectOptions, selectOptionsStore, PRESET_COLORS } from "@/stores/select-options-store";
 import { useClientPricing, useTranslatorTiers, type TranslatorTier } from "@/stores/default-pricing-store";
 import { useAuth } from "@/hooks/use-auth";
@@ -40,7 +40,6 @@ function handleTabKeyDown(
 ) {
   if (e.key === "Tab") {
     e.preventDefault();
-    // Capture the container before save unmounts the input
     const container = (e.target as HTMLElement).closest("[data-cell-container]");
     const reverse = e.shiftKey;
     onSave();
@@ -50,16 +49,44 @@ function handleTabKeyDown(
   }
 }
 
-// ─── Client Management Section ───
+// ─── Client Pricing Section (with integrated client management) ───
 
-function ClientManagementSection() {
+function ClientPricingSection() {
   const { options: clientOptions } = useSelectOptions("client");
+  const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
+  const { getAllClientPricing, setClientPrice, removeClientPrice } = useClientPricing();
+  const allPricing = getAllClientPricing();
+
+  const [editingCell, setEditingCell] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
+
+  // Add client state
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleAdd = () => {
+  const toggleClient = (id: string) => {
+    setExpandedClients((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSave = useCallback((client: string, taskType: string) => {
+    const num = Number(editValue);
+    if (!isNaN(num) && num >= 0) {
+      if (num === 0) {
+        removeClientPrice(client, taskType);
+      } else {
+        setClientPrice(client, taskType, num);
+      }
+    }
+    setEditingCell(null);
+  }, [editValue, setClientPrice, removeClientPrice]);
+
+  const handleAddClient = () => {
     const label = newLabel.trim();
     if (!label || clientOptions.some((o) => o.label === label)) return;
     selectOptionsStore.addOption("client", label, newColor);
@@ -68,58 +95,166 @@ function ClientManagementSection() {
     setAdding(false);
   };
 
+  const cellKey = (client: string, taskType: string) => `${client}::${taskType}`;
+
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
       <div>
-        <h2 className="text-base font-semibold">客戶管理</h2>
+        <h2 className="text-base font-semibold">客戶預設報價</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          新增或移除客戶，變更會同步至費用清單
+          管理客戶並依任務類型設定預設報價，選擇客戶後將自動帶入對應價格
         </p>
       </div>
 
-      <div className="space-y-1">
-        {clientOptions.map((opt) => (
-          <div
-            key={opt.id}
-            className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
-          >
-            <span
-              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
-              style={{
-                backgroundColor: opt.color + "22",
-                color: opt.color,
-                borderColor: opt.color + "44",
-              }}
-            >
-              <span
-                className="w-2 h-2 rounded-full shrink-0"
-                style={{ backgroundColor: opt.color }}
-              />
-              {opt.label}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-muted-foreground hover:text-destructive"
-              onClick={() => selectOptionsStore.deleteOption("client", opt.id)}
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
-          </div>
-        ))}
-      </div>
+      {clientOptions.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-4">
+          尚無客戶，點擊下方按鈕新增
+        </p>
+      ) : (
+        <div className="space-y-1">
+          {clientOptions.map((client) => {
+            const pricing = allPricing[client.label] || {};
+            const isExpanded = expandedClients.has(client.id);
+            return (
+              <div key={client.id}>
+                <div className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors">
+                  <button
+                    className="flex items-center gap-2 flex-1 text-left"
+                    onClick={() => toggleClient(client.id)}
+                  >
+                    {isExpanded ? (
+                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    )}
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                      style={{
+                        backgroundColor: client.color + "22",
+                        color: client.color,
+                        borderColor: client.color + "44",
+                      }}
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: client.color }}
+                      />
+                      {client.label}
+                    </span>
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                    onClick={() => selectOptionsStore.deleteOption("client", client.id)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+
+                {isExpanded && (
+                  <div className="ml-6 mt-1 mb-2 space-y-1">
+                    <div className="grid grid-cols-[1fr_100px_36px] gap-2 px-2 text-xs text-muted-foreground font-medium border-b border-border pb-1">
+                      <span>任務類型</span>
+                      <span className="text-right">報價</span>
+                      <span />
+                    </div>
+                    {taskTypeOptions.length === 0 ? (
+                      <p className="text-xs text-muted-foreground px-2">尚無任務類型</p>
+                    ) : (
+                      taskTypeOptions.map((tt) => {
+                        const key = cellKey(client.label, tt.label);
+                        const currentPrice = pricing[tt.label];
+                        const isEditing = editingCell === key;
+
+                        return (
+                          <div
+                            key={tt.id}
+                            className="grid grid-cols-[1fr_100px_36px] gap-2 items-center px-2 py-1 rounded-md hover:bg-secondary/30 transition-colors"
+                          >
+                            <span
+                              className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium w-fit"
+                              style={{
+                                backgroundColor: tt.color + "22",
+                                color: tt.color,
+                                borderColor: tt.color + "44",
+                              }}
+                            >
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: tt.color }}
+                              />
+                              {tt.label}
+                            </span>
+
+                            <div data-cell-container>
+                              {isEditing ? (
+                                <Input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={editValue}
+                                  onChange={(e) => {
+                                    if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setEditValue(e.target.value);
+                                  }}
+                                  onBlur={() => handleSave(client.label, tt.label)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") handleSave(client.label, tt.label);
+                                    if (e.key === "Escape") setEditingCell(null);
+                                    handleTabKeyDown(e, () => handleSave(client.label, tt.label));
+                                  }}
+                                  autoFocus
+                                  className="h-7 text-xs text-right"
+                                />
+                              ) : (
+                                <button
+                                  data-editable-cell
+                                  className="w-full text-right text-sm tabular-nums hover:text-primary transition-colors cursor-pointer"
+                                  onClick={() => {
+                                    setEditingCell(key);
+                                    setEditValue(currentPrice !== undefined ? String(currentPrice) : "");
+                                  }}
+                                >
+                                  {currentPrice !== undefined ? currentPrice : (
+                                    <span className="text-muted-foreground text-xs">未設定</span>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="flex justify-center">
+                              {currentPrice !== undefined && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                  onClick={() => removeClientPrice(client.label, tt.label)}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {adding ? (
         <div className="space-y-2 px-2">
           <Input
-            ref={inputRef}
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
             placeholder="輸入客戶名稱"
             className="h-8 text-sm"
             autoFocus
             onKeyDown={(e) => {
-              if (e.key === "Enter") handleAdd();
+              if (e.key === "Enter") handleAddClient();
               if (e.key === "Escape") setAdding(false);
             }}
           />
@@ -140,7 +275,7 @@ function ClientManagementSection() {
             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAdding(false)}>
               取消
             </Button>
-            <Button size="sm" className="h-7 text-xs" disabled={!newLabel.trim()} onClick={handleAdd}>
+            <Button size="sm" className="h-7 text-xs" disabled={!newLabel.trim()} onClick={handleAddClient}>
               新增
             </Button>
           </div>
@@ -155,158 +290,6 @@ function ClientManagementSection() {
           <Plus className="h-3.5 w-3.5" />
           新增客戶
         </Button>
-      )}
-    </div>
-  );
-}
-
-// ─── Client Pricing Section ───
-
-function ClientPricingSection() {
-  const { options: clientOptions } = useSelectOptions("client");
-  const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
-  const { getAllClientPricing, setClientPrice, removeClientPrice } = useClientPricing();
-  const allPricing = getAllClientPricing();
-
-  const [editingCell, setEditingCell] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState("");
-
-  const handleSave = useCallback((client: string, taskType: string) => {
-    const num = Number(editValue);
-    if (!isNaN(num) && num >= 0) {
-      if (num === 0) {
-        removeClientPrice(client, taskType);
-      } else {
-        setClientPrice(client, taskType, num);
-      }
-    }
-    setEditingCell(null);
-  }, [editValue, setClientPrice, removeClientPrice]);
-
-  const cellKey = (client: string, taskType: string) => `${client}::${taskType}`;
-
-  return (
-    <div className="rounded-xl border border-border bg-card p-6 space-y-4">
-      <div>
-        <h2 className="text-base font-semibold">客戶預設報價</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          依客戶與任務類型設定預設報價，選擇客戶後將自動帶入對應價格
-        </p>
-      </div>
-
-      {clientOptions.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-4">
-          尚無客戶選項，請先在上方新增客戶
-        </p>
-      ) : (
-        <div className="space-y-4">
-          {clientOptions.map((client) => {
-            const pricing = allPricing[client.label] || {};
-            return (
-              <div key={client.id} className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
-                    style={{
-                      backgroundColor: client.color + "22",
-                      color: client.color,
-                      borderColor: client.color + "44",
-                    }}
-                  >
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: client.color }}
-                    />
-                    {client.label}
-                  </span>
-                </div>
-                <div className="grid grid-cols-[1fr_100px_36px] gap-2 px-2 text-xs text-muted-foreground font-medium border-b border-border pb-1">
-                  <span>任務類型</span>
-                  <span className="text-right">報價</span>
-                  <span />
-                </div>
-                {taskTypeOptions.length === 0 ? (
-                  <p className="text-xs text-muted-foreground px-2">尚無任務類型</p>
-                ) : (
-                  taskTypeOptions.map((tt) => {
-                    const key = cellKey(client.label, tt.label);
-                    const currentPrice = pricing[tt.label];
-                    const isEditing = editingCell === key;
-
-                    return (
-                      <div
-                        key={tt.id}
-                        className="grid grid-cols-[1fr_100px_36px] gap-2 items-center px-2 py-1 rounded-md hover:bg-secondary/30 transition-colors"
-                      >
-                        <span
-                          className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium w-fit"
-                          style={{
-                            backgroundColor: tt.color + "22",
-                            color: tt.color,
-                            borderColor: tt.color + "44",
-                          }}
-                        >
-                          <span
-                            className="w-2 h-2 rounded-full shrink-0"
-                            style={{ backgroundColor: tt.color }}
-                          />
-                          {tt.label}
-                        </span>
-
-                        <div data-cell-container>
-                          {isEditing ? (
-                            <Input
-                              type="text"
-                              inputMode="decimal"
-                              value={editValue}
-                              onChange={(e) => {
-                                if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setEditValue(e.target.value);
-                              }}
-                              onBlur={() => handleSave(client.label, tt.label)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") handleSave(client.label, tt.label);
-                                if (e.key === "Escape") setEditingCell(null);
-                                handleTabKeyDown(e, () => handleSave(client.label, tt.label));
-                              }}
-                              autoFocus
-                              className="h-7 text-xs text-right"
-                            />
-                          ) : (
-                            <button
-                              data-editable-cell
-                              className="w-full text-right text-sm tabular-nums hover:text-primary transition-colors cursor-pointer"
-                              onClick={() => {
-                                setEditingCell(key);
-                                setEditValue(currentPrice !== undefined ? String(currentPrice) : "");
-                              }}
-                            >
-                              {currentPrice !== undefined ? currentPrice : (
-                                <span className="text-muted-foreground text-xs">未設定</span>
-                              )}
-                            </button>
-                          )}
-                        </div>
-
-                        <div className="flex justify-center">
-                          {currentPrice !== undefined && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                              onClick={() => removeClientPrice(client.label, tt.label)}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            );
-          })}
-        </div>
       )}
     </div>
   );
@@ -423,7 +406,6 @@ function TranslatorNotesSection() {
 
     const result: MemberWithSettings[] = [];
 
-    // Registered members
     (profiles || []).forEach((p: any) => {
       const s = settingsMap.get(p.email) || { note: "", no_fee: false };
       result.push({
@@ -436,7 +418,6 @@ function TranslatorNotesSection() {
       });
     });
 
-    // Invited but not registered
     const registeredEmails = new Set((profiles || []).map((p: any) => p.email));
     (invitations || []).forEach((inv: any) => {
       if (!registeredEmails.has(inv.email)) {
@@ -475,7 +456,6 @@ function TranslatorNotesSection() {
     if (error) {
       toast.error("儲存失敗：" + error.message);
     } else {
-      // Optimistic update
       setMembers((prev) =>
         prev.map((m) =>
           m.email === email
@@ -604,33 +584,27 @@ interface TierGroup {
   rows: TranslatorTier[];
 }
 
-/** Validate a group's rows for three error types:
- *  1. Upper bound < lower bound (上限低於下限)
- *  2. Overlapping ranges (級距重疊)
- *  3. Gap segments (空白區段) from the lowest minPrice to ∞
- */
-function validateTierGroup(rows: TranslatorTier[]): Record<string, string> {
+/** Validate rows for three error types */
+function validateTierRows(rows: { id: string; minPrice: number; maxPrice: number; translatorPrice: number }[]): Record<string, string> {
   const errors: Record<string, string> = {};
   if (rows.length === 0) return errors;
 
-  // 1. Check upper < lower (maxPrice=0 means ∞, so it's always valid)
+  // 1. upper < lower
   for (const r of rows) {
     if (r.maxPrice !== 0 && r.maxPrice < r.minPrice) {
       errors[r.id] = `上限 (${r.maxPrice}) 低於下限 (${r.minPrice})`;
     }
   }
 
-  // Sort by minPrice for overlap/gap detection
   const sorted = [...rows].sort((a, b) => a.minPrice - b.minPrice);
 
-  // 2. Check overlap: for each pair, see if ranges intersect
+  // 2. overlap
   for (let i = 0; i < sorted.length; i++) {
     for (let j = i + 1; j < sorted.length; j++) {
       const a = sorted[i];
       const b = sorted[j];
       const aMax = a.maxPrice === 0 ? Infinity : a.maxPrice;
       const bMax = b.maxPrice === 0 ? Infinity : b.maxPrice;
-      // Ranges [a.minPrice, aMax] and [b.minPrice, bMax] overlap if a.minPrice <= bMax && b.minPrice <= aMax
       if (a.minPrice <= bMax && b.minPrice <= aMax) {
         if (!errors[a.id]) errors[a.id] = "級距重疊";
         if (!errors[b.id]) errors[b.id] = "級距重疊";
@@ -638,26 +612,17 @@ function validateTierGroup(rows: TranslatorTier[]): Record<string, string> {
     }
   }
 
-  // 3. Check gaps: from the global minimum to ∞
-  // Build sorted non-overlapping coverage and look for holes
-  // Only check if no overlap/bound errors so far to avoid confusing messages
-  const hasOverlapOrBoundErrors = Object.keys(errors).length > 0;
-  if (!hasOverlapOrBoundErrors && sorted.length > 0) {
-    // Build intervals sorted by minPrice
+  // 3. gaps (only if no other errors)
+  if (Object.keys(errors).length === 0 && sorted.length > 0) {
     const intervals = sorted.map((r) => ({
       id: r.id,
       min: r.minPrice,
       max: r.maxPrice === 0 ? Infinity : r.maxPrice,
     }));
 
-    // Check: the first interval should start at the lowest min
-    // Then each subsequent interval should start at prev.max + 1 (for integers)
-    // Since prices can be decimals, we check if next.min > prev.max (gap exists)
     let coveredUpTo = intervals[0].max;
     for (let i = 1; i < intervals.length; i++) {
       if (intervals[i].min > coveredUpTo + 1) {
-        // Gap between coveredUpTo and intervals[i].min
-        // Mark surrounding tiers
         errors[intervals[i - 1].id] = `空白區段：${coveredUpTo + 1} ~ ${intervals[i].min - 1}`;
         errors[intervals[i].id] = errors[intervals[i].id] || `空白區段：${coveredUpTo + 1} ~ ${intervals[i].min - 1}`;
       }
@@ -665,7 +630,6 @@ function validateTierGroup(rows: TranslatorTier[]): Record<string, string> {
         coveredUpTo = intervals[i].max;
       }
     }
-    // Check if coverage reaches ∞ (at least one maxPrice=0)
     if (coveredUpTo !== Infinity) {
       const last = intervals[intervals.length - 1];
       errors[last.id] = errors[last.id] || `未涵蓋至無限大（上限 ${sorted[sorted.length - 1].maxPrice} 之後無級距）`;
@@ -675,13 +639,240 @@ function validateTierGroup(rows: TranslatorTier[]): Record<string, string> {
   return errors;
 }
 
+/** Draft row for the tier group editor modal */
+interface DraftTierRow {
+  id: string;
+  minPrice: string;
+  maxPrice: string;
+  translatorPrice: string;
+}
+
+function generateDraftId() {
+  return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
+}
+
+/** Standalone modal for creating/editing a full tier group */
+function TierGroupEditorModal({
+  taskTypeOptions,
+  billingUnits,
+  onCommit,
+  onClose,
+}: {
+  taskTypeOptions: { id: string; label: string; color: string }[];
+  billingUnits: string[];
+  onCommit: (taskTypes: string[], billingUnit: string, rows: { minPrice: number; maxPrice: number; translatorPrice: number }[]) => void;
+  onClose: () => void;
+}) {
+  const [selectedTaskTypes, setSelectedTaskTypes] = useState<string[]>([]);
+  const [selectedUnit, setSelectedUnit] = useState("字");
+  const [draftRows, setDraftRows] = useState<DraftTierRow[]>([
+    { id: generateDraftId(), minPrice: "", maxPrice: "", translatorPrice: "" },
+  ]);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const toggleTaskType = (label: string) => {
+    setSelectedTaskTypes((prev) =>
+      prev.includes(label) ? prev.filter((t) => t !== label) : [...prev, label]
+    );
+  };
+
+  const updateRow = (id: string, field: keyof Omit<DraftTierRow, "id">, value: string) => {
+    if (!/^[0-9]*\.?[0-9]*$/.test(value)) return;
+    setDraftRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
+    // Clear error for this row
+    setErrors((prev) => {
+      if (!prev[id]) return prev;
+      const { [id]: _, ...rest } = prev;
+      return rest;
+    });
+  };
+
+  const addRow = () => {
+    setDraftRows((prev) => [...prev, { id: generateDraftId(), minPrice: "", maxPrice: "", translatorPrice: "" }]);
+  };
+
+  const removeRow = (id: string) => {
+    setDraftRows((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const handleSubmit = () => {
+    if (selectedTaskTypes.length === 0) {
+      toast.error("請至少選擇一個任務類型");
+      return;
+    }
+    if (draftRows.length === 0) {
+      toast.error("請至少新增一筆級距");
+      return;
+    }
+
+    // Convert to numbers
+    const parsed = draftRows.map((r) => ({
+      id: r.id,
+      minPrice: Number(r.minPrice) || 0,
+      maxPrice: Number(r.maxPrice) || 0,
+      translatorPrice: Number(r.translatorPrice) || 0,
+    }));
+
+    // Validate
+    const validationErrors = validateTierRows(parsed);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
+    onCommit(
+      selectedTaskTypes,
+      selectedUnit,
+      parsed.map((r) => ({ minPrice: r.minPrice, maxPrice: r.maxPrice, translatorPrice: r.translatorPrice }))
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-card border border-border rounded-xl shadow-2xl p-6 max-w-lg w-full mx-4 space-y-4 max-h-[85vh] overflow-y-auto">
+        <div className="space-y-1">
+          <h3 className="text-base font-semibold">新增級距組合</h3>
+          <p className="text-xs text-muted-foreground">
+            選擇任務類型、計費單位，並設定完整的級距範圍。上限輸入 0 代表無限大 (∞)。
+          </p>
+        </div>
+
+        {/* Task type selection */}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">任務類型</p>
+          <div className="flex flex-wrap gap-2">
+            {taskTypeOptions.map((tt) => (
+              <button
+                key={tt.id}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all",
+                  selectedTaskTypes.includes(tt.label)
+                    ? "ring-2 ring-primary/50 scale-105"
+                    : "opacity-70 hover:opacity-100"
+                )}
+                style={{
+                  backgroundColor: tt.color + "22",
+                  color: tt.color,
+                  borderColor: tt.color + "44",
+                }}
+                onClick={() => toggleTaskType(tt.label)}
+              >
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tt.color }} />
+                {tt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Billing unit */}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">計費單位</p>
+          <div className="flex gap-2">
+            {billingUnits.map((u) => (
+              <Button
+                key={u}
+                variant={selectedUnit === u ? "default" : "outline"}
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setSelectedUnit(u)}
+              >
+                {u}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Tier rows */}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">級距設定</p>
+          <div className="grid grid-cols-[1fr_1fr_1fr_28px] gap-2 px-1 text-xs text-muted-foreground font-medium">
+            <span>下限</span>
+            <span>上限 <span className="font-normal opacity-60">(0=∞)</span></span>
+            <span>譯者單價</span>
+            <span />
+          </div>
+
+          {draftRows.map((row, idx) => (
+            <div key={row.id}>
+              <div className={cn(
+                "grid grid-cols-[1fr_1fr_1fr_28px] gap-2 items-center px-1",
+                errors[row.id] && "ring-1 ring-destructive/50 rounded-md bg-destructive/5 p-1"
+              )}>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={row.minPrice}
+                  onChange={(e) => updateRow(row.id, "minPrice", e.target.value)}
+                  placeholder="0"
+                  className="h-7 text-xs"
+                />
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={row.maxPrice}
+                  onChange={(e) => updateRow(row.id, "maxPrice", e.target.value)}
+                  placeholder="0"
+                  className="h-7 text-xs"
+                />
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={row.translatorPrice}
+                  onChange={(e) => updateRow(row.id, "translatorPrice", e.target.value)}
+                  placeholder="0"
+                  className="h-7 text-xs"
+                />
+                <div className="flex justify-center">
+                  {draftRows.length > 1 && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                      onClick={() => removeRow(row.id)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {errors[row.id] && (
+                <p className="text-xs text-destructive px-1 mt-0.5">{errors[row.id]}</p>
+              )}
+            </div>
+          ))}
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1 text-xs text-muted-foreground"
+            onClick={addRow}
+          >
+            <Plus className="h-3 w-3" />
+            新增級距
+          </Button>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2 justify-end pt-2 border-t border-border">
+          <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={onClose}>
+            取消
+          </Button>
+          <Button size="sm" className="h-8 text-xs" onClick={handleSubmit}>
+            確定
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TranslatorTierSection() {
   const { tiers, addTier, addTierToGroup, updateTierRow, removeTierRow } = useTranslatorTiers();
   const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
-  // Track newly added tiers that haven't been committed yet — kept at bottom unsorted
   const [uncommittedIds, setUncommittedIds] = useState<Set<string>>(new Set());
+  const [showEditor, setShowEditor] = useState(false);
 
   const [errorModalOpen, setErrorModalOpen] = useState(false);
   const [errorGroupId, setErrorGroupId] = useState<string | null>(null);
@@ -695,7 +886,6 @@ function TranslatorTierSection() {
       updateTierRow(tierId, { [field]: num });
     }
     setEditingField(null);
-    // Mark as committed so it joins the sorted order
     setUncommittedIds((prev) => {
       if (!prev.has(tierId)) return prev;
       const next = new Set(prev);
@@ -731,25 +921,25 @@ function TranslatorTierSection() {
     groups.push({ groupId: tier.groupId, taskTypes, billingUnit: tier.billingUnit, rows });
   }
 
-  // Re-validate when modal is open and tiers change
+  // Re-validate when modal is open
   useEffect(() => {
     if (errorModalOpen && errorGroupId) {
       const group = groups.find((g) => g.groupId === errorGroupId);
       if (!group) { setErrorModalOpen(false); return; }
       const committedRows = group.rows.filter((r) => !uncommittedIds.has(r.id));
-      const errors = validateTierGroup(committedRows);
+      const errors = validateTierRows(committedRows);
       setErrorTierIds(errors);
       if (Object.keys(errors).length === 0) { setErrorModalOpen(false); setErrorGroupId(null); }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tiers, errorModalOpen, errorGroupId]);
 
-  // Validate all groups when tiers change (only if modal not already open)
+  // Validate all groups on tier change
   useEffect(() => {
     if (errorModalOpen) return;
     for (const group of groups) {
       const committedRows = group.rows.filter((r) => !uncommittedIds.has(r.id));
-      const errors = validateTierGroup(committedRows);
+      const errors = validateTierRows(committedRows);
       if (Object.keys(errors).length > 0) {
         setErrorTierIds(errors);
         setErrorGroupId(group.groupId);
@@ -856,7 +1046,7 @@ function TranslatorTierSection() {
 
               <div className="grid grid-cols-[1fr_1fr_1fr_36px] gap-2 px-2 py-1.5 text-xs text-muted-foreground font-medium border-b border-border">
                 <span>下限</span>
-                <span>上限<br/><span className="font-normal text-[10px] opacity-70">0 = ∞</span></span>
+                <span>上限 <span className="font-normal text-[10px] opacity-70">(0=∞)</span></span>
                 <span>譯者單價</span>
                 <span />
               </div>
@@ -919,14 +1109,30 @@ function TranslatorTierSection() {
         </div>
       )}
 
-      <NewTierGroupButton
-        taskTypeOptions={taskTypeOptions}
-        billingUnits={billingUnits}
-        onAdd={(taskTypes, billingUnit, minPrice, maxPrice, price) => {
-          const gid = `grp-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
-          taskTypes.forEach((tt) => addTier(tt, billingUnit, minPrice, maxPrice, price, gid));
-        }}
-      />
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-1 text-xs"
+        onClick={() => setShowEditor(true)}
+      >
+        <Plus className="h-3.5 w-3.5" />
+        新增級距組合
+      </Button>
+
+      {showEditor && (
+        <TierGroupEditorModal
+          taskTypeOptions={taskTypeOptions}
+          billingUnits={billingUnits}
+          onCommit={(taskTypes, billingUnit, rows) => {
+            const gid = `grp-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
+            for (const row of rows) {
+              taskTypes.forEach((tt) => addTier(tt, billingUnit, row.minPrice, row.maxPrice, row.translatorPrice, gid));
+            }
+            setShowEditor(false);
+          }}
+          onClose={() => setShowEditor(false)}
+        />
+      )}
 
       {errorModalOpen && errorGroup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -991,141 +1197,6 @@ function TranslatorTierSection() {
   );
 }
 
-function NewTierGroupButton({
-  taskTypeOptions,
-  billingUnits,
-  onAdd,
-}: {
-  taskTypeOptions: { id: string; label: string; color: string }[];
-  billingUnits: string[];
-  onAdd: (taskTypes: string[], billingUnit: string, minPrice: number, maxPrice: number, price: number) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [selectedTaskTypes, setSelectedTaskTypes] = useState<string[]>([]);
-  const [selectedUnit, setSelectedUnit] = useState("字");
-  const [minPrice, setMinPrice] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
-  const [translatorPrice, setTranslatorPrice] = useState("");
-
-  const toggleTaskType = (label: string) => {
-    setSelectedTaskTypes((prev) =>
-      prev.includes(label) ? prev.filter((t) => t !== label) : [...prev, label]
-    );
-  };
-
-  const handleAdd = () => {
-    if (selectedTaskTypes.length === 0) return;
-    const mn = Number(minPrice) || 0;
-    const mx = Number(maxPrice) || 0;
-    const price = Number(translatorPrice) || 0;
-    onAdd(selectedTaskTypes, selectedUnit, mn, mx, price);
-    setOpen(false);
-    setSelectedTaskTypes([]);
-    setSelectedUnit("字");
-    setMinPrice("");
-    setMaxPrice("");
-    setTranslatorPrice("");
-  };
-
-  if (!open) {
-    return (
-      <Button
-        variant="outline"
-        size="sm"
-        className="gap-1 text-xs"
-        onClick={() => setOpen(true)}
-      >
-        <Plus className="h-3.5 w-3.5" />
-        新增級距組合
-      </Button>
-    );
-  }
-
-  return (
-    <div className="rounded-lg border border-border bg-secondary/20 p-3 space-y-3">
-      <p className="text-xs font-medium text-muted-foreground">選擇任務類型與計費單位</p>
-      <div className="flex flex-wrap gap-2">
-        {taskTypeOptions.map((tt) => (
-          <button
-            key={tt.id}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all",
-              selectedTaskTypes.includes(tt.label)
-                ? "ring-2 ring-primary/50 scale-105"
-                : "opacity-70 hover:opacity-100"
-            )}
-            style={{
-              backgroundColor: tt.color + "22",
-              color: tt.color,
-              borderColor: tt.color + "44",
-            }}
-            onClick={() => toggleTaskType(tt.label)}
-          >
-            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tt.color }} />
-            {tt.label}
-          </button>
-        ))}
-      </div>
-      <div className="flex gap-2">
-        {billingUnits.map((u) => (
-          <Button
-            key={u}
-            variant={selectedUnit === u ? "default" : "outline"}
-            size="sm"
-            className="h-7 text-xs"
-            onClick={() => setSelectedUnit(u)}
-          >
-            {u}
-          </Button>
-        ))}
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <div>
-          <label className="text-xs text-muted-foreground mb-1 block">下限</label>
-          <Input
-            type="text"
-            inputMode="decimal"
-            value={minPrice}
-            onChange={(e) => { if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setMinPrice(e.target.value); }}
-            placeholder="0"
-            className="h-7 text-xs"
-          />
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground mb-1 block">上限 <span className="opacity-60">(0=∞)</span></label>
-          <Input
-            type="text"
-            inputMode="decimal"
-            value={maxPrice}
-            onChange={(e) => { if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setMaxPrice(e.target.value); }}
-            placeholder="0"
-            className="h-7 text-xs"
-          />
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground mb-1 block">譯者單價</label>
-          <Input
-            type="text"
-            inputMode="decimal"
-            value={translatorPrice}
-            onChange={(e) => { if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setTranslatorPrice(e.target.value); }}
-            placeholder="0"
-            className="h-7 text-xs"
-          />
-        </div>
-      </div>
-      <div className="flex gap-2 justify-end">
-        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setOpen(false)}>
-          取消
-        </Button>
-        <Button size="sm" className="h-7 text-xs" disabled={selectedTaskTypes.length === 0} onClick={handleAdd}>
-          新增
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 // ─── Permission Management Section (Executive only) ───
 
 const fieldLabelMap: Record<string, string> = {
@@ -1168,8 +1239,17 @@ function PermissionManagementSection() {
   const { config, updateConfig } = usePermissions();
   const [localConfig, setLocalConfig] = useState<PermissionConfig | null>(null);
   const [saving, setSaving] = useState(false);
+  const [expandedRoles, setExpandedRoles] = useState<Set<string>>(new Set());
 
   const activeConfig = localConfig || config;
+
+  const toggleRole = (role: string) => {
+    setExpandedRoles((prev) => {
+      const next = new Set(prev);
+      if (next.has(role)) next.delete(role); else next.add(role);
+      return next;
+    });
+  };
 
   const toggleFieldPerm = (role: string, field: string, perm: "view" | "edit") => {
     const next = { ...activeConfig };
@@ -1228,60 +1308,94 @@ function PermissionManagementSection() {
           <TabsTrigger value="sections">設定區塊</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="fields" className="space-y-4 mt-4">
-          {editableRoles.map((role) => (
-            <div key={role} className="space-y-2">
-              <h3 className="text-sm font-medium text-foreground">{roleLabelMap[role]}</h3>
-              <div className="grid grid-cols-[1fr_60px_60px] gap-1 px-2 py-1 text-xs text-muted-foreground font-medium border-b border-border">
-                <span>欄位</span>
-                <span className="text-center">檢視</span>
-                <span className="text-center">編輯</span>
-              </div>
-              {Object.entries(fieldLabelMap).map(([key, label]) => {
-                const fp = activeConfig.fields[role]?.[key] || { view: true, edit: false };
-                return (
-                  <div key={key} className="grid grid-cols-[1fr_60px_60px] gap-1 items-center px-2 py-1 rounded-md hover:bg-secondary/30 transition-colors">
-                    <span className="text-sm">{label}</span>
-                    <div className="flex justify-center">
-                      <Switch
-                        checked={fp.view}
-                        onCheckedChange={() => toggleFieldPerm(role, key, "view")}
-                        className="scale-75"
-                      />
+        <TabsContent value="fields" className="space-y-2 mt-4">
+          {editableRoles.map((role) => {
+            const isExpanded = expandedRoles.has(`fields-${role}`);
+            return (
+              <div key={role}>
+                <button
+                  className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors text-left"
+                  onClick={() => toggleRole(`fields-${role}`)}
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  ) : (
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  )}
+                  <h3 className="text-sm font-medium text-foreground">{roleLabelMap[role]}</h3>
+                </button>
+                {isExpanded && (
+                  <div className="ml-6 mt-1 space-y-0">
+                    <div className="grid grid-cols-[1fr_60px_60px] gap-1 px-2 py-1 text-xs text-muted-foreground font-medium border-b border-border">
+                      <span>欄位</span>
+                      <span className="text-center">檢視</span>
+                      <span className="text-center">編輯</span>
                     </div>
-                    <div className="flex justify-center">
-                      <Switch
-                        checked={fp.edit}
-                        onCheckedChange={() => toggleFieldPerm(role, key, "edit")}
-                        className="scale-75"
-                      />
-                    </div>
+                    {Object.entries(fieldLabelMap).map(([key, label]) => {
+                      const fp = activeConfig.fields[role]?.[key] || { view: true, edit: false };
+                      return (
+                        <div key={key} className="grid grid-cols-[1fr_60px_60px] gap-1 items-center px-2 py-1 rounded-md hover:bg-secondary/30 transition-colors">
+                          <span className="text-sm">{label}</span>
+                          <div className="flex justify-center">
+                            <Switch
+                              checked={fp.view}
+                              onCheckedChange={() => toggleFieldPerm(role, key, "view")}
+                              className="scale-75"
+                            />
+                          </div>
+                          <div className="flex justify-center">
+                            <Switch
+                              checked={fp.edit}
+                              onCheckedChange={() => toggleFieldPerm(role, key, "edit")}
+                              className="scale-75"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
         </TabsContent>
 
-        <TabsContent value="sections" className="space-y-4 mt-4">
-          {editableRoles.map((role) => (
-            <div key={role} className="space-y-2">
-              <h3 className="text-sm font-medium text-foreground">{roleLabelMap[role]}</h3>
-              {Object.entries(sectionLabelMap).map(([key, label]) => {
-                const allowed = activeConfig.settings_sections[role]?.[key] ?? false;
-                return (
-                  <div key={key} className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors">
-                    <span className="text-sm">{label}</span>
-                    <Switch
-                      checked={allowed}
-                      onCheckedChange={() => toggleSectionPerm(role, key)}
-                      className="scale-75"
-                    />
+        <TabsContent value="sections" className="space-y-2 mt-4">
+          {editableRoles.map((role) => {
+            const isExpanded = expandedRoles.has(`sections-${role}`);
+            return (
+              <div key={role}>
+                <button
+                  className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors text-left"
+                  onClick={() => toggleRole(`sections-${role}`)}
+                >
+                  {isExpanded ? (
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  ) : (
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  )}
+                  <h3 className="text-sm font-medium text-foreground">{roleLabelMap[role]}</h3>
+                </button>
+                {isExpanded && (
+                  <div className="ml-6 mt-1 space-y-0">
+                    {Object.entries(sectionLabelMap).map(([key, label]) => {
+                      const allowed = activeConfig.settings_sections[role]?.[key] ?? false;
+                      return (
+                        <div key={key} className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors">
+                          <span className="text-sm">{label}</span>
+                          <Switch
+                            checked={allowed}
+                            onCheckedChange={() => toggleSectionPerm(role, key)}
+                            className="scale-75"
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
         </TabsContent>
       </Tabs>
 
@@ -1317,7 +1431,6 @@ export default function SettingsPage() {
       {isExecutive && <PermissionManagementSection />}
 
       {/* Admin sections - based on permission config */}
-      {canViewSection("client_management") && <ClientManagementSection />}
       {canViewSection("task_type_order") && <TaskTypeOrderSection />}
       {canViewSection("translator_notes") && <TranslatorNotesSection />}
       {canViewSection("client_pricing") && <ClientPricingSection />}
