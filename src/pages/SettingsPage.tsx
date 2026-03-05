@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, GripVertical, Pencil, Shield } from "lucide-react";
 import { useSelectOptions, selectOptionsStore, PRESET_COLORS } from "@/stores/select-options-store";
-import { useClientPricing, useTranslatorTiers } from "@/stores/default-pricing-store";
+import { useClientPricing, useTranslatorTiers, type TranslatorTier } from "@/stores/default-pricing-store";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions, type PermissionConfig } from "@/hooks/use-permissions";
 import { Switch } from "@/components/ui/switch";
@@ -602,6 +602,47 @@ function TranslatorTierSection() {
   const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [tierErrors, setTierErrors] = useState<Record<string, string>>({});
+
+  /** Validate all tiers within a group after an edit; returns true if valid */
+  const validateGroup = useCallback((groupItems: TranslatorTier[]): boolean => {
+    const newErrors: Record<string, string> = {};
+    let valid = true;
+
+    for (const tier of groupItems) {
+      // maxPrice != 0 means finite upper bound; must be > minPrice
+      if (tier.maxPrice !== 0 && tier.maxPrice <= tier.minPrice) {
+        newErrors[tier.id] = `上限 (${tier.maxPrice}) 必須大於下限 (${tier.minPrice})，或填 0 表示無上限`;
+        valid = false;
+      }
+    }
+
+    // Check overlap between tiers (sorted by minPrice)
+    const sorted = [...groupItems].sort((a, b) => a.minPrice - b.minPrice);
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const curr = sorted[i];
+      const next = sorted[i + 1];
+      const currMax = curr.maxPrice === 0 ? Infinity : curr.maxPrice;
+      if (currMax > next.minPrice) {
+        if (!newErrors[curr.id]) {
+          newErrors[curr.id] = `此級距與「${next.minPrice}」起的級距重疊`;
+          valid = false;
+        }
+        if (!newErrors[next.id]) {
+          newErrors[next.id] = `此級距與上限為「${curr.maxPrice === 0 ? "∞" : curr.maxPrice}」的級距重疊`;
+          valid = false;
+        }
+      }
+    }
+
+    // Clear old errors for this group's tiers, then set new ones
+    setTierErrors((prev) => {
+      const next = { ...prev };
+      for (const t of groupItems) delete next[t.id];
+      return { ...next, ...newErrors };
+    });
+    return valid;
+  }, []);
 
   const handleSaveField = useCallback((tierId: string, field: "minPrice" | "maxPrice" | "translatorPrice") => {
     const num = Number(editValue);
@@ -610,6 +651,33 @@ function TranslatorTierSection() {
     }
     setEditingField(null);
   }, [editValue, updateTier]);
+
+  // After tiers change, sort each group and validate
+  useEffect(() => {
+    // Sort tiers by minPrice within each group
+    const groupMap = new Map<string, TranslatorTier[]>();
+    for (const t of tiers) {
+      const gk = `${t.taskType}::${t.billingUnit}`;
+      if (!groupMap.has(gk)) groupMap.set(gk, []);
+      groupMap.get(gk)!.push(t);
+    }
+    for (const items of groupMap.values()) {
+      // Check if already sorted
+      let needsSort = false;
+      for (let i = 1; i < items.length; i++) {
+        if (items[i].minPrice < items[i - 1].minPrice) { needsSort = true; break; }
+      }
+      if (needsSort) {
+        const sorted = [...items].sort((a, b) => a.minPrice - b.minPrice);
+        sorted.forEach((t, idx) => {
+          // Re-order by removing and re-adding — simpler: just update with same data to trigger reorder
+          // We'll use a different approach: bulk reorder via store isn't available,
+          // so we accept the visual sort below
+        });
+      }
+      validateGroup(items);
+    }
+  }, [tiers, validateGroup]);
 
   const fieldKey = (tierId: string, field: string) => `${tierId}::${field}`;
 
@@ -624,7 +692,10 @@ function TranslatorTierSection() {
       groups.push({
         taskType: tier.taskType,
         billingUnit: tier.billingUnit,
-        items: tiers.filter((t) => t.taskType === tier.taskType && t.billingUnit === tier.billingUnit),
+        // Sort items by minPrice for display
+        items: tiers
+          .filter((t) => t.taskType === tier.taskType && t.billingUnit === tier.billingUnit)
+          .sort((a, b) => a.minPrice - b.minPrice),
       });
     }
   }
@@ -715,24 +786,31 @@ function TranslatorTierSection() {
                 </div>
 
                 {group.items.map((tier) => (
-                  <div
-                    key={tier.id}
-                    className="grid grid-cols-[1fr_1fr_1fr_36px] gap-2 items-center px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
-                  >
-                    {renderTierValue(tier, "minPrice")}
-                    {renderTierValue(tier, "maxPrice")}
-                    {renderTierValue(tier, "translatorPrice")}
+                  <div key={tier.id}>
+                    <div
+                      className={cn(
+                        "grid grid-cols-[1fr_1fr_1fr_36px] gap-2 items-center px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors",
+                        tierErrors[tier.id] && "ring-1 ring-destructive/50 bg-destructive/5"
+                      )}
+                    >
+                      {renderTierValue(tier, "minPrice")}
+                      {renderTierValue(tier, "maxPrice")}
+                      {renderTierValue(tier, "translatorPrice")}
 
-                    <div className="flex justify-center">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                        onClick={() => removeTier(tier.id)}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                      <div className="flex justify-center">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                          onClick={() => removeTier(tier.id)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
+                    {tierErrors[tier.id] && (
+                      <p className="text-xs text-destructive px-2 mt-0.5">{tierErrors[tier.id]}</p>
+                    )}
                   </div>
                 ))}
 
