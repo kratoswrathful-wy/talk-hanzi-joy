@@ -528,9 +528,6 @@ function TranslatorNotesSection() {
                     {member.isInvitation && (
                       <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">待接受</span>
                     )}
-                    {member.no_fee && (
-                      <span className="text-[10px] text-warning border border-warning/30 bg-warning/10 rounded px-1.5 py-0.5">不開單</span>
-                    )}
                   </div>
                   <Button
                     variant="ghost"
