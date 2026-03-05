@@ -1,7 +1,16 @@
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, useEffect } from "react";
 import { feeStore } from "@/stores/fee-store";
 
+// Load fees from DB once
+let loadPromise: Promise<any> | null = null;
+function ensureLoaded() {
+  if (!loadPromise) {
+    loadPromise = feeStore.loadFees();
+  }
+}
+
 export function useFees() {
+  useEffect(() => { ensureLoaded(); }, []);
   return useSyncExternalStore(feeStore.subscribe, feeStore.getFees);
 }
 
