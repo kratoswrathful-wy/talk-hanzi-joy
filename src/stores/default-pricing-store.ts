@@ -1,17 +1,19 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * Default pricing store — restructured for client+taskType based pricing
- * and translator tier-based pricing.
+ * Default pricing store — translator tiers are per taskType + billingUnit.
  *
  * Client pricing: clientName → taskType → price
- * Translator tiers: clientPrice range → translatorPrice
+ * Translator tiers: taskType + billingUnit + clientPrice range → translatorPrice
+ *   maxPrice = 0 means infinity (no upper bound)
  */
 
 export interface TranslatorTier {
   id: string;
+  taskType: string;
+  billingUnit: string;
   minPrice: number;
-  maxPrice: number;
+  maxPrice: number; // 0 = infinity
   translatorPrice: number;
 }
 
@@ -20,7 +22,7 @@ type Listener = () => void;
 interface PricingStore {
   /** clientName → taskType → clientPrice */
   clientPricing: Record<string, Record<string, number>>;
-  /** Translator price tiers based on client price ranges */
+  /** Translator price tiers based on client price ranges, per taskType+billingUnit */
   translatorTiers: TranslatorTier[];
 }
 
@@ -72,9 +74,11 @@ export const defaultPricingStore = {
   // --- Translator tiers ---
   getTranslatorTiers: (): TranslatorTier[] => store.translatorTiers,
 
-  addTier: (minPrice: number, maxPrice: number, translatorPrice: number) => {
+  addTier: (taskType: string, billingUnit: string, minPrice: number, maxPrice: number, translatorPrice: number) => {
     const tier: TranslatorTier = {
       id: `tier-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+      taskType,
+      billingUnit,
       minPrice,
       maxPrice,
       translatorPrice,
@@ -102,13 +106,17 @@ export const defaultPricingStore = {
     notify();
   },
 
-  /** Look up translator price from a given client price using tiers */
-  getTranslatorPrice: (clientPrice: number): number | undefined => {
-    // Sort tiers by minPrice to find the first matching range
-    const tier = store.translatorTiers.find(
-      (t) => clientPrice > t.minPrice && clientPrice <= t.maxPrice
-    );
-    return tier?.translatorPrice;
+  /** Look up translator price from a given client price, taskType and billingUnit using tiers.
+   *  maxPrice = 0 means infinity (no upper bound). */
+  getTranslatorPrice: (clientPrice: number, taskType?: string, billingUnit?: string): number | undefined => {
+    const matchingTiers = store.translatorTiers.filter((t) => {
+      if (taskType && t.taskType !== taskType) return false;
+      if (billingUnit && t.billingUnit !== billingUnit) return false;
+      const aboveMin = clientPrice > t.minPrice;
+      const belowMax = t.maxPrice === 0 || clientPrice <= t.maxPrice;
+      return aboveMin && belowMax;
+    });
+    return matchingTiers.length > 0 ? matchingTiers[0].translatorPrice : undefined;
   },
 
   subscribe: (listener: Listener) => {
