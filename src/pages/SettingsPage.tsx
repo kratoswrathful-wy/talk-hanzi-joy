@@ -930,6 +930,40 @@ function NewTierGroupButton({
           </Button>
         ))}
       </div>
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">客戶報價下限 (&gt;)</label>
+          <Input
+            type="text"
+            inputMode="decimal"
+            value={minPrice}
+            onChange={(e) => { if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setMinPrice(e.target.value); }}
+            placeholder="0"
+            className="h-7 text-xs"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">客戶報價上限 (≦)</label>
+          <Input
+            type="text"
+            inputMode="decimal"
+            value={maxPrice}
+            onChange={(e) => { if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setMaxPrice(e.target.value); }}
+            placeholder="0 = ∞"
+            className="h-7 text-xs"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">對應譯者單價</label>
+          <Input
+            type="text"
+            inputMode="decimal"
+            value={translatorPrice}
+            onChange={(e) => { if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setTranslatorPrice(e.target.value); }}
+            placeholder="0"
+            className="h-7 text-xs"
+          />
+        </div>
       <div className="flex gap-2 justify-end">
         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setOpen(false)}>
           取消
