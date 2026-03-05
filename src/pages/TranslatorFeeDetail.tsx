@@ -1567,7 +1567,7 @@ export default function TranslatorFeeDetail() {
 
         {/* Meta info */}
         <div className="flex gap-6 text-xs text-muted-foreground">
-          <span>建立者：{feeData.createdBy}</span>
+          <span>建立者：{creatorName}</span>
           <span>建立時間：{formattedDate}</span>
         </div>
 
