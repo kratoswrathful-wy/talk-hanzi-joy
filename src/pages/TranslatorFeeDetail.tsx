@@ -808,10 +808,14 @@ export default function TranslatorFeeDetail() {
     setInternalNoteUrl(url);
     if (id) feeStore.updateFee(id, { internalNoteUrl: url });
 
-    // Check if it's a database URL (contains ?v=)
+    // If it's a database URL (contains ?v=), strip ?v= and everything after, then retry
+    let cleanedUrl = url;
     if (url.includes("notion.so") && url.includes("?v=")) {
-      toast.error("這是資料庫的連結，請開啟單一案件頁面後複製該頁面的 URL");
-      return;
+      cleanedUrl = url.split("?v=")[0];
+      toast.info("偵測到資料庫連結，已自動嘗試擷取頁面資料");
+      setNotionUrlInput(cleanedUrl);
+      setInternalNoteUrl(cleanedUrl);
+      if (id) feeStore.updateFee(id, { internalNoteUrl: cleanedUrl });
     }
 
     // Auto-detect Notion URL and fetch data
