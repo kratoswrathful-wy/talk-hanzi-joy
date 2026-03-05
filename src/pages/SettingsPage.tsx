@@ -744,6 +744,14 @@ function TranslatorTierSection() {
   const renderRange = (rows: TranslatorTier[], index: number) => {
     const tier = rows[index];
     const nextTier = rows[index + 1];
+    // Special case: threshold 0 with no next tier means entire range 0 ~ ∞
+    if (tier.threshold === 0 && !nextTier) {
+      return (
+        <span className="text-xs text-muted-foreground tabular-nums">
+          0 ~ ∞
+        </span>
+      );
+    }
     const upper = nextTier ? `< ${nextTier.threshold}` : "∞";
     return (
       <span className="text-xs text-muted-foreground tabular-nums">
@@ -802,7 +810,7 @@ function TranslatorTierSection() {
 
               <div className="grid grid-cols-[80px_1fr_1fr_36px] gap-2 px-2 py-1.5 text-xs text-muted-foreground font-medium border-b border-border">
                 <span>適用範圍</span>
-                <span>分段點 (≥)</span>
+                <span>分段點 (≥)<br/><span className="font-normal text-[10px] opacity-70">輸入 0 = 0 ~ ∞</span></span>
                 <span>對應譯者單價</span>
                 <span />
               </div>
