@@ -268,13 +268,16 @@ export default function ClientInfoSection({
             <TableFooter>
               <TableRow>
                 <TableCell colSpan={2} className="text-left">
-                  <Input
-                    value={clientInfo.eciKeywords || clientInfo.clientCaseId}
-                    onChange={(e) => updateMultiple({ eciKeywords: e.target.value, clientCaseId: e.target.value })}
-                    disabled={!canEdit}
-                    placeholder="客戶端案號或關鍵字"
-                    className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
-                  />
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">關鍵字</span>
+                    <Input
+                      value={clientInfo.eciKeywords || clientInfo.clientCaseId}
+                      onChange={(e) => updateMultiple({ eciKeywords: e.target.value, clientCaseId: e.target.value })}
+                      disabled={!canEdit}
+                      placeholder="客戶端案號或關鍵字"
+                      className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
+                    />
+                  </div>
                 </TableCell>
                 <TableCell colSpan={2} className="text-sm font-medium text-right">
                   營收總額
