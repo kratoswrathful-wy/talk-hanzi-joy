@@ -743,19 +743,19 @@ function TranslatorTierSection() {
 
   const renderRange = (rows: TranslatorTier[], index: number) => {
     const tier = rows[index];
-    const nextTier = rows[index + 1];
-    // Special case: threshold 0 with no next tier means entire range 0 ~ ∞
-    if (tier.threshold === 0 && !nextTier) {
+    const prevTier = rows[index - 1];
+    // threshold=0 means entire range 0 ~ ∞
+    if (tier.threshold === 0) {
       return (
         <span className="text-xs text-muted-foreground tabular-nums">
           0 ~ ∞
         </span>
       );
     }
-    const upper = nextTier ? `< ${nextTier.threshold}` : "∞";
+    const lower = prevTier && prevTier.threshold !== 0 ? `> ${prevTier.threshold}` : "0";
     return (
       <span className="text-xs text-muted-foreground tabular-nums">
-        {index === 0 ? `0 ~ ` : `≥ ${tier.threshold} ~ `}{upper}
+        {lower} ~ ≤ {tier.threshold}
       </span>
     );
   };
