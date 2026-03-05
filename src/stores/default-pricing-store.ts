@@ -160,16 +160,22 @@ export const defaultPricingStore = {
   },
 
   /** Look up translator price from a given client price, taskType and billingUnit.
-   *  Uses breakpoint logic: finds the highest threshold ≤ clientPrice. */
+   *  Uses breakpoint logic: finds the lowest threshold ≥ clientPrice (threshold means ≤). 
+   *  threshold=0 means unlimited (covers all prices). */
   getTranslatorPrice: (clientPrice: number, taskType?: string, billingUnit?: string): number | undefined => {
     const candidates = store.translatorTiers.filter((t) => {
       if (taskType && t.taskType !== taskType) return false;
       if (billingUnit && t.billingUnit !== billingUnit) return false;
-      return t.threshold <= clientPrice;
+      return t.threshold === 0 || t.threshold >= clientPrice;
     });
     if (candidates.length === 0) return undefined;
-    // Pick the one with the highest threshold that is still ≤ clientPrice
-    candidates.sort((a, b) => b.threshold - a.threshold);
+    // Pick the one with the lowest non-zero threshold that is still ≥ clientPrice
+    // threshold=0 is "catch-all / unlimited", so it should be last resort
+    candidates.sort((a, b) => {
+      if (a.threshold === 0) return 1;
+      if (b.threshold === 0) return -1;
+      return a.threshold - b.threshold;
+    });
     return candidates[0].translatorPrice;
   },
 
