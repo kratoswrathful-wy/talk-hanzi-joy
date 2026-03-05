@@ -151,7 +151,19 @@ export default function ClientInfoSection({
       {/* Client Task Items Table */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">客戶端計費項目</Label>
+          <div className="flex items-center gap-3">
+            <Label className="text-sm font-medium">客戶端計費項目</Label>
+            <div className="flex items-center gap-1.5">
+              <Label className="text-xs text-muted-foreground whitespace-nowrap">派案途徑</Label>
+              <ColorSelect
+                fieldKey="dispatchRoute"
+                value={clientInfo.dispatchRoute || ""}
+                onValueChange={(v) => update("dispatchRoute", v)}
+                triggerClassName="h-7 text-xs min-w-[90px]"
+                placeholder="選擇"
+              />
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
               <Checkbox

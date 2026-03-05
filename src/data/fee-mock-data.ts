@@ -46,6 +46,7 @@ export const defaultClientInfo: ClientInfo = {
   clientCaseId: "",
   eciKeywords: "",
   clientPoNumber: "",
+  dispatchRoute: "",
   reconciled: false,
   rateConfirmed: false,
   invoiced: false,
