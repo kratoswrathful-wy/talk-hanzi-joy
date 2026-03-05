@@ -397,7 +397,7 @@ export default function ClientInfoSection({
                   營收總額
                 </TableCell>
                 {canEdit ? (
-                  <TableCell className="text-right text-sm font-bold tabular-nums px-1">
+                  <TableCell className="text-right text-sm font-bold tabular-nums px-3">
                     {clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}
                   </TableCell>
                 ) : (
