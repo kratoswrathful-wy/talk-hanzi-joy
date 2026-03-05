@@ -945,7 +945,7 @@ function NewTierGroupButton({
   taskTypeOptions: { id: string; label: string; color: string }[];
   billingUnits: string[];
   existingGroups: string[];
-  onAdd: (taskType: string, billingUnit: string, min: number, max: number, price: number) => void;
+  onAdd: (taskTypes: string[], billingUnit: string, min: number, max: number, price: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [selectedTaskTypes, setSelectedTaskTypes] = useState<string[]>([]);
@@ -965,7 +965,7 @@ function NewTierGroupButton({
     const min = Number(minPrice) || 0;
     const max = Number(maxPrice) || 0;
     const price = Number(translatorPrice) || 0;
-    selectedTaskTypes.forEach((tt) => onAdd(tt, selectedUnit, min, max, price));
+    onAdd(selectedTaskTypes, selectedUnit, min, max, price);
     setOpen(false);
     setSelectedTaskTypes([]);
     setSelectedUnit("字");
