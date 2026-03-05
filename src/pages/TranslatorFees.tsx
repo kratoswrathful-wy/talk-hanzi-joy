@@ -120,7 +120,7 @@ const allColumnDefs: ColumnDef[] = [
   },
   {
     key: "assignee",
-    label: "開單對象",
+    label: "譯者",
     minWidth: 70,
     render: (f, { editable, onCommit }) => (
       <InlineEditCell value={f.assignee} type="colorSelect" fieldKey="assignee" editable={editable} onCommit={(v) => onCommit("assignee", v)}>
