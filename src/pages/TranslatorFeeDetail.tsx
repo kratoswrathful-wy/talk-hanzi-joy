@@ -1344,15 +1344,16 @@ export default function TranslatorFeeDetail() {
               </TableBody>
               {taskItems.length > 0 && (
                 <TableFooter>
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-sm font-medium text-right">
-                      稿費總額
-                    </TableCell>
-                    <TableCell className="text-right text-sm font-bold">
-                      {totalAmount.toLocaleString()}
-                    </TableCell>
-                    {canEdit && <TableCell />}
-                  </TableRow>
+                    <TableRow>
+                      <TableCell colSpan={4} />
+                      <TableCell className="text-sm font-medium text-right">
+                        稿費總額
+                      </TableCell>
+                      <TableCell className="text-right text-sm font-bold">
+                        {totalAmount.toLocaleString()}
+                      </TableCell>
+                      {canEdit && <TableCell />}
+                    </TableRow>
                 </TableFooter>
               )}
             </Table>
