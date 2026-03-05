@@ -161,7 +161,7 @@ const allColumnDefs: ColumnDef[] = [
   },
   {
     key: "clientCaseId",
-    label: "案號",
+    label: "關鍵字",
     minWidth: 80,
     managerOnly: true,
     render: (f, { editable, onCommit }) => (
