@@ -528,7 +528,9 @@ function TranslatorNotesSection() {
                     {member.isInvitation && (
                       <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">待接受</span>
                     )}
-                    <div className="flex items-center gap-1.5 ml-4">
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <Checkbox
                         id={`no-fee-${member.email}`}
                         checked={member.no_fee}
@@ -538,18 +540,18 @@ function TranslatorNotesSection() {
                         不開單譯者
                       </Label>
                     </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground"
+                      onClick={() => {
+                        setEditingEmail(member.email);
+                        setEditValue(member.note);
+                      }}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-muted-foreground"
-                    onClick={() => {
-                      setEditingEmail(member.email);
-                      setEditValue(member.note);
-                    }}
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </Button>
                 </div>
 
                 {isEditing ? (
