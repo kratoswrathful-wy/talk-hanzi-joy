@@ -1180,7 +1180,7 @@ export default function TranslatorFeeDetail() {
                     }
                     setClientInfo(updatedInfo);
                     if (id) feeStore.updateFee(id, { clientInfo: updatedInfo });
-                  }
+                  }}
                   placeholder="選擇客戶"
                 />
               </div>
@@ -1191,6 +1191,7 @@ export default function TranslatorFeeDetail() {
                   value={clientInfo.contact}
                   disabled={!canEdit}
                   onValueChange={(v) => {
+                    trackChange("聯絡人", clientInfo.contact, v);
                     const updated = { ...clientInfo, contact: v };
                     setClientInfo(updated);
                     if (id) feeStore.updateFee(id, { clientInfo: updated });
