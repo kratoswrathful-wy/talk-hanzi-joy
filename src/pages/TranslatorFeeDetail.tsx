@@ -94,6 +94,8 @@ const fieldLabels: Record<string, string> = {
   title: "標題",
   assignee: "開單對象",
   internalNote: "相關案件",
+  client: "客戶",
+  contact: "聯絡人",
 };
 
 // --- Rich Comment Components ---
