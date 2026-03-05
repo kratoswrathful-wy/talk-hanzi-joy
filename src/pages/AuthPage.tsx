@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { FolderKanban, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import logo from "@/assets/1UP_Mark.png";
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -61,8 +62,8 @@ export default function AuthPage() {
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
-            <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-              <FolderKanban className="h-5 w-5 text-primary-foreground" />
+            <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center">
+              <img src={logo} alt="Logo" className="h-10 w-10 object-contain" />
             </div>
             <CardTitle>重設密碼</CardTitle>
             <CardDescription>輸入您的電子信箱以接收重設連結</CardDescription>
@@ -91,8 +92,8 @@ export default function AuthPage() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-            <FolderKanban className="h-5 w-5 text-primary-foreground" />
+          <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center">
+            <img src={logo} alt="Logo" className="h-10 w-10 object-contain" />
           </div>
           <CardTitle>{isLogin ? "登入" : "註冊"}</CardTitle>
           <CardDescription>
@@ -121,8 +122,14 @@ export default function AuthPage() {
               <Label htmlFor="password">密碼</Label>
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
             </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isLogin ? "登入" : "註冊"}
+            </Button>
+          </form>
+          <div className="mt-4 text-center text-sm text-muted-foreground space-y-2">
             {isLogin && (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center justify-center space-x-2">
                 <Checkbox
                   id="keepLoggedIn"
                   checked={keepLoggedIn}
@@ -133,12 +140,6 @@ export default function AuthPage() {
                 </Label>
               </div>
             )}
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLogin ? "登入" : "註冊"}
-            </Button>
-          </form>
-          <div className="mt-4 text-center text-sm text-muted-foreground space-y-1">
             <div>
               {isLogin ? "還沒有帳號？" : "已有帳號？"}{" "}
               <button className="text-primary hover:underline" onClick={() => setIsLogin(!isLogin)}>
