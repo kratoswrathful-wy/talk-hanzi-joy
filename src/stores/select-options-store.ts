@@ -50,12 +50,7 @@ function notify() {
 function initDefaults() {
   store = {
     assignee: {
-      options: [
-        { id: "opt-a1", label: "王小明", color: PRESET_COLORS[0] },
-        { id: "opt-a2", label: "李美玲", color: PRESET_COLORS[4] },
-        { id: "opt-a3", label: "張大偉", color: PRESET_COLORS[8] },
-        { id: "opt-a4", label: "陳雅婷", color: PRESET_COLORS[12] },
-      ],
+      options: [],
       customColors: [],
     },
     taskType: {
