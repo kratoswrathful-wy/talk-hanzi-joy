@@ -727,7 +727,7 @@ function FeeRow({
           <td
             key={col.key}
             style={{ width: columnWidths[col.key] ?? 100, maxWidth: columnWidths[col.key] ?? 100 }}
-            className={cn("px-3 py-3 overflow-hidden border-r border-border/40 last:border-r-0", col.key !== "title" && "text-center")}
+            className={cn("px-3 py-3 overflow-hidden border-r border-border/40 last:border-r-0", col.key !== "title" && col.key !== "clientCaseId" && col.key !== "clientPoNumber" && "text-center")}
           >
             {col.render(fee, {
               isManager,
