@@ -361,7 +361,7 @@ export default function ClientInfoSection({
                     {(Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
                   </TableCell>
                   {canEdit && (
-                    <TableCell className="text-right px-3">
+                    <TableCell className="text-right px-6">
                       {!clientItemsLocked && index > 0 ? (
                         <Button
                           variant="ghost"
@@ -397,7 +397,7 @@ export default function ClientInfoSection({
                   營收總額
                 </TableCell>
                 {canEdit ? (
-                  <TableCell className="text-right text-sm font-bold tabular-nums px-3">
+                  <TableCell className="text-right text-sm font-bold tabular-nums px-6">
                     {clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}
                   </TableCell>
                 ) : (
@@ -425,7 +425,7 @@ export default function ClientInfoSection({
                     : "利潤"}
                 </TableCell>
                 {canEdit ? (
-                  <TableCell className={`text-right text-sm font-bold px-3 ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
+                  <TableCell className={`text-right text-sm font-bold px-6 ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
                     {clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}
                   </TableCell>
                 ) : (

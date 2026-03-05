@@ -1504,7 +1504,7 @@ export default function TranslatorFeeDetail() {
                         {isNoFeeTranslator ? 0 : (Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}
                       </TableCell>
                       {canEdit && (
-                        <TableCell className="text-right px-3">
+                        <TableCell className="text-right px-6">
                           {index > 0 ? (
                             <Button
                               variant="ghost"
@@ -1531,7 +1531,7 @@ export default function TranslatorFeeDetail() {
                         稿費總額
                       </TableCell>
                       {canEdit ? (
-                        <TableCell className="text-right text-sm font-bold px-3">
+                        <TableCell className="text-right text-sm font-bold px-6">
                           {totalAmount.toLocaleString()}
                         </TableCell>
                       ) : (
