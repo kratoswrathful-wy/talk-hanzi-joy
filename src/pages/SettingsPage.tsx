@@ -2,9 +2,15 @@ import { useState, useCallback, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, GripVertical, Pencil } from "lucide-react";
+import { Plus, Trash2, GripVertical, Pencil, Shield } from "lucide-react";
 import { useSelectOptions, selectOptionsStore, PRESET_COLORS } from "@/stores/select-options-store";
 import { useClientPricing, useTranslatorTiers } from "@/stores/default-pricing-store";
+import { useAuth } from "@/hooks/use-auth";
+import { usePermissions, type PermissionConfig } from "@/hooks/use-permissions";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 /** Find the next editable cell in DOM order and click it */
