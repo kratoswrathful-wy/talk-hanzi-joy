@@ -41,6 +41,30 @@ export type Database = {
         }
         Relationships: []
       }
+      member_translator_settings: {
+        Row: {
+          email: string
+          id: string
+          no_fee: boolean
+          note: string
+          updated_at: string
+        }
+        Insert: {
+          email: string
+          id?: string
+          no_fee?: boolean
+          note?: string
+          updated_at?: string
+        }
+        Update: {
+          email?: string
+          id?: string
+          no_fee?: boolean
+          note?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       permission_settings: {
         Row: {
           config: Json
