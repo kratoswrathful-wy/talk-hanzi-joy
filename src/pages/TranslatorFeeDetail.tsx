@@ -1504,19 +1504,21 @@ export default function TranslatorFeeDetail() {
                         {isNoFeeTranslator ? 0 : (Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}
                       </TableCell>
                       {canEdit && (
-                        <TableCell className="text-right px-6">
-                          {index > 0 ? (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:text-destructive ml-auto"
-                              onClick={() => handleRemoveItem(item.id)}
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </Button>
-                          ) : (
-                            <div className="h-7 w-7 ml-auto" />
-                          )}
+                        <TableCell className="px-6">
+                          <div className="flex justify-center">
+                            {index > 0 ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                onClick={() => handleRemoveItem(item.id)}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            ) : (
+                              <div className="h-7 w-7" />
+                            )}
+                          </div>
                         </TableCell>
                       )}
                     </TableRow>
