@@ -1,9 +1,11 @@
 import { useState, useCallback, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2 } from "lucide-react";
-import { useSelectOptions } from "@/stores/select-options-store";
+import { Textarea } from "@/components/ui/textarea";
+import { Plus, Trash2, GripVertical, Pencil } from "lucide-react";
+import { useSelectOptions, selectOptionsStore, PRESET_COLORS } from "@/stores/select-options-store";
 import { useClientPricing, useTranslatorTiers } from "@/stores/default-pricing-store";
+import { cn } from "@/lib/utils";
 
 /** Find the next editable cell in DOM order and click it */
 function focusNextEditableCell(currentElement: HTMLElement, reverse = false) {
@@ -12,7 +14,6 @@ function focusNextEditableCell(currentElement: HTMLElement, reverse = false) {
   );
   if (allCells.length === 0) return;
 
-  // Find closest ancestor or self that is an editable cell, or find by parent
   const container = currentElement.closest("[data-cell-container]");
   const currentIndex = allCells.findIndex(
     (cell) => cell === container || container?.contains(cell) || cell.contains(currentElement)
@@ -32,12 +33,123 @@ function handleTabKeyDown(
   if (e.key === "Tab") {
     e.preventDefault();
     onSave();
-    // Use rAF to wait for state update and re-render
     requestAnimationFrame(() => {
       focusNextEditableCell(e.target as HTMLElement, e.shiftKey);
     });
   }
 }
+
+// ─── Client Management Section ───
+
+function ClientManagementSection() {
+  const { options: clientOptions } = useSelectOptions("client");
+  const [adding, setAdding] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
+  const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleAdd = () => {
+    const label = newLabel.trim();
+    if (!label || clientOptions.some((o) => o.label === label)) return;
+    selectOptionsStore.addOption("client", label, newColor);
+    setNewLabel("");
+    setNewColor(PRESET_COLORS[0]);
+    setAdding(false);
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+      <div>
+        <h2 className="text-base font-semibold">客戶管理</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          新增或移除客戶，變更會同步至費用清單
+        </p>
+      </div>
+
+      <div className="space-y-1">
+        {clientOptions.map((opt) => (
+          <div
+            key={opt.id}
+            className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
+          >
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+              style={{
+                backgroundColor: opt.color + "22",
+                color: opt.color,
+                borderColor: opt.color + "44",
+              }}
+            >
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: opt.color }}
+              />
+              {opt.label}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-destructive"
+              onClick={() => selectOptionsStore.deleteOption("client", opt.id)}
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      {adding ? (
+        <div className="space-y-2 px-2">
+          <Input
+            ref={inputRef}
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            placeholder="輸入客戶名稱"
+            className="h-8 text-sm"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleAdd();
+              if (e.key === "Escape") setAdding(false);
+            }}
+          />
+          <div className="flex flex-wrap gap-1">
+            {PRESET_COLORS.map((c) => (
+              <button
+                key={c}
+                className={cn(
+                  "w-5 h-5 rounded-full border-2 transition-transform hover:scale-110",
+                  newColor === c ? "border-foreground scale-110" : "border-transparent"
+                )}
+                style={{ backgroundColor: c }}
+                onClick={() => setNewColor(c)}
+              />
+            ))}
+          </div>
+          <div className="flex gap-1.5 justify-end">
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAdding(false)}>
+              取消
+            </Button>
+            <Button size="sm" className="h-7 text-xs" disabled={!newLabel.trim()} onClick={handleAdd}>
+              新增
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1 text-xs"
+          onClick={() => setAdding(true)}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          新增客戶
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// ─── Client Pricing Section ───
 
 function ClientPricingSection() {
   const { options: clientOptions } = useSelectOptions("client");
@@ -73,7 +185,7 @@ function ClientPricingSection() {
 
       {clientOptions.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-4">
-          尚無客戶選項，請先在費用單的客戶欄位中新增
+          尚無客戶選項，請先在上方新增客戶
         </p>
       ) : (
         <div className="space-y-4">
@@ -189,6 +301,181 @@ function ClientPricingSection() {
   );
 }
 
+// ─── Task Type Order Section (drag reorder) ───
+
+function TaskTypeOrderSection() {
+  const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const handleDragStart = (idx: number) => {
+    setDragIndex(idx);
+  };
+
+  const handleDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    if (dragIndex !== null && dragIndex !== idx) {
+      setDragOverIndex(idx);
+    }
+  };
+
+  const handleDrop = (idx: number) => {
+    if (dragIndex === null || dragIndex === idx) return;
+    const ids = taskTypeOptions.map((o) => o.id);
+    const [moved] = ids.splice(dragIndex, 1);
+    ids.splice(idx, 0, moved);
+    selectOptionsStore.reorderOptions("clientTaskType", ids);
+    setDragIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDragIndex(null);
+    setDragOverIndex(null);
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+      <div>
+        <h2 className="text-base font-semibold">任務類型順序</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          拖曳調整任務類型的顯示順序，變更會套用到所有客戶
+        </p>
+      </div>
+
+      <div className="space-y-1">
+        {taskTypeOptions.map((tt, idx) => (
+          <div
+            key={tt.id}
+            draggable
+            onDragStart={() => handleDragStart(idx)}
+            onDragOver={(e) => handleDragOver(e, idx)}
+            onDrop={() => handleDrop(idx)}
+            onDragEnd={handleDragEnd}
+            className={cn(
+              "flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors cursor-grab active:cursor-grabbing",
+              dragOverIndex === idx && "bg-primary/10 border border-dashed border-primary/30",
+              dragIndex === idx && "opacity-50",
+              dragOverIndex !== idx && "hover:bg-secondary/30"
+            )}
+          >
+            <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+              style={{
+                backgroundColor: tt.color + "22",
+                color: tt.color,
+                borderColor: tt.color + "44",
+              }}
+            >
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: tt.color }}
+              />
+              {tt.label}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Translator Notes Section ───
+
+function TranslatorNotesSection() {
+  const { options: assigneeOptions } = useSelectOptions("assignee");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+
+  const handleSave = (optId: string) => {
+    selectOptionsStore.updateOptionNote("assignee", optId, editValue.trim());
+    setEditingId(null);
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+      <div>
+        <h2 className="text-base font-semibold">譯者稿費備註</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          為每位譯者設定稿費相關備註，例如「正職譯者，稿費基準為翻譯每字 +0.1」
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        {assigneeOptions.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            尚無譯者選項
+          </p>
+        ) : (
+          assigneeOptions.map((opt) => (
+            <div
+              key={opt.id}
+              className="px-2 py-2 rounded-md hover:bg-secondary/30 transition-colors space-y-1.5"
+            >
+              <div className="flex items-center justify-between">
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                  style={{
+                    backgroundColor: opt.color + "22",
+                    color: opt.color,
+                    borderColor: opt.color + "44",
+                  }}
+                >
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: opt.color }}
+                  />
+                  {opt.label}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground"
+                  onClick={() => {
+                    setEditingId(opt.id);
+                    setEditValue(opt.note || "");
+                  }}
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
+              </div>
+              {editingId === opt.id ? (
+                <div className="space-y-1.5">
+                  <Textarea
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    placeholder="輸入稿費備註..."
+                    className="text-xs min-h-[60px]"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") setEditingId(null);
+                    }}
+                  />
+                  <div className="flex gap-1.5 justify-end">
+                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setEditingId(null)}>
+                      取消
+                    </Button>
+                    <Button size="sm" className="h-6 text-xs" onClick={() => handleSave(opt.id)}>
+                      儲存
+                    </Button>
+                  </div>
+                </div>
+              ) : opt.note ? (
+                <p className="text-xs text-muted-foreground px-1">{opt.note}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground/50 px-1 italic">尚未設定備註</p>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Translator Tier Section ───
+
 function TranslatorTierSection() {
   const { tiers, addTier, updateTier, removeTier } = useTranslatorTiers();
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -298,6 +585,8 @@ function TranslatorTierSection() {
   );
 }
 
+// ─── Main Settings Page ───
+
 export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -306,6 +595,9 @@ export default function SettingsPage() {
         <p className="mt-1 text-sm text-muted-foreground">管理應用程式偏好設定</p>
       </div>
 
+      <ClientManagementSection />
+      <TaskTypeOrderSection />
+      <TranslatorNotesSection />
       <ClientPricingSection />
       <TranslatorTierSection />
     </div>
