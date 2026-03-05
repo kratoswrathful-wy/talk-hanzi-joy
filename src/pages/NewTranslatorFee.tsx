@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import ColorSelect from "@/components/ColorSelect";
+import { selectOptionsStore } from "@/stores/select-options-store";
 import {
   Table,
   TableBody,
@@ -69,7 +70,24 @@ export default function NewTranslatorFee() {
         }
 
         if (Array.isArray(people) && people.length > 0) {
-          setAssignee(people[0]);
+          const person = people[0];
+          const assigneeOptions = selectOptionsStore.getSortedOptions("assignee");
+          let matchedLabel = "";
+
+          if (typeof person === "object" && person.email) {
+            const match = assigneeOptions.find((o: any) => o.email === person.email);
+            if (match) matchedLabel = match.label;
+          }
+          if (!matchedLabel && typeof person === "object" && person.name) {
+            const match = assigneeOptions.find((o: any) => o.label === person.name);
+            if (match) matchedLabel = match.label;
+          }
+          if (!matchedLabel && typeof person === "string") {
+            const match = assigneeOptions.find((o: any) => o.label === person || o.email === person);
+            matchedLabel = match ? match.label : person;
+          }
+
+          if (matchedLabel) setAssignee(matchedLabel);
         }
 
         if (data.notionUrl) {

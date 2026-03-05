@@ -922,10 +922,32 @@ export default function TranslatorFeeDetail() {
           if (id) feeStore.updateFee(id, { title: newTitle });
         }
 
-        // 譯者 > 開單對象
+        // 譯者 > 開單對象 (match by email from Notion people)
         if (Array.isArray(people) && people.length > 0) {
-          setAssignee(people[0]);
-          if (id) feeStore.updateFee(id, { assignee: people[0] });
+          const person = people[0];
+          const assigneeOptions = selectOptionsStore.getSortedOptions("assignee");
+          let matchedLabel = "";
+
+          if (typeof person === "object" && person.email) {
+            // Match by email
+            const match = assigneeOptions.find((o) => o.email === person.email);
+            if (match) matchedLabel = match.label;
+          }
+          if (!matchedLabel && typeof person === "object" && person.name) {
+            // Fallback: match by name
+            const match = assigneeOptions.find((o) => o.label === person.name);
+            if (match) matchedLabel = match.label;
+          }
+          // Legacy: person is a plain string
+          if (!matchedLabel && typeof person === "string") {
+            const match = assigneeOptions.find((o) => o.label === person || o.email === person);
+            matchedLabel = match ? match.label : person;
+          }
+
+          if (matchedLabel) {
+            setAssignee(matchedLabel);
+            if (id) feeStore.updateFee(id, { assignee: matchedLabel });
+          }
         }
 
         // 案件編號 > 相關案件文字
