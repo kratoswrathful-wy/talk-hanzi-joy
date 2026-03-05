@@ -591,9 +591,187 @@ function TranslatorTierSection() {
   );
 }
 
+// ─── Permission Management Section (Executive only) ───
+
+const fieldLabelMap: Record<string, string> = {
+  title: "標題",
+  assignee: "譯者",
+  taskType: "任務類型",
+  billingUnit: "計費單位",
+  unitPrice: "單價",
+  unitCount: "計費單位數",
+  client: "客戶",
+  contact: "聯絡人",
+  clientCaseId: "客戶案號",
+  clientPoNumber: "PO 編號",
+  hdPath: "硬碟路徑",
+  reconciled: "已對帳",
+  rateConfirmed: "費率已確認",
+  invoiced: "已請款",
+  sameCase: "同一案件",
+  clientRevenue: "客戶端營收",
+  profit: "利潤",
+  internalNote: "相關案件",
+};
+
+const sectionLabelMap: Record<string, string> = {
+  client_management: "客戶管理",
+  task_type_order: "任務類型順序",
+  client_pricing: "客戶預設報價",
+  translator_tiers: "譯者單價級距",
+  translator_notes: "譯者稿費備註",
+};
+
+const roleLabelMap: Record<string, string> = {
+  member: "譯者",
+  pm: "PM",
+  executive: "執行官",
+};
+
+function PermissionManagementSection() {
+  const { config, updateConfig } = usePermissions();
+  const [localConfig, setLocalConfig] = useState<PermissionConfig | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const activeConfig = localConfig || config;
+
+  const toggleFieldPerm = (role: string, field: string, perm: "view" | "edit") => {
+    const next = { ...activeConfig };
+    next.fields = { ...next.fields };
+    next.fields[role] = { ...next.fields[role] };
+    next.fields[role][field] = { ...next.fields[role][field] };
+    const current = next.fields[role][field][perm];
+    next.fields[role][field][perm] = !current;
+    // If disabling view, also disable edit
+    if (perm === "view" && current) {
+      next.fields[role][field].edit = false;
+    }
+    // If enabling edit, also enable view
+    if (perm === "edit" && !current) {
+      next.fields[role][field].view = true;
+    }
+    setLocalConfig(next);
+  };
+
+  const toggleSectionPerm = (role: string, section: string) => {
+    const next = { ...activeConfig };
+    next.settings_sections = { ...next.settings_sections };
+    next.settings_sections[role] = { ...next.settings_sections[role] };
+    next.settings_sections[role][section] = !next.settings_sections[role][section];
+    setLocalConfig(next);
+  };
+
+  const handleSave = async () => {
+    if (!localConfig) return;
+    setSaving(true);
+    const error = await updateConfig(localConfig);
+    if (error) {
+      toast.error("儲存失敗：" + error.message);
+    } else {
+      toast.success("權限設定已更新");
+      setLocalConfig(null);
+    }
+    setSaving(false);
+  };
+
+  const editableRoles = ["member", "pm"];
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-6 space-y-6">
+      <div className="flex items-center gap-2">
+        <Shield className="h-5 w-5 text-primary" />
+        <div>
+          <h2 className="text-base font-semibold">權限管理</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            設定各角色可檢視與編輯的欄位，以及可存取的設定區塊
+          </p>
+        </div>
+      </div>
+
+      <Tabs defaultValue="fields">
+        <TabsList>
+          <TabsTrigger value="fields">欄位權限</TabsTrigger>
+          <TabsTrigger value="sections">設定區塊</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="fields" className="space-y-4 mt-4">
+          {editableRoles.map((role) => (
+            <div key={role} className="space-y-2">
+              <h3 className="text-sm font-medium text-foreground">{roleLabelMap[role]}</h3>
+              <div className="grid grid-cols-[1fr_60px_60px] gap-1 px-2 py-1 text-xs text-muted-foreground font-medium border-b border-border">
+                <span>欄位</span>
+                <span className="text-center">檢視</span>
+                <span className="text-center">編輯</span>
+              </div>
+              {Object.entries(fieldLabelMap).map(([key, label]) => {
+                const fp = activeConfig.fields[role]?.[key] || { view: true, edit: false };
+                return (
+                  <div key={key} className="grid grid-cols-[1fr_60px_60px] gap-1 items-center px-2 py-1 rounded-md hover:bg-secondary/30 transition-colors">
+                    <span className="text-sm">{label}</span>
+                    <div className="flex justify-center">
+                      <Switch
+                        checked={fp.view}
+                        onCheckedChange={() => toggleFieldPerm(role, key, "view")}
+                        className="scale-75"
+                      />
+                    </div>
+                    <div className="flex justify-center">
+                      <Switch
+                        checked={fp.edit}
+                        onCheckedChange={() => toggleFieldPerm(role, key, "edit")}
+                        className="scale-75"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </TabsContent>
+
+        <TabsContent value="sections" className="space-y-4 mt-4">
+          {editableRoles.map((role) => (
+            <div key={role} className="space-y-2">
+              <h3 className="text-sm font-medium text-foreground">{roleLabelMap[role]}</h3>
+              {Object.entries(sectionLabelMap).map(([key, label]) => {
+                const allowed = activeConfig.settings_sections[role]?.[key] ?? false;
+                return (
+                  <div key={key} className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors">
+                    <span className="text-sm">{label}</span>
+                    <Switch
+                      checked={allowed}
+                      onCheckedChange={() => toggleSectionPerm(role, key)}
+                      className="scale-75"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </TabsContent>
+      </Tabs>
+
+      {localConfig && (
+        <div className="flex justify-end gap-2 pt-2 border-t border-border">
+          <Button variant="outline" size="sm" onClick={() => setLocalConfig(null)}>
+            取消
+          </Button>
+          <Button size="sm" onClick={handleSave} disabled={saving}>
+            儲存變更
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Settings Page ───
 
 export default function SettingsPage() {
+  const { primaryRole } = useAuth();
+  const { canViewSection, loading } = usePermissions();
+  const isExecutive = primaryRole === "executive";
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
@@ -601,11 +779,15 @@ export default function SettingsPage() {
         <p className="mt-1 text-sm text-muted-foreground">管理應用程式偏好設定</p>
       </div>
 
-      <ClientManagementSection />
-      <TaskTypeOrderSection />
-      <TranslatorNotesSection />
-      <ClientPricingSection />
-      <TranslatorTierSection />
+      {/* Permission management - executive only */}
+      {isExecutive && <PermissionManagementSection />}
+
+      {/* Admin sections - based on permission config */}
+      {canViewSection("client_management") && <ClientManagementSection />}
+      {canViewSection("task_type_order") && <TaskTypeOrderSection />}
+      {canViewSection("translator_notes") && <TranslatorNotesSection />}
+      {canViewSection("client_pricing") && <ClientPricingSection />}
+      {canViewSection("translator_tiers") && <TranslatorTierSection />}
     </div>
   );
 }
