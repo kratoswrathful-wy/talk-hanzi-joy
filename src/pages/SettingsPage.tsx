@@ -834,7 +834,7 @@ function TranslatorTierSection() {
         taskTypeOptions={taskTypeOptions}
         billingUnits={billingUnits}
         existingGroups={groups.map((g) => `${g.taskType}::${g.billingUnit}`)}
-        onAdd={(taskType, billingUnit) => addTier(taskType, billingUnit, 0, 0, 0)}
+        onAdd={(taskType, billingUnit, min, max, price) => addTier(taskType, billingUnit, min, max, price)}
       />
     </div>
   );
@@ -849,11 +849,14 @@ function NewTierGroupButton({
   taskTypeOptions: { id: string; label: string; color: string }[];
   billingUnits: string[];
   existingGroups: string[];
-  onAdd: (taskType: string, billingUnit: string) => void;
+  onAdd: (taskType: string, billingUnit: string, min: number, max: number, price: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [selectedTaskTypes, setSelectedTaskTypes] = useState<string[]>([]);
   const [selectedUnit, setSelectedUnit] = useState("字");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("0");
+  const [translatorPrice, setTranslatorPrice] = useState("");
 
   const toggleTaskType = (label: string) => {
     setSelectedTaskTypes((prev) =>
@@ -863,10 +866,16 @@ function NewTierGroupButton({
 
   const handleAdd = () => {
     if (selectedTaskTypes.length === 0) return;
-    selectedTaskTypes.forEach((tt) => onAdd(tt, selectedUnit));
+    const min = Number(minPrice) || 0;
+    const max = Number(maxPrice) || 0;
+    const price = Number(translatorPrice) || 0;
+    selectedTaskTypes.forEach((tt) => onAdd(tt, selectedUnit, min, max, price));
     setOpen(false);
     setSelectedTaskTypes([]);
     setSelectedUnit("字");
+    setMinPrice("");
+    setMaxPrice("0");
+    setTranslatorPrice("");
   };
 
   if (!open) {
@@ -920,6 +929,41 @@ function NewTierGroupButton({
             {u}
           </Button>
         ))}
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">客戶報價下限 (&gt;)</label>
+          <Input
+            type="text"
+            inputMode="decimal"
+            value={minPrice}
+            onChange={(e) => { if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setMinPrice(e.target.value); }}
+            placeholder="0"
+            className="h-7 text-xs"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">客戶報價上限 (≦)</label>
+          <Input
+            type="text"
+            inputMode="decimal"
+            value={maxPrice}
+            onChange={(e) => { if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setMaxPrice(e.target.value); }}
+            placeholder="0 = ∞"
+            className="h-7 text-xs"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">對應譯者單價</label>
+          <Input
+            type="text"
+            inputMode="decimal"
+            value={translatorPrice}
+            onChange={(e) => { if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setTranslatorPrice(e.target.value); }}
+            placeholder="0"
+            className="h-7 text-xs"
+          />
+        </div>
       </div>
       <div className="flex gap-2 justify-end">
         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setOpen(false)}>
