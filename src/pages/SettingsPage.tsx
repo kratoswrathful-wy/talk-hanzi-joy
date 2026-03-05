@@ -728,6 +728,7 @@ const fieldLabelMap: Record<string, string> = {
 };
 
 const sectionLabelMap: Record<string, string> = {
+  create_fee: "新增費用",
   client_management: "客戶管理",
   task_type_order: "任務類型順序",
   client_pricing: "客戶預設報價",
