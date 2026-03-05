@@ -940,6 +940,8 @@ export default function TranslatorFeeDetail() {
           ...(clientCaseId ? { clientCaseId } : {}),
           ...(clientPo ? { clientPoNumber: clientPo } : {}),
           ...(dispatch ? { dispatchRoute: dispatch } : {}),
+          reconciled,
+          invoiced,
           clientTaskItems: clientInfo.clientTaskItems.map((item, idx) =>
             idx === 0
               ? {
