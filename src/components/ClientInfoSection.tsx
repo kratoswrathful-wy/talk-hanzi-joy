@@ -399,7 +399,7 @@ export default function ClientInfoSection({
                 <TableCell className="text-right text-sm font-bold tabular-nums">
                   {clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}
                 </TableCell>
-                {canEdit && <TableCell />}
+                {canEdit && <TableCell className="px-1" />}
               </TableRow>
               <TableRow>
                 <TableCell colSpan={4}>
