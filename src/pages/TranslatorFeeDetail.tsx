@@ -481,42 +481,30 @@ export default function TranslatorFeeDetail() {
   // Combined blocking condition
   const isNavigationBlocked = hasDuplicateFirstFee || needsRoleAssignment;
 
+  // Load assignees from DB on mount
+  useEffect(() => {
+    selectOptionsStore.loadAssignees();
+  }, []);
+
   // Check no-fee translator status
   useEffect(() => {
     if (!assignee) {
       setIsNoFeeTranslator(false);
       return;
     }
-    // Look up by assignee label — find the email from assignee options, then check settings
-    // For now, check member_translator_settings by matching display_name or email
+    // Find the email from the assignee option
+    const opt = selectOptionsStore.getField("assignee").options.find(
+      o => o.label === assignee || o.email === assignee
+    );
+    const email = opt?.email || assignee;
+
     const checkNoFee = async () => {
       const { data } = await supabase
         .from("member_translator_settings")
         .select("no_fee")
-        .or(`email.eq.${assignee}`)
-        .limit(1)
+        .eq("email", email)
         .maybeSingle();
-      
-      if (data) {
-        setIsNoFeeTranslator(data.no_fee);
-      } else {
-        // Also try matching by display_name via profiles
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("email")
-          .eq("display_name", assignee)
-          .maybeSingle();
-        if (profile?.email) {
-          const { data: setting } = await supabase
-            .from("member_translator_settings")
-            .select("no_fee")
-            .eq("email", profile.email)
-            .maybeSingle();
-          setIsNoFeeTranslator(setting?.no_fee || false);
-        } else {
-          setIsNoFeeTranslator(false);
-        }
-      }
+      setIsNoFeeTranslator(data?.no_fee || false);
     };
     checkNoFee();
   }, [assignee]);
