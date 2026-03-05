@@ -964,6 +964,7 @@ function NewTierGroupButton({
             className="h-7 text-xs"
           />
         </div>
+      </div>
       <div className="flex gap-2 justify-end">
         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setOpen(false)}>
           取消
