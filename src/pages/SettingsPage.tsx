@@ -786,24 +786,31 @@ function TranslatorTierSection() {
                 </div>
 
                 {group.items.map((tier) => (
-                  <div
-                    key={tier.id}
-                    className="grid grid-cols-[1fr_1fr_1fr_36px] gap-2 items-center px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
-                  >
-                    {renderTierValue(tier, "minPrice")}
-                    {renderTierValue(tier, "maxPrice")}
-                    {renderTierValue(tier, "translatorPrice")}
+                  <div key={tier.id}>
+                    <div
+                      className={cn(
+                        "grid grid-cols-[1fr_1fr_1fr_36px] gap-2 items-center px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors",
+                        tierErrors[tier.id] && "ring-1 ring-destructive/50 bg-destructive/5"
+                      )}
+                    >
+                      {renderTierValue(tier, "minPrice")}
+                      {renderTierValue(tier, "maxPrice")}
+                      {renderTierValue(tier, "translatorPrice")}
 
-                    <div className="flex justify-center">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                        onClick={() => removeTier(tier.id)}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                      <div className="flex justify-center">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                          onClick={() => removeTier(tier.id)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
+                    {tierErrors[tier.id] && (
+                      <p className="text-xs text-destructive px-2 mt-0.5">{tierErrors[tier.id]}</p>
+                    )}
                   </div>
                 ))}
 
