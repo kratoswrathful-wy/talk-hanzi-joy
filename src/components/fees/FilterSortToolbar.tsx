@@ -67,10 +67,16 @@ export function FilterSortToolbar({
   onSetActiveView, onAddView, onDeleteView,
   onAddFilter, onRemoveFilter, onUpdateFilter,
   onAddSort, onRemoveSort, onUpdateSort,
+  onRenameView, onReorderViews,
   visibleFieldKeys,
   selectedCount,
 }: Props) {
   const [newViewName, setNewViewName] = useState("");
+  const [editingViewId, setEditingViewId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const editInputRef = useRef<HTMLInputElement>(null);
+  const dragViewRef = useRef<string | null>(null);
+  const [dragOverViewId, setDragOverViewId] = useState<string | null>(null);
   const visibleFields = fieldMetas.filter((f) => visibleFieldKeys.includes(f.key));
 
   return (
