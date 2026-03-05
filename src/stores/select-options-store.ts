@@ -1,8 +1,10 @@
 import { useSyncExternalStore } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface SelectOption {
   id: string;
   label: string;
+  email?: string; // for assignee options: the member's email
   color: string; // hex color
   note?: string; // optional note (e.g. translator fee note)
 }
@@ -48,12 +50,7 @@ function notify() {
 function initDefaults() {
   store = {
     assignee: {
-      options: [
-        { id: "opt-a1", label: "王小明", color: PRESET_COLORS[0] },
-        { id: "opt-a2", label: "李美玲", color: PRESET_COLORS[4] },
-        { id: "opt-a3", label: "張大偉", color: PRESET_COLORS[8] },
-        { id: "opt-a4", label: "陳雅婷", color: PRESET_COLORS[12] },
-      ],
+      options: [],
       customColors: [],
     },
     taskType: {
@@ -219,6 +216,54 @@ export const selectOptionsStore = {
   },
 
   getSnapshot: () => store,
+
+  /** Load assignee options from profiles + invitations in DB */
+  loadAssignees: async () => {
+    const [{ data: profiles }, { data: invitations }, { data: settings }] = await Promise.all([
+      supabase.from("profiles").select("email, display_name, avatar_url"),
+      supabase.from("invitations").select("email, role").is("accepted_at", null),
+      supabase.from("member_translator_settings").select("email, note, no_fee"),
+    ]);
+
+    const settingsMap = new Map<string, { note: string; no_fee: boolean }>();
+    (settings || []).forEach((s: any) => settingsMap.set(s.email, { note: s.note || "", no_fee: s.no_fee || false }));
+
+    const options: SelectOption[] = [];
+    const registeredEmails = new Set<string>();
+
+    // Registered members
+    (profiles || []).forEach((p: any, i: number) => {
+      registeredEmails.add(p.email);
+      const s = settingsMap.get(p.email);
+      options.push({
+        id: `assignee-${p.email}`,
+        label: p.display_name || p.email,
+        email: p.email,
+        color: PRESET_COLORS[i % PRESET_COLORS.length],
+        note: s?.note || "",
+      });
+    });
+
+    // Invited but not registered
+    (invitations || []).forEach((inv: any, i: number) => {
+      if (!registeredEmails.has(inv.email)) {
+        const s = settingsMap.get(inv.email);
+        options.push({
+          id: `assignee-${inv.email}`,
+          label: inv.email,
+          email: inv.email,
+          color: PRESET_COLORS[(profiles?.length || 0 + i) % PRESET_COLORS.length],
+          note: s?.note || "",
+        });
+      }
+    });
+
+    store = {
+      ...store,
+      assignee: { ...store.assignee, options },
+    };
+    notify();
+  },
 };
 
 export function useSelectOptions(fieldKey: string) {
