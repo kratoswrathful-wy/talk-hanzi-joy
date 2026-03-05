@@ -65,7 +65,34 @@ function appToDb(fee: Partial<TranslatorFee>): Record<string, any> {
   return m;
 }
 
+/** Fire-and-forget DB write with error logging */
+function persistInsert(fee: TranslatorFee, userId: string | null) {
+  supabase
+    .from("fees")
+    .insert({
+      id: fee.id,
+      ...appToDb(fee),
+      created_by: userId || null,
+    } as any)
+    .then(({ error }) => {
+      if (error) console.error("Failed to insert fee:", error);
+    });
+}
+
 // ── Store ──
+
+// Cache current user id
+let _cachedUserId: string | null = null;
+async function getUserId() {
+  if (_cachedUserId) return _cachedUserId;
+  const { data } = await supabase.auth.getSession();
+  _cachedUserId = data?.session?.user?.id ?? null;
+  return _cachedUserId;
+}
+// Listen for auth changes
+supabase.auth.onAuthStateChange((_event, session) => {
+  _cachedUserId = session?.user?.id ?? null;
+});
 
 export const feeStore = {
   getFees: () => fees,
@@ -90,72 +117,45 @@ export const feeStore = {
     return { error };
   },
 
-  addFee: async (fee: TranslatorFee) => {
-    // Optimistic
+  addFee: (fee: TranslatorFee) => {
     fees = [fee, ...fees];
     notify();
-
-    const { data: session } = await supabase.auth.getSession();
-    const userId = session?.session?.user?.id;
-
-    const { error } = await supabase.from("fees").insert({
-      id: fee.id,
-      ...appToDb(fee),
-      created_by: userId || null,
-    } as any);
-
-    if (error) {
-      // Rollback
-      fees = fees.filter((f) => f.id !== fee.id);
-      notify();
-      console.error("Failed to add fee:", error);
-    }
+    getUserId().then((uid) => persistInsert(fee, uid));
   },
 
-  updateFee: async (id: string, updates: Partial<TranslatorFee>) => {
-    // Optimistic
-    const prev = fees.find((f) => f.id === id);
+  updateFee: (id: string, updates: Partial<TranslatorFee>) => {
     fees = fees.map((f) => (f.id === id ? { ...f, ...updates } : f));
     notify();
 
     const dbUpdates = appToDb(updates);
     if (Object.keys(dbUpdates).length === 0) return;
 
-    const { error } = await supabase.from("fees").update(dbUpdates).eq("id", id);
-
-    if (error) {
-      // Rollback
-      if (prev) {
-        fees = fees.map((f) => (f.id === id ? prev : f));
-        notify();
-      }
-      console.error("Failed to update fee:", error);
-    }
+    supabase
+      .from("fees")
+      .update(dbUpdates)
+      .eq("id", id)
+      .then(({ error }) => {
+        if (error) console.error("Failed to update fee:", error);
+      });
   },
 
-  deleteFee: async (id: string) => {
-    const prev = fees.find((f) => f.id === id);
+  deleteFee: (id: string) => {
     fees = fees.filter((f) => f.id !== id);
     notify();
 
-    const { error } = await supabase.from("fees").delete().eq("id", id);
-
-    if (error) {
-      if (prev) {
-        fees = [prev, ...fees];
-        notify();
-      }
-      console.error("Failed to delete fee:", error);
-    }
+    supabase
+      .from("fees")
+      .delete()
+      .eq("id", id)
+      .then(({ error }) => {
+        if (error) console.error("Failed to delete fee:", error);
+      });
   },
 
   getFeeById: (id: string) => fees.find((f) => f.id === id),
 
-  createDraft: async (): Promise<TranslatorFee> => {
+  createDraft: (): TranslatorFee => {
     const now = new Date();
-    const { data: session } = await supabase.auth.getSession();
-    const userId = session?.session?.user?.id;
-
     const newFee: TranslatorFee = {
       id: crypto.randomUUID(),
       title: "",
@@ -173,23 +173,14 @@ export const feeStore = {
       ],
       notes: [],
       editLogs: [],
-      createdBy: userId || "",
+      createdBy: _cachedUserId || "",
       createdAt: now.toISOString(),
     };
 
-    // Optimistic
     fees = [newFee, ...fees];
     notify();
 
-    const { error } = await supabase.from("fees").insert({
-      id: newFee.id,
-      ...appToDb(newFee),
-      created_by: userId || null,
-    } as any);
-
-    if (error) {
-      console.error("Failed to create draft:", error);
-    }
+    getUserId().then((uid) => persistInsert(newFee, uid));
 
     return newFee;
   },
