@@ -257,7 +257,24 @@ const allColumnDefs: ColumnDef[] = [
   },
 ];
 
-function AssigneeLabel({ value }: { value: string }) {
+// Cache for creator UUID → display name
+const creatorNameCache = new Map<string, string>();
+
+function CreatorName({ uid }: { uid: string }) {
+  const [name, setName] = useState(creatorNameCache.get(uid) || uid);
+  useEffect(() => {
+    if (!uid || uid.length !== 36) return;
+    if (creatorNameCache.has(uid)) { setName(creatorNameCache.get(uid)!); return; }
+    supabase.from("profiles").select("display_name, email").eq("id", uid).maybeSingle()
+      .then(({ data }) => {
+        const resolved = data?.display_name || data?.email || uid;
+        creatorNameCache.set(uid, resolved);
+        setName(resolved);
+      });
+  }, [uid]);
+  return <span className="truncate text-sm">{name}</span>;
+}
+
   const { options } = useSelectOptions("assignee");
   const opt = options.find((o) => o.label === value);
   if (!value) return <span className="truncate text-sm text-muted-foreground">—</span>;
