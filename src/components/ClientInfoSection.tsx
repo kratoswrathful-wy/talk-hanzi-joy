@@ -296,7 +296,7 @@ export default function ClientInfoSection({
           </div>
         </div>
 
-        <div className="rounded-lg border-2 border-border overflow-hidden">
+        <div className="rounded-lg border border-border overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow className="bg-secondary/30">
@@ -316,7 +316,7 @@ export default function ClientInfoSection({
                       fieldKey="clientTaskType"
                       value={item.taskType}
                       onValueChange={(v) => updateItem(item.id, "taskType", v as TaskType)}
-                      triggerClassName="h-7 text-xs"
+                      triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0"
                       disabled={clientItemsLocked}
                     />
                   </TableCell>
@@ -325,43 +325,55 @@ export default function ClientInfoSection({
                       fieldKey="clientBillingUnit"
                       value={item.billingUnit}
                       onValueChange={(v) => updateItem(item.id, "billingUnit", v as BillingUnit)}
-                      triggerClassName="h-7 text-xs"
+                      triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0"
                       disabled={clientItemsLocked}
                     />
                   </TableCell>
                   <TableCell>
                     <Input
-                      type="number"
-                      step="0.1"
+                      type="text"
+                      inputMode="decimal"
                       value={item.clientPrice || ""}
-                      onChange={(e) => updateItem(item.id, "clientPrice", Number(e.target.value))}
-                      className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "clientPrice", v as any);
+                      }}
+                      onBlur={(e) => handleNumberBlur(item.id, "clientPrice", e.target.value)}
+                      className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-20"
                       disabled={clientItemsLocked}
                     />
                   </TableCell>
                   <TableCell>
                     <Input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       value={item.unitCount || ""}
-                      onChange={(e) => updateItem(item.id, "unitCount", Number(e.target.value))}
-                      className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "unitCount", v as any);
+                      }}
+                      onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
+                      className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-24"
                       disabled={clientItemsLocked}
                     />
                   </TableCell>
-                  <TableCell className="text-right text-xs tabular-nums">
+                  <TableCell className="text-right text-xs font-medium">
                     {(Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
                   </TableCell>
                   {canEdit && !clientItemsLocked && (
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        disabled={displayClientTaskItems.length <= 1}
-                        onClick={() => removeItem(item.id)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
+                      {index > 0 ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={() => removeItem(item.id)}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : (
+                        <div className="h-7 w-7" />
+                      )}
                     </TableCell>
                   )}
                 </TableRow>
