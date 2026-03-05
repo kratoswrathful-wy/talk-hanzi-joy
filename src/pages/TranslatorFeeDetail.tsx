@@ -643,21 +643,23 @@ export default function TranslatorFeeDetail() {
   if (currentRole === "assignee" && isDraft) {
     return (
       <div className="mx-auto max-w-3xl space-y-6">
-        {/* Role Switcher */}
-        <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
-          <span className="font-medium">測試角色：</span>
-          {(Object.keys(roleLabels) as UserRole[]).map((role) => (
-            <Button
-              key={role}
-              variant={currentRole === role ? "default" : "outline"}
-              size="sm"
-              className="h-6 text-xs px-2.5"
-              onClick={() => setCurrentRole(role)}
-            >
-              {roleLabels[role]}
-            </Button>
-          ))}
-        </div>
+        {/* Role Switcher — dev only */}
+        {import.meta.env.DEV && (
+          <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+            <span className="font-medium">測試角色：</span>
+            {(Object.keys(roleLabels) as UserRole[]).map((role) => (
+              <Button
+                key={role}
+                variant={currentRole === role ? "default" : "outline"}
+                size="sm"
+                className="h-6 text-xs px-2.5"
+                onClick={() => setCurrentRole(role)}
+              >
+                {roleLabels[role]}
+              </Button>
+            ))}
+          </div>
+        )}
         <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-2">
           <p className="text-sm">此稿費單尚未送出，譯者無法查看</p>
           <p className="text-xs">（實際環境中此紀錄不會出現在列表中）</p>
