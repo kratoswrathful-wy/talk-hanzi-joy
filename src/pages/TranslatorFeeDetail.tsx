@@ -1450,25 +1450,25 @@ export default function TranslatorFeeDetail() {
                 ) : (
                   taskItems.map((item, index) => (
                     <TableRow key={item.id} className={isNoFeeTranslator ? "opacity-50" : ""}>
-                      <TableCell>
+                      <TableCell className="text-center">
                         <ColorSelect
                           fieldKey="taskType"
                           value={item.taskType}
                           disabled={!canEdit || isNoFeeTranslator}
                           onValueChange={(v) => handleUpdateItem(item.id, "taskType", v)}
-                          triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0"
+                          triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-center">
                         <ColorSelect
                           fieldKey="billingUnit"
                           value={item.billingUnit}
                           disabled={!canEdit || isNoFeeTranslator}
                           onValueChange={(v) => handleUpdateItem(item.id, "billingUnit", v)}
-                          triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0"
+                          triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-right">
                         <Input
                           type="text"
                           inputMode="decimal"
@@ -1479,10 +1479,10 @@ export default function TranslatorFeeDetail() {
                           }}
                           onBlur={(e) => handleNumberBlur(item.id, "unitPrice", e.target.value)}
                           disabled={!canEdit || isNoFeeTranslator}
-                          className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-20"
+                          className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-right">
                         <Input
                           type="text"
                           inputMode="decimal"
@@ -1493,7 +1493,7 @@ export default function TranslatorFeeDetail() {
                           }}
                           onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
                           disabled={!canEdit || isNoFeeTranslator}
-                          className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-24"
+                          className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
                         />
                       </TableCell>
                       <TableCell className="text-right text-xs font-medium">
