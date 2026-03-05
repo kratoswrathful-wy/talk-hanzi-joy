@@ -1372,7 +1372,7 @@ export default function TranslatorFeeDetail() {
                       const updatedTaskItems = taskItems.map(item => {
                         const cp = defaultPricingStore.getClientPrice(clientName, item.taskType);
                         if (cp === undefined) return item;
-                        const tp = defaultPricingStore.getTranslatorPrice(cp);
+                        const tp = defaultPricingStore.getTranslatorPrice(cp, item.taskType, item.billingUnit);
                         return tp !== undefined ? { ...item, unitPrice: tp } : item;
                       });
                       setTaskItems(updatedTaskItems);
