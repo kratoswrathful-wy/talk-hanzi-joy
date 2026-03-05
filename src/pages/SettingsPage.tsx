@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, GripVertical, Pencil, Shield } from "lucide-react";
 import { useSelectOptions, selectOptionsStore, PRESET_COLORS } from "@/stores/select-options-store";
-import { useClientPricing, useTranslatorTiers } from "@/stores/default-pricing-store";
+import { useClientPricing, useTranslatorTiers, type TranslatorTier } from "@/stores/default-pricing-store";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions, type PermissionConfig } from "@/hooks/use-permissions";
 import { Switch } from "@/components/ui/switch";
