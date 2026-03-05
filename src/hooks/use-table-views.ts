@@ -165,6 +165,23 @@ export function useTableViews(currentRole?: string) {
     if (activeViewId === viewId) setActiveViewId("default");
   }, [activeViewId]);
 
+  const renameView = useCallback((viewId: string, newName: string) => {
+    if (viewId === "default" || !newName.trim()) return;
+    updateView(viewId, { name: newName.trim() });
+  }, [updateView]);
+
+  const reorderViews = useCallback((fromId: string, toId: string) => {
+    setViews((prev) => {
+      const next = [...prev];
+      const fromIdx = next.findIndex((v) => v.id === fromId);
+      const toIdx = next.findIndex((v) => v.id === toId);
+      if (fromIdx < 0 || toIdx < 0) return prev;
+      const [moved] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, moved);
+      return next;
+    });
+  }, []);
+
   const addFilter = useCallback((filter: Omit<TableFilter, "id">) => {
     const id = `f-${Date.now()}`;
     updateView(activeViewId, { filters: [...activeView.filters, { ...filter, id }] });
