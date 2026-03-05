@@ -172,7 +172,7 @@ const allColumnDefs: ColumnDef[] = [
   },
   {
     key: "clientPoNumber",
-    label: "客戶 PO",
+    label: "客戶 PO#",
     minWidth: 80,
     managerOnly: true,
     render: (f, { editable, onCommit }) => (
