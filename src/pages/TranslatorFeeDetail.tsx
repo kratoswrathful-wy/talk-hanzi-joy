@@ -46,7 +46,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 
 type UserRole = "assignee" | "pm" | "executive";
 const roleLabels: Record<UserRole, string> = {
-  assignee: "開單對象",
+  assignee: "譯者",
   pm: "PM",
   executive: "執行官",
 };
@@ -93,7 +93,7 @@ const fieldLabels: Record<string, string> = {
   unitPrice: "單價",
   unitCount: "計費單位數",
   title: "標題",
-  assignee: "開單對象",
+  assignee: "譯者",
   internalNote: "相關案件",
   client: "客戶",
   contact: "聯絡人",
@@ -619,7 +619,7 @@ export default function TranslatorFeeDetail() {
           ))}
         </div>
         <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-2">
-          <p className="text-sm">此稿費單尚未送出，開單對象無法查看</p>
+          <p className="text-sm">此稿費單尚未送出，譯者無法查看</p>
           <p className="text-xs">（實際環境中此紀錄不會出現在列表中）</p>
         </div>
       </div>

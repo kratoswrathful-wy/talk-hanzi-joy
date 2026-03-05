@@ -1,9 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, KeyboardEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -18,10 +17,10 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, UserPlus } from "lucide-react";
+import { Loader2, Trash2, UserPlus, X } from "lucide-react";
 
 type AppRole = "member" | "pm" | "executive";
-const roleLabels: Record<AppRole, string> = { member: "人員", pm: "PM", executive: "執行官" };
+const roleLabels: Record<AppRole, string> = { member: "譯者", pm: "PM", executive: "執行官" };
 
 interface Member {
   id: string;
@@ -33,20 +32,118 @@ interface Member {
   invitationId?: string;
 }
 
+// ─── Multi-email Tag Input ───
+function EmailTagInput({
+  emails,
+  setEmails,
+}: {
+  emails: string[];
+  setEmails: (emails: string[]) => void;
+}) {
+  const [inputValue, setInputValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const addEmail = (raw: string) => {
+    const email = raw.trim().toLowerCase();
+    if (!email) return;
+    // Basic email validation
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error(`無效的電子信箱：${email}`);
+      return;
+    }
+    if (emails.includes(email)) {
+      toast.error(`已新增：${email}`);
+      return;
+    }
+    setEmails([...emails, email]);
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === "," || e.key === " " || e.key === "Tab") {
+      e.preventDefault();
+      if (inputValue.trim()) {
+        addEmail(inputValue);
+        setInputValue("");
+      }
+    }
+    if (e.key === "Backspace" && !inputValue && emails.length > 0) {
+      setEmails(emails.slice(0, -1));
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData("text");
+    const parts = text.split(/[,;\s\n]+/).filter(Boolean);
+    const newEmails = [...emails];
+    for (const part of parts) {
+      const email = part.trim().toLowerCase();
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !newEmails.includes(email)) {
+        newEmails.push(email);
+      }
+    }
+    setEmails(newEmails);
+    setInputValue("");
+  };
+
+  const removeEmail = (email: string) => {
+    setEmails(emails.filter((e) => e !== email));
+  };
+
+  return (
+    <div
+      className="flex flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-3 py-2 min-h-[40px] cursor-text"
+      onClick={() => inputRef.current?.focus()}
+    >
+      {emails.map((email) => (
+        <span
+          key={email}
+          className="inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground"
+        >
+          {email}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              removeEmail(email);
+            }}
+            className="ml-0.5 rounded-full hover:bg-muted-foreground/20 p-0.5"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </span>
+      ))}
+      <input
+        ref={inputRef}
+        type="text"
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
+        onBlur={() => {
+          if (inputValue.trim()) {
+            addEmail(inputValue);
+            setInputValue("");
+          }
+        }}
+        placeholder={emails.length === 0 ? "輸入電子信箱，按 Enter 新增" : ""}
+        className="flex-1 min-w-[150px] bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+      />
+    </div>
+  );
+}
+
 export default function MembersPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<AppRole>("member");
+  const [inviteEmails, setInviteEmails] = useState<string[]>([]);
   const [inviting, setInviting] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
 
   const fetchMembers = useCallback(async () => {
     setLoading(true);
-
-    // Fetch registered users with roles
     const { data: profiles } = await supabase.from("profiles").select("id, display_name, email, avatar_url");
     const { data: roles } = await supabase.from("user_roles").select("user_id, role");
     const { data: invitations } = await supabase.from("invitations").select("*").is("accepted_at", null);
@@ -79,23 +176,34 @@ export default function MembersPage() {
   useEffect(() => { fetchMembers(); }, [fetchMembers]);
 
   const handleInvite = async () => {
-    if (!inviteEmail.trim()) return;
+    if (inviteEmails.length === 0) return;
     setInviting(true);
 
-    const { error } = await supabase.from("invitations").insert({
-      email: inviteEmail.trim().toLowerCase(),
-      role: inviteRole,
-    });
+    let successCount = 0;
+    let errorCount = 0;
 
-    if (error) {
-      if (error.code === "23505") {
-        toast.error("此信箱已被邀請");
+    for (const email of inviteEmails) {
+      const { error } = await supabase.from("invitations").insert({
+        email,
+        role: "member" as AppRole, // Always default to 譯者
+        invited_by: user?.id,
+      });
+
+      if (error) {
+        if (error.code === "23505") {
+          toast.error(`${email} 已被邀請`);
+        } else {
+          toast.error(`${email}: ${error.message}`);
+        }
+        errorCount++;
       } else {
-        toast.error(error.message);
+        successCount++;
       }
-    } else {
-      toast.success(`已邀請 ${inviteEmail}`);
-      setInviteEmail("");
+    }
+
+    if (successCount > 0) {
+      toast.success(`已成功邀請 ${successCount} 人`);
+      setInviteEmails([]);
       setInviteOpen(false);
       fetchMembers();
     }
@@ -103,11 +211,9 @@ export default function MembersPage() {
   };
 
   const handleRoleChange = async (member: Member, newRole: AppRole) => {
-    if (member.isInvitation) {
-      await supabase.from("invitations").update({ role: newRole }).eq("id", member.invitationId!);
-    } else {
-      await supabase.from("user_roles").update({ role: newRole }).eq("user_id", member.id);
-    }
+    // Only allow role change for registered members (not invitations)
+    if (member.isInvitation) return;
+    await supabase.from("user_roles").update({ role: newRole }).eq("user_id", member.id);
     fetchMembers();
     toast.success("角色已更新");
   };
@@ -118,7 +224,6 @@ export default function MembersPage() {
       await supabase.from("invitations").delete().eq("id", removeTarget.invitationId!);
     } else {
       await supabase.from("user_roles").delete().eq("user_id", removeTarget.id);
-      // Note: we don't delete the auth user, just remove their role
     }
     setRemoveTarget(null);
     fetchMembers();
@@ -183,19 +288,25 @@ export default function MembersPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <Select
-                        value={member.role}
-                        onValueChange={(v) => handleRoleChange(member, v as AppRole)}
-                      >
-                        <SelectTrigger className="w-24 h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="member">人員</SelectItem>
-                          <SelectItem value="pm">PM</SelectItem>
-                          <SelectItem value="executive">執行官</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      {member.isInvitation ? (
+                        <Badge variant="secondary" className="text-xs">
+                          {roleLabels[member.role]}
+                        </Badge>
+                      ) : (
+                        <Select
+                          value={member.role}
+                          onValueChange={(v) => handleRoleChange(member, v as AppRole)}
+                        >
+                          <SelectTrigger className="w-24 h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="member">譯者</SelectItem>
+                            <SelectItem value="pm">PM</SelectItem>
+                            <SelectItem value="executive">執行官</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -218,37 +329,23 @@ export default function MembersPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>邀請新成員</DialogTitle>
-            <DialogDescription>輸入對方的電子信箱，對方註冊後將自動獲得指定角色</DialogDescription>
+            <DialogDescription>
+              輸入電子信箱後按 Enter 新增，可同時邀請多人。新成員預設角色為「譯者」，加入後可調整。
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>電子信箱</Label>
-              <Input
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="name@example.com"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>角色</Label>
-              <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as AppRole)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="member">人員</SelectItem>
-                  <SelectItem value="pm">PM</SelectItem>
-                  <SelectItem value="executive">執行官</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <EmailTagInput emails={inviteEmails} setEmails={setInviteEmails} />
+            {inviteEmails.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                將邀請 {inviteEmails.length} 人，預設角色：譯者
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setInviteOpen(false)}>取消</Button>
-            <Button onClick={handleInvite} disabled={inviting || !inviteEmail.trim()}>
+            <Button onClick={handleInvite} disabled={inviting || inviteEmails.length === 0}>
               {inviting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              送出邀請
+              送出邀請（{inviteEmails.length}）
             </Button>
           </DialogFooter>
         </DialogContent>
