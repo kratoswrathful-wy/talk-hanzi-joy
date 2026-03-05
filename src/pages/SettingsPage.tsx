@@ -774,14 +774,20 @@ function NewTierGroupButton({
   onAdd: (taskType: string, billingUnit: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [selectedTaskType, setSelectedTaskType] = useState("");
+  const [selectedTaskTypes, setSelectedTaskTypes] = useState<string[]>([]);
   const [selectedUnit, setSelectedUnit] = useState("字");
 
+  const toggleTaskType = (label: string) => {
+    setSelectedTaskTypes((prev) =>
+      prev.includes(label) ? prev.filter((t) => t !== label) : [...prev, label]
+    );
+  };
+
   const handleAdd = () => {
-    if (!selectedTaskType) return;
-    onAdd(selectedTaskType, selectedUnit);
+    if (selectedTaskTypes.length === 0) return;
+    selectedTaskTypes.forEach((tt) => onAdd(tt, selectedUnit));
     setOpen(false);
-    setSelectedTaskType("");
+    setSelectedTaskTypes([]);
     setSelectedUnit("字");
   };
 
@@ -808,7 +814,7 @@ function NewTierGroupButton({
             key={tt.id}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all",
-              selectedTaskType === tt.label
+              selectedTaskTypes.includes(tt.label)
                 ? "ring-2 ring-primary/50 scale-105"
                 : "opacity-70 hover:opacity-100"
             )}
@@ -817,7 +823,7 @@ function NewTierGroupButton({
               color: tt.color,
               borderColor: tt.color + "44",
             }}
-            onClick={() => setSelectedTaskType(tt.label)}
+            onClick={() => toggleTaskType(tt.label)}
           >
             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tt.color }} />
             {tt.label}
@@ -841,7 +847,7 @@ function NewTierGroupButton({
         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setOpen(false)}>
           取消
         </Button>
-        <Button size="sm" className="h-7 text-xs" disabled={!selectedTaskType} onClick={handleAdd}>
+        <Button size="sm" className="h-7 text-xs" disabled={selectedTaskTypes.length === 0} onClick={handleAdd}>
           新增
         </Button>
       </div>
