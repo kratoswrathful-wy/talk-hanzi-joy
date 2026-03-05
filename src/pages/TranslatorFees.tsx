@@ -559,15 +559,17 @@ export default function TranslatorFees() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
-      {/* Role Switcher */}
-      <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
-        <span className="font-medium">測試角色：</span>
-        {(Object.keys(roleLabels) as UserRole[]).map((role) => (
-          <Button key={role} variant={currentRole === role ? "default" : "outline"} size="sm" className="h-6 text-xs px-2.5" onClick={() => setCurrentRole(role)}>
-            {roleLabels[role]}
-          </Button>
-        ))}
-      </div>
+      {/* Role Switcher — dev only */}
+      {import.meta.env.DEV && (
+        <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
+          <span className="font-medium">測試角色：</span>
+          {(Object.keys(roleLabels) as UserRole[]).map((role) => (
+            <Button key={role} variant={currentRole === role ? "default" : "outline"} size="sm" className="h-6 text-xs px-2.5" onClick={() => setCurrentRole(role)}>
+              {roleLabels[role]}
+            </Button>
+          ))}
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
