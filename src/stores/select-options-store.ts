@@ -4,6 +4,7 @@ export interface SelectOption {
   id: string;
   label: string;
   color: string; // hex color
+  note?: string; // optional note (e.g. translator fee note)
 }
 
 export const PRESET_COLORS = [
@@ -37,6 +38,7 @@ type Listener = () => void;
 interface FieldOptions {
   options: SelectOption[];
   customColors: string[]; // user-added custom colors
+  manualOrder?: boolean; // if true, skip auto-sort
 }
 
 let store: Record<string, FieldOptions> = {};
@@ -92,6 +94,7 @@ function initDefaults() {
         { id: "opt-ct4", label: "LQA", color: PRESET_COLORS[12] },
       ],
       customColors: [],
+      manualOrder: true,
     },
     clientBillingUnit: {
       options: [
@@ -115,6 +118,7 @@ export const selectOptionsStore = {
 
   getSortedOptions: (fieldKey: string): SelectOption[] => {
     const field = selectOptionsStore.getField(fieldKey);
+    if (field.manualOrder) return [...field.options];
     return sortOptions(field.options);
   },
 
@@ -156,6 +160,32 @@ export const selectOptionsStore = {
         ...field,
         options: field.options.map((o) => (o.id === optionId ? { ...o, color } : o)),
       },
+    };
+    notify();
+  },
+
+  updateOptionNote: (fieldKey: string, optionId: string, note: string) => {
+    const field = selectOptionsStore.getField(fieldKey);
+    store = {
+      ...store,
+      [fieldKey]: {
+        ...field,
+        options: field.options.map((o) => (o.id === optionId ? { ...o, note } : o)),
+      },
+    };
+    notify();
+  },
+
+  reorderOptions: (fieldKey: string, orderedIds: string[]) => {
+    const field = selectOptionsStore.getField(fieldKey);
+    const ordered = orderedIds
+      .map((id) => field.options.find((o) => o.id === id))
+      .filter(Boolean) as SelectOption[];
+    // Add any options not in orderedIds at the end
+    const remaining = field.options.filter((o) => !orderedIds.includes(o.id));
+    store = {
+      ...store,
+      [fieldKey]: { ...field, options: [...ordered, ...remaining], manualOrder: true },
     };
     notify();
   },

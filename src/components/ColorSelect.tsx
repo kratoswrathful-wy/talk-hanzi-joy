@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { MoreHorizontal, Plus, Trash2, Palette, Check, Pencil, X, Search } from "lucide-react";
+import { MoreHorizontal, Plus, Trash2, Palette, Check, Pencil, X, Search, MessageSquareText } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useSelectOptions, selectOptionsStore, type SelectOption, PRESET_COLORS } from "@/stores/select-options-store";
 import ColorPicker from "@/components/ColorPicker";
@@ -47,6 +48,8 @@ export default function ColorSelect({
   const [colorPickerOptionId, setColorPickerOptionId] = useState<string | null>(null);
   const [renamingOptionId, setRenamingOptionId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [noteValue, setNoteValue] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const newInputRef = useRef<HTMLInputElement>(null);
@@ -228,7 +231,7 @@ export default function ColorSelect({
                     <PopoverTrigger asChild>
                       <button
                         className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); setEditingNoteId(null); }}
                       >
                         <MoreHorizontal className="h-3.5 w-3.5" />
                       </button>
@@ -275,6 +278,32 @@ export default function ColorSelect({
                             </Button>
                           </div>
                         </div>
+                      ) : editingNoteId === opt.id ? (
+                        <div className="p-3 space-y-2">
+                          <p className="text-xs text-muted-foreground">稿費備註</p>
+                          <Textarea
+                            value={noteValue}
+                            onChange={(e) => setNoteValue(e.target.value)}
+                            placeholder="輸入稿費備註..."
+                            className="text-xs min-h-[60px]"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") setEditingNoteId(null);
+                            }}
+                          />
+                          <div className="flex gap-1.5 justify-end">
+                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingNoteId(null)}>
+                              取消
+                            </Button>
+                            <Button size="sm" className="h-7 text-xs" onClick={() => {
+                              selectOptionsStore.updateOptionNote(fieldKey, opt.id, noteValue.trim());
+                              setEditingNoteId(null);
+                              setMenuOpenId(null);
+                            }}>
+                              儲存
+                            </Button>
+                          </div>
+                        </div>
                       ) : (
                         <div className="p-1">
                           <button
@@ -295,6 +324,19 @@ export default function ColorSelect({
                             <Palette className="h-3.5 w-3.5" />
                             變更顏色
                           </button>
+                          {(fieldKey === "assignee") && (
+                            <button
+                              className="flex items-center gap-2 w-full px-3 py-2 rounded text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingNoteId(opt.id);
+                                setNoteValue(opt.note || "");
+                              }}
+                            >
+                              <MessageSquareText className="h-3.5 w-3.5" />
+                              稿費備註
+                            </button>
+                          )}
                           <button
                             className="flex items-center gap-2 w-full px-3 py-2 rounded text-sm text-destructive hover:bg-destructive/10 transition-colors"
                             onClick={(e) => {
