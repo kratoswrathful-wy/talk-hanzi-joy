@@ -781,6 +781,7 @@ export default function TranslatorFeeDetail() {
       };
     }
     setStatus("finalized");
+    if (id) feeStore.updateFee(id, { status: "finalized" });
   };
 
   const handleRecall = () => {
@@ -803,6 +804,7 @@ export default function TranslatorFeeDetail() {
       });
     }
     setStatus("draft");
+    if (id) feeStore.updateFee(id, { status: "draft" });
   };
 
   const extractNotionPageId = (url: string): string | null => {
