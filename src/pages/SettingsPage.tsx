@@ -643,6 +643,13 @@ function TranslatorTierSection() {
       updateTierRow(tierId, { [field]: num });
     }
     setEditingField(null);
+    // Mark as committed so it joins the sorted order
+    setUncommittedIds((prev) => {
+      if (!prev.has(tierId)) return prev;
+      const next = new Set(prev);
+      next.delete(tierId);
+      return next;
+    });
   }, [editValue, updateTierRow]);
 
   const handleModalSaveField = useCallback((tierId: string, field: "threshold" | "translatorPrice") => {
