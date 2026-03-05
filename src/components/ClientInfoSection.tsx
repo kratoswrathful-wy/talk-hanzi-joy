@@ -203,20 +203,6 @@ export default function ClientInfoSection({
             </div>
           </div>
 
-          {/* Row 3: Dispatch route (right-aligned) */}
-          <div className="flex justify-end">
-            <div className="flex items-center gap-1.5">
-              <Label className="text-xs text-muted-foreground whitespace-nowrap">派案途徑</Label>
-              <ColorSelect
-                fieldKey="dispatchRoute"
-                value={clientInfo.dispatchRoute || ""}
-                onValueChange={(v) => update("dispatchRoute", v)}
-                triggerClassName="h-7 text-xs min-w-[90px]"
-                placeholder="選擇"
-              />
-            </div>
-          </div>
-
           {/* Sub-options for sameCase */}
           {clientInfo.sameCase && (
             <div className="space-y-1">
@@ -294,6 +280,20 @@ export default function ClientInfoSection({
               )}
             </div>
           )}
+
+          {/* Dispatch route */}
+          <div className="flex justify-end">
+            <div className="flex items-center gap-1.5">
+              <Label className="text-xs text-muted-foreground whitespace-nowrap">派案途徑</Label>
+              <ColorSelect
+                fieldKey="dispatchRoute"
+                value={clientInfo.dispatchRoute || ""}
+                onValueChange={(v) => update("dispatchRoute", v)}
+                triggerClassName="h-7 text-xs min-w-[90px]"
+                placeholder="選擇"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
