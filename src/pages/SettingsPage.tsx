@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,8 +8,11 @@ import { useClientPricing, useTranslatorTiers } from "@/stores/default-pricing-s
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions, type PermissionConfig } from "@/hooks/use-permissions";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -387,16 +390,107 @@ function TaskTypeOrderSection() {
   );
 }
 
-// ─── Translator Notes Section ───
+// ─── Translator Notes Section (DB-backed) ───
+
+interface MemberWithSettings {
+  email: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  isInvitation: boolean;
+  note: string;
+  no_fee: boolean;
+}
 
 function TranslatorNotesSection() {
-  const { options: assigneeOptions } = useSelectOptions("assignee");
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [members, setMembers] = useState<MemberWithSettings[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingEmail, setEditingEmail] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
-  const handleSave = (optId: string) => {
-    selectOptionsStore.updateOptionNote("assignee", optId, editValue.trim());
-    setEditingId(null);
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+
+    const [{ data: profiles }, { data: invitations }, { data: settings }] = await Promise.all([
+      supabase.from("profiles").select("email, display_name, avatar_url"),
+      supabase.from("invitations").select("email, role").is("accepted_at", null),
+      supabase.from("member_translator_settings").select("*"),
+    ]);
+
+    const settingsMap = new Map<string, { note: string; no_fee: boolean }>();
+    (settings || []).forEach((s: any) => settingsMap.set(s.email, { note: s.note || "", no_fee: s.no_fee || false }));
+
+    const result: MemberWithSettings[] = [];
+
+    // Registered members
+    (profiles || []).forEach((p: any) => {
+      const s = settingsMap.get(p.email) || { note: "", no_fee: false };
+      result.push({
+        email: p.email,
+        display_name: p.display_name,
+        avatar_url: p.avatar_url,
+        isInvitation: false,
+        note: s.note,
+        no_fee: s.no_fee,
+      });
+    });
+
+    // Invited but not registered
+    const registeredEmails = new Set((profiles || []).map((p: any) => p.email));
+    (invitations || []).forEach((inv: any) => {
+      if (!registeredEmails.has(inv.email)) {
+        const s = settingsMap.get(inv.email) || { note: "", no_fee: false };
+        result.push({
+          email: inv.email,
+          display_name: null,
+          avatar_url: null,
+          isInvitation: true,
+          note: s.note,
+          no_fee: s.no_fee,
+        });
+      }
+    });
+
+    setMembers(result);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const upsertSetting = async (email: string, updates: { note?: string; no_fee?: boolean }) => {
+    const existing = members.find((m) => m.email === email);
+    const currentNote = existing?.note || "";
+    const currentNoFee = existing?.no_fee || false;
+
+    const { error } = await supabase.from("member_translator_settings").upsert(
+      {
+        email,
+        note: updates.note ?? currentNote,
+        no_fee: updates.no_fee ?? currentNoFee,
+      },
+      { onConflict: "email" }
+    );
+
+    if (error) {
+      toast.error("儲存失敗：" + error.message);
+    } else {
+      // Optimistic update
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.email === email
+            ? { ...m, note: updates.note ?? m.note, no_fee: updates.no_fee ?? m.no_fee }
+            : m
+        )
+      );
+    }
+  };
+
+  const handleSaveNote = (email: string) => {
+    upsertSetting(email, { note: editValue.trim() });
+    setEditingEmail(null);
+  };
+
+  const handleToggleNoFee = (email: string, checked: boolean) => {
+    upsertSetting(email, { no_fee: checked });
   };
 
   return (
@@ -409,71 +503,92 @@ function TranslatorNotesSection() {
       </div>
 
       <div className="space-y-2">
-        {assigneeOptions.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            尚無譯者選項
-          </p>
+        {loading ? (
+          <p className="text-sm text-muted-foreground text-center py-4">載入中…</p>
+        ) : members.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">尚無團隊成員</p>
         ) : (
-          assigneeOptions.map((opt) => (
-            <div
-              key={opt.id}
-              className="px-2 py-2 rounded-md hover:bg-secondary/30 transition-colors space-y-1.5"
-            >
-              <div className="flex items-center justify-between">
-                <span
-                  className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
-                  style={{
-                    backgroundColor: opt.color + "22",
-                    color: opt.color,
-                    borderColor: opt.color + "44",
-                  }}
-                >
-                  <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{ backgroundColor: opt.color }}
-                  />
-                  {opt.label}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-muted-foreground"
-                  onClick={() => {
-                    setEditingId(opt.id);
-                    setEditValue(opt.note || "");
-                  }}
-                >
-                  <Pencil className="h-3 w-3" />
-                </Button>
-              </div>
-              {editingId === opt.id ? (
-                <div className="space-y-1.5">
-                  <Textarea
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    placeholder="輸入稿費備註..."
-                    className="text-xs min-h-[60px]"
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === "Escape") setEditingId(null);
-                    }}
-                  />
-                  <div className="flex gap-1.5 justify-end">
-                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setEditingId(null)}>
-                      取消
-                    </Button>
-                    <Button size="sm" className="h-6 text-xs" onClick={() => handleSave(opt.id)}>
-                      儲存
-                    </Button>
+          members.map((member) => {
+            const displayLabel = member.display_name || member.email;
+            const initials = displayLabel.slice(0, 2).toUpperCase();
+            const isEditing = editingEmail === member.email;
+
+            return (
+              <div
+                key={member.email}
+                className="px-2 py-2 rounded-md hover:bg-secondary/30 transition-colors space-y-1.5"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-6 w-6">
+                      <AvatarImage src={member.avatar_url || undefined} />
+                      <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
+                    </Avatar>
+                    <span className="text-sm font-medium">{displayLabel}</span>
+                    {member.isInvitation && (
+                      <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">待接受</span>
+                    )}
+                    {member.no_fee && (
+                      <span className="text-[10px] text-warning border border-warning/30 bg-warning/10 rounded px-1.5 py-0.5">不開單</span>
+                    )}
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground"
+                    onClick={() => {
+                      setEditingEmail(member.email);
+                      setEditValue(member.note);
+                    }}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
                 </div>
-              ) : opt.note ? (
-                <p className="text-xs text-muted-foreground px-1">{opt.note}</p>
-              ) : (
-                <p className="text-xs text-muted-foreground/50 px-1 italic">尚未設定備註</p>
-              )}
-            </div>
-          ))
+
+                {isEditing ? (
+                  <div className="space-y-2 pl-8">
+                    <Textarea
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      placeholder="輸入稿費備註..."
+                      className="text-xs min-h-[60px]"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") setEditingEmail(null);
+                      }}
+                    />
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1.5">
+                        <Checkbox
+                          id={`no-fee-${member.email}`}
+                          checked={member.no_fee}
+                          onCheckedChange={(checked) => handleToggleNoFee(member.email, !!checked)}
+                        />
+                        <Label htmlFor={`no-fee-${member.email}`} className="text-xs cursor-pointer">
+                          不開單譯者
+                        </Label>
+                      </div>
+                      <div className="flex-1" />
+                      <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setEditingEmail(null)}>
+                        取消
+                      </Button>
+                      <Button size="sm" className="h-6 text-xs" onClick={() => handleSaveNote(member.email)}>
+                        儲存
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="pl-8">
+                    {member.note ? (
+                      <p className="text-xs text-muted-foreground px-1">{member.note}</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground/50 px-1 italic">尚未設定備註</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
       </div>
     </div>
@@ -642,11 +757,9 @@ function PermissionManagementSection() {
     next.fields[role][field] = { ...next.fields[role][field] };
     const current = next.fields[role][field][perm];
     next.fields[role][field][perm] = !current;
-    // If disabling view, also disable edit
     if (perm === "view" && current) {
       next.fields[role][field].edit = false;
     }
-    // If enabling edit, also enable view
     if (perm === "edit" && !current) {
       next.fields[role][field].view = true;
     }
