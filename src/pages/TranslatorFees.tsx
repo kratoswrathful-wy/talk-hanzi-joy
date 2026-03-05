@@ -575,6 +575,12 @@ export default function TranslatorFees() {
             <h1 className="text-2xl font-semibold tracking-tight">費用管理</h1>
             <p className="mt-1 text-sm text-muted-foreground">管理譯者費用請款單</p>
           </div>
+          {isManager && (
+            <Button size="sm" className="gap-1.5" onClick={handleCreate}>
+              <Plus className="h-4 w-4" />
+              新增費用
+            </Button>
+          )}
           {!activeView.isDefault && (
             <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
               此為自訂視圖，只有新增者本人可見
@@ -591,12 +597,6 @@ export default function TranslatorFees() {
               title="刪除選取項目"
             >
               <Trash2 className="h-4.5 w-4.5" />
-            </Button>
-          )}
-          {isManager && (
-            <Button size="sm" className="gap-1.5" onClick={handleCreate}>
-              <Plus className="h-4 w-4" />
-              新增費用
             </Button>
           )}
         </div>
