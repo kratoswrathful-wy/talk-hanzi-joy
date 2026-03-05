@@ -44,6 +44,7 @@ export default function ColorSelect({
   const [addingNew, setAddingNew] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
+  const [showNewColorPicker, setShowNewColorPicker] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [colorPickerOptionId, setColorPickerOptionId] = useState<string | null>(null);
   const [renamingOptionId, setRenamingOptionId] = useState<string | null>(null);
