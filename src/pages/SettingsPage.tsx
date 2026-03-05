@@ -810,7 +810,7 @@ function TranslatorTierSection() {
 
               <div className="grid grid-cols-[80px_1fr_1fr_36px] gap-2 px-2 py-1.5 text-xs text-muted-foreground font-medium border-b border-border">
                 <span>適用範圍</span>
-                <span>分段點 (≥)<br/><span className="font-normal text-[10px] opacity-70">輸入 0 = 0 ~ ∞</span></span>
+                <span>分段點 (≤)<br/><span className="font-normal text-[10px] opacity-70">輸入 0 = 0 ~ ∞</span></span>
                 <span>對應譯者單價</span>
                 <span />
               </div>
