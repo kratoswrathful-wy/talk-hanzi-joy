@@ -278,6 +278,32 @@ export default function ColorSelect({
                             </Button>
                           </div>
                         </div>
+                      ) : editingNoteId === opt.id ? (
+                        <div className="p-3 space-y-2">
+                          <p className="text-xs text-muted-foreground">稿費備註</p>
+                          <Textarea
+                            value={noteValue}
+                            onChange={(e) => setNoteValue(e.target.value)}
+                            placeholder="輸入稿費備註..."
+                            className="text-xs min-h-[60px]"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") setEditingNoteId(null);
+                            }}
+                          />
+                          <div className="flex gap-1.5 justify-end">
+                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingNoteId(null)}>
+                              取消
+                            </Button>
+                            <Button size="sm" className="h-7 text-xs" onClick={() => {
+                              selectOptionsStore.updateOptionNote(fieldKey, opt.id, noteValue.trim());
+                              setEditingNoteId(null);
+                              setMenuOpenId(null);
+                            }}>
+                              儲存
+                            </Button>
+                          </div>
+                        </div>
                       ) : (
                         <div className="p-1">
                           <button
@@ -298,6 +324,19 @@ export default function ColorSelect({
                             <Palette className="h-3.5 w-3.5" />
                             變更顏色
                           </button>
+                          {(fieldKey === "assignee") && (
+                            <button
+                              className="flex items-center gap-2 w-full px-3 py-2 rounded text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingNoteId(opt.id);
+                                setNoteValue(opt.note || "");
+                              }}
+                            >
+                              <MessageSquareText className="h-3.5 w-3.5" />
+                              稿費備註
+                            </button>
+                          )}
                           <button
                             className="flex items-center gap-2 w-full px-3 py-2 rounded text-sm text-destructive hover:bg-destructive/10 transition-colors"
                             onClick={(e) => {
