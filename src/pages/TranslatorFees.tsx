@@ -331,8 +331,15 @@ type ExpandType = "notes" | "editLog";
 export default function TranslatorFees() {
   const navigate = useNavigate();
   const fees = useFees();
+  const { primaryRole, isAdmin } = useAuth();
+  const { canViewSection } = usePermissions();
   const [currentRole, setCurrentRole] = useState<UserRole>("pm");
-  const isManager = currentRole === "pm" || currentRole === "executive";
+  const isManager = import.meta.env.DEV
+    ? currentRole === "pm" || currentRole === "executive"
+    : isAdmin;
+  const canCreateFee = import.meta.env.DEV
+    ? isManager
+    : isAdmin || canViewSection("create_fee");
 
   const visibleFieldKeys = allColumnDefs
     .filter((c) => !c.managerOnly || isManager)
