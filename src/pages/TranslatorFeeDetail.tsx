@@ -446,6 +446,7 @@ export default function TranslatorFeeDetail() {
   const [internalCommentDraft, setInternalCommentDraft] = useState("");
   const [notionLoading, setNotionLoading] = useState(false);
   const [isNoFeeTranslator, setIsNoFeeTranslator] = useState(false);
+  const [creatorName, setCreatorName] = useState(feeData?.createdBy || "");
   const [clientInfo, setClientInfo] = useState<ClientInfo>(feeData?.clientInfo ?? { ...defaultClientInfo });
 
   // Edit history tracking — initialize from feeData
@@ -485,6 +486,16 @@ export default function TranslatorFeeDetail() {
   useEffect(() => {
     selectOptionsStore.loadAssignees();
   }, []);
+
+  // Resolve creator UUID to display name
+  useEffect(() => {
+    const uid = feeData?.createdBy;
+    if (!uid || uid.length !== 36) return; // not a UUID
+    supabase.from("profiles").select("display_name, email").eq("id", uid).maybeSingle()
+      .then(({ data }) => {
+        if (data) setCreatorName(data.display_name || data.email);
+      });
+  }, [feeData?.createdBy]);
 
   // Check no-fee translator status
   useEffect(() => {
@@ -1556,7 +1567,7 @@ export default function TranslatorFeeDetail() {
 
         {/* Meta info */}
         <div className="flex gap-6 text-xs text-muted-foreground">
-          <span>建立者：{feeData.createdBy}</span>
+          <span>建立者：{creatorName}</span>
           <span>建立時間：{formattedDate}</span>
         </div>
 
