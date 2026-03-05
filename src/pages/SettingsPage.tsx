@@ -17,15 +17,14 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 /** Find the next editable cell in DOM order and click it */
-function focusNextEditableCell(currentElement: HTMLElement, reverse = false) {
+function focusNextEditableCell(container: Element | null, reverse = false) {
   const allCells = Array.from(
     document.querySelectorAll<HTMLElement>("[data-editable-cell]")
   );
   if (allCells.length === 0) return;
 
-  const container = currentElement.closest("[data-cell-container]");
   const currentIndex = allCells.findIndex(
-    (cell) => cell === container || container?.contains(cell) || cell.contains(currentElement)
+    (cell) => container?.contains(cell) || cell === container
   );
 
   const nextIndex = reverse
@@ -41,9 +40,12 @@ function handleTabKeyDown(
 ) {
   if (e.key === "Tab") {
     e.preventDefault();
+    // Capture the container before save unmounts the input
+    const container = (e.target as HTMLElement).closest("[data-cell-container]");
+    const reverse = e.shiftKey;
     onSave();
     requestAnimationFrame(() => {
-      focusNextEditableCell(e.target as HTMLElement, e.shiftKey);
+      focusNextEditableCell(container, reverse);
     });
   }
 }
@@ -597,6 +599,7 @@ function TranslatorNotesSection() {
 
 function TranslatorTierSection() {
   const { tiers, addTier, updateTier, removeTier } = useTranslatorTiers();
+  const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
@@ -610,96 +613,238 @@ function TranslatorTierSection() {
 
   const fieldKey = (tierId: string, field: string) => `${tierId}::${field}`;
 
+  // Group tiers by taskType + billingUnit
+  const billingUnits = ["字", "小時"];
+  const groups: { taskType: string; billingUnit: string; items: typeof tiers }[] = [];
+  const seen = new Set<string>();
+  for (const tier of tiers) {
+    const gk = `${tier.taskType}::${tier.billingUnit}`;
+    if (!seen.has(gk)) {
+      seen.add(gk);
+      groups.push({
+        taskType: tier.taskType,
+        billingUnit: tier.billingUnit,
+        items: tiers.filter((t) => t.taskType === tier.taskType && t.billingUnit === tier.billingUnit),
+      });
+    }
+  }
+
+  const renderTierValue = (tier: typeof tiers[0], field: "minPrice" | "maxPrice" | "translatorPrice") => {
+    const key = fieldKey(tier.id, field);
+    const isEditing = editingField === key;
+    const displayValue = field === "maxPrice" && tier[field] === 0 ? "∞" : tier[field];
+
+    return (
+      <div key={field} data-cell-container>
+        {isEditing ? (
+          <Input
+            type="text"
+            inputMode="decimal"
+            value={editValue}
+            onChange={(e) => {
+              if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setEditValue(e.target.value);
+            }}
+            onBlur={() => handleSaveField(tier.id, field)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSaveField(tier.id, field);
+              if (e.key === "Escape") setEditingField(null);
+              handleTabKeyDown(e, () => handleSaveField(tier.id, field));
+            }}
+            autoFocus
+            className="h-7 text-xs"
+          />
+        ) : (
+          <button
+            data-editable-cell
+            className="w-full text-left text-sm tabular-nums hover:text-primary transition-colors cursor-pointer"
+            onClick={() => {
+              setEditingField(key);
+              setEditValue(String(tier[field]));
+            }}
+          >
+            {displayValue}
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
       <div>
         <h2 className="text-base font-semibold">譯者單價級距</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          根據客戶報價的範圍，自動對應譯者的預設單價
+          依任務類型與計費單位設定不同的譯者單價級距。上限填 0 表示無上限。
         </p>
       </div>
 
-      <div className="space-y-1">
-        <div className="grid grid-cols-[1fr_1fr_1fr_36px] gap-2 px-2 py-1.5 text-xs text-muted-foreground font-medium border-b border-border">
-          <span>客戶報價下限 (&gt;)</span>
-          <span>客戶報價上限 (≦)</span>
-          <span>對應譯者單價</span>
-          <span />
-        </div>
+      {groups.length === 0 && tiers.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-4">
+          尚未設定級距，點擊下方按鈕新增
+        </p>
+      ) : (
+        <div className="space-y-5">
+          {groups.map((group) => {
+            const ttOpt = taskTypeOptions.find((o) => o.label === group.taskType);
+            return (
+              <div key={`${group.taskType}::${group.billingUnit}`} className="space-y-2">
+                <div className="flex items-center gap-2">
+                  {ttOpt ? (
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                      style={{
+                        backgroundColor: ttOpt.color + "22",
+                        color: ttOpt.color,
+                        borderColor: ttOpt.color + "44",
+                      }}
+                    >
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: ttOpt.color }} />
+                      {group.taskType}
+                    </span>
+                  ) : (
+                    <span className="text-sm font-medium">{group.taskType}</span>
+                  )}
+                  <span className="text-xs text-muted-foreground">／{group.billingUnit}</span>
+                </div>
 
-        {tiers.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            尚未設定級距，點擊下方按鈕新增
-          </p>
-        ) : (
-          tiers.map((tier) => (
-            <div
-              key={tier.id}
-              className="grid grid-cols-[1fr_1fr_1fr_36px] gap-2 items-center px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
-            >
-              {(["minPrice", "maxPrice", "translatorPrice"] as const).map((field) => {
-                const key = fieldKey(tier.id, field);
-                const isEditing = editingField === key;
+                <div className="grid grid-cols-[1fr_1fr_1fr_36px] gap-2 px-2 py-1.5 text-xs text-muted-foreground font-medium border-b border-border">
+                  <span>客戶報價下限 (&gt;)</span>
+                  <span>客戶報價上限 (≦)</span>
+                  <span>對應譯者單價</span>
+                  <span />
+                </div>
 
-                return (
-                  <div key={field} data-cell-container>
-                    {isEditing ? (
-                      <Input
-                        type="text"
-                        inputMode="decimal"
-                        value={editValue}
-                        onChange={(e) => {
-                          if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setEditValue(e.target.value);
-                        }}
-                        onBlur={() => handleSaveField(tier.id, field)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleSaveField(tier.id, field);
-                          if (e.key === "Escape") setEditingField(null);
-                          handleTabKeyDown(e, () => handleSaveField(tier.id, field));
-                        }}
-                        autoFocus
-                        className="h-7 text-xs"
-                      />
-                    ) : (
-                      <button
-                        data-editable-cell
-                        className="w-full text-left text-sm tabular-nums hover:text-primary transition-colors cursor-pointer"
-                        onClick={() => {
-                          setEditingField(key);
-                          setEditValue(String(tier[field]));
-                        }}
+                {group.items.map((tier) => (
+                  <div
+                    key={tier.id}
+                    className="grid grid-cols-[1fr_1fr_1fr_36px] gap-2 items-center px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
+                  >
+                    {renderTierValue(tier, "minPrice")}
+                    {renderTierValue(tier, "maxPrice")}
+                    {renderTierValue(tier, "translatorPrice")}
+
+                    <div className="flex justify-center">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeTier(tier.id)}
                       >
-                        {tier[field]}
-                      </button>
-                    )}
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
-                );
-              })}
+                ))}
 
-              <div className="flex justify-center">
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                  onClick={() => removeTier(tier.id)}
+                  size="sm"
+                  className="gap-1 text-xs text-muted-foreground"
+                  onClick={() => addTier(group.taskType, group.billingUnit, 0, 0, 0)}
                 >
-                  <Trash2 className="h-3 w-3" />
+                  <Plus className="h-3 w-3" />
+                  新增此組級距
                 </Button>
               </div>
-            </div>
-          ))
-        )}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
+      {/* Add new group */}
+      <NewTierGroupButton
+        taskTypeOptions={taskTypeOptions}
+        billingUnits={billingUnits}
+        existingGroups={groups.map((g) => `${g.taskType}::${g.billingUnit}`)}
+        onAdd={(taskType, billingUnit) => addTier(taskType, billingUnit, 0, 0, 0)}
+      />
+    </div>
+  );
+}
+
+function NewTierGroupButton({
+  taskTypeOptions,
+  billingUnits,
+  existingGroups,
+  onAdd,
+}: {
+  taskTypeOptions: { id: string; label: string; color: string }[];
+  billingUnits: string[];
+  existingGroups: string[];
+  onAdd: (taskType: string, billingUnit: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [selectedTaskType, setSelectedTaskType] = useState("");
+  const [selectedUnit, setSelectedUnit] = useState("字");
+
+  const handleAdd = () => {
+    if (!selectedTaskType) return;
+    onAdd(selectedTaskType, selectedUnit);
+    setOpen(false);
+    setSelectedTaskType("");
+    setSelectedUnit("字");
+  };
+
+  if (!open) {
+    return (
       <Button
         variant="outline"
         size="sm"
         className="gap-1 text-xs"
-        onClick={() => addTier(0, 0, 0)}
+        onClick={() => setOpen(true)}
       >
         <Plus className="h-3.5 w-3.5" />
-        新增級距
+        新增級距組合
       </Button>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-secondary/20 p-3 space-y-3">
+      <p className="text-xs font-medium text-muted-foreground">選擇任務類型與計費單位</p>
+      <div className="flex flex-wrap gap-2">
+        {taskTypeOptions.map((tt) => (
+          <button
+            key={tt.id}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all",
+              selectedTaskType === tt.label
+                ? "ring-2 ring-primary/50 scale-105"
+                : "opacity-70 hover:opacity-100"
+            )}
+            style={{
+              backgroundColor: tt.color + "22",
+              color: tt.color,
+              borderColor: tt.color + "44",
+            }}
+            onClick={() => setSelectedTaskType(tt.label)}
+          >
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tt.color }} />
+            {tt.label}
+          </button>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        {billingUnits.map((u) => (
+          <Button
+            key={u}
+            variant={selectedUnit === u ? "default" : "outline"}
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => setSelectedUnit(u)}
+          >
+            {u}
+          </Button>
+        ))}
+      </div>
+      <div className="flex gap-2 justify-end">
+        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setOpen(false)}>
+          取消
+        </Button>
+        <Button size="sm" className="h-7 text-xs" disabled={!selectedTaskType} onClick={handleAdd}>
+          新增
+        </Button>
+      </div>
     </div>
   );
 }
