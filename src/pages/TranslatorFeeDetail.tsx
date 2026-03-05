@@ -864,6 +864,8 @@ export default function TranslatorFeeDetail() {
         const dispatch = data["派案途徑"] || "";
         const people = data["譯者"] || data["審稿人員"] || [];
         const casePages = data["案件頁面"] || [];
+        const reconciled = data["對帳完成"] === true;
+        const invoiced = data["請款完成"] === true;
 
         // Map 單位 to BillingUnit
         const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
@@ -938,6 +940,8 @@ export default function TranslatorFeeDetail() {
           ...(clientCaseId ? { clientCaseId } : {}),
           ...(clientPo ? { clientPoNumber: clientPo } : {}),
           ...(dispatch ? { dispatchRoute: dispatch } : {}),
+          reconciled,
+          invoiced,
           clientTaskItems: clientInfo.clientTaskItems.map((item, idx) =>
             idx === 0
               ? {

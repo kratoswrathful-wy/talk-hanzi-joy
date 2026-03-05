@@ -90,6 +90,10 @@ Deno.serve(async (req) => {
       if (!prop || prop.type !== 'rich_text') return '';
       return (prop.rich_text || []).map((t: any) => t.plain_text).join('');
     };
+    const extractCheckbox = (prop: any): boolean => {
+      if (!prop || prop.type !== 'checkbox') return false;
+      return !!prop.checkbox;
+    };
 
     // Build result
     const result: Record<string, any> = {
@@ -123,6 +127,9 @@ Deno.serve(async (req) => {
           break;
         case 'rich_text':
           result[key] = extractRichText(prop);
+          break;
+        case 'checkbox':
+          result[key] = extractCheckbox(prop);
           break;
         case 'status':
           result[key] = prop.status?.name || '';
