@@ -381,7 +381,7 @@ export default function ClientInfoSection({
             </TableBody>
             <TableFooter>
               <TableRow>
-                <TableCell colSpan={3}>
+                <TableCell colSpan={4}>
                   <div className="flex items-center gap-2">
                     <Label className="text-xs text-muted-foreground whitespace-nowrap">關鍵字</Label>
                     <Input
@@ -396,13 +396,18 @@ export default function ClientInfoSection({
                 <TableCell className="text-sm font-medium text-right">
                   營收總額
                 </TableCell>
-                <TableCell className="text-right text-sm font-bold tabular-nums">
-                  {clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}
-                </TableCell>
-                {canEdit && <TableCell className="px-1" />}
+                {canEdit ? (
+                  <TableCell className="text-right text-sm font-bold tabular-nums px-1">
+                    {clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}
+                  </TableCell>
+                ) : (
+                  <TableCell className="text-right text-sm font-bold tabular-nums">
+                    {clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}
+                  </TableCell>
+                )}
               </TableRow>
               <TableRow>
-                <TableCell colSpan={3}>
+                <TableCell colSpan={4}>
                   <div className="flex items-center gap-2">
                     <Label className="text-xs text-muted-foreground whitespace-nowrap">PO #</Label>
                     <Input
@@ -419,10 +424,15 @@ export default function ClientInfoSection({
                     ? `利潤（${profitFeeCount} 筆稿費）`
                     : "利潤"}
                 </TableCell>
-                <TableCell className={`text-right text-sm font-bold ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
-                  {clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}
-                </TableCell>
-                {canEdit && <TableCell className="px-1" />}
+                {canEdit ? (
+                  <TableCell className={`text-right text-sm font-bold px-1 ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
+                    {clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}
+                  </TableCell>
+                ) : (
+                  <TableCell className={`text-right text-sm font-bold ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
+                    {clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}
+                  </TableCell>
+                )}
               </TableRow>
             </TableFooter>
           </Table>
