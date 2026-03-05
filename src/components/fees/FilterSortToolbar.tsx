@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Filter, ArrowUpDown, Plus, X, ChevronDown, Trash2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +56,8 @@ interface Props {
   onAddSort: (sort: Omit<TableSort, "id">) => void;
   onRemoveSort: (id: string) => void;
   onUpdateSort: (id: string, updates: Partial<TableSort>) => void;
+  onRenameView: (id: string, name: string) => void;
+  onReorderViews: (fromId: string, toId: string) => void;
   visibleFieldKeys: string[];
   selectedCount: number;
 }
@@ -65,10 +67,16 @@ export function FilterSortToolbar({
   onSetActiveView, onAddView, onDeleteView,
   onAddFilter, onRemoveFilter, onUpdateFilter,
   onAddSort, onRemoveSort, onUpdateSort,
+  onRenameView, onReorderViews,
   visibleFieldKeys,
   selectedCount,
 }: Props) {
   const [newViewName, setNewViewName] = useState("");
+  const [editingViewId, setEditingViewId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const editInputRef = useRef<HTMLInputElement>(null);
+  const dragViewRef = useRef<string | null>(null);
+  const [dragOverViewId, setDragOverViewId] = useState<string | null>(null);
   const visibleFields = fieldMetas.filter((f) => visibleFieldKeys.includes(f.key));
 
   return (
@@ -78,17 +86,45 @@ export function FilterSortToolbar({
         {views.map((view) => (
           <button
             key={view.id}
-            onClick={() => onSetActiveView(view.id)}
+            draggable={!view.isDefault && editingViewId !== view.id}
+            onDragStart={(e) => { dragViewRef.current = view.id; e.dataTransfer.effectAllowed = "move"; }}
+            onDragOver={(e) => { e.preventDefault(); if (dragViewRef.current && dragViewRef.current !== view.id) setDragOverViewId(view.id); }}
+            onDrop={(e) => { e.preventDefault(); if (dragViewRef.current && dragViewRef.current !== view.id) { onReorderViews(dragViewRef.current, view.id); } dragViewRef.current = null; setDragOverViewId(null); }}
+            onDragEnd={() => { dragViewRef.current = null; setDragOverViewId(null); }}
+            onClick={() => { if (editingViewId !== view.id) onSetActiveView(view.id); }}
+            onDoubleClick={() => {
+              if (!view.isDefault) {
+                setEditingViewId(view.id);
+                setEditingName(view.name);
+                setTimeout(() => editInputRef.current?.focus(), 0);
+              }
+            }}
             className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-colors",
               activeViewId === view.id
                 ? "bg-primary/15 text-primary"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              dragOverViewId === view.id && "ring-2 ring-primary/40"
             )}
           >
             <Eye className="h-3 w-3" />
-            {view.name}
-            {!view.isDefault && activeViewId === view.id && (
+            {editingViewId === view.id ? (
+              <input
+                ref={editInputRef}
+                value={editingName}
+                onChange={(e) => setEditingName(e.target.value)}
+                onBlur={() => { onRenameView(view.id, editingName); setEditingViewId(null); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { onRenameView(view.id, editingName); setEditingViewId(null); }
+                  if (e.key === "Escape") setEditingViewId(null);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-transparent border-b border-primary outline-none w-16 text-xs"
+              />
+            ) : (
+              view.name
+            )}
+            {!view.isDefault && activeViewId === view.id && editingViewId !== view.id && (
               <button
                 onClick={(e) => { e.stopPropagation(); onDeleteView(view.id); }}
                 className="ml-1 hover:text-destructive"

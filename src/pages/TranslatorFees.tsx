@@ -530,9 +530,16 @@ export default function TranslatorFees() {
       </div>
 
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">費用管理</h1>
-          <p className="mt-1 text-sm text-muted-foreground">管理譯者費用請款單</p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">費用管理</h1>
+            <p className="mt-1 text-sm text-muted-foreground">管理譯者費用請款單</p>
+          </div>
+          {!activeView.isDefault && (
+            <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
+              此為自訂視圖，只有新增者本人可見
+            </span>
+          )}
         </div>
         {isManager && (
           <Button size="sm" className="gap-1.5" onClick={handleCreate}>
@@ -556,6 +563,8 @@ export default function TranslatorFees() {
         onAddSort={tableViews.addSort}
         onRemoveSort={tableViews.removeSort}
         onUpdateSort={tableViews.updateSort}
+        onRenameView={tableViews.renameView}
+        onReorderViews={tableViews.reorderViews}
         visibleFieldKeys={visibleFieldKeys}
         selectedCount={rowSelection.selectedCount}
       />
