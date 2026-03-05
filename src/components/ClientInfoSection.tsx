@@ -295,6 +295,126 @@ export default function ClientInfoSection({
             </div>
           </div>
         </div>
+
+        <div className="rounded-lg border-2 border-border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-secondary/30">
+                <TableHead className="text-xs w-[25%]">客戶端任務類型</TableHead>
+                <TableHead className="text-xs w-[15%]">計費單位</TableHead>
+                <TableHead className="text-xs w-[18%]">客戶報價</TableHead>
+                <TableHead className="text-xs w-[22%]">計費單位數</TableHead>
+                <TableHead className="text-xs text-right w-[20%]">小計</TableHead>
+                {canEdit && !clientItemsLocked && <TableHead className="text-xs w-12" />}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {displayClientTaskItems.map((item, index) => (
+                <TableRow key={item.id} className={clientItemsLocked ? "opacity-50" : ""}>
+                  <TableCell>
+                    <ColorSelect
+                      fieldKey="clientTaskType"
+                      value={item.taskType}
+                      onValueChange={(v) => updateItem(item.id, "taskType", v as TaskType)}
+                      triggerClassName="h-7 text-xs"
+                      disabled={clientItemsLocked}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <ColorSelect
+                      fieldKey="clientBillingUnit"
+                      value={item.billingUnit}
+                      onValueChange={(v) => updateItem(item.id, "billingUnit", v as BillingUnit)}
+                      triggerClassName="h-7 text-xs"
+                      disabled={clientItemsLocked}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      value={item.clientPrice || ""}
+                      onChange={(e) => updateItem(item.id, "clientPrice", Number(e.target.value))}
+                      className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      disabled={clientItemsLocked}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      value={item.unitCount || ""}
+                      onChange={(e) => updateItem(item.id, "unitCount", Number(e.target.value))}
+                      className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      disabled={clientItemsLocked}
+                    />
+                  </TableCell>
+                  <TableCell className="text-right text-xs tabular-nums">
+                    {(Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
+                  </TableCell>
+                  {canEdit && !clientItemsLocked && (
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        disabled={displayClientTaskItems.length <= 1}
+                        onClick={() => removeItem(item.id)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+            <TableFooter>
+              <TableRow>
+                <TableCell colSpan={canEdit && !clientItemsLocked ? 4 : 3}>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">關鍵字</Label>
+                    <Input
+                      value={clientInfo.clientCaseId}
+                      onChange={(e) => update("clientCaseId", e.target.value)}
+                      placeholder="客戶端案號或關鍵字"
+                      disabled={!canEdit}
+                      className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
+                    />
+                  </div>
+                </TableCell>
+                <TableCell colSpan={2} className="text-sm font-medium text-right">
+                  營收總額
+                </TableCell>
+                <TableCell className="text-right text-sm font-bold tabular-nums">
+                  {clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}
+                </TableCell>
+                {canEdit && !clientItemsLocked && <TableCell />}
+              </TableRow>
+              <TableRow>
+                <TableCell colSpan={canEdit && !clientItemsLocked ? 4 : 3}>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">PO #</Label>
+                    <Input
+                      value={clientInfo.clientPoNumber}
+                      onChange={(e) => update("clientPoNumber", e.target.value)}
+                      placeholder="客戶PO編號"
+                      disabled={!canEdit}
+                      className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
+                    />
+                  </div>
+                </TableCell>
+                <TableCell colSpan={2} className="text-sm font-medium text-right">
+                  {clientInfo.sameCase && profitFeeCount > 0
+                    ? `利潤（${profitFeeCount} 筆稿費）`
+                    : "利潤"}
+                </TableCell>
+                <TableCell className={`text-right text-sm font-bold ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
+                  {clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}
+                </TableCell>
+                {canEdit && !clientItemsLocked && <TableCell />}
+              </TableRow>
+            </TableFooter>
+          </Table>
+        </div>
       </div>
 
 
