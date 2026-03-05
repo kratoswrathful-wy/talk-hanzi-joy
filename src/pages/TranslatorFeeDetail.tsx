@@ -1438,7 +1438,7 @@ export default function TranslatorFeeDetail() {
                   <TableHead className="text-xs text-center w-[18%]">稿費單價</TableHead>
                   <TableHead className="text-xs text-center w-[22%]">計費單位數</TableHead>
                   <TableHead className="text-xs text-right w-[20%]">小計</TableHead>
-                  {canEdit && <TableHead className="text-xs w-10 px-1" />}
+                  {canEdit && <TableHead className="text-xs w-16 px-1" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
