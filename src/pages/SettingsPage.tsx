@@ -597,51 +597,53 @@ function TranslatorNotesSection() {
 
 // ─── Translator Tier Section ───
 
+interface TierGroup {
+  groupId: string;
+  taskTypes: string[];
+  billingUnit: string;
+  /** Deduplicated rows (one per unique min/max/price combo), sorted by minPrice */
+  rows: TranslatorTier[];
+}
+
 function TranslatorTierSection() {
-  const { tiers, addTier, updateTier, removeTier } = useTranslatorTiers();
+  const { tiers, addTier, addTierToGroup, updateTierRow, removeTierRow } = useTranslatorTiers();
   const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
   // Error modal state
   const [errorModalOpen, setErrorModalOpen] = useState(false);
-  const [errorGroupKey, setErrorGroupKey] = useState<string | null>(null);
+  const [errorGroupId, setErrorGroupId] = useState<string | null>(null);
   const [errorTierIds, setErrorTierIds] = useState<Record<string, string>>({});
   const [modalEditingField, setModalEditingField] = useState<string | null>(null);
   const [modalEditValue, setModalEditValue] = useState("");
 
-  /** Validate a group; if invalid, open blocking modal. Returns true if valid. */
-  const validateGroup = useCallback((groupItems: TranslatorTier[]): boolean => {
+  /** Validate rows of a group; if invalid, open blocking modal. */
+  const validateRows = useCallback((rows: TranslatorTier[], groupId: string): boolean => {
     const errors: Record<string, string> = {};
     let valid = true;
 
-    for (const tier of groupItems) {
+    for (const tier of rows) {
       if (tier.maxPrice !== 0 && tier.maxPrice <= tier.minPrice) {
         errors[tier.id] = `上限 (${tier.maxPrice}) 必須大於下限 (${tier.minPrice})，或填 0 表示無上限`;
         valid = false;
       }
     }
 
-    const sorted = [...groupItems].sort((a, b) => a.minPrice - b.minPrice);
+    const sorted = [...rows].sort((a, b) => a.minPrice - b.minPrice);
     for (let i = 0; i < sorted.length - 1; i++) {
       const curr = sorted[i];
       const next = sorted[i + 1];
       const currMax = curr.maxPrice === 0 ? Infinity : curr.maxPrice;
       if (currMax > next.minPrice) {
-        if (!errors[curr.id]) {
-          errors[curr.id] = `此級距與「${next.minPrice}」起的級距重疊`;
-          valid = false;
-        }
-        if (!errors[next.id]) {
-          errors[next.id] = `此級距與上限為「${curr.maxPrice === 0 ? "∞" : curr.maxPrice}」的級距重疊`;
-          valid = false;
-        }
+        if (!errors[curr.id]) { errors[curr.id] = `此級距與「${next.minPrice}」起的級距重疊`; valid = false; }
+        if (!errors[next.id]) { errors[next.id] = `此級距與上限為「${curr.maxPrice === 0 ? "∞" : curr.maxPrice}」的級距重疊`; valid = false; }
       }
     }
 
-    if (!valid && groupItems.length > 0) {
+    if (!valid) {
       setErrorTierIds(errors);
-      setErrorGroupKey(`${groupItems[0].taskType}::${groupItems[0].billingUnit}`);
+      setErrorGroupId(groupId);
       setErrorModalOpen(true);
     }
 
@@ -651,35 +653,53 @@ function TranslatorTierSection() {
   const handleSaveField = useCallback((tierId: string, field: "minPrice" | "maxPrice" | "translatorPrice") => {
     const num = Number(editValue);
     if (!isNaN(num) && num >= 0) {
-      updateTier(tierId, { [field]: num });
+      updateTierRow(tierId, { [field]: num });
     }
     setEditingField(null);
-  }, [editValue, updateTier]);
+  }, [editValue, updateTierRow]);
 
   const handleModalSaveField = useCallback((tierId: string, field: "minPrice" | "maxPrice" | "translatorPrice") => {
     const num = Number(modalEditValue);
     if (!isNaN(num) && num >= 0) {
-      updateTier(tierId, { [field]: num });
+      updateTierRow(tierId, { [field]: num });
     }
     setModalEditingField(null);
-  }, [modalEditValue, updateTier]);
+  }, [modalEditValue, updateTierRow]);
 
-  // After tiers change, validate groups
+  // Build groups by groupId
+  const billingUnits = ["字", "小時"];
+  const groups: TierGroup[] = [];
+  const seenGroups = new Set<string>();
+  for (const tier of tiers) {
+    if (seenGroups.has(tier.groupId)) continue;
+    seenGroups.add(tier.groupId);
+    const groupTiers = tiers.filter((t) => t.groupId === tier.groupId);
+    const taskTypes = [...new Set(groupTiers.map((t) => t.taskType))];
+    // Deduplicate rows: pick one representative tier per unique (minPrice, maxPrice, translatorPrice)
+    const rowMap = new Map<string, TranslatorTier>();
+    for (const t of groupTiers) {
+      const rk = `${t.minPrice}::${t.maxPrice}::${t.translatorPrice}`;
+      if (!rowMap.has(rk)) rowMap.set(rk, t);
+    }
+    const rows = [...rowMap.values()].sort((a, b) => a.minPrice - b.minPrice);
+    groups.push({ groupId: tier.groupId, taskTypes, billingUnit: tier.billingUnit, rows });
+  }
+
+  // Validate on tier changes
   useEffect(() => {
-    if (errorModalOpen && errorGroupKey) {
-      // Re-validate the error group to check if fixed
-      const [tt, bu] = errorGroupKey.split("::");
-      const groupItems = tiers.filter((t) => t.taskType === tt && t.billingUnit === bu);
-      // Re-run validation silently
+    if (errorModalOpen && errorGroupId) {
+      const group = groups.find((g) => g.groupId === errorGroupId);
+      if (!group) { setErrorModalOpen(false); return; }
+      // Re-validate
       const errors: Record<string, string> = {};
       let valid = true;
-      for (const tier of groupItems) {
+      for (const tier of group.rows) {
         if (tier.maxPrice !== 0 && tier.maxPrice <= tier.minPrice) {
           errors[tier.id] = `上限 (${tier.maxPrice}) 必須大於下限 (${tier.minPrice})，或填 0 表示無上限`;
           valid = false;
         }
       }
-      const sorted = [...groupItems].sort((a, b) => a.minPrice - b.minPrice);
+      const sorted = [...group.rows].sort((a, b) => a.minPrice - b.minPrice);
       for (let i = 0; i < sorted.length - 1; i++) {
         const curr = sorted[i];
         const next = sorted[i + 1];
@@ -690,48 +710,20 @@ function TranslatorTierSection() {
         }
       }
       setErrorTierIds(errors);
-      if (valid) {
-        setErrorModalOpen(false);
-        setErrorGroupKey(null);
-      }
+      if (valid) { setErrorModalOpen(false); setErrorGroupId(null); }
     }
-  }, [tiers, errorModalOpen, errorGroupKey]);
+  }, [tiers, errorModalOpen, errorGroupId, groups]);
 
-  // Trigger validation on edit (not in modal)
   useEffect(() => {
-    if (errorModalOpen) return; // Don't trigger new modals while one is open
-    const groupMap = new Map<string, TranslatorTier[]>();
-    for (const t of tiers) {
-      const gk = `${t.taskType}::${t.billingUnit}`;
-      if (!groupMap.has(gk)) groupMap.set(gk, []);
-      groupMap.get(gk)!.push(t);
+    if (errorModalOpen) return;
+    for (const group of groups) {
+      validateRows(group.rows, group.groupId);
     }
-    for (const items of groupMap.values()) {
-      validateGroup(items);
-    }
-  }, [tiers, validateGroup, errorModalOpen]);
+  }, [tiers, validateRows, errorModalOpen, groups]);
 
   const fieldKey = (tierId: string, field: string) => `${tierId}::${field}`;
 
-  // Group tiers by taskType + billingUnit
-  const billingUnits = ["字", "小時"];
-  const groups: { taskType: string; billingUnit: string; items: typeof tiers }[] = [];
-  const seen = new Set<string>();
-  for (const tier of tiers) {
-    const gk = `${tier.taskType}::${tier.billingUnit}`;
-    if (!seen.has(gk)) {
-      seen.add(gk);
-      groups.push({
-        taskType: tier.taskType,
-        billingUnit: tier.billingUnit,
-        items: tiers
-          .filter((t) => t.taskType === tier.taskType && t.billingUnit === tier.billingUnit)
-          .sort((a, b) => a.minPrice - b.minPrice),
-      });
-    }
-  }
-
-  const renderTierValue = (tier: typeof tiers[0], field: "minPrice" | "maxPrice" | "translatorPrice", inModal = false) => {
+  const renderTierValue = (tier: TranslatorTier, field: "minPrice" | "maxPrice" | "translatorPrice", inModal = false) => {
     const currentEditingField = inModal ? modalEditingField : editingField;
     const currentEditValue = inModal ? modalEditValue : editValue;
     const setCurrentEditingField = inModal ? setModalEditingField : setEditingField;
@@ -777,13 +769,32 @@ function TranslatorTierSection() {
     );
   };
 
-  // Error modal group data
-  const errorGroup = errorGroupKey
-    ? groups.find((g) => `${g.taskType}::${g.billingUnit}` === errorGroupKey)
-    : null;
-  const errorGroupTtOpt = errorGroup
-    ? taskTypeOptions.find((o) => o.label === errorGroup.taskType)
-    : null;
+  const renderTaskTypeBadges = (taskTypes: string[]) => (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {taskTypes.map((tt) => {
+        const ttOpt = taskTypeOptions.find((o) => o.label === tt);
+        return ttOpt ? (
+          <span
+            key={tt}
+            className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+            style={{
+              backgroundColor: ttOpt.color + "22",
+              color: ttOpt.color,
+              borderColor: ttOpt.color + "44",
+            }}
+          >
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: ttOpt.color }} />
+            {tt}
+          </span>
+        ) : (
+          <span key={tt} className="text-sm font-medium">{tt}</span>
+        );
+      })}
+    </div>
+  );
+
+  // Find error group for modal
+  const errorGroup = errorGroupId ? groups.find((g) => g.groupId === errorGroupId) : null;
 
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
@@ -794,76 +805,59 @@ function TranslatorTierSection() {
         </p>
       </div>
 
-      {groups.length === 0 && tiers.length === 0 ? (
+      {groups.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-4">
           尚未設定級距，點擊下方按鈕新增
         </p>
       ) : (
         <div className="space-y-5">
-          {groups.map((group) => {
-            const ttOpt = taskTypeOptions.find((o) => o.label === group.taskType);
-            return (
-              <div key={`${group.taskType}::${group.billingUnit}`} className="space-y-2">
-                <div className="flex items-center gap-2">
-                  {ttOpt ? (
-                    <span
-                      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
-                      style={{
-                        backgroundColor: ttOpt.color + "22",
-                        color: ttOpt.color,
-                        borderColor: ttOpt.color + "44",
-                      }}
-                    >
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: ttOpt.color }} />
-                      {group.taskType}
-                    </span>
-                  ) : (
-                    <span className="text-sm font-medium">{group.taskType}</span>
-                  )}
-                  <span className="text-xs text-muted-foreground">／{group.billingUnit}</span>
-                </div>
-
-                <div className="grid grid-cols-[1fr_1fr_1fr_36px] gap-2 px-2 py-1.5 text-xs text-muted-foreground font-medium border-b border-border">
-                  <span>客戶報價下限 (&gt;)</span>
-                  <span>客戶報價上限 (≦)</span>
-                  <span>對應譯者單價</span>
-                  <span />
-                </div>
-
-                {group.items.map((tier) => (
-                  <div
-                    key={tier.id}
-                    className="grid grid-cols-[1fr_1fr_1fr_36px] gap-2 items-center px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
-                  >
-                    {renderTierValue(tier, "minPrice")}
-                    {renderTierValue(tier, "maxPrice")}
-                    {renderTierValue(tier, "translatorPrice")}
-
-                    <div className="flex justify-center">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                        onClick={() => removeTier(tier.id)}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-1 text-xs text-muted-foreground"
-                  onClick={() => addTier(group.taskType, group.billingUnit, 0, 0, 0)}
-                >
-                  <Plus className="h-3 w-3" />
-                  新增此組級距
-                </Button>
+          {groups.map((group) => (
+            <div key={group.groupId} className="space-y-2">
+              <div className="flex items-center gap-2">
+                {renderTaskTypeBadges(group.taskTypes)}
+                <span className="text-xs text-muted-foreground">／{group.billingUnit}</span>
               </div>
-            );
-          })}
+
+              <div className="grid grid-cols-[1fr_1fr_1fr_36px] gap-2 px-2 py-1.5 text-xs text-muted-foreground font-medium border-b border-border">
+                <span>客戶報價下限 (&gt;)</span>
+                <span>客戶報價上限 (≦)</span>
+                <span>對應譯者單價</span>
+                <span />
+              </div>
+
+              {group.rows.map((tier) => (
+                <div
+                  key={tier.id}
+                  className="grid grid-cols-[1fr_1fr_1fr_36px] gap-2 items-center px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
+                >
+                  {renderTierValue(tier, "minPrice")}
+                  {renderTierValue(tier, "maxPrice")}
+                  {renderTierValue(tier, "translatorPrice")}
+
+                  <div className="flex justify-center">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                      onClick={() => removeTierRow(tier.id)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1 text-xs text-muted-foreground"
+                onClick={() => addTierToGroup(group.groupId, 0, 0, 0)}
+              >
+                <Plus className="h-3 w-3" />
+                新增此組級距
+              </Button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -871,8 +865,11 @@ function TranslatorTierSection() {
       <NewTierGroupButton
         taskTypeOptions={taskTypeOptions}
         billingUnits={billingUnits}
-        existingGroups={groups.map((g) => `${g.taskType}::${g.billingUnit}`)}
-        onAdd={(taskType, billingUnit, min, max, price) => addTier(taskType, billingUnit, min, max, price)}
+        existingGroups={[]}
+        onAdd={(taskTypes, billingUnit, min, max, price) => {
+          const gid = `grp-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
+          taskTypes.forEach((tt) => addTier(tt, billingUnit, min, max, price, gid));
+        }}
       />
 
       {/* Blocking error modal */}
@@ -891,21 +888,7 @@ function TranslatorTierSection() {
 
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                {errorGroupTtOpt ? (
-                  <span
-                    className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
-                    style={{
-                      backgroundColor: errorGroupTtOpt.color + "22",
-                      color: errorGroupTtOpt.color,
-                      borderColor: errorGroupTtOpt.color + "44",
-                    }}
-                  >
-                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: errorGroupTtOpt.color }} />
-                    {errorGroup.taskType}
-                  </span>
-                ) : (
-                  <span className="text-sm font-medium">{errorGroup.taskType}</span>
-                )}
+                {renderTaskTypeBadges(errorGroup.taskTypes)}
                 <span className="text-xs text-muted-foreground">／{errorGroup.billingUnit}</span>
               </div>
 
@@ -916,7 +899,7 @@ function TranslatorTierSection() {
                 <span />
               </div>
 
-              {errorGroup.items.map((tier) => (
+              {errorGroup.rows.map((tier) => (
                 <div key={tier.id}>
                   <div
                     className={cn(
@@ -934,7 +917,7 @@ function TranslatorTierSection() {
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                        onClick={() => removeTier(tier.id)}
+                        onClick={() => removeTierRow(tier.id)}
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>
@@ -962,7 +945,7 @@ function NewTierGroupButton({
   taskTypeOptions: { id: string; label: string; color: string }[];
   billingUnits: string[];
   existingGroups: string[];
-  onAdd: (taskType: string, billingUnit: string, min: number, max: number, price: number) => void;
+  onAdd: (taskTypes: string[], billingUnit: string, min: number, max: number, price: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [selectedTaskTypes, setSelectedTaskTypes] = useState<string[]>([]);
@@ -982,7 +965,7 @@ function NewTierGroupButton({
     const min = Number(minPrice) || 0;
     const max = Number(maxPrice) || 0;
     const price = Number(translatorPrice) || 0;
-    selectedTaskTypes.forEach((tt) => onAdd(tt, selectedUnit, min, max, price));
+    onAdd(selectedTaskTypes, selectedUnit, min, max, price);
     setOpen(false);
     setSelectedTaskTypes([]);
     setSelectedUnit("字");

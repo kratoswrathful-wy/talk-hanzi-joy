@@ -6,10 +6,12 @@ import { useSyncExternalStore } from "react";
  * Client pricing: clientName → taskType → price
  * Translator tiers: taskType + billingUnit + clientPrice range → translatorPrice
  *   maxPrice = 0 means infinity (no upper bound)
+ *   groupId groups tiers created together (same billingUnit, different taskTypes sharing same price tiers)
  */
 
 export interface TranslatorTier {
   id: string;
+  groupId: string;
   taskType: string;
   billingUnit: string;
   minPrice: number;
@@ -35,6 +37,10 @@ const listeners = new Set<Listener>();
 
 function notify() {
   listeners.forEach((l) => l());
+}
+
+function generateGroupId() {
+  return `grp-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
 }
 
 export const defaultPricingStore = {
@@ -74,9 +80,10 @@ export const defaultPricingStore = {
   // --- Translator tiers ---
   getTranslatorTiers: (): TranslatorTier[] => store.translatorTiers,
 
-  addTier: (taskType: string, billingUnit: string, minPrice: number, maxPrice: number, translatorPrice: number) => {
+  addTier: (taskType: string, billingUnit: string, minPrice: number, maxPrice: number, translatorPrice: number, groupId?: string) => {
     const tier: TranslatorTier = {
       id: `tier-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+      groupId: groupId || generateGroupId(),
       taskType,
       billingUnit,
       minPrice,
@@ -86,6 +93,26 @@ export const defaultPricingStore = {
     store = { ...store, translatorTiers: [...store.translatorTiers, tier] };
     notify();
     return tier.id;
+  },
+
+  /** Add a tier row to ALL task types within a group */
+  addTierToGroup: (groupId: string, minPrice: number, maxPrice: number, translatorPrice: number) => {
+    // Find existing tiers in this group to know which taskTypes + billingUnit
+    const groupTiers = store.translatorTiers.filter((t) => t.groupId === groupId);
+    if (groupTiers.length === 0) return;
+    const billingUnit = groupTiers[0].billingUnit;
+    const taskTypes = [...new Set(groupTiers.map((t) => t.taskType))];
+    const newTiers = taskTypes.map((tt) => ({
+      id: `tier-${Date.now()}-${Math.random().toString(36).slice(2, 5)}-${tt}`,
+      groupId,
+      taskType: tt,
+      billingUnit,
+      minPrice,
+      maxPrice,
+      translatorPrice,
+    }));
+    store = { ...store, translatorTiers: [...store.translatorTiers, ...newTiers] };
+    notify();
   },
 
   updateTier: (id: string, updates: Partial<Omit<TranslatorTier, "id">>) => {
@@ -98,10 +125,39 @@ export const defaultPricingStore = {
     notify();
   },
 
+  /** Update a field for all tiers in a group that share the same minPrice (i.e. same "row") */
+  updateTierRow: (id: string, updates: Partial<Pick<TranslatorTier, "minPrice" | "maxPrice" | "translatorPrice">>) => {
+    const target = store.translatorTiers.find((t) => t.id === id);
+    if (!target) return;
+    store = {
+      ...store,
+      translatorTiers: store.translatorTiers.map((t) => {
+        if (t.groupId === target.groupId && t.minPrice === target.minPrice && t.maxPrice === target.maxPrice && t.translatorPrice === target.translatorPrice) {
+          return { ...t, ...updates };
+        }
+        return t;
+      }),
+    };
+    notify();
+  },
+
   removeTier: (id: string) => {
     store = {
       ...store,
       translatorTiers: store.translatorTiers.filter((t) => t.id !== id),
+    };
+    notify();
+  },
+
+  /** Remove an entire "row" from a group (all task types sharing same values) */
+  removeTierRow: (id: string) => {
+    const target = store.translatorTiers.find((t) => t.id === id);
+    if (!target) return;
+    store = {
+      ...store,
+      translatorTiers: store.translatorTiers.filter((t) =>
+        !(t.groupId === target.groupId && t.minPrice === target.minPrice && t.maxPrice === target.maxPrice && t.translatorPrice === target.translatorPrice)
+      ),
     };
     notify();
   },
@@ -143,8 +199,11 @@ export function useTranslatorTiers() {
   return {
     tiers: defaultPricingStore.getTranslatorTiers(),
     addTier: defaultPricingStore.addTier,
+    addTierToGroup: defaultPricingStore.addTierToGroup,
     updateTier: defaultPricingStore.updateTier,
+    updateTierRow: defaultPricingStore.updateTierRow,
     removeTier: defaultPricingStore.removeTier,
+    removeTierRow: defaultPricingStore.removeTierRow,
     getTranslatorPrice: defaultPricingStore.getTranslatorPrice,
   };
 }
