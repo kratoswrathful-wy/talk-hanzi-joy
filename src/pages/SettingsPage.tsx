@@ -851,7 +851,21 @@ function TranslatorTierSection() {
                 variant="ghost"
                 size="sm"
                 className="gap-1 text-xs text-muted-foreground"
-                onClick={() => addTierToGroup(group.groupId, 0, 0)}
+                onClick={() => {
+                  const newIds = addTierToGroup(group.groupId, 0, 0);
+                  if (newIds.length > 0) {
+                    // Track all new tier IDs as uncommitted (shown at bottom)
+                    setUncommittedIds((prev) => {
+                      const next = new Set(prev);
+                      newIds.forEach((id) => next.add(id));
+                      return next;
+                    });
+                    // Auto-focus the threshold field of the first new tier (representative row)
+                    const repId = newIds[0];
+                    setEditingField(fieldKey(repId, "threshold"));
+                    setEditValue("0");
+                  }
+                }}
               >
                 <Plus className="h-3 w-3" />
                 新增分段點
