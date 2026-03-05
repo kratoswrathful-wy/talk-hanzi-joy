@@ -17,15 +17,14 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 /** Find the next editable cell in DOM order and click it */
-function focusNextEditableCell(currentElement: HTMLElement, reverse = false) {
+function focusNextEditableCell(container: Element | null, reverse = false) {
   const allCells = Array.from(
     document.querySelectorAll<HTMLElement>("[data-editable-cell]")
   );
   if (allCells.length === 0) return;
 
-  const container = currentElement.closest("[data-cell-container]");
   const currentIndex = allCells.findIndex(
-    (cell) => cell === container || container?.contains(cell) || cell.contains(currentElement)
+    (cell) => container?.contains(cell) || cell === container
   );
 
   const nextIndex = reverse
@@ -41,9 +40,12 @@ function handleTabKeyDown(
 ) {
   if (e.key === "Tab") {
     e.preventDefault();
+    // Capture the container before save unmounts the input
+    const container = (e.target as HTMLElement).closest("[data-cell-container]");
+    const reverse = e.shiftKey;
     onSave();
     requestAnimationFrame(() => {
-      focusNextEditableCell(e.target as HTMLElement, e.shiftKey);
+      focusNextEditableCell(container, reverse);
     });
   }
 }
