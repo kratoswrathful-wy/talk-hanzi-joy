@@ -346,100 +346,83 @@ export default function ClientInfoSection({
         </div>
       </div>
 
-      <Separator />
-
-      {/* 同一案件 section */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id="sameCase"
-            checked={clientInfo.sameCase}
-            disabled={!canEdit}
-            onCheckedChange={(checked) => {
-              if (!checked && clientInfo.sameCase) {
-                setShowUncheckWarning(true);
-              } else {
-                update("sameCase", !!checked);
-              }
-            }}
-          />
-          <Label htmlFor="sameCase" className="text-xs cursor-pointer whitespace-nowrap">
-            與他筆費用為同一案件
-          </Label>
-        </div>
-        <div className="flex items-center gap-2 ml-6">
-          <Checkbox
-            id="isFirstFee"
-            checked={clientInfo.isFirstFee}
-            disabled={isFirstFeeDisabled}
-            onCheckedChange={(checked) => {
-              if (checked) {
-                const hasExisting = currentInternalNote && allFees.some(
-                  (f) => f.id !== currentFeeId && f.clientInfo?.sameCase && f.clientInfo?.isFirstFee && f.internalNote === currentInternalNote
-                );
-                if (hasExisting) {
-                  update("isFirstFee", true);
-                  onFirstFeeConflict?.();
-                  return;
+      {/* Sub-options for sameCase */}
+      {clientInfo.sameCase && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 ml-6">
+            <Checkbox
+              id="isFirstFee"
+              checked={clientInfo.isFirstFee}
+              disabled={isFirstFeeDisabled}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  const hasExisting = currentInternalNote && allFees.some(
+                    (f) => f.id !== currentFeeId && f.clientInfo?.sameCase && f.clientInfo?.isFirstFee && f.internalNote === currentInternalNote
+                  );
+                  if (hasExisting) {
+                    update("isFirstFee", true);
+                    onFirstFeeConflict?.();
+                    return;
+                  }
                 }
-              }
-              update("isFirstFee", !!checked);
-            }}
-          />
-          <Label
-            htmlFor="isFirstFee"
-            className={`text-xs cursor-pointer ${isFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
-          >
-            為主要營收紀錄（於總表列入營收統計）
-          </Label>
-        </div>
-        <div className="flex items-center gap-2 ml-6">
-          <Checkbox
-            id="notFirstFee"
-            checked={clientInfo.notFirstFee}
-            disabled={notFirstFeeDisabled}
-            onCheckedChange={(checked) => update("notFirstFee", !!checked)}
-          />
-          <Label
-            htmlFor="notFirstFee"
-            className={`text-xs cursor-pointer ${notFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
-          >
-            非主要營收紀錄（於總表不列入營收統計）
-          </Label>
-        </div>
-
-        {/* Related Fees list */}
-        {clientInfo.sameCase && currentInternalNote && (
-          <div className="ml-6 mt-2">
-            <Label className="text-xs text-muted-foreground">
-              同案件費用頁面（{relatedFees.length} 筆）
+                update("isFirstFee", !!checked);
+              }}
+            />
+            <Label
+              htmlFor="isFirstFee"
+              className={`text-xs cursor-pointer ${isFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
+            >
+              為主要營收紀錄（於總表列入營收統計）
             </Label>
-            {relatedFees.length > 0 ? (
-              <div className="space-y-1 mt-1">
-                {relatedFees.map((f) => (
-                  <Link
-                    key={f.id}
-                    to={`/fees/${f.id}`}
-                    className="flex items-center justify-between text-xs px-2 py-1.5 rounded-md border border-border bg-secondary/30 hover:bg-secondary/50 transition-colors"
-                  >
-                    <span className="text-foreground font-medium truncate">
-                      {f.title || "（未命名）"}
-                    </span>
-                    <span className="text-muted-foreground shrink-0 ml-2">
-                      {f.clientInfo?.isFirstFee ? "主要" : f.clientInfo?.notFirstFee ? "非主要" : "—"}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground mt-1">無相關費用頁面</p>
-            )}
           </div>
-        )}
-        {clientInfo.sameCase && !currentInternalNote && (
-          <p className="ml-6 mt-2 text-xs text-muted-foreground">請先填寫「相關案件」欄位以比對同案件費用</p>
-        )}
-      </div>
+          <div className="flex items-center gap-2 ml-6">
+            <Checkbox
+              id="notFirstFee"
+              checked={clientInfo.notFirstFee}
+              disabled={notFirstFeeDisabled}
+              onCheckedChange={(checked) => update("notFirstFee", !!checked)}
+            />
+            <Label
+              htmlFor="notFirstFee"
+              className={`text-xs cursor-pointer ${notFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
+            >
+              非主要營收紀錄（於總表不列入營收統計）
+            </Label>
+          </div>
+
+          {/* Related Fees list */}
+          {currentInternalNote && (
+            <div className="ml-6 mt-2">
+              <Label className="text-xs text-muted-foreground">
+                同案件費用頁面（{relatedFees.length} 筆）
+              </Label>
+              {relatedFees.length > 0 ? (
+                <div className="space-y-1 mt-1">
+                  {relatedFees.map((f) => (
+                    <Link
+                      key={f.id}
+                      to={`/fees/${f.id}`}
+                      className="flex items-center justify-between text-xs px-2 py-1.5 rounded-md border border-border bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                    >
+                      <span className="text-foreground font-medium truncate">
+                        {f.title || "（未命名）"}
+                      </span>
+                      <span className="text-muted-foreground shrink-0 ml-2">
+                        {f.clientInfo?.isFirstFee ? "主要" : f.clientInfo?.notFirstFee ? "非主要" : "—"}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-1">無相關費用頁面</p>
+              )}
+            </div>
+          )}
+          {!currentInternalNote && (
+            <p className="ml-6 mt-2 text-xs text-muted-foreground">請先填寫「相關案件」欄位以比對同案件費用</p>
+          )}
+        </div>
+      )}
 
       {/* Confirmation dialog */}
       <AlertDialog open={showUncheckWarning} onOpenChange={setShowUncheckWarning}>
