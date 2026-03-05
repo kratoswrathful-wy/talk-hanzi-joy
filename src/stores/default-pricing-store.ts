@@ -4,12 +4,10 @@ import { useSyncExternalStore } from "react";
  * Default pricing store
  *
  * Client pricing: clientName → taskType → price
- * Translator tiers: breakpoint-based pricing per group.
- *   Each tier has a `threshold` (≥) and `translatorPrice`.
- *   The lowest threshold covers [0, threshold).
- *   Each subsequent threshold covers [threshold, nextThreshold).
- *   The highest threshold covers [threshold, ∞).
- *   groupId groups tiers created together (same billingUnit, multiple taskTypes sharing same breakpoints).
+ * Translator tiers: range-based pricing per group.
+ *   Each tier has minPrice (lower bound) and maxPrice (upper bound).
+ *   maxPrice=0 means ∞ (unlimited).
+ *   groupId groups tiers created together (same billingUnit, multiple taskTypes sharing same ranges).
  */
 
 export interface TranslatorTier {
@@ -17,7 +15,8 @@ export interface TranslatorTier {
   groupId: string;
   taskType: string;
   billingUnit: string;
-  threshold: number;      // client price breakpoint (≥)
+  minPrice: number;       // range lower bound (inclusive)
+  maxPrice: number;       // range upper bound (inclusive), 0 = ∞
   translatorPrice: number;
 }
 
@@ -80,13 +79,14 @@ export const defaultPricingStore = {
   // --- Translator tiers ---
   getTranslatorTiers: (): TranslatorTier[] => store.translatorTiers,
 
-  addTier: (taskType: string, billingUnit: string, threshold: number, translatorPrice: number, groupId?: string) => {
+  addTier: (taskType: string, billingUnit: string, minPrice: number, maxPrice: number, translatorPrice: number, groupId?: string) => {
     const tier: TranslatorTier = {
       id: `tier-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
       groupId: groupId || generateGroupId(),
       taskType,
       billingUnit,
-      threshold,
+      minPrice,
+      maxPrice,
       translatorPrice,
     };
     store = { ...store, translatorTiers: [...store.translatorTiers, tier] };
@@ -95,7 +95,7 @@ export const defaultPricingStore = {
   },
 
   /** Add a tier row to ALL task types within a group. Returns new tier IDs. */
-  addTierToGroup: (groupId: string, threshold: number, translatorPrice: number): string[] => {
+  addTierToGroup: (groupId: string, minPrice: number, maxPrice: number, translatorPrice: number): string[] => {
     const groupTiers = store.translatorTiers.filter((t) => t.groupId === groupId);
     if (groupTiers.length === 0) return [];
     const billingUnit = groupTiers[0].billingUnit;
@@ -105,7 +105,8 @@ export const defaultPricingStore = {
       groupId,
       taskType: tt,
       billingUnit,
-      threshold,
+      minPrice,
+      maxPrice,
       translatorPrice,
     }));
     store = { ...store, translatorTiers: [...store.translatorTiers, ...newTiers] };
@@ -123,14 +124,14 @@ export const defaultPricingStore = {
     notify();
   },
 
-  /** Update a field for all tiers in a group that share the same threshold+price (same "row") */
-  updateTierRow: (id: string, updates: Partial<Pick<TranslatorTier, "threshold" | "translatorPrice">>) => {
+  /** Update a field for all tiers in a group that share the same min/max/price (same "row") */
+  updateTierRow: (id: string, updates: Partial<Pick<TranslatorTier, "minPrice" | "maxPrice" | "translatorPrice">>) => {
     const target = store.translatorTiers.find((t) => t.id === id);
     if (!target) return;
     store = {
       ...store,
       translatorTiers: store.translatorTiers.map((t) => {
-        if (t.groupId === target.groupId && t.threshold === target.threshold && t.translatorPrice === target.translatorPrice) {
+        if (t.groupId === target.groupId && t.minPrice === target.minPrice && t.maxPrice === target.maxPrice && t.translatorPrice === target.translatorPrice) {
           return { ...t, ...updates };
         }
         return t;
@@ -154,28 +155,27 @@ export const defaultPricingStore = {
     store = {
       ...store,
       translatorTiers: store.translatorTiers.filter((t) =>
-        !(t.groupId === target.groupId && t.threshold === target.threshold && t.translatorPrice === target.translatorPrice)
+        !(t.groupId === target.groupId && t.minPrice === target.minPrice && t.maxPrice === target.maxPrice && t.translatorPrice === target.translatorPrice)
       ),
     };
     notify();
   },
 
   /** Look up translator price from a given client price, taskType and billingUnit.
-   *  Uses breakpoint logic: finds the lowest threshold ≥ clientPrice (threshold means ≤). 
-   *  threshold=0 means unlimited (covers all prices). */
+   *  Finds the range where minPrice <= clientPrice <= maxPrice (maxPrice=0 means ∞). */
   getTranslatorPrice: (clientPrice: number, taskType?: string, billingUnit?: string): number | undefined => {
     const candidates = store.translatorTiers.filter((t) => {
       if (taskType && t.taskType !== taskType) return false;
       if (billingUnit && t.billingUnit !== billingUnit) return false;
-      return t.threshold === 0 || t.threshold >= clientPrice;
+      const effectiveMax = t.maxPrice === 0 ? Infinity : t.maxPrice;
+      return clientPrice >= t.minPrice && clientPrice <= effectiveMax;
     });
     if (candidates.length === 0) return undefined;
-    // Pick the one with the lowest non-zero threshold that is still ≥ clientPrice
-    // threshold=0 is "catch-all / unlimited", so it should be last resort
+    // If multiple match (shouldn't happen with valid config), pick most specific (smallest range)
     candidates.sort((a, b) => {
-      if (a.threshold === 0) return 1;
-      if (b.threshold === 0) return -1;
-      return a.threshold - b.threshold;
+      const rangeA = (a.maxPrice === 0 ? Infinity : a.maxPrice) - a.minPrice;
+      const rangeB = (b.maxPrice === 0 ? Infinity : b.maxPrice) - b.minPrice;
+      return rangeA - rangeB;
     });
     return candidates[0].translatorPrice;
   },
