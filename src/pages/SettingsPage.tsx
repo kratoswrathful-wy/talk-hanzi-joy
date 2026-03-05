@@ -604,6 +604,77 @@ interface TierGroup {
   rows: TranslatorTier[];
 }
 
+/** Validate a group's rows for three error types:
+ *  1. Upper bound < lower bound (上限低於下限)
+ *  2. Overlapping ranges (級距重疊)
+ *  3. Gap segments (空白區段) from the lowest minPrice to ∞
+ */
+function validateTierGroup(rows: TranslatorTier[]): Record<string, string> {
+  const errors: Record<string, string> = {};
+  if (rows.length === 0) return errors;
+
+  // 1. Check upper < lower (maxPrice=0 means ∞, so it's always valid)
+  for (const r of rows) {
+    if (r.maxPrice !== 0 && r.maxPrice < r.minPrice) {
+      errors[r.id] = `上限 (${r.maxPrice}) 低於下限 (${r.minPrice})`;
+    }
+  }
+
+  // Sort by minPrice for overlap/gap detection
+  const sorted = [...rows].sort((a, b) => a.minPrice - b.minPrice);
+
+  // 2. Check overlap: for each pair, see if ranges intersect
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      const a = sorted[i];
+      const b = sorted[j];
+      const aMax = a.maxPrice === 0 ? Infinity : a.maxPrice;
+      const bMax = b.maxPrice === 0 ? Infinity : b.maxPrice;
+      // Ranges [a.minPrice, aMax] and [b.minPrice, bMax] overlap if a.minPrice <= bMax && b.minPrice <= aMax
+      if (a.minPrice <= bMax && b.minPrice <= aMax) {
+        if (!errors[a.id]) errors[a.id] = "級距重疊";
+        if (!errors[b.id]) errors[b.id] = "級距重疊";
+      }
+    }
+  }
+
+  // 3. Check gaps: from the global minimum to ∞
+  // Build sorted non-overlapping coverage and look for holes
+  // Only check if no overlap/bound errors so far to avoid confusing messages
+  const hasOverlapOrBoundErrors = Object.keys(errors).length > 0;
+  if (!hasOverlapOrBoundErrors && sorted.length > 0) {
+    // Build intervals sorted by minPrice
+    const intervals = sorted.map((r) => ({
+      id: r.id,
+      min: r.minPrice,
+      max: r.maxPrice === 0 ? Infinity : r.maxPrice,
+    }));
+
+    // Check: the first interval should start at the lowest min
+    // Then each subsequent interval should start at prev.max + 1 (for integers)
+    // Since prices can be decimals, we check if next.min > prev.max (gap exists)
+    let coveredUpTo = intervals[0].max;
+    for (let i = 1; i < intervals.length; i++) {
+      if (intervals[i].min > coveredUpTo + 1) {
+        // Gap between coveredUpTo and intervals[i].min
+        // Mark surrounding tiers
+        errors[intervals[i - 1].id] = `空白區段：${coveredUpTo + 1} ~ ${intervals[i].min - 1}`;
+        errors[intervals[i].id] = errors[intervals[i].id] || `空白區段：${coveredUpTo + 1} ~ ${intervals[i].min - 1}`;
+      }
+      if (intervals[i].max > coveredUpTo) {
+        coveredUpTo = intervals[i].max;
+      }
+    }
+    // Check if coverage reaches ∞ (at least one maxPrice=0)
+    if (coveredUpTo !== Infinity) {
+      const last = intervals[intervals.length - 1];
+      errors[last.id] = errors[last.id] || `未涵蓋至無限大（上限 ${sorted[sorted.length - 1].maxPrice} 之後無級距）`;
+    }
+  }
+
+  return errors;
+}
+
 function TranslatorTierSection() {
   const { tiers, addTier, addTierToGroup, updateTierRow, removeTierRow } = useTranslatorTiers();
   const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
@@ -618,26 +689,7 @@ function TranslatorTierSection() {
   const [modalEditingField, setModalEditingField] = useState<string | null>(null);
   const [modalEditValue, setModalEditValue] = useState("");
 
-  const validateRows = useCallback((rows: TranslatorTier[], groupId: string): boolean => {
-    const errors: Record<string, string> = {};
-    let valid = true;
-    const sorted = [...rows].sort((a, b) => a.threshold - b.threshold);
-    for (let i = 0; i < sorted.length - 1; i++) {
-      if (sorted[i].threshold === sorted[i + 1].threshold) {
-        errors[sorted[i].id] = `分段點 ${sorted[i].threshold} 重複`;
-        errors[sorted[i + 1].id] = `分段點 ${sorted[i + 1].threshold} 重複`;
-        valid = false;
-      }
-    }
-    if (!valid) {
-      setErrorTierIds(errors);
-      setErrorGroupId(groupId);
-      setErrorModalOpen(true);
-    }
-    return valid;
-  }, []);
-
-  const handleSaveField = useCallback((tierId: string, field: "threshold" | "translatorPrice") => {
+  const handleSaveField = useCallback((tierId: string, field: "minPrice" | "maxPrice" | "translatorPrice") => {
     const num = Number(editValue);
     if (!isNaN(num) && num >= 0) {
       updateTierRow(tierId, { [field]: num });
@@ -652,7 +704,7 @@ function TranslatorTierSection() {
     });
   }, [editValue, updateTierRow]);
 
-  const handleModalSaveField = useCallback((tierId: string, field: "threshold" | "translatorPrice") => {
+  const handleModalSaveField = useCallback((tierId: string, field: "minPrice" | "maxPrice" | "translatorPrice") => {
     const num = Number(modalEditValue);
     if (!isNaN(num) && num >= 0) {
       updateTierRow(tierId, { [field]: num });
@@ -670,46 +722,47 @@ function TranslatorTierSection() {
     const taskTypes = [...new Set(groupTiers.map((t) => t.taskType))];
     const rowMap = new Map<string, TranslatorTier>();
     for (const t of groupTiers) {
-      const rk = `${t.threshold}::${t.translatorPrice}`;
+      const rk = `${t.minPrice}::${t.maxPrice}::${t.translatorPrice}`;
       if (!rowMap.has(rk)) rowMap.set(rk, t);
     }
     const committedRows = [...rowMap.values()].filter((t) => !uncommittedIds.has(t.id));
     const uncommittedRows = [...rowMap.values()].filter((t) => uncommittedIds.has(t.id));
-    const rows = [...committedRows.sort((a, b) => a.threshold - b.threshold), ...uncommittedRows];
+    const rows = [...committedRows.sort((a, b) => a.minPrice - b.minPrice), ...uncommittedRows];
     groups.push({ groupId: tier.groupId, taskTypes, billingUnit: tier.billingUnit, rows });
   }
 
+  // Re-validate when modal is open and tiers change
   useEffect(() => {
     if (errorModalOpen && errorGroupId) {
       const group = groups.find((g) => g.groupId === errorGroupId);
       if (!group) { setErrorModalOpen(false); return; }
-      const errors: Record<string, string> = {};
-      let valid = true;
-      const sorted = [...group.rows].sort((a, b) => a.threshold - b.threshold);
-      for (let i = 0; i < sorted.length - 1; i++) {
-        if (sorted[i].threshold === sorted[i + 1].threshold) {
-          errors[sorted[i].id] = `分段點 ${sorted[i].threshold} 重複`;
-          errors[sorted[i + 1].id] = `分段點 ${sorted[i + 1].threshold} 重複`;
-          valid = false;
-        }
-      }
+      const committedRows = group.rows.filter((r) => !uncommittedIds.has(r.id));
+      const errors = validateTierGroup(committedRows);
       setErrorTierIds(errors);
-      if (valid) { setErrorModalOpen(false); setErrorGroupId(null); }
+      if (Object.keys(errors).length === 0) { setErrorModalOpen(false); setErrorGroupId(null); }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tiers, errorModalOpen, errorGroupId]);
 
+  // Validate all groups when tiers change (only if modal not already open)
   useEffect(() => {
     if (errorModalOpen) return;
     for (const group of groups) {
-      validateRows(group.rows, group.groupId);
+      const committedRows = group.rows.filter((r) => !uncommittedIds.has(r.id));
+      const errors = validateTierGroup(committedRows);
+      if (Object.keys(errors).length > 0) {
+        setErrorTierIds(errors);
+        setErrorGroupId(group.groupId);
+        setErrorModalOpen(true);
+        break;
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tiers, errorModalOpen]);
 
   const fieldKey = (tierId: string, field: string) => `${tierId}::${field}`;
 
-  const renderTierValue = (tier: TranslatorTier, field: "threshold" | "translatorPrice", inModal = false) => {
+  const renderTierValue = (tier: TranslatorTier, field: "minPrice" | "maxPrice" | "translatorPrice", inModal = false) => {
     const currentEditingField = inModal ? modalEditingField : editingField;
     const currentEditValue = inModal ? modalEditValue : editValue;
     const setCurrentEditingField = inModal ? setModalEditingField : setEditingField;
@@ -717,6 +770,7 @@ function TranslatorTierSection() {
     const saveFn = inModal ? handleModalSaveField : handleSaveField;
     const key = fieldKey(tier.id, field);
     const isEditing = currentEditingField === key;
+    const displayValue = field === "maxPrice" && tier[field] === 0 ? "∞" : tier[field];
     return (
       <div key={field} data-cell-container>
         {isEditing ? (
@@ -745,29 +799,10 @@ function TranslatorTierSection() {
               setCurrentEditValue(String(tier[field]));
             }}
           >
-            {tier[field]}
+            {displayValue}
           </button>
         )}
       </div>
-    );
-  };
-
-  const renderRange = (rows: TranslatorTier[], index: number) => {
-    const tier = rows[index];
-    const prevTier = rows[index - 1];
-    // threshold=0 means entire range 0 ~ ∞
-    if (tier.threshold === 0) {
-      return (
-        <span className="text-xs text-muted-foreground tabular-nums">
-          0 ~ ∞
-        </span>
-      );
-    }
-    const lower = prevTier && prevTier.threshold !== 0 ? `> ${prevTier.threshold}` : "0";
-    return (
-      <span className="text-xs text-muted-foreground tabular-nums">
-        {lower} ~ ≤ {tier.threshold}
-      </span>
     );
   };
 
@@ -802,7 +837,7 @@ function TranslatorTierSection() {
       <div>
         <h2 className="text-base font-semibold">譯者單價級距</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          依客戶報價分段點設定對應的譯者單價。每個分段點表示「≥ 該值」的門檻，最低分段點自動涵蓋至 0，最高分段點自動涵蓋至無限大。
+          依客戶報價範圍設定對應的譯者單價。上限輸入 0 代表無限大 (∞)。
         </p>
       </div>
 
@@ -819,22 +854,23 @@ function TranslatorTierSection() {
                 <span className="text-xs text-muted-foreground">／{group.billingUnit}</span>
               </div>
 
-              <div className="grid grid-cols-[80px_1fr_1fr_36px] gap-2 px-2 py-1.5 text-xs text-muted-foreground font-medium border-b border-border">
-                <span>適用範圍</span>
-                <span>分段點 (≤)<br/><span className="font-normal text-[10px] opacity-70">輸入 0 = 0 ~ ∞</span></span>
-                <span>對應譯者單價</span>
+              <div className="grid grid-cols-[1fr_1fr_1fr_36px] gap-2 px-2 py-1.5 text-xs text-muted-foreground font-medium border-b border-border">
+                <span>下限</span>
+                <span>上限<br/><span className="font-normal text-[10px] opacity-70">0 = ∞</span></span>
+                <span>譯者單價</span>
                 <span />
               </div>
 
-              {group.rows.map((tier, idx) => (
+              {group.rows.map((tier) => (
                 <div
                   key={tier.id}
-                  className="grid grid-cols-[80px_1fr_1fr_36px] gap-2 items-center px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
+                  className={cn(
+                    "grid grid-cols-[1fr_1fr_1fr_36px] gap-2 items-center px-2 py-1.5 rounded-md transition-colors",
+                    uncommittedIds.has(tier.id) ? "bg-primary/5 ring-1 ring-primary/20" : "hover:bg-secondary/30"
+                  )}
                 >
-                  {uncommittedIds.has(tier.id)
-                    ? <span className="text-xs text-muted-foreground/50 italic">編輯中</span>
-                    : renderRange(group.rows.filter((r) => !uncommittedIds.has(r.id)), group.rows.filter((r) => !uncommittedIds.has(r.id)).indexOf(tier))}
-                  {renderTierValue(tier, "threshold")}
+                  {renderTierValue(tier, "minPrice")}
+                  {renderTierValue(tier, "maxPrice")}
                   {renderTierValue(tier, "translatorPrice")}
                   <div className="flex justify-center">
                     <Button
@@ -862,23 +898,21 @@ function TranslatorTierSection() {
                 size="sm"
                 className="gap-1 text-xs text-muted-foreground"
                 onClick={() => {
-                  const newIds = addTierToGroup(group.groupId, 0, 0);
+                  const newIds = addTierToGroup(group.groupId, 0, 0, 0);
                   if (newIds.length > 0) {
-                    // Track all new tier IDs as uncommitted (shown at bottom)
                     setUncommittedIds((prev) => {
                       const next = new Set(prev);
                       newIds.forEach((id) => next.add(id));
                       return next;
                     });
-                    // Auto-focus the threshold field of the first new tier (representative row)
                     const repId = newIds[0];
-                    setEditingField(fieldKey(repId, "threshold"));
+                    setEditingField(fieldKey(repId, "minPrice"));
                     setEditValue("0");
                   }
                 }}
               >
                 <Plus className="h-3 w-3" />
-                新增分段點
+                新增級距
               </Button>
             </div>
           ))}
@@ -888,9 +922,9 @@ function TranslatorTierSection() {
       <NewTierGroupButton
         taskTypeOptions={taskTypeOptions}
         billingUnits={billingUnits}
-        onAdd={(taskTypes, billingUnit, threshold, price) => {
+        onAdd={(taskTypes, billingUnit, minPrice, maxPrice, price) => {
           const gid = `grp-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
-          taskTypes.forEach((tt) => addTier(tt, billingUnit, threshold, price, gid));
+          taskTypes.forEach((tt) => addTier(tt, billingUnit, minPrice, maxPrice, price, gid));
         }}
       />
 
@@ -913,23 +947,25 @@ function TranslatorTierSection() {
                 <span className="text-xs text-muted-foreground">／{errorGroup.billingUnit}</span>
               </div>
 
-              <div className="grid grid-cols-[1fr_1fr_36px] gap-2 px-2 py-1.5 text-xs text-muted-foreground font-medium border-b border-border">
-                <span>分段點 (≥)</span>
-                <span>對應譯者單價</span>
+              <div className="grid grid-cols-[1fr_1fr_1fr_36px] gap-2 px-2 py-1.5 text-xs text-muted-foreground font-medium border-b border-border">
+                <span>下限</span>
+                <span>上限</span>
+                <span>譯者單價</span>
                 <span />
               </div>
 
-              {errorGroup.rows.map((tier) => (
+              {errorGroup.rows.filter((r) => !uncommittedIds.has(r.id)).map((tier) => (
                 <div key={tier.id}>
                   <div
                     className={cn(
-                      "grid grid-cols-[1fr_1fr_36px] gap-2 items-center px-2 py-1.5 rounded-md transition-colors",
+                      "grid grid-cols-[1fr_1fr_1fr_36px] gap-2 items-center px-2 py-1.5 rounded-md transition-colors",
                       errorTierIds[tier.id]
                         ? "ring-1 ring-destructive/50 bg-destructive/5"
                         : "hover:bg-secondary/30"
                     )}
                   >
-                    {renderTierValue(tier, "threshold", true)}
+                    {renderTierValue(tier, "minPrice", true)}
+                    {renderTierValue(tier, "maxPrice", true)}
                     {renderTierValue(tier, "translatorPrice", true)}
                     <div className="flex justify-center">
                       <Button
@@ -962,12 +998,13 @@ function NewTierGroupButton({
 }: {
   taskTypeOptions: { id: string; label: string; color: string }[];
   billingUnits: string[];
-  onAdd: (taskTypes: string[], billingUnit: string, threshold: number, price: number) => void;
+  onAdd: (taskTypes: string[], billingUnit: string, minPrice: number, maxPrice: number, price: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [selectedTaskTypes, setSelectedTaskTypes] = useState<string[]>([]);
   const [selectedUnit, setSelectedUnit] = useState("字");
-  const [threshold, setThreshold] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
   const [translatorPrice, setTranslatorPrice] = useState("");
 
   const toggleTaskType = (label: string) => {
@@ -978,13 +1015,15 @@ function NewTierGroupButton({
 
   const handleAdd = () => {
     if (selectedTaskTypes.length === 0) return;
-    const th = Number(threshold) || 0;
+    const mn = Number(minPrice) || 0;
+    const mx = Number(maxPrice) || 0;
     const price = Number(translatorPrice) || 0;
-    onAdd(selectedTaskTypes, selectedUnit, th, price);
+    onAdd(selectedTaskTypes, selectedUnit, mn, mx, price);
     setOpen(false);
     setSelectedTaskTypes([]);
     setSelectedUnit("字");
-    setThreshold("");
+    setMinPrice("");
+    setMaxPrice("");
     setTranslatorPrice("");
   };
 
@@ -1040,20 +1079,31 @@ function NewTierGroupButton({
           </Button>
         ))}
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <div>
-          <label className="text-xs text-muted-foreground mb-1 block">分段點 (≥)</label>
+          <label className="text-xs text-muted-foreground mb-1 block">下限</label>
           <Input
             type="text"
             inputMode="decimal"
-            value={threshold}
-            onChange={(e) => { if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setThreshold(e.target.value); }}
+            value={minPrice}
+            onChange={(e) => { if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setMinPrice(e.target.value); }}
             placeholder="0"
             className="h-7 text-xs"
           />
         </div>
         <div>
-          <label className="text-xs text-muted-foreground mb-1 block">對應譯者單價</label>
+          <label className="text-xs text-muted-foreground mb-1 block">上限 <span className="opacity-60">(0=∞)</span></label>
+          <Input
+            type="text"
+            inputMode="decimal"
+            value={maxPrice}
+            onChange={(e) => { if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setMaxPrice(e.target.value); }}
+            placeholder="0"
+            className="h-7 text-xs"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">譯者單價</label>
           <Input
             type="text"
             inputMode="decimal"
