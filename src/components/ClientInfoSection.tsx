@@ -219,7 +219,7 @@ export default function ClientInfoSection({
 
           {/* Sub-options for sameCase */}
           {clientInfo.sameCase && (
-            <div className="space-y-2">
+            <div className="space-y-1">
               <div className="flex items-center gap-2 ml-6">
                 <Checkbox
                   id="isFirstFee"
