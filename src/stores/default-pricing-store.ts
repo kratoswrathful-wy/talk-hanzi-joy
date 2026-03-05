@@ -1,12 +1,15 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * Default pricing store — translator tiers are per taskType + billingUnit.
+ * Default pricing store
  *
  * Client pricing: clientName → taskType → price
- * Translator tiers: taskType + billingUnit + clientPrice range → translatorPrice
- *   maxPrice = 0 means infinity (no upper bound)
- *   groupId groups tiers created together (same billingUnit, different taskTypes sharing same price tiers)
+ * Translator tiers: breakpoint-based pricing per group.
+ *   Each tier has a `threshold` (≥) and `translatorPrice`.
+ *   The lowest threshold covers [0, threshold).
+ *   Each subsequent threshold covers [threshold, nextThreshold).
+ *   The highest threshold covers [threshold, ∞).
+ *   groupId groups tiers created together (same billingUnit, multiple taskTypes sharing same breakpoints).
  */
 
 export interface TranslatorTier {
@@ -14,17 +17,14 @@ export interface TranslatorTier {
   groupId: string;
   taskType: string;
   billingUnit: string;
-  minPrice: number;
-  maxPrice: number; // 0 = infinity
+  threshold: number;      // client price breakpoint (≥)
   translatorPrice: number;
 }
 
 type Listener = () => void;
 
 interface PricingStore {
-  /** clientName → taskType → clientPrice */
   clientPricing: Record<string, Record<string, number>>;
-  /** Translator price tiers based on client price ranges, per taskType+billingUnit */
   translatorTiers: TranslatorTier[];
 }
 
@@ -80,14 +80,13 @@ export const defaultPricingStore = {
   // --- Translator tiers ---
   getTranslatorTiers: (): TranslatorTier[] => store.translatorTiers,
 
-  addTier: (taskType: string, billingUnit: string, minPrice: number, maxPrice: number, translatorPrice: number, groupId?: string) => {
+  addTier: (taskType: string, billingUnit: string, threshold: number, translatorPrice: number, groupId?: string) => {
     const tier: TranslatorTier = {
       id: `tier-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
       groupId: groupId || generateGroupId(),
       taskType,
       billingUnit,
-      minPrice,
-      maxPrice,
+      threshold,
       translatorPrice,
     };
     store = { ...store, translatorTiers: [...store.translatorTiers, tier] };
@@ -96,8 +95,7 @@ export const defaultPricingStore = {
   },
 
   /** Add a tier row to ALL task types within a group */
-  addTierToGroup: (groupId: string, minPrice: number, maxPrice: number, translatorPrice: number) => {
-    // Find existing tiers in this group to know which taskTypes + billingUnit
+  addTierToGroup: (groupId: string, threshold: number, translatorPrice: number) => {
     const groupTiers = store.translatorTiers.filter((t) => t.groupId === groupId);
     if (groupTiers.length === 0) return;
     const billingUnit = groupTiers[0].billingUnit;
@@ -107,8 +105,7 @@ export const defaultPricingStore = {
       groupId,
       taskType: tt,
       billingUnit,
-      minPrice,
-      maxPrice,
+      threshold,
       translatorPrice,
     }));
     store = { ...store, translatorTiers: [...store.translatorTiers, ...newTiers] };
@@ -125,14 +122,14 @@ export const defaultPricingStore = {
     notify();
   },
 
-  /** Update a field for all tiers in a group that share the same minPrice (i.e. same "row") */
-  updateTierRow: (id: string, updates: Partial<Pick<TranslatorTier, "minPrice" | "maxPrice" | "translatorPrice">>) => {
+  /** Update a field for all tiers in a group that share the same threshold+price (same "row") */
+  updateTierRow: (id: string, updates: Partial<Pick<TranslatorTier, "threshold" | "translatorPrice">>) => {
     const target = store.translatorTiers.find((t) => t.id === id);
     if (!target) return;
     store = {
       ...store,
       translatorTiers: store.translatorTiers.map((t) => {
-        if (t.groupId === target.groupId && t.minPrice === target.minPrice && t.maxPrice === target.maxPrice && t.translatorPrice === target.translatorPrice) {
+        if (t.groupId === target.groupId && t.threshold === target.threshold && t.translatorPrice === target.translatorPrice) {
           return { ...t, ...updates };
         }
         return t;
@@ -149,30 +146,31 @@ export const defaultPricingStore = {
     notify();
   },
 
-  /** Remove an entire "row" from a group (all task types sharing same values) */
+  /** Remove an entire "row" from a group */
   removeTierRow: (id: string) => {
     const target = store.translatorTiers.find((t) => t.id === id);
     if (!target) return;
     store = {
       ...store,
       translatorTiers: store.translatorTiers.filter((t) =>
-        !(t.groupId === target.groupId && t.minPrice === target.minPrice && t.maxPrice === target.maxPrice && t.translatorPrice === target.translatorPrice)
+        !(t.groupId === target.groupId && t.threshold === target.threshold && t.translatorPrice === target.translatorPrice)
       ),
     };
     notify();
   },
 
-  /** Look up translator price from a given client price, taskType and billingUnit using tiers.
-   *  maxPrice = 0 means infinity (no upper bound). */
+  /** Look up translator price from a given client price, taskType and billingUnit.
+   *  Uses breakpoint logic: finds the highest threshold ≤ clientPrice. */
   getTranslatorPrice: (clientPrice: number, taskType?: string, billingUnit?: string): number | undefined => {
-    const matchingTiers = store.translatorTiers.filter((t) => {
+    const candidates = store.translatorTiers.filter((t) => {
       if (taskType && t.taskType !== taskType) return false;
       if (billingUnit && t.billingUnit !== billingUnit) return false;
-      const aboveMin = clientPrice > t.minPrice;
-      const belowMax = t.maxPrice === 0 || clientPrice <= t.maxPrice;
-      return aboveMin && belowMax;
+      return t.threshold <= clientPrice;
     });
-    return matchingTiers.length > 0 ? matchingTiers[0].translatorPrice : undefined;
+    if (candidates.length === 0) return undefined;
+    // Pick the one with the highest threshold that is still ≤ clientPrice
+    candidates.sort((a, b) => b.threshold - a.threshold);
+    return candidates[0].translatorPrice;
   },
 
   subscribe: (listener: Listener) => {
