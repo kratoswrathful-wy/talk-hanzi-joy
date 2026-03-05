@@ -409,6 +409,17 @@ export default function TranslatorFees() {
     navigate(`/fees/${newFee.id}`);
   };
 
+  // Delete selected fees
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const handleDeleteSelected = useCallback(() => {
+    const ids = Array.from(rowSelection.selectedIds);
+    for (const id of ids) {
+      feeStore.deleteFee(id);
+    }
+    rowSelection.deselectAll();
+    setShowDeleteConfirm(false);
+  }, [rowSelection]);
+
   // Apply column order from the view
   const orderedCols = activeView.columnOrder
     .map((key) => columnDefs.find((c) => c.key === key))
