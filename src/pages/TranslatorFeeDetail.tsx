@@ -619,7 +619,7 @@ export default function TranslatorFeeDetail() {
           ))}
         </div>
         <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-2">
-          <p className="text-sm">此稿費單尚未送出，開單對象無法查看</p>
+          <p className="text-sm">此稿費單尚未送出，譯者無法查看</p>
           <p className="text-xs">（實際環境中此紀錄不會出現在列表中）</p>
         </div>
       </div>

@@ -22,7 +22,7 @@ const feeStatusLabels: Record<FeeStatus, string> = {
 
 type UserRole = "assignee" | "pm" | "executive";
 const roleLabels: Record<UserRole, string> = {
-  assignee: "開單對象",
+  assignee: "譯者",
   pm: "PM",
   executive: "執行官",
 };
