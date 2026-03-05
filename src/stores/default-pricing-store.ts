@@ -106,7 +106,7 @@ export const defaultPricingStore = {
   getTranslatorPrice: (clientPrice: number): number | undefined => {
     // Sort tiers by minPrice to find the first matching range
     const tier = store.translatorTiers.find(
-      (t) => clientPrice >= t.minPrice && clientPrice <= t.maxPrice
+      (t) => clientPrice > t.minPrice && clientPrice <= t.maxPrice
     );
     return tier?.translatorPrice;
   },
