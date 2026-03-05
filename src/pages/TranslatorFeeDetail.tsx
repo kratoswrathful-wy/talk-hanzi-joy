@@ -1352,7 +1352,7 @@ export default function TranslatorFeeDetail() {
                       <TableCell className="text-right text-sm font-bold">
                         {totalAmount.toLocaleString()}
                       </TableCell>
-                      {canEdit && <TableCell />}
+                      {canEdit && <TableCell className="px-1" />}
                     </TableRow>
                 </TableFooter>
               )}
