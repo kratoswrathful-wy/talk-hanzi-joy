@@ -445,6 +445,7 @@ export default function TranslatorFeeDetail() {
   const [commentDraft, setCommentDraft] = useState("");
   const [internalCommentDraft, setInternalCommentDraft] = useState("");
   const [notionLoading, setNotionLoading] = useState(false);
+  const [isNoFeeTranslator, setIsNoFeeTranslator] = useState(false);
   const [clientInfo, setClientInfo] = useState<ClientInfo>(feeData?.clientInfo ?? { ...defaultClientInfo });
 
   // Edit history tracking — initialize from feeData
