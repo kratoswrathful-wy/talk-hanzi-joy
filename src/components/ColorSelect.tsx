@@ -231,7 +231,7 @@ export default function ColorSelect({
                     <PopoverTrigger asChild>
                       <button
                         className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); setEditingNoteId(null); }}
                       >
                         <MoreHorizontal className="h-3.5 w-3.5" />
                       </button>
