@@ -14,8 +14,16 @@ export const PRESET_COLORS = [
   "#EAB308", // yellow
   "#84CC16", // lime
   "#22C55E", // green
+  "#14B8A6", // teal
   "#06B6D4", // cyan
+  "#0EA5E9", // sky
+  "#3B82F6", // blue
   "#6366F1", // indigo
+  "#8B5CF6", // violet
+  "#D946EF", // fuchsia
+  "#EC4899", // pink
+  "#1F2937", // black
+  "#9CA3AF", // gray
 ];
 
 // Sort: English alphabetical, Chinese by stroke count
