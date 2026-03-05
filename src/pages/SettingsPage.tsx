@@ -609,6 +609,8 @@ function TranslatorTierSection() {
   const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  // Track newly added tiers that haven't been committed yet — kept at bottom unsorted
+  const [uncommittedIds, setUncommittedIds] = useState<Set<string>>(new Set());
 
   const [errorModalOpen, setErrorModalOpen] = useState(false);
   const [errorGroupId, setErrorGroupId] = useState<string | null>(null);
