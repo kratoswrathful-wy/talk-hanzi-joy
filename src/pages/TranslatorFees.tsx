@@ -1,5 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Plus, ChevronDown, MessageSquare, History, GripVertical, ExternalLink, Trash2 } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { motion, AnimatePresence } from "framer-motion";
 import { type TranslatorFee, type FeeStatus } from "@/data/fee-mock-data";
 import { Badge } from "@/components/ui/badge";
@@ -329,8 +331,15 @@ type ExpandType = "notes" | "editLog";
 export default function TranslatorFees() {
   const navigate = useNavigate();
   const fees = useFees();
+  const { primaryRole, isAdmin } = useAuth();
+  const { canViewSection } = usePermissions();
   const [currentRole, setCurrentRole] = useState<UserRole>("pm");
-  const isManager = currentRole === "pm" || currentRole === "executive";
+  const isManager = import.meta.env.DEV
+    ? currentRole === "pm" || currentRole === "executive"
+    : isAdmin;
+  const canCreateFee = import.meta.env.DEV
+    ? isManager
+    : isAdmin || canViewSection("create_fee");
 
   const visibleFieldKeys = allColumnDefs
     .filter((c) => !c.managerOnly || isManager)
@@ -577,7 +586,7 @@ export default function TranslatorFees() {
             <h1 className="text-2xl font-semibold tracking-tight">費用管理</h1>
             <p className="mt-1 text-sm text-muted-foreground">管理譯者費用請款單</p>
           </div>
-          {isManager && (
+          {canCreateFee && (
             <Button size="sm" className="gap-1.5" onClick={handleCreate}>
               <Plus className="h-4 w-4" />
               新增費用
