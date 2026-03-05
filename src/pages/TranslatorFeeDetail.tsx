@@ -1426,7 +1426,7 @@ export default function TranslatorFeeDetail() {
                         <Input
                           type="text"
                           inputMode="decimal"
-                          value={isNoFeeTranslator ? 0 : item.unitPrice}
+                          value={isNoFeeTranslator ? "N/A" : item.unitPrice}
                           onChange={(e) => {
                             const v = e.target.value;
                             if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitPrice", v as any);
