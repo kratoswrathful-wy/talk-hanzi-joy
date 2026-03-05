@@ -1030,18 +1030,33 @@ export default function TranslatorFeeDetail() {
               taskType: matchedType as TaskType,
               billingUnit: "字" as BillingUnit,
               unitCount: idx === 0 && unitCount ? unitCount : 0,
-              unitPrice: getAutoPrice(matchedType as string),
+              unitPrice: getAutoPrice(matchedType as string, "字"),
             };
           });
           setTaskItems(mapped);
+
+          // 同步工作類型到客戶計費項目
+          const mappedClientItems: import("@/data/fee-mock-data").ClientTaskItem[] = workTypes.map((wt: string, idx: number) => {
+            const matchedType = taskTypeOptions.find((t) => wt.includes(t)) || "翻譯";
+            const cp = clientInfo.client
+              ? defaultPricingStore.getClientPrice(clientInfo.client, matchedType as string) ?? 0
+              : 0;
+            return {
+              id: `ci-notion-${Date.now()}-${idx}`,
+              taskType: matchedType as TaskType,
+              billingUnit: "字" as BillingUnit,
+              unitCount: idx === 0 && unitCount ? unitCount : 0,
+              clientPrice: cp,
+            };
+          });
+          const updatedClientInfo = { ...clientInfo, clientTaskItems: mappedClientItems };
+          setClientInfo(updatedClientInfo);
+          if (id) feeStore.updateFee(id, { clientInfo: updatedClientInfo });
         } else if (unitCount) {
           setTaskItems((prev) =>
             prev.map((item, idx) => idx === 0 ? { ...item, unitCount } : item)
           );
-        }
-
-        // 同步計費單位數到客戶資訊
-        if (unitCount) {
+          // 同步計費單位數到客戶資訊
           setClientInfo((prev) => ({
             ...prev,
             clientTaskItems: prev.clientTaskItems.map((item, idx) =>
