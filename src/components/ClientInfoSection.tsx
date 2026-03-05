@@ -311,25 +311,25 @@ export default function ClientInfoSection({
             <TableBody>
               {displayClientTaskItems.map((item, index) => (
                 <TableRow key={item.id} className={clientItemsLocked ? "opacity-50" : ""}>
-                  <TableCell>
+                  <TableCell className="text-center">
                     <ColorSelect
                       fieldKey="clientTaskType"
                       value={item.taskType}
                       onValueChange={(v) => updateItem(item.id, "taskType", v as TaskType)}
-                      triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0"
+                      triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
                       disabled={clientItemsLocked}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-center">
                     <ColorSelect
                       fieldKey="clientBillingUnit"
                       value={item.billingUnit}
                       onValueChange={(v) => updateItem(item.id, "billingUnit", v as BillingUnit)}
-                      triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0"
+                      triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
                       disabled={clientItemsLocked}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-right">
                     <Input
                       type="text"
                       inputMode="decimal"
@@ -339,11 +339,11 @@ export default function ClientInfoSection({
                         if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "clientPrice", v as any);
                       }}
                       onBlur={(e) => handleNumberBlur(item.id, "clientPrice", e.target.value)}
-                      className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-20"
+                      className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
                       disabled={clientItemsLocked}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-right">
                     <Input
                       type="text"
                       inputMode="decimal"
@@ -353,7 +353,7 @@ export default function ClientInfoSection({
                         if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "unitCount", v as any);
                       }}
                       onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
-                      className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-24"
+                      className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
                       disabled={clientItemsLocked}
                     />
                   </TableCell>
