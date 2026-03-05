@@ -361,19 +361,21 @@ export default function ClientInfoSection({
                     {(Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
                   </TableCell>
                   {canEdit && (
-                    <TableCell className="text-right px-6">
-                      {!clientItemsLocked && index > 0 ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive ml-auto"
-                          onClick={() => removeItem(item.id)}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      ) : (
-                        <div className="h-7 w-7 ml-auto" />
-                      )}
+                    <TableCell className="px-6">
+                      <div className="flex justify-center">
+                        {!clientItemsLocked && index > 0 ? (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            onClick={() => removeItem(item.id)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        ) : (
+                          <div className="h-7 w-7" />
+                        )}
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>
