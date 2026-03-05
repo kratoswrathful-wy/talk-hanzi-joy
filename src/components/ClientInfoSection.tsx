@@ -148,7 +148,7 @@ export default function ClientInfoSection({
 
   return (
     <div className="space-y-5">
-      {/* Client Task Items Table */}
+      {/* Client Task Items Section */}
       <div className="space-y-3">
         <div className="space-y-1">
           {/* Row 1: Title + Add button */}
