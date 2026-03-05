@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Plus, ChevronDown, MessageSquare, History, GripVertical, ExternalLink } from "lucide-react";
+import { Plus, ChevronDown, MessageSquare, History, GripVertical, ExternalLink, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type TranslatorFee, type FeeStatus } from "@/data/fee-mock-data";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,16 @@ import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { InlineEditCell } from "@/components/fees/InlineEditCell";
 import { useUndoRedo, type UndoEntry } from "@/hooks/use-undo-redo";
 import { useState, useRef, useCallback, useEffect } from "react";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-store";
 import { supabase } from "@/integrations/supabase/client";
@@ -399,6 +409,17 @@ export default function TranslatorFees() {
     navigate(`/fees/${newFee.id}`);
   };
 
+  // Delete selected fees
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const handleDeleteSelected = useCallback(() => {
+    const ids = Array.from(rowSelection.selectedIds);
+    for (const id of ids) {
+      feeStore.deleteFee(id);
+    }
+    rowSelection.deselectAll();
+    setShowDeleteConfirm(false);
+  }, [rowSelection]);
+
   // Apply column order from the view
   const orderedCols = activeView.columnOrder
     .map((key) => columnDefs.find((c) => c.key === key))
@@ -560,12 +581,25 @@ export default function TranslatorFees() {
             </span>
           )}
         </div>
-        {isManager && (
-          <Button size="sm" className="gap-1.5" onClick={handleCreate}>
-            <Plus className="h-4 w-4" />
-            新增費用
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {isManager && rowSelection.selectedCount > 0 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 text-muted-foreground hover:text-destructive"
+              onClick={() => setShowDeleteConfirm(true)}
+              title="刪除選取項目"
+            >
+              <Trash2 className="h-4.5 w-4.5" />
+            </Button>
+          )}
+          {isManager && (
+            <Button size="sm" className="gap-1.5" onClick={handleCreate}>
+              <Plus className="h-4 w-4" />
+              新增費用
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filter/Sort/View toolbar */}
@@ -684,6 +718,25 @@ export default function TranslatorFees() {
           </tbody>
         </table>
       </motion.div>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>確定刪除？</AlertDialogTitle>
+            <AlertDialogDescription>
+              {rowSelection.selectedCount > 1
+                ? `即將刪除 ${rowSelection.selectedCount} 個項目，此操作無法復原。是否確定？`
+                : "即將刪除選取的項目，此操作無法復原。是否確定？"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteSelected} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              刪除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
