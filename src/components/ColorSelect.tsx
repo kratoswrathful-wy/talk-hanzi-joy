@@ -48,6 +48,8 @@ export default function ColorSelect({
   const [colorPickerOptionId, setColorPickerOptionId] = useState<string | null>(null);
   const [renamingOptionId, setRenamingOptionId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [noteValue, setNoteValue] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const newInputRef = useRef<HTMLInputElement>(null);
