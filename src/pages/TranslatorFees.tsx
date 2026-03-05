@@ -285,8 +285,9 @@ function OpenButton({ feeId }: { feeId: string }) {
   const navigate = useNavigate();
   return (
     <button
-      onClick={(e) => { e.stopPropagation(); navigate(`/fees/${feeId}`); }}
-      className="shrink-0 opacity-0 group-hover/title:opacity-100 p-0.5 rounded hover:bg-muted transition-all"
+      onClick={(e) => { e.stopPropagation(); e.preventDefault(); navigate(`/fees/${feeId}`); }}
+      onMouseDown={(e) => e.stopPropagation()}
+      className="absolute right-0 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover/title:opacity-100 p-0.5 rounded hover:bg-muted transition-all"
       title="開啟"
     >
       <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
