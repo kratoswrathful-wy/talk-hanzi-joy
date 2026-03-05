@@ -528,7 +528,7 @@ function TranslatorNotesSection() {
                     {member.isInvitation && (
                       <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">待接受</span>
                     )}
-                    <div className="flex items-center gap-1.5 ml-8">
+                    <div className="flex items-center gap-1.5 ml-4">
                       <Checkbox
                         id={`no-fee-${member.email}`}
                         checked={member.no_fee}
