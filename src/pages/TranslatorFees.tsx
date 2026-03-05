@@ -431,7 +431,7 @@ export default function TranslatorFees() {
         const ci = fee.clientInfo || {
           clientTaskItems: [], sameCase: false, isFirstFee: false, notFirstFee: false,
           client: "", contact: "", clientCaseId: "", eciKeywords: "", clientPoNumber: "",
-          reconciled: false, rateConfirmed: false, invoiced: false,
+          dispatchRoute: "", reconciled: false, rateConfirmed: false, invoiced: false,
         };
         feeStore.updateFee(id, { clientInfo: { ...ci, [field]: value } });
       } else {
