@@ -373,42 +373,14 @@ export default function ColorSelect({
                     className="h-7 text-xs"
                     onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); if (e.key === "Escape") setAddingNew(false); }}
                   />
-                  <div className="flex flex-wrap gap-1 items-center">
-                    {PRESET_COLORS.map((c) => (
-                      <button
-                        key={c}
-                        className={cn(
-                          "w-5 h-5 rounded-full border-2 transition-transform hover:scale-110",
-                          newColor === c && !showNewColorPicker ? "border-foreground scale-110" : "border-transparent"
-                        )}
-                        style={{ backgroundColor: c }}
-                        onClick={() => { setNewColor(c); setShowNewColorPicker(false); }}
-                      />
-                    ))}
-                    <button
-                      className={cn(
-                        "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-transform hover:scale-110",
-                        showNewColorPicker ? "border-foreground scale-110" : "border-muted-foreground/30"
-                      )}
-                      style={{ backgroundColor: showNewColorPicker ? newColor : undefined }}
-                      onClick={() => setShowNewColorPicker(!showNewColorPicker)}
-                      title="自訂顏色"
-                    >
-                      {!showNewColorPicker && <Palette className="h-3 w-3 text-muted-foreground" />}
-                    </button>
-                  </div>
-                  {showNewColorPicker && (
-                    <div className="pt-1">
-                      <ColorPicker
-                        value={newColor}
-                        onChange={(color) => setNewColor(color)}
-                        customColors={customColors}
-                        onAddCustomColor={(c) => selectOptionsStore.addCustomColor(fieldKey, c)}
-                        onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor(fieldKey, c)}
-                        colorUsageMap={getColorUsageMap(options)}
-                      />
-                    </div>
-                  )}
+                  <ColorPicker
+                    value={newColor}
+                    onChange={(color) => setNewColor(color)}
+                    customColors={customColors}
+                    onAddCustomColor={(c) => selectOptionsStore.addCustomColor(fieldKey, c)}
+                    onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor(fieldKey, c)}
+                    colorUsageMap={getColorUsageMap(options)}
+                  />
                   <div className="flex gap-1.5 justify-end">
                     <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setAddingNew(false)}>
                       取消
