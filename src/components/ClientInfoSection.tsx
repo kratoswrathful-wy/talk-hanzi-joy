@@ -361,7 +361,7 @@ export default function ClientInfoSection({
                     {(Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
                   </TableCell>
                   {canEdit && (
-                    <TableCell className="text-right px-1">
+                    <TableCell className="text-right px-3">
                       {!clientItemsLocked && index > 0 ? (
                         <Button
                           variant="ghost"
