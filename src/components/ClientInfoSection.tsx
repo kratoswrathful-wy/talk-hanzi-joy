@@ -150,7 +150,7 @@ export default function ClientInfoSection({
     <div className="space-y-5">
       {/* Client Task Items Table */}
       <div className="space-y-3">
-        <div className="space-y-2">
+        <div className="space-y-1">
           {/* Row 1: Title + Add button */}
           <div className="flex items-center justify-between">
             <Label className="text-sm font-medium">客戶端計費項目</Label>
