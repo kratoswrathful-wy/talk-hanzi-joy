@@ -97,6 +97,9 @@ Deno.serve(async (req) => {
       notionUrl: page.url,
     };
 
+    // Collect relation properties to resolve
+    const relationProps: { key: string; ids: string[] }[] = [];
+
     for (const [key, value] of Object.entries(props)) {
       const prop = value as any;
       switch (prop.type) {
@@ -124,9 +127,42 @@ Deno.serve(async (req) => {
         case 'status':
           result[key] = prop.status?.name || '';
           break;
+        case 'relation':
+          if (Array.isArray(prop.relation) && prop.relation.length > 0) {
+            relationProps.push({ key, ids: prop.relation.map((r: any) => r.id) });
+          }
+          break;
         default:
           break;
       }
+    }
+
+    // Resolve relation pages (fetch title + URL for each)
+    for (const rel of relationProps) {
+      const resolved = [];
+      for (const relId of rel.ids) {
+        try {
+          const relRes = await fetch(`https://api.notion.com/v1/pages/${relId}`, { headers });
+          if (relRes.ok) {
+            const relPage = await relRes.json();
+            const relProps = relPage.properties || {};
+            let relTitle = '';
+            for (const v of Object.values(relProps)) {
+              if ((v as any).type === 'title') {
+                relTitle = extractTitle(v);
+                break;
+              }
+            }
+            resolved.push({ id: relId, title: relTitle, url: relPage.url });
+          } else {
+            await relRes.text();
+            resolved.push({ id: relId, title: '', url: '' });
+          }
+        } catch {
+          resolved.push({ id: relId, title: '', url: '' });
+        }
+      }
+      result[rel.key] = resolved;
     }
 
     return new Response(JSON.stringify(result), {

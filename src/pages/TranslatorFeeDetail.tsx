@@ -851,6 +851,8 @@ export default function TranslatorFeeDetail() {
         const unitCount = data["計費單位數"] ?? null;
         const unit = data["單位"] || "";
         const dispatch = data["派案途徑"] || "";
+        const people = data["譯者"] || data["審稿人員"] || [];
+        const casePages = data["案件頁面"] || [];
 
         // Map 單位 to BillingUnit
         const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
@@ -862,8 +864,37 @@ export default function TranslatorFeeDetail() {
           if (id) feeStore.updateFee(id, { title: feeNumber });
         }
 
-        // 費用編號 > 相關案件文字
-        if (feeNumber) {
+        // 譯者 > 開單對象 (match by email)
+        if (Array.isArray(people) && people.length > 0) {
+          const person = people[0];
+          const assigneeOptions = selectOptionsStore.getSortedOptions("assignee");
+          let matchedLabel = "";
+          if (typeof person === "object" && person.email) {
+            const match = assigneeOptions.find((o) => o.email === person.email);
+            if (match) matchedLabel = match.label;
+          }
+          if (!matchedLabel && typeof person === "object" && person.name) {
+            const match = assigneeOptions.find((o) => o.label === person.name);
+            if (match) matchedLabel = match.label;
+          }
+          if (!matchedLabel && typeof person === "string") {
+            const match = assigneeOptions.find((o) => o.label === person || o.email === person);
+            matchedLabel = match ? match.label : person;
+          }
+          if (matchedLabel) {
+            setAssignee(matchedLabel);
+            if (id) feeStore.updateFee(id, { assignee: matchedLabel });
+          }
+        }
+
+        // 案件頁面 > 相關案件（名稱 + 連結）
+        if (Array.isArray(casePages) && casePages.length > 0 && casePages[0].title) {
+          const cp = casePages[0];
+          setInternalNote(cp.title);
+          setInternalNoteUrl(cp.url || "");
+          if (id) feeStore.updateFee(id, { internalNote: cp.title, internalNoteUrl: cp.url || "" });
+        } else if (feeNumber) {
+          // Fallback: use fee number
           setInternalNote(feeNumber);
           if (id) feeStore.updateFee(id, { internalNote: feeNumber });
         }
