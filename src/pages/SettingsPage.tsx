@@ -744,6 +744,14 @@ function TranslatorTierSection() {
   const renderRange = (rows: TranslatorTier[], index: number) => {
     const tier = rows[index];
     const nextTier = rows[index + 1];
+    // Special case: threshold 0 with no next tier means entire range 0 ~ ∞
+    if (tier.threshold === 0 && !nextTier) {
+      return (
+        <span className="text-xs text-muted-foreground tabular-nums">
+          0 ~ ∞
+        </span>
+      );
+    }
     const upper = nextTier ? `< ${nextTier.threshold}` : "∞";
     return (
       <span className="text-xs text-muted-foreground tabular-nums">
