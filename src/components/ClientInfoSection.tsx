@@ -305,7 +305,7 @@ export default function ClientInfoSection({
                 <TableHead className="text-xs text-center w-[18%]">客戶報價</TableHead>
                 <TableHead className="text-xs text-center w-[22%]">計費單位數</TableHead>
                 <TableHead className="text-xs text-right w-[20%]">小計</TableHead>
-                {canEdit && <TableHead className="text-xs w-16 px-1" />}
+                {canEdit && <TableHead className="text-xs w-16 px-3" />}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -361,7 +361,7 @@ export default function ClientInfoSection({
                     {(Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
                   </TableCell>
                   {canEdit && (
-                    <TableCell className="text-right px-1">
+                    <TableCell className="text-right px-3">
                       {!clientItemsLocked && index > 0 ? (
                         <Button
                           variant="ghost"
@@ -397,7 +397,7 @@ export default function ClientInfoSection({
                   營收總額
                 </TableCell>
                 {canEdit ? (
-                  <TableCell className="text-right text-sm font-bold tabular-nums px-1">
+                  <TableCell className="text-right text-sm font-bold tabular-nums px-3">
                     {clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}
                   </TableCell>
                 ) : (
@@ -425,7 +425,7 @@ export default function ClientInfoSection({
                     : "利潤"}
                 </TableCell>
                 {canEdit ? (
-                  <TableCell className={`text-right text-sm font-bold px-1 ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
+                  <TableCell className={`text-right text-sm font-bold px-3 ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
                     {clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}
                   </TableCell>
                 ) : (
