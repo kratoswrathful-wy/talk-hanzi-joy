@@ -275,6 +275,7 @@ function CreatorName({ uid }: { uid: string }) {
   return <span className="truncate text-sm">{name}</span>;
 }
 
+function AssigneeLabel({ value }: { value: string }) {
   const { options } = useSelectOptions("assignee");
   const opt = options.find((o) => o.label === value);
   if (!value) return <span className="truncate text-sm text-muted-foreground">—</span>;
