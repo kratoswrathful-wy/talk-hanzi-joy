@@ -1124,17 +1124,16 @@ export default function TranslatorFeeDetail() {
                   value={clientInfo.client}
                   disabled={!canEdit}
                   onValueChange={(clientName) => {
+                    trackChange("客戶", clientInfo.client, clientName);
                     const updatedInfo = { ...clientInfo, client: clientName };
                     if (clientName) {
-                      // Auto-fill client task item prices
+                      // Auto-fill client task item prices (always overwrite on client change)
                       updatedInfo.clientTaskItems = updatedInfo.clientTaskItems.map(item => {
-                        if (Number(item.clientPrice) !== 0) return item;
                         const price = defaultPricingStore.getClientPrice(clientName, item.taskType);
                         return price !== undefined ? { ...item, clientPrice: price } : item;
                       });
-                      // Auto-fill translator task item prices via tiers
+                      // Auto-fill translator task item prices via tiers (always overwrite)
                       const updatedTaskItems = taskItems.map(item => {
-                        if (Number(item.unitPrice) !== 0) return item;
                         const cp = defaultPricingStore.getClientPrice(clientName, item.taskType);
                         if (cp === undefined) return item;
                         const tp = defaultPricingStore.getTranslatorPrice(cp);
@@ -1145,7 +1144,7 @@ export default function TranslatorFeeDetail() {
                     }
                     setClientInfo(updatedInfo);
                     if (id) feeStore.updateFee(id, { clientInfo: updatedInfo });
-                  }}
+                  }
                   placeholder="選擇客戶"
                 />
               </div>
