@@ -92,6 +92,13 @@ function initDefaults() {
       customColors: [],
       manualOrder: true,
     },
+    dispatchRoute: {
+      options: [
+        { id: "opt-dr1", label: "V 信箱", color: PRESET_COLORS[6] },
+        { id: "opt-dr2", label: "Teams", color: PRESET_COLORS[8] },
+      ],
+      customColors: [],
+    },
     clientBillingUnit: {
       options: [
         { id: "opt-cb1", label: "字", color: PRESET_COLORS[8] },
