@@ -487,6 +487,16 @@ export default function TranslatorFeeDetail() {
     selectOptionsStore.loadAssignees();
   }, []);
 
+  // Resolve creator UUID to display name
+  useEffect(() => {
+    const uid = feeData?.createdBy;
+    if (!uid || uid.length !== 36) return; // not a UUID
+    supabase.from("profiles").select("display_name, email").eq("id", uid).maybeSingle()
+      .then(({ data }) => {
+        if (data) setCreatorName(data.display_name || data.email);
+      });
+  }, [feeData?.createdBy]);
+
   // Check no-fee translator status
   useEffect(() => {
     if (!assignee) {
