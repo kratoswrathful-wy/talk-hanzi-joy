@@ -847,7 +847,7 @@ function NewTierGroupButton({
         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setOpen(false)}>
           取消
         </Button>
-        <Button size="sm" className="h-7 text-xs" disabled={!selectedTaskType} onClick={handleAdd}>
+        <Button size="sm" className="h-7 text-xs" disabled={selectedTaskTypes.length === 0} onClick={handleAdd}>
           新增
         </Button>
       </div>
