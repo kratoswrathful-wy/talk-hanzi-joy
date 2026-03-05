@@ -841,7 +841,15 @@ function TranslatorTierSection() {
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                      onClick={() => removeTierRow(tier.id)}
+                      onClick={() => {
+                        removeTierRow(tier.id);
+                        setUncommittedIds((prev) => {
+                          if (!prev.has(tier.id)) return prev;
+                          const next = new Set(prev);
+                          next.delete(tier.id);
+                          return next;
+                        });
+                      }}
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
