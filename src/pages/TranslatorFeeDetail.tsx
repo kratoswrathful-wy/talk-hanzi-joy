@@ -1011,11 +1011,11 @@ export default function TranslatorFeeDetail() {
         }
 
         // 工作類型 > 任務項目 + 計費單位數 > 第一項
-        const getAutoPrice = (taskType: string) => {
+        const getAutoPrice = (taskType: string, billingUnit: string = "字") => {
           if (clientInfo.client) {
             const cp = defaultPricingStore.getClientPrice(clientInfo.client, taskType);
             if (cp !== undefined) {
-              const tp = defaultPricingStore.getTranslatorPrice(cp);
+              const tp = defaultPricingStore.getTranslatorPrice(cp, taskType, billingUnit);
               return tp ?? 0;
             }
           }
