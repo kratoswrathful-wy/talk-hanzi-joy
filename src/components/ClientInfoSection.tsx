@@ -425,7 +425,7 @@ export default function ClientInfoSection({
                     : "利潤"}
                 </TableCell>
                 {canEdit ? (
-                  <TableCell className={`text-right text-sm font-bold px-3 ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
+                  <TableCell className={`text-right text-sm font-bold px-6 ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
                     {clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}
                   </TableCell>
                 ) : (
