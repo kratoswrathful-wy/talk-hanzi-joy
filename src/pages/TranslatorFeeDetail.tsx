@@ -957,7 +957,7 @@ export default function TranslatorFeeDetail() {
               收回
             </Button>
           )}
-          {isManager && (
+          {isManager && isDraft && (
             <>
               <Button
                 variant="outline"
