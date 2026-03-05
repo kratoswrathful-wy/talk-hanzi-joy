@@ -836,82 +836,155 @@ export default function TranslatorFeeDetail() {
 
       const taskTypeOptions: TaskType[] = ["翻譯", "審稿", "MTPE", "LQA"];
 
-      // Extract fields
-      const caseId = data["案件編號"] || data["Name"] || data["title"] || "";
-      const people = data["譯者"] || data["審稿人員"] || [];
-      const workTypes = data["工作類型"] || [];
-      const unitCount = data["計費單位數"] || null;
+      // Detect which database the page is from
+      const isInternalFeeRecord = "費用編號" in data;
 
-      // 案件編號 > 標題（預填為「PO_案件編號」）
-      if (caseId) {
-        const newTitle = `PO_${caseId}`;
-        setTitle(newTitle);
-        if (id) feeStore.updateFee(id, { title: newTitle });
-      }
+      if (isInternalFeeRecord) {
+        // ===== 💹 內部費用紀錄 mapping =====
+        const feeNumber = data["費用編號"] || "";
+        const client = data["客戶"] || "";
+        const contact = data["聯絡人"] || "";
+        const clientCaseId = data["客戶端案號"] || "";
+        const clientPo = data["客戶 PO#"] || "";
+        const quoteRate = data["報價費率"] ?? null;
+        const feeRate = data["稿費費率"] ?? null;
+        const unitCount = data["計費單位數"] ?? null;
+        const unit = data["單位"] || "";
+        const dispatch = data["派案途徑"] || "";
 
-      // 譯者 > 開單對象
-      if (Array.isArray(people) && people.length > 0) {
-        setAssignee(people[0]);
-        if (id) feeStore.updateFee(id, { assignee: people[0] });
-      }
+        // Map 單位 to BillingUnit
+        const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
+        const billingUnit: BillingUnit = billingUnitMap[unit] || "字";
 
-      // 案件編號 > 相關案件文字
-      if (caseId) {
-        setInternalNote(caseId);
-        if (id) feeStore.updateFee(id, { internalNote: caseId });
-      }
-
-      // 工作類型 > 任務項目 + 計費單位數 > 第一項
-      const getAutoPrice = (taskType: string) => {
-        if (clientInfo.client) {
-          const cp = defaultPricingStore.getClientPrice(clientInfo.client, taskType);
-          if (cp !== undefined) {
-            const tp = defaultPricingStore.getTranslatorPrice(cp);
-            return tp ?? 0;
-          }
+        // 費用編號 > 標題
+        if (feeNumber) {
+          setTitle(feeNumber);
+          if (id) feeStore.updateFee(id, { title: feeNumber });
         }
-        return 0;
-      };
 
-      if (Array.isArray(workTypes) && workTypes.length > 0) {
-        const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
-          const matchedType = taskTypeOptions.find((t) => wt.includes(t)) || "翻譯";
-          return {
-            id: `item-notion-${Date.now()}-${idx}`,
-            taskType: matchedType as TaskType,
-            billingUnit: "字" as BillingUnit,
-            unitCount: idx === 0 && unitCount ? unitCount : 0,
-            unitPrice: getAutoPrice(matchedType as string),
-          };
-        });
-        setTaskItems(mapped);
-      } else if (unitCount) {
-        // No work types but has unit count — update first item
-        setTaskItems((prev) =>
-          prev.map((item, idx) => idx === 0 ? { ...item, unitCount } : item)
-        );
-      }
+        // 費用編號 > 相關案件文字
+        if (feeNumber) {
+          setInternalNote(feeNumber);
+          if (id) feeStore.updateFee(id, { internalNote: feeNumber });
+        }
 
-      // 同步計費單位數到客戶資訊
-      if (unitCount) {
-        setClientInfo((prev) => ({
-          ...prev,
-          clientTaskItems: prev.clientTaskItems.map((item, idx) =>
-            idx === 0 ? { ...item, unitCount, billingUnit: "字" as BillingUnit } : item
+        // 稿費費率 + 計費單位數 > 任務項目
+        if (feeRate !== null || unitCount !== null) {
+          setTaskItems((prev) => {
+            const updated = [...prev];
+            if (updated.length > 0) {
+              updated[0] = {
+                ...updated[0],
+                billingUnit,
+                ...(unitCount !== null ? { unitCount } : {}),
+                ...(feeRate !== null ? { unitPrice: feeRate } : {}),
+              };
+            }
+            return updated;
+          });
+        }
+
+        // 客戶資訊
+        const updatedClientInfo: ClientInfo = {
+          ...clientInfo,
+          ...(client ? { client } : {}),
+          ...(contact ? { contact } : {}),
+          ...(clientCaseId ? { clientCaseId } : {}),
+          ...(clientPo ? { clientPoNumber: clientPo } : {}),
+          ...(dispatch ? { dispatchRoute: dispatch } : {}),
+          clientTaskItems: clientInfo.clientTaskItems.map((item, idx) =>
+            idx === 0
+              ? {
+                  ...item,
+                  billingUnit,
+                  ...(unitCount !== null ? { unitCount } : {}),
+                  ...(quoteRate !== null ? { clientPrice: quoteRate } : {}),
+                }
+              : item
           ),
-        }));
-        if (id) {
-          const updatedClientInfo = {
-            ...clientInfo,
-            clientTaskItems: clientInfo.clientTaskItems.map((item, idx) =>
+        };
+        setClientInfo(updatedClientInfo);
+        if (id) feeStore.updateFee(id, { clientInfo: updatedClientInfo });
+
+        toast.success("已從 Notion 載入內部費用紀錄");
+      } else {
+        // ===== 🖖 翻譯案件 mapping (original logic) =====
+        // Extract fields
+        const caseId = data["案件編號"] || data["Name"] || data["title"] || "";
+        const people = data["譯者"] || data["審稿人員"] || [];
+        const workTypes = data["工作類型"] || [];
+        const unitCount = data["計費單位數"] || null;
+
+        // 案件編號 > 標題（預填為「PO_案件編號」）
+        if (caseId) {
+          const newTitle = `PO_${caseId}`;
+          setTitle(newTitle);
+          if (id) feeStore.updateFee(id, { title: newTitle });
+        }
+
+        // 譯者 > 開單對象
+        if (Array.isArray(people) && people.length > 0) {
+          setAssignee(people[0]);
+          if (id) feeStore.updateFee(id, { assignee: people[0] });
+        }
+
+        // 案件編號 > 相關案件文字
+        if (caseId) {
+          setInternalNote(caseId);
+          if (id) feeStore.updateFee(id, { internalNote: caseId });
+        }
+
+        // 工作類型 > 任務項目 + 計費單位數 > 第一項
+        const getAutoPrice = (taskType: string) => {
+          if (clientInfo.client) {
+            const cp = defaultPricingStore.getClientPrice(clientInfo.client, taskType);
+            if (cp !== undefined) {
+              const tp = defaultPricingStore.getTranslatorPrice(cp);
+              return tp ?? 0;
+            }
+          }
+          return 0;
+        };
+
+        if (Array.isArray(workTypes) && workTypes.length > 0) {
+          const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
+            const matchedType = taskTypeOptions.find((t) => wt.includes(t)) || "翻譯";
+            return {
+              id: `item-notion-${Date.now()}-${idx}`,
+              taskType: matchedType as TaskType,
+              billingUnit: "字" as BillingUnit,
+              unitCount: idx === 0 && unitCount ? unitCount : 0,
+              unitPrice: getAutoPrice(matchedType as string),
+            };
+          });
+          setTaskItems(mapped);
+        } else if (unitCount) {
+          setTaskItems((prev) =>
+            prev.map((item, idx) => idx === 0 ? { ...item, unitCount } : item)
+          );
+        }
+
+        // 同步計費單位數到客戶資訊
+        if (unitCount) {
+          setClientInfo((prev) => ({
+            ...prev,
+            clientTaskItems: prev.clientTaskItems.map((item, idx) =>
               idx === 0 ? { ...item, unitCount, billingUnit: "字" as BillingUnit } : item
             ),
-          };
-          feeStore.updateFee(id, { clientInfo: updatedClientInfo });
+          }));
+          if (id) {
+            const updatedClientInfo = {
+              ...clientInfo,
+              clientTaskItems: clientInfo.clientTaskItems.map((item, idx) =>
+                idx === 0 ? { ...item, unitCount, billingUnit: "字" as BillingUnit } : item
+              ),
+            };
+            feeStore.updateFee(id, { clientInfo: updatedClientInfo });
+          }
         }
-      }
 
-      toast.success("已從 Notion 載入案件資料");
+        toast.success("已從 Notion 載入案件資料");
+      }
     } catch (err: any) {
       console.error("Failed to fetch Notion data:", err);
       toast.error("Notion 資料載入失敗：" + (err.message || "未知錯誤"));
