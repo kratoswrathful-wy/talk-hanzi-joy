@@ -289,13 +289,16 @@ export default function ClientInfoSection({
               </TableRow>
               <TableRow>
                 <TableCell colSpan={2} className="text-left">
-                  <Input
-                    value={clientInfo.clientPoNumber}
-                    onChange={(e) => update("clientPoNumber", e.target.value)}
-                    disabled={!canEdit}
-                    placeholder="客戶 PO 編號"
-                    className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
-                  />
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">PO #</span>
+                    <Input
+                      value={clientInfo.clientPoNumber}
+                      onChange={(e) => update("clientPoNumber", e.target.value)}
+                      disabled={!canEdit}
+                      placeholder="客戶 PO 編號"
+                      className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
+                    />
+                  </div>
                 </TableCell>
                 <TableCell colSpan={2} className="text-sm font-medium text-right">
                   {clientInfo.sameCase && profitFeeCount > 0
