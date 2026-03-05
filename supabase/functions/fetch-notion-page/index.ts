@@ -128,6 +128,9 @@ Deno.serve(async (req) => {
         case 'rich_text':
           result[key] = extractRichText(prop);
           break;
+        case 'checkbox':
+          result[key] = extractCheckbox(prop);
+          break;
         case 'status':
           result[key] = prop.status?.name || '';
           break;
