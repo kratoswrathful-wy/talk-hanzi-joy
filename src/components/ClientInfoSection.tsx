@@ -151,8 +151,53 @@ export default function ClientInfoSection({
       {/* Client Task Items Table */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-1.5">
             <Label className="text-sm font-medium">客戶端計費項目</Label>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="sameCase"
+                checked={clientInfo.sameCase}
+                disabled={!canEdit}
+                onCheckedChange={(checked) => {
+                  if (!checked && clientInfo.sameCase) {
+                    setShowUncheckWarning(true);
+                  } else {
+                    update("sameCase", !!checked);
+                  }
+                }}
+              />
+              <Label htmlFor="sameCase" className="text-xs cursor-pointer whitespace-nowrap">
+                與他筆費用為同一案件
+              </Label>
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-1.5">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <Checkbox
+                  id="reconciled"
+                  checked={clientInfo.reconciled}
+                  disabled={!canEdit}
+                  onCheckedChange={(checked) => update("reconciled", !!checked)}
+                />
+                <Label htmlFor="reconciled" className="text-xs cursor-pointer whitespace-nowrap">對帳完成</Label>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Checkbox
+                  id="invoiced"
+                  checked={clientInfo.invoiced}
+                  disabled={!canEdit}
+                  onCheckedChange={(checked) => update("invoiced", !!checked)}
+                />
+                <Label htmlFor="invoiced" className="text-xs cursor-pointer whitespace-nowrap">請款完成</Label>
+              </div>
+              {canEdit && !clientItemsLocked && (
+                <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={addItem}>
+                  <Plus className="h-3.5 w-3.5" />
+                  新增項目
+                </Button>
+              )}
+            </div>
             <div className="flex items-center gap-1.5">
               <Label className="text-xs text-muted-foreground whitespace-nowrap">派案途徑</Label>
               <ColorSelect
@@ -163,32 +208,6 @@ export default function ClientInfoSection({
                 placeholder="選擇"
               />
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5">
-              <Checkbox
-                id="reconciled"
-                checked={clientInfo.reconciled}
-                disabled={!canEdit}
-                onCheckedChange={(checked) => update("reconciled", !!checked)}
-              />
-              <Label htmlFor="reconciled" className="text-xs cursor-pointer whitespace-nowrap">對帳完成</Label>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Checkbox
-                id="invoiced"
-                checked={clientInfo.invoiced}
-                disabled={!canEdit}
-                onCheckedChange={(checked) => update("invoiced", !!checked)}
-              />
-              <Label htmlFor="invoiced" className="text-xs cursor-pointer whitespace-nowrap">請款完成</Label>
-            </div>
-            {canEdit && !clientItemsLocked && (
-              <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={addItem}>
-                <Plus className="h-3.5 w-3.5" />
-                新增項目
-              </Button>
-            )}
           </div>
         </div>
 
