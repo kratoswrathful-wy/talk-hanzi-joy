@@ -89,8 +89,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "標題",
     minWidth: 120,
     render: (f, { editable, onCommit }) => (
-      <div className="flex items-center gap-1 group/title">
-        <InlineEditCell value={f.title} type="text" editable={editable} onCommit={(v) => onCommit("title", v)}>
+      <div className="relative flex items-center group/title">
+        <InlineEditCell value={f.title} type="text" editable={editable} onCommit={(v) => onCommit("title", v)} className="flex-1 min-w-0 pr-6">
           <span className="truncate font-medium text-card-foreground">
             {f.title || <span className="text-muted-foreground italic">未命名稿費單</span>}
           </span>
@@ -285,8 +285,9 @@ function OpenButton({ feeId }: { feeId: string }) {
   const navigate = useNavigate();
   return (
     <button
-      onClick={(e) => { e.stopPropagation(); navigate(`/fees/${feeId}`); }}
-      className="shrink-0 opacity-0 group-hover/title:opacity-100 p-0.5 rounded hover:bg-muted transition-all"
+      onClick={(e) => { e.stopPropagation(); e.preventDefault(); navigate(`/fees/${feeId}`); }}
+      onMouseDown={(e) => e.stopPropagation()}
+      className="absolute right-0 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover/title:opacity-100 p-0.5 rounded hover:bg-muted transition-all"
       title="開啟"
     >
       <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
