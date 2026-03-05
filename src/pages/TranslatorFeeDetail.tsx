@@ -1323,18 +1323,18 @@ export default function TranslatorFeeDetail() {
                         {(Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}
                       </TableCell>
                       {canEdit && (
-                        <TableCell>
+                        <TableCell className="text-right">
                           {index > 0 ? (
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive ml-auto"
                               onClick={() => handleRemoveItem(item.id)}
                             >
                               <X className="h-3.5 w-3.5" />
                             </Button>
                           ) : (
-                            <div className="h-7 w-7" />
+                            <div className="h-7 w-7 ml-auto" />
                           )}
                         </TableCell>
                       )}
