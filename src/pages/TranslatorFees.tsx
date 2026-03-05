@@ -14,6 +14,7 @@ import { useUndoRedo, type UndoEntry } from "@/hooks/use-undo-redo";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-store";
+import { supabase } from "@/integrations/supabase/client";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
   draft: "草稿",
