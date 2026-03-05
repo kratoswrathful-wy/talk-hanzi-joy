@@ -557,18 +557,7 @@ function TranslatorNotesSection() {
                         if (e.key === "Escape") setEditingEmail(null);
                       }}
                     />
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1.5">
-                        <Checkbox
-                          id={`no-fee-${member.email}`}
-                          checked={member.no_fee}
-                          onCheckedChange={(checked) => handleToggleNoFee(member.email, !!checked)}
-                        />
-                        <Label htmlFor={`no-fee-${member.email}`} className="text-xs cursor-pointer">
-                          不開單譯者
-                        </Label>
-                      </div>
-                      <div className="flex-1" />
+                    <div className="flex items-center justify-end gap-2">
                       <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setEditingEmail(null)}>
                         取消
                       </Button>
@@ -586,6 +575,18 @@ function TranslatorNotesSection() {
                     )}
                   </div>
                 )}
+
+                {/* No-fee checkbox always visible */}
+                <div className="flex items-center gap-1.5 pl-8 pt-0.5">
+                  <Checkbox
+                    id={`no-fee-${member.email}`}
+                    checked={member.no_fee}
+                    onCheckedChange={(checked) => handleToggleNoFee(member.email, !!checked)}
+                  />
+                  <Label htmlFor={`no-fee-${member.email}`} className="text-xs cursor-pointer text-muted-foreground">
+                    不開單譯者
+                  </Label>
+                </div>
               </div>
             );
           })
