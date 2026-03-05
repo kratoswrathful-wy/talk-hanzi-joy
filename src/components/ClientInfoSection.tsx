@@ -305,7 +305,7 @@ export default function ClientInfoSection({
                 <TableHead className="text-xs w-[18%]">客戶報價</TableHead>
                 <TableHead className="text-xs w-[22%]">計費單位數</TableHead>
                 <TableHead className="text-xs text-right w-[20%]">小計</TableHead>
-                {canEdit && !clientItemsLocked && <TableHead className="text-xs w-12" />}
+                {canEdit && <TableHead className="text-xs w-12" />}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -360,9 +360,9 @@ export default function ClientInfoSection({
                   <TableCell className="text-right text-xs font-medium">
                     {(Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
                   </TableCell>
-                  {canEdit && !clientItemsLocked && (
+                  {canEdit && (
                     <TableCell>
-                      {index > 0 ? (
+                      {!clientItemsLocked && index > 0 ? (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -399,7 +399,7 @@ export default function ClientInfoSection({
                 <TableCell className="text-right text-sm font-bold tabular-nums">
                   {clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}
                 </TableCell>
-                {canEdit && !clientItemsLocked && <TableCell />}
+                {canEdit && <TableCell />}
               </TableRow>
               <TableRow>
                 <TableCell colSpan={4}>
@@ -422,7 +422,7 @@ export default function ClientInfoSection({
                 <TableCell className={`text-right text-sm font-bold ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
                   {clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}
                 </TableCell>
-                {canEdit && !clientItemsLocked && <TableCell />}
+                {canEdit && <TableCell />}
               </TableRow>
             </TableFooter>
           </Table>
