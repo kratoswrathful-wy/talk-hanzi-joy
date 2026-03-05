@@ -1526,7 +1526,7 @@ export default function TranslatorFeeDetail() {
               {taskItems.length > 0 && (
                 <TableFooter>
                     <TableRow>
-                      <TableCell colSpan={4} />
+                      <TableCell colSpan={3} />
                       <TableCell className="text-sm font-medium text-right">
                         稿費總額
                       </TableCell>
