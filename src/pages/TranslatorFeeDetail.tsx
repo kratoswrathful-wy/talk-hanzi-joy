@@ -1315,12 +1315,12 @@ export default function TranslatorFeeDetail() {
                   </TableRow>
                 ) : (
                   taskItems.map((item, index) => (
-                    <TableRow key={item.id}>
+                    <TableRow key={item.id} className={isNoFeeTranslator ? "opacity-50" : ""}>
                       <TableCell>
                         <ColorSelect
                           fieldKey="taskType"
                           value={item.taskType}
-                          disabled={!canEdit}
+                          disabled={!canEdit || isNoFeeTranslator}
                           onValueChange={(v) => handleUpdateItem(item.id, "taskType", v)}
                           triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0"
                         />
@@ -1329,7 +1329,7 @@ export default function TranslatorFeeDetail() {
                         <ColorSelect
                           fieldKey="billingUnit"
                           value={item.billingUnit}
-                          disabled={!canEdit}
+                          disabled={!canEdit || isNoFeeTranslator}
                           onValueChange={(v) => handleUpdateItem(item.id, "billingUnit", v)}
                           triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0"
                         />
@@ -1338,13 +1338,13 @@ export default function TranslatorFeeDetail() {
                         <Input
                           type="text"
                           inputMode="decimal"
-                          value={item.unitPrice}
+                          value={isNoFeeTranslator ? 0 : item.unitPrice}
                           onChange={(e) => {
                             const v = e.target.value;
                             if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitPrice", v as any);
                           }}
                           onBlur={(e) => handleNumberBlur(item.id, "unitPrice", e.target.value)}
-                          disabled={!canEdit}
+                          disabled={!canEdit || isNoFeeTranslator}
                           className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-20"
                         />
                       </TableCell>
@@ -1358,12 +1358,12 @@ export default function TranslatorFeeDetail() {
                             if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitCount", v as any);
                           }}
                           onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
-                          disabled={!canEdit}
+                          disabled={!canEdit || isNoFeeTranslator}
                           className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-24"
                         />
                       </TableCell>
                       <TableCell className="text-right text-xs font-medium">
-                        {(Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}
+                        {isNoFeeTranslator ? 0 : (Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}
                       </TableCell>
                       {canEdit && (
                         <TableCell className="text-right px-1">
