@@ -1243,7 +1243,7 @@ export default function TranslatorFeeDetail() {
               {isNoFeeTranslator ? (
                 <span className="text-xs text-warning bg-warning/10 border border-warning/30 rounded px-2 py-0.5">無須開立稿費</span>
               ) : (() => {
-                const assigneeOpt = selectOptionsStore.getField("assignee").options.find(o => o.label === assignee);
+                const assigneeOpt = selectOptionsStore.getField("assignee").options.find(o => o.label === assignee || o.email === assignee);
                 return assigneeOpt?.note ? (
                   <span className="text-xs text-muted-foreground bg-secondary/50 rounded px-2 py-0.5">{assigneeOpt.note}</span>
                 ) : null;
