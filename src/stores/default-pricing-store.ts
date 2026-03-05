@@ -94,10 +94,10 @@ export const defaultPricingStore = {
     return tier.id;
   },
 
-  /** Add a tier row to ALL task types within a group */
-  addTierToGroup: (groupId: string, threshold: number, translatorPrice: number) => {
+  /** Add a tier row to ALL task types within a group. Returns new tier IDs. */
+  addTierToGroup: (groupId: string, threshold: number, translatorPrice: number): string[] => {
     const groupTiers = store.translatorTiers.filter((t) => t.groupId === groupId);
-    if (groupTiers.length === 0) return;
+    if (groupTiers.length === 0) return [];
     const billingUnit = groupTiers[0].billingUnit;
     const taskTypes = [...new Set(groupTiers.map((t) => t.taskType))];
     const newTiers = taskTypes.map((tt) => ({
@@ -110,6 +110,7 @@ export const defaultPricingStore = {
     }));
     store = { ...store, translatorTiers: [...store.translatorTiers, ...newTiers] };
     notify();
+    return newTiers.map((t) => t.id);
   },
 
   updateTier: (id: string, updates: Partial<Omit<TranslatorTier, "id">>) => {
