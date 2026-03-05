@@ -858,10 +858,14 @@ export default function TranslatorFeeDetail() {
         const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
         const billingUnit: BillingUnit = billingUnitMap[unit] || "字";
 
-        // 費用編號 > 標題
-        if (feeNumber) {
-          setTitle(feeNumber);
-          if (id) feeStore.updateFee(id, { title: feeNumber });
+        // 標題：PO_案件編號（優先用案件頁面標題，否則用費用編號）
+        const caseName = (Array.isArray(casePages) && casePages.length > 0 && casePages[0].title)
+          ? casePages[0].title
+          : feeNumber;
+        if (caseName) {
+          const newTitle = `PO_${caseName}`;
+          setTitle(newTitle);
+          if (id) feeStore.updateFee(id, { title: newTitle });
         }
 
         // 譯者 > 開單對象 (match by email)
