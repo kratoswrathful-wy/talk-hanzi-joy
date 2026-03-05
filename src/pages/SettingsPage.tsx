@@ -849,11 +849,14 @@ function NewTierGroupButton({
   taskTypeOptions: { id: string; label: string; color: string }[];
   billingUnits: string[];
   existingGroups: string[];
-  onAdd: (taskType: string, billingUnit: string) => void;
+  onAdd: (taskType: string, billingUnit: string, min: number, max: number, price: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [selectedTaskTypes, setSelectedTaskTypes] = useState<string[]>([]);
   const [selectedUnit, setSelectedUnit] = useState("字");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("0");
+  const [translatorPrice, setTranslatorPrice] = useState("");
 
   const toggleTaskType = (label: string) => {
     setSelectedTaskTypes((prev) =>
@@ -863,10 +866,16 @@ function NewTierGroupButton({
 
   const handleAdd = () => {
     if (selectedTaskTypes.length === 0) return;
-    selectedTaskTypes.forEach((tt) => onAdd(tt, selectedUnit));
+    const min = Number(minPrice) || 0;
+    const max = Number(maxPrice) || 0;
+    const price = Number(translatorPrice) || 0;
+    selectedTaskTypes.forEach((tt) => onAdd(tt, selectedUnit, min, max, price));
     setOpen(false);
     setSelectedTaskTypes([]);
     setSelectedUnit("字");
+    setMinPrice("");
+    setMaxPrice("0");
+    setTranslatorPrice("");
   };
 
   if (!open) {
