@@ -1364,7 +1364,6 @@ export default function TranslatorFeeDetail() {
           <>
             <Separator />
             <div className="space-y-3">
-              <Label className="text-sm font-medium">客戶資訊</Label>
               <ClientInfoSection
                 clientInfo={clientInfo}
                 onChange={(info) => {
