@@ -422,7 +422,7 @@ export default function ClientInfoSection({
                 <TableCell className={`text-right text-sm font-bold ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
                   {clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}
                 </TableCell>
-                {canEdit && <TableCell />}
+                {canEdit && <TableCell className="px-1" />}
               </TableRow>
             </TableFooter>
           </Table>
