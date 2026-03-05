@@ -718,6 +718,25 @@ export default function TranslatorFees() {
           </tbody>
         </table>
       </motion.div>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>確定刪除？</AlertDialogTitle>
+            <AlertDialogDescription>
+              {rowSelection.selectedCount > 1
+                ? `即將刪除 ${rowSelection.selectedCount} 個項目，此操作無法復原。是否確定？`
+                : "即將刪除選取的項目，此操作無法復原。是否確定？"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteSelected} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              刪除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
