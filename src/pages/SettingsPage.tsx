@@ -609,6 +609,8 @@ function TranslatorTierSection() {
   const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  // Track newly added tiers that haven't been committed yet — kept at bottom unsorted
+  const [uncommittedIds, setUncommittedIds] = useState<Set<string>>(new Set());
 
   const [errorModalOpen, setErrorModalOpen] = useState(false);
   const [errorGroupId, setErrorGroupId] = useState<string | null>(null);
@@ -641,6 +643,13 @@ function TranslatorTierSection() {
       updateTierRow(tierId, { [field]: num });
     }
     setEditingField(null);
+    // Mark as committed so it joins the sorted order
+    setUncommittedIds((prev) => {
+      if (!prev.has(tierId)) return prev;
+      const next = new Set(prev);
+      next.delete(tierId);
+      return next;
+    });
   }, [editValue, updateTierRow]);
 
   const handleModalSaveField = useCallback((tierId: string, field: "threshold" | "translatorPrice") => {
@@ -664,7 +673,9 @@ function TranslatorTierSection() {
       const rk = `${t.threshold}::${t.translatorPrice}`;
       if (!rowMap.has(rk)) rowMap.set(rk, t);
     }
-    const rows = [...rowMap.values()].sort((a, b) => a.threshold - b.threshold);
+    const committedRows = [...rowMap.values()].filter((t) => !uncommittedIds.has(t.id));
+    const uncommittedRows = [...rowMap.values()].filter((t) => uncommittedIds.has(t.id));
+    const rows = [...committedRows.sort((a, b) => a.threshold - b.threshold), ...uncommittedRows];
     groups.push({ groupId: tier.groupId, taskTypes, billingUnit: tier.billingUnit, rows });
   }
 
@@ -820,7 +831,9 @@ function TranslatorTierSection() {
                   key={tier.id}
                   className="grid grid-cols-[80px_1fr_1fr_36px] gap-2 items-center px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
                 >
-                  {renderRange(group.rows, idx)}
+                  {uncommittedIds.has(tier.id)
+                    ? <span className="text-xs text-muted-foreground/50 italic">編輯中</span>
+                    : renderRange(group.rows.filter((r) => !uncommittedIds.has(r.id)), group.rows.filter((r) => !uncommittedIds.has(r.id)).indexOf(tier))}
                   {renderTierValue(tier, "threshold")}
                   {renderTierValue(tier, "translatorPrice")}
                   <div className="flex justify-center">
@@ -828,7 +841,15 @@ function TranslatorTierSection() {
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                      onClick={() => removeTierRow(tier.id)}
+                      onClick={() => {
+                        removeTierRow(tier.id);
+                        setUncommittedIds((prev) => {
+                          if (!prev.has(tier.id)) return prev;
+                          const next = new Set(prev);
+                          next.delete(tier.id);
+                          return next;
+                        });
+                      }}
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -840,7 +861,21 @@ function TranslatorTierSection() {
                 variant="ghost"
                 size="sm"
                 className="gap-1 text-xs text-muted-foreground"
-                onClick={() => addTierToGroup(group.groupId, 0, 0)}
+                onClick={() => {
+                  const newIds = addTierToGroup(group.groupId, 0, 0);
+                  if (newIds.length > 0) {
+                    // Track all new tier IDs as uncommitted (shown at bottom)
+                    setUncommittedIds((prev) => {
+                      const next = new Set(prev);
+                      newIds.forEach((id) => next.add(id));
+                      return next;
+                    });
+                    // Auto-focus the threshold field of the first new tier (representative row)
+                    const repId = newIds[0];
+                    setEditingField(fieldKey(repId, "threshold"));
+                    setEditValue("0");
+                  }
+                }}
               >
                 <Plus className="h-3 w-3" />
                 新增分段點
