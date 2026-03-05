@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { FolderKanban, Loader2 } from "lucide-react";
@@ -14,6 +15,7 @@ export default function AuthPage() {
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
   const [showReset, setShowReset] = useState(false);
+  const [keepLoggedIn, setKeepLoggedIn] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,26 +118,40 @@ export default function AuthPage() {
               <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">密碼</Label>
-                {isLogin && (
-                  <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowReset(true)}>
-                    忘記密碼？
-                  </button>
-                )}
-              </div>
+              <Label htmlFor="password">密碼</Label>
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
             </div>
+            {isLogin && (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="keepLoggedIn"
+                  checked={keepLoggedIn}
+                  onCheckedChange={(checked) => setKeepLoggedIn(checked === true)}
+                />
+                <Label htmlFor="keepLoggedIn" className="text-sm font-normal cursor-pointer">
+                  保持登入
+                </Label>
+              </div>
+            )}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isLogin ? "登入" : "註冊"}
             </Button>
           </form>
-          <div className="mt-4 text-center text-sm text-muted-foreground">
-            {isLogin ? "還沒有帳號？" : "已有帳號？"}{" "}
-            <button className="text-primary hover:underline" onClick={() => setIsLogin(!isLogin)}>
-              {isLogin ? "註冊" : "登入"}
-            </button>
+          <div className="mt-4 text-center text-sm text-muted-foreground space-y-1">
+            <div>
+              {isLogin ? "還沒有帳號？" : "已有帳號？"}{" "}
+              <button className="text-primary hover:underline" onClick={() => setIsLogin(!isLogin)}>
+                {isLogin ? "註冊" : "登入"}
+              </button>
+            </div>
+            {isLogin && (
+              <div>
+                <button className="text-muted-foreground hover:text-foreground text-xs" onClick={() => setShowReset(true)}>
+                  忘記密碼？
+                </button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
