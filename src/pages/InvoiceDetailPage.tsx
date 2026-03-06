@@ -251,8 +251,9 @@ export default function InvoiceDetailPage() {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
         {/* Fee list */}
         <div className="rounded-lg border border-border bg-card p-5 space-y-3">
-          {/* Header: 請款人 */}
-          <div className="flex items-center gap-2">
+          {/* Header: 請款人 + Add fee button */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
             <h2 className="text-sm font-medium text-muted-foreground">請款人：</h2>
             <div className="flex items-center gap-1.5">
               {translatorProfile?.avatar_url ? (
