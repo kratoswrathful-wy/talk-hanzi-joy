@@ -335,25 +335,33 @@ function ClientPricingSection() {
         </Button>
       )}
 
-      {/* Label text color picker */}
-      <div className="border-t border-border pt-4 space-y-2">
-        <p className="text-xs font-medium text-muted-foreground">標籤字體顏色</p>
-        <div className="flex items-center gap-3">
-          <span
-            className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
-            style={{ backgroundColor: clientOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.client.textColor, borderColor: clientOptions[0]?.color || PRESET_COLORS[0] }}
-          >
-            預覽
-          </span>
-          <ColorPicker
-            value={labelStyles.client.textColor}
-            onChange={(c) => labelStyleStore.setClientTextColor(c)}
-            customColors={[]}
-            onAddCustomColor={() => {}}
-            onRemoveCustomColor={() => {}}
-            colorUsageMap={{}}
-          />
-        </div>
+      {/* Label text color picker - collapsible */}
+      <div className="border-t border-border pt-4">
+        <button
+          className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left"
+          onClick={() => setTextColorOpen((v) => !v)}
+        >
+          {textColorOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+          標籤字體顏色
+        </button>
+        {textColorOpen && (
+          <div className="mt-2 flex items-center gap-3">
+            <span
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+              style={{ backgroundColor: clientOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.client.textColor, borderColor: clientOptions[0]?.color || PRESET_COLORS[0] }}
+            >
+              預覽
+            </span>
+            <ColorPicker
+              value={labelStyles.client.textColor}
+              onChange={(c) => labelStyleStore.setClientTextColor(c)}
+              customColors={[]}
+              onAddCustomColor={() => {}}
+              onRemoveCustomColor={() => {}}
+              colorUsageMap={{}}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
