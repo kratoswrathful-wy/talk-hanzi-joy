@@ -376,7 +376,6 @@ export default function TranslatorFeeDetail() {
   // Role-based permissions — executive has same permissions as PM for now
   const isManager = currentRole === "pm" || currentRole === "executive";
   const canEdit = isManager && isDraft;
-  const canEditCheckboxes = isManager; // reconciled/invoiced stay editable after finalization
   const canSubmit = isManager && isDraft;
   const canRecall = isManager && isFinalized;
   const canDelete = isManager && isDraft;
@@ -699,19 +698,19 @@ export default function TranslatorFeeDetail() {
             };
           });
           setTaskItems(mapped);
-          if (id) feeStore.updateFee(id, { taskItems: mapped });
         } else if (feeRate !== null || unitCount !== null) {
-          const updated = [...taskItems];
-          if (updated.length > 0) {
-            updated[0] = {
-              ...updated[0],
-              billingUnit,
-              ...(unitCount !== null ? { unitCount } : {}),
-              ...(feeRate !== null ? { unitPrice: feeRate } : {}),
-            };
-          }
-          setTaskItems(updated);
-          if (id) feeStore.updateFee(id, { taskItems: updated });
+          setTaskItems((prev) => {
+            const updated = [...prev];
+            if (updated.length > 0) {
+              updated[0] = {
+                ...updated[0],
+                billingUnit,
+                ...(unitCount !== null ? { unitCount } : {}),
+                ...(feeRate !== null ? { unitPrice: feeRate } : {}),
+              };
+            }
+            return updated;
+          });
         }
 
         // Auto-create client/contact options if they don't exist
@@ -763,62 +762,8 @@ export default function TranslatorFeeDetail() {
                   : item
               ),
         };
-        // Auto-pricing triggers after Notion import
-        // 1. If client is set but clientPrice is 0 → auto-fill from default pricing
-        if (client) {
-          updatedClientInfo.clientTaskItems = updatedClientInfo.clientTaskItems.map(item => {
-            if (!item.clientPrice || item.clientPrice === 0) {
-              const price = defaultPricingStore.getClientPrice(client, item.taskType);
-              return price !== undefined ? { ...item, clientPrice: price } : item;
-            }
-            return item;
-          });
-        }
-
         setClientInfo(updatedClientInfo);
         if (id) feeStore.updateFee(id, { clientInfo: updatedClientInfo });
-
-        // 2. If clientPrice exists but translator unitPrice is 0 → auto-fill from tier table
-        {
-          const currentMapped = feeStore.getFeeById(id || "")?.taskItems ?? taskItems;
-          // Get the latest taskItems (may have been set above)
-          const latestTaskItems = (() => {
-            if (Array.isArray(workTypes) && workTypes.length > 0) {
-              return workTypes.map((wt: string, idx: number) => {
-                const matchedType = matchTaskType(wt);
-                return {
-                  id: `item-ir-${Date.now()}-${idx}`,
-                  taskType: matchedType as TaskType,
-                  billingUnit,
-                  unitCount: idx === 0 && unitCount ? unitCount : 0,
-                  unitPrice: idx === 0 && feeRate !== null ? feeRate : 0,
-                };
-              });
-            }
-            return currentMapped;
-          })();
-
-          let needsUpdate = false;
-          const pricedTaskItems = latestTaskItems.map((item, idx) => {
-            if (!item.unitPrice || item.unitPrice === 0) {
-              const correspondingClient = updatedClientInfo.clientTaskItems[idx];
-              const cp = correspondingClient?.clientPrice;
-              if (cp && cp > 0) {
-                const tp = defaultPricingStore.getTranslatorPrice(cp, item.taskType, item.billingUnit);
-                if (tp !== undefined && tp > 0) {
-                  needsUpdate = true;
-                  return { ...item, unitPrice: tp };
-                }
-              }
-            }
-            return item;
-          });
-
-          if (needsUpdate) {
-            setTaskItems(pricedTaskItems);
-            if (id) feeStore.updateFee(id, { taskItems: pricedTaskItems });
-          }
-        }
 
         // Multi-translator: create additional fee pages
         if (Array.isArray(people) && people.length > 1) {
@@ -983,7 +928,6 @@ export default function TranslatorFeeDetail() {
             };
           });
           setTaskItems(mapped);
-          if (id) feeStore.updateFee(id, { taskItems: mapped });
 
           // 同步工作類型到客戶計費項目
           const mappedClientItems: import("@/data/fee-mock-data").ClientTaskItem[] = workTypes.map((wt: string, idx: number) => {
@@ -1451,7 +1395,7 @@ export default function TranslatorFeeDetail() {
                   <Checkbox
                     id="rateConfirmed"
                     checked={isNoFeeTranslator ? true : clientInfo.rateConfirmed}
-                    disabled={!canEditCheckboxes || isNoFeeTranslator}
+                    disabled={!canEdit || isNoFeeTranslator}
                     onCheckedChange={(checked) => {
                       const updated = { ...clientInfo, rateConfirmed: !!checked };
                       setClientInfo(updated);
@@ -1606,7 +1550,6 @@ export default function TranslatorFeeDetail() {
                   if (id) feeStore.updateFee(id, { clientInfo: info });
                 }}
                 canEdit={canEdit}
-                canEditCheckboxes={canEditCheckboxes}
                 translatorTotal={totalAmount}
                 allFees={allFees}
                 currentFeeId={id ?? ""}

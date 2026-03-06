@@ -35,7 +35,6 @@ interface ClientInfoSectionProps {
   clientInfo: ClientInfo;
   onChange: (info: ClientInfo) => void;
   canEdit: boolean;
-  canEditCheckboxes?: boolean; // separate flag for reconciled/invoiced checkboxes
   translatorTotal: number;
   allFees: TranslatorFee[];
   currentFeeId: string;
@@ -49,7 +48,6 @@ export default function ClientInfoSection({
   clientInfo,
   onChange,
   canEdit,
-  canEditCheckboxes,
   translatorTotal,
   allFees,
   currentFeeId,
@@ -188,7 +186,7 @@ export default function ClientInfoSection({
                 <Checkbox
                   id="reconciled"
                   checked={clientInfo.reconciled}
-                  disabled={!(canEditCheckboxes ?? canEdit)}
+                  disabled={!canEdit}
                   onCheckedChange={(checked) => update("reconciled", !!checked)}
                 />
                 <Label htmlFor="reconciled" className="text-xs cursor-pointer whitespace-nowrap">對帳完成</Label>
@@ -197,7 +195,7 @@ export default function ClientInfoSection({
                 <Checkbox
                   id="invoiced"
                   checked={clientInfo.invoiced}
-                  disabled={!(canEditCheckboxes ?? canEdit)}
+                  disabled={!canEdit}
                   onCheckedChange={(checked) => update("invoiced", !!checked)}
                 />
                 <Label htmlFor="invoiced" className="text-xs cursor-pointer whitespace-nowrap">請款完成</Label>

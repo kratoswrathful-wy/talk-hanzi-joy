@@ -144,33 +144,33 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Resolve relation pages in parallel for speed
-    const resolveRelation = async (relId: string) => {
-      try {
-        const relRes = await fetch(`https://api.notion.com/v1/pages/${relId}`, { headers });
-        if (relRes.ok) {
-          const relPage = await relRes.json();
-          const relProps = relPage.properties || {};
-          let relTitle = '';
-          for (const v of Object.values(relProps)) {
-            if ((v as any).type === 'title') {
-              relTitle = extractTitle(v);
-              break;
+    // Resolve relation pages (fetch title + URL for each)
+    for (const rel of relationProps) {
+      const resolved = [];
+      for (const relId of rel.ids) {
+        try {
+          const relRes = await fetch(`https://api.notion.com/v1/pages/${relId}`, { headers });
+          if (relRes.ok) {
+            const relPage = await relRes.json();
+            const relProps = relPage.properties || {};
+            let relTitle = '';
+            for (const v of Object.values(relProps)) {
+              if ((v as any).type === 'title') {
+                relTitle = extractTitle(v);
+                break;
+              }
             }
+            resolved.push({ id: relId, title: relTitle, url: relPage.url });
+          } else {
+            await relRes.text();
+            resolved.push({ id: relId, title: '', url: '' });
           }
-          return { id: relId, title: relTitle, url: relPage.url };
-        } else {
-          await relRes.text();
-          return { id: relId, title: '', url: '' };
+        } catch {
+          resolved.push({ id: relId, title: '', url: '' });
         }
-      } catch {
-        return { id: relId, title: '', url: '' };
       }
-    };
-
-    await Promise.all(relationProps.map(async (rel) => {
-      result[rel.key] = await Promise.all(rel.ids.map(resolveRelation));
-    }));
+      result[rel.key] = resolved;
+    }
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
