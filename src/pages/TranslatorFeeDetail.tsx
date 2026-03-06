@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, type TranslatorFee, defaultClientInfo } from "@/data/fee-mock-data";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
 import { selectOptionsStore, PRESET_COLORS } from "@/stores/select-options-store";
+import { useLabelStyles } from "@/stores/label-style-store";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
   draft: "草稿",
