@@ -71,7 +71,11 @@ const formatCurrency = (n: number) =>
 
 export default function InvoicesPage() {
   const navigate = useNavigate();
-  const invoices = useInvoices();
+  const allInvoices = useInvoices();
+  // Filter invoices: non-admin users can only see their own invoices
+  const invoices = isAdmin ? allInvoices : allInvoices.filter(
+    (inv) => inv.translator === profile?.display_name
+  );
   const fees = useFees();
   const { isAdmin, profile, user, roles } = useAuth();
   const isExecutive = roles.some((r) => r.role === "executive");
