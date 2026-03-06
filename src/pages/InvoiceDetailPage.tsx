@@ -8,16 +8,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
 import { useInvoice, invoiceStore } from "@/hooks/use-invoice-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useSelectOptions } from "@/stores/select-options-store";
-import { type InvoiceStatus, invoiceStatusLabels } from "@/data/invoice-types";
-import { useState, useCallback } from "react";
+import { useLabelStyles } from "@/stores/label-style-store";
+import { type InvoiceStatus, type PaymentRecord, invoiceStatusLabels } from "@/data/invoice-types";
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -28,6 +27,12 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -40,19 +45,19 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-const statusColors: Record<InvoiceStatus, { bg: string; text: string }> = {
-  pending: { bg: "hsl(var(--muted))", text: "hsl(var(--muted-foreground))" },
-  partial: { bg: "hsl(40 90% 50%)", text: "#fff" },
-  paid: { bg: "hsl(142 71% 45%)", text: "#fff" },
-};
-
 function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
-  const colors = statusColors[status];
+  const labelStyles = useLabelStyles();
+  const styleMap: Record<InvoiceStatus, { bgColor: string; textColor: string }> = {
+    pending: labelStyles.invoicePending,
+    partial: labelStyles.invoicePartial,
+    paid: labelStyles.invoicePaid,
+  };
+  const colors = styleMap[status];
   return (
     <Badge
       variant="default"
       className="border"
-      style={{ backgroundColor: colors.bg, color: colors.text, borderColor: colors.bg }}
+      style={{ backgroundColor: colors.bgColor, color: colors.textColor, borderColor: colors.bgColor }}
     >
       {invoiceStatusLabels[status]}
     </Badge>
@@ -61,6 +66,9 @@ function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
 
 const formatCurrency = (n: number) =>
   n.toLocaleString("zh-TW", { style: "currency", currency: "TWD", minimumFractionDigits: 0 });
+
+const formatTimestamp = (d: Date) =>
+  `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 
 export default function InvoiceDetailPage() {
   const { id } = useParams();
@@ -71,6 +79,25 @@ export default function InvoiceDetailPage() {
   const { options: assigneeOptions } = useSelectOptions("assignee");
   const [showDelete, setShowDelete] = useState(false);
   const [removeFeeId, setRemoveFeeId] = useState<string | null>(null);
+  const [showPartialInput, setShowPartialInput] = useState(false);
+  const [partialAmount, setPartialAmount] = useState("");
+
+  // Translator profile
+  const [translatorProfile, setTranslatorProfile] = useState<{ display_name: string | null; avatar_url: string | null } | null>(null);
+  useEffect(() => {
+    if (!invoice?.translator) return;
+    const opt = assigneeOptions.find((o) => o.label === invoice.translator);
+    if (!opt) return;
+    // Try to find profile by display_name
+    supabase
+      .from("profiles")
+      .select("display_name, avatar_url")
+      .eq("display_name", invoice.translator)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setTranslatorProfile(data);
+      });
+  }, [invoice?.translator, assigneeOptions]);
 
   if (!invoice) {
     return (
@@ -91,26 +118,8 @@ export default function InvoiceDetailPage() {
   );
 
   const opt = assigneeOptions.find((o) => o.label === invoice.translator);
-
-  const handleStatusChange = (val: string) => {
-    invoiceStore.updateInvoice(invoice.id, { status: val as InvoiceStatus });
-    // Auto-suggest: if setting to paid and no transfer date, set today
-    if (val === "paid" && !invoice.transferDate) {
-      invoiceStore.updateInvoice(invoice.id, { transferDate: new Date().toISOString() });
-      toast.info("已自動填入今日為匯款日期");
-    }
-  };
-
-  const handleDateChange = (date: Date | undefined) => {
-    invoiceStore.updateInvoice(invoice.id, {
-      transferDate: date ? date.toISOString() : undefined,
-    });
-    // Auto-suggest status
-    if (date && invoice.status === "pending") {
-      invoiceStore.updateInvoice(invoice.id, { status: "paid" });
-      toast.info("狀態已自動更新為「已匯款」");
-    }
-  };
+  const isPaid = invoice.status === "paid";
+  const editable = isAdmin && !isPaid;
 
   const handleRemoveFee = () => {
     if (removeFeeId) {
@@ -124,7 +133,46 @@ export default function InvoiceDetailPage() {
     navigate("/invoices");
   };
 
-  const editable = isAdmin;
+  const handleFullPayment = () => {
+    const now = new Date().toISOString();
+    const payment: PaymentRecord = {
+      id: crypto.randomUUID(),
+      type: "full",
+      timestamp: now,
+    };
+    const newPayments = [...invoice.payments, payment];
+    invoiceStore.updateInvoice(invoice.id, {
+      status: "paid",
+      payments: newPayments,
+      transferDate: now,
+    });
+    toast.success("已記錄全額付款");
+  };
+
+  const handlePartialPayment = () => {
+    const amount = parseFloat(partialAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("請輸入有效金額");
+      return;
+    }
+    const now = new Date().toISOString();
+    const payment: PaymentRecord = {
+      id: crypto.randomUUID(),
+      type: "partial",
+      amount,
+      timestamp: now,
+    };
+    const newPayments = [...invoice.payments, payment];
+    invoiceStore.updateInvoice(invoice.id, {
+      status: "partial",
+      payments: newPayments,
+    });
+    setShowPartialInput(false);
+    setPartialAmount("");
+    toast.success("已記錄部份付款");
+  };
+
+  const hasPayments = invoice.payments.length > 0;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -135,17 +183,23 @@ export default function InvoiceDetailPage() {
         </Button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-semibold tracking-tight flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5">
-                {opt && <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: opt.color }} />}
-                {invoice.translator || "未指定譯者"}
-              </span>
-              <span className="text-muted-foreground font-normal">的請款單</span>
-            </h1>
+            {/* Editable title */}
+            {isPaid ? (
+              <h1 className="text-xl font-semibold tracking-tight text-muted-foreground">
+                {invoice.title || "未命名"}
+              </h1>
+            ) : (
+              <Input
+                value={invoice.title}
+                onChange={(e) => invoiceStore.updateInvoice(invoice.id, { title: e.target.value })}
+                placeholder="請款單標題"
+                className="text-xl font-semibold tracking-tight border-0 shadow-none px-0 h-auto py-0 focus-visible:ring-0 bg-transparent"
+              />
+            )}
             <InvoiceStatusBadge status={invoice.status} />
           </div>
         </div>
-        {editable && (
+        {!isPaid && (
           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setShowDelete(true)}>
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -153,78 +207,29 @@ export default function InvoiceDetailPage() {
       </div>
 
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-        {/* Status + Transfer Date */}
-        <div className="rounded-lg border border-border bg-card p-5 space-y-4">
-          <h2 className="text-sm font-medium text-muted-foreground">匯款資訊</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">狀態</Label>
-              {editable ? (
-                <Select value={invoice.status} onValueChange={handleStatusChange}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pending">待匯款</SelectItem>
-                    <SelectItem value="partial">部份匯款</SelectItem>
-                    <SelectItem value="paid">已匯款</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <InvoiceStatusBadge status={invoice.status} />
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">匯款日期</Label>
-              {editable ? (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn("w-full h-9 justify-start text-left font-normal", !invoice.transferDate && "text-muted-foreground")}>
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {invoice.transferDate ? format(new Date(invoice.transferDate), "yyyy/MM/dd") : "選擇日期"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={invoice.transferDate ? new Date(invoice.transferDate) : undefined}
-                      onSelect={handleDateChange}
-                      className="p-3 pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
-              ) : (
-                <p className="text-sm py-2">{invoice.transferDate ? format(new Date(invoice.transferDate), "yyyy/MM/dd") : "—"}</p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Note */}
-        <div className="rounded-lg border border-border bg-card p-5 space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">備註</h2>
-          {editable ? (
-            <Textarea
-              value={invoice.note}
-              onChange={(e) => invoiceStore.updateInvoice(invoice.id, { note: e.target.value })}
-              placeholder="輸入備註..."
-              className="min-h-[80px]"
-            />
-          ) : (
-            <p className="text-sm">{invoice.note || "—"}</p>
-          )}
-        </div>
-
         {/* Fee list */}
         <div className="rounded-lg border border-border bg-card p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-muted-foreground">收錄費用（{linkedFees.length}）</h2>
-            <span className="text-sm font-semibold tabular-nums">{formatCurrency(total)}</span>
+          {/* Header: 請款人 */}
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-medium text-muted-foreground">請款人：</h2>
+            <div className="flex items-center gap-1.5">
+              {translatorProfile?.avatar_url ? (
+                <Avatar className="h-5 w-5">
+                  <AvatarImage src={translatorProfile.avatar_url} />
+                  <AvatarFallback className="text-[10px]">{(invoice.translator || "?")[0]}</AvatarFallback>
+                </Avatar>
+              ) : opt ? (
+                <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: opt.color }} />
+              ) : null}
+              <span className="text-sm font-medium">{translatorProfile?.display_name || invoice.translator || "未指定"}</span>
+            </div>
           </div>
+
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="text-center">標題</TableHead>
                 <TableHead className="text-center w-[120px]">稿費總額</TableHead>
-                <TableHead className="text-center w-[100px]">狀態</TableHead>
                 {editable && <TableHead className="text-center w-[60px]">移除</TableHead>}
               </TableRow>
             </TableHeader>
@@ -239,11 +244,6 @@ export default function InvoiceDetailPage() {
                       </Link>
                     </TableCell>
                     <TableCell className="text-center text-sm tabular-nums">{formatCurrency(feeTotal)}</TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={fee.status === "finalized" ? "default" : "secondary"} className="text-xs">
-                        {fee.status === "finalized" ? "開立完成" : "草稿"}
-                      </Badge>
-                    </TableCell>
                     {editable && (
                       <TableCell className="text-center">
                         <Button
@@ -261,7 +261,7 @@ export default function InvoiceDetailPage() {
               })}
               {linkedFees.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={editable ? 4 : 3} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={editable ? 3 : 2} className="text-center py-8 text-muted-foreground">
                     尚未收錄任何費用
                   </TableCell>
                 </TableRow>
@@ -270,14 +270,78 @@ export default function InvoiceDetailPage() {
             {linkedFees.length > 0 && (
               <TableFooter>
                 <TableRow>
-                  <TableCell className="font-medium">合計</TableCell>
-                  <TableCell className="text-center font-semibold tabular-nums">{formatCurrency(total)}</TableCell>
-                  <TableCell />
+                  <TableCell className="text-left">
+                    <span className="text-muted-foreground text-sm">共 {linkedFees.length} 筆稿費</span>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <span className="font-semibold tabular-nums">{formatCurrency(total)}</span>
+                  </TableCell>
                   {editable && <TableCell />}
                 </TableRow>
               </TableFooter>
             )}
           </Table>
+        </div>
+
+        {/* Payment section */}
+        <div className="space-y-3">
+          {/* Payment records */}
+          {invoice.payments.map((p) => (
+            <div key={p.id} className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">付款時間：</span>
+              <span>{formatTimestamp(new Date(p.timestamp))}</span>
+              <span className="text-muted-foreground">
+                {p.type === "full" ? "（全額付款）" : `（部份付款：${formatCurrency(p.amount || 0)}）`}
+              </span>
+            </div>
+          ))}
+
+          {/* Partial amount input dialog */}
+          {showPartialInput && (
+            <div className="flex items-center gap-2 justify-end">
+              <Input
+                type="number"
+                value={partialAmount}
+                onChange={(e) => setPartialAmount(e.target.value)}
+                placeholder="輸入付款金額"
+                className="w-40 h-9"
+                autoFocus
+              />
+              <Button size="sm" onClick={handlePartialPayment}>確認</Button>
+              <Button size="sm" variant="ghost" onClick={() => { setShowPartialInput(false); setPartialAmount(""); }}>取消</Button>
+            </div>
+          )}
+
+          {/* Payment button - show only when not fully paid */}
+          {!isPaid && !showPartialInput && isAdmin && (
+            <div className="flex justify-end">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">付款</Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleFullPayment}>全額付款</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowPartialInput(true)}>部份付款</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
+        </div>
+
+        {/* Note - at the bottom, same style as fee detail page */}
+        <Separator />
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">備註</Label>
+          {isAdmin ? (
+            <Textarea
+              value={invoice.note}
+              onChange={(e) => invoiceStore.updateInvoice(invoice.id, { note: e.target.value })}
+              placeholder="輸入備註..."
+              className="min-h-[80px]"
+            />
+          ) : (
+            <p className="text-sm">{invoice.note || "—"}</p>
+          )}
         </div>
       </motion.div>
 
