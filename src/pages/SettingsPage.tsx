@@ -1829,7 +1829,7 @@ function StatusStyleSection() {
         <div>
           <h2 className="text-base font-semibold">狀態標籤設定</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            自訂「草稿」與「開立完成」狀態標籤的背景顏色與字體顏色
+            自訂費用與請款單狀態標籤的背景顏色與字體顏色
           </p>
         </div>
       </button>
