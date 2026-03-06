@@ -731,7 +731,7 @@ export default function TranslatorFeeDetail() {
         if (contact) {
           const existingContacts = selectOptionsStore.getSortedOptions("contact");
           if (!existingContacts.find((o) => o.label === contact)) {
-            selectOptionsStore.addOption("contact", contact, "#9CA3AF");
+            selectOptionsStore.addOption("contact", contact, "#6B7280");
             autoCreated.push({ field: "聯絡人", label: contact });
           }
         }
