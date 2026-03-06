@@ -153,6 +153,7 @@ export default function InvoicesPage() {
             {invoices.length === 0 && (
               <tr>
                 <td colSpan={isAdmin ? 8 : 7} className="text-center py-12 text-muted-foreground">
+
                   尚無請款單
                 </td>
               </tr>
