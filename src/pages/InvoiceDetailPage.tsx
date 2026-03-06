@@ -81,6 +81,8 @@ export default function InvoiceDetailPage() {
   const [removeFeeId, setRemoveFeeId] = useState<string | null>(null);
   const [showPartialInput, setShowPartialInput] = useState(false);
   const [partialAmount, setPartialAmount] = useState("");
+  const [showOverpayWarning, setShowOverpayWarning] = useState(false);
+  const [overpayRemaining, setOverpayRemaining] = useState(0);
 
   // Translator profile
   const [translatorProfile, setTranslatorProfile] = useState<{ display_name: string | null; avatar_url: string | null } | null>(null);
