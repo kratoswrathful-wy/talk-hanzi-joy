@@ -225,7 +225,7 @@ export default function ClientInfoSection({
                 }}
               />
               <Label htmlFor="sameCase" className="text-xs cursor-pointer whitespace-nowrap">
-                與他筆費用為同一案件
+                費用群組（勾選後系統會自動以「相關案件」相同者判定群組所屬費用）
               </Label>
             </div>
             <div className="flex items-center gap-1.5">
