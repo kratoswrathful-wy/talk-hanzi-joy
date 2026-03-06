@@ -2040,6 +2040,48 @@ export default function TranslatorFeeDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Multi-translator pages created dialog */}
+      <AlertDialog open={multiTranslatorPages !== null} onOpenChange={() => {}}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>已建立多個費用頁面</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  因為譯者人數多於一位，系統已自動建立 {multiTranslatorPages?.length ?? 0} 個費用頁面。
+                  目前開啟的頁面是「{multiTranslatorPages?.[0]?.title}」。
+                </p>
+                <div className="space-y-1.5">
+                  <p className="font-medium text-foreground text-sm">群組內頁面：</p>
+                  {multiTranslatorPages?.map((page, idx) => (
+                    <div key={page.id} className="flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground">{idx + 1}.</span>
+                      <span className="font-medium">{page.title}</span>
+                      <span className="text-muted-foreground">— {page.assignee}</span>
+                      {idx === 0 && <Badge variant="outline" className="text-[10px] h-4 px-1">主要</Badge>}
+                      {idx > 0 && (
+                        <Link
+                          to={`/fees/${page.id}`}
+                          className="text-primary hover:underline text-xs"
+                          onClick={() => setMultiTranslatorPages(null)}
+                        >
+                          前往
+                        </Link>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button onClick={() => setMultiTranslatorPages(null)}>
+              我知道了
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
