@@ -461,6 +461,7 @@ export default function TranslatorFeeDetail() {
   const [swapResolved, setSwapResolved] = useState(false);
   const confirmSwapOriginRef = useRef<"choose" | "assignRole">("choose");
   const [multiTranslatorPages, setMultiTranslatorPages] = useState<{ id: string; title: string; assignee: string }[] | null>(null);
+  const [autoCreatedOptions, setAutoCreatedOptions] = useState<{ field: string; label: string }[] | null>(null);
 
   // Find the other fee that is firstFee in the same case group
   const otherFirstFee = (() => {
@@ -850,17 +851,29 @@ export default function TranslatorFeeDetail() {
       if (fnError) throw fnError;
       if (data?.error) throw new Error(data.error);
 
-      const taskTypeOptions: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
+      const knownTaskTypes: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
       const taskTypeAliases: Record<string, TaskType> = { "審稿": "校對", "Review": "校對", "Translation": "翻譯", "Proofreading": "校對" };
-      const matchTaskType = (wt: string): TaskType => {
-        // Direct match first
-        const direct = taskTypeOptions.find((t) => wt.includes(t));
+      const autoCreated: { field: string; label: string }[] = [];
+
+      const matchTaskType = (wt: string): string => {
+        const direct = knownTaskTypes.find((t) => wt.includes(t));
         if (direct) return direct;
-        // Alias match
         for (const [alias, mapped] of Object.entries(taskTypeAliases)) {
           if (wt.includes(alias)) return mapped;
         }
-        return "翻譯";
+        // Unknown type — return raw string, will be auto-created as new option
+        return wt;
+      };
+
+      const ensureTaskTypeOption = (taskType: string) => {
+        const existingOptions = selectOptionsStore.getSortedOptions("taskType");
+        if (!existingOptions.find((o) => o.label === taskType)) {
+          const color = PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
+          selectOptionsStore.addOption("taskType", taskType, color);
+          // Also add to clientTaskType
+          selectOptionsStore.addOption("clientTaskType", taskType, color);
+          autoCreated.push({ field: "任務類型", label: taskType });
+        }
       };
 
       // Detect which database the page is from
@@ -938,6 +951,7 @@ export default function TranslatorFeeDetail() {
         if (Array.isArray(workTypes) && workTypes.length > 0) {
           const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
             const matchedType = matchTaskType(wt);
+            ensureTaskTypeOption(matchedType);
             return {
               id: `item-ir-${Date.now()}-${idx}`,
               taskType: matchedType as TaskType,
@@ -967,14 +981,14 @@ export default function TranslatorFeeDetail() {
           const existingClients = selectOptionsStore.getSortedOptions("client");
           if (!existingClients.find((o) => o.label === client)) {
             selectOptionsStore.addOption("client", client, PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]);
-            toast.info(`已自動建立新客戶選項：${client}`);
+            autoCreated.push({ field: "客戶", label: client });
           }
         }
         if (contact) {
           const existingContacts = selectOptionsStore.getSortedOptions("contact");
           if (!existingContacts.find((o) => o.label === contact)) {
-            selectOptionsStore.addOption("contact", contact, PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]);
-            toast.info(`已自動建立新聯絡人選項：${contact}`);
+            selectOptionsStore.addOption("contact", contact, "#9CA3AF");
+            autoCreated.push({ field: "聯絡人", label: contact });
           }
         }
 
@@ -1088,6 +1102,7 @@ export default function TranslatorFeeDetail() {
         }
 
         toast.success("已從 Notion 載入內部費用紀錄");
+        if (autoCreated.length > 0) setAutoCreatedOptions(autoCreated);
       } else {
         // ===== 🖖 翻譯案件 mapping (original logic) =====
         // Extract fields
@@ -1152,6 +1167,7 @@ export default function TranslatorFeeDetail() {
         if (Array.isArray(workTypes) && workTypes.length > 0) {
           const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
             const matchedType = matchTaskType(wt);
+            ensureTaskTypeOption(matchedType);
             return {
               id: `item-notion-${Date.now()}-${idx}`,
               taskType: matchedType as TaskType,
@@ -1275,6 +1291,7 @@ export default function TranslatorFeeDetail() {
         }
 
         toast.success("已從 Notion 載入案件資料");
+        if (autoCreated.length > 0) setAutoCreatedOptions(autoCreated);
       }
     } catch (err: any) {
       console.error("Failed to fetch Notion data:", err);
@@ -2088,6 +2105,33 @@ export default function TranslatorFeeDetail() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <Button onClick={() => setMultiTranslatorPages(null)}>
+              我知道了
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Auto-created options notification dialog */}
+      <AlertDialog open={autoCreatedOptions !== null} onOpenChange={() => {}}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>已自動建立新選項</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>從 Notion 匯入時偵測到以下尚未存在的選項，已自動建立：</p>
+                <div className="space-y-1">
+                  {autoCreatedOptions?.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground">{item.field}：</span>
+                      <span className="font-medium">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button onClick={() => setAutoCreatedOptions(null)}>
               我知道了
             </Button>
           </AlertDialogFooter>
