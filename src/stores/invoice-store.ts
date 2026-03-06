@@ -146,7 +146,7 @@ export const invoiceStore = {
     return newInvoice;
   },
 
-  updateInvoice: (id: string, updates: Partial<Pick<Invoice, "status" | "transferDate" | "note" | "title" | "payments">>) => {
+  updateInvoice: (id: string, updates: Partial<Pick<Invoice, "status" | "transferDate" | "note" | "title" | "payments">> & Record<string, any>) => {
     invoices = invoices.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv));
     notify();
 
@@ -156,6 +156,8 @@ export const invoiceStore = {
     if (updates.note !== undefined) dbUpdates.note = updates.note;
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.payments !== undefined) dbUpdates.payments = updates.payments;
+    if (updates.comments !== undefined) dbUpdates.comments = updates.comments;
+    if (updates.edit_logs !== undefined) dbUpdates.edit_logs = updates.edit_logs;
 
     if (Object.keys(dbUpdates).length > 0) {
       supabase
