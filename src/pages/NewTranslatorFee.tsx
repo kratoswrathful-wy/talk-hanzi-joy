@@ -21,7 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { type TaskType, type BillingUnit, type FeeTaskItem } from "@/data/fee-mock-data";
 import { toast } from "sonner";
 
-const taskTypeOptions: TaskType[] = ["翻譯", "審稿", "MTPE", "LQA"];
+const taskTypeOptions: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
 
 export default function NewTranslatorFee() {
   const [searchParams] = useSearchParams();
@@ -96,9 +96,18 @@ export default function NewTranslatorFee() {
         }
 
         // Map work types to task items
+        const taskTypeAliases: Record<string, TaskType> = { "審稿": "校對", "Review": "校對", "Translation": "翻譯", "Proofreading": "校對" };
+        const matchTaskType = (wt: string): TaskType => {
+          const direct = taskTypeOptions.find((t) => wt.includes(t));
+          if (direct) return direct;
+          for (const [alias, mapped] of Object.entries(taskTypeAliases)) {
+            if (wt.includes(alias)) return mapped;
+          }
+          return "翻譯";
+        };
         if (Array.isArray(workTypes) && workTypes.length > 0) {
           const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
-            const matchedType = taskTypeOptions.find((t) => wt.includes(t)) || "翻譯";
+            const matchedType = matchTaskType(wt);
             return {
               id: `item-notion-${idx}`,
               taskType: matchedType as TaskType,

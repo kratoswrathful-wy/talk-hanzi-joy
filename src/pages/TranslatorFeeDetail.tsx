@@ -51,7 +51,7 @@ const roleLabels: Record<UserRole, string> = {
   executive: "執行官",
 };
 
-const taskTypeOptions: TaskType[] = ["翻譯", "審稿", "MTPE", "LQA"];
+const taskTypeOptions: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
 
 interface EditLogEntry {
   id: string;
@@ -850,7 +850,18 @@ export default function TranslatorFeeDetail() {
       if (fnError) throw fnError;
       if (data?.error) throw new Error(data.error);
 
-      const taskTypeOptions: TaskType[] = ["翻譯", "審稿", "MTPE", "LQA"];
+      const taskTypeOptions: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
+      const taskTypeAliases: Record<string, TaskType> = { "審稿": "校對", "Review": "校對", "Translation": "翻譯", "Proofreading": "校對" };
+      const matchTaskType = (wt: string): TaskType => {
+        // Direct match first
+        const direct = taskTypeOptions.find((t) => wt.includes(t));
+        if (direct) return direct;
+        // Alias match
+        for (const [alias, mapped] of Object.entries(taskTypeAliases)) {
+          if (wt.includes(alias)) return mapped;
+        }
+        return "翻譯";
+      };
 
       // Detect which database the page is from
       const isInternalFeeRecord = "費用編號" in data;
@@ -926,7 +937,7 @@ export default function TranslatorFeeDetail() {
         // 稿費費率 + 計費單位數 > 任務項目（支援多工作類型）
         if (Array.isArray(workTypes) && workTypes.length > 0) {
           const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
-            const matchedType = taskTypeOptions.find((t) => wt.includes(t)) || "翻譯";
+            const matchedType = matchTaskType(wt);
             return {
               id: `item-ir-${Date.now()}-${idx}`,
               taskType: matchedType as TaskType,
@@ -980,7 +991,7 @@ export default function TranslatorFeeDetail() {
           rateConfirmed,
           clientTaskItems: (Array.isArray(workTypes) && workTypes.length > 0)
             ? workTypes.map((wt: string, idx: number) => {
-                const matchedType = taskTypeOptions.find((t) => wt.includes(t)) || "翻譯";
+                const matchedType = matchTaskType(wt);
                 return {
                   id: `ci-ir-${Date.now()}-${idx}`,
                   taskType: matchedType as TaskType,
@@ -1140,7 +1151,7 @@ export default function TranslatorFeeDetail() {
 
         if (Array.isArray(workTypes) && workTypes.length > 0) {
           const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
-            const matchedType = taskTypeOptions.find((t) => wt.includes(t)) || "翻譯";
+            const matchedType = matchTaskType(wt);
             return {
               id: `item-notion-${Date.now()}-${idx}`,
               taskType: matchedType as TaskType,
@@ -1153,7 +1164,7 @@ export default function TranslatorFeeDetail() {
 
           // 同步工作類型到客戶計費項目
           const mappedClientItems: import("@/data/fee-mock-data").ClientTaskItem[] = workTypes.map((wt: string, idx: number) => {
-            const matchedType = taskTypeOptions.find((t) => wt.includes(t)) || "翻譯";
+            const matchedType = matchTaskType(wt);
             const cp = clientInfo.client
               ? defaultPricingStore.getClientPrice(clientInfo.client, matchedType as string) ?? 0
               : 0;

@@ -1,5 +1,5 @@
 export type FeeStatus = "draft" | "finalized";
-export type TaskType = "翻譯" | "審稿" | "MTPE" | "LQA";
+export type TaskType = "翻譯" | "校對" | "MTPE" | "LQA";
 export type BillingUnit = "字" | "小時";
 
 export interface FeeTaskItem {
@@ -94,7 +94,7 @@ export const translatorFees: TranslatorFee[] = [
     internalNote: "本案為AAA公司急件，請優先處理",
     taskItems: [
       { id: "item-1", taskType: "翻譯", billingUnit: "字", unitCount: 1200, unitPrice: 2.2 },
-      { id: "item-2", taskType: "審稿", billingUnit: "小時", unitCount: 3, unitPrice: 1200 },
+      { id: "item-2", taskType: "校對", billingUnit: "小時", unitCount: 3, unitPrice: 1200 },
     ],
     clientInfo: defaultClientInfo,
     notes: [
