@@ -371,13 +371,9 @@ export default function TranslatorFees() {
   const fees = useFees();
   const { primaryRole, isAdmin } = useAuth();
   const { canViewSection } = usePermissions();
-  const [currentRole, setCurrentRole] = useState<UserRole>("pm");
-  const isManager = import.meta.env.DEV
-    ? currentRole === "pm" || currentRole === "executive"
-    : isAdmin;
-  const canCreateFee = import.meta.env.DEV
-    ? isManager
-    : isAdmin || canViewSection("create_fee");
+  const [currentRole, setCurrentRole] = useState<UserRole>(isAdmin ? "pm" : "assignee");
+  const isManager = isAdmin;
+  const canCreateFee = isAdmin || canViewSection("create_fee");
 
   const visibleFieldKeys = allColumnDefs
     .filter((c) => !c.managerOnly || isManager)
@@ -385,13 +381,13 @@ export default function TranslatorFees() {
 
   const columnDefs = allColumnDefs.filter((c) => !c.managerOnly || isManager);
 
-  const tableViews = useTableViews(currentRole);
+  const tableViews = useTableViews(isAdmin ? "pm" : "assignee");
   const { activeView } = tableViews;
 
   const [expandedRows, setExpandedRows] = useState<Record<string, ExpandType | null>>({});
 
-  // Filter fees for assignee role — in production, use real role; in dev, use switcher
-  const effectiveRole = import.meta.env.DEV ? currentRole : (isAdmin ? "pm" : "assignee");
+  // Filter fees for assignee role
+  const effectiveRole = isAdmin ? "pm" : "assignee";
   const baseFees = effectiveRole === "assignee" ? fees.filter((f) => f.status !== "draft") : fees;
   const visibleFees = tableViews.applyFiltersAndSorts(baseFees);
 
@@ -607,17 +603,6 @@ export default function TranslatorFees() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
-      {/* Role Switcher — dev only */}
-      {import.meta.env.DEV && (
-        <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
-          <span className="font-medium">測試角色：</span>
-          {(Object.keys(roleLabels) as UserRole[]).map((role) => (
-            <Button key={role} variant={currentRole === role ? "default" : "outline"} size="sm" className="h-6 text-xs px-2.5" onClick={() => setCurrentRole(role)}>
-              {roleLabels[role]}
-            </Button>
-          ))}
-        </div>
-      )}
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
