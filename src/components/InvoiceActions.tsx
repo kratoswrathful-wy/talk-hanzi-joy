@@ -126,6 +126,10 @@ export function InvoiceActions({ selectedFees, onDone }: InvoiceActionsProps) {
 
   if (selectedFees.length === 0) return null;
 
+  // If ALL selected fees already have invoices, hide the button entirely
+  const allAlreadyLinked = selectedFees.every((f) => linkedFeeIds.has(f.id));
+  if (allAlreadyLinked) return null;
+
   // Single translator: dropdown with new + existing options
   if (isSingleTranslator) {
     return (
@@ -134,7 +138,7 @@ export function InvoiceActions({ selectedFees, onDone }: InvoiceActionsProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="gap-1.5 h-9">
               <FileText className="h-4 w-4" />
-              請款單
+              請款
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
