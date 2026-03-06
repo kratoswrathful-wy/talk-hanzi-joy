@@ -1066,6 +1066,7 @@ function TierGroupEditorModal({
 function TranslatorTierSection() {
   const { tiers, addTier, addTierToGroup, updateTierRow, removeTierRow } = useTranslatorTiers();
   const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
+  const labelStyles = useLabelStyles();
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [uncommittedIds, setUncommittedIds] = useState<Set<string>>(new Set());
