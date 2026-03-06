@@ -547,6 +547,27 @@ function TaskTypeOrderSection() {
           新增任務類型
         </Button>
       )}
+
+      {/* Label text color picker */}
+      <div className="border-t border-border pt-4 space-y-2">
+        <p className="text-xs font-medium text-muted-foreground">標籤字體顏色</p>
+        <div className="flex items-center gap-3">
+          <span
+            className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+            style={{ backgroundColor: taskTypeOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.taskType.textColor, borderColor: taskTypeOptions[0]?.color || PRESET_COLORS[0] }}
+          >
+            預覽
+          </span>
+          <ColorPicker
+            value={labelStyles.taskType.textColor}
+            onChange={(c) => labelStyleStore.setTaskTypeTextColor(c)}
+            customColors={[]}
+            onAddCustomColor={() => {}}
+            onRemoveCustomColor={() => {}}
+            colorUsageMap={{}}
+          />
+        </div>
+      </div>
     </div>
   );
 }
