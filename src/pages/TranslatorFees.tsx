@@ -608,15 +608,21 @@ export default function TranslatorFees() {
         </div>
         <div className="flex items-center gap-2">
           {isManager && rowSelection.selectedCount > 0 && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 text-muted-foreground hover:text-destructive"
-              onClick={() => setShowDeleteConfirm(true)}
-              title="刪除選取項目"
-            >
-              <Trash2 className="h-4.5 w-4.5" />
-            </Button>
+            <>
+              <InvoiceActions
+                selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
+                onDone={() => rowSelection.deselectAll()}
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                onClick={() => setShowDeleteConfirm(true)}
+                title="刪除選取項目"
+              >
+                <Trash2 className="h-4.5 w-4.5" />
+              </Button>
+            </>
           )}
         </div>
       </div>
