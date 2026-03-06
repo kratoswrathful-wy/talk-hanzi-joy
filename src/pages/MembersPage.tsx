@@ -134,7 +134,8 @@ function EmailTagInput({
 }
 
 export default function MembersPage() {
-  const { isAdmin, user } = useAuth();
+  const { isAdmin, user, roles } = useAuth();
+  const isExecutive = roles.some((r) => r.role === "executive");
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -229,14 +230,6 @@ export default function MembersPage() {
     fetchMembers();
     toast.success("成員已移除");
   };
-
-  if (!isAdmin) {
-    return (
-      <div className="mx-auto max-w-3xl py-12 text-center text-muted-foreground">
-        您沒有權限檢視此頁面
-      </div>
-    );
-  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
