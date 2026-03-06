@@ -22,19 +22,19 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
-const statusColors: Record<InvoiceStatus, { bg: string; text: string }> = {
-  pending: { bg: "hsl(var(--muted))", text: "hsl(var(--muted-foreground))" },
-  partial: { bg: "hsl(40 90% 50%)", text: "#fff" },
-  paid: { bg: "hsl(142 71% 45%)", text: "#fff" },
-};
-
 function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
-  const colors = statusColors[status];
+  const labelStyles = useLabelStyles();
+  const styleMap: Record<InvoiceStatus, { bgColor: string; textColor: string }> = {
+    pending: labelStyles.invoicePending,
+    partial: labelStyles.invoicePartial,
+    paid: labelStyles.invoicePaid,
+  };
+  const colors = styleMap[status];
   return (
     <Badge
       variant="default"
       className="text-xs whitespace-nowrap border"
-      style={{ backgroundColor: colors.bg, color: colors.text, borderColor: colors.bg }}
+      style={{ backgroundColor: colors.bgColor, color: colors.textColor, borderColor: colors.bgColor }}
     >
       {invoiceStatusLabels[status]}
     </Badge>
