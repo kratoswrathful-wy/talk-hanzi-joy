@@ -1,5 +1,7 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, X, Send, AtSign, Image, Link2, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, X, Loader2 } from "lucide-react";
+import { CommentContent } from "@/components/comments/CommentContent";
+import { CommentInput } from "@/components/comments/CommentInput";
 
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
