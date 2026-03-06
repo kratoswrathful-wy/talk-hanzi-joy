@@ -869,9 +869,9 @@ function TierGroupEditorModal({
                     : "opacity-70 hover:opacity-100"
                 )}
                 style={{
-                  backgroundColor: tt.color + "22",
-                  color: tt.color,
-                  borderColor: tt.color + "44",
+                  backgroundColor: tt.color,
+                  color: "#fff",
+                  borderColor: tt.color,
                 }}
                 onClick={() => toggleTaskType(tt.label)}
               >
