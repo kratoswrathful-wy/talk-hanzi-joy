@@ -1814,19 +1814,14 @@ export default function TranslatorFeeDetail() {
               {taskItems.length > 0 && (
                 <TableFooter>
                     <TableRow>
-                      <TableCell colSpan={4} className="px-[18px]" />
+                      <TableCell colSpan={3} className="px-[18px]" />
                       <TableCell className="text-sm font-medium text-right">
                         稿費總額
                       </TableCell>
-                      {canEdit ? (
-                        <TableCell className="text-right text-sm font-bold px-6">
-                          {totalAmount.toLocaleString()}
-                        </TableCell>
-                      ) : (
-                        <TableCell className="text-right text-sm font-bold">
-                          {totalAmount.toLocaleString()}
-                        </TableCell>
-                      )}
+                      <TableCell className="text-right text-sm font-bold">
+                        {totalAmount.toLocaleString()}
+                      </TableCell>
+                      {canEdit && <TableCell />}
                     </TableRow>
                 </TableFooter>
               )}
