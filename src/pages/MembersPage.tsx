@@ -238,10 +238,12 @@ export default function MembersPage() {
           <h1 className="text-2xl font-semibold tracking-tight">成員管理</h1>
           <p className="mt-1 text-sm text-muted-foreground">管理團隊成員與權限</p>
         </div>
-        <Button onClick={() => setInviteOpen(true)}>
-          <UserPlus className="mr-2 h-4 w-4" />
-          邀請成員
-        </Button>
+        {isExecutive && (
+          <Button onClick={() => setInviteOpen(true)}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            邀請成員
+          </Button>
+        )}
       </div>
 
       <Card>
