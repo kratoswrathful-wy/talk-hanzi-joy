@@ -82,7 +82,7 @@ export function InvoiceActions({ selectedFees, onDone }: InvoiceActionsProps) {
 
   // Existing invoices for the translator (single select)
   const translatorInvoices = isSingleTranslator
-    ? invoices.filter((inv) => inv.translator === translators[0])
+    ? invoices.filter((inv) => inv.translator === translators[0] && inv.status !== "paid")
     : [];
 
   const handleCreateNew = async () => {

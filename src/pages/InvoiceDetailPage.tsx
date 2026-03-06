@@ -176,28 +176,31 @@ export default function InvoiceDetailPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      {/* Header */}
+      {/* Back button */}
+      <Link
+        to="/invoices"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        返回請款單清單
+      </Link>
+
+      {/* Title + delete */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate("/invoices")}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3">
-            {/* Editable title */}
-            {isPaid ? (
-              <h1 className="text-xl font-semibold tracking-tight text-muted-foreground">
-                {invoice.title || "未命名"}
-              </h1>
-            ) : (
-              <Input
-                value={invoice.title}
-                onChange={(e) => invoiceStore.updateInvoice(invoice.id, { title: e.target.value })}
-                placeholder="請款單標題"
-                className="text-xl font-semibold tracking-tight border-0 shadow-none px-0 h-auto py-0 focus-visible:ring-0 bg-transparent"
-              />
-            )}
-            <InvoiceStatusBadge status={invoice.status} />
-          </div>
+        <div className="flex-1 min-w-0 space-y-1">
+          {isPaid ? (
+            <h1 className="text-xl font-semibold tracking-tight text-muted-foreground">
+              {invoice.title || "未命名"}
+            </h1>
+          ) : (
+            <Input
+              value={invoice.title}
+              onChange={(e) => invoiceStore.updateInvoice(invoice.id, { title: e.target.value })}
+              placeholder="請款單標題"
+              className="text-xl font-semibold tracking-tight border-0 shadow-none px-0 h-auto py-0 focus-visible:ring-0 bg-transparent"
+            />
+          )}
+          <InvoiceStatusBadge status={invoice.status} />
         </div>
         {!isPaid && (
           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setShowDelete(true)}>

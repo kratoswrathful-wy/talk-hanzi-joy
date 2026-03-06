@@ -46,7 +46,7 @@ function generateDefaultTitle(translator: string): string {
   const now = new Date();
   const yyyy = now.getFullYear();
   const mm = String(now.getMonth() + 1).padStart(2, "0");
-  return `${translator || "未指定"}_${yyyy}${mm}`;
+  return `${translator || "未指定"}_Invoice_${yyyy}${mm}`;
 }
 
 // Cache user id

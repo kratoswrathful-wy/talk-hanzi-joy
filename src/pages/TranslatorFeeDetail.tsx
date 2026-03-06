@@ -705,22 +705,28 @@ export default function TranslatorFeeDetail() {
         trackChange(label, oldItem[field], value);
       }
     }
-    setTaskItems((prev) =>
-      prev.map((item) => (item.id === itemId ? { ...item, [field]: value } : item))
-    );
+    setTaskItems((prev) => {
+      const updated = prev.map((item) => (item.id === itemId ? { ...item, [field]: value } : item));
+      if (id) feeStore.updateFee(id, { taskItems: updated });
+      return updated;
+    });
   };
 
   const handleAddItem = () => {
-    setTaskItems((prev) => [
-      ...prev,
-      {
-        id: `item-new-${Date.now()}`,
-        taskType: "翻譯",
-        billingUnit: "字",
-        unitCount: 0,
-        unitPrice: 0,
-      },
-    ]);
+    setTaskItems((prev) => {
+      const updated = [
+        ...prev,
+        {
+          id: `item-new-${Date.now()}`,
+          taskType: "翻譯" as TaskType,
+          billingUnit: "字" as BillingUnit,
+          unitCount: 0,
+          unitPrice: 0,
+        },
+      ];
+      if (id) feeStore.updateFee(id, { taskItems: updated });
+      return updated;
+    });
     if (hasBeenSubmittedRef.current) {
       setPendingChanges((prev) => [
         ...prev,
@@ -739,7 +745,11 @@ export default function TranslatorFeeDetail() {
         ]);
       }
     }
-    setTaskItems((prev) => prev.filter((i) => i.id !== itemId));
+    setTaskItems((prev) => {
+      const updated = prev.filter((i) => i.id !== itemId);
+      if (id) feeStore.updateFee(id, { taskItems: updated });
+      return updated;
+    });
   };
 
   const handleNumberBlur = (itemId: string, field: "unitPrice" | "unitCount", rawValue: string) => {
