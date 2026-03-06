@@ -698,17 +698,75 @@ export default function TranslatorFeeDetail() {
           if (id) feeStore.updateFee(id, { internalNote: feeNumber });
         }
 
+        // 客戶資訊（先組裝，以便後續用於自動訂價）
+        const updatedClientInfo: ClientInfo = {
+          ...clientInfo,
+          ...(client ? { client } : {}),
+          ...(contact ? { contact } : {}),
+          ...(clientCaseId ? { clientCaseId } : {}),
+          ...(clientPo ? { clientPoNumber: clientPo } : {}),
+          ...(dispatch ? { dispatchRoute: dispatch } : {}),
+          reconciled,
+          invoiced,
+          rateConfirmed,
+          clientTaskItems: (Array.isArray(workTypes) && workTypes.length > 0)
+            ? workTypes.map((wt: string, idx: number) => {
+                const matchedType = matchTaskType(wt);
+                // Use quoteRate if available, otherwise auto-fill from default pricing
+                let cp = idx === 0 && quoteRate !== null ? quoteRate : 0;
+                if ((!cp || cp === 0) && client) {
+                  const defaultCp = defaultPricingStore.getClientPrice(client, matchedType);
+                  if (defaultCp !== undefined) cp = defaultCp;
+                }
+                return {
+                  id: `ci-ir-${Date.now()}-${idx}`,
+                  taskType: matchedType as TaskType,
+                  billingUnit,
+                  unitCount: idx === 0 && unitCount ? unitCount : 0,
+                  clientPrice: cp,
+                };
+              })
+            : clientInfo.clientTaskItems.map((item, idx) => {
+                let cp = idx === 0 && quoteRate !== null ? quoteRate : item.clientPrice;
+                if ((!cp || cp === 0) && client) {
+                  const defaultCp = defaultPricingStore.getClientPrice(client, item.taskType);
+                  if (defaultCp !== undefined) cp = defaultCp;
+                }
+                return idx === 0
+                  ? {
+                      ...item,
+                      billingUnit,
+                      ...(unitCount !== null ? { unitCount } : {}),
+                      clientPrice: cp,
+                    }
+                  : item;
+              }),
+        };
+
         // 稿費費率 + 計費單位數 > 任務項目（支援多工作類型）
+        // Auto-fill unitPrice: use feeRate from Notion, else use tier table based on clientPrice
         if (Array.isArray(workTypes) && workTypes.length > 0) {
           const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
             const matchedType = matchTaskType(wt);
             ensureTaskTypeOption(matchedType);
+            let up = idx === 0 && feeRate !== null ? feeRate : 0;
+            // If unitPrice is 0, try auto-fill from tier table using the client price
+            if ((!up || up === 0) && client) {
+              const correspondingClientItem = updatedClientInfo.clientTaskItems.find(
+                (ci) => ci.taskType === matchedType
+              );
+              const cp = correspondingClientItem?.clientPrice || 0;
+              if (cp > 0) {
+                const tp = defaultPricingStore.getTranslatorPrice(cp, matchedType, billingUnit);
+                if (tp !== undefined && tp > 0) up = tp;
+              }
+            }
             return {
               id: `item-ir-${Date.now()}-${idx}`,
               taskType: matchedType as TaskType,
               billingUnit,
               unitCount: idx === 0 && unitCount ? unitCount : 0,
-              unitPrice: idx === 0 && feeRate !== null ? feeRate : 0,
+              unitPrice: up,
             };
           });
           setTaskItems(mapped);
@@ -717,11 +775,20 @@ export default function TranslatorFeeDetail() {
           setTaskItems((prev) => {
             const updated = [...prev];
             if (updated.length > 0) {
+              let up = feeRate !== null ? feeRate : updated[0].unitPrice;
+              // If unitPrice is still 0, try tier table
+              if ((!up || up === 0) && client) {
+                const cp = updatedClientInfo.clientTaskItems[0]?.clientPrice || 0;
+                if (cp > 0) {
+                  const tp = defaultPricingStore.getTranslatorPrice(cp, updated[0].taskType, updated[0].billingUnit);
+                  if (tp !== undefined && tp > 0) up = tp;
+                }
+              }
               updated[0] = {
                 ...updated[0],
                 billingUnit,
                 ...(unitCount !== null ? { unitCount } : {}),
-                ...(feeRate !== null ? { unitPrice: feeRate } : {}),
+                unitPrice: up,
               };
             }
             if (id) feeStore.updateFee(id, { taskItems: updated });
@@ -745,39 +812,6 @@ export default function TranslatorFeeDetail() {
           }
         }
 
-        // 客戶資訊
-        const updatedClientInfo: ClientInfo = {
-          ...clientInfo,
-          ...(client ? { client } : {}),
-          ...(contact ? { contact } : {}),
-          ...(clientCaseId ? { clientCaseId } : {}),
-          ...(clientPo ? { clientPoNumber: clientPo } : {}),
-          ...(dispatch ? { dispatchRoute: dispatch } : {}),
-          reconciled,
-          invoiced,
-          rateConfirmed,
-          clientTaskItems: (Array.isArray(workTypes) && workTypes.length > 0)
-            ? workTypes.map((wt: string, idx: number) => {
-                const matchedType = matchTaskType(wt);
-                return {
-                  id: `ci-ir-${Date.now()}-${idx}`,
-                  taskType: matchedType as TaskType,
-                  billingUnit,
-                  unitCount: idx === 0 && unitCount ? unitCount : 0,
-                  clientPrice: idx === 0 && quoteRate !== null ? quoteRate : 0,
-                };
-              })
-            : clientInfo.clientTaskItems.map((item, idx) =>
-                idx === 0
-                  ? {
-                      ...item,
-                      billingUnit,
-                      ...(unitCount !== null ? { unitCount } : {}),
-                      ...(quoteRate !== null ? { clientPrice: quoteRate } : {}),
-                    }
-                  : item
-              ),
-        };
         setClientInfo(updatedClientInfo);
         if (id) feeStore.updateFee(id, { clientInfo: updatedClientInfo });
 
