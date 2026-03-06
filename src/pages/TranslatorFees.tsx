@@ -252,6 +252,13 @@ const allColumnDefs: ColumnDef[] = [
     ),
   },
   {
+    key: "invoice",
+    label: "請款單",
+    minWidth: 80,
+    managerOnly: true,
+    render: (f) => <InvoiceLink feeId={f.id} />,
+  },
+  {
     key: "createdBy",
     label: "建立者",
     minWidth: 60,
