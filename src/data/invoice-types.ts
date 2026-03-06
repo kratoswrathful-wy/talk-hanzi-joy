@@ -1,13 +1,21 @@
 export type InvoiceStatus = "pending" | "partial" | "paid";
 
 export const invoiceStatusLabels: Record<InvoiceStatus, string> = {
-  pending: "待匯款",
-  partial: "部份匯款",
-  paid: "已匯款",
+  pending: "待付款",
+  partial: "部份付款",
+  paid: "已付款",
 };
+
+export interface PaymentRecord {
+  id: string;
+  type: "full" | "partial";
+  amount?: number;
+  timestamp: string;
+}
 
 export interface Invoice {
   id: string;
+  title: string;
   translator: string;
   status: InvoiceStatus;
   transferDate?: string;
@@ -17,4 +25,6 @@ export interface Invoice {
   updatedAt: string;
   /** Fee IDs linked to this invoice */
   feeIds: string[];
+  /** Payment records */
+  payments: PaymentRecord[];
 }

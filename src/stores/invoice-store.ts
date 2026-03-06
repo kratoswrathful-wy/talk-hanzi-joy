@@ -1,4 +1,4 @@
-import type { Invoice, InvoiceStatus } from "@/data/invoice-types";
+import type { Invoice, InvoiceStatus, PaymentRecord } from "@/data/invoice-types";
 import { supabase } from "@/integrations/supabase/client";
 
 type Listener = () => void;
@@ -15,6 +15,7 @@ function notify() {
 
 interface DbInvoice {
   id: string;
+  title: string;
   translator: string;
   status: string;
   transfer_date: string | null;
@@ -22,11 +23,13 @@ interface DbInvoice {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  payments: any;
 }
 
 function dbToApp(row: DbInvoice, feeIds: string[]): Invoice {
   return {
     id: row.id,
+    title: row.title || "",
     translator: row.translator,
     status: row.status as InvoiceStatus,
     transferDate: row.transfer_date || undefined,
@@ -35,7 +38,15 @@ function dbToApp(row: DbInvoice, feeIds: string[]): Invoice {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     feeIds,
+    payments: Array.isArray(row.payments) ? row.payments : [],
   };
+}
+
+function generateDefaultTitle(translator: string): string {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  return `${translator || "未指定"}_${yyyy}${mm}`;
 }
 
 // Cache user id
@@ -67,7 +78,6 @@ export const invoiceStore = {
 
     if (error || !invData) return { error };
 
-    // Load all invoice_fees
     const { data: linkData } = await supabase
       .from("invoice_fees")
       .select("invoice_id, fee_id");
@@ -93,9 +103,11 @@ export const invoiceStore = {
     const uid = await getUserId();
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
+    const title = generateDefaultTitle(translator);
 
     const newInvoice: Invoice = {
       id,
+      title,
       translator,
       status: "pending",
       note: "",
@@ -103,14 +115,15 @@ export const invoiceStore = {
       createdAt: now,
       updatedAt: now,
       feeIds,
+      payments: [],
     };
 
-    // Optimistic
     invoices = [newInvoice, ...invoices];
     notify();
 
     const { error } = await supabase.from("invoices").insert({
       id,
+      title,
       translator,
       status: "pending",
       note: "",
@@ -124,7 +137,6 @@ export const invoiceStore = {
       return null;
     }
 
-    // Link fees
     if (feeIds.length > 0) {
       const links = feeIds.map((feeId) => ({ invoice_id: id, fee_id: feeId }));
       const { error: linkErr } = await supabase.from("invoice_fees").insert(links as any);
@@ -134,7 +146,7 @@ export const invoiceStore = {
     return newInvoice;
   },
 
-  updateInvoice: (id: string, updates: Partial<Pick<Invoice, "status" | "transferDate" | "note">>) => {
+  updateInvoice: (id: string, updates: Partial<Pick<Invoice, "status" | "transferDate" | "note" | "title" | "payments">>) => {
     invoices = invoices.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv));
     notify();
 
@@ -142,6 +154,8 @@ export const invoiceStore = {
     if (updates.status !== undefined) dbUpdates.status = updates.status;
     if (updates.transferDate !== undefined) dbUpdates.transfer_date = updates.transferDate || null;
     if (updates.note !== undefined) dbUpdates.note = updates.note;
+    if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.payments !== undefined) dbUpdates.payments = updates.payments;
 
     if (Object.keys(dbUpdates).length > 0) {
       supabase
@@ -200,7 +214,6 @@ export const invoiceStore = {
 
   getInvoiceById: (id: string) => invoices.find((i) => i.id === id),
 
-  /** Get all fee IDs that are already on any invoice */
   getLinkedFeeIds: (): Set<string> => {
     const set = new Set<string>();
     for (const inv of invoices) {
@@ -209,7 +222,6 @@ export const invoiceStore = {
     return set;
   },
 
-  /** Get invoices for a specific translator */
   getInvoicesByTranslator: (translator: string) =>
     invoices.filter((i) => i.translator === translator),
 };

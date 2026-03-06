@@ -17,6 +17,9 @@ interface LabelStyleState {
   dispatchRoute: LabelStyle;
   statusDraft: StatusStyle;
   statusFinalized: StatusStyle;
+  invoicePending: StatusStyle;
+  invoicePartial: StatusStyle;
+  invoicePaid: StatusStyle;
 }
 
 const DEFAULT_STATE: LabelStyleState = {
@@ -25,6 +28,9 @@ const DEFAULT_STATE: LabelStyleState = {
   dispatchRoute: { textColor: "#FFFFFF" },
   statusDraft: { bgColor: "#6B7280", textColor: "#FFFFFF" },
   statusFinalized: { bgColor: "#22C55E", textColor: "#FFFFFF" },
+  invoicePending: { bgColor: "#6B7280", textColor: "#FFFFFF" },
+  invoicePartial: { bgColor: "#EAB308", textColor: "#FFFFFF" },
+  invoicePaid: { bgColor: "#22C55E", textColor: "#FFFFFF" },
 };
 
 let state: LabelStyleState = { ...DEFAULT_STATE };
@@ -59,6 +65,21 @@ export const labelStyleStore = {
 
   setStatusFinalizedStyle: (updates: Partial<StatusStyle>) => {
     state = { ...state, statusFinalized: { ...state.statusFinalized, ...updates } };
+    notify();
+  },
+
+  setInvoicePendingStyle: (updates: Partial<StatusStyle>) => {
+    state = { ...state, invoicePending: { ...state.invoicePending, ...updates } };
+    notify();
+  },
+
+  setInvoicePartialStyle: (updates: Partial<StatusStyle>) => {
+    state = { ...state, invoicePartial: { ...state.invoicePartial, ...updates } };
+    notify();
+  },
+
+  setInvoicePaidStyle: (updates: Partial<StatusStyle>) => {
+    state = { ...state, invoicePaid: { ...state.invoicePaid, ...updates } };
     notify();
   },
 
