@@ -107,15 +107,20 @@ export default function ClientInfoSection({
 
     // Auto-fill translator price when client price is first entered
     if (field === "clientPrice" && numVal > 0 && onClientPriceEntered) {
-      const itemIndex = clientInfo.clientTaskItems.findIndex((i) => i.id === itemId);
-      if (itemIndex >= 0) {
-        const item = clientInfo.clientTaskItems[itemIndex];
-        const wasEmpty = !item.clientPrice || Number(item.clientPrice) === 0;
-        if (wasEmpty) {
+      const prevVal = clientPriceOnFocusRef.current[itemId] ?? 0;
+      if (!prevVal || prevVal === 0) {
+        const itemIndex = clientInfo.clientTaskItems.findIndex((i) => i.id === itemId);
+        if (itemIndex >= 0) {
+          const item = clientInfo.clientTaskItems[itemIndex];
           onClientPriceEntered(itemIndex, numVal, item.taskType, item.billingUnit);
         }
       }
     }
+  };
+
+  const handleClientPriceFocus = (itemId: string) => {
+    const item = clientInfo.clientTaskItems.find((i) => i.id === itemId);
+    clientPriceOnFocusRef.current[itemId] = item ? Number(item.clientPrice) || 0 : 0;
   };
 
   // Related fees: same internalNote, sameCase=true, excluding current
