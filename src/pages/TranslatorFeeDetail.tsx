@@ -562,19 +562,31 @@ export default function TranslatorFeeDetail() {
 
     setNotionLoading(true);
     try {
-      // Retry wrapper with per-request timeout (15s) for edge function cold-start failures
+      // Use raw fetch with timeout instead of supabase.functions.invoke to avoid hanging
       const invokeWithRetry = async (body: Record<string, any>, retries = 2): Promise<any> => {
+        const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fetch-notion-page`;
+        const session = (await supabase.auth.getSession()).data.session;
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "",
+        };
+        if (session?.access_token) {
+          headers["Authorization"] = `Bearer ${session.access_token}`;
+        }
+
         for (let attempt = 0; attempt <= retries; attempt++) {
           try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 15000);
-            const { data: d, error: e } = await supabase.functions.invoke("fetch-notion-page", {
-              body,
-              // @ts-ignore - AbortSignal support
+            const resp = await fetch(fnUrl, {
+              method: "POST",
+              headers,
+              body: JSON.stringify(body),
+              signal: controller.signal,
             });
             clearTimeout(timeoutId);
-            if (!e) return d;
-            throw e;
+            if (!resp.ok) throw new Error(`Edge function returned ${resp.status}`);
+            return await resp.json();
           } catch (err: any) {
             if (attempt < retries) {
               console.warn(`Edge function attempt ${attempt + 1} failed, retrying...`, err?.message || err);
