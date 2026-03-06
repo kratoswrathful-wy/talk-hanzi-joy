@@ -781,6 +781,69 @@ export default function TranslatorFeeDetail() {
         setClientInfo(updatedClientInfo);
         if (id) feeStore.updateFee(id, { clientInfo: updatedClientInfo });
 
+        // === Auto-pricing after Notion import ===
+        // 1. If client exists but clientPrice is 0/missing → apply default client pricing
+        // 2. If clientPrice exists but feeRate is 0/missing → apply translator tier pricing
+        {
+          let pricingChanged = false;
+          const finalClientItems = [...updatedClientInfo.clientTaskItems];
+          // Get current task items (the ones we just set above)
+          let currentFeeItems: FeeTaskItem[];
+          if (Array.isArray(workTypes) && workTypes.length > 0) {
+            currentFeeItems = workTypes.map((wt: string, idx: number) => ({
+              id: `item-ir-${Date.now()}-${idx}`,
+              taskType: matchTaskType(wt) as TaskType,
+              billingUnit,
+              unitCount: idx === 0 && unitCount ? unitCount : 0,
+              unitPrice: idx === 0 && feeRate !== null ? feeRate : 0,
+            }));
+          } else {
+            currentFeeItems = [...taskItems];
+          }
+
+          // Step 1: Apply default client pricing where clientPrice is 0/missing
+          if (client) {
+            for (let i = 0; i < finalClientItems.length; i++) {
+              if (!finalClientItems[i].clientPrice || finalClientItems[i].clientPrice === 0) {
+                const defaultPrice = defaultPricingStore.getClientPrice(client, finalClientItems[i].taskType);
+                if (defaultPrice !== undefined && defaultPrice > 0) {
+                  finalClientItems[i] = { ...finalClientItems[i], clientPrice: defaultPrice };
+                  pricingChanged = true;
+                }
+              }
+            }
+          }
+
+          // Step 2: Apply translator tier pricing where unitPrice is 0/missing
+          let feeItemsChanged = false;
+          const finalTaskItems = currentFeeItems.map((item) => {
+            if (!item.unitPrice || item.unitPrice === 0) {
+              const matchingClientItem = finalClientItems.find((ci) => ci.taskType === item.taskType);
+              const cp = matchingClientItem?.clientPrice || 0;
+              if (cp > 0) {
+                const tp = defaultPricingStore.getTranslatorPrice(cp, item.taskType, item.billingUnit);
+                if (tp !== undefined && tp > 0) {
+                  feeItemsChanged = true;
+                  return { ...item, unitPrice: tp };
+                }
+              }
+            }
+            return item;
+          });
+
+          if (pricingChanged) {
+            const pricedClientInfo = { ...updatedClientInfo, clientTaskItems: finalClientItems };
+            setClientInfo(pricedClientInfo);
+            if (id) feeStore.updateFee(id, { clientInfo: pricedClientInfo });
+            Object.assign(updatedClientInfo, pricedClientInfo);
+          }
+          if (feeItemsChanged) {
+            setTaskItems(finalTaskItems);
+            if (id) feeStore.updateFee(id, { taskItems: finalTaskItems });
+            setShowAutoPriceHint(false);
+          }
+        }
+
         // Multi-translator: create additional fee pages
         if (Array.isArray(people) && people.length > 1) {
           const assigneeOptions = selectOptionsStore.getSortedOptions("assignee");
