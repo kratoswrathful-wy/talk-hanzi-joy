@@ -1155,14 +1155,13 @@ function TranslatorTierSection() {
         return ttOpt ? (
           <span
             key={tt}
-            className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+            className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
             style={{
               backgroundColor: ttOpt.color,
-              color: "#fff",
+              color: "#B3BBC9",
               borderColor: ttOpt.color,
             }}
           >
-            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: "#fff" }} />
             {tt}
           </span>
         ) : (
