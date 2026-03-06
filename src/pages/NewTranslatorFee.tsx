@@ -61,9 +61,34 @@ export default function NewTranslatorFee() {
         // Auto-fill form fields from Notion data
         // Try common property names
         const caseId = data["案件編號"] || data["Name"] || data["title"] || "";
-        const people = data["譯者"] || data["審稿人員"] || [];
-        const workTypes = data["工作類型"] || [];
+        let people = data["譯者"] || data["審稿人員"] || [];
+        let workTypes = data["工作類型"] || [];
         const unitCount = data["計費單位數"] || null;
+        const casePages = data["案件頁面"] || [];
+
+        // If IR page is missing work types or translators, fetch from the related case page
+        const missingWorkTypes = !Array.isArray(workTypes) || workTypes.length === 0;
+        const missingPeople = !Array.isArray(people) || people.length === 0;
+        if ((missingWorkTypes || missingPeople) && Array.isArray(casePages) && casePages.length > 0) {
+          const casePageId = casePages[0].id?.replace(/-/g, "");
+          if (casePageId) {
+            try {
+              const { data: caseData, error: caseErr } = await supabase.functions.invoke("fetch-notion-page", {
+                body: { page_id: casePageId },
+              });
+              if (!caseErr && caseData && !caseData.error) {
+                if (missingWorkTypes) {
+                  workTypes = caseData["工作類型"] || [];
+                }
+                if (missingPeople) {
+                  people = caseData["譯者"] || caseData["審稿人員"] || [];
+                }
+              }
+            } catch (e) {
+              console.warn("Failed to fetch case page for supplementary data:", e);
+            }
+          }
+        }
 
         if (caseId) {
           setTitle(`PO_${caseId}`);
