@@ -307,6 +307,7 @@ function FeeStatusBadge({ status }: { status: FeeStatus }) {
   );
 }
 
+function ClientLabel({ value }: { value: string }) {
   const { options } = useSelectOptions("client");
   const opt = options.find((o) => o.label === value);
   if (!value) return <span className="truncate text-sm text-muted-foreground">—</span>;
