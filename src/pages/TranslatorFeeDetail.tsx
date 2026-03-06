@@ -1275,7 +1275,9 @@ export default function TranslatorFeeDetail() {
             return "";
           };
 
-          const baseTitle = title;
+          // Use the computed title, not stale React state
+          const computedCaseTitle = caseId ? `PO_${caseId}` : title;
+          const baseTitle = computedCaseTitle;
           const currentTitle = `${baseTitle}_01`;
           setTitle(currentTitle);
           if (id) feeStore.updateFee(id, { title: currentTitle });
@@ -1296,8 +1298,16 @@ export default function TranslatorFeeDetail() {
             { id: id || "", title: currentTitle, assignee: resolveAssignee(people[0]) },
           ];
 
-          const currentFee = id ? feeStore.getFeeById(id) : null;
-          const cloneTaskItems = currentFee?.taskItems ?? taskItems;
+          // Use freshly mapped task items, not stale store data
+          const cloneTaskItems = (Array.isArray(workTypes) && workTypes.length > 0)
+            ? workTypes.map((wt: string, idx: number) => ({
+                id: `item-case-base-${Date.now()}-${idx}`,
+                taskType: matchTaskType(wt) as TaskType,
+                billingUnit: "字" as BillingUnit,
+                unitCount: idx === 0 && unitCount ? unitCount : 0,
+                unitPrice: 0,
+              }))
+            : taskItems;
 
           for (let i = 1; i < people.length; i++) {
             const personAssignee = resolveAssignee(people[i]);
