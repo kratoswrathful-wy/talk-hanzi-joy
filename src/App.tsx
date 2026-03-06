@@ -13,6 +13,8 @@ import TranslatorFeeDetail from "@/pages/TranslatorFeeDetail";
 import SettingsPage from "@/pages/SettingsPage";
 import ProfilePage from "@/pages/ProfilePage";
 import MembersPage from "@/pages/MembersPage";
+import InvoicesPage from "@/pages/InvoicesPage";
+import InvoiceDetailPage from "@/pages/InvoiceDetailPage";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
