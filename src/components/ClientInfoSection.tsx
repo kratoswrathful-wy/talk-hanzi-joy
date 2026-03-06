@@ -363,7 +363,7 @@ export default function ClientInfoSection({
                   {canEdit && (
                     <TableCell className="px-6">
                       <div className="flex justify-center">
-                        {!clientItemsLocked && index > 0 ? (
+                        {!clientItemsLocked && clientInfo.clientTaskItems.length > 1 ? (
                           <Button
                             variant="ghost"
                             size="icon"
