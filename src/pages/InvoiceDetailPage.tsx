@@ -81,6 +81,8 @@ export default function InvoiceDetailPage() {
   const [removeFeeId, setRemoveFeeId] = useState<string | null>(null);
   const [showPartialInput, setShowPartialInput] = useState(false);
   const [partialAmount, setPartialAmount] = useState("");
+  const [showOverpayWarning, setShowOverpayWarning] = useState(false);
+  const [overpayRemaining, setOverpayRemaining] = useState(0);
 
   // Translator profile
   const [translatorProfile, setTranslatorProfile] = useState<{ display_name: string | null; avatar_url: string | null } | null>(null);
@@ -149,10 +151,18 @@ export default function InvoiceDetailPage() {
     toast.success("已記錄全額付款");
   };
 
+  const paidSoFar = invoice.payments.reduce((sum, p) => sum + (p.type === "partial" ? (p.amount || 0) : 0), 0);
+  const remaining = total - paidSoFar;
+
   const handlePartialPayment = () => {
     const amount = parseFloat(partialAmount);
     if (isNaN(amount) || amount <= 0) {
       toast.error("請輸入有效金額");
+      return;
+    }
+    if (amount > remaining) {
+      setOverpayRemaining(remaining);
+      setShowOverpayWarning(true);
       return;
     }
     const now = new Date().toISOString();
@@ -163,9 +173,12 @@ export default function InvoiceDetailPage() {
       timestamp: now,
     };
     const newPayments = [...invoice.payments, payment];
+    const newPaidTotal = paidSoFar + amount;
+    const newStatus = newPaidTotal >= total ? "paid" : "partial";
     invoiceStore.updateInvoice(invoice.id, {
-      status: "partial",
+      status: newStatus,
       payments: newPayments,
+      ...(newStatus === "paid" ? { transferDate: now } : {}),
     });
     setShowPartialInput(false);
     setPartialAmount("");
@@ -306,8 +319,8 @@ export default function InvoiceDetailPage() {
                 type="number"
                 value={partialAmount}
                 onChange={(e) => setPartialAmount(e.target.value)}
-                placeholder="輸入付款金額"
-                className="w-40 h-9"
+                placeholder={`剩餘金額：${formatCurrency(remaining)}`}
+                className="w-48 h-9"
                 autoFocus
               />
               <Button size="sm" onClick={handlePartialPayment}>確認</Button>
@@ -372,6 +385,21 @@ export default function InvoiceDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleRemoveFee}>移除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Overpay warning dialog */}
+      <AlertDialog open={showOverpayWarning} onOpenChange={setShowOverpayWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>金額超出剩餘款項</AlertDialogTitle>
+            <AlertDialogDescription>
+              目前剩餘未付金額為 {formatCurrency(overpayRemaining)}，請輸入小於或等於此金額的數字。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowOverpayWarning(false)}>了解</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
