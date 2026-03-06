@@ -53,7 +53,20 @@ const roleLabels: Record<UserRole, string> = {
   executive: "執行官",
 };
 
-const taskTypeOptions: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
+function DetailStatusBadge({ status }: { status: FeeStatus }) {
+  const labelStyles = useLabelStyles();
+  const style = status === "finalized" ? labelStyles.statusFinalized : labelStyles.statusDraft;
+  return (
+    <Badge
+      variant="default"
+      className="border"
+      style={{ backgroundColor: style.bgColor, color: style.textColor, borderColor: style.bgColor }}
+    >
+      {feeStatusLabels[status]}
+    </Badge>
+  );
+}
+
 
 interface EditLogEntry {
   id: string;
