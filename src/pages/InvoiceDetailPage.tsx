@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Trash2, X } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
@@ -9,13 +9,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { format } from "date-fns";
 import { useInvoice, invoiceStore } from "@/hooks/use-invoice-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { type InvoiceStatus, type PaymentRecord, invoiceStatusLabels } from "@/data/invoice-types";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useInvoices } from "@/hooks/use-invoice-store";
 import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog,
@@ -83,6 +90,25 @@ export default function InvoiceDetailPage() {
   const [partialAmount, setPartialAmount] = useState("");
   const [showOverpayWarning, setShowOverpayWarning] = useState(false);
   const [overpayRemaining, setOverpayRemaining] = useState(0);
+  const [addFeeOpen, setAddFeeOpen] = useState(false);
+  const [selectedAddFees, setSelectedAddFees] = useState<string[]>([]);
+  const allInvoices = useInvoices();
+
+  // Unlinked fees for this translator
+  const allLinkedFeeIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const inv of allInvoices) {
+      for (const fid of inv.feeIds) set.add(fid);
+    }
+    return set;
+  }, [allInvoices]);
+
+  const availableFees = useMemo(() => {
+    if (!invoice) return [];
+    return fees.filter(
+      (f) => f.assignee === invoice.translator && !allLinkedFeeIds.has(f.id)
+    );
+  }, [fees, invoice, allLinkedFeeIds]);
 
   // Translator profile
   const [translatorProfile, setTranslatorProfile] = useState<{ display_name: string | null; avatar_url: string | null } | null>(null);
@@ -225,8 +251,9 @@ export default function InvoiceDetailPage() {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
         {/* Fee list */}
         <div className="rounded-lg border border-border bg-card p-5 space-y-3">
-          {/* Header: 請款人 */}
-          <div className="flex items-center gap-2">
+          {/* Header: 請款人 + Add fee button */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
             <h2 className="text-sm font-medium text-muted-foreground">請款人：</h2>
             <div className="flex items-center gap-1.5">
               {translatorProfile?.avatar_url ? (
@@ -239,6 +266,55 @@ export default function InvoiceDetailPage() {
               ) : null}
               <span className="text-sm font-medium">{translatorProfile?.display_name || invoice.translator || "未指定"}</span>
             </div>
+            </div>
+            {/* Add fee button */}
+            {editable && availableFees.length > 0 && (
+              <Popover open={addFeeOpen} onOpenChange={(open) => {
+                setAddFeeOpen(open);
+                if (!open) setSelectedAddFees([]);
+              }}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-7 w-7">
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-72 p-3 space-y-3">
+                  <p className="text-sm font-medium">加入費用</p>
+                  <div className="max-h-48 overflow-y-auto space-y-1">
+                    {availableFees.map((f) => {
+                      const fTotal = f.taskItems.reduce((s: number, i: any) => s + i.unitCount * i.unitPrice, 0);
+                      return (
+                        <label key={f.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent cursor-pointer text-sm">
+                          <Checkbox
+                            checked={selectedAddFees.includes(f.id)}
+                            onCheckedChange={(checked) => {
+                              setSelectedAddFees((prev) =>
+                                checked ? [...prev, f.id] : prev.filter((x) => x !== f.id)
+                              );
+                            }}
+                          />
+                          <span className="flex-1 truncate">{f.title || "未命名"}</span>
+                          <span className="text-muted-foreground tabular-nums">{formatCurrency(fTotal)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    disabled={selectedAddFees.length === 0}
+                    onClick={() => {
+                      invoiceStore.addFeesToInvoice(invoice.id, selectedAddFees);
+                      setSelectedAddFees([]);
+                      setAddFeeOpen(false);
+                      toast.success(`已加入 ${selectedAddFees.length} 筆費用`);
+                    }}
+                  >
+                    加入 {selectedAddFees.length > 0 ? `(${selectedAddFees.length})` : ""}
+                  </Button>
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
 
           <Table>
