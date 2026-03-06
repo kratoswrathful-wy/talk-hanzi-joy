@@ -991,7 +991,7 @@ export default function TranslatorFeeDetail() {
           rateConfirmed,
           clientTaskItems: (Array.isArray(workTypes) && workTypes.length > 0)
             ? workTypes.map((wt: string, idx: number) => {
-                const matchedType = taskTypeOptions.find((t) => wt.includes(t)) || "翻譯";
+                const matchedType = matchTaskType(wt);
                 return {
                   id: `ci-ir-${Date.now()}-${idx}`,
                   taskType: matchedType as TaskType,
