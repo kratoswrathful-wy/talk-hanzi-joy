@@ -68,9 +68,36 @@ export default function InvoicesPage() {
   const navigate = useNavigate();
   const invoices = useInvoices();
   const fees = useFees();
-  const { isAdmin } = useAuth();
+  const { isAdmin, profile } = useAuth();
   const { options: assigneeOptions } = useSelectOptions("assignee");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [showTranslatorPicker, setShowTranslatorPicker] = useState(false);
+  const [selectedTranslator, setSelectedTranslator] = useState<string>("");
+
+  const handleCreateInvoice = useCallback(async () => {
+    if (isAdmin) {
+      setSelectedTranslator("");
+      setShowTranslatorPicker(true);
+    } else {
+      // Translator: use own display name
+      const name = profile?.display_name || profile?.email || "";
+      const inv = await invoiceStore.createInvoice(name, []);
+      if (inv) {
+        toast.success("已建立請款單");
+        navigate(`/invoices/${inv.id}`);
+      }
+    }
+  }, [isAdmin, profile, navigate]);
+
+  const handleConfirmTranslator = useCallback(async () => {
+    if (!selectedTranslator) return;
+    const inv = await invoiceStore.createInvoice(selectedTranslator, []);
+    setShowTranslatorPicker(false);
+    if (inv) {
+      toast.success("已建立請款單");
+      navigate(`/invoices/${inv.id}`);
+    }
+  }, [selectedTranslator, navigate]);
 
   const handleDelete = useCallback(() => {
     if (deleteId) {
