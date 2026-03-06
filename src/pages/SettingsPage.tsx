@@ -2,7 +2,9 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, GripVertical, Pencil, Shield, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Trash2, GripVertical, Pencil, Shield, ChevronDown, ChevronRight, Palette } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import ColorPicker from "@/components/ColorPicker";
 import { useSelectOptions, selectOptionsStore, PRESET_COLORS } from "@/stores/select-options-store";
 import { useClientPricing, useTranslatorTiers, type TranslatorTier } from "@/stores/default-pricing-store";
 import { useAuth } from "@/hooks/use-auth";
@@ -52,7 +54,7 @@ function handleTabKeyDown(
 // ─── Client Pricing Section (with integrated client management) ───
 
 function ClientPricingSection() {
-  const { options: clientOptions } = useSelectOptions("client");
+  const { options: clientOptions, customColors } = useSelectOptions("client");
   const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
   const { getAllClientPricing, setClientPrice, removeClientPrice } = useClientPricing();
   const allPricing = getAllClientPricing();
@@ -60,6 +62,9 @@ function ClientPricingSection() {
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
+  const [colorPickerClientId, setColorPickerClientId] = useState<string | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   // Add client state
   const [adding, setAdding] = useState(false);
@@ -100,7 +105,7 @@ function ClientPricingSection() {
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
       <div>
-        <h2 className="text-base font-semibold">客戶預設報價</h2>
+        <h2 className="text-base font-semibold">客戶設定</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
           管理客戶並依任務類型設定預設報價，選擇客戶後將自動帶入對應價格
         </p>
@@ -112,16 +117,37 @@ function ClientPricingSection() {
         </p>
       ) : (
         <div className="space-y-1">
-          {clientOptions.map((client) => {
+          {clientOptions.map((client, idx) => {
             const pricing = allPricing[client.label] || {};
             const isExpanded = expandedClients.has(client.id);
             return (
               <div key={client.id}>
-                <div className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors">
+                <div
+                  draggable
+                  onDragStart={() => setDragIndex(idx)}
+                  onDragOver={(e) => { e.preventDefault(); if (dragIndex !== null && dragIndex !== idx) setDragOverIndex(idx); }}
+                  onDrop={() => {
+                    if (dragIndex === null || dragIndex === idx) return;
+                    const ids = clientOptions.map((o) => o.id);
+                    const [moved] = ids.splice(dragIndex, 1);
+                    ids.splice(idx, 0, moved);
+                    selectOptionsStore.reorderOptions("client", ids);
+                    setDragIndex(null);
+                    setDragOverIndex(null);
+                  }}
+                  onDragEnd={() => { setDragIndex(null); setDragOverIndex(null); }}
+                  className={cn(
+                    "flex items-center justify-between px-2 py-1.5 rounded-md transition-colors group cursor-grab active:cursor-grabbing",
+                    dragOverIndex === idx && "bg-primary/10 border border-dashed border-primary/30",
+                    dragIndex === idx && "opacity-50",
+                    dragOverIndex !== idx && "hover:bg-secondary/30"
+                  )}
+                >
                   <button
                     className="flex items-center gap-2 flex-1 text-left"
                     onClick={() => toggleClient(client.id)}
                   >
+                    <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     {isExpanded ? (
                       <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     ) : (
@@ -130,26 +156,49 @@ function ClientPricingSection() {
                     <span
                       className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
                       style={{
-                        backgroundColor: client.color + "22",
-                        color: client.color,
-                        borderColor: client.color + "44",
+                        backgroundColor: client.color,
+                        color: "#fff",
+                        borderColor: client.color,
                       }}
                     >
                       <span
                         className="w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: client.color }}
+                        style={{ backgroundColor: "#fff" }}
                       />
                       {client.label}
                     </span>
                   </button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                    onClick={() => selectOptionsStore.deleteOption("client", client.id)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Popover
+                      open={colorPickerClientId === client.id}
+                      onOpenChange={(v) => setColorPickerClientId(v ? client.id : null)}
+                    >
+                      <PopoverTrigger asChild>
+                        <button
+                          className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Palette className="h-3.5 w-3.5 text-muted-foreground" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[240px] p-3" side="right" align="start" sideOffset={4}>
+                        <ColorPicker
+                          value={client.color}
+                          onChange={(color) => selectOptionsStore.updateOptionColor("client", client.id, color)}
+                          customColors={customColors}
+                          onAddCustomColor={(c) => selectOptionsStore.addCustomColor("client", c)}
+                          onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("client", c)}
+                          colorUsageMap={{}}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <button
+                      className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
+                      onClick={(e) => { e.stopPropagation(); selectOptionsStore.deleteOption("client", client.id); }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 {isExpanded && (
@@ -175,14 +224,14 @@ function ClientPricingSection() {
                             <span
                               className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium w-fit"
                               style={{
-                                backgroundColor: tt.color + "22",
-                                color: tt.color,
-                                borderColor: tt.color + "44",
+                                backgroundColor: tt.color,
+                                color: "#fff",
+                                borderColor: tt.color,
                               }}
                             >
                               <span
                                 className="w-2 h-2 rounded-full shrink-0"
-                                style={{ backgroundColor: tt.color }}
+                                style={{ backgroundColor: "#fff" }}
                               />
                               {tt.label}
                             </span>
@@ -295,12 +344,16 @@ function ClientPricingSection() {
   );
 }
 
-// ─── Task Type Order Section (drag reorder) ───
+// ─── Task Type Settings Section (drag reorder + add/delete/color) ───
 
 function TaskTypeOrderSection() {
-  const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
+  const { options: taskTypeOptions, customColors } = useSelectOptions("clientTaskType");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
+  const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
+  const [colorPickerOptionId, setColorPickerOptionId] = useState<string | null>(null);
 
   const handleDragStart = (idx: number) => {
     setDragIndex(idx);
@@ -328,10 +381,43 @@ function TaskTypeOrderSection() {
     setDragOverIndex(null);
   };
 
+  const handleAddTaskType = () => {
+    const label = newLabel.trim();
+    if (!label || taskTypeOptions.some((o) => o.label === label)) return;
+    selectOptionsStore.addOption("clientTaskType", label, newColor);
+    // Also add to the fee-side taskType field
+    selectOptionsStore.addOption("taskType", label, newColor);
+    setNewLabel("");
+    setNewColor(PRESET_COLORS[0]);
+    setAdding(false);
+  };
+
+  const handleDeleteTaskType = (optId: string) => {
+    const opt = taskTypeOptions.find((o) => o.id === optId);
+    selectOptionsStore.deleteOption("clientTaskType", optId);
+    // Also remove from the fee-side taskType field
+    if (opt) {
+      const feeOpts = selectOptionsStore.getField("taskType").options;
+      const feeOpt = feeOpts.find((o) => o.label === opt.label);
+      if (feeOpt) selectOptionsStore.deleteOption("taskType", feeOpt.id);
+    }
+  };
+
+  const handleColorChange = (optId: string, color: string) => {
+    const opt = taskTypeOptions.find((o) => o.id === optId);
+    selectOptionsStore.updateOptionColor("clientTaskType", optId, color);
+    // Sync to fee-side taskType field
+    if (opt) {
+      const feeOpts = selectOptionsStore.getField("taskType").options;
+      const feeOpt = feeOpts.find((o) => o.label === opt.label);
+      if (feeOpt) selectOptionsStore.updateOptionColor("taskType", feeOpt.id, color);
+    }
+  };
+
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
       <div>
-        <h2 className="text-base font-semibold">任務類型順序</h2>
+        <h2 className="text-base font-semibold">任務類型設定</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
           拖曳調整任務類型的顯示順序，變更會套用到所有客戶
         </p>
@@ -347,7 +433,7 @@ function TaskTypeOrderSection() {
             onDrop={() => handleDrop(idx)}
             onDragEnd={handleDragEnd}
             className={cn(
-              "flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors cursor-grab active:cursor-grabbing",
+              "flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors cursor-grab active:cursor-grabbing group",
               dragOverIndex === idx && "bg-primary/10 border border-dashed border-primary/30",
               dragIndex === idx && "opacity-50",
               dragOverIndex !== idx && "hover:bg-secondary/30"
@@ -357,20 +443,98 @@ function TaskTypeOrderSection() {
             <span
               className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
               style={{
-                backgroundColor: tt.color + "22",
-                color: tt.color,
-                borderColor: tt.color + "44",
+                backgroundColor: tt.color,
+                color: "#fff",
+                borderColor: tt.color,
               }}
             >
               <span
                 className="w-2 h-2 rounded-full shrink-0"
-                style={{ backgroundColor: tt.color }}
+                style={{ backgroundColor: "#fff" }}
               />
               {tt.label}
             </span>
+            <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Popover
+                open={colorPickerOptionId === tt.id}
+                onOpenChange={(v) => setColorPickerOptionId(v ? tt.id : null)}
+              >
+                <PopoverTrigger asChild>
+                  <button
+                    className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted transition-colors"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Palette className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[240px] p-3" side="right" align="start" sideOffset={4}>
+                  <ColorPicker
+                    value={tt.color}
+                    onChange={(color) => handleColorChange(tt.id, color)}
+                    customColors={customColors}
+                    onAddCustomColor={(c) => selectOptionsStore.addCustomColor("clientTaskType", c)}
+                    onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("clientTaskType", c)}
+                    colorUsageMap={{}}
+                  />
+                </PopoverContent>
+              </Popover>
+              <button
+                className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
+                onClick={(e) => { e.stopPropagation(); handleDeleteTaskType(tt.id); }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         ))}
       </div>
+
+      {adding ? (
+        <div className="space-y-2 px-2">
+          <Input
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            placeholder="輸入任務類型名稱"
+            className="h-8 text-sm"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleAddTaskType();
+              if (e.key === "Escape") setAdding(false);
+            }}
+          />
+          <div className="flex flex-wrap gap-1">
+            {PRESET_COLORS.map((c) => (
+              <button
+                key={c}
+                className={cn(
+                  "w-5 h-5 rounded-full border-2 transition-transform hover:scale-110",
+                  newColor === c ? "border-foreground scale-110" : "border-transparent"
+                )}
+                style={{ backgroundColor: c }}
+                onClick={() => setNewColor(c)}
+              />
+            ))}
+          </div>
+          <div className="flex gap-1.5 justify-end">
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAdding(false)}>
+              取消
+            </Button>
+            <Button size="sm" className="h-7 text-xs" disabled={!newLabel.trim()} onClick={handleAddTaskType}>
+              新增
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1 text-xs"
+          onClick={() => setAdding(true)}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          新增任務類型
+        </Button>
+      )}
     </div>
   );
 }
@@ -752,13 +916,13 @@ function TierGroupEditorModal({
                     : "opacity-70 hover:opacity-100"
                 )}
                 style={{
-                  backgroundColor: tt.color + "22",
-                  color: tt.color,
-                  borderColor: tt.color + "44",
+                  backgroundColor: tt.color,
+                  color: "#fff",
+                  borderColor: tt.color,
                 }}
                 onClick={() => toggleTaskType(tt.label)}
               >
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tt.color }} />
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: "#fff" }} />
                 {tt.label}
               </button>
             ))}
@@ -1006,12 +1170,12 @@ function TranslatorTierSection() {
             key={tt}
             className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
             style={{
-              backgroundColor: ttOpt.color + "22",
-              color: ttOpt.color,
-              borderColor: ttOpt.color + "44",
+              backgroundColor: ttOpt.color,
+              color: "#fff",
+              borderColor: ttOpt.color,
             }}
           >
-            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: ttOpt.color }} />
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: "#fff" }} />
             {tt}
           </span>
         ) : (
