@@ -1,4 +1,5 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/use-auth";
 import { ArrowLeft, Plus, X, Loader2 } from "lucide-react";
 import { CommentContent } from "@/components/comments/CommentContent";
 import { CommentInput } from "@/components/comments/CommentInput";
@@ -138,6 +139,7 @@ export default function TranslatorFeeDetail() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [notionUrlInput, setNotionUrlInput] = useState(internalNoteUrl || "");
   const [currentRole, setCurrentRole] = useState<UserRole>("pm");
+  const { isAdmin: authIsAdmin, profile: authProfile } = useAuth();
 
   // Comments — initialize from feeData
   const [comments, setComments] = useState<CommentEntry[]>(() =>
@@ -344,8 +346,11 @@ export default function TranslatorFeeDetail() {
   const isDraft = status === "draft";
   const isFinalized = status === "finalized";
 
+  // Effective role: in dev use switcher, in production use real auth
+  const effectiveRole: UserRole = import.meta.env.DEV ? currentRole : (authIsAdmin ? "pm" : "assignee");
+
   // Assignee cannot see draft at all
-  if (currentRole === "assignee" && isDraft) {
+  if (effectiveRole === "assignee" && isDraft) {
     return (
       <div className="mx-auto max-w-3xl space-y-6">
         {/* Role Switcher — dev only */}
@@ -374,7 +379,7 @@ export default function TranslatorFeeDetail() {
   }
 
   // Role-based permissions — executive has same permissions as PM for now
-  const isManager = currentRole === "pm" || currentRole === "executive";
+  const isManager = effectiveRole === "pm" || effectiveRole === "executive";
   const canEdit = isManager && isDraft;
   const canSubmit = isManager && isDraft;
   const canRecall = isManager && isFinalized;
@@ -698,6 +703,7 @@ export default function TranslatorFeeDetail() {
             };
           });
           setTaskItems(mapped);
+          if (id) feeStore.updateFee(id, { taskItems: mapped });
         } else if (feeRate !== null || unitCount !== null) {
           setTaskItems((prev) => {
             const updated = [...prev];
@@ -709,6 +715,7 @@ export default function TranslatorFeeDetail() {
                 ...(feeRate !== null ? { unitPrice: feeRate } : {}),
               };
             }
+            if (id) feeStore.updateFee(id, { taskItems: updated });
             return updated;
           });
         }
@@ -928,6 +935,7 @@ export default function TranslatorFeeDetail() {
             };
           });
           setTaskItems(mapped);
+          if (id) feeStore.updateFee(id, { taskItems: mapped });
 
           // 同步工作類型到客戶計費項目
           const mappedClientItems: import("@/data/fee-mock-data").ClientTaskItem[] = workTypes.map((wt: string, idx: number) => {
@@ -947,9 +955,11 @@ export default function TranslatorFeeDetail() {
           setClientInfo(updatedClientInfo);
           if (id) feeStore.updateFee(id, { clientInfo: updatedClientInfo });
         } else if (unitCount) {
-          setTaskItems((prev) =>
-            prev.map((item, idx) => idx === 0 ? { ...item, unitCount } : item)
-          );
+          setTaskItems((prev) => {
+            const updated = prev.map((item, idx) => idx === 0 ? { ...item, unitCount } : item);
+            if (id) feeStore.updateFee(id, { taskItems: updated });
+            return updated;
+          });
           // 同步計費單位數到客戶資訊
           setClientInfo((prev) => ({
             ...prev,
