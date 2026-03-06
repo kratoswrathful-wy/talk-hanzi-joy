@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useInvoices, invoiceStore } from "@/hooks/use-invoice-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useSelectOptions } from "@/stores/select-options-store";
+import { useLabelStyles } from "@/stores/label-style-store";
 import { type InvoiceStatus, invoiceStatusLabels } from "@/data/invoice-types";
 import { useState, useCallback } from "react";
 import {
@@ -21,19 +22,19 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
-const statusColors: Record<InvoiceStatus, { bg: string; text: string }> = {
-  pending: { bg: "hsl(var(--muted))", text: "hsl(var(--muted-foreground))" },
-  partial: { bg: "hsl(40 90% 50%)", text: "#fff" },
-  paid: { bg: "hsl(142 71% 45%)", text: "#fff" },
-};
-
 function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
-  const colors = statusColors[status];
+  const labelStyles = useLabelStyles();
+  const styleMap: Record<InvoiceStatus, { bgColor: string; textColor: string }> = {
+    pending: labelStyles.invoicePending,
+    partial: labelStyles.invoicePartial,
+    paid: labelStyles.invoicePaid,
+  };
+  const colors = styleMap[status];
   return (
     <Badge
       variant="default"
       className="text-xs whitespace-nowrap border"
-      style={{ backgroundColor: colors.bg, color: colors.text, borderColor: colors.bg }}
+      style={{ backgroundColor: colors.bgColor, color: colors.textColor, borderColor: colors.bgColor }}
     >
       {invoiceStatusLabels[status]}
     </Badge>
@@ -90,11 +91,11 @@ export default function InvoicesPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40">
-              <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[200px]">譯者</th>
+              <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[200px]">標題</th>
+              <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[150px]">譯者</th>
               <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[100px]">狀態</th>
               <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[80px]">費用數</th>
               <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[120px]">總金額</th>
-              <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[120px]">匯款時間</th>
               <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[120px]">建立時間</th>
               <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground">備註</th>
               {isAdmin && <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[60px]">操作</th>}
@@ -112,12 +113,15 @@ export default function InvoicesPage() {
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1.5 truncate text-sm font-medium">
-                        {opt && <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: opt.color }} />}
-                        {inv.translator || <span className="text-muted-foreground italic">未指定</span>}
-                      </span>
+                      <span className="text-sm font-medium truncate">{inv.title || <span className="text-muted-foreground italic">未命名</span>}</span>
                       <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                     </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="inline-flex items-center gap-1.5 truncate text-sm">
+                      {opt && <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: opt.color }} />}
+                      {inv.translator || <span className="text-muted-foreground italic">未指定</span>}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-center">
                     <InvoiceStatusBadge status={inv.status} />
@@ -125,15 +129,12 @@ export default function InvoicesPage() {
                   <td className="px-4 py-3 text-center text-sm tabular-nums">{inv.feeIds.length}</td>
                   <td className="px-4 py-3 text-center text-sm tabular-nums">{formatCurrency(total)}</td>
                   <td className="px-4 py-3 text-center text-sm text-muted-foreground tabular-nums">
-                    {inv.transferDate ? formatDate(inv.transferDate) : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-center text-sm text-muted-foreground tabular-nums">
                     {formatDate(inv.createdAt)}
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground truncate max-w-[200px]">
                     {inv.note || "—"}
                   </td>
-                  {isAdmin && (
+                  {isAdmin && inv.status !== "paid" && (
                     <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                       <Button
                         variant="ghost"
@@ -145,12 +146,14 @@ export default function InvoicesPage() {
                       </Button>
                     </td>
                   )}
+                  {isAdmin && inv.status === "paid" && <td />}
                 </tr>
               );
             })}
             {invoices.length === 0 && (
               <tr>
                 <td colSpan={isAdmin ? 8 : 7} className="text-center py-12 text-muted-foreground">
+
                   尚無請款單
                 </td>
               </tr>

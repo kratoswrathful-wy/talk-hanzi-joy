@@ -137,7 +137,9 @@ export type Database = {
           created_by: string | null
           id: string
           note: string
+          payments: Json
           status: string
+          title: string
           transfer_date: string | null
           translator: string
           updated_at: string
@@ -147,7 +149,9 @@ export type Database = {
           created_by?: string | null
           id?: string
           note?: string
+          payments?: Json
           status?: string
+          title?: string
           transfer_date?: string | null
           translator?: string
           updated_at?: string
@@ -157,7 +161,9 @@ export type Database = {
           created_by?: string | null
           id?: string
           note?: string
+          payments?: Json
           status?: string
+          title?: string
           transfer_date?: string | null
           translator?: string
           updated_at?: string

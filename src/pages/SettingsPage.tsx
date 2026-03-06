@@ -1829,13 +1829,18 @@ function StatusStyleSection() {
         <div>
           <h2 className="text-base font-semibold">狀態標籤設定</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            自訂「草稿」與「開立完成」狀態標籤的背景顏色與字體顏色
+            自訂費用與請款單狀態標籤的背景顏色與字體顏色
           </p>
         </div>
       </button>
 
       {expanded && (
-        <div className="space-y-4">
+        <div className="space-y-6">
+          {/* Fee statuses label */}
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">費用狀態</p>
+          </div>
+
           {/* Draft */}
           <div className="space-y-2">
             <div className="flex items-center gap-3">
@@ -1904,6 +1909,62 @@ function StatusStyleSection() {
                   onRemoveCustomColor={() => {}}
                   colorUsageMap={{}}
                 />
+              </div>
+            </div>
+          </div>
+
+          {/* Invoice statuses label */}
+          <div className="border-t border-border pt-4">
+            <p className="text-xs font-medium text-muted-foreground">請款單狀態</p>
+          </div>
+
+          {/* Pending */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium" style={{ backgroundColor: labelStyles.invoicePending.bgColor, color: labelStyles.invoicePending.textColor, borderColor: labelStyles.invoicePending.bgColor }}>待付款</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">背景顏色</p>
+                <ColorPicker value={labelStyles.invoicePending.bgColor} onChange={(c) => labelStyleStore.setInvoicePendingStyle({ bgColor: c })} customColors={[]} onAddCustomColor={() => {}} onRemoveCustomColor={() => {}} colorUsageMap={{}} />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">字體顏色</p>
+                <ColorPicker value={labelStyles.invoicePending.textColor} onChange={(c) => labelStyleStore.setInvoicePendingStyle({ textColor: c })} customColors={[]} onAddCustomColor={() => {}} onRemoveCustomColor={() => {}} colorUsageMap={{}} />
+              </div>
+            </div>
+          </div>
+
+          {/* Partial */}
+          <div className="space-y-2 border-t border-border pt-4">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium" style={{ backgroundColor: labelStyles.invoicePartial.bgColor, color: labelStyles.invoicePartial.textColor, borderColor: labelStyles.invoicePartial.bgColor }}>部份付款</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">背景顏色</p>
+                <ColorPicker value={labelStyles.invoicePartial.bgColor} onChange={(c) => labelStyleStore.setInvoicePartialStyle({ bgColor: c })} customColors={[]} onAddCustomColor={() => {}} onRemoveCustomColor={() => {}} colorUsageMap={{}} />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">字體顏色</p>
+                <ColorPicker value={labelStyles.invoicePartial.textColor} onChange={(c) => labelStyleStore.setInvoicePartialStyle({ textColor: c })} customColors={[]} onAddCustomColor={() => {}} onRemoveCustomColor={() => {}} colorUsageMap={{}} />
+              </div>
+            </div>
+          </div>
+
+          {/* Paid */}
+          <div className="space-y-2 border-t border-border pt-4">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium" style={{ backgroundColor: labelStyles.invoicePaid.bgColor, color: labelStyles.invoicePaid.textColor, borderColor: labelStyles.invoicePaid.bgColor }}>已付款</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">背景顏色</p>
+                <ColorPicker value={labelStyles.invoicePaid.bgColor} onChange={(c) => labelStyleStore.setInvoicePaidStyle({ bgColor: c })} customColors={[]} onAddCustomColor={() => {}} onRemoveCustomColor={() => {}} colorUsageMap={{}} />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">字體顏色</p>
+                <ColorPicker value={labelStyles.invoicePaid.textColor} onChange={(c) => labelStyleStore.setInvoicePaidStyle({ textColor: c })} customColors={[]} onAddCustomColor={() => {}} onRemoveCustomColor={() => {}} colorUsageMap={{}} />
               </div>
             </div>
           </div>
