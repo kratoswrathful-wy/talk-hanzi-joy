@@ -634,10 +634,8 @@ export default function TranslatorFeeDetail() {
           const casePageId = casePages[0].id?.replace(/-/g, "");
           if (casePageId) {
             try {
-              const { data: caseData, error: caseErr } = await supabase.functions.invoke("fetch-notion-page", {
-                body: { page_id: casePageId },
-              });
-              if (!caseErr && caseData && !caseData.error) {
+              const caseData = await invokeWithRetry({ page_id: casePageId });
+              if (caseData && !caseData.error) {
                 if (missingWorkTypes) {
                   workTypes = caseData["工作類型"] || [];
                 }
