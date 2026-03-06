@@ -1720,6 +1720,7 @@ export default function SettingsPage() {
       {/* Admin sections - based on permission config */}
       {canViewSection("task_type_order") && <TaskTypeOrderSection />}
       {canViewSection("client_pricing") && <ClientPricingSection />}
+      <DispatchRouteSection />
       {canViewSection("translator_notes") && <TranslatorNotesSection />}
       {canViewSection("translator_tiers") && <TranslatorTierSection />}
       <StatusStyleSection />
