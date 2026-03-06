@@ -1190,6 +1190,79 @@ export default function TranslatorFeeDetail() {
           }
         }
 
+        // Multi-translator: create additional fee pages
+        if (Array.isArray(people) && people.length > 1) {
+          const assigneeOptions = selectOptionsStore.getSortedOptions("assignee");
+          const resolveAssignee = (person: any): string => {
+            if (typeof person === "object" && person.email) {
+              const m = assigneeOptions.find((o: any) => o.email === person.email);
+              if (m) return m.label;
+            }
+            if (typeof person === "object" && person.name) {
+              const m = assigneeOptions.find((o: any) => o.label === person.name);
+              if (m) return m.label;
+              return person.name;
+            }
+            if (typeof person === "string") {
+              const m = assigneeOptions.find((o: any) => o.label === person || o.email === person);
+              return m ? m.label : person;
+            }
+            return "";
+          };
+
+          const baseTitle = title;
+          const currentTitle = `${baseTitle}_01`;
+          setTitle(currentTitle);
+          if (id) feeStore.updateFee(id, { title: currentTitle });
+
+          // Set current page as primary in case group
+          const currentCaseNote = internalNote || caseId;
+          const latestClientInfo = feeStore.getFeeById(id || "")?.clientInfo ?? clientInfo;
+          const primaryClientInfo: ClientInfo = {
+            ...latestClientInfo,
+            sameCase: true,
+            isFirstFee: true,
+            notFirstFee: false,
+          };
+          setClientInfo(primaryClientInfo);
+          if (id) feeStore.updateFee(id, { clientInfo: primaryClientInfo });
+
+          const createdPages: { id: string; title: string; assignee: string }[] = [
+            { id: id || "", title: currentTitle, assignee: resolveAssignee(people[0]) },
+          ];
+
+          const currentFee = id ? feeStore.getFeeById(id) : null;
+          const cloneTaskItems = currentFee?.taskItems ?? taskItems;
+
+          for (let i = 1; i < people.length; i++) {
+            const personAssignee = resolveAssignee(people[i]);
+            const pageTitle = `${baseTitle}_${String(i + 1).padStart(2, "0")}`;
+            const newFee: TranslatorFee = {
+              id: crypto.randomUUID(),
+              title: pageTitle,
+              assignee: personAssignee,
+              status: "draft" as const,
+              internalNote: currentCaseNote,
+              internalNoteUrl: internalNoteUrl || "",
+              taskItems: cloneTaskItems.map((item, idx) => ({ ...item, id: `item-clone-${Date.now()}-${idx}-${i}` })),
+              clientInfo: {
+                ...latestClientInfo,
+                sameCase: true,
+                isFirstFee: false,
+                notFirstFee: true,
+              },
+              notes: [],
+              editLogs: [],
+              createdBy: currentFee?.createdBy || "",
+              createdAt: new Date().toISOString(),
+            };
+            feeStore.addFee(newFee);
+            createdPages.push({ id: newFee.id, title: pageTitle, assignee: personAssignee });
+          }
+
+          setMultiTranslatorPages(createdPages);
+        }
+
         toast.success("已從 Notion 載入案件資料");
       }
     } catch (err: any) {
