@@ -157,7 +157,7 @@ function ClientPricingSection() {
                       className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
                       style={{
                         backgroundColor: client.color,
-                        color: "#B3BBC9",
+                        color: "#D1DAEA",
                         borderColor: client.color,
                       }}
                     >
