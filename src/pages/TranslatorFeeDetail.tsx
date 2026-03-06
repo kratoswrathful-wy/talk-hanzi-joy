@@ -346,8 +346,11 @@ export default function TranslatorFeeDetail() {
   const isDraft = status === "draft";
   const isFinalized = status === "finalized";
 
+  // Effective role: in dev use switcher, in production use real auth
+  const effectiveRole: UserRole = import.meta.env.DEV ? currentRole : (authIsAdmin ? "pm" : "assignee");
+
   // Assignee cannot see draft at all
-  if (currentRole === "assignee" && isDraft) {
+  if (effectiveRole === "assignee" && isDraft) {
     return (
       <div className="mx-auto max-w-3xl space-y-6">
         {/* Role Switcher — dev only */}
@@ -376,7 +379,7 @@ export default function TranslatorFeeDetail() {
   }
 
   // Role-based permissions — executive has same permissions as PM for now
-  const isManager = currentRole === "pm" || currentRole === "executive";
+  const isManager = effectiveRole === "pm" || effectiveRole === "executive";
   const canEdit = isManager && isDraft;
   const canSubmit = isManager && isDraft;
   const canRecall = isManager && isFinalized;
