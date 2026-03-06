@@ -53,6 +53,7 @@ export default function ClientInfoSection({
   currentFeeId,
   currentInternalNote,
   onFirstFeeConflict,
+  onClientPriceEntered,
 }: ClientInfoSectionProps) {
   const [showUncheckWarning, setShowUncheckWarning] = useState(false);
   const storeSnapshot = useSyncExternalStore(selectOptionsStore.subscribe, selectOptionsStore.getSnapshot);
