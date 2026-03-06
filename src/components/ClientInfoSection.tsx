@@ -225,7 +225,7 @@ export default function ClientInfoSection({
                 }}
               />
               <Label htmlFor="sameCase" className="text-xs cursor-pointer whitespace-nowrap">
-                與他筆費用為同一案件
+                費用群組（勾選後系統會自動以「相關案件」相同者判定群組所屬費用）
               </Label>
             </div>
             <div className="flex items-center gap-1.5">
@@ -479,7 +479,7 @@ export default function ClientInfoSection({
           <AlertDialogHeader>
             <AlertDialogTitle>確定取消勾選？</AlertDialogTitle>
             <AlertDialogDescription>
-              取消勾選「與他筆費用為同一案件」將會同時清除「主要營收紀錄」與「非主要營收紀錄」的勾選狀態。
+              取消勾選「費用群組」將會同時清除「主要營收紀錄」與「非主要營收紀錄」的勾選狀態。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
