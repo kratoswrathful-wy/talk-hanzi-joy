@@ -598,14 +598,14 @@ function validateTierRows(rows: { id: string; minPrice: number; maxPrice: number
 
   const sorted = [...rows].sort((a, b) => a.minPrice - b.minPrice);
 
-  // 2. overlap
+  // 2. overlap — intervals are (min, max], so overlap when a.min < b.max && b.min < a.max
   for (let i = 0; i < sorted.length; i++) {
     for (let j = i + 1; j < sorted.length; j++) {
       const a = sorted[i];
       const b = sorted[j];
       const aMax = a.maxPrice === 0 ? Infinity : a.maxPrice;
       const bMax = b.maxPrice === 0 ? Infinity : b.maxPrice;
-      if (a.minPrice <= bMax && b.minPrice <= aMax) {
+      if (a.minPrice < bMax && b.minPrice < aMax) {
         if (!errors[a.id]) errors[a.id] = "級距重疊";
         if (!errors[b.id]) errors[b.id] = "級距重疊";
       }
@@ -620,11 +620,12 @@ function validateTierRows(rows: { id: string; minPrice: number; maxPrice: number
       max: r.maxPrice === 0 ? Infinity : r.maxPrice,
     }));
 
+    // Intervals are (min, max]. Next interval should have min === prev max for seamless coverage.
     let coveredUpTo = intervals[0].max;
     for (let i = 1; i < intervals.length; i++) {
-      if (intervals[i].min > coveredUpTo + 1) {
-        errors[intervals[i - 1].id] = `空白區段：${coveredUpTo + 1} ~ ${intervals[i].min - 1}`;
-        errors[intervals[i].id] = errors[intervals[i].id] || `空白區段：${coveredUpTo + 1} ~ ${intervals[i].min - 1}`;
+      if (intervals[i].min > coveredUpTo) {
+        errors[intervals[i - 1].id] = `空白區段：${coveredUpTo} ~ ${intervals[i].min}`;
+        errors[intervals[i].id] = errors[intervals[i].id] || `空白區段：${coveredUpTo} ~ ${intervals[i].min}`;
       }
       if (intervals[i].max > coveredUpTo) {
         coveredUpTo = intervals[i].max;
@@ -786,8 +787,8 @@ function TierGroupEditorModal({
         <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground">級距設定</p>
           <div className="grid grid-cols-[1fr_1fr_1fr_28px] gap-2 px-1 text-xs text-muted-foreground font-medium">
-            <span>下限</span>
-            <span>上限 <span className="font-normal opacity-60">(0=∞)</span></span>
+            <span>下限 <span className="font-normal opacity-60">(&gt;)</span></span>
+            <span>上限 <span className="font-normal opacity-60">(≤, 0=∞)</span></span>
             <span>譯者單價</span>
             <span />
           </div>
