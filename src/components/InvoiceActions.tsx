@@ -224,7 +224,7 @@ export function InvoiceActions({ selectedFees, onDone }: InvoiceActionsProps) {
   return (
     <Button variant="outline" size="sm" className="gap-1.5 h-9" disabled title="選取的費用尚未指定譯者">
       <FileText className="h-4 w-4" />
-      請款單
+      請款
     </Button>
   );
 }
