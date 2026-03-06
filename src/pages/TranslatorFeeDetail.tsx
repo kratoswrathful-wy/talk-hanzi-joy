@@ -1536,12 +1536,13 @@ export default function TranslatorFeeDetail() {
               <Label className="text-xs text-muted-foreground">狀態</Label>
               <div className="flex items-center h-10">
                 <Badge
-                  variant={isDraft ? "outline" : "default"}
-                  className={
+                  variant="default"
+                  className={cn(
+                    "text-white border",
                     isFinalized
-                      ? "bg-success/15 text-success border-success/30"
-                      : ""
-                  }
+                      ? "bg-success border-success"
+                      : "bg-[#6B7280] border-[#6B7280]"
+                  )}
                 >
                   {feeStatusLabels[status]}
                 </Badge>
