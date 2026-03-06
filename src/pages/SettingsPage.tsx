@@ -54,7 +54,7 @@ function handleTabKeyDown(
 // ─── Client Pricing Section (with integrated client management) ───
 
 function ClientPricingSection() {
-  const { options: clientOptions } = useSelectOptions("client");
+  const { options: clientOptions, customColors } = useSelectOptions("client");
   const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
   const { getAllClientPricing, setClientPrice, removeClientPrice } = useClientPricing();
   const allPricing = getAllClientPricing();
@@ -62,6 +62,9 @@ function ClientPricingSection() {
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
+  const [colorPickerClientId, setColorPickerClientId] = useState<string | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   // Add client state
   const [adding, setAdding] = useState(false);
