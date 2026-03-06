@@ -90,6 +90,25 @@ export default function InvoiceDetailPage() {
   const [partialAmount, setPartialAmount] = useState("");
   const [showOverpayWarning, setShowOverpayWarning] = useState(false);
   const [overpayRemaining, setOverpayRemaining] = useState(0);
+  const [addFeeOpen, setAddFeeOpen] = useState(false);
+  const [selectedAddFees, setSelectedAddFees] = useState<string[]>([]);
+  const allInvoices = useInvoices();
+
+  // Unlinked fees for this translator
+  const allLinkedFeeIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const inv of allInvoices) {
+      for (const fid of inv.feeIds) set.add(fid);
+    }
+    return set;
+  }, [allInvoices]);
+
+  const availableFees = useMemo(() => {
+    if (!invoice) return [];
+    return fees.filter(
+      (f) => f.assignee === invoice.translator && !allLinkedFeeIds.has(f.id)
+    );
+  }, [fees, invoice, allLinkedFeeIds]);
 
   // Translator profile
   const [translatorProfile, setTranslatorProfile] = useState<{ display_name: string | null; avatar_url: string | null } | null>(null);
