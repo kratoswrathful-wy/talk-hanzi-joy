@@ -101,7 +101,20 @@ export default function ClientInfoSection({
     let cleaned = rawValue.replace(/^0+(\d)/, "$1");
     if (cleaned.startsWith(".")) cleaned = "0" + cleaned;
     if (cleaned === "" || cleaned === "0.") cleaned = "0";
-    updateItem(itemId, field, Number(cleaned));
+    const numVal = Number(cleaned);
+    updateItem(itemId, field, numVal);
+
+    // Auto-fill translator price when client price is first entered
+    if (field === "clientPrice" && numVal > 0 && onClientPriceEntered) {
+      const itemIndex = clientInfo.clientTaskItems.findIndex((i) => i.id === itemId);
+      if (itemIndex >= 0) {
+        const item = clientInfo.clientTaskItems[itemIndex];
+        const wasEmpty = !item.clientPrice || Number(item.clientPrice) === 0;
+        if (wasEmpty) {
+          onClientPriceEntered(itemIndex, numVal, item.taskType, item.billingUnit);
+        }
+      }
+    }
   };
 
   // Related fees: same internalNote, sameCase=true, excluding current
