@@ -1769,6 +1769,7 @@ export default function TranslatorFeeDetail() {
                             const v = e.target.value;
                             if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitPrice", v as any);
                           }}
+                          onFocus={() => setShowPricingTip(false)}
                           onBlur={(e) => handleNumberBlur(item.id, "unitPrice", e.target.value)}
                           disabled={!canEdit || isNoFeeTranslator}
                           className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
