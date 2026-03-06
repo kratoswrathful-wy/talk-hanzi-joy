@@ -2110,6 +2110,33 @@ export default function TranslatorFeeDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Auto-created options notification dialog */}
+      <AlertDialog open={autoCreatedOptions !== null} onOpenChange={() => {}}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>已自動建立新選項</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>從 Notion 匯入時偵測到以下尚未存在的選項，已自動建立：</p>
+                <div className="space-y-1">
+                  {autoCreatedOptions?.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground">{item.field}：</span>
+                      <span className="font-medium">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button onClick={() => setAutoCreatedOptions(null)}>
+              我知道了
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
