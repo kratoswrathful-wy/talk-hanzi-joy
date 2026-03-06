@@ -6,6 +6,7 @@ import { Plus, Trash2, GripVertical, Pencil, Shield, ChevronDown, ChevronRight, 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import ColorPicker from "@/components/ColorPicker";
 import { useSelectOptions, selectOptionsStore, PRESET_COLORS } from "@/stores/select-options-store";
+import { useLabelStyles, labelStyleStore } from "@/stores/label-style-store";
 import { useClientPricing, useTranslatorTiers, type TranslatorTier } from "@/stores/default-pricing-store";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions, type PermissionConfig } from "@/hooks/use-permissions";
