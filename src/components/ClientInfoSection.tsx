@@ -381,6 +381,7 @@ export default function ClientInfoSection({
                         const v = e.target.value;
                         if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "clientPrice", v as any);
                       }}
+                      onFocus={() => handleClientPriceFocus(item.id)}
                       onBlur={(e) => handleNumberBlur(item.id, "clientPrice", e.target.value)}
                       className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
                       disabled={clientItemsLocked}
