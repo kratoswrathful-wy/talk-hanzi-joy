@@ -137,14 +137,14 @@ export default function ColorSelect({
               <span
                 className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
                 style={{
-                  backgroundColor: selectedOption.color + "22",
-                  color: selectedOption.color,
-                  borderColor: selectedOption.color + "44",
+                  backgroundColor: selectedOption.color,
+                  color: "#fff",
+                  borderColor: selectedOption.color,
                 }}
               >
                 <span
                   className="w-2 h-2 rounded-full shrink-0"
-                  style={{ backgroundColor: selectedOption.color }}
+                  style={{ backgroundColor: "#fff" }}
                 />
                 <span className="truncate">{selectedOption.label}</span>
               </span>
