@@ -41,6 +41,10 @@ export default function ColorSelect({
   defaultOpen,
 }: ColorSelectProps) {
   const { options, customColors } = useSelectOptions(fieldKey);
+  const labelStyles = useLabelStyles();
+  const labelTextColor = fieldKey === "client" ? labelStyles.client.textColor
+    : (fieldKey === "taskType" || fieldKey === "clientTaskType" || fieldKey === "billingUnit" || fieldKey === "clientBillingUnit") ? labelStyles.taskType.textColor
+    : "#D1DAEA";
   const [open, setOpen] = useState(defaultOpen ?? false);
   const [addingNew, setAddingNew] = useState(false);
   const [newLabel, setNewLabel] = useState("");
