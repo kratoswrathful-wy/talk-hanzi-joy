@@ -348,7 +348,7 @@ export default function TranslatorFeeDetail() {
   const isFinalized = status === "finalized";
 
   // Effective role: always use real auth (map executive to the executive UserRole)
-  const effectiveRole: UserRole = authIsAdmin ? (authProfile && authProfile.email === "valodja.j@gmail.com" ? "executive" : "pm") : "assignee";
+  const effectiveRole: UserRole = authIsExecutive ? "executive" : (authIsAdmin ? "pm" : "assignee");
 
   // Assignee cannot see draft at all
   if (effectiveRole === "assignee" && isDraft) {
