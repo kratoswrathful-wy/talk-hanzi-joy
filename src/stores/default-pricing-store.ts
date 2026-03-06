@@ -15,8 +15,8 @@ export interface TranslatorTier {
   groupId: string;
   taskType: string;
   billingUnit: string;
-  minPrice: number;       // range lower bound (inclusive)
-  maxPrice: number;       // range upper bound (inclusive), 0 = ∞
+  minPrice: number;       // range lower bound (exclusive, >)
+  maxPrice: number;       // range upper bound (inclusive, <=), 0 = ∞
   translatorPrice: number;
 }
 
