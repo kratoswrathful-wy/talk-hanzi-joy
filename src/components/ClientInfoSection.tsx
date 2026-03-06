@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Plus, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -40,6 +40,8 @@ interface ClientInfoSectionProps {
   currentFeeId: string;
   currentInternalNote: string;
   onFirstFeeConflict?: () => void;
+  /** Called when a client price is first entered (was 0/empty, now has value) */
+  onClientPriceEntered?: (itemIndex: number, clientPrice: number, taskType: string, billingUnit: string) => void;
 }
 
 export default function ClientInfoSection({
@@ -51,8 +53,10 @@ export default function ClientInfoSection({
   currentFeeId,
   currentInternalNote,
   onFirstFeeConflict,
+  onClientPriceEntered,
 }: ClientInfoSectionProps) {
   const [showUncheckWarning, setShowUncheckWarning] = useState(false);
+  const clientPriceOnFocusRef = useRef<Record<string, number>>({});
   const storeSnapshot = useSyncExternalStore(selectOptionsStore.subscribe, selectOptionsStore.getSnapshot);
   const assigneeOptions = storeSnapshot.assignee.options;
 
@@ -98,7 +102,25 @@ export default function ClientInfoSection({
     let cleaned = rawValue.replace(/^0+(\d)/, "$1");
     if (cleaned.startsWith(".")) cleaned = "0" + cleaned;
     if (cleaned === "" || cleaned === "0.") cleaned = "0";
-    updateItem(itemId, field, Number(cleaned));
+    const numVal = Number(cleaned);
+    updateItem(itemId, field, numVal);
+
+    // Auto-fill translator price when client price is first entered
+    if (field === "clientPrice" && numVal > 0 && onClientPriceEntered) {
+      const prevVal = clientPriceOnFocusRef.current[itemId] ?? 0;
+      if (!prevVal || prevVal === 0) {
+        const itemIndex = clientInfo.clientTaskItems.findIndex((i) => i.id === itemId);
+        if (itemIndex >= 0) {
+          const item = clientInfo.clientTaskItems[itemIndex];
+          onClientPriceEntered(itemIndex, numVal, item.taskType, item.billingUnit);
+        }
+      }
+    }
+  };
+
+  const handleClientPriceFocus = (itemId: string) => {
+    const item = clientInfo.clientTaskItems.find((i) => i.id === itemId);
+    clientPriceOnFocusRef.current[itemId] = item ? Number(item.clientPrice) || 0 : 0;
   };
 
   // Related fees: same internalNote, sameCase=true, excluding current
@@ -198,77 +220,55 @@ export default function ClientInfoSection({
             </div>
           </div>
 
-          {/* Row 3: reconciled/invoiced (right-aligned) */}
-          <div className="flex justify-end">
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5">
-                <Checkbox
-                  id="reconciled"
-                  checked={clientInfo.reconciled}
-                  disabled={!canEdit}
-                  onCheckedChange={(checked) => update("reconciled", !!checked)}
-                />
-                <Label htmlFor="reconciled" className="text-xs cursor-pointer whitespace-nowrap">對帳完成</Label>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Checkbox
-                  id="invoiced"
-                  checked={clientInfo.invoiced}
-                  disabled={!canEdit}
-                  onCheckedChange={(checked) => update("invoiced", !!checked)}
-                />
-                <Label htmlFor="invoiced" className="text-xs cursor-pointer whitespace-nowrap">請款完成</Label>
-              </div>
-            </div>
-          </div>
-
-          {/* Sub-options for sameCase */}
+          {/* Sub-options for sameCase - immediately below parent */}
           {clientInfo.sameCase && (
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 ml-6">
-                <Checkbox
-                  id="isFirstFee"
-                  checked={clientInfo.isFirstFee}
-                  disabled={isFirstFeeDisabled}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      const hasExisting = currentInternalNote && allFees.some(
-                        (f) => f.id !== currentFeeId && f.clientInfo?.sameCase && f.clientInfo?.isFirstFee && f.internalNote === currentInternalNote
-                      );
-                      if (hasExisting) {
-                        update("isFirstFee", true);
-                        onFirstFeeConflict?.();
-                        return;
+            <>
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2 ml-6">
+                  <Checkbox
+                    id="isFirstFee"
+                    checked={clientInfo.isFirstFee}
+                    disabled={isFirstFeeDisabled}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        const hasExisting = currentInternalNote && allFees.some(
+                          (f) => f.id !== currentFeeId && f.clientInfo?.sameCase && f.clientInfo?.isFirstFee && f.internalNote === currentInternalNote
+                        );
+                        if (hasExisting) {
+                          update("isFirstFee", true);
+                          onFirstFeeConflict?.();
+                          return;
+                        }
                       }
-                    }
-                    update("isFirstFee", !!checked);
-                  }}
-                />
-                <Label
-                  htmlFor="isFirstFee"
-                  className={`text-xs cursor-pointer ${isFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
-                >
-                  為主要營收紀錄（於總表列入營收統計）
-                </Label>
-              </div>
-              <div className="flex items-center gap-2 ml-6">
-                <Checkbox
-                  id="notFirstFee"
-                  checked={clientInfo.notFirstFee}
-                  disabled={notFirstFeeDisabled}
-                  onCheckedChange={(checked) => update("notFirstFee", !!checked)}
-                />
-                <Label
-                  htmlFor="notFirstFee"
-                  className={`text-xs cursor-pointer ${notFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
-                >
-                  非主要營收紀錄（於總表不列入營收統計）
-                </Label>
+                      update("isFirstFee", !!checked);
+                    }}
+                  />
+                  <Label
+                    htmlFor="isFirstFee"
+                    className={`text-xs cursor-pointer ${isFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
+                  >
+                    為主要營收紀錄（於總表列入營收統計）
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2 ml-6">
+                  <Checkbox
+                    id="notFirstFee"
+                    checked={clientInfo.notFirstFee}
+                    disabled={notFirstFeeDisabled}
+                    onCheckedChange={(checked) => update("notFirstFee", !!checked)}
+                  />
+                  <Label
+                    htmlFor="notFirstFee"
+                    className={`text-xs cursor-pointer ${notFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
+                  >
+                    非主要營收紀錄（於總表不列入營收統計）
+                  </Label>
+                </div>
               </div>
 
               {/* Related Fees list */}
               {currentInternalNote && (
-                <div className="ml-6 mt-2">
+                <div className="ml-6 mt-1">
                   <Label className="text-xs text-muted-foreground">
                     同案件費用頁面（{relatedFees.length} 筆）
                   </Label>
@@ -311,10 +311,32 @@ export default function ClientInfoSection({
                 </div>
               )}
               {!currentInternalNote && (
-                <p className="ml-6 mt-2 text-xs text-muted-foreground">請先填寫「相關案件」欄位以比對同案件費用</p>
+                <p className="ml-6 mt-1 text-xs text-muted-foreground">請先填寫「相關案件」欄位以比對同案件費用</p>
               )}
-            </div>
+            </>
           )}
+          <div className="flex justify-end">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <Checkbox
+                  id="reconciled"
+                  checked={clientInfo.reconciled}
+                  disabled={!canEdit}
+                  onCheckedChange={(checked) => update("reconciled", !!checked)}
+                />
+                <Label htmlFor="reconciled" className="text-xs cursor-pointer whitespace-nowrap">對帳完成</Label>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Checkbox
+                  id="invoiced"
+                  checked={clientInfo.invoiced}
+                  disabled={!canEdit}
+                  onCheckedChange={(checked) => update("invoiced", !!checked)}
+                />
+                <Label htmlFor="invoiced" className="text-xs cursor-pointer whitespace-nowrap">請款完成</Label>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="rounded-lg border border-border overflow-hidden">
@@ -359,6 +381,7 @@ export default function ClientInfoSection({
                         const v = e.target.value;
                         if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "clientPrice", v as any);
                       }}
+                      onFocus={() => handleClientPriceFocus(item.id)}
                       onBlur={(e) => handleNumberBlur(item.id, "clientPrice", e.target.value)}
                       className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
                       disabled={clientItemsLocked}

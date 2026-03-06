@@ -1855,6 +1855,22 @@ export default function TranslatorFeeDetail() {
                   setDisableOption12A(false);
                   setDuplicateDialogStep("choose");
                 }}
+                onClientPriceEntered={(itemIndex, clientPrice, taskType, billingUnit) => {
+                  // Auto-fill translator unit price if empty
+                  if (itemIndex < taskItems.length) {
+                    const item = taskItems[itemIndex];
+                    if (!item.unitPrice || item.unitPrice === 0) {
+                      const tp = defaultPricingStore.getTranslatorPrice(clientPrice, taskType, billingUnit);
+                      if (tp !== undefined && tp > 0) {
+                        const updated = taskItems.map((ti, idx) =>
+                          idx === itemIndex ? { ...ti, unitPrice: tp } : ti
+                        );
+                        setTaskItems(updated);
+                        if (id) feeStore.updateFee(id, { taskItems: updated });
+                      }
+                    }
+                  }
+                }}
               />
             </div>
           </>
