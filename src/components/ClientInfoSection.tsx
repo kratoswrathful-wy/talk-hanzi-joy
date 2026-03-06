@@ -389,7 +389,7 @@ export default function ClientInfoSection({
                     <Input
                       type="text"
                       inputMode="decimal"
-                      value={item.unitCount || ""}
+                      value={item.unitCount}
                       onChange={(e) => {
                         const v = e.target.value;
                         if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "unitCount", v as any);
