@@ -619,6 +619,7 @@ export default function InvoiceDetailPage() {
         {/* Meta info */}
         <Separator />
         <div className="flex gap-6 text-xs text-muted-foreground">
+          <span>建立者：{creatorName}</span>
           <span>建立時間：{formatTimestamp(invoice.createdAt)}</span>
         </div>
 
