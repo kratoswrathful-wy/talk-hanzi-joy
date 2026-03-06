@@ -1611,6 +1611,181 @@ function PermissionManagementSection() {
   );
 }
 
+// ─── Dispatch Route Settings Section ───
+
+function DispatchRouteSection() {
+  const { options: routeOptions, customColors } = useSelectOptions("dispatchRoute");
+  const labelStyles = useLabelStyles();
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
+  const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
+  const [colorPickerOptionId, setColorPickerOptionId] = useState<string | null>(null);
+
+  const handleDragStart = (idx: number) => setDragIndex(idx);
+  const handleDragOver = (e: React.DragEvent, idx: number) => {
+    e.preventDefault();
+    if (dragIndex !== null && dragIndex !== idx) setDragOverIndex(idx);
+  };
+  const handleDrop = (idx: number) => {
+    if (dragIndex === null || dragIndex === idx) return;
+    const ids = routeOptions.map((o) => o.id);
+    const [moved] = ids.splice(dragIndex, 1);
+    ids.splice(idx, 0, moved);
+    selectOptionsStore.reorderOptions("dispatchRoute", ids);
+    setDragIndex(null);
+    setDragOverIndex(null);
+  };
+  const handleDragEnd = () => { setDragIndex(null); setDragOverIndex(null); };
+
+  const handleAdd = () => {
+    const label = newLabel.trim();
+    if (!label || routeOptions.some((o) => o.label === label)) return;
+    selectOptionsStore.addOption("dispatchRoute", label, newColor);
+    setNewLabel("");
+    setNewColor(PRESET_COLORS[0]);
+    setAdding(false);
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+      <div>
+        <h2 className="text-base font-semibold">派案來源設定</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          管理派案來源選項的顯示順序與顏色
+        </p>
+      </div>
+
+      <div className="space-y-1">
+        {routeOptions.map((opt, idx) => (
+          <div
+            key={opt.id}
+            draggable
+            onDragStart={() => handleDragStart(idx)}
+            onDragOver={(e) => handleDragOver(e, idx)}
+            onDrop={() => handleDrop(idx)}
+            onDragEnd={handleDragEnd}
+            className={cn(
+              "flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors cursor-grab active:cursor-grabbing group",
+              dragOverIndex === idx && "bg-primary/10 border border-dashed border-primary/30",
+              dragIndex === idx && "opacity-50",
+              dragOverIndex !== idx && "hover:bg-secondary/30"
+            )}
+          >
+            <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+              style={{ backgroundColor: opt.color, color: labelStyles.dispatchRoute.textColor, borderColor: opt.color }}
+            >
+              {opt.label}
+            </span>
+            <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Popover
+                open={colorPickerOptionId === opt.id}
+                onOpenChange={(v) => setColorPickerOptionId(v ? opt.id : null)}
+              >
+                <PopoverTrigger asChild>
+                  <button
+                    className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted transition-colors"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Palette className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[240px] p-3" side="right" align="start" sideOffset={4}>
+                  <ColorPicker
+                    value={opt.color}
+                    onChange={(color) => selectOptionsStore.updateOptionColor("dispatchRoute", opt.id, color)}
+                    customColors={customColors}
+                    onAddCustomColor={(c) => selectOptionsStore.addCustomColor("dispatchRoute", c)}
+                    onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("dispatchRoute", c)}
+                    colorUsageMap={{}}
+                  />
+                </PopoverContent>
+              </Popover>
+              <button
+                className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
+                onClick={(e) => { e.stopPropagation(); selectOptionsStore.deleteOption("dispatchRoute", opt.id); }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {adding ? (
+        <div className="space-y-2 px-2">
+          <Input
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            placeholder="輸入派案來源名稱"
+            className="h-8 text-sm"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleAdd();
+              if (e.key === "Escape") setAdding(false);
+            }}
+          />
+          <div className="flex flex-wrap gap-1">
+            {PRESET_COLORS.map((c) => (
+              <button
+                key={c}
+                className={cn(
+                  "w-5 h-5 rounded-full border-2 transition-transform hover:scale-110",
+                  newColor === c ? "border-foreground scale-110" : "border-transparent"
+                )}
+                style={{ backgroundColor: c }}
+                onClick={() => setNewColor(c)}
+              />
+            ))}
+          </div>
+          <div className="flex gap-1.5 justify-end">
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAdding(false)}>
+              取消
+            </Button>
+            <Button size="sm" className="h-7 text-xs" disabled={!newLabel.trim()} onClick={handleAdd}>
+              新增
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1 text-xs"
+          onClick={() => setAdding(true)}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          新增派案來源
+        </Button>
+      )}
+
+      {/* Label text color picker */}
+      <div className="border-t border-border pt-4 space-y-2">
+        <p className="text-xs font-medium text-muted-foreground">標籤字體顏色</p>
+        <div className="flex items-center gap-3">
+          <span
+            className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+            style={{ backgroundColor: routeOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.dispatchRoute.textColor, borderColor: routeOptions[0]?.color || PRESET_COLORS[0] }}
+          >
+            預覽
+          </span>
+          <ColorPicker
+            value={labelStyles.dispatchRoute.textColor}
+            onChange={(c) => labelStyleStore.setDispatchRouteTextColor(c)}
+            customColors={[]}
+            onAddCustomColor={() => {}}
+            onRemoveCustomColor={() => {}}
+            colorUsageMap={{}}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Status Badge Style Section ───
 
 function StatusStyleSection() {
