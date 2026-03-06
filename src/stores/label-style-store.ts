@@ -20,11 +20,11 @@ interface LabelStyleState {
 }
 
 const DEFAULT_STATE: LabelStyleState = {
-  taskType: { textColor: "#D1DAEA" },
-  client: { textColor: "#D1DAEA" },
-  dispatchRoute: { textColor: "#D1DAEA" },
-  statusDraft: { bgColor: "#6B7280", textColor: "#D1DAEA" },
-  statusFinalized: { bgColor: "#22C55E", textColor: "#D1DAEA" },
+  taskType: { textColor: "#FFFFFF" },
+  client: { textColor: "#FFFFFF" },
+  dispatchRoute: { textColor: "#FFFFFF" },
+  statusDraft: { bgColor: "#6B7280", textColor: "#FFFFFF" },
+  statusFinalized: { bgColor: "#22C55E", textColor: "#FFFFFF" },
 };
 
 let state: LabelStyleState = { ...DEFAULT_STATE };
