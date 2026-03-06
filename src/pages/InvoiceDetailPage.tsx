@@ -617,7 +617,7 @@ export default function InvoiceDetailPage() {
             </div>
           )}
 
-          {!isPaid && !showPartialInput && isAdmin && (
+          {!isPaid && !showPartialInput && (isAdmin || isOwnInvoice) && (
             <div className="flex justify-end">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
