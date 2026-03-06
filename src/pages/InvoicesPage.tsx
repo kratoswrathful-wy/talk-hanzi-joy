@@ -81,6 +81,11 @@ export default function InvoicesPage() {
   const fees = useFees();
   const { options: assigneeOptions } = useSelectOptions("assignee");
 
+  // Load assignee options on mount
+  useEffect(() => {
+    selectOptionsStore.loadAssignees();
+  }, []);
+
   // Translator picker for admin creation
   const [showTranslatorPicker, setShowTranslatorPicker] = useState(false);
   const [selectedTranslator, setSelectedTranslator] = useState<string>("");
