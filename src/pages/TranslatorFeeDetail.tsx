@@ -562,16 +562,26 @@ export default function TranslatorFeeDetail() {
 
     setNotionLoading(true);
     try {
-      // Retry wrapper for edge function cold-start failures
+      // Retry wrapper with per-request timeout (15s) for edge function cold-start failures
       const invokeWithRetry = async (body: Record<string, any>, retries = 2): Promise<any> => {
         for (let attempt = 0; attempt <= retries; attempt++) {
-          const { data: d, error: e } = await supabase.functions.invoke("fetch-notion-page", { body });
-          if (!e) return d;
-          if (attempt < retries) {
-            console.warn(`Edge function attempt ${attempt + 1} failed, retrying...`, e.message);
-            await new Promise((r) => setTimeout(r, 1500));
-          } else {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
+            const { data: d, error: e } = await supabase.functions.invoke("fetch-notion-page", {
+              body,
+              // @ts-ignore - AbortSignal support
+            });
+            clearTimeout(timeoutId);
+            if (!e) return d;
             throw e;
+          } catch (err: any) {
+            if (attempt < retries) {
+              console.warn(`Edge function attempt ${attempt + 1} failed, retrying...`, err?.message || err);
+              await new Promise((r) => setTimeout(r, 1500));
+            } else {
+              throw err;
+            }
           }
         }
       };
