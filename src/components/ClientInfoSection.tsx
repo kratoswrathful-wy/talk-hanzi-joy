@@ -374,7 +374,7 @@ export default function ClientInfoSection({
                     <Input
                       type="text"
                       inputMode="decimal"
-                      value={item.clientPrice || ""}
+                      value={item.clientPrice}
                       onChange={(e) => {
                         const v = e.target.value;
                         if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "clientPrice", v as any);
