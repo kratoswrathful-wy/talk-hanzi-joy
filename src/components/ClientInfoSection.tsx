@@ -178,15 +178,35 @@ export default function ClientInfoSection({
       {/* Client Task Items Section */}
       <div className="space-y-3">
         <div className="space-y-1">
-          {/* Row 1: Title + Add button */}
+          {/* Row 1: Title + checkboxes + Add button */}
           <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium">客戶端計費項目</Label>
-            {canEdit && !clientItemsLocked && (
-              <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={addItem}>
-                <Plus className="h-3.5 w-3.5" />
-                新增項目
-              </Button>
-            )}
+            <Label className="text-sm font-medium">營收內容</Label>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <Checkbox
+                  id="reconciled"
+                  checked={clientInfo.reconciled}
+                  disabled={!canEdit}
+                  onCheckedChange={(checked) => update("reconciled", !!checked)}
+                />
+                <Label htmlFor="reconciled" className="text-xs cursor-pointer whitespace-nowrap">對帳完成</Label>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Checkbox
+                  id="invoiced"
+                  checked={clientInfo.invoiced}
+                  disabled={!canEdit}
+                  onCheckedChange={(checked) => update("invoiced", !!checked)}
+                />
+                <Label htmlFor="invoiced" className="text-xs cursor-pointer whitespace-nowrap">請款完成</Label>
+              </div>
+              {canEdit && !clientItemsLocked && (
+                <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={addItem}>
+                  <Plus className="h-3.5 w-3.5" />
+                  新增項目
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Row 2: sameCase (left) + dispatch route (right) */}
@@ -315,28 +335,6 @@ export default function ClientInfoSection({
               )}
             </>
           )}
-          <div className="flex justify-end">
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5">
-                <Checkbox
-                  id="reconciled"
-                  checked={clientInfo.reconciled}
-                  disabled={!canEdit}
-                  onCheckedChange={(checked) => update("reconciled", !!checked)}
-                />
-                <Label htmlFor="reconciled" className="text-xs cursor-pointer whitespace-nowrap">對帳完成</Label>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Checkbox
-                  id="invoiced"
-                  checked={clientInfo.invoiced}
-                  disabled={!canEdit}
-                  onCheckedChange={(checked) => update("invoiced", !!checked)}
-                />
-                <Label htmlFor="invoiced" className="text-xs cursor-pointer whitespace-nowrap">請款完成</Label>
-              </div>
-            </div>
-          </div>
         </div>
 
         <div className="rounded-lg border border-border overflow-hidden">
@@ -376,7 +374,7 @@ export default function ClientInfoSection({
                     <Input
                       type="text"
                       inputMode="decimal"
-                      value={item.clientPrice || ""}
+                      value={item.clientPrice}
                       onChange={(e) => {
                         const v = e.target.value;
                         if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "clientPrice", v as any);
@@ -391,7 +389,7 @@ export default function ClientInfoSection({
                     <Input
                       type="text"
                       inputMode="decimal"
-                      value={item.unitCount || ""}
+                      value={item.unitCount}
                       onChange={(e) => {
                         const v = e.target.value;
                         if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "unitCount", v as any);
