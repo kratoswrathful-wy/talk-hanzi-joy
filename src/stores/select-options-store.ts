@@ -7,6 +7,7 @@ export interface SelectOption {
   email?: string; // for assignee options: the member's email
   color: string; // hex color
   note?: string; // optional note (e.g. translator fee note)
+  avatarUrl?: string | null; // for assignee options: profile avatar
 }
 
 export const PRESET_COLORS = [
