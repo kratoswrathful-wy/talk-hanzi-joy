@@ -289,7 +289,7 @@ export default function ColorPicker({
                 width={180}
                 height={180}
                 className="w-[180px] h-[180px] rounded-full cursor-crosshair"
-                onClick={handleWheelClick}
+                onMouseDown={startDrag(handleWheelInteraction)}
               />
             </div>
             <canvas
@@ -297,7 +297,7 @@ export default function ColorPicker({
               width={200}
               height={20}
               className="w-full h-5 rounded cursor-pointer"
-              onClick={handleSliderClick}
+              onMouseDown={startDrag(handleSliderInteraction)}
             />
             <div className="flex items-center gap-2">
               <div
