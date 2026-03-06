@@ -376,6 +376,7 @@ export default function TranslatorFeeDetail() {
   // Role-based permissions — executive has same permissions as PM for now
   const isManager = currentRole === "pm" || currentRole === "executive";
   const canEdit = isManager && isDraft;
+  const canEditCheckboxes = isManager; // reconciled/invoiced stay editable after finalization
   const canSubmit = isManager && isDraft;
   const canRecall = isManager && isFinalized;
   const canDelete = isManager && isDraft;
