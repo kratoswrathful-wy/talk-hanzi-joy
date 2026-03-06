@@ -840,7 +840,7 @@ export default function TranslatorFeeDetail() {
           if (feeItemsChanged) {
             setTaskItems(finalTaskItems);
             if (id) feeStore.updateFee(id, { taskItems: finalTaskItems });
-            setShowAutoPriceHint(false);
+            
           }
         }
 
