@@ -130,14 +130,14 @@ function ClientPricingSection() {
                     <span
                       className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
                       style={{
-                        backgroundColor: client.color + "22",
-                        color: client.color,
-                        borderColor: client.color + "44",
+                        backgroundColor: client.color,
+                        color: "#fff",
+                        borderColor: client.color,
                       }}
                     >
                       <span
                         className="w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: client.color }}
+                        style={{ backgroundColor: "#fff" }}
                       />
                       {client.label}
                     </span>
