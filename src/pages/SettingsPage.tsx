@@ -72,6 +72,7 @@ function ClientPricingSection() {
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
+  const [textColorOpen, setTextColorOpen] = useState(false);
 
   const toggleClient = (id: string) => {
     setExpandedClients((prev) => {
@@ -335,25 +336,33 @@ function ClientPricingSection() {
         </Button>
       )}
 
-      {/* Label text color picker */}
-      <div className="border-t border-border pt-4 space-y-2">
-        <p className="text-xs font-medium text-muted-foreground">標籤字體顏色</p>
-        <div className="flex items-center gap-3">
-          <span
-            className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
-            style={{ backgroundColor: clientOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.client.textColor, borderColor: clientOptions[0]?.color || PRESET_COLORS[0] }}
-          >
-            預覽
-          </span>
-          <ColorPicker
-            value={labelStyles.client.textColor}
-            onChange={(c) => labelStyleStore.setClientTextColor(c)}
-            customColors={[]}
-            onAddCustomColor={() => {}}
-            onRemoveCustomColor={() => {}}
-            colorUsageMap={{}}
-          />
-        </div>
+      {/* Label text color picker - collapsible */}
+      <div className="border-t border-border pt-4">
+        <button
+          className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left"
+          onClick={() => setTextColorOpen((v) => !v)}
+        >
+          {textColorOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+          標籤字體顏色
+        </button>
+        {textColorOpen && (
+          <div className="mt-2 flex items-center gap-3">
+            <span
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+              style={{ backgroundColor: clientOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.client.textColor, borderColor: clientOptions[0]?.color || PRESET_COLORS[0] }}
+            >
+              預覽
+            </span>
+            <ColorPicker
+              value={labelStyles.client.textColor}
+              onChange={(c) => labelStyleStore.setClientTextColor(c)}
+              customColors={[]}
+              onAddCustomColor={() => {}}
+              onRemoveCustomColor={() => {}}
+              colorUsageMap={{}}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -370,6 +379,7 @@ function TaskTypeOrderSection() {
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
   const [colorPickerOptionId, setColorPickerOptionId] = useState<string | null>(null);
+  const [textColorOpen, setTextColorOpen] = useState(false);
 
   const handleDragStart = (idx: number) => {
     setDragIndex(idx);
@@ -548,25 +558,33 @@ function TaskTypeOrderSection() {
         </Button>
       )}
 
-      {/* Label text color picker */}
-      <div className="border-t border-border pt-4 space-y-2">
-        <p className="text-xs font-medium text-muted-foreground">標籤字體顏色</p>
-        <div className="flex items-center gap-3">
-          <span
-            className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
-            style={{ backgroundColor: taskTypeOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.taskType.textColor, borderColor: taskTypeOptions[0]?.color || PRESET_COLORS[0] }}
-          >
-            預覽
-          </span>
-          <ColorPicker
-            value={labelStyles.taskType.textColor}
-            onChange={(c) => labelStyleStore.setTaskTypeTextColor(c)}
-            customColors={[]}
-            onAddCustomColor={() => {}}
-            onRemoveCustomColor={() => {}}
-            colorUsageMap={{}}
-          />
-        </div>
+      {/* Label text color picker - collapsible */}
+      <div className="border-t border-border pt-4">
+        <button
+          className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left"
+          onClick={() => setTextColorOpen((v) => !v)}
+        >
+          {textColorOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+          標籤字體顏色
+        </button>
+        {textColorOpen && (
+          <div className="mt-2 flex items-center gap-3">
+            <span
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+              style={{ backgroundColor: taskTypeOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.taskType.textColor, borderColor: taskTypeOptions[0]?.color || PRESET_COLORS[0] }}
+            >
+              預覽
+            </span>
+            <ColorPicker
+              value={labelStyles.taskType.textColor}
+              onChange={(c) => labelStyleStore.setTaskTypeTextColor(c)}
+              customColors={[]}
+              onAddCustomColor={() => {}}
+              onRemoveCustomColor={() => {}}
+              colorUsageMap={{}}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1622,6 +1640,7 @@ function DispatchRouteSection() {
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
   const [colorPickerOptionId, setColorPickerOptionId] = useState<string | null>(null);
+  const [textColorOpen, setTextColorOpen] = useState(false);
 
   const handleDragStart = (idx: number) => setDragIndex(idx);
   const handleDragOver = (e: React.DragEvent, idx: number) => {
@@ -1762,25 +1781,33 @@ function DispatchRouteSection() {
         </Button>
       )}
 
-      {/* Label text color picker */}
-      <div className="border-t border-border pt-4 space-y-2">
-        <p className="text-xs font-medium text-muted-foreground">標籤字體顏色</p>
-        <div className="flex items-center gap-3">
-          <span
-            className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
-            style={{ backgroundColor: routeOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.dispatchRoute.textColor, borderColor: routeOptions[0]?.color || PRESET_COLORS[0] }}
-          >
-            預覽
-          </span>
-          <ColorPicker
-            value={labelStyles.dispatchRoute.textColor}
-            onChange={(c) => labelStyleStore.setDispatchRouteTextColor(c)}
-            customColors={[]}
-            onAddCustomColor={() => {}}
-            onRemoveCustomColor={() => {}}
-            colorUsageMap={{}}
-          />
-        </div>
+      {/* Label text color picker - collapsible */}
+      <div className="border-t border-border pt-4">
+        <button
+          className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left"
+          onClick={() => setTextColorOpen((v) => !v)}
+        >
+          {textColorOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+          標籤字體顏色
+        </button>
+        {textColorOpen && (
+          <div className="mt-2 flex items-center gap-3">
+            <span
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+              style={{ backgroundColor: routeOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.dispatchRoute.textColor, borderColor: routeOptions[0]?.color || PRESET_COLORS[0] }}
+            >
+              預覽
+            </span>
+            <ColorPicker
+              value={labelStyles.dispatchRoute.textColor}
+              onChange={(c) => labelStyleStore.setDispatchRouteTextColor(c)}
+              customColors={[]}
+              onAddCustomColor={() => {}}
+              onRemoveCustomColor={() => {}}
+              colorUsageMap={{}}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1790,87 +1817,98 @@ function DispatchRouteSection() {
 
 function StatusStyleSection() {
   const labelStyles = useLabelStyles();
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
-      <div>
-        <h2 className="text-base font-semibold">狀態標籤設定</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          自訂「草稿」與「開立完成」狀態標籤的背景顏色與字體顏色
-        </p>
-      </div>
+      <button
+        className="flex items-center gap-2 w-full text-left"
+        onClick={() => setExpanded((v) => !v)}
+      >
+        {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+        <div>
+          <h2 className="text-base font-semibold">狀態標籤設定</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            自訂「草稿」與「開立完成」狀態標籤的背景顏色與字體顏色
+          </p>
+        </div>
+      </button>
 
-      {/* Draft */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-3">
-          <span
-            className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
-            style={{ backgroundColor: labelStyles.statusDraft.bgColor, color: labelStyles.statusDraft.textColor, borderColor: labelStyles.statusDraft.bgColor }}
-          >
-            草稿
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">背景顏色</p>
-            <ColorPicker
-              value={labelStyles.statusDraft.bgColor}
-              onChange={(c) => labelStyleStore.setStatusDraftStyle({ bgColor: c })}
-              customColors={[]}
-              onAddCustomColor={() => {}}
-              onRemoveCustomColor={() => {}}
-              colorUsageMap={{}}
-            />
+      {expanded && (
+        <div className="space-y-4">
+          {/* Draft */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <span
+                className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                style={{ backgroundColor: labelStyles.statusDraft.bgColor, color: labelStyles.statusDraft.textColor, borderColor: labelStyles.statusDraft.bgColor }}
+              >
+                草稿
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">背景顏色</p>
+                <ColorPicker
+                  value={labelStyles.statusDraft.bgColor}
+                  onChange={(c) => labelStyleStore.setStatusDraftStyle({ bgColor: c })}
+                  customColors={[]}
+                  onAddCustomColor={() => {}}
+                  onRemoveCustomColor={() => {}}
+                  colorUsageMap={{}}
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">字體顏色</p>
+                <ColorPicker
+                  value={labelStyles.statusDraft.textColor}
+                  onChange={(c) => labelStyleStore.setStatusDraftStyle({ textColor: c })}
+                  customColors={[]}
+                  onAddCustomColor={() => {}}
+                  onRemoveCustomColor={() => {}}
+                  colorUsageMap={{}}
+                />
+              </div>
+            </div>
           </div>
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">字體顏色</p>
-            <ColorPicker
-              value={labelStyles.statusDraft.textColor}
-              onChange={(c) => labelStyleStore.setStatusDraftStyle({ textColor: c })}
-              customColors={[]}
-              onAddCustomColor={() => {}}
-              onRemoveCustomColor={() => {}}
-              colorUsageMap={{}}
-            />
-          </div>
-        </div>
-      </div>
 
-      {/* Finalized */}
-      <div className="space-y-2 border-t border-border pt-4">
-        <div className="flex items-center gap-3">
-          <span
-            className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
-            style={{ backgroundColor: labelStyles.statusFinalized.bgColor, color: labelStyles.statusFinalized.textColor, borderColor: labelStyles.statusFinalized.bgColor }}
-          >
-            開立完成
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">背景顏色</p>
-            <ColorPicker
-              value={labelStyles.statusFinalized.bgColor}
-              onChange={(c) => labelStyleStore.setStatusFinalizedStyle({ bgColor: c })}
-              customColors={[]}
-              onAddCustomColor={() => {}}
-              onRemoveCustomColor={() => {}}
-              colorUsageMap={{}}
-            />
+          {/* Finalized */}
+          <div className="space-y-2 border-t border-border pt-4">
+            <div className="flex items-center gap-3">
+              <span
+                className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                style={{ backgroundColor: labelStyles.statusFinalized.bgColor, color: labelStyles.statusFinalized.textColor, borderColor: labelStyles.statusFinalized.bgColor }}
+              >
+                開立完成
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">背景顏色</p>
+                <ColorPicker
+                  value={labelStyles.statusFinalized.bgColor}
+                  onChange={(c) => labelStyleStore.setStatusFinalizedStyle({ bgColor: c })}
+                  customColors={[]}
+                  onAddCustomColor={() => {}}
+                  onRemoveCustomColor={() => {}}
+                  colorUsageMap={{}}
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">字體顏色</p>
+                <ColorPicker
+                  value={labelStyles.statusFinalized.textColor}
+                  onChange={(c) => labelStyleStore.setStatusFinalizedStyle({ textColor: c })}
+                  customColors={[]}
+                  onAddCustomColor={() => {}}
+                  onRemoveCustomColor={() => {}}
+                  colorUsageMap={{}}
+                />
+              </div>
+            </div>
           </div>
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">字體顏色</p>
-            <ColorPicker
-              value={labelStyles.statusFinalized.textColor}
-              onChange={(c) => labelStyleStore.setStatusFinalizedStyle({ textColor: c })}
-              customColors={[]}
-              onAddCustomColor={() => {}}
-              onRemoveCustomColor={() => {}}
-              colorUsageMap={{}}
-            />
-          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
