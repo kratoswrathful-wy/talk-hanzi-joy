@@ -212,11 +212,23 @@ export default function ColorPicker({
     onChange(hex);
   }, [hsv, onChange]);
 
-  const handleSliderInteraction = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = sliderRef.current!;
+  const handleSatSliderInteraction = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = satSliderRef.current!;
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const v = Math.max(0, Math.min(1, x / rect.width));
+    const y = e.clientY - rect.top;
+    const s = Math.max(0, Math.min(1, 1 - y / rect.height));
+    const newHsv: [number, number, number] = [hsv[0], s, hsv[2]];
+    setHsv(newHsv);
+    const hex = hsvToHex(newHsv[0], newHsv[1], newHsv[2]);
+    setHexInput(hex);
+    onChange(hex);
+  }, [hsv, onChange]);
+
+  const handleValSliderInteraction = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = valSliderRef.current!;
+    const rect = canvas.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const v = Math.max(0, Math.min(1, 1 - y / rect.height));
     const newHsv: [number, number, number] = [hsv[0], hsv[1], v];
     setHsv(newHsv);
     const hex = hsvToHex(newHsv[0], newHsv[1], newHsv[2]);
