@@ -388,8 +388,9 @@ export default function TranslatorFees() {
 
   // Filter fees for assignee role: translators only see finalized fees assigned to them
   const effectiveRole = isAdmin ? "pm" : "assignee";
-  const { profile } = useAuth();
   const baseFees = effectiveRole === "assignee"
+    ? fees.filter((f) => f.status === "finalized" && f.assignee === profile?.display_name)
+    : fees;
     ? fees.filter((f) => f.status === "finalized" && f.assignee === profile?.display_name)
     : fees;
   const visibleFees = tableViews.applyFiltersAndSorts(baseFees);
