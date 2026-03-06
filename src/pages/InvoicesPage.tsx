@@ -134,7 +134,7 @@ export default function InvoicesPage() {
                   <td className="px-4 py-3 text-sm text-muted-foreground truncate max-w-[200px]">
                     {inv.note || "—"}
                   </td>
-                  {isAdmin && (
+                  {isAdmin && inv.status !== "paid" && (
                     <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                       <Button
                         variant="ghost"
@@ -146,6 +146,7 @@ export default function InvoicesPage() {
                       </Button>
                     </td>
                   )}
+                  {isAdmin && inv.status === "paid" && <td />}
                 </tr>
               );
             })}
