@@ -242,6 +242,7 @@ export const selectOptionsStore = {
         email: p.email,
         color: PRESET_COLORS[i % PRESET_COLORS.length],
         note: s?.note || "",
+        avatarUrl: p.avatar_url || null,
       });
     });
 
