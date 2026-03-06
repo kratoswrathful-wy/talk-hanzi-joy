@@ -302,15 +302,24 @@ export default function InvoiceDetailPage() {
         {/* Payment section */}
         <div className="space-y-3">
           {/* Payment records */}
-          {invoice.payments.map((p) => (
-            <div key={p.id} className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">付款時間：</span>
-              <span>{formatTimestamp(new Date(p.timestamp))}</span>
-              <span className="text-muted-foreground">
-                {p.type === "full" ? "（全額付款）" : `（部份付款：${formatCurrency(p.amount || 0)}）`}
-              </span>
-            </div>
-          ))}
+          {invoice.payments.map((p, idx) => {
+            // Calculate remaining after this payment
+            const paidUpToHere = invoice.payments.slice(0, idx + 1).reduce(
+              (s, pp) => s + (pp.type === "full" ? total : (pp.amount || 0)), 0
+            );
+            const remainingAfter = total - paidUpToHere;
+            return (
+              <div key={p.id} className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">付款時間：</span>
+                <span>{formatTimestamp(new Date(p.timestamp))}</span>
+                <span className="text-muted-foreground">
+                  {p.type === "full"
+                    ? "（全額付款）"
+                    : `（部份付款：${formatCurrency(p.amount || 0)} / 尚餘：${formatCurrency(Math.max(0, remainingAfter))}）`}
+                </span>
+              </div>
+            );
+          })}
 
           {/* Partial amount input dialog */}
           {showPartialInput && (
