@@ -870,6 +870,8 @@ export default function TranslatorFeeDetail() {
         const casePages = data["案件頁面"] || [];
         const reconciled = data["對帳完成"] === true;
         const invoiced = data["請款完成"] === true;
+        const rateConfirmed = data["費率無誤"] === true;
+        const workTypes = data["工作類型"] || [];
 
         // Map 單位 to BillingUnit
         const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
