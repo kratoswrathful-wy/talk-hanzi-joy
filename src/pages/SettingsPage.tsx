@@ -905,12 +905,11 @@ function TierGroupEditorModal({
                 )}
                 style={{
                   backgroundColor: tt.color,
-                  color: "#fff",
+                  color: "#B3BBC9",
                   borderColor: tt.color,
                 }}
                 onClick={() => toggleTaskType(tt.label)}
               >
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: "#fff" }} />
                 {tt.label}
               </button>
             ))}
