@@ -1719,12 +1719,12 @@ export default function TranslatorFeeDetail() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/30">
-                  <TableHead className="text-xs text-center" style={{ width: '20%' }}>譯者任務類型</TableHead>
-                  <TableHead className="text-xs text-center" style={{ width: '14%' }}>計費單位</TableHead>
-                  <TableHead className="text-xs text-center" style={{ width: '16%' }}>稿費單價</TableHead>
-                  <TableHead className="text-xs text-center" style={{ width: '18%' }}>計費單位數</TableHead>
-                  <TableHead className="text-xs text-center" style={{ width: '16%' }}>小計</TableHead>
-                  {canEdit && <TableHead className="text-xs text-center" style={{ width: '16%' }}>刪除</TableHead>}
+                  <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>譯者任務類型</TableHead>
+                  <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>計費單位</TableHead>
+                  <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>稿費單價</TableHead>
+                  <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>計費單位數</TableHead>
+                  <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>小計</TableHead>
+                  {canEdit && <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1790,7 +1790,7 @@ export default function TranslatorFeeDetail() {
                         {isNoFeeTranslator ? 0 : (Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}
                       </TableCell>
                       {canEdit && (
-                        <TableCell className="px-6">
+                        <TableCell className="px-2">
                           <div className="flex justify-center">
                             {taskItems.length > 1 ? (
                               <Button
@@ -1814,19 +1814,14 @@ export default function TranslatorFeeDetail() {
               {taskItems.length > 0 && (
                 <TableFooter>
                     <TableRow>
-                      <TableCell colSpan={4} className="px-[18px]" />
+                      <TableCell colSpan={3} className="px-[18px]" />
                       <TableCell className="text-sm font-medium text-right">
                         稿費總額
                       </TableCell>
-                      {canEdit ? (
-                        <TableCell className="text-right text-sm font-bold px-6">
-                          {totalAmount.toLocaleString()}
-                        </TableCell>
-                      ) : (
-                        <TableCell className="text-right text-sm font-bold">
-                          {totalAmount.toLocaleString()}
-                        </TableCell>
-                      )}
+                      <TableCell className="text-right text-sm font-bold">
+                        {totalAmount.toLocaleString()}
+                      </TableCell>
+                      {canEdit && <TableCell />}
                     </TableRow>
                 </TableFooter>
               )}

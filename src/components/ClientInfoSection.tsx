@@ -341,12 +341,12 @@ export default function ClientInfoSection({
           <Table>
             <TableHeader>
               <TableRow className="bg-secondary/30">
-                <TableHead className="text-xs text-center" style={{ width: '20%' }}>客戶端任務類型</TableHead>
-                <TableHead className="text-xs text-center" style={{ width: '14%' }}>計費單位</TableHead>
-                <TableHead className="text-xs text-center" style={{ width: '16%' }}>客戶報價</TableHead>
-                <TableHead className="text-xs text-center" style={{ width: '18%' }}>計費單位數</TableHead>
-                <TableHead className="text-xs text-center" style={{ width: '16%' }}>小計</TableHead>
-                {canEdit && <TableHead className="text-xs text-center" style={{ width: '16%' }}>刪除</TableHead>}
+                <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>客戶端任務類型</TableHead>
+                <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>計費單位</TableHead>
+                <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>客戶報價</TableHead>
+                <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>計費單位數</TableHead>
+                <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>小計</TableHead>
+                {canEdit && <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -400,10 +400,10 @@ export default function ClientInfoSection({
                     />
                   </TableCell>
                   <TableCell className="text-right text-xs font-medium">
-                    {(Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
+                    {clientInfo.notFirstFee ? <span className="text-muted-foreground">N/A</span> : (Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
                   </TableCell>
                   {canEdit && (
-                    <TableCell className="px-6">
+                    <TableCell className="px-2">
                       <div className="flex justify-center">
                         {!clientItemsLocked && clientInfo.clientTaskItems.length > 1 ? (
                           <Button
@@ -425,7 +425,7 @@ export default function ClientInfoSection({
             </TableBody>
             <TableFooter>
               <TableRow>
-                <TableCell colSpan={4} className="px-[18px]">
+                <TableCell colSpan={3} className="px-[18px]">
                   <div className="flex items-center gap-2">
                     <Label className="text-xs text-muted-foreground whitespace-nowrap">關鍵字</Label>
                     <Input
@@ -440,18 +440,13 @@ export default function ClientInfoSection({
                 <TableCell className="text-sm font-medium text-right">
                   營收總額
                 </TableCell>
-                {canEdit ? (
-                  <TableCell className="text-right text-sm font-bold tabular-nums px-6">
-                    {clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}
-                  </TableCell>
-                ) : (
-                  <TableCell className="text-right text-sm font-bold tabular-nums">
-                    {clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}
-                  </TableCell>
-                )}
+                <TableCell className="text-right text-sm font-bold tabular-nums">
+                  {clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}
+                </TableCell>
+                {canEdit && <TableCell />}
               </TableRow>
               <TableRow>
-                <TableCell colSpan={4} className="px-[18px]">
+                <TableCell colSpan={3} className="px-[18px]">
                   <div className="flex items-center gap-2">
                     <Label className="text-xs text-muted-foreground whitespace-nowrap">PO #</Label>
                     <Input
@@ -468,15 +463,10 @@ export default function ClientInfoSection({
                     ? `利潤（${profitFeeCount} 筆稿費）`
                     : "利潤"}
                 </TableCell>
-                {canEdit ? (
-                  <TableCell className={`text-right text-sm font-bold px-6 ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
-                    {clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}
-                  </TableCell>
-                ) : (
-                  <TableCell className={`text-right text-sm font-bold ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
-                    {clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}
-                  </TableCell>
-                )}
+                <TableCell className={`text-right text-sm font-bold ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
+                  {clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}
+                </TableCell>
+                {canEdit && <TableCell />}
               </TableRow>
             </TableFooter>
           </Table>
