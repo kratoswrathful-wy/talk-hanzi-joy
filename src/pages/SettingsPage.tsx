@@ -100,7 +100,7 @@ function ClientPricingSection() {
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
       <div>
-        <h2 className="text-base font-semibold">客戶預設報價</h2>
+        <h2 className="text-base font-semibold">客戶設定</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
           管理客戶並依任務類型設定預設報價，選擇客戶後將自動帶入對應價格
         </p>
