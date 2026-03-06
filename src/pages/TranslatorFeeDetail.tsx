@@ -577,7 +577,7 @@ export default function TranslatorFeeDetail() {
       };
       const data = await invokeWithRetry({ page_id: pageId });
 
-      if (fnError) throw fnError;
+      // Error handling is inside invokeWithRetry
       if (data?.error) throw new Error(data.error);
 
       const knownTaskTypes: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
