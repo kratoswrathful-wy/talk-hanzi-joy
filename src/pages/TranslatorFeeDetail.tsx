@@ -1158,23 +1158,6 @@ export default function TranslatorFeeDetail() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      {/* Role Switcher — dev only */}
-      {import.meta.env.DEV && (
-        <div className="flex items-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground">
-          <span className="font-medium">測試角色：</span>
-          {(Object.keys(roleLabels) as UserRole[]).map((role) => (
-            <Button
-              key={role}
-              variant={currentRole === role ? "default" : "outline"}
-              size="sm"
-              className="h-6 text-xs px-2.5"
-              onClick={() => setCurrentRole(role)}
-            >
-              {roleLabels[role]}
-            </Button>
-          ))}
-        </div>
-      )}
 
       {/* Sticky top bar */}
       <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border -mx-4 px-4 py-3 flex items-center justify-between gap-4">
