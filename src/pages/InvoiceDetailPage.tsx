@@ -319,8 +319,8 @@ export default function InvoiceDetailPage() {
                 type="number"
                 value={partialAmount}
                 onChange={(e) => setPartialAmount(e.target.value)}
-                placeholder="輸入付款金額"
-                className="w-40 h-9"
+                placeholder={`剩餘金額：${formatCurrency(remaining)}`}
+                className="w-48 h-9"
                 autoFocus
               />
               <Button size="sm" onClick={handlePartialPayment}>確認</Button>
