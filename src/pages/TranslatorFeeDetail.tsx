@@ -928,6 +928,7 @@ export default function TranslatorFeeDetail() {
             };
           });
           setTaskItems(mapped);
+          if (id) feeStore.updateFee(id, { taskItems: mapped });
 
           // 同步工作類型到客戶計費項目
           const mappedClientItems: import("@/data/fee-mock-data").ClientTaskItem[] = workTypes.map((wt: string, idx: number) => {
