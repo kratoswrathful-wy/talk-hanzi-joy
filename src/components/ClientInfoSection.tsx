@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { selectOptionsStore } from "@/stores/select-options-store";
+import { useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,6 +53,8 @@ export default function ClientInfoSection({
   onFirstFeeConflict,
 }: ClientInfoSectionProps) {
   const [showUncheckWarning, setShowUncheckWarning] = useState(false);
+  const storeSnapshot = useSyncExternalStore(selectOptionsStore.subscribe, selectOptionsStore.getSnapshot);
+  const assigneeOptions = storeSnapshot.assignee.options;
 
   const update = <K extends keyof ClientInfo>(key: K, value: ClientInfo[K]) => {
     onChange({ ...clientInfo, [key]: value });
@@ -269,20 +274,36 @@ export default function ClientInfoSection({
                   </Label>
                   {relatedFees.length > 0 ? (
                     <div className="space-y-1 mt-1">
-                      {relatedFees.map((f) => (
-                        <Link
-                          key={f.id}
-                          to={`/fees/${f.id}`}
-                          className="flex items-center justify-between text-xs px-2 py-1.5 rounded-md border border-border bg-secondary/30 hover:bg-secondary/50 transition-colors"
-                        >
-                          <span className="text-foreground font-medium truncate">
-                            {f.title || "（未命名）"}
-                          </span>
-                          <span className="text-muted-foreground shrink-0 ml-2">
-                            {f.clientInfo?.isFirstFee ? "主要" : f.clientInfo?.notFirstFee ? "非主要" : "—"}
-                          </span>
-                        </Link>
-                      ))}
+                      {relatedFees.map((f) => {
+                        const assigneeOpt = assigneeOptions.find((o) => o.email === f.assignee);
+                        const assigneeLabel = assigneeOpt?.label || f.assignee || "—";
+                        const assigneeAvatar = assigneeOpt?.avatarUrl;
+                        return (
+                          <Link
+                            key={f.id}
+                            to={`/fees/${f.id}`}
+                            className="flex items-center justify-between text-xs px-2 py-1.5 rounded-md border border-border bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-foreground font-medium truncate">
+                                {f.title || "（未命名）"}
+                              </span>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <Avatar className="h-4 w-4">
+                                  {assigneeAvatar && <AvatarImage src={assigneeAvatar} alt={assigneeLabel} />}
+                                  <AvatarFallback className="text-[8px]">
+                                    {assigneeLabel.charAt(0).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-muted-foreground text-[11px]">{assigneeLabel}</span>
+                              </div>
+                            </div>
+                            <span className="text-muted-foreground shrink-0 ml-2">
+                              {f.clientInfo?.isFirstFee ? "主要" : f.clientInfo?.notFirstFee ? "非主要" : "—"}
+                            </span>
+                          </Link>
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="text-xs text-muted-foreground mt-1">無相關費用頁面</p>
