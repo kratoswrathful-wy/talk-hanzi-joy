@@ -218,17 +218,13 @@ function ClientPricingSection() {
                             className="grid grid-cols-[1fr_100px_36px] gap-2 items-center px-2 py-1 rounded-md hover:bg-secondary/30 transition-colors"
                           >
                             <span
-                              className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium w-fit"
+                              className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium w-fit"
                               style={{
                                 backgroundColor: tt.color,
-                                color: "#fff",
+                                color: "#B3BBC9",
                                 borderColor: tt.color,
                               }}
                             >
-                              <span
-                                className="w-2 h-2 rounded-full shrink-0"
-                                style={{ backgroundColor: "#fff" }}
-                              />
                               {tt.label}
                             </span>
 
