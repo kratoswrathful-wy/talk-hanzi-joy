@@ -56,6 +56,7 @@ export default function ClientInfoSection({
   onClientPriceEntered,
 }: ClientInfoSectionProps) {
   const [showUncheckWarning, setShowUncheckWarning] = useState(false);
+  const clientPriceOnFocusRef = useRef<Record<string, number>>({});
   const storeSnapshot = useSyncExternalStore(selectOptionsStore.subscribe, selectOptionsStore.getSnapshot);
   const assigneeOptions = storeSnapshot.assignee.options;
 
