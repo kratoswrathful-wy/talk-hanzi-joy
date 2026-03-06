@@ -1,0 +1,215 @@
+import type { Invoice, InvoiceStatus } from "@/data/invoice-types";
+import { supabase } from "@/integrations/supabase/client";
+
+type Listener = () => void;
+
+let invoices: Invoice[] = [];
+let loaded = false;
+const listeners = new Set<Listener>();
+
+function notify() {
+  listeners.forEach((l) => l());
+}
+
+// ── DB ↔ App mapping ──
+
+interface DbInvoice {
+  id: string;
+  translator: string;
+  status: string;
+  transfer_date: string | null;
+  note: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function dbToApp(row: DbInvoice, feeIds: string[]): Invoice {
+  return {
+    id: row.id,
+    translator: row.translator,
+    status: row.status as InvoiceStatus,
+    transferDate: row.transfer_date || undefined,
+    note: row.note,
+    createdBy: row.created_by || "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    feeIds,
+  };
+}
+
+// Cache user id
+let _cachedUserId: string | null = null;
+async function getUserId() {
+  if (_cachedUserId) return _cachedUserId;
+  const { data } = await supabase.auth.getSession();
+  _cachedUserId = data?.session?.user?.id ?? null;
+  return _cachedUserId;
+}
+supabase.auth.onAuthStateChange((_event, session) => {
+  _cachedUserId = session?.user?.id ?? null;
+});
+
+export const invoiceStore = {
+  getInvoices: () => invoices,
+  isLoaded: () => loaded,
+
+  subscribe: (listener: Listener) => {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  },
+
+  loadInvoices: async () => {
+    const { data: invData, error } = await supabase
+      .from("invoices")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error || !invData) return { error };
+
+    // Load all invoice_fees
+    const { data: linkData } = await supabase
+      .from("invoice_fees")
+      .select("invoice_id, fee_id");
+
+    const feeMap = new Map<string, string[]>();
+    if (linkData) {
+      for (const link of linkData) {
+        const arr = feeMap.get(link.invoice_id) || [];
+        arr.push(link.fee_id);
+        feeMap.set(link.invoice_id, arr);
+      }
+    }
+
+    invoices = (invData as unknown as DbInvoice[]).map((row) =>
+      dbToApp(row, feeMap.get(row.id) || [])
+    );
+    loaded = true;
+    notify();
+    return { error: null };
+  },
+
+  createInvoice: async (translator: string, feeIds: string[]): Promise<Invoice | null> => {
+    const uid = await getUserId();
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    const newInvoice: Invoice = {
+      id,
+      translator,
+      status: "pending",
+      note: "",
+      createdBy: uid || "",
+      createdAt: now,
+      updatedAt: now,
+      feeIds,
+    };
+
+    // Optimistic
+    invoices = [newInvoice, ...invoices];
+    notify();
+
+    const { error } = await supabase.from("invoices").insert({
+      id,
+      translator,
+      status: "pending",
+      note: "",
+      created_by: uid,
+    } as any);
+
+    if (error) {
+      console.error("Failed to create invoice:", error);
+      invoices = invoices.filter((i) => i.id !== id);
+      notify();
+      return null;
+    }
+
+    // Link fees
+    if (feeIds.length > 0) {
+      const links = feeIds.map((feeId) => ({ invoice_id: id, fee_id: feeId }));
+      const { error: linkErr } = await supabase.from("invoice_fees").insert(links as any);
+      if (linkErr) console.error("Failed to link fees:", linkErr);
+    }
+
+    return newInvoice;
+  },
+
+  updateInvoice: (id: string, updates: Partial<Pick<Invoice, "status" | "transferDate" | "note">>) => {
+    invoices = invoices.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv));
+    notify();
+
+    const dbUpdates: Record<string, any> = {};
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.transferDate !== undefined) dbUpdates.transfer_date = updates.transferDate || null;
+    if (updates.note !== undefined) dbUpdates.note = updates.note;
+
+    if (Object.keys(dbUpdates).length > 0) {
+      supabase
+        .from("invoices")
+        .update(dbUpdates)
+        .eq("id", id)
+        .then(({ error }) => {
+          if (error) console.error("Failed to update invoice:", error);
+        });
+    }
+  },
+
+  deleteInvoice: (id: string) => {
+    invoices = invoices.filter((inv) => inv.id !== id);
+    notify();
+
+    supabase
+      .from("invoices")
+      .delete()
+      .eq("id", id)
+      .then(({ error }) => {
+        if (error) console.error("Failed to delete invoice:", error);
+      });
+  },
+
+  addFeesToInvoice: async (invoiceId: string, feeIds: string[]) => {
+    const inv = invoices.find((i) => i.id === invoiceId);
+    if (!inv) return;
+
+    const newFeeIds = feeIds.filter((fid) => !inv.feeIds.includes(fid));
+    if (newFeeIds.length === 0) return;
+
+    invoices = invoices.map((i) =>
+      i.id === invoiceId ? { ...i, feeIds: [...i.feeIds, ...newFeeIds] } : i
+    );
+    notify();
+
+    const links = newFeeIds.map((feeId) => ({ invoice_id: invoiceId, fee_id: feeId }));
+    const { error } = await supabase.from("invoice_fees").insert(links as any);
+    if (error) console.error("Failed to add fees to invoice:", error);
+  },
+
+  removeFeeFromInvoice: async (invoiceId: string, feeId: string) => {
+    invoices = invoices.map((i) =>
+      i.id === invoiceId ? { ...i, feeIds: i.feeIds.filter((fid) => fid !== feeId) } : i
+    );
+    notify();
+
+    const { error } = await supabase
+      .from("invoice_fees")
+      .delete()
+      .eq("invoice_id", invoiceId)
+      .eq("fee_id", feeId);
+    if (error) console.error("Failed to remove fee from invoice:", error);
+  },
+
+  getInvoiceById: (id: string) => invoices.find((i) => i.id === id),
+
+  /** Get all fee IDs that are already on any invoice */
+  getLinkedFeeIds: (): Set<string> => {
+    const set = new Set<string>();
+    for (const inv of invoices) {
+      for (const fid of inv.feeIds) set.add(fid);
+    }
+    return set;
+  },
+
+  /** Get invoices for a specific translator */
+  getInvoicesByTranslator: (translator: string) =>
+    invoices.filter((i) => i.translator === translator),
+};
