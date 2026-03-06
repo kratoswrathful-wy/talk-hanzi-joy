@@ -128,7 +128,8 @@ export default function ColorPicker({
   const [deleteColorConfirm, setDeleteColorConfirm] = useState<string | null>(null);
 
   const wheelRef = useRef<HTMLCanvasElement>(null);
-  const sliderRef = useRef<HTMLCanvasElement>(null);
+  const satSliderRef = useRef<HTMLCanvasElement>(null);
+  const valSliderRef = useRef<HTMLCanvasElement>(null);
 
   const currentHex = hsvToHex(hsv[0], hsv[1], hsv[2]);
 
