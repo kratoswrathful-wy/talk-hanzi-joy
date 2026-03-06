@@ -231,6 +231,14 @@ export default function MembersPage() {
     toast.success("成員已移除");
   };
 
+  if (!isAdmin) {
+    return (
+      <div className="mx-auto max-w-3xl py-12 text-center text-muted-foreground">
+        您沒有權限檢視此頁面
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
