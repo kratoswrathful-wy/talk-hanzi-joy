@@ -20,7 +20,22 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
   const labelStyles = useLabelStyles();
@@ -53,9 +68,36 @@ export default function InvoicesPage() {
   const navigate = useNavigate();
   const invoices = useInvoices();
   const fees = useFees();
-  const { isAdmin } = useAuth();
+  const { isAdmin, profile } = useAuth();
   const { options: assigneeOptions } = useSelectOptions("assignee");
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [showTranslatorPicker, setShowTranslatorPicker] = useState(false);
+  const [selectedTranslator, setSelectedTranslator] = useState<string>("");
+
+  const handleCreateInvoice = useCallback(async () => {
+    if (isAdmin) {
+      setSelectedTranslator("");
+      setShowTranslatorPicker(true);
+    } else {
+      // Translator: use own display name
+      const name = profile?.display_name || profile?.email || "";
+      const inv = await invoiceStore.createInvoice(name, []);
+      if (inv) {
+        toast.success("已建立請款單");
+        navigate(`/invoices/${inv.id}`);
+      }
+    }
+  }, [isAdmin, profile, navigate]);
+
+  const handleConfirmTranslator = useCallback(async () => {
+    if (!selectedTranslator) return;
+    const inv = await invoiceStore.createInvoice(selectedTranslator, []);
+    setShowTranslatorPicker(false);
+    if (inv) {
+      toast.success("已建立請款單");
+      navigate(`/invoices/${inv.id}`);
+    }
+  }, [selectedTranslator, navigate]);
 
   const handleDelete = useCallback(() => {
     if (deleteId) {
@@ -80,6 +122,10 @@ export default function InvoicesPage() {
             <h1 className="text-2xl font-semibold tracking-tight">請款單管理</h1>
             <p className="mt-1 text-sm text-muted-foreground">管理譯者請款單與匯款狀態</p>
           </div>
+          <Button size="sm" className="gap-1.5" onClick={handleCreateInvoice}>
+            <Plus className="h-4 w-4" />
+            新增請款單
+          </Button>
         </div>
       </div>
 
@@ -174,6 +220,35 @@ export default function InvoicesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={showTranslatorPicker} onOpenChange={setShowTranslatorPicker}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>請指定譯者</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Select value={selectedTranslator} onValueChange={setSelectedTranslator}>
+              <SelectTrigger>
+                <SelectValue placeholder="選擇譯者…" />
+              </SelectTrigger>
+              <SelectContent>
+                {assigneeOptions.map((opt) => (
+                  <SelectItem key={opt.label} value={opt.label}>
+                    <span className="flex items-center gap-2">
+                      <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: opt.color }} />
+                      {opt.label}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTranslatorPicker(false)}>取消</Button>
+            <Button disabled={!selectedTranslator} onClick={handleConfirmTranslator}>建立</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
