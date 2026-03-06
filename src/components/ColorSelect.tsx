@@ -143,7 +143,7 @@ export default function ColorSelect({
                 className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
                 style={{
                   backgroundColor: selectedOption.color,
-                  color: "#D1DAEA",
+                  color: labelTextColor,
                   borderColor: selectedOption.color,
                 }}
               >
