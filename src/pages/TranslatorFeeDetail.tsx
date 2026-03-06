@@ -1291,6 +1291,7 @@ export default function TranslatorFeeDetail() {
         }
 
         toast.success("已從 Notion 載入案件資料");
+        if (autoCreated.length > 0) setAutoCreatedOptions(autoCreated);
       }
     } catch (err: any) {
       console.error("Failed to fetch Notion data:", err);
