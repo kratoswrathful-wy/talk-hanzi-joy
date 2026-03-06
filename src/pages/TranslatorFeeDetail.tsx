@@ -698,6 +698,7 @@ export default function TranslatorFeeDetail() {
             };
           });
           setTaskItems(mapped);
+          if (id) feeStore.updateFee(id, { taskItems: mapped });
         } else if (feeRate !== null || unitCount !== null) {
           setTaskItems((prev) => {
             const updated = [...prev];
@@ -709,6 +710,7 @@ export default function TranslatorFeeDetail() {
                 ...(feeRate !== null ? { unitPrice: feeRate } : {}),
               };
             }
+            if (id) feeStore.updateFee(id, { taskItems: updated });
             return updated;
           });
         }
