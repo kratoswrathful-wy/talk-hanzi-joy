@@ -52,6 +52,7 @@ export default function ClientInfoSection({
   onFirstFeeConflict,
 }: ClientInfoSectionProps) {
   const [showUncheckWarning, setShowUncheckWarning] = useState(false);
+  const selectStore = useSelectOptions();
 
   const update = <K extends keyof ClientInfo>(key: K, value: ClientInfo[K]) => {
     onChange({ ...clientInfo, [key]: value });
