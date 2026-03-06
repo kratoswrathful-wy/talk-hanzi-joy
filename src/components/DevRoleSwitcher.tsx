@@ -26,7 +26,9 @@ export function DevRoleSwitcher() {
     return () => subscription.unsubscribe();
   }, []);
 
-  if (!import.meta.env.DEV) return null;
+  // Hide on published production URL (talk-hanzi-joy.lovable.app)
+  const isProduction = window.location.hostname === "talk-hanzi-joy.lovable.app";
+  if (isProduction) return null;
 
   const handleSwitch = async (email: string) => {
     if (email === currentEmail) return;

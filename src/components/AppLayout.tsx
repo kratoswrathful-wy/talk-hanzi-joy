@@ -11,7 +11,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <header className="flex h-12 items-center border-b border-border px-4">
             <SidebarTrigger />
           </header>
-          {import.meta.env.DEV && (
+          {!window.location.hostname.endsWith("lovable.app") && (
             <div className="px-6 pt-3">
               <DevRoleSwitcher />
             </div>
