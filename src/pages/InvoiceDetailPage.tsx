@@ -301,7 +301,8 @@ export default function InvoiceDetailPage() {
 
   const opt = assigneeOptions.find((o) => o.label === invoice.translator);
   const isPaid = invoice.status === "paid";
-  const editable = isAdmin && !isPaid;
+  const isOwnInvoice = invoice.translator === profile?.display_name;
+  const editable = (isAdmin || isOwnInvoice) && !isPaid;
 
   const handleRemoveFee = () => {
     if (removeFeeId) {
