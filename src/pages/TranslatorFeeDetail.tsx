@@ -3,7 +3,7 @@ import { ArrowLeft, Plus, X, Send, AtSign, Image, Link2, ChevronLeft, ChevronRig
 
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
-import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, defaultClientInfo } from "@/data/fee-mock-data";
+import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, type TranslatorFee, defaultClientInfo } from "@/data/fee-mock-data";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
 import { selectOptionsStore, PRESET_COLORS } from "@/stores/select-options-store";
 
@@ -460,6 +460,7 @@ export default function TranslatorFeeDetail() {
   const [disableOption12A, setDisableOption12A] = useState(false);
   const [swapResolved, setSwapResolved] = useState(false);
   const confirmSwapOriginRef = useRef<"choose" | "assignRole">("choose");
+  const [multiTranslatorPages, setMultiTranslatorPages] = useState<{ id: string; title: string; assignee: string }[] | null>(null);
 
   // Find the other fee that is firstFee in the same case group
   const otherFirstFee = (() => {
@@ -870,6 +871,8 @@ export default function TranslatorFeeDetail() {
         const casePages = data["案件頁面"] || [];
         const reconciled = data["對帳完成"] === true;
         const invoiced = data["請款完成"] === true;
+        const rateConfirmed = data["費率無誤"] === true;
+        const workTypes = data["工作類型"] || [];
 
         // Map 單位 to BillingUnit
         const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
@@ -920,8 +923,20 @@ export default function TranslatorFeeDetail() {
           if (id) feeStore.updateFee(id, { internalNote: feeNumber });
         }
 
-        // 稿費費率 + 計費單位數 > 任務項目
-        if (feeRate !== null || unitCount !== null) {
+        // 稿費費率 + 計費單位數 > 任務項目（支援多工作類型）
+        if (Array.isArray(workTypes) && workTypes.length > 0) {
+          const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
+            const matchedType = taskTypeOptions.find((t) => wt.includes(t)) || "翻譯";
+            return {
+              id: `item-ir-${Date.now()}-${idx}`,
+              taskType: matchedType as TaskType,
+              billingUnit,
+              unitCount: idx === 0 && unitCount ? unitCount : 0,
+              unitPrice: idx === 0 && feeRate !== null ? feeRate : 0,
+            };
+          });
+          setTaskItems(mapped);
+        } else if (feeRate !== null || unitCount !== null) {
           setTaskItems((prev) => {
             const updated = [...prev];
             if (updated.length > 0) {
@@ -962,19 +977,104 @@ export default function TranslatorFeeDetail() {
           ...(dispatch ? { dispatchRoute: dispatch } : {}),
           reconciled,
           invoiced,
-          clientTaskItems: clientInfo.clientTaskItems.map((item, idx) =>
-            idx === 0
-              ? {
-                  ...item,
+          rateConfirmed,
+          clientTaskItems: (Array.isArray(workTypes) && workTypes.length > 0)
+            ? workTypes.map((wt: string, idx: number) => {
+                const matchedType = taskTypeOptions.find((t) => wt.includes(t)) || "翻譯";
+                return {
+                  id: `ci-ir-${Date.now()}-${idx}`,
+                  taskType: matchedType as TaskType,
                   billingUnit,
-                  ...(unitCount !== null ? { unitCount } : {}),
-                  ...(quoteRate !== null ? { clientPrice: quoteRate } : {}),
-                }
-              : item
-          ),
+                  unitCount: idx === 0 && unitCount ? unitCount : 0,
+                  clientPrice: idx === 0 && quoteRate !== null ? quoteRate : 0,
+                };
+              })
+            : clientInfo.clientTaskItems.map((item, idx) =>
+                idx === 0
+                  ? {
+                      ...item,
+                      billingUnit,
+                      ...(unitCount !== null ? { unitCount } : {}),
+                      ...(quoteRate !== null ? { clientPrice: quoteRate } : {}),
+                    }
+                  : item
+              ),
         };
         setClientInfo(updatedClientInfo);
         if (id) feeStore.updateFee(id, { clientInfo: updatedClientInfo });
+
+        // Multi-translator: create additional fee pages
+        if (Array.isArray(people) && people.length > 1) {
+          const assigneeOptions = selectOptionsStore.getSortedOptions("assignee");
+          const resolveAssignee = (person: any): string => {
+            if (typeof person === "object" && person.email) {
+              const m = assigneeOptions.find((o: any) => o.email === person.email);
+              if (m) return m.label;
+            }
+            if (typeof person === "object" && person.name) {
+              const m = assigneeOptions.find((o: any) => o.label === person.name);
+              if (m) return m.label;
+              return person.name;
+            }
+            if (typeof person === "string") {
+              const m = assigneeOptions.find((o: any) => o.label === person || o.email === person);
+              return m ? m.label : person;
+            }
+            return "";
+          };
+
+          const baseTitle = title.endsWith("_01") ? title : title;
+          const currentTitle = `${baseTitle}_01`;
+          setTitle(currentTitle);
+          if (id) feeStore.updateFee(id, { title: currentTitle });
+
+          // Set current page as primary in case group
+          const currentCaseNote = internalNote || caseName || feeNumber;
+          const primaryClientInfo: ClientInfo = {
+            ...updatedClientInfo,
+            sameCase: true,
+            isFirstFee: true,
+            notFirstFee: false,
+          };
+          setClientInfo(primaryClientInfo);
+          if (id) feeStore.updateFee(id, { clientInfo: primaryClientInfo });
+
+          const createdPages: { id: string; title: string; assignee: string }[] = [
+            { id: id || "", title: currentTitle, assignee: resolveAssignee(people[0]) },
+          ];
+
+          // Get the current task items for cloning
+          const currentFee = id ? feeStore.getFeeById(id) : null;
+          const cloneTaskItems = currentFee?.taskItems ?? taskItems;
+
+          for (let i = 1; i < people.length; i++) {
+            const personAssignee = resolveAssignee(people[i]);
+            const pageTitle = `${baseTitle}_${String(i + 1).padStart(2, "0")}`;
+            const newFee: TranslatorFee = {
+              id: crypto.randomUUID(),
+              title: pageTitle,
+              assignee: personAssignee,
+              status: "draft" as const,
+              internalNote: currentCaseNote,
+              internalNoteUrl: updatedClientInfo.clientCaseId ? "" : (internalNoteUrl || ""),
+              taskItems: cloneTaskItems.map((item, idx) => ({ ...item, id: `item-clone-${Date.now()}-${idx}-${i}` })),
+              clientInfo: {
+                ...updatedClientInfo,
+                sameCase: true,
+                isFirstFee: false,
+                notFirstFee: true,
+              },
+              notes: [],
+              editLogs: [],
+              createdBy: currentFee?.createdBy || "",
+              createdAt: new Date().toISOString(),
+            };
+            feeStore.addFee(newFee);
+            createdPages.push({ id: newFee.id, title: pageTitle, assignee: personAssignee });
+          }
+
+          setMultiTranslatorPages(createdPages);
+        }
 
         toast.success("已從 Notion 載入內部費用紀錄");
       } else {
@@ -1088,6 +1188,79 @@ export default function TranslatorFeeDetail() {
             };
             feeStore.updateFee(id, { clientInfo: updatedClientInfo });
           }
+        }
+
+        // Multi-translator: create additional fee pages
+        if (Array.isArray(people) && people.length > 1) {
+          const assigneeOptions = selectOptionsStore.getSortedOptions("assignee");
+          const resolveAssignee = (person: any): string => {
+            if (typeof person === "object" && person.email) {
+              const m = assigneeOptions.find((o: any) => o.email === person.email);
+              if (m) return m.label;
+            }
+            if (typeof person === "object" && person.name) {
+              const m = assigneeOptions.find((o: any) => o.label === person.name);
+              if (m) return m.label;
+              return person.name;
+            }
+            if (typeof person === "string") {
+              const m = assigneeOptions.find((o: any) => o.label === person || o.email === person);
+              return m ? m.label : person;
+            }
+            return "";
+          };
+
+          const baseTitle = title;
+          const currentTitle = `${baseTitle}_01`;
+          setTitle(currentTitle);
+          if (id) feeStore.updateFee(id, { title: currentTitle });
+
+          // Set current page as primary in case group
+          const currentCaseNote = internalNote || caseId;
+          const latestClientInfo = feeStore.getFeeById(id || "")?.clientInfo ?? clientInfo;
+          const primaryClientInfo: ClientInfo = {
+            ...latestClientInfo,
+            sameCase: true,
+            isFirstFee: true,
+            notFirstFee: false,
+          };
+          setClientInfo(primaryClientInfo);
+          if (id) feeStore.updateFee(id, { clientInfo: primaryClientInfo });
+
+          const createdPages: { id: string; title: string; assignee: string }[] = [
+            { id: id || "", title: currentTitle, assignee: resolveAssignee(people[0]) },
+          ];
+
+          const currentFee = id ? feeStore.getFeeById(id) : null;
+          const cloneTaskItems = currentFee?.taskItems ?? taskItems;
+
+          for (let i = 1; i < people.length; i++) {
+            const personAssignee = resolveAssignee(people[i]);
+            const pageTitle = `${baseTitle}_${String(i + 1).padStart(2, "0")}`;
+            const newFee: TranslatorFee = {
+              id: crypto.randomUUID(),
+              title: pageTitle,
+              assignee: personAssignee,
+              status: "draft" as const,
+              internalNote: currentCaseNote,
+              internalNoteUrl: internalNoteUrl || "",
+              taskItems: cloneTaskItems.map((item, idx) => ({ ...item, id: `item-clone-${Date.now()}-${idx}-${i}` })),
+              clientInfo: {
+                ...latestClientInfo,
+                sameCase: true,
+                isFirstFee: false,
+                notFirstFee: true,
+              },
+              notes: [],
+              editLogs: [],
+              createdBy: currentFee?.createdBy || "",
+              createdAt: new Date().toISOString(),
+            };
+            feeStore.addFee(newFee);
+            createdPages.push({ id: newFee.id, title: pageTitle, assignee: personAssignee });
+          }
+
+          setMultiTranslatorPages(createdPages);
         }
 
         toast.success("已從 Notion 載入案件資料");
@@ -1543,7 +1716,7 @@ export default function TranslatorFeeDetail() {
                       {canEdit && (
                         <TableCell className="px-6">
                           <div className="flex justify-center">
-                            {index > 0 ? (
+                            {taskItems.length > 1 ? (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -1863,6 +2036,48 @@ export default function TranslatorFeeDetail() {
               }}
             >
               將本頁設為非主要營收紀錄
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Multi-translator pages created dialog */}
+      <AlertDialog open={multiTranslatorPages !== null} onOpenChange={() => {}}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>已建立多個費用頁面</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  因為譯者人數多於一位，系統已自動建立 {multiTranslatorPages?.length ?? 0} 個費用頁面。
+                  目前開啟的頁面是「{multiTranslatorPages?.[0]?.title}」。
+                </p>
+                <div className="space-y-1.5">
+                  <p className="font-medium text-foreground text-sm">群組內頁面：</p>
+                  {multiTranslatorPages?.map((page, idx) => (
+                    <div key={page.id} className="flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground">{idx + 1}.</span>
+                      <span className="font-medium">{page.title}</span>
+                      <span className="text-muted-foreground">— {page.assignee}</span>
+                      {idx === 0 && <Badge variant="outline" className="text-[10px] h-4 px-1">主要</Badge>}
+                      {idx > 0 && (
+                        <Link
+                          to={`/fees/${page.id}`}
+                          className="text-primary hover:underline text-xs"
+                          onClick={() => setMultiTranslatorPages(null)}
+                        >
+                          前往
+                        </Link>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button onClick={() => setMultiTranslatorPages(null)}>
+              我知道了
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
