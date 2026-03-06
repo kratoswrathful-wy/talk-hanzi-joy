@@ -891,12 +891,36 @@ export default function TranslatorFeeDetail() {
         const unitCount = data["計費單位數"] ?? null;
         const unit = data["單位"] || "";
         const dispatch = data["派案途徑"] || "";
-        const people = data["譯者"] || data["審稿人員"] || [];
+        let people = data["譯者"] || data["審稿人員"] || [];
         const casePages = data["案件頁面"] || [];
         const reconciled = data["對帳完成"] === true;
         const invoiced = data["請款完成"] === true;
         const rateConfirmed = data["費率無誤"] === true;
-        const workTypes = data["工作類型"] || [];
+        let workTypes = data["工作類型"] || [];
+
+        // If IR page is missing work types or translators, fetch from the related case page
+        const missingWorkTypes = !Array.isArray(workTypes) || workTypes.length === 0;
+        const missingPeople = !Array.isArray(people) || people.length === 0;
+        if ((missingWorkTypes || missingPeople) && Array.isArray(casePages) && casePages.length > 0) {
+          const casePageId = casePages[0].id?.replace(/-/g, "");
+          if (casePageId) {
+            try {
+              const { data: caseData, error: caseErr } = await supabase.functions.invoke("fetch-notion-page", {
+                body: { page_id: casePageId },
+              });
+              if (!caseErr && caseData && !caseData.error) {
+                if (missingWorkTypes) {
+                  workTypes = caseData["工作類型"] || [];
+                }
+                if (missingPeople) {
+                  people = caseData["譯者"] || caseData["審稿人員"] || [];
+                }
+              }
+            } catch (e) {
+              console.warn("Failed to fetch case page for supplementary data:", e);
+            }
+          }
+        }
 
         // Map 單位 to BillingUnit
         const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
