@@ -976,16 +976,28 @@ export default function TranslatorFeeDetail() {
           ...(dispatch ? { dispatchRoute: dispatch } : {}),
           reconciled,
           invoiced,
-          clientTaskItems: clientInfo.clientTaskItems.map((item, idx) =>
-            idx === 0
-              ? {
-                  ...item,
+          rateConfirmed,
+          clientTaskItems: (Array.isArray(workTypes) && workTypes.length > 0)
+            ? workTypes.map((wt: string, idx: number) => {
+                const matchedType = taskTypeOptions.find((t) => wt.includes(t)) || "翻譯";
+                return {
+                  id: `ci-ir-${Date.now()}-${idx}`,
+                  taskType: matchedType as TaskType,
                   billingUnit,
-                  ...(unitCount !== null ? { unitCount } : {}),
-                  ...(quoteRate !== null ? { clientPrice: quoteRate } : {}),
-                }
-              : item
-          ),
+                  unitCount: idx === 0 && unitCount ? unitCount : 0,
+                  clientPrice: idx === 0 && quoteRate !== null ? quoteRate : 0,
+                };
+              })
+            : clientInfo.clientTaskItems.map((item, idx) =>
+                idx === 0
+                  ? {
+                      ...item,
+                      billingUnit,
+                      ...(unitCount !== null ? { unitCount } : {}),
+                      ...(quoteRate !== null ? { clientPrice: quoteRate } : {}),
+                    }
+                  : item
+              ),
         };
         setClientInfo(updatedClientInfo);
         if (id) feeStore.updateFee(id, { clientInfo: updatedClientInfo });
