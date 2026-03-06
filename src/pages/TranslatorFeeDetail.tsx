@@ -1537,17 +1537,7 @@ export default function TranslatorFeeDetail() {
             <div className="grid gap-1.5">
               <Label className="text-xs text-muted-foreground">狀態</Label>
               <div className="flex items-center h-10">
-                <Badge
-                  variant="default"
-                  className={cn(
-                    "text-[#D1DAEA] border",
-                    isFinalized
-                      ? "bg-success border-success"
-                      : "bg-[#6B7280] border-[#6B7280]"
-                  )}
-                >
-                  {feeStatusLabels[status]}
-                </Badge>
+                <DetailStatusBadge status={status} />
               </div>
             </div>
           </div>
