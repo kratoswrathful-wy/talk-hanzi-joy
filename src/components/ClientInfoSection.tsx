@@ -258,9 +258,56 @@ export default function ClientInfoSection({
                 </Label>
               </div>
             </div>
-          )}
 
-          {/* Row 3: reconciled/invoiced (right-aligned) */}
+            {/* Related Fees list */}
+            {currentInternalNote && (
+              <div className="ml-6 mt-2">
+                <Label className="text-xs text-muted-foreground">
+                  同案件費用頁面（{relatedFees.length} 筆）
+                </Label>
+                {relatedFees.length > 0 ? (
+                  <div className="space-y-1 mt-1">
+                    {relatedFees.map((f) => {
+                      const assigneeOpt = assigneeOptions.find((o) => o.email === f.assignee);
+                      const assigneeLabel = assigneeOpt?.label || f.assignee || "—";
+                      const assigneeAvatar = assigneeOpt?.avatarUrl;
+                      return (
+                        <Link
+                          key={f.id}
+                          to={`/fees/${f.id}`}
+                          className="flex items-center justify-between text-xs px-2 py-1.5 rounded-md border border-border bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-foreground font-medium truncate">
+                              {f.title || "（未命名）"}
+                            </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Avatar className="h-4 w-4">
+                                {assigneeAvatar && <AvatarImage src={assigneeAvatar} alt={assigneeLabel} />}
+                                <AvatarFallback className="text-[8px]">
+                                  {assigneeLabel.charAt(0).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-muted-foreground text-[11px]">{assigneeLabel}</span>
+                            </div>
+                          </div>
+                          <span className="text-muted-foreground shrink-0 ml-2">
+                            {f.clientInfo?.isFirstFee ? "主要" : f.clientInfo?.notFirstFee ? "非主要" : "—"}
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-1">無相關費用頁面</p>
+                )}
+              </div>
+            )}
+            {!currentInternalNote && (
+              <p className="ml-6 mt-2 text-xs text-muted-foreground">請先填寫「相關案件」欄位以比對同案件費用</p>
+            )}
+          </div>
+          )}
           <div className="flex justify-end">
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5">
