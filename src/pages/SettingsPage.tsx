@@ -433,17 +433,13 @@ function TaskTypeOrderSection() {
           >
             <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             <span
-              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
               style={{
                 backgroundColor: tt.color,
-                color: "#fff",
+                color: "#B3BBC9",
                 borderColor: tt.color,
               }}
             >
-              <span
-                className="w-2 h-2 rounded-full shrink-0"
-                style={{ backgroundColor: "#fff" }}
-              />
               {tt.label}
             </span>
             <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
