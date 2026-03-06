@@ -310,22 +310,39 @@ export default function ColorPicker({
 
         {showWheel && (
           <div className="space-y-2">
+          <div className="flex gap-3 items-start">
             <div className="flex justify-center">
               <canvas
                 ref={wheelRef}
                 width={180}
                 height={180}
-                className="w-[180px] h-[180px] rounded-full cursor-crosshair"
+                className="w-[140px] h-[140px] rounded-full cursor-crosshair"
                 onMouseDown={startDrag(handleWheelInteraction)}
               />
             </div>
-            <canvas
-              ref={sliderRef}
-              width={200}
-              height={20}
-              className="w-full h-5 rounded cursor-pointer"
-              onMouseDown={startDrag(handleSliderInteraction)}
-            />
+            <div className="flex gap-1.5 h-[140px]">
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-[9px] text-muted-foreground">彩</span>
+                <canvas
+                  ref={satSliderRef}
+                  width={16}
+                  height={120}
+                  className="w-4 h-[124px] rounded cursor-pointer"
+                  onMouseDown={startDrag(handleSatSliderInteraction)}
+                />
+              </div>
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-[9px] text-muted-foreground">明</span>
+                <canvas
+                  ref={valSliderRef}
+                  width={16}
+                  height={120}
+                  className="w-4 h-[124px] rounded cursor-pointer"
+                  onMouseDown={startDrag(handleValSliderInteraction)}
+                />
+              </div>
+            </div>
+          </div>
             <div className="flex items-center gap-2">
               <div
                 className="w-8 h-8 rounded border border-border shrink-0"
