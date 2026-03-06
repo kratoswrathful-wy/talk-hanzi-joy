@@ -72,6 +72,7 @@ function ClientPricingSection() {
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
+  const [textColorOpen, setTextColorOpen] = useState(false);
 
   const toggleClient = (id: string) => {
     setExpandedClients((prev) => {
