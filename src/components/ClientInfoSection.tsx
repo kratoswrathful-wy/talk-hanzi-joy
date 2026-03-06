@@ -214,6 +214,52 @@ export default function ClientInfoSection({
             </div>
           </div>
 
+          {/* Sub-options for sameCase - immediately below parent */}
+          {clientInfo.sameCase && (
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2 ml-6">
+                <Checkbox
+                  id="isFirstFee"
+                  checked={clientInfo.isFirstFee}
+                  disabled={isFirstFeeDisabled}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      const hasExisting = currentInternalNote && allFees.some(
+                        (f) => f.id !== currentFeeId && f.clientInfo?.sameCase && f.clientInfo?.isFirstFee && f.internalNote === currentInternalNote
+                      );
+                      if (hasExisting) {
+                        update("isFirstFee", true);
+                        onFirstFeeConflict?.();
+                        return;
+                      }
+                    }
+                    update("isFirstFee", !!checked);
+                  }}
+                />
+                <Label
+                  htmlFor="isFirstFee"
+                  className={`text-xs cursor-pointer ${isFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
+                >
+                  為主要營收紀錄（於總表列入營收統計）
+                </Label>
+              </div>
+              <div className="flex items-center gap-2 ml-6">
+                <Checkbox
+                  id="notFirstFee"
+                  checked={clientInfo.notFirstFee}
+                  disabled={notFirstFeeDisabled}
+                  onCheckedChange={(checked) => update("notFirstFee", !!checked)}
+                />
+                <Label
+                  htmlFor="notFirstFee"
+                  className={`text-xs cursor-pointer ${notFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
+                >
+                  非主要營收紀錄（於總表不列入營收統計）
+                </Label>
+              </div>
+            </div>
+          )}
+
           {/* Row 3: reconciled/invoiced (right-aligned) */}
           <div className="flex justify-end">
             <div className="flex items-center gap-2">
