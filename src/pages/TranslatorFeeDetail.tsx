@@ -463,6 +463,7 @@ export default function TranslatorFeeDetail() {
   const confirmSwapOriginRef = useRef<"choose" | "assignRole">("choose");
   const [multiTranslatorPages, setMultiTranslatorPages] = useState<{ id: string; title: string; assignee: string }[] | null>(null);
   const [autoCreatedOptions, setAutoCreatedOptions] = useState<{ field: string; label: string }[] | null>(null);
+  const [showPricingTip, setShowPricingTip] = useState(true);
 
   // Find the other fee that is firstFee in the same case group
   const otherFirstFee = (() => {
