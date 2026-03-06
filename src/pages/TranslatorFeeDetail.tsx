@@ -1790,7 +1790,7 @@ export default function TranslatorFeeDetail() {
                         {isNoFeeTranslator ? 0 : (Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}
                       </TableCell>
                       {canEdit && (
-                        <TableCell className="px-6">
+                        <TableCell className="px-2">
                           <div className="flex justify-center">
                             {taskItems.length > 1 ? (
                               <Button
