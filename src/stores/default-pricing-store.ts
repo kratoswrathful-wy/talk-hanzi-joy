@@ -162,13 +162,13 @@ export const defaultPricingStore = {
   },
 
   /** Look up translator price from a given client price, taskType and billingUnit.
-   *  Finds the range where minPrice <= clientPrice <= maxPrice (maxPrice=0 means ∞). */
+   *  Finds the range where minPrice < clientPrice <= maxPrice (maxPrice=0 means ∞). */
   getTranslatorPrice: (clientPrice: number, taskType?: string, billingUnit?: string): number | undefined => {
     const candidates = store.translatorTiers.filter((t) => {
       if (taskType && t.taskType !== taskType) return false;
       if (billingUnit && t.billingUnit !== billingUnit) return false;
       const effectiveMax = t.maxPrice === 0 ? Infinity : t.maxPrice;
-      return clientPrice >= t.minPrice && clientPrice <= effectiveMax;
+      return clientPrice > t.minPrice && clientPrice <= effectiveMax;
     });
     if (candidates.length === 0) return undefined;
     // If multiple match (shouldn't happen with valid config), pick most specific (smallest range)
