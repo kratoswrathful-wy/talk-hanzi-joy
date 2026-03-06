@@ -40,6 +40,8 @@ interface ClientInfoSectionProps {
   currentFeeId: string;
   currentInternalNote: string;
   onFirstFeeConflict?: () => void;
+  /** Called when a client price is first entered (was 0/empty, now has value) */
+  onClientPriceEntered?: (itemIndex: number, clientPrice: number, taskType: string, billingUnit: string) => void;
 }
 
 export default function ClientInfoSection({
