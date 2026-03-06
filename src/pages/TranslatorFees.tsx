@@ -13,6 +13,7 @@ import { useTableViews, fieldMetas } from "@/hooks/use-table-views";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { InlineEditCell } from "@/components/fees/InlineEditCell";
 import { useUndoRedo, type UndoEntry } from "@/hooks/use-undo-redo";
+import { useLabelStyles } from "@/stores/label-style-store";
 import { useState, useRef, useCallback, useEffect } from "react";
 import {
   AlertDialog,
