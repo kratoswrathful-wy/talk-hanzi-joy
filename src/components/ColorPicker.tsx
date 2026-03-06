@@ -311,7 +311,8 @@ export default function ColorPicker({
         {showWheel && (
           <div className="space-y-2">
           <div className="flex gap-3 items-start">
-            <div className="flex justify-center">
+            {/* Color wheel with position indicator */}
+            <div className="relative flex justify-center">
               <canvas
                 ref={wheelRef}
                 width={180}
@@ -319,27 +320,66 @@ export default function ColorPicker({
                 className="w-[140px] h-[140px] rounded-full cursor-crosshair"
                 onMouseDown={startDrag(handleWheelInteraction)}
               />
+              {/* Wheel thumb */}
+              {(() => {
+                const wheelDisplaySize = 140;
+                const radius = wheelDisplaySize / 2;
+                const angleRad = hsv[0] * (Math.PI / 180);
+                const dist = hsv[1] * radius;
+                const tx = radius + dist * Math.cos(angleRad);
+                const ty = radius + dist * Math.sin(angleRad);
+                return (
+                  <div
+                    className="absolute w-3 h-3 rounded-full border-2 border-white shadow-md pointer-events-none"
+                    style={{
+                      backgroundColor: currentHex,
+                      left: tx - 6,
+                      top: ty - 6,
+                    }}
+                  />
+                );
+              })()}
             </div>
             <div className="flex gap-1.5 h-[140px]">
+              {/* Saturation slider with thumb */}
               <div className="flex flex-col items-center gap-0.5">
                 <span className="text-[9px] text-muted-foreground">彩</span>
-                <canvas
-                  ref={satSliderRef}
-                  width={16}
-                  height={120}
-                  className="w-4 h-[124px] rounded cursor-pointer"
-                  onMouseDown={startDrag(handleSatSliderInteraction)}
-                />
+                <div className="relative">
+                  <canvas
+                    ref={satSliderRef}
+                    width={16}
+                    height={120}
+                    className="w-4 h-[124px] rounded cursor-pointer"
+                    onMouseDown={startDrag(handleSatSliderInteraction)}
+                  />
+                  <div
+                    className="absolute left-1/2 -translate-x-1/2 w-5 h-1.5 rounded-full border border-white shadow-md pointer-events-none"
+                    style={{
+                      backgroundColor: hsvToHex(hsv[0], hsv[1], hsv[2]),
+                      top: `${(1 - hsv[1]) * 124}px`,
+                    }}
+                  />
+                </div>
               </div>
+              {/* Brightness slider with thumb */}
               <div className="flex flex-col items-center gap-0.5">
                 <span className="text-[9px] text-muted-foreground">明</span>
-                <canvas
-                  ref={valSliderRef}
-                  width={16}
-                  height={120}
-                  className="w-4 h-[124px] rounded cursor-pointer"
-                  onMouseDown={startDrag(handleValSliderInteraction)}
-                />
+                <div className="relative">
+                  <canvas
+                    ref={valSliderRef}
+                    width={16}
+                    height={120}
+                    className="w-4 h-[124px] rounded cursor-pointer"
+                    onMouseDown={startDrag(handleValSliderInteraction)}
+                  />
+                  <div
+                    className="absolute left-1/2 -translate-x-1/2 w-5 h-1.5 rounded-full border border-white shadow-md pointer-events-none"
+                    style={{
+                      backgroundColor: hsvToHex(hsv[0], hsv[1], hsv[2]),
+                      top: `${(1 - hsv[2]) * 124}px`,
+                    }}
+                  />
+                </div>
               </div>
             </div>
           </div>
