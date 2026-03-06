@@ -51,7 +51,7 @@ const roleLabels: Record<UserRole, string> = {
   executive: "執行官",
 };
 
-const taskTypeOptions: TaskType[] = ["翻譯", "審稿", "MTPE", "LQA"];
+const taskTypeOptions: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
 
 interface EditLogEntry {
   id: string;
