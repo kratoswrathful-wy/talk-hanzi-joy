@@ -15,7 +15,8 @@ import { useFees } from "@/hooks/use-fee-store";
 import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { type InvoiceStatus, type PaymentRecord, invoiceStatusLabels } from "@/data/invoice-types";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useInvoices } from "@/hooks/use-invoice-store";
 import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog,
