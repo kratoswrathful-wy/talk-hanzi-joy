@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Plus, ChevronDown, MessageSquare, History, GripVertical, ExternalLink, Trash2 } from "lucide-react";
+import { Plus, ChevronDown, MessageSquare, History, GripVertical, ExternalLink, Trash2, FileText } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { motion, AnimatePresence } from "framer-motion";
@@ -14,6 +14,7 @@ import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { InlineEditCell } from "@/components/fees/InlineEditCell";
 import { useUndoRedo, type UndoEntry } from "@/hooks/use-undo-redo";
 import { useLabelStyles } from "@/stores/label-style-store";
+import { InvoiceActions } from "@/components/InvoiceActions";
 import { useState, useRef, useCallback, useEffect } from "react";
 import {
   AlertDialog,
@@ -607,15 +608,21 @@ export default function TranslatorFees() {
         </div>
         <div className="flex items-center gap-2">
           {isManager && rowSelection.selectedCount > 0 && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 text-muted-foreground hover:text-destructive"
-              onClick={() => setShowDeleteConfirm(true)}
-              title="刪除選取項目"
-            >
-              <Trash2 className="h-4.5 w-4.5" />
-            </Button>
+            <>
+              <InvoiceActions
+                selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
+                onDone={() => rowSelection.deselectAll()}
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                onClick={() => setShowDeleteConfirm(true)}
+                title="刪除選取項目"
+              >
+                <Trash2 className="h-4.5 w-4.5" />
+              </Button>
+            </>
           )}
         </div>
       </div>

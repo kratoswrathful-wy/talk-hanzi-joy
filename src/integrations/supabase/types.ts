@@ -95,6 +95,75 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_fees: {
+        Row: {
+          created_at: string
+          fee_id: string
+          id: string
+          invoice_id: string
+        }
+        Insert: {
+          created_at?: string
+          fee_id: string
+          id?: string
+          invoice_id: string
+        }
+        Update: {
+          created_at?: string
+          fee_id?: string
+          id?: string
+          invoice_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_fees_fee_id_fkey"
+            columns: ["fee_id"]
+            isOneToOne: false
+            referencedRelation: "fees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_fees_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string
+          status: string
+          transfer_date: string | null
+          translator: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string
+          status?: string
+          transfer_date?: string | null
+          translator?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string
+          status?: string
+          transfer_date?: string | null
+          translator?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       member_translator_settings: {
         Row: {
           email: string

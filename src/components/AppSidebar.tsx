@@ -1,4 +1,4 @@
-import { Receipt, Settings, Users, User } from "lucide-react";
+import { Receipt, FileText, Settings, Users, User } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -22,6 +22,7 @@ export function AppSidebar() {
 
   const navItems = [
     { title: "費用管理", url: "/fees", icon: Receipt },
+    { title: "請款單", url: "/invoices", icon: FileText },
     ...(isAdmin ? [{ title: "成員管理", url: "/members", icon: Users }] : []),
     { title: "個人檔案", url: "/profile", icon: User },
     { title: "設定", url: "/settings", icon: Settings },

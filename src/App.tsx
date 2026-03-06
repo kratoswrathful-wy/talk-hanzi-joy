@@ -13,6 +13,8 @@ import TranslatorFeeDetail from "@/pages/TranslatorFeeDetail";
 import SettingsPage from "@/pages/SettingsPage";
 import ProfilePage from "@/pages/ProfilePage";
 import MembersPage from "@/pages/MembersPage";
+import InvoicesPage from "@/pages/InvoicesPage";
+import InvoiceDetailPage from "@/pages/InvoiceDetailPage";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -45,6 +47,8 @@ function AuthenticatedRoutes() {
         <Route path="/fees" element={<TranslatorFees />} />
         <Route path="/fees/new" element={<NewTranslatorFee />} />
         <Route path="/fees/:id" element={<TranslatorFeeDetailWrapper />} />
+        <Route path="/invoices" element={<InvoicesPage />} />
+        <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/members" element={<MembersPage />} />
