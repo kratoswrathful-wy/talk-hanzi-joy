@@ -177,14 +177,13 @@ export default function ColorPicker({
     ctx.fillRect(0, 0, w, h);
   }, [showWheel, hsv[0], hsv[1]]);
 
-  const handleWheelClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleWheelInteraction = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = wheelRef.current!;
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
     const scale = canvas.width / rect.width;
     const cx = canvas.width / 2, cy = canvas.height / 2;
-    const dx = (x * scale) - cx, dy = (y * scale) - cy;
+    const dx = (e.clientX - rect.left) * scale - cx;
+    const dy = (e.clientY - rect.top) * scale - cy;
     const dist = Math.sqrt(dx * dx + dy * dy);
     const radius = canvas.width / 2;
     if (dist > radius) return;
@@ -198,7 +197,7 @@ export default function ColorPicker({
     onChange(hex);
   }, [hsv, onChange]);
 
-  const handleSliderClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleSliderInteraction = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = sliderRef.current!;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -209,6 +208,14 @@ export default function ColorPicker({
     setHexInput(hex);
     onChange(hex);
   }, [hsv, onChange]);
+
+  const startDrag = useCallback((handler: (e: React.MouseEvent<HTMLCanvasElement>) => void) => (e: React.MouseEvent<HTMLCanvasElement>) => {
+    handler(e);
+    const onMove = (ev: MouseEvent) => handler(ev as unknown as React.MouseEvent<HTMLCanvasElement>);
+    const onUp = () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, []);
 
   const handleHexChange = (v: string) => {
     setHexInput(v);
@@ -282,7 +289,7 @@ export default function ColorPicker({
                 width={180}
                 height={180}
                 className="w-[180px] h-[180px] rounded-full cursor-crosshair"
-                onClick={handleWheelClick}
+                onMouseDown={startDrag(handleWheelInteraction)}
               />
             </div>
             <canvas
@@ -290,7 +297,7 @@ export default function ColorPicker({
               width={200}
               height={20}
               className="w-full h-5 rounded cursor-pointer"
-              onClick={handleSliderClick}
+              onMouseDown={startDrag(handleSliderInteraction)}
             />
             <div className="flex items-center gap-2">
               <div
