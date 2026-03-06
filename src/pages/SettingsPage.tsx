@@ -379,6 +379,7 @@ function TaskTypeOrderSection() {
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
   const [colorPickerOptionId, setColorPickerOptionId] = useState<string | null>(null);
+  const [textColorOpen, setTextColorOpen] = useState(false);
 
   const handleDragStart = (idx: number) => {
     setDragIndex(idx);
