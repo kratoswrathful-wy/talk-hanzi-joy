@@ -745,7 +745,11 @@ export default function TranslatorFeeDetail() {
         ]);
       }
     }
-    setTaskItems((prev) => prev.filter((i) => i.id !== itemId));
+    setTaskItems((prev) => {
+      const updated = prev.filter((i) => i.id !== itemId);
+      if (id) feeStore.updateFee(id, { taskItems: updated });
+      return updated;
+    });
   };
 
   const handleNumberBlur = (itemId: string, field: "unitPrice" | "unitCount", rawValue: string) => {
