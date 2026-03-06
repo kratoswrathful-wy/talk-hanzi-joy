@@ -120,7 +120,6 @@ export default function InvoicesPage() {
         <div className="flex items-center gap-3">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">請款單管理</h1>
-            <p className="mt-1 text-sm text-muted-foreground">管理譯者請款單與匯款狀態</p>
           </div>
           <Button size="sm" className="gap-1.5" onClick={handleCreateInvoice}>
             <Plus className="h-4 w-4" />
