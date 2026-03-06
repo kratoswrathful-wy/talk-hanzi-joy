@@ -1868,6 +1868,7 @@ export default function TranslatorFeeDetail() {
                   setDuplicateDialogStep("choose");
                 }}
                 onClientPriceEntered={(itemIndex, clientPrice, taskType, billingUnit) => {
+                  setShowPricingTip(false);
                   // Auto-fill translator unit price if empty
                   if (itemIndex < taskItems.length) {
                     const item = taskItems[itemIndex];
