@@ -121,7 +121,7 @@ const allColumnDefs: ColumnDef[] = [
         <Badge
           variant="default"
           className={cn(
-            "text-xs whitespace-nowrap text-white border",
+            "text-xs whitespace-nowrap text-[#B3BBC9] border",
             f.status === "finalized"
               ? "bg-success border-success hover:bg-success/90"
               : "bg-[#6B7280] border-[#6B7280] hover:bg-[#6B7280]/90"

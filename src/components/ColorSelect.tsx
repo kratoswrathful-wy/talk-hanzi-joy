@@ -135,17 +135,13 @@ export default function ColorSelect({
           >
             {selectedOption ? (
               <span
-                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
                 style={{
                   backgroundColor: selectedOption.color,
-                  color: "#fff",
+                  color: "#B3BBC9",
                   borderColor: selectedOption.color,
                 }}
               >
-                <span
-                  className="w-2 h-2 rounded-full shrink-0"
-                  style={{ backgroundColor: "#fff" }}
-                />
                 <span className="truncate">{selectedOption.label}</span>
               </span>
             ) : (
@@ -195,17 +191,13 @@ export default function ColorSelect({
                   >
                     <span className="inline-flex items-center gap-1">
                       <span
-                        className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium"
+                        className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
                         style={{
                           backgroundColor: opt.color,
-                          color: "#fff",
+                          color: "#B3BBC9",
                           borderColor: opt.color,
                         }}
                       >
-                        <span
-                          className="w-2 h-2 rounded-full shrink-0"
-                          style={{ backgroundColor: "#fff" }}
-                        />
                         <span className="truncate">{opt.label}</span>
                       </span>
                       {value === opt.label && (

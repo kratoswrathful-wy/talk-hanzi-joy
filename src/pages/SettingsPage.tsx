@@ -154,17 +154,13 @@ function ClientPricingSection() {
                       <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     )}
                     <span
-                      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                      className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
                       style={{
                         backgroundColor: client.color,
-                        color: "#fff",
+                        color: "#B3BBC9",
                         borderColor: client.color,
                       }}
                     >
-                      <span
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: "#fff" }}
-                      />
                       {client.label}
                     </span>
                   </button>
@@ -222,17 +218,13 @@ function ClientPricingSection() {
                             className="grid grid-cols-[1fr_100px_36px] gap-2 items-center px-2 py-1 rounded-md hover:bg-secondary/30 transition-colors"
                           >
                             <span
-                              className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium w-fit"
+                              className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium w-fit"
                               style={{
                                 backgroundColor: tt.color,
-                                color: "#fff",
+                                color: "#B3BBC9",
                                 borderColor: tt.color,
                               }}
                             >
-                              <span
-                                className="w-2 h-2 rounded-full shrink-0"
-                                style={{ backgroundColor: "#fff" }}
-                              />
                               {tt.label}
                             </span>
 
@@ -441,17 +433,13 @@ function TaskTypeOrderSection() {
           >
             <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             <span
-              className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
               style={{
                 backgroundColor: tt.color,
-                color: "#fff",
+                color: "#B3BBC9",
                 borderColor: tt.color,
               }}
             >
-              <span
-                className="w-2 h-2 rounded-full shrink-0"
-                style={{ backgroundColor: "#fff" }}
-              />
               {tt.label}
             </span>
             <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -917,12 +905,11 @@ function TierGroupEditorModal({
                 )}
                 style={{
                   backgroundColor: tt.color,
-                  color: "#fff",
+                  color: "#B3BBC9",
                   borderColor: tt.color,
                 }}
                 onClick={() => toggleTaskType(tt.label)}
               >
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: "#fff" }} />
                 {tt.label}
               </button>
             ))}
@@ -1168,14 +1155,13 @@ function TranslatorTierSection() {
         return ttOpt ? (
           <span
             key={tt}
-            className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium"
+            className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
             style={{
               backgroundColor: ttOpt.color,
-              color: "#fff",
+              color: "#B3BBC9",
               borderColor: ttOpt.color,
             }}
           >
-            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: "#fff" }} />
             {tt}
           </span>
         ) : (
