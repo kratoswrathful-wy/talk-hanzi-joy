@@ -11,16 +11,16 @@ export interface SelectOption {
 }
 
 export const PRESET_COLORS = [
-  "#EF4444", // red
-  "#F97316", // orange
-  "#F59E0B", // amber
-  "#EAB308", // yellow
-  "#84CC16", // lime
-  "#22C55E", // green
-  "#3B82F6", // blue
-  "#6366F1", // indigo
-  "#8B5CF6", // violet
-  "#EC4899", // pink
+  "#DC2626", // red
+  "#EA580C", // orange
+  "#D97706", // amber
+  "#CA8A04", // yellow
+  "#65A30D", // lime
+  "#16A34A", // green
+  "#2563EB", // blue
+  "#4F46E5", // indigo
+  "#7C3AED", // violet
+  "#DB2777", // pink
   "#6B7280", // dark gray
   "#9CA3AF", // gray
 ];
