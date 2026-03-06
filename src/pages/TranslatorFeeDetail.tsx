@@ -1,5 +1,6 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Plus, X, Send, AtSign, Image, Link2, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, X, Send, AtSign, Image, Link2, ChevronLeft, ChevronRight, Loader2, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
@@ -462,6 +463,7 @@ export default function TranslatorFeeDetail() {
   const confirmSwapOriginRef = useRef<"choose" | "assignRole">("choose");
   const [multiTranslatorPages, setMultiTranslatorPages] = useState<{ id: string; title: string; assignee: string }[] | null>(null);
   const [autoCreatedOptions, setAutoCreatedOptions] = useState<{ field: string; label: string }[] | null>(null);
+  const [showPricingTip, setShowPricingTip] = useState(true);
 
   // Find the other fee that is firstFee in the same case group
   const otherFirstFee = (() => {
@@ -1767,6 +1769,7 @@ export default function TranslatorFeeDetail() {
                             const v = e.target.value;
                             if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitPrice", v as any);
                           }}
+                          onFocus={() => setShowPricingTip(false)}
                           onBlur={(e) => handleNumberBlur(item.id, "unitPrice", e.target.value)}
                           disabled={!canEdit || isNoFeeTranslator}
                           className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
@@ -1816,7 +1819,21 @@ export default function TranslatorFeeDetail() {
                     <TableRow>
                       <TableCell colSpan={3} className="px-[18px]" />
                       <TableCell className="text-sm font-medium text-right">
-                        稿費總額
+                        <span className="inline-flex items-center gap-1">
+                          稿費總額
+                          <TooltipProvider delayDuration={0}>
+                            <Tooltip open={showPricingTip ? undefined : false}>
+                              <TooltipTrigger asChild>
+                                <Info
+                                  className={`h-3.5 w-3.5 text-muted-foreground cursor-help transition-opacity duration-300 ${showPricingTip ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                                />
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-[240px] text-xs">
+                                首度手動或自動填寫客戶報價單價時，系統會自動按照級距表（見「設定」）填入單價。
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </span>
                       </TableCell>
                       <TableCell className="text-right text-sm font-bold">
                         {totalAmount.toLocaleString()}
@@ -1851,6 +1868,7 @@ export default function TranslatorFeeDetail() {
                   setDuplicateDialogStep("choose");
                 }}
                 onClientPriceEntered={(itemIndex, clientPrice, taskType, billingUnit) => {
+                  setShowPricingTip(false);
                   // Auto-fill translator unit price if empty
                   if (itemIndex < taskItems.length) {
                     const item = taskItems[itemIndex];
