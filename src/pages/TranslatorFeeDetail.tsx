@@ -346,8 +346,8 @@ export default function TranslatorFeeDetail() {
   const isDraft = status === "draft";
   const isFinalized = status === "finalized";
 
-  // Effective role: in dev use switcher, in production use real auth
-  const effectiveRole: UserRole = import.meta.env.DEV ? currentRole : (authIsAdmin ? "pm" : "assignee");
+  // Effective role: always use real auth
+  const effectiveRole: UserRole = authIsAdmin ? "pm" : "assignee";
 
   // Assignee cannot see draft at all
   if (effectiveRole === "assignee" && isDraft) {
