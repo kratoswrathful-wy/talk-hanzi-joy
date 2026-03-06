@@ -178,7 +178,7 @@ export function InvoiceActions({ selectedFees, onDone }: InvoiceActionsProps) {
           disabled={eligibleFees.length === 0}
         >
           <FileText className="h-4 w-4" />
-          批次建立請款單
+          批次請款
         </Button>
 
         <AlertDialog open={showMultiConfirm} onOpenChange={setShowMultiConfirm}>
