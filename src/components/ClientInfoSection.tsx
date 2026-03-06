@@ -35,6 +35,7 @@ interface ClientInfoSectionProps {
   clientInfo: ClientInfo;
   onChange: (info: ClientInfo) => void;
   canEdit: boolean;
+  canEditCheckboxes?: boolean; // separate flag for reconciled/invoiced checkboxes
   translatorTotal: number;
   allFees: TranslatorFee[];
   currentFeeId: string;
