@@ -1129,7 +1129,7 @@ export default function TranslatorFeeDetail() {
               },
               notes: [],
               editLogs: [],
-              createdBy: currentFee?.createdBy || "",
+              createdBy: (id ? feeStore.getFeeById(id)?.createdBy : "") || "",
               createdAt: new Date().toISOString(),
             };
             feeStore.addFee(newFee);
