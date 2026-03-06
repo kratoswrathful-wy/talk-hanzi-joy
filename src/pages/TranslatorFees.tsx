@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Plus, ChevronDown, MessageSquare, History, GripVertical, ExternalLink, Trash2 } from "lucide-react";
+import { Plus, ChevronDown, MessageSquare, History, GripVertical, ExternalLink, Trash2, FileText } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { motion, AnimatePresence } from "framer-motion";
