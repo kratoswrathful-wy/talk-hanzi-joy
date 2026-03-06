@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useInvoices, invoiceStore } from "@/hooks/use-invoice-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useRowSelection } from "@/hooks/use-row-selection";
-import { useSelectOptions } from "@/stores/select-options-store";
+import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { type InvoiceStatus, invoiceStatusLabels } from "@/data/invoice-types";
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -80,6 +80,11 @@ export default function InvoicesPage() {
   );
   const fees = useFees();
   const { options: assigneeOptions } = useSelectOptions("assignee");
+
+  // Load assignee options on mount
+  useEffect(() => {
+    selectOptionsStore.loadAssignees();
+  }, []);
 
   // Translator picker for admin creation
   const [showTranslatorPicker, setShowTranslatorPicker] = useState(false);
