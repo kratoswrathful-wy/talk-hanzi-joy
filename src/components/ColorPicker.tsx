@@ -128,7 +128,8 @@ export default function ColorPicker({
   const [deleteColorConfirm, setDeleteColorConfirm] = useState<string | null>(null);
 
   const wheelRef = useRef<HTMLCanvasElement>(null);
-  const sliderRef = useRef<HTMLCanvasElement>(null);
+  const satSliderRef = useRef<HTMLCanvasElement>(null);
+  const valSliderRef = useRef<HTMLCanvasElement>(null);
 
   const currentHex = hsvToHex(hsv[0], hsv[1], hsv[2]);
 
@@ -163,16 +164,30 @@ export default function ColorPicker({
     ctx.putImageData(imageData, 0, 0);
   }, [showWheel, hsv[2]]);
 
-  // Draw brightness slider
+  // Draw saturation slider (vertical)
   useEffect(() => {
     if (!showWheel) return;
-    const canvas = sliderRef.current;
+    const canvas = satSliderRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d")!;
     const w = canvas.width, h = canvas.height;
-    const gradient = ctx.createLinearGradient(0, 0, w, 0);
-    gradient.addColorStop(0, "#000000");
-    gradient.addColorStop(1, hsvToHex(hsv[0], hsv[1], 1));
+    const gradient = ctx.createLinearGradient(0, 0, 0, h);
+    gradient.addColorStop(0, hsvToHex(hsv[0], 1, hsv[2]));
+    gradient.addColorStop(1, hsvToHex(hsv[0], 0, hsv[2]));
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, w, h);
+  }, [showWheel, hsv[0], hsv[2]]);
+
+  // Draw brightness slider (vertical)
+  useEffect(() => {
+    if (!showWheel) return;
+    const canvas = valSliderRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    const w = canvas.width, h = canvas.height;
+    const gradient = ctx.createLinearGradient(0, 0, 0, h);
+    gradient.addColorStop(0, hsvToHex(hsv[0], hsv[1], 1));
+    gradient.addColorStop(1, "#000000");
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, w, h);
   }, [showWheel, hsv[0], hsv[1]]);
@@ -197,11 +212,23 @@ export default function ColorPicker({
     onChange(hex);
   }, [hsv, onChange]);
 
-  const handleSliderInteraction = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = sliderRef.current!;
+  const handleSatSliderInteraction = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = satSliderRef.current!;
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const v = Math.max(0, Math.min(1, x / rect.width));
+    const y = e.clientY - rect.top;
+    const s = Math.max(0, Math.min(1, 1 - y / rect.height));
+    const newHsv: [number, number, number] = [hsv[0], s, hsv[2]];
+    setHsv(newHsv);
+    const hex = hsvToHex(newHsv[0], newHsv[1], newHsv[2]);
+    setHexInput(hex);
+    onChange(hex);
+  }, [hsv, onChange]);
+
+  const handleValSliderInteraction = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = valSliderRef.current!;
+    const rect = canvas.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const v = Math.max(0, Math.min(1, 1 - y / rect.height));
     const newHsv: [number, number, number] = [hsv[0], hsv[1], v];
     setHsv(newHsv);
     const hex = hsvToHex(newHsv[0], newHsv[1], newHsv[2]);
@@ -283,22 +310,39 @@ export default function ColorPicker({
 
         {showWheel && (
           <div className="space-y-2">
+          <div className="flex gap-3 items-start">
             <div className="flex justify-center">
               <canvas
                 ref={wheelRef}
                 width={180}
                 height={180}
-                className="w-[180px] h-[180px] rounded-full cursor-crosshair"
+                className="w-[140px] h-[140px] rounded-full cursor-crosshair"
                 onMouseDown={startDrag(handleWheelInteraction)}
               />
             </div>
-            <canvas
-              ref={sliderRef}
-              width={200}
-              height={20}
-              className="w-full h-5 rounded cursor-pointer"
-              onMouseDown={startDrag(handleSliderInteraction)}
-            />
+            <div className="flex gap-1.5 h-[140px]">
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-[9px] text-muted-foreground">彩</span>
+                <canvas
+                  ref={satSliderRef}
+                  width={16}
+                  height={120}
+                  className="w-4 h-[124px] rounded cursor-pointer"
+                  onMouseDown={startDrag(handleSatSliderInteraction)}
+                />
+              </div>
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-[9px] text-muted-foreground">明</span>
+                <canvas
+                  ref={valSliderRef}
+                  width={16}
+                  height={120}
+                  className="w-4 h-[124px] rounded cursor-pointer"
+                  onMouseDown={startDrag(handleValSliderInteraction)}
+                />
+              </div>
+            </div>
+          </div>
             <div className="flex items-center gap-2">
               <div
                 className="w-8 h-8 rounded border border-border shrink-0"
