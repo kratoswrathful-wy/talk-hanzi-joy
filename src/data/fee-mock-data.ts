@@ -1,5 +1,5 @@
 export type FeeStatus = "draft" | "finalized";
-export type TaskType = "翻譯" | "審稿" | "MTPE" | "LQA";
+export type TaskType = "翻譯" | "校對" | "MTPE" | "LQA";
 export type BillingUnit = "字" | "小時";
 
 export interface FeeTaskItem {
