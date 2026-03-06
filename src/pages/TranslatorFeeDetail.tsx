@@ -1151,7 +1151,7 @@ export default function TranslatorFeeDetail() {
 
         if (Array.isArray(workTypes) && workTypes.length > 0) {
           const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
-            const matchedType = taskTypeOptions.find((t) => wt.includes(t)) || "翻譯";
+            const matchedType = matchTaskType(wt);
             return {
               id: `item-notion-${Date.now()}-${idx}`,
               taskType: matchedType as TaskType,
