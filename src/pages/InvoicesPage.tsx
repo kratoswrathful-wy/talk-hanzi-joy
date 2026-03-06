@@ -91,11 +91,11 @@ export default function InvoicesPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40">
-              <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[200px]">譯者</th>
+              <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[200px]">標題</th>
+              <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[150px]">譯者</th>
               <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[100px]">狀態</th>
               <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[80px]">費用數</th>
               <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[120px]">總金額</th>
-              <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[120px]">匯款時間</th>
               <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[120px]">建立時間</th>
               <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground">備註</th>
               {isAdmin && <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[60px]">操作</th>}
