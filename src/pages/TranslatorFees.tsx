@@ -369,7 +369,7 @@ type ExpandType = "notes" | "editLog";
 export default function TranslatorFees() {
   const navigate = useNavigate();
   const fees = useFees();
-  const { primaryRole, isAdmin } = useAuth();
+  const { primaryRole, isAdmin, profile } = useAuth();
   const { canViewSection } = usePermissions();
   const [currentRole, setCurrentRole] = useState<UserRole>(isAdmin ? "pm" : "assignee");
   const isManager = isAdmin;
@@ -386,9 +386,11 @@ export default function TranslatorFees() {
 
   const [expandedRows, setExpandedRows] = useState<Record<string, ExpandType | null>>({});
 
-  // Filter fees for assignee role
+  // Filter fees for assignee role: translators only see finalized fees assigned to them
   const effectiveRole = isAdmin ? "pm" : "assignee";
-  const baseFees = effectiveRole === "assignee" ? fees.filter((f) => f.status !== "draft") : fees;
+  const baseFees = effectiveRole === "assignee"
+    ? fees.filter((f) => f.status === "finalized" && f.assignee === profile?.display_name)
+    : fees;
   const visibleFees = tableViews.applyFiltersAndSorts(baseFees);
 
   const rowSelection = useRowSelection(visibleFees.map((f) => f.id));
