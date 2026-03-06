@@ -937,7 +937,7 @@ export default function TranslatorFeeDetail() {
         // 稿費費率 + 計費單位數 > 任務項目（支援多工作類型）
         if (Array.isArray(workTypes) && workTypes.length > 0) {
           const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
-            const matchedType = taskTypeOptions.find((t) => wt.includes(t)) || "翻譯";
+            const matchedType = matchTaskType(wt);
             return {
               id: `item-ir-${Date.now()}-${idx}`,
               taskType: matchedType as TaskType,
