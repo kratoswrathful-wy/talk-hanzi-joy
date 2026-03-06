@@ -861,6 +861,7 @@ function TierGroupEditorModal({
   onCommit: (taskTypes: string[], billingUnit: string, rows: { minPrice: number; maxPrice: number; translatorPrice: number }[]) => void;
   onClose: () => void;
 }) {
+  const labelStyles = useLabelStyles();
   const [selectedTaskTypes, setSelectedTaskTypes] = useState<string[]>([]);
   const [selectedUnit, setSelectedUnit] = useState("字");
   const [draftRows, setDraftRows] = useState<DraftTierRow[]>([
