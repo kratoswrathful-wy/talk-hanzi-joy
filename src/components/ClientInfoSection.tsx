@@ -400,7 +400,7 @@ export default function ClientInfoSection({
                     />
                   </TableCell>
                   <TableCell className="text-right text-xs font-medium">
-                    {(Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
+                    {clientInfo.notFirstFee ? <span className="text-muted-foreground">N/A</span> : (Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
                   </TableCell>
                   {canEdit && (
                     <TableCell className="px-6">
