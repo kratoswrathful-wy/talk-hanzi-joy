@@ -287,7 +287,7 @@ export default function MembersPage() {
                         <Badge variant="secondary" className="text-xs">
                           {roleLabels[member.role]}
                         </Badge>
-                      ) : (
+                      ) : isExecutive ? (
                         <Select
                           value={member.role}
                           onValueChange={(v) => handleRoleChange(member, v as AppRole)}
@@ -301,15 +301,21 @@ export default function MembersPage() {
                             <SelectItem value="executive">執行官</SelectItem>
                           </SelectContent>
                         </Select>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs">
+                          {roleLabels[member.role]}
+                        </Badge>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        onClick={() => setRemoveTarget(member)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {isExecutive && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => setRemoveTarget(member)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );
