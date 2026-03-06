@@ -13,6 +13,7 @@ import { useTableViews, fieldMetas } from "@/hooks/use-table-views";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { InlineEditCell } from "@/components/fees/InlineEditCell";
 import { useUndoRedo, type UndoEntry } from "@/hooks/use-undo-redo";
+import { useLabelStyles } from "@/stores/label-style-store";
 import { useState, useRef, useCallback, useEffect } from "react";
 import {
   AlertDialog,
@@ -118,17 +119,7 @@ const allColumnDefs: ColumnDef[] = [
     minWidth: 70,
     render: (f, { editable, onCommit }) => (
       <InlineEditCell value={f.status} type="select" options={getSelectOptions("status")} editable={editable} onCommit={(v) => onCommit("status", v)}>
-        <Badge
-          variant="default"
-          className={cn(
-            "text-xs whitespace-nowrap text-[#D1DAEA] border",
-            f.status === "finalized"
-              ? "bg-success border-success hover:bg-success/90"
-              : "bg-[#6B7280] border-[#6B7280] hover:bg-[#6B7280]/90"
-          )}
-        >
-          {feeStatusLabels[f.status]}
-        </Badge>
+        <FeeStatusBadge status={f.status} />
       </InlineEditCell>
     ),
   },
@@ -299,6 +290,20 @@ function AssigneeLabel({ value }: { value: string }) {
       {opt && <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: opt.color }} />}
       {value}
     </span>
+  );
+}
+
+function FeeStatusBadge({ status }: { status: FeeStatus }) {
+  const labelStyles = useLabelStyles();
+  const style = status === "finalized" ? labelStyles.statusFinalized : labelStyles.statusDraft;
+  return (
+    <Badge
+      variant="default"
+      className="text-xs whitespace-nowrap border"
+      style={{ backgroundColor: style.bgColor, color: style.textColor, borderColor: style.bgColor }}
+    >
+      {feeStatusLabels[status]}
+    </Badge>
   );
 }
 

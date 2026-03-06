@@ -6,6 +6,7 @@ import { Plus, Trash2, GripVertical, Pencil, Shield, ChevronDown, ChevronRight, 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import ColorPicker from "@/components/ColorPicker";
 import { useSelectOptions, selectOptionsStore, PRESET_COLORS } from "@/stores/select-options-store";
+import { useLabelStyles, labelStyleStore } from "@/stores/label-style-store";
 import { useClientPricing, useTranslatorTiers, type TranslatorTier } from "@/stores/default-pricing-store";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions, type PermissionConfig } from "@/hooks/use-permissions";
@@ -55,6 +56,7 @@ function handleTabKeyDown(
 
 function ClientPricingSection() {
   const { options: clientOptions, customColors } = useSelectOptions("client");
+  const labelStyles = useLabelStyles();
   const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
   const { getAllClientPricing, setClientPrice, removeClientPrice } = useClientPricing();
   const allPricing = getAllClientPricing();
@@ -157,7 +159,7 @@ function ClientPricingSection() {
                       className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
                       style={{
                         backgroundColor: client.color,
-                        color: "#D1DAEA",
+                        color: labelStyles.client.textColor,
                         borderColor: client.color,
                       }}
                     >
@@ -221,7 +223,7 @@ function ClientPricingSection() {
                               className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium w-fit"
                               style={{
                                 backgroundColor: tt.color,
-                                color: "#D1DAEA",
+                                color: labelStyles.taskType.textColor,
                                 borderColor: tt.color,
                               }}
                             >
@@ -332,6 +334,27 @@ function ClientPricingSection() {
           新增客戶
         </Button>
       )}
+
+      {/* Label text color picker */}
+      <div className="border-t border-border pt-4 space-y-2">
+        <p className="text-xs font-medium text-muted-foreground">標籤字體顏色</p>
+        <div className="flex items-center gap-3">
+          <span
+            className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+            style={{ backgroundColor: clientOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.client.textColor, borderColor: clientOptions[0]?.color || PRESET_COLORS[0] }}
+          >
+            預覽
+          </span>
+          <ColorPicker
+            value={labelStyles.client.textColor}
+            onChange={(c) => labelStyleStore.setClientTextColor(c)}
+            customColors={[]}
+            onAddCustomColor={() => {}}
+            onRemoveCustomColor={() => {}}
+            colorUsageMap={{}}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -340,6 +363,7 @@ function ClientPricingSection() {
 
 function TaskTypeOrderSection() {
   const { options: taskTypeOptions, customColors } = useSelectOptions("clientTaskType");
+  const labelStyles = useLabelStyles();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
@@ -436,7 +460,7 @@ function TaskTypeOrderSection() {
               className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
               style={{
                 backgroundColor: tt.color,
-                color: "#D1DAEA",
+                color: labelStyles.taskType.textColor,
                 borderColor: tt.color,
               }}
             >
@@ -523,6 +547,27 @@ function TaskTypeOrderSection() {
           新增任務類型
         </Button>
       )}
+
+      {/* Label text color picker */}
+      <div className="border-t border-border pt-4 space-y-2">
+        <p className="text-xs font-medium text-muted-foreground">標籤字體顏色</p>
+        <div className="flex items-center gap-3">
+          <span
+            className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+            style={{ backgroundColor: taskTypeOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.taskType.textColor, borderColor: taskTypeOptions[0]?.color || PRESET_COLORS[0] }}
+          >
+            預覽
+          </span>
+          <ColorPicker
+            value={labelStyles.taskType.textColor}
+            onChange={(c) => labelStyleStore.setTaskTypeTextColor(c)}
+            customColors={[]}
+            onAddCustomColor={() => {}}
+            onRemoveCustomColor={() => {}}
+            colorUsageMap={{}}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -816,6 +861,7 @@ function TierGroupEditorModal({
   onCommit: (taskTypes: string[], billingUnit: string, rows: { minPrice: number; maxPrice: number; translatorPrice: number }[]) => void;
   onClose: () => void;
 }) {
+  const labelStyles = useLabelStyles();
   const [selectedTaskTypes, setSelectedTaskTypes] = useState<string[]>([]);
   const [selectedUnit, setSelectedUnit] = useState("字");
   const [draftRows, setDraftRows] = useState<DraftTierRow[]>([
@@ -905,7 +951,7 @@ function TierGroupEditorModal({
                 )}
                 style={{
                   backgroundColor: tt.color,
-                  color: "#D1DAEA",
+                  color: labelStyles.taskType.textColor,
                   borderColor: tt.color,
                 }}
                 onClick={() => toggleTaskType(tt.label)}
@@ -1021,6 +1067,7 @@ function TierGroupEditorModal({
 function TranslatorTierSection() {
   const { tiers, addTier, addTierToGroup, updateTierRow, removeTierRow } = useTranslatorTiers();
   const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
+  const labelStyles = useLabelStyles();
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [uncommittedIds, setUncommittedIds] = useState<Set<string>>(new Set());
@@ -1158,7 +1205,7 @@ function TranslatorTierSection() {
             className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
             style={{
               backgroundColor: ttOpt.color,
-              color: "#D1DAEA",
+              color: labelStyles.taskType.textColor,
               borderColor: ttOpt.color,
             }}
           >
@@ -1564,6 +1611,95 @@ function PermissionManagementSection() {
   );
 }
 
+// ─── Status Badge Style Section ───
+
+function StatusStyleSection() {
+  const labelStyles = useLabelStyles();
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+      <div>
+        <h2 className="text-base font-semibold">狀態標籤設定</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          自訂「草稿」與「開立完成」狀態標籤的背景顏色與字體顏色
+        </p>
+      </div>
+
+      {/* Draft */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-3">
+          <span
+            className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+            style={{ backgroundColor: labelStyles.statusDraft.bgColor, color: labelStyles.statusDraft.textColor, borderColor: labelStyles.statusDraft.bgColor }}
+          >
+            草稿
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">背景顏色</p>
+            <ColorPicker
+              value={labelStyles.statusDraft.bgColor}
+              onChange={(c) => labelStyleStore.setStatusDraftStyle({ bgColor: c })}
+              customColors={[]}
+              onAddCustomColor={() => {}}
+              onRemoveCustomColor={() => {}}
+              colorUsageMap={{}}
+            />
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">字體顏色</p>
+            <ColorPicker
+              value={labelStyles.statusDraft.textColor}
+              onChange={(c) => labelStyleStore.setStatusDraftStyle({ textColor: c })}
+              customColors={[]}
+              onAddCustomColor={() => {}}
+              onRemoveCustomColor={() => {}}
+              colorUsageMap={{}}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Finalized */}
+      <div className="space-y-2 border-t border-border pt-4">
+        <div className="flex items-center gap-3">
+          <span
+            className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+            style={{ backgroundColor: labelStyles.statusFinalized.bgColor, color: labelStyles.statusFinalized.textColor, borderColor: labelStyles.statusFinalized.bgColor }}
+          >
+            開立完成
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">背景顏色</p>
+            <ColorPicker
+              value={labelStyles.statusFinalized.bgColor}
+              onChange={(c) => labelStyleStore.setStatusFinalizedStyle({ bgColor: c })}
+              customColors={[]}
+              onAddCustomColor={() => {}}
+              onRemoveCustomColor={() => {}}
+              colorUsageMap={{}}
+            />
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">字體顏色</p>
+            <ColorPicker
+              value={labelStyles.statusFinalized.textColor}
+              onChange={(c) => labelStyleStore.setStatusFinalizedStyle({ textColor: c })}
+              customColors={[]}
+              onAddCustomColor={() => {}}
+              onRemoveCustomColor={() => {}}
+              colorUsageMap={{}}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Settings Page ───
 
 export default function SettingsPage() {
@@ -1583,9 +1719,10 @@ export default function SettingsPage() {
 
       {/* Admin sections - based on permission config */}
       {canViewSection("task_type_order") && <TaskTypeOrderSection />}
-      {canViewSection("translator_notes") && <TranslatorNotesSection />}
       {canViewSection("client_pricing") && <ClientPricingSection />}
+      {canViewSection("translator_notes") && <TranslatorNotesSection />}
       {canViewSection("translator_tiers") && <TranslatorTierSection />}
+      <StatusStyleSection />
     </div>
   );
 }

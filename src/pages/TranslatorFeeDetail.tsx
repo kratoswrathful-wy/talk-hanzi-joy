@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, type TranslatorFee, defaultClientInfo } from "@/data/fee-mock-data";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
 import { selectOptionsStore, PRESET_COLORS } from "@/stores/select-options-store";
+import { useLabelStyles } from "@/stores/label-style-store";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
   draft: "草稿",
@@ -52,7 +53,20 @@ const roleLabels: Record<UserRole, string> = {
   executive: "執行官",
 };
 
-const taskTypeOptions: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
+function DetailStatusBadge({ status }: { status: FeeStatus }) {
+  const labelStyles = useLabelStyles();
+  const style = status === "finalized" ? labelStyles.statusFinalized : labelStyles.statusDraft;
+  return (
+    <Badge
+      variant="default"
+      className="border"
+      style={{ backgroundColor: style.bgColor, color: style.textColor, borderColor: style.bgColor }}
+    >
+      {feeStatusLabels[status]}
+    </Badge>
+  );
+}
+
 
 interface EditLogEntry {
   id: string;
@@ -1536,17 +1550,7 @@ export default function TranslatorFeeDetail() {
             <div className="grid gap-1.5">
               <Label className="text-xs text-muted-foreground">狀態</Label>
               <div className="flex items-center h-10">
-                <Badge
-                  variant="default"
-                  className={cn(
-                    "text-[#D1DAEA] border",
-                    isFinalized
-                      ? "bg-success border-success"
-                      : "bg-[#6B7280] border-[#6B7280]"
-                  )}
-                >
-                  {feeStatusLabels[status]}
-                </Badge>
+                <DetailStatusBadge status={status} />
               </div>
             </div>
           </div>

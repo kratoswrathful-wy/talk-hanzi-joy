@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useSelectOptions, selectOptionsStore, type SelectOption, PRESET_COLORS } from "@/stores/select-options-store";
+import { useLabelStyles } from "@/stores/label-style-store";
 import ColorPicker from "@/components/ColorPicker";
 import {
   AlertDialog,
@@ -40,6 +41,10 @@ export default function ColorSelect({
   defaultOpen,
 }: ColorSelectProps) {
   const { options, customColors } = useSelectOptions(fieldKey);
+  const labelStyles = useLabelStyles();
+  const labelTextColor = fieldKey === "client" ? labelStyles.client.textColor
+    : (fieldKey === "taskType" || fieldKey === "clientTaskType" || fieldKey === "billingUnit" || fieldKey === "clientBillingUnit") ? labelStyles.taskType.textColor
+    : "#D1DAEA";
   const [open, setOpen] = useState(defaultOpen ?? false);
   const [addingNew, setAddingNew] = useState(false);
   const [newLabel, setNewLabel] = useState("");
@@ -138,7 +143,7 @@ export default function ColorSelect({
                 className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
                 style={{
                   backgroundColor: selectedOption.color,
-                  color: "#D1DAEA",
+                  color: labelTextColor,
                   borderColor: selectedOption.color,
                 }}
               >
@@ -194,7 +199,7 @@ export default function ColorSelect({
                         className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
                         style={{
                           backgroundColor: opt.color,
-                          color: "#D1DAEA",
+                          color: labelTextColor,
                           borderColor: opt.color,
                         }}
                       >
