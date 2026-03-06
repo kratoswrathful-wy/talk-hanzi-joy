@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -15,13 +14,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { format } from "date-fns";
 import { useInvoice, invoiceStore } from "@/hooks/use-invoice-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { type InvoiceStatus, type PaymentRecord, invoiceStatusLabels } from "@/data/invoice-types";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useInvoices } from "@/hooks/use-invoice-store";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -51,6 +49,8 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { CommentContent } from "@/components/comments/CommentContent";
+import { CommentInput } from "@/components/comments/CommentInput";
 
 function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
   const labelStyles = useLabelStyles();
@@ -74,15 +74,50 @@ function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
 const formatCurrency = (n: number) =>
   n.toLocaleString("zh-TW", { style: "currency", currency: "TWD", minimumFractionDigits: 0 });
 
-const formatTimestamp = (d: Date) =>
-  `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+const formatTimestamp = (date: Date | string) => {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleString("zh-TW", {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+};
+
+interface CommentEntry {
+  id: string;
+  author: string;
+  content: string;
+  imageUrls?: string[];
+  timestamp: string;
+}
+
+interface EditLogEntry {
+  id: string;
+  changedBy: string;
+  description: string;
+  timestamp: string;
+}
+
+interface PendingChange {
+  field: string;
+  oldValue: string;
+  newValue: string;
+  changedAt: number;
+}
+
+const COMMIT_DELAY_MS = 5 * 60 * 1000; // 5 minutes
+
+const fieldLabels: Record<string, string> = {
+  title: "標題",
+  status: "狀態",
+  note: "備註",
+};
 
 export default function InvoiceDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const invoice = useInvoice(id);
   const fees = useFees();
-  const { isAdmin } = useAuth();
+  const { isAdmin, profile } = useAuth();
   const { options: assigneeOptions } = useSelectOptions("assignee");
   const [showDelete, setShowDelete] = useState(false);
   const [removeFeeId, setRemoveFeeId] = useState<string | null>(null);
@@ -93,6 +128,127 @@ export default function InvoiceDetailPage() {
   const [addFeeOpen, setAddFeeOpen] = useState(false);
   const [selectedAddFees, setSelectedAddFees] = useState<string[]>([]);
   const allInvoices = useInvoices();
+
+  // Comments
+  const [comments, setComments] = useState<CommentEntry[]>([]);
+  const [internalComments, setInternalComments] = useState<CommentEntry[]>([]);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [internalCommentDraft, setInternalCommentDraft] = useState("");
+
+  // Edit history
+  const [editLog, setEditLog] = useState<EditLogEntry[]>([]);
+  const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
+
+  // Translator profile
+  const [translatorProfile, setTranslatorProfile] = useState<{ display_name: string | null; avatar_url: string | null } | null>(null);
+
+  // Initialize from invoice data
+  useEffect(() => {
+    if (!invoice) return;
+    // Load comments
+    const rawComments = (invoice as any).comments;
+    if (Array.isArray(rawComments)) {
+      setComments(rawComments.map((c: any) => ({
+        id: c.id,
+        author: c.author,
+        content: c.content,
+        imageUrls: c.imageUrls,
+        timestamp: c.timestamp,
+      })));
+    }
+    // Load internal comments
+    const rawInternalComments = (invoice as any).internalComments;
+    if (Array.isArray(rawInternalComments)) {
+      setInternalComments(rawInternalComments.map((c: any) => ({
+        id: c.id,
+        author: c.author,
+        content: c.content,
+        imageUrls: c.imageUrls,
+        timestamp: c.timestamp,
+      })));
+    }
+    // Load edit logs
+    const rawEditLogs = (invoice as any).edit_logs;
+    if (Array.isArray(rawEditLogs)) {
+      setEditLog(rawEditLogs.map((l: any) => ({
+        id: l.id,
+        changedBy: l.changedBy,
+        description: l.description,
+        timestamp: l.timestamp,
+      })));
+    }
+  }, [invoice?.id]); // Only on initial load
+
+  // Load translator profile
+  useEffect(() => {
+    if (!invoice?.translator) return;
+    supabase
+      .from("profiles")
+      .select("display_name, avatar_url")
+      .eq("display_name", invoice.translator)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setTranslatorProfile(data);
+      });
+  }, [invoice?.translator]);
+
+  // Pending changes commit logic (5-min delay)
+  useEffect(() => {
+    if (pendingChanges.length === 0) return;
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const ready = pendingChanges.filter((c) => now - c.changedAt >= COMMIT_DELAY_MS);
+      if (ready.length > 0) {
+        const authorName = profile?.display_name || profile?.email || "系統";
+        const newEntries = ready.map((c) => ({
+          id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          changedBy: authorName,
+          description: `${fieldLabels[c.field] || c.field} ${c.oldValue} → ${c.newValue}`,
+          timestamp: formatTimestamp(new Date(c.changedAt)),
+        }));
+        setEditLog((prev) => [...prev, ...newEntries]);
+        setPendingChanges((prev) => prev.filter((c) => now - c.changedAt < COMMIT_DELAY_MS));
+        // Persist
+        if (id) {
+          const allLogs = [...editLog, ...newEntries];
+          invoiceStore.updateInvoice(id, { edit_logs: allLogs } as any);
+        }
+      }
+    }, 10000);
+    return () => clearInterval(timer);
+  }, [pendingChanges, editLog, id, profile]);
+
+  // Track field changes
+  const trackChange = useCallback((field: string, oldValue: string, newValue: string) => {
+    if (oldValue === newValue) return;
+    setPendingChanges((prev) => {
+      const existing = prev.findIndex((c) => c.field === field);
+      if (existing >= 0) {
+        const updated = [...prev];
+        updated[existing] = { ...updated[existing], newValue, changedAt: Date.now() };
+        return updated;
+      }
+      return [...prev, { field, oldValue, newValue, changedAt: Date.now() }];
+    });
+  }, []);
+
+  // Force commit all pending changes
+  const forceCommitPending = useCallback(() => {
+    if (pendingChanges.length === 0) return;
+    const authorName = profile?.display_name || profile?.email || "系統";
+    const newEntries = pendingChanges.map((c) => ({
+      id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      changedBy: authorName,
+      description: `${fieldLabels[c.field] || c.field} ${c.oldValue} → ${c.newValue}`,
+      timestamp: formatTimestamp(new Date(c.changedAt)),
+    }));
+    const allLogs = [...editLog, ...newEntries];
+    setEditLog(allLogs);
+    setPendingChanges([]);
+    if (id) {
+      invoiceStore.updateInvoice(id, { edit_logs: allLogs } as any);
+    }
+  }, [pendingChanges, editLog, id, profile]);
 
   // Unlinked fees for this translator
   const allLinkedFeeIds = useMemo(() => {
@@ -109,23 +265,6 @@ export default function InvoiceDetailPage() {
       (f) => f.assignee === invoice.translator && !allLinkedFeeIds.has(f.id)
     );
   }, [fees, invoice, allLinkedFeeIds]);
-
-  // Translator profile
-  const [translatorProfile, setTranslatorProfile] = useState<{ display_name: string | null; avatar_url: string | null } | null>(null);
-  useEffect(() => {
-    if (!invoice?.translator) return;
-    const opt = assigneeOptions.find((o) => o.label === invoice.translator);
-    if (!opt) return;
-    // Try to find profile by display_name
-    supabase
-      .from("profiles")
-      .select("display_name, avatar_url")
-      .eq("display_name", invoice.translator)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data) setTranslatorProfile(data);
-      });
-  }, [invoice?.translator, assigneeOptions]);
 
   if (!invoice) {
     return (
@@ -152,6 +291,8 @@ export default function InvoiceDetailPage() {
   const handleRemoveFee = () => {
     if (removeFeeId) {
       invoiceStore.removeFeeFromInvoice(invoice.id, removeFeeId);
+      const fee = fees.find((f) => f.id === removeFeeId);
+      trackChange("費用", fee?.title || removeFeeId, "已移除");
       setRemoveFeeId(null);
     }
   };
@@ -159,6 +300,12 @@ export default function InvoiceDetailPage() {
   const handleDelete = () => {
     invoiceStore.deleteInvoice(invoice.id);
     navigate("/invoices");
+  };
+
+  const handleTitleChange = (newTitle: string) => {
+    const oldTitle = invoice.title;
+    invoiceStore.updateInvoice(invoice.id, { title: newTitle });
+    trackChange("title", oldTitle, newTitle);
   };
 
   const handleFullPayment = () => {
@@ -174,6 +321,8 @@ export default function InvoiceDetailPage() {
       payments: newPayments,
       transferDate: now,
     });
+    trackChange("status", invoiceStatusLabels[invoice.status], "已付款");
+    forceCommitPending();
     toast.success("已記錄全額付款");
   };
 
@@ -206,12 +355,61 @@ export default function InvoiceDetailPage() {
       payments: newPayments,
       ...(newStatus === "paid" ? { transferDate: now } : {}),
     });
+    trackChange("status", invoiceStatusLabels[invoice.status], invoiceStatusLabels[newStatus]);
+    if (newStatus === "paid") forceCommitPending();
     setShowPartialInput(false);
     setPartialAmount("");
     toast.success("已記錄部份付款");
   };
 
-  const hasPayments = invoice.payments.length > 0;
+  const handleNoteChange = (newNote: string) => {
+    const oldNote = invoice.note;
+    invoiceStore.updateInvoice(invoice.id, { note: newNote });
+    trackChange("note", oldNote || "(空)", newNote || "(空)");
+  };
+
+  const handleAddComment = (content: string, imageUrls?: string[]) => {
+    const authorName = profile?.display_name || profile?.email || "使用者";
+    const newComment: CommentEntry = {
+      id: `comment-${Date.now()}`,
+      author: authorName,
+      content,
+      imageUrls,
+      timestamp: formatTimestamp(new Date()),
+    };
+    const updated = [...comments, newComment];
+    setComments(updated);
+    if (id) {
+      invoiceStore.updateInvoice(id, { comments: updated } as any);
+    }
+  };
+
+  const handleAddInternalComment = (content: string, imageUrls?: string[]) => {
+    const authorName = profile?.display_name || profile?.email || "使用者";
+    const newComment: CommentEntry = {
+      id: `icomment-${Date.now()}`,
+      author: authorName,
+      content,
+      imageUrls,
+      timestamp: formatTimestamp(new Date()),
+    };
+    const updated = [...internalComments, newComment];
+    setInternalComments(updated);
+    if (id) {
+      // Store internal comments separately in the comments jsonb
+      const allComments = [...comments];
+      invoiceStore.updateInvoice(id, { comments: allComments, internalComments: updated } as any);
+    }
+  };
+
+  const handleAddFees = () => {
+    invoiceStore.addFeesToInvoice(invoice.id, selectedAddFees);
+    const addedNames = selectedAddFees.map((fid) => fees.find((f) => f.id === fid)?.title || "未命名").join(", ");
+    trackChange("費用", "", `新增 ${selectedAddFees.length} 筆: ${addedNames}`);
+    setSelectedAddFees([]);
+    setAddFeeOpen(false);
+    toast.success(`已加入 ${selectedAddFees.length} 筆費用`);
+  };
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -234,7 +432,7 @@ export default function InvoiceDetailPage() {
           ) : (
             <Input
               value={invoice.title}
-              onChange={(e) => invoiceStore.updateInvoice(invoice.id, { title: e.target.value })}
+              onChange={(e) => handleTitleChange(e.target.value)}
               placeholder="請款單標題"
               className="text-xl font-semibold tracking-tight border-0 shadow-none px-0 h-auto py-0 focus-visible:ring-0 bg-transparent"
             />
@@ -251,23 +449,21 @@ export default function InvoiceDetailPage() {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
         {/* Fee list */}
         <div className="rounded-lg border border-border bg-card p-5 space-y-3">
-          {/* Header: 請款人 + Add fee button */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-            <h2 className="text-sm font-medium text-muted-foreground">請款人：</h2>
-            <div className="flex items-center gap-1.5">
-              {translatorProfile?.avatar_url ? (
-                <Avatar className="h-5 w-5">
-                  <AvatarImage src={translatorProfile.avatar_url} />
-                  <AvatarFallback className="text-[10px]">{(invoice.translator || "?")[0]}</AvatarFallback>
-                </Avatar>
-              ) : opt ? (
-                <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: opt.color }} />
-              ) : null}
-              <span className="text-sm font-medium">{translatorProfile?.display_name || invoice.translator || "未指定"}</span>
+              <h2 className="text-sm font-medium text-muted-foreground">請款人：</h2>
+              <div className="flex items-center gap-1.5">
+                {translatorProfile?.avatar_url ? (
+                  <Avatar className="h-5 w-5">
+                    <AvatarImage src={translatorProfile.avatar_url} />
+                    <AvatarFallback className="text-[10px]">{(invoice.translator || "?")[0]}</AvatarFallback>
+                  </Avatar>
+                ) : opt ? (
+                  <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: opt.color }} />
+                ) : null}
+                <span className="text-sm font-medium">{translatorProfile?.display_name || invoice.translator || "未指定"}</span>
+              </div>
             </div>
-            </div>
-            {/* Add fee button */}
             {editable && availableFees.length > 0 && (
               <Popover open={addFeeOpen} onOpenChange={(open) => {
                 setAddFeeOpen(open);
@@ -303,12 +499,7 @@ export default function InvoiceDetailPage() {
                     size="sm"
                     className="w-full"
                     disabled={selectedAddFees.length === 0}
-                    onClick={() => {
-                      invoiceStore.addFeesToInvoice(invoice.id, selectedAddFees);
-                      setSelectedAddFees([]);
-                      setAddFeeOpen(false);
-                      toast.success(`已加入 ${selectedAddFees.length} 筆費用`);
-                    }}
+                    onClick={handleAddFees}
                   >
                     加入 {selectedAddFees.length > 0 ? `(${selectedAddFees.length})` : ""}
                   </Button>
@@ -377,9 +568,7 @@ export default function InvoiceDetailPage() {
 
         {/* Payment section */}
         <div className="space-y-3">
-          {/* Payment records */}
           {invoice.payments.map((p, idx) => {
-            // Calculate remaining after this payment
             const paidUpToHere = invoice.payments.slice(0, idx + 1).reduce(
               (s, pp) => s + (pp.type === "full" ? total : (pp.amount || 0)), 0
             );
@@ -397,7 +586,6 @@ export default function InvoiceDetailPage() {
             );
           })}
 
-          {/* Partial amount input dialog */}
           {showPartialInput && (
             <div className="flex items-center gap-2 justify-end">
               <Input
@@ -413,7 +601,6 @@ export default function InvoiceDetailPage() {
             </div>
           )}
 
-          {/* Payment button - show only when not fully paid */}
           {!isPaid && !showPartialInput && isAdmin && (
             <div className="flex justify-end">
               <DropdownMenu>
@@ -429,21 +616,92 @@ export default function InvoiceDetailPage() {
           )}
         </div>
 
-        {/* Note - at the bottom, same style as fee detail page */}
+        {/* Meta info */}
+        <Separator />
+        <div className="flex gap-6 text-xs text-muted-foreground">
+          <span>建立時間：{formatTimestamp(invoice.createdAt)}</span>
+        </div>
+
+        {/* Edit History */}
+        {(editLog.length > 0 || pendingChanges.length > 0) && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">變更紀錄</Label>
+              <div className="space-y-2">
+                {editLog.map((entry) => (
+                  <div key={entry.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs space-y-0.5">
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                      <span><span className="text-muted-foreground">變更者：</span>{entry.changedBy}</span>
+                      <span><span className="text-muted-foreground">變更內容：</span>{entry.description}</span>
+                      <span><span className="text-muted-foreground">變更時間：</span>{entry.timestamp}</span>
+                    </div>
+                  </div>
+                ))}
+                {pendingChanges.map((change, idx) => (
+                  <div key={`pending-${idx}`} className="rounded-md border border-dashed border-border bg-secondary/15 px-3 py-2 text-xs space-y-0.5 opacity-60">
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 italic">
+                      <span><span className="text-muted-foreground">變更者：</span>{profile?.display_name || profile?.email || "使用者"}</span>
+                      <span><span className="text-muted-foreground">變更內容：</span>{fieldLabels[change.field] || change.field} {change.oldValue} → {change.newValue}</span>
+                      <span><span className="text-muted-foreground">變更時間：</span>{formatTimestamp(new Date(change.changedAt))}</span>
+                      <span className="text-muted-foreground">（未滿 5 分鐘，尚未正式紀錄）</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* 留言與備註 */}
         <Separator />
         <div className="space-y-3">
-          <Label className="text-sm font-medium">備註</Label>
-          {isAdmin ? (
-            <Textarea
-              value={invoice.note}
-              onChange={(e) => invoiceStore.updateInvoice(invoice.id, { note: e.target.value })}
-              placeholder="輸入備註..."
-              className="min-h-[80px]"
-            />
-          ) : (
-            <p className="text-sm">{invoice.note || "—"}</p>
-          )}
+          <Label className="text-sm font-medium">留言與備註</Label>
+          <div className="space-y-2">
+            {comments.map((c) => (
+              <div key={c.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-medium">{c.author}</span>
+                  <span className="text-muted-foreground">{c.timestamp}</span>
+                </div>
+                <CommentContent content={c.content} imageUrls={c.imageUrls} />
+              </div>
+            ))}
+          </div>
+          <CommentInput
+            draft={commentDraft}
+            setDraft={setCommentDraft}
+            placeholder="輸入留言..."
+            onSubmit={handleAddComment}
+          />
         </div>
+
+        {/* 內部備註 — PM+ only */}
+        {isAdmin && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">內部備註</Label>
+              <div className="space-y-2">
+                {internalComments.map((c) => (
+                  <div key={c.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium">{c.author}</span>
+                      <span className="text-muted-foreground">{c.timestamp}</span>
+                    </div>
+                    <CommentContent content={c.content} imageUrls={c.imageUrls} />
+                  </div>
+                ))}
+              </div>
+              <CommentInput
+                draft={internalCommentDraft}
+                setDraft={setInternalCommentDraft}
+                placeholder="輸入內部備註..."
+                onSubmit={handleAddInternalComment}
+              />
+            </div>
+          </>
+        )}
       </motion.div>
 
       {/* Delete invoice dialog */}
