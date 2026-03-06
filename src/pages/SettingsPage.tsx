@@ -117,16 +117,37 @@ function ClientPricingSection() {
         </p>
       ) : (
         <div className="space-y-1">
-          {clientOptions.map((client) => {
+          {clientOptions.map((client, idx) => {
             const pricing = allPricing[client.label] || {};
             const isExpanded = expandedClients.has(client.id);
             return (
               <div key={client.id}>
-                <div className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors">
+                <div
+                  draggable
+                  onDragStart={() => setDragIndex(idx)}
+                  onDragOver={(e) => { e.preventDefault(); if (dragIndex !== null && dragIndex !== idx) setDragOverIndex(idx); }}
+                  onDrop={() => {
+                    if (dragIndex === null || dragIndex === idx) return;
+                    const ids = clientOptions.map((o) => o.id);
+                    const [moved] = ids.splice(dragIndex, 1);
+                    ids.splice(idx, 0, moved);
+                    selectOptionsStore.reorderOptions("client", ids);
+                    setDragIndex(null);
+                    setDragOverIndex(null);
+                  }}
+                  onDragEnd={() => { setDragIndex(null); setDragOverIndex(null); }}
+                  className={cn(
+                    "flex items-center justify-between px-2 py-1.5 rounded-md transition-colors group cursor-grab active:cursor-grabbing",
+                    dragOverIndex === idx && "bg-primary/10 border border-dashed border-primary/30",
+                    dragIndex === idx && "opacity-50",
+                    dragOverIndex !== idx && "hover:bg-secondary/30"
+                  )}
+                >
                   <button
                     className="flex items-center gap-2 flex-1 text-left"
                     onClick={() => toggleClient(client.id)}
                   >
+                    <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     {isExpanded ? (
                       <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     ) : (
@@ -147,14 +168,37 @@ function ClientPricingSection() {
                       {client.label}
                     </span>
                   </button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                    onClick={() => selectOptionsStore.deleteOption("client", client.id)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Popover
+                      open={colorPickerClientId === client.id}
+                      onOpenChange={(v) => setColorPickerClientId(v ? client.id : null)}
+                    >
+                      <PopoverTrigger asChild>
+                        <button
+                          className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Palette className="h-3.5 w-3.5 text-muted-foreground" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[240px] p-3" side="right" align="start" sideOffset={4}>
+                        <ColorPicker
+                          value={client.color}
+                          onChange={(color) => selectOptionsStore.updateOptionColor("client", client.id, color)}
+                          customColors={customColors}
+                          onAddCustomColor={(c) => selectOptionsStore.addCustomColor("client", c)}
+                          onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("client", c)}
+                          colorUsageMap={{}}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <button
+                      className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
+                      onClick={(e) => { e.stopPropagation(); selectOptionsStore.deleteOption("client", client.id); }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 {isExpanded && (
