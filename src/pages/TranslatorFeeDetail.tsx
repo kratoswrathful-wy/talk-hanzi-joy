@@ -1102,6 +1102,7 @@ export default function TranslatorFeeDetail() {
         }
 
         toast.success("已從 Notion 載入內部費用紀錄");
+        if (autoCreated.length > 0) setAutoCreatedOptions(autoCreated);
       } else {
         // ===== 🖖 翻譯案件 mapping (original logic) =====
         // Extract fields
