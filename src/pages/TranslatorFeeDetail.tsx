@@ -1164,7 +1164,7 @@ export default function TranslatorFeeDetail() {
 
           // 同步工作類型到客戶計費項目
           const mappedClientItems: import("@/data/fee-mock-data").ClientTaskItem[] = workTypes.map((wt: string, idx: number) => {
-            const matchedType = taskTypeOptions.find((t) => wt.includes(t)) || "翻譯";
+            const matchedType = matchTaskType(wt);
             const cp = clientInfo.client
               ? defaultPricingStore.getClientPrice(clientInfo.client, matchedType as string) ?? 0
               : 0;
