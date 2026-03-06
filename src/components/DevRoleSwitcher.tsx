@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
 
 interface TestAccount {
   email: string;
@@ -15,6 +16,7 @@ const TEST_ACCOUNTS: TestAccount[] = [
 
 export function DevRoleSwitcher() {
   const [currentEmail, setCurrentEmail] = useState<string | null>(null);
+  const [switching, setSwitching] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -26,20 +28,39 @@ export function DevRoleSwitcher() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Hide on published production URL (talk-hanzi-joy.lovable.app)
+  // Hide on published production URL
   const isProduction = window.location.hostname === "talk-hanzi-joy.lovable.app";
   if (isProduction) return null;
 
   const handleSwitch = async (email: string) => {
-    if (email === currentEmail) return;
-    // Sign out first, then sign in with the test account
-    await supabase.auth.signOut();
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password: "test1234",
-    });
-    if (error) {
-      console.error("Dev switch failed:", error.message);
+    if (email === currentEmail || switching) return;
+    setSwitching(email);
+    try {
+      // Call edge function to get a magic link token
+      const { data, error } = await supabase.functions.invoke("dev-switch-user", {
+        body: { email },
+      });
+      if (error || !data?.token) {
+        console.error("Dev switch failed:", error || data?.error);
+        setSwitching(null);
+        return;
+      }
+
+      // Sign out current user first
+      await supabase.auth.signOut();
+
+      // Verify OTP with the token
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        token_hash: data.token,
+        type: "magiclink",
+      });
+      if (verifyError) {
+        console.error("OTP verify failed:", verifyError.message);
+      }
+    } catch (err) {
+      console.error("Dev switch error:", err);
+    } finally {
+      setSwitching(null);
     }
   };
 
@@ -53,8 +74,13 @@ export function DevRoleSwitcher() {
           size="sm"
           className="h-6 text-xs px-2.5"
           onClick={() => handleSwitch(acct.email)}
+          disabled={switching !== null}
         >
-          {acct.label}
+          {switching === acct.email ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            acct.label
+          )}
         </Button>
       ))}
     </div>
