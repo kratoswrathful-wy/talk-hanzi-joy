@@ -936,6 +936,22 @@ export default function TranslatorFeeDetail() {
           });
         }
 
+        // Auto-create client/contact options if they don't exist
+        if (client) {
+          const existingClients = selectOptionsStore.getSortedOptions("client");
+          if (!existingClients.find((o) => o.label === client)) {
+            selectOptionsStore.addOption("client", client, PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]);
+            toast.info(`已自動建立新客戶選項：${client}`);
+          }
+        }
+        if (contact) {
+          const existingContacts = selectOptionsStore.getSortedOptions("contact");
+          if (!existingContacts.find((o) => o.label === contact)) {
+            selectOptionsStore.addOption("contact", contact, PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]);
+            toast.info(`已自動建立新聯絡人選項：${contact}`);
+          }
+        }
+
         // 客戶資訊
         const updatedClientInfo: ClientInfo = {
           ...clientInfo,
