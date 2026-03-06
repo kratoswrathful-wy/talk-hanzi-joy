@@ -53,7 +53,8 @@ export default function ClientInfoSection({
   onFirstFeeConflict,
 }: ClientInfoSectionProps) {
   const [showUncheckWarning, setShowUncheckWarning] = useState(false);
-  const selectStore = useSelectOptions();
+  const storeSnapshot = useSyncExternalStore(selectOptionsStore.subscribe, selectOptionsStore.getSnapshot);
+  const assigneeOptions = storeSnapshot.assignee.options;
 
   const update = <K extends keyof ClientInfo>(key: K, value: ClientInfo[K]) => {
     onChange({ ...clientInfo, [key]: value });
