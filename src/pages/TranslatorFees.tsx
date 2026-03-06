@@ -119,17 +119,7 @@ const allColumnDefs: ColumnDef[] = [
     minWidth: 70,
     render: (f, { editable, onCommit }) => (
       <InlineEditCell value={f.status} type="select" options={getSelectOptions("status")} editable={editable} onCommit={(v) => onCommit("status", v)}>
-        <Badge
-          variant="default"
-          className={cn(
-            "text-xs whitespace-nowrap text-[#D1DAEA] border",
-            f.status === "finalized"
-              ? "bg-success border-success hover:bg-success/90"
-              : "bg-[#6B7280] border-[#6B7280] hover:bg-[#6B7280]/90"
-          )}
-        >
-          {feeStatusLabels[f.status]}
-        </Badge>
+        <FeeStatusBadge status={f.status} />
       </InlineEditCell>
     ),
   },
