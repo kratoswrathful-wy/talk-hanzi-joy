@@ -164,16 +164,30 @@ export default function ColorPicker({
     ctx.putImageData(imageData, 0, 0);
   }, [showWheel, hsv[2]]);
 
-  // Draw brightness slider
+  // Draw saturation slider (vertical)
   useEffect(() => {
     if (!showWheel) return;
-    const canvas = sliderRef.current;
+    const canvas = satSliderRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d")!;
     const w = canvas.width, h = canvas.height;
-    const gradient = ctx.createLinearGradient(0, 0, w, 0);
-    gradient.addColorStop(0, "#000000");
-    gradient.addColorStop(1, hsvToHex(hsv[0], hsv[1], 1));
+    const gradient = ctx.createLinearGradient(0, 0, 0, h);
+    gradient.addColorStop(0, hsvToHex(hsv[0], 1, hsv[2]));
+    gradient.addColorStop(1, hsvToHex(hsv[0], 0, hsv[2]));
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, w, h);
+  }, [showWheel, hsv[0], hsv[2]]);
+
+  // Draw brightness slider (vertical)
+  useEffect(() => {
+    if (!showWheel) return;
+    const canvas = valSliderRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    const w = canvas.width, h = canvas.height;
+    const gradient = ctx.createLinearGradient(0, 0, 0, h);
+    gradient.addColorStop(0, hsvToHex(hsv[0], hsv[1], 1));
+    gradient.addColorStop(1, "#000000");
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, w, h);
   }, [showWheel, hsv[0], hsv[1]]);
