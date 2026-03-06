@@ -1072,7 +1072,14 @@ export default function TranslatorFeeDetail() {
             return "";
           };
 
-          const baseTitle = title.endsWith("_01") ? title : title;
+          // Use the already-computed title, not stale React state
+          const computedTitle = (() => {
+            const cn = (Array.isArray(casePages) && casePages.length > 0 && casePages[0].title)
+              ? casePages[0].title
+              : feeNumber;
+            return cn ? `PO_${cn}` : title;
+          })();
+          const baseTitle = computedTitle.endsWith("_01") ? computedTitle : computedTitle;
           const currentTitle = `${baseTitle}_01`;
           setTitle(currentTitle);
           if (id) feeStore.updateFee(id, { title: currentTitle });
@@ -1092,9 +1099,16 @@ export default function TranslatorFeeDetail() {
             { id: id || "", title: currentTitle, assignee: resolveAssignee(people[0]) },
           ];
 
-          // Get the current task items for cloning
-          const currentFee = id ? feeStore.getFeeById(id) : null;
-          const cloneTaskItems = currentFee?.taskItems ?? taskItems;
+          // Use the mapped task items we just built, not the stale store data
+          const cloneTaskItems = (Array.isArray(workTypes) && workTypes.length > 0)
+            ? workTypes.map((wt: string, idx: number) => ({
+                id: `item-ir-base-${Date.now()}-${idx}`,
+                taskType: matchTaskType(wt) as TaskType,
+                billingUnit,
+                unitCount: idx === 0 && unitCount ? unitCount : 0,
+                unitPrice: idx === 0 && feeRate !== null ? feeRate : 0,
+              }))
+            : taskItems;
 
           for (let i = 1; i < people.length; i++) {
             const personAssignee = resolveAssignee(people[i]);
