@@ -1819,7 +1819,21 @@ export default function TranslatorFeeDetail() {
                     <TableRow>
                       <TableCell colSpan={3} className="px-[18px]" />
                       <TableCell className="text-sm font-medium text-right">
-                        稿費總額
+                        <span className="inline-flex items-center gap-1">
+                          稿費總額
+                          <TooltipProvider delayDuration={0}>
+                            <Tooltip open={showPricingTip ? undefined : false}>
+                              <TooltipTrigger asChild>
+                                <Info
+                                  className={`h-3.5 w-3.5 text-muted-foreground cursor-help transition-opacity duration-300 ${showPricingTip ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                                />
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-[240px] text-xs">
+                                首度手動或自動填寫客戶報價單價時，系統會自動按照級距表（見「設定」）填入單價。
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </span>
                       </TableCell>
                       <TableCell className="text-right text-sm font-bold">
                         {totalAmount.toLocaleString()}
