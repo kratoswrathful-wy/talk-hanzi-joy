@@ -562,9 +562,20 @@ export default function TranslatorFeeDetail() {
 
     setNotionLoading(true);
     try {
-      const { data, error: fnError } = await supabase.functions.invoke("fetch-notion-page", {
-        body: { page_id: pageId },
-      });
+      // Retry wrapper for edge function cold-start failures
+      const invokeWithRetry = async (body: Record<string, any>, retries = 2): Promise<any> => {
+        for (let attempt = 0; attempt <= retries; attempt++) {
+          const { data: d, error: e } = await supabase.functions.invoke("fetch-notion-page", { body });
+          if (!e) return d;
+          if (attempt < retries) {
+            console.warn(`Edge function attempt ${attempt + 1} failed, retrying...`, e.message);
+            await new Promise((r) => setTimeout(r, 1500));
+          } else {
+            throw e;
+          }
+        }
+      };
+      const data = await invokeWithRetry({ page_id: pageId });
 
       if (fnError) throw fnError;
       if (data?.error) throw new Error(data.error);
