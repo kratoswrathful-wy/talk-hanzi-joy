@@ -981,14 +981,14 @@ export default function TranslatorFeeDetail() {
           const existingClients = selectOptionsStore.getSortedOptions("client");
           if (!existingClients.find((o) => o.label === client)) {
             selectOptionsStore.addOption("client", client, PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]);
-            toast.info(`已自動建立新客戶選項：${client}`);
+            autoCreated.push({ field: "客戶", label: client });
           }
         }
         if (contact) {
           const existingContacts = selectOptionsStore.getSortedOptions("contact");
           if (!existingContacts.find((o) => o.label === contact)) {
-            selectOptionsStore.addOption("contact", contact, PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]);
-            toast.info(`已自動建立新聯絡人選項：${contact}`);
+            selectOptionsStore.addOption("contact", contact, "#9CA3AF");
+            autoCreated.push({ field: "聯絡人", label: contact });
           }
         }
 
