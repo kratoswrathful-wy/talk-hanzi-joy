@@ -194,7 +194,7 @@ export default function ColorSelect({
                         className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
                         style={{
                           backgroundColor: opt.color,
-                          color: "#B3BBC9",
+                          color: "#D1DAEA",
                           borderColor: opt.color,
                         }}
                       >

@@ -1158,7 +1158,7 @@ function TranslatorTierSection() {
             className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
             style={{
               backgroundColor: ttOpt.color,
-              color: "#B3BBC9",
+              color: "#D1DAEA",
               borderColor: ttOpt.color,
             }}
           >
