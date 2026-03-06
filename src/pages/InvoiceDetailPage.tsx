@@ -151,10 +151,18 @@ export default function InvoiceDetailPage() {
     toast.success("已記錄全額付款");
   };
 
+  const paidSoFar = invoice.payments.reduce((sum, p) => sum + (p.type === "partial" ? (p.amount || 0) : 0), 0);
+  const remaining = total - paidSoFar;
+
   const handlePartialPayment = () => {
     const amount = parseFloat(partialAmount);
     if (isNaN(amount) || amount <= 0) {
       toast.error("請輸入有效金額");
+      return;
+    }
+    if (amount > remaining) {
+      setOverpayRemaining(remaining);
+      setShowOverpayWarning(true);
       return;
     }
     const now = new Date().toISOString();
@@ -165,9 +173,12 @@ export default function InvoiceDetailPage() {
       timestamp: now,
     };
     const newPayments = [...invoice.payments, payment];
+    const newPaidTotal = paidSoFar + amount;
+    const newStatus = newPaidTotal >= total ? "paid" : "partial";
     invoiceStore.updateInvoice(invoice.id, {
-      status: "partial",
+      status: newStatus,
       payments: newPayments,
+      ...(newStatus === "paid" ? { transferDate: now } : {}),
     });
     setShowPartialInput(false);
     setPartialAmount("");
