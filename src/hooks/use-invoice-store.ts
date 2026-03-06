@@ -1,5 +1,6 @@
 import { useSyncExternalStore, useEffect } from "react";
 import { invoiceStore } from "@/stores/invoice-store";
+import { supabase } from "@/integrations/supabase/client";
 
 let loadPromise: Promise<any> | null = null;
 function ensureLoaded() {
@@ -7,6 +8,12 @@ function ensureLoaded() {
     loadPromise = invoiceStore.loadInvoices();
   }
 }
+
+// Reset cache on auth changes (login/logout/switch)
+supabase.auth.onAuthStateChange(() => {
+  loadPromise = null;
+  invoiceStore.loadInvoices();
+});
 
 export function useInvoices() {
   useEffect(() => { ensureLoaded(); }, []);
