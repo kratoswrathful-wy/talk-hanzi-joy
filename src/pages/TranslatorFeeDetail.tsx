@@ -705,9 +705,11 @@ export default function TranslatorFeeDetail() {
         trackChange(label, oldItem[field], value);
       }
     }
-    setTaskItems((prev) =>
-      prev.map((item) => (item.id === itemId ? { ...item, [field]: value } : item))
-    );
+    setTaskItems((prev) => {
+      const updated = prev.map((item) => (item.id === itemId ? { ...item, [field]: value } : item));
+      if (id) feeStore.updateFee(id, { taskItems: updated });
+      return updated;
+    });
   };
 
   const handleAddItem = () => {
