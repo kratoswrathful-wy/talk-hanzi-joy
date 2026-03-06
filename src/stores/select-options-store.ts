@@ -20,7 +20,7 @@ export const PRESET_COLORS = [
   "#6366F1", // indigo
   "#8B5CF6", // violet
   "#EC4899", // pink
-  "#1F2937", // black
+  "#6B7280", // dark gray
   "#9CA3AF", // gray
 ];
 
