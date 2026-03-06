@@ -1135,7 +1135,12 @@ export default function TranslatorFeeDetail() {
             </Button>
           )}
           {canSubmit && (
-            <Button size="sm" className="text-xs" onClick={handleSubmit}>
+            <Button
+              size="sm"
+              className="text-xs"
+              disabled={!isNoFeeTranslator && !clientInfo.rateConfirmed}
+              onClick={handleSubmit}
+            >
               開立稿費條
             </Button>
           )}
