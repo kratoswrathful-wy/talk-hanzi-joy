@@ -293,7 +293,20 @@ function AssigneeLabel({ value }: { value: string }) {
   );
 }
 
-function ClientLabel({ value }: { value: string }) {
+function FeeStatusBadge({ status }: { status: FeeStatus }) {
+  const labelStyles = useLabelStyles();
+  const style = status === "finalized" ? labelStyles.statusFinalized : labelStyles.statusDraft;
+  return (
+    <Badge
+      variant="default"
+      className="text-xs whitespace-nowrap border"
+      style={{ backgroundColor: style.bgColor, color: style.textColor, borderColor: style.bgColor }}
+    >
+      {feeStatusLabels[status]}
+    </Badge>
+  );
+}
+
   const { options } = useSelectOptions("client");
   const opt = options.find((o) => o.label === value);
   if (!value) return <span className="truncate text-sm text-muted-foreground">—</span>;
