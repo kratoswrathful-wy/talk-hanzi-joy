@@ -49,6 +49,7 @@ export default function ClientInfoSection({
   clientInfo,
   onChange,
   canEdit,
+  canEditCheckboxes,
   translatorTotal,
   allFees,
   currentFeeId,

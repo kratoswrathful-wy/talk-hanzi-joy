@@ -1397,7 +1397,7 @@ export default function TranslatorFeeDetail() {
                   <Checkbox
                     id="rateConfirmed"
                     checked={isNoFeeTranslator ? true : clientInfo.rateConfirmed}
-                    disabled={!canEdit || isNoFeeTranslator}
+                    disabled={!canEditCheckboxes || isNoFeeTranslator}
                     onCheckedChange={(checked) => {
                       const updated = { ...clientInfo, rateConfirmed: !!checked };
                       setClientInfo(updated);
