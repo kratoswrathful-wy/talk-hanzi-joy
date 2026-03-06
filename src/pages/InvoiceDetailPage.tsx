@@ -266,6 +266,55 @@ export default function InvoiceDetailPage() {
               ) : null}
               <span className="text-sm font-medium">{translatorProfile?.display_name || invoice.translator || "未指定"}</span>
             </div>
+            </div>
+            {/* Add fee button */}
+            {editable && availableFees.length > 0 && (
+              <Popover open={addFeeOpen} onOpenChange={(open) => {
+                setAddFeeOpen(open);
+                if (!open) setSelectedAddFees([]);
+              }}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-7 w-7">
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-72 p-3 space-y-3">
+                  <p className="text-sm font-medium">加入費用</p>
+                  <div className="max-h-48 overflow-y-auto space-y-1">
+                    {availableFees.map((f) => {
+                      const fTotal = f.taskItems.reduce((s: number, i: any) => s + i.unitCount * i.unitPrice, 0);
+                      return (
+                        <label key={f.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent cursor-pointer text-sm">
+                          <Checkbox
+                            checked={selectedAddFees.includes(f.id)}
+                            onCheckedChange={(checked) => {
+                              setSelectedAddFees((prev) =>
+                                checked ? [...prev, f.id] : prev.filter((x) => x !== f.id)
+                              );
+                            }}
+                          />
+                          <span className="flex-1 truncate">{f.title || "未命名"}</span>
+                          <span className="text-muted-foreground tabular-nums">{formatCurrency(fTotal)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    disabled={selectedAddFees.length === 0}
+                    onClick={() => {
+                      invoiceStore.addFeesToInvoice(invoice.id, selectedAddFees);
+                      setSelectedAddFees([]);
+                      setAddFeeOpen(false);
+                      toast.success(`已加入 ${selectedAddFees.length} 筆費用`);
+                    }}
+                  >
+                    加入 {selectedAddFees.length > 0 ? `(${selectedAddFees.length})` : ""}
+                  </Button>
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
 
           <Table>
