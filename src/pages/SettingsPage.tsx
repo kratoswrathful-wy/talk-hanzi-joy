@@ -157,7 +157,7 @@ function ClientPricingSection() {
                       className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
                       style={{
                         backgroundColor: client.color,
-                        color: "#B3BBC9",
+                        color: "#D1DAEA",
                         borderColor: client.color,
                       }}
                     >
@@ -221,7 +221,7 @@ function ClientPricingSection() {
                               className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium w-fit"
                               style={{
                                 backgroundColor: tt.color,
-                                color: "#B3BBC9",
+                                color: "#D1DAEA",
                                 borderColor: tt.color,
                               }}
                             >
@@ -436,7 +436,7 @@ function TaskTypeOrderSection() {
               className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
               style={{
                 backgroundColor: tt.color,
-                color: "#B3BBC9",
+                color: "#D1DAEA",
                 borderColor: tt.color,
               }}
             >
@@ -905,7 +905,7 @@ function TierGroupEditorModal({
                 )}
                 style={{
                   backgroundColor: tt.color,
-                  color: "#B3BBC9",
+                  color: "#D1DAEA",
                   borderColor: tt.color,
                 }}
                 onClick={() => toggleTaskType(tt.label)}
@@ -1158,7 +1158,7 @@ function TranslatorTierSection() {
             className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
             style={{
               backgroundColor: ttOpt.color,
-              color: "#B3BBC9",
+              color: "#D1DAEA",
               borderColor: ttOpt.color,
             }}
           >
