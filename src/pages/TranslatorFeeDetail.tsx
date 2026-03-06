@@ -1569,7 +1569,7 @@ export default function TranslatorFeeDetail() {
                       {canEdit && (
                         <TableCell className="px-6">
                           <div className="flex justify-center">
-                            {index > 0 ? (
+                            {taskItems.length > 1 ? (
                               <Button
                                 variant="ghost"
                                 size="icon"
