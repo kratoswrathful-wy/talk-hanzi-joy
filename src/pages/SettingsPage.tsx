@@ -787,8 +787,8 @@ function TierGroupEditorModal({
         <div className="space-y-2">
           <p className="text-xs font-medium text-muted-foreground">級距設定</p>
           <div className="grid grid-cols-[1fr_1fr_1fr_28px] gap-2 px-1 text-xs text-muted-foreground font-medium">
-            <span>下限</span>
-            <span>上限 <span className="font-normal opacity-60">(0=∞)</span></span>
+            <span>下限 <span className="font-normal opacity-60">(&gt;)</span></span>
+            <span>上限 <span className="font-normal opacity-60">(≤, 0=∞)</span></span>
             <span>譯者單價</span>
             <span />
           </div>
