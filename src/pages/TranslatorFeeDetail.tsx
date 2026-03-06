@@ -1552,6 +1552,7 @@ export default function TranslatorFeeDetail() {
                   if (id) feeStore.updateFee(id, { clientInfo: info });
                 }}
                 canEdit={canEdit}
+                canEditCheckboxes={canEditCheckboxes}
                 translatorTotal={totalAmount}
                 allFees={allFees}
                 currentFeeId={id ?? ""}
