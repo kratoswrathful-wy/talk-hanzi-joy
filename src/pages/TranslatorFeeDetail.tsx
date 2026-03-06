@@ -700,18 +700,17 @@ export default function TranslatorFeeDetail() {
           setTaskItems(mapped);
           if (id) feeStore.updateFee(id, { taskItems: mapped });
         } else if (feeRate !== null || unitCount !== null) {
-          setTaskItems((prev) => {
-            const updated = [...prev];
-            if (updated.length > 0) {
-              updated[0] = {
-                ...updated[0],
-                billingUnit,
-                ...(unitCount !== null ? { unitCount } : {}),
-                ...(feeRate !== null ? { unitPrice: feeRate } : {}),
-              };
-            }
-            return updated;
-          });
+          const updated = [...taskItems];
+          if (updated.length > 0) {
+            updated[0] = {
+              ...updated[0],
+              billingUnit,
+              ...(unitCount !== null ? { unitCount } : {}),
+              ...(feeRate !== null ? { unitPrice: feeRate } : {}),
+            };
+          }
+          setTaskItems(updated);
+          if (id) feeStore.updateFee(id, { taskItems: updated });
         }
 
         // Auto-create client/contact options if they don't exist
