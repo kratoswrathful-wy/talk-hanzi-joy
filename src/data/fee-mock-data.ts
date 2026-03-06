@@ -94,7 +94,7 @@ export const translatorFees: TranslatorFee[] = [
     internalNote: "本案為AAA公司急件，請優先處理",
     taskItems: [
       { id: "item-1", taskType: "翻譯", billingUnit: "字", unitCount: 1200, unitPrice: 2.2 },
-      { id: "item-2", taskType: "審稿", billingUnit: "小時", unitCount: 3, unitPrice: 1200 },
+      { id: "item-2", taskType: "校對", billingUnit: "小時", unitCount: 3, unitPrice: 1200 },
     ],
     clientInfo: defaultClientInfo,
     notes: [
