@@ -27,9 +27,33 @@ interface PricingStore {
   translatorTiers: TranslatorTier[];
 }
 
+const defaultClientPricing: Record<string, Record<string, number>> = {
+  CCJK: { "翻譯": 1.2, "校對": 0.6, "MTPE": 0.9, "LQA": 450 },
+};
+
+const grpTranslation = "grp-default-translation";
+const grpProofreading = "grp-default-proofreading";
+const grpHourly = "grp-default-hourly";
+
+const defaultTranslatorTiers: TranslatorTier[] = [
+  // 翻譯 / 字
+  { id: "tier-d1", groupId: grpTranslation, taskType: "翻譯", billingUnit: "字", minPrice: 0, maxPrice: 1.8, translatorPrice: 0.8 },
+  { id: "tier-d2", groupId: grpTranslation, taskType: "翻譯", billingUnit: "字", minPrice: 1.8, maxPrice: 2.25, translatorPrice: 0.9 },
+  { id: "tier-d3", groupId: grpTranslation, taskType: "翻譯", billingUnit: "字", minPrice: 2.25, maxPrice: 0, translatorPrice: 1 },
+  // 校對 / 字
+  { id: "tier-d4", groupId: grpProofreading, taskType: "校對", billingUnit: "字", minPrice: 0, maxPrice: 0.9, translatorPrice: 0.4 },
+  { id: "tier-d5", groupId: grpProofreading, taskType: "校對", billingUnit: "字", minPrice: 0.9, maxPrice: 1.2, translatorPrice: 0.5 },
+  { id: "tier-d6", groupId: grpProofreading, taskType: "校對", billingUnit: "字", minPrice: 1.2, maxPrice: 0, translatorPrice: 0.6 },
+  // 翻譯+校對+MTPE+LQA / 小時
+  { id: "tier-d7", groupId: grpHourly, taskType: "翻譯", billingUnit: "小時", minPrice: 0, maxPrice: 0, translatorPrice: 350 },
+  { id: "tier-d8", groupId: grpHourly, taskType: "校對", billingUnit: "小時", minPrice: 0, maxPrice: 0, translatorPrice: 350 },
+  { id: "tier-d9", groupId: grpHourly, taskType: "MTPE", billingUnit: "小時", minPrice: 0, maxPrice: 0, translatorPrice: 350 },
+  { id: "tier-d10", groupId: grpHourly, taskType: "LQA", billingUnit: "小時", minPrice: 0, maxPrice: 0, translatorPrice: 350 },
+];
+
 let store: PricingStore = {
-  clientPricing: {},
-  translatorTiers: [],
+  clientPricing: { ...defaultClientPricing },
+  translatorTiers: [...defaultTranslatorTiers],
 };
 
 const listeners = new Set<Listener>();
