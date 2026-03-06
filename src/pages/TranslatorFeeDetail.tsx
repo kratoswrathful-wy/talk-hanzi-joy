@@ -713,16 +713,20 @@ export default function TranslatorFeeDetail() {
   };
 
   const handleAddItem = () => {
-    setTaskItems((prev) => [
-      ...prev,
-      {
-        id: `item-new-${Date.now()}`,
-        taskType: "翻譯",
-        billingUnit: "字",
-        unitCount: 0,
-        unitPrice: 0,
-      },
-    ]);
+    setTaskItems((prev) => {
+      const updated = [
+        ...prev,
+        {
+          id: `item-new-${Date.now()}`,
+          taskType: "翻譯" as TaskType,
+          billingUnit: "字" as BillingUnit,
+          unitCount: 0,
+          unitPrice: 0,
+        },
+      ];
+      if (id) feeStore.updateFee(id, { taskItems: updated });
+      return updated;
+    });
     if (hasBeenSubmittedRef.current) {
       setPendingChanges((prev) => [
         ...prev,
