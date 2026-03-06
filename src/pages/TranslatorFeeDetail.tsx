@@ -851,17 +851,29 @@ export default function TranslatorFeeDetail() {
       if (fnError) throw fnError;
       if (data?.error) throw new Error(data.error);
 
-      const taskTypeOptions: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
+      const knownTaskTypes: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
       const taskTypeAliases: Record<string, TaskType> = { "審稿": "校對", "Review": "校對", "Translation": "翻譯", "Proofreading": "校對" };
-      const matchTaskType = (wt: string): TaskType => {
-        // Direct match first
-        const direct = taskTypeOptions.find((t) => wt.includes(t));
+      const autoCreated: { field: string; label: string }[] = [];
+
+      const matchTaskType = (wt: string): string => {
+        const direct = knownTaskTypes.find((t) => wt.includes(t));
         if (direct) return direct;
-        // Alias match
         for (const [alias, mapped] of Object.entries(taskTypeAliases)) {
           if (wt.includes(alias)) return mapped;
         }
-        return "翻譯";
+        // Unknown type — return raw string, will be auto-created as new option
+        return wt;
+      };
+
+      const ensureTaskTypeOption = (taskType: string) => {
+        const existingOptions = selectOptionsStore.getSortedOptions("taskType");
+        if (!existingOptions.find((o) => o.label === taskType)) {
+          const color = PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
+          selectOptionsStore.addOption("taskType", taskType, color);
+          // Also add to clientTaskType
+          selectOptionsStore.addOption("clientTaskType", taskType, color);
+          autoCreated.push({ field: "任務類型", label: taskType });
+        }
       };
 
       // Detect which database the page is from
