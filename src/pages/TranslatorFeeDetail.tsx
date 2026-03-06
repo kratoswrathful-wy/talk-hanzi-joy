@@ -951,6 +951,7 @@ export default function TranslatorFeeDetail() {
         if (Array.isArray(workTypes) && workTypes.length > 0) {
           const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
             const matchedType = matchTaskType(wt);
+            ensureTaskTypeOption(matchedType);
             return {
               id: `item-ir-${Date.now()}-${idx}`,
               taskType: matchedType as TaskType,
