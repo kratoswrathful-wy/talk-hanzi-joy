@@ -391,8 +391,6 @@ export default function TranslatorFees() {
   const baseFees = effectiveRole === "assignee"
     ? fees.filter((f) => f.status === "finalized" && f.assignee === profile?.display_name)
     : fees;
-    ? fees.filter((f) => f.status === "finalized" && f.assignee === profile?.display_name)
-    : fees;
   const visibleFees = tableViews.applyFiltersAndSorts(baseFees);
 
   const rowSelection = useRowSelection(visibleFees.map((f) => f.id));
