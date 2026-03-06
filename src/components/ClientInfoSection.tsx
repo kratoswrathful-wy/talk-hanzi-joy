@@ -335,28 +335,6 @@ export default function ClientInfoSection({
               )}
             </>
           )}
-          <div className="flex justify-end">
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5">
-                <Checkbox
-                  id="reconciled"
-                  checked={clientInfo.reconciled}
-                  disabled={!canEdit}
-                  onCheckedChange={(checked) => update("reconciled", !!checked)}
-                />
-                <Label htmlFor="reconciled" className="text-xs cursor-pointer whitespace-nowrap">對帳完成</Label>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Checkbox
-                  id="invoiced"
-                  checked={clientInfo.invoiced}
-                  disabled={!canEdit}
-                  onCheckedChange={(checked) => update("invoiced", !!checked)}
-                />
-                <Label htmlFor="invoiced" className="text-xs cursor-pointer whitespace-nowrap">請款完成</Label>
-              </div>
-            </div>
-          </div>
         </div>
 
         <div className="rounded-lg border border-border overflow-hidden">
