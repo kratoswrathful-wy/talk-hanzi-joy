@@ -864,13 +864,27 @@ export default function TranslatorFeeDetail() {
 
           // Use the mapped task items we just built, not the stale store data
           const cloneTaskItems = (Array.isArray(workTypes) && workTypes.length > 0)
-            ? workTypes.map((wt: string, idx: number) => ({
-                id: `item-ir-base-${Date.now()}-${idx}`,
-                taskType: matchTaskType(wt) as TaskType,
-                billingUnit,
-                unitCount: idx === 0 && unitCount ? unitCount : 0,
-                unitPrice: idx === 0 && feeRate !== null ? feeRate : 0,
-              }))
+            ? workTypes.map((wt: string, idx: number) => {
+                const matchedType = matchTaskType(wt) as TaskType;
+                let up = idx === 0 && feeRate !== null ? feeRate : 0;
+                if ((!up || up === 0) && client) {
+                  const correspondingClientItem = updatedClientInfo.clientTaskItems.find(
+                    (ci) => ci.taskType === matchedType
+                  );
+                  const cp = correspondingClientItem?.clientPrice || 0;
+                  if (cp > 0) {
+                    const tp = defaultPricingStore.getTranslatorPrice(cp, matchedType, billingUnit);
+                    if (tp !== undefined && tp > 0) up = tp;
+                  }
+                }
+                return {
+                  id: `item-ir-base-${Date.now()}-${idx}`,
+                  taskType: matchedType,
+                  billingUnit,
+                  unitCount: idx === 0 && unitCount ? unitCount : 0,
+                  unitPrice: up,
+                };
+              })
             : taskItems;
 
           for (let i = 1; i < people.length; i++) {
