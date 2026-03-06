@@ -134,7 +134,8 @@ function EmailTagInput({
 }
 
 export default function MembersPage() {
-  const { isAdmin, user } = useAuth();
+  const { isAdmin, user, roles } = useAuth();
+  const isExecutive = roles.some((r) => r.role === "executive");
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -230,14 +231,6 @@ export default function MembersPage() {
     toast.success("成員已移除");
   };
 
-  if (!isAdmin) {
-    return (
-      <div className="mx-auto max-w-3xl py-12 text-center text-muted-foreground">
-        您沒有權限檢視此頁面
-      </div>
-    );
-  }
-
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
@@ -245,10 +238,12 @@ export default function MembersPage() {
           <h1 className="text-2xl font-semibold tracking-tight">成員管理</h1>
           <p className="mt-1 text-sm text-muted-foreground">管理團隊成員與權限</p>
         </div>
-        <Button onClick={() => setInviteOpen(true)}>
-          <UserPlus className="mr-2 h-4 w-4" />
-          邀請成員
-        </Button>
+        {isExecutive && (
+          <Button onClick={() => setInviteOpen(true)}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            邀請成員
+          </Button>
+        )}
       </div>
 
       <Card>
@@ -292,7 +287,7 @@ export default function MembersPage() {
                         <Badge variant="secondary" className="text-xs">
                           {roleLabels[member.role]}
                         </Badge>
-                      ) : (
+                      ) : isExecutive ? (
                         <Select
                           value={member.role}
                           onValueChange={(v) => handleRoleChange(member, v as AppRole)}
@@ -306,15 +301,21 @@ export default function MembersPage() {
                             <SelectItem value="executive">執行官</SelectItem>
                           </SelectContent>
                         </Select>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs">
+                          {roleLabels[member.role]}
+                        </Badge>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        onClick={() => setRemoveTarget(member)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {isExecutive && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => setRemoveTarget(member)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );
