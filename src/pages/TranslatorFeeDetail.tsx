@@ -850,7 +850,7 @@ export default function TranslatorFeeDetail() {
       if (fnError) throw fnError;
       if (data?.error) throw new Error(data.error);
 
-      const taskTypeOptions: TaskType[] = ["翻譯", "審稿", "MTPE", "LQA"];
+      const taskTypeOptions: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
 
       // Detect which database the page is from
       const isInternalFeeRecord = "費用編號" in data;

@@ -21,7 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { type TaskType, type BillingUnit, type FeeTaskItem } from "@/data/fee-mock-data";
 import { toast } from "sonner";
 
-const taskTypeOptions: TaskType[] = ["翻譯", "審稿", "MTPE", "LQA"];
+const taskTypeOptions: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
 
 export default function NewTranslatorFee() {
   const [searchParams] = useSearchParams();
