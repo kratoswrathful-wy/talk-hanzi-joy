@@ -113,21 +113,21 @@ export default function InvoicesPage() {
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center gap-1.5 truncate text-sm font-medium">
-                        {opt && <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: opt.color }} />}
-                        {inv.translator || <span className="text-muted-foreground italic">未指定</span>}
-                      </span>
+                      <span className="text-sm font-medium truncate">{inv.title || <span className="text-muted-foreground italic">未命名</span>}</span>
                       <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                     </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="inline-flex items-center gap-1.5 truncate text-sm">
+                      {opt && <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: opt.color }} />}
+                      {inv.translator || <span className="text-muted-foreground italic">未指定</span>}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-center">
                     <InvoiceStatusBadge status={inv.status} />
                   </td>
                   <td className="px-4 py-3 text-center text-sm tabular-nums">{inv.feeIds.length}</td>
                   <td className="px-4 py-3 text-center text-sm tabular-nums">{formatCurrency(total)}</td>
-                  <td className="px-4 py-3 text-center text-sm text-muted-foreground tabular-nums">
-                    {inv.transferDate ? formatDate(inv.transferDate) : "—"}
-                  </td>
                   <td className="px-4 py-3 text-center text-sm text-muted-foreground tabular-nums">
                     {formatDate(inv.createdAt)}
                   </td>
