@@ -133,8 +133,10 @@ export type Database = {
       }
       invoices: {
         Row: {
+          comments: Json
           created_at: string
           created_by: string | null
+          edit_logs: Json
           id: string
           note: string
           payments: Json
@@ -145,8 +147,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          comments?: Json
           created_at?: string
           created_by?: string | null
+          edit_logs?: Json
           id?: string
           note?: string
           payments?: Json
@@ -157,8 +161,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          comments?: Json
           created_at?: string
           created_by?: string | null
+          edit_logs?: Json
           id?: string
           note?: string
           payments?: Json
