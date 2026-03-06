@@ -186,7 +186,6 @@ export default function ClientInfoSection({
                 <Checkbox
                   id="reconciled"
                   checked={clientInfo.reconciled}
-                  disabled={!canEdit}
                   onCheckedChange={(checked) => update("reconciled", !!checked)}
                 />
                 <Label htmlFor="reconciled" className="text-xs cursor-pointer whitespace-nowrap">對帳完成</Label>
@@ -195,7 +194,6 @@ export default function ClientInfoSection({
                 <Checkbox
                   id="invoiced"
                   checked={clientInfo.invoiced}
-                  disabled={!canEdit}
                   onCheckedChange={(checked) => update("invoiced", !!checked)}
                 />
                 <Label htmlFor="invoiced" className="text-xs cursor-pointer whitespace-nowrap">請款完成</Label>

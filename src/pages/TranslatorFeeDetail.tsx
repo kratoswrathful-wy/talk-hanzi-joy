@@ -950,9 +950,11 @@ export default function TranslatorFeeDetail() {
           setClientInfo(updatedClientInfo);
           if (id) feeStore.updateFee(id, { clientInfo: updatedClientInfo });
         } else if (unitCount) {
-          setTaskItems((prev) =>
-            prev.map((item, idx) => idx === 0 ? { ...item, unitCount } : item)
-          );
+          setTaskItems((prev) => {
+            const updated = prev.map((item, idx) => idx === 0 ? { ...item, unitCount } : item);
+            if (id) feeStore.updateFee(id, { taskItems: updated });
+            return updated;
+          });
           // 同步計費單位數到客戶資訊
           setClientInfo((prev) => ({
             ...prev,

@@ -390,8 +390,9 @@ export default function TranslatorFees() {
 
   const [expandedRows, setExpandedRows] = useState<Record<string, ExpandType | null>>({});
 
-  // Filter fees for assignee role
-  const baseFees = currentRole === "assignee" ? fees.filter((f) => f.status !== "draft") : fees;
+  // Filter fees for assignee role — in production, use real role; in dev, use switcher
+  const effectiveRole = import.meta.env.DEV ? currentRole : (isAdmin ? "pm" : "assignee");
+  const baseFees = effectiveRole === "assignee" ? fees.filter((f) => f.status !== "draft") : fees;
   const visibleFees = tableViews.applyFiltersAndSorts(baseFees);
 
   const rowSelection = useRowSelection(visibleFees.map((f) => f.id));
