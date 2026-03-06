@@ -1719,12 +1719,12 @@ export default function TranslatorFeeDetail() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/30">
-                  <TableHead className="text-xs text-center" style={{ width: '20%' }}>譯者任務類型</TableHead>
-                  <TableHead className="text-xs text-center" style={{ width: '14%' }}>計費單位</TableHead>
-                  <TableHead className="text-xs text-center" style={{ width: '16%' }}>稿費單價</TableHead>
-                  <TableHead className="text-xs text-center" style={{ width: '18%' }}>計費單位數</TableHead>
-                  <TableHead className="text-xs text-center" style={{ width: '16%' }}>小計</TableHead>
-                  {canEdit && <TableHead className="text-xs text-center" style={{ width: '16%' }}>刪除</TableHead>}
+                  <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>譯者任務類型</TableHead>
+                  <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>計費單位</TableHead>
+                  <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>稿費單價</TableHead>
+                  <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>計費單位數</TableHead>
+                  <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>小計</TableHead>
+                  {canEdit && <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
