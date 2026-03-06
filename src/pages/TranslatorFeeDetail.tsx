@@ -429,7 +429,11 @@ export default function TranslatorFeeDetail() {
 
   const navigate = useNavigate();
   const [title, setTitle] = useState(feeData?.title ?? "");
-  const [taskItems, setTaskItems] = useState<FeeTaskItem[]>(feeData?.taskItems ?? []);
+  const [taskItems, setTaskItems] = useState<FeeTaskItem[]>(
+    feeData?.taskItems && feeData.taskItems.length > 0
+      ? feeData.taskItems
+      : [{ id: `item-${Date.now()}`, taskType: "翻譯", billingUnit: "字", unitCount: 0, unitPrice: 0 }]
+  );
   const [status, setStatus] = useState<FeeStatus>(feeData?.status ?? "draft");
   const [assignee, setAssignee] = useState(feeData?.assignee ?? "");
   const [internalNote, setInternalNote] = useState(feeData?.internalNote ?? "");
