@@ -139,7 +139,8 @@ export default function TranslatorFeeDetail() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [notionUrlInput, setNotionUrlInput] = useState(internalNoteUrl || "");
   const [currentRole, setCurrentRole] = useState<UserRole>("pm");
-  const { isAdmin: authIsAdmin, profile: authProfile } = useAuth();
+  const { isAdmin: authIsAdmin, profile: authProfile, roles: authRoles } = useAuth();
+  const authIsExecutive = authRoles.some((r) => r.role === "executive");
 
   // Comments — initialize from feeData
   const [comments, setComments] = useState<CommentEntry[]>(() =>
