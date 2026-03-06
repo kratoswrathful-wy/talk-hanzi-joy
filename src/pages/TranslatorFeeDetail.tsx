@@ -1539,7 +1539,7 @@ export default function TranslatorFeeDetail() {
                 <Badge
                   variant="default"
                   className={cn(
-                    "text-white border",
+                    "text-[#B3BBC9] border",
                     isFinalized
                       ? "bg-success border-success"
                       : "bg-[#6B7280] border-[#6B7280]"
