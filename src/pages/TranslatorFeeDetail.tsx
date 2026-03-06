@@ -922,8 +922,20 @@ export default function TranslatorFeeDetail() {
           if (id) feeStore.updateFee(id, { internalNote: feeNumber });
         }
 
-        // 稿費費率 + 計費單位數 > 任務項目
-        if (feeRate !== null || unitCount !== null) {
+        // 稿費費率 + 計費單位數 > 任務項目（支援多工作類型）
+        if (Array.isArray(workTypes) && workTypes.length > 0) {
+          const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
+            const matchedType = taskTypeOptions.find((t) => wt.includes(t)) || "翻譯";
+            return {
+              id: `item-ir-${Date.now()}-${idx}`,
+              taskType: matchedType as TaskType,
+              billingUnit,
+              unitCount: idx === 0 && unitCount ? unitCount : 0,
+              unitPrice: idx === 0 && feeRate !== null ? feeRate : 0,
+            };
+          });
+          setTaskItems(mapped);
+        } else if (feeRate !== null || unitCount !== null) {
           setTaskItems((prev) => {
             const updated = [...prev];
             if (updated.length > 0) {
