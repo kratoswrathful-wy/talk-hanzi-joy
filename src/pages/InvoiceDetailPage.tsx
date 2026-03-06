@@ -139,6 +139,21 @@ export default function InvoiceDetailPage() {
   const [editLog, setEditLog] = useState<EditLogEntry[]>([]);
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
 
+  // Creator name resolution
+  const [creatorName, setCreatorName] = useState(invoice?.createdBy || "");
+  useEffect(() => {
+    const uid = invoice?.createdBy;
+    if (!uid || uid.length !== 36) return;
+    supabase
+      .from("profiles")
+      .select("display_name, email")
+      .eq("id", uid)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setCreatorName(data.display_name || data.email || uid);
+      });
+  }, [invoice?.createdBy]);
+
   // Translator profile
   const [translatorProfile, setTranslatorProfile] = useState<{ display_name: string | null; avatar_url: string | null } | null>(null);
 
@@ -619,6 +634,7 @@ export default function InvoiceDetailPage() {
         {/* Meta info */}
         <Separator />
         <div className="flex gap-6 text-xs text-muted-foreground">
+          <span>建立者：{creatorName}</span>
           <span>建立時間：{formatTimestamp(invoice.createdAt)}</span>
         </div>
 
