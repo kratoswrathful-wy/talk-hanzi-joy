@@ -622,7 +622,6 @@ export default function TranslatorFees() {
         <div className="flex items-center gap-3">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">費用管理</h1>
-            <p className="mt-1 text-sm text-muted-foreground">管理譯者費用請款單</p>
           </div>
           {canCreateFee && (
             <Button size="sm" className="gap-1.5" onClick={handleCreate}>
