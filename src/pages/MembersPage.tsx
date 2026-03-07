@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, KeyboardEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,8 +20,8 @@ import {
 import { toast } from "sonner";
 import { Loader2, Trash2, UserPlus, X } from "lucide-react";
 
-type AppRole = "member" | "pm" | "executive";
-const roleLabels: Record<AppRole, string> = { member: "譯者", pm: "PM", executive: "執行官" };
+type AppRole = string;
+const DEFAULT_ROLE_LABELS: Record<string, string> = { member: "譯者", pm: "PM", executive: "執行官" };
 
 interface Member {
   id: string;
