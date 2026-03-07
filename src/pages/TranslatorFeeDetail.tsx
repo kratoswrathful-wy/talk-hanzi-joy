@@ -629,8 +629,7 @@ export default function TranslatorFeeDetail() {
         const unit = data["單位"] || "";
         const dispatch = data["派案途徑"] || "";
         const irRawT = data["譯者"];
-        const irRawR = data["審稿人員"];
-        let people = (Array.isArray(irRawT) && irRawT.length > 0) ? irRawT : (Array.isArray(irRawR) && irRawR.length > 0) ? irRawR : [];
+        let people = (Array.isArray(irRawT) && irRawT.length > 0) ? irRawT : [];
         const casePages = data["案件頁面"] || [];
         const reconciled = data["對帳完成"] === true;
         const invoiced = data["請款完成"] === true;
@@ -651,8 +650,7 @@ export default function TranslatorFeeDetail() {
                 }
                 if (missingPeople) {
                   const caseRawT = caseData["譯者"];
-                  const caseRawR = caseData["審稿人員"];
-                  people = (Array.isArray(caseRawT) && caseRawT.length > 0) ? caseRawT : (Array.isArray(caseRawR) && caseRawR.length > 0) ? caseRawR : [];
+                  people = (Array.isArray(caseRawT) && caseRawT.length > 0) ? caseRawT : [];
                 }
               }
             } catch (e) {
@@ -950,9 +948,7 @@ export default function TranslatorFeeDetail() {
         // Extract fields
         const caseId = data["案件編號"] || data["Name"] || data["title"] || "";
         const rawTranslators = data["譯者"];
-        const rawReviewers = data["審稿人員"];
-        const people = (Array.isArray(rawTranslators) && rawTranslators.length > 0) ? rawTranslators
-          : (Array.isArray(rawReviewers) && rawReviewers.length > 0) ? rawReviewers : [];
+        const people = (Array.isArray(rawTranslators) && rawTranslators.length > 0) ? rawTranslators : [];
         const workTypes = data["工作類型"] || [];
         const unitCount = data["計費單位數"] || null;
         const notionUnit = data["計費單位"] || "";
