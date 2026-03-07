@@ -394,12 +394,22 @@ export default function PermissionsPage() {
               </div>
 
               <div className="divide-y divide-border">
-                {allRoles.map((role) => {
+                {allRoles.map((role, idx) => {
                   const isExpanded = expandedRole === role.key;
                   return (
-                    <div key={role.key} className="py-3">
+                    <div
+                      key={role.key}
+                      className={`py-3 transition-colors ${dragOverIdx === idx ? "bg-accent/40" : ""}`}
+                      draggable
+                      onDragStart={() => setDraggedIdx(idx)}
+                      onDragOver={(e) => { e.preventDefault(); setDragOverIdx(idx); }}
+                      onDragLeave={() => setDragOverIdx(null)}
+                      onDrop={(e) => { e.preventDefault(); handleDragEnd(); }}
+                      onDragEnd={() => { setDraggedIdx(null); setDragOverIdx(null); }}
+                    >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
+                          <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab shrink-0" />
                           <Button
                             variant="ghost"
                             size="icon"
