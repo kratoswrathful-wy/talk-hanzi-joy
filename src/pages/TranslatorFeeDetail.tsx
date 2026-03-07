@@ -432,8 +432,6 @@ export default function TranslatorFeeDetail() {
   };
 
   const handleSubmit = () => {
-    // Hide pricing tip on finalize
-    setShowPricingTip(false);
     // Force-commit all pending changes immediately
     if (pendingChanges.length > 0) {
       const newEntries = pendingChanges.map((c) => ({
