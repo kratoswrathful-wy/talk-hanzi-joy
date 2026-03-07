@@ -213,7 +213,7 @@ export default function ClientInfoSection({
               <Checkbox
                 id="sameCase"
                 checked={clientInfo.sameCase}
-                disabled={!canEdit}
+                disabled={!canEdit || clientInfo.reconciled}
                 onCheckedChange={(checked) => {
                   if (!checked && clientInfo.sameCase) {
                     setShowUncheckWarning(true);
