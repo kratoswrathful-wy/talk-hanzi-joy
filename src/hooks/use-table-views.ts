@@ -127,6 +127,8 @@ const defaultColumnWidths: Record<string, number> = {
   sameCase: 70, invoice: 100, createdBy: 80, createdAt: 110,
 };
 
+const defaultHiddenColumns = ["contact", "dispatchRoute", "sameCase"];
+
 function createDefaultView(): TableView {
   return {
     id: "default",
@@ -136,6 +138,7 @@ function createDefaultView(): TableView {
     sorts: [],
     columnOrder: [...defaultColumnOrder],
     columnWidths: { ...defaultColumnWidths },
+    hiddenColumns: [...defaultHiddenColumns],
   };
 }
 
