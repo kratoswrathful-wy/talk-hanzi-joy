@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Plus, ExternalLink, Trash2 } from "lucide-react";
+import { Plus, ExternalLink, Trash2, GripVertical } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import AssigneeTag from "@/components/AssigneeTag";
 import { motion } from "framer-motion";
@@ -13,7 +13,10 @@ import { useRowSelection } from "@/hooks/use-row-selection";
 import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { type InvoiceStatus, invoiceStatusLabels } from "@/data/invoice-types";
+import { type Invoice } from "@/data/invoice-types";
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useInvoiceTableViews, invoiceFieldMetas } from "@/hooks/use-invoice-table-views";
+import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -70,22 +73,163 @@ const formatDate = (iso: string) => {
 const formatCurrency = (n: number) =>
   n.toLocaleString("zh-TW", { style: "currency", currency: "TWD", minimumFractionDigits: 0 });
 
+// Cache for creator UUID → display name
+const creatorNameCache = new Map<string, string>();
+
+function CreatorName({ uid }: { uid: string }) {
+  const [name, setName] = useState(creatorNameCache.get(uid) || uid);
+  useEffect(() => {
+    if (!uid || uid.length !== 36) return;
+    if (creatorNameCache.has(uid)) { setName(creatorNameCache.get(uid)!); return; }
+    supabase.from("profiles").select("display_name, email").eq("id", uid).maybeSingle()
+      .then(({ data }) => {
+        const resolved = data?.display_name || data?.email || uid;
+        creatorNameCache.set(uid, resolved);
+        setName(resolved);
+      });
+  }, [uid]);
+  return <span className="truncate text-sm">{name}</span>;
+}
+
+function AssigneeLabel({ value }: { value: string }) {
+  const { options } = useSelectOptions("assignee");
+  const opt = options.find((o) => o.label === value);
+  if (!value) return <span className="truncate text-sm text-muted-foreground italic">未指定</span>;
+  return <AssigneeTag label={value} avatarUrl={opt?.avatarUrl} />;
+}
+
+interface ColumnDef {
+  key: string;
+  label: string;
+  minWidth: number;
+  render: (inv: Invoice, feeTotal: number) => React.ReactNode;
+}
+
 export default function InvoicesPage() {
   const navigate = useNavigate();
   const { isAdmin, profile, user, roles } = useAuth();
   const isExecutive = roles.some((r) => r.role === "executive");
   const allInvoices = useInvoices();
-  // Filter invoices: non-admin users can only see their own invoices
   const invoices = isAdmin ? allInvoices : allInvoices.filter(
     (inv) => inv.translator === profile?.display_name
   );
   const fees = useFees();
   const { options: assigneeOptions } = useSelectOptions("assignee");
 
-  // Load assignee options on mount
   useEffect(() => {
     selectOptionsStore.loadAssignees();
   }, []);
+
+  const getInvoiceTotal = useCallback((feeIds: string[]) => {
+    return feeIds.reduce((sum, fid) => {
+      const fee = fees.find((f) => f.id === fid);
+      if (!fee) return sum;
+      return sum + fee.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
+    }, 0);
+  }, [fees]);
+
+  // Table views
+  const tableViews = useInvoiceTableViews(isAdmin ? "pm" : "assignee");
+  const { activeView } = tableViews;
+  const visibleFieldKeys = invoiceFieldMetas.map((f) => f.key);
+
+  // Apply filters and sorts
+  const visibleInvoices = tableViews.applyFiltersAndSorts(invoices, getInvoiceTotal);
+
+  // Column definitions
+  const allColumnDefs: ColumnDef[] = [
+    {
+      key: "title",
+      label: "標題",
+      minWidth: 120,
+      render: (inv) => (
+        <div className="relative flex items-center group/title">
+          <span className="text-sm font-medium truncate flex-1 min-w-0 pr-6">
+            {inv.title || <span className="text-muted-foreground italic">未命名</span>}
+          </span>
+          <button
+            onClick={(e) => { e.stopPropagation(); e.preventDefault(); navigate(`/invoices/${inv.id}`); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover/title:opacity-100 p-0.5 rounded hover:bg-muted transition-all"
+            title="開啟"
+          >
+            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        </div>
+      ),
+    },
+    {
+      key: "translator",
+      label: "譯者",
+      minWidth: 100,
+      render: (inv) => <AssigneeLabel value={inv.translator} />,
+    },
+    {
+      key: "status",
+      label: "狀態",
+      minWidth: 80,
+      render: (inv) => <InvoiceStatusBadge status={inv.status} />,
+    },
+    {
+      key: "feeCount",
+      label: "費用數",
+      minWidth: 60,
+      render: (inv) => <span className="text-sm tabular-nums">{inv.feeIds.length}</span>,
+    },
+    {
+      key: "totalAmount",
+      label: "總金額",
+      minWidth: 80,
+      render: (_inv, total) => <span className="text-sm tabular-nums">{formatCurrency(total)}</span>,
+    },
+    {
+      key: "transferDate",
+      label: "匯款日期",
+      minWidth: 90,
+      render: (inv) => (
+        <span className="text-sm text-muted-foreground tabular-nums">
+          {inv.transferDate ? formatDate(inv.transferDate) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "note",
+      label: "備註",
+      minWidth: 100,
+      render: (inv) => (
+        <span className="text-sm text-muted-foreground truncate">{inv.note || "—"}</span>
+      ),
+    },
+    {
+      key: "createdBy",
+      label: "建立者",
+      minWidth: 60,
+      render: (inv) => <CreatorName uid={inv.createdBy} />,
+    },
+    {
+      key: "createdAt",
+      label: "建立時間",
+      minWidth: 90,
+      render: (inv) => (
+        <span className="text-sm text-muted-foreground tabular-nums">{formatDate(inv.createdAt)}</span>
+      ),
+    },
+  ];
+
+  // Apply column order & visibility
+  const hiddenSet = new Set(activeView.hiddenColumns || []);
+  const orderedCols = activeView.columnOrder
+    .map((key) => allColumnDefs.find((c) => c.key === key))
+    .filter((c): c is ColumnDef => !!c && !hiddenSet.has(c.key));
+
+  // Add any columns not in order yet (new columns)
+  for (const col of allColumnDefs) {
+    if (!activeView.columnOrder.includes(col.key) && !hiddenSet.has(col.key)) {
+      orderedCols.push(col);
+    }
+  }
+
+  const totalWidth = orderedCols.reduce((s, c) => s + (activeView.columnWidths[c.key] ?? 100), 0) + 60;
 
   // Translator picker for admin creation
   const [showTranslatorPicker, setShowTranslatorPicker] = useState(false);
@@ -101,7 +245,7 @@ export default function InvoicesPage() {
   const [verifying, setVerifying] = useState(false);
 
   // Row selection
-  const rowSelection = useRowSelection(invoices.map((inv) => inv.id));
+  const rowSelection = useRowSelection(visibleInvoices.map((inv) => inv.id));
 
   // Marquee selection
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -178,6 +322,57 @@ export default function InvoicesPage() {
     return () => container.removeEventListener("mousedown", onMouseDown);
   }, [rowSelection]);
 
+  // Column resize
+  const resizingRef = useRef<{ key: string; startX: number; startWidth: number } | null>(null);
+  const handleResizeStart = useCallback((e: React.MouseEvent, key: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startWidth = activeView.columnWidths[key] ?? 100;
+    const col = allColumnDefs.find((c) => c.key === key);
+    resizingRef.current = { key, startX: e.clientX, startWidth };
+    const onMove = (ev: MouseEvent) => {
+      if (!resizingRef.current) return;
+      const delta = ev.clientX - resizingRef.current.startX;
+      const minW = col?.minWidth ?? 60;
+      const newW = Math.max(minW, resizingRef.current.startWidth + delta);
+      tableViews.setColumnWidth(resizingRef.current.key, newW);
+    };
+    const onUp = () => {
+      resizingRef.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [activeView.columnWidths, tableViews]);
+
+  // Column drag reorder
+  const dragColRef = useRef<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, key: string) => {
+    dragColRef.current = key;
+    e.dataTransfer.effectAllowed = "move";
+  };
+  const handleDragOver = (e: React.DragEvent, key: string) => {
+    e.preventDefault();
+    if (dragColRef.current && dragColRef.current !== key) setDragOverCol(key);
+  };
+  const handleDrop = (e: React.DragEvent, targetKey: string) => {
+    e.preventDefault();
+    const sourceKey = dragColRef.current;
+    if (!sourceKey || sourceKey === targetKey) return;
+    const next = [...activeView.columnOrder];
+    const srcIdx = next.indexOf(sourceKey);
+    const tgtIdx = next.indexOf(targetKey);
+    next.splice(srcIdx, 1);
+    next.splice(tgtIdx, 0, sourceKey);
+    tableViews.setColumnOrder(next);
+    dragColRef.current = null;
+    setDragOverCol(null);
+  };
+  const handleDragEnd = () => { dragColRef.current = null; setDragOverCol(null); };
+
   const handleCreateInvoice = useCallback(async () => {
     if (isAdmin) {
       setSelectedTranslator("");
@@ -203,7 +398,7 @@ export default function InvoicesPage() {
   }, [selectedTranslator, navigate]);
 
   // Check if selected items contain any paid invoices
-  const selectedInvoices = invoices.filter((inv) => rowSelection.selectedIds.has(inv.id));
+  const selectedInvoices = visibleInvoices.filter((inv) => rowSelection.selectedIds.has(inv.id));
   const hasPaidInvoices = selectedInvoices.some((inv) => inv.status === "paid");
 
   const handleDeleteClick = useCallback(() => {
@@ -212,7 +407,6 @@ export default function InvoicesPage() {
         toast.error("只有執行官可以刪除已付款的請款單");
         return;
       }
-      // Executive needs password confirmation
       setPassword("");
       setPasswordError("");
       setShowPasswordConfirm(true);
@@ -256,15 +450,6 @@ export default function InvoicesPage() {
     doDelete();
   }, [password, user, doDelete]);
 
-  const getInvoiceTotal = (feeIds: string[]) => {
-    return feeIds.reduce((sum, fid) => {
-      const fee = fees.find((f) => f.id === fid);
-      if (!fee) return sum;
-      return sum + fee.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
-    }, 0);
-  };
-
-  // Can delete: admin can delete non-paid; executive can delete all (with password for paid)
   const canDelete = isAdmin && rowSelection.selectedCount > 0;
 
   return (
@@ -278,22 +463,40 @@ export default function InvoicesPage() {
           新增請款單
         </Button>
         {canDelete && (
-          <>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 text-muted-foreground hover:text-destructive"
-              onClick={handleDeleteClick}
-              title="刪除選取項目"
-            >
-              <Trash2 className="h-4.5 w-4.5" />
-            </Button>
-            <Badge variant="default" className="h-6 text-xs">
-              已選取 {rowSelection.selectedCount} 個項目
-            </Badge>
-          </>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 text-muted-foreground hover:text-destructive"
+            onClick={handleDeleteClick}
+            title="刪除選取項目"
+          >
+            <Trash2 className="h-4.5 w-4.5" />
+          </Button>
         )}
       </div>
+
+      {/* Filter/Sort/View toolbar */}
+      <FilterSortToolbar
+        views={tableViews.views}
+        activeView={activeView}
+        activeViewId={tableViews.activeViewId}
+        onSetActiveView={tableViews.setActiveViewId}
+        onAddView={tableViews.addView}
+        onDeleteView={tableViews.deleteView}
+        onAddFilter={tableViews.addFilter}
+        onRemoveFilter={tableViews.removeFilter}
+        onUpdateFilter={tableViews.updateFilter}
+        onAddSort={tableViews.addSort}
+        onRemoveSort={tableViews.removeSort}
+        onUpdateSort={tableViews.updateSort}
+        onRenameView={tableViews.renameView}
+        onReorderViews={tableViews.reorderViews}
+        visibleFieldKeys={visibleFieldKeys}
+        selectedCount={rowSelection.selectedCount}
+        hiddenColumns={activeView.hiddenColumns || []}
+        onToggleColumn={tableViews.toggleColumnVisibility}
+        fieldMetasList={invoiceFieldMetas}
+      />
 
       <motion.div
         ref={tableContainerRef}
@@ -314,7 +517,7 @@ export default function InvoicesPage() {
             }}
           />
         )}
-        <table className="w-full text-sm">
+        <table style={{ minWidth: totalWidth }} className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40">
               <th className="w-[40px] px-2 py-2.5 text-center">
@@ -327,18 +530,34 @@ export default function InvoicesPage() {
                   className="mx-auto"
                 />
               </th>
-              <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[200px]">標題</th>
-              <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[150px]">譯者</th>
-              <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[100px]">狀態</th>
-              <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[80px]">費用數</th>
-              <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[120px]">總金額</th>
-              <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-[120px]">建立時間</th>
-              <th className="px-4 py-2.5 text-center text-xs font-medium text-muted-foreground">備註</th>
+              {orderedCols.map((col) => (
+                <th
+                  key={col.key}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, col.key)}
+                  onDragOver={(e) => handleDragOver(e, col.key)}
+                  onDrop={(e) => handleDrop(e, col.key)}
+                  onDragEnd={handleDragEnd}
+                  style={{ width: activeView.columnWidths[col.key] ?? 100 }}
+                  className={cn(
+                    "relative select-none px-3 py-2.5 text-center text-xs font-medium text-muted-foreground whitespace-nowrap group border-r border-border/40 last:border-r-0",
+                    dragOverCol === col.key && "bg-primary/10"
+                  )}
+                >
+                  <div className="flex items-center justify-center gap-1 cursor-grab active:cursor-grabbing">
+                    <GripVertical className="h-3 w-3 opacity-0 group-hover:opacity-40 shrink-0" />
+                    <span>{col.label}</span>
+                  </div>
+                  <div
+                    onMouseDown={(e) => handleResizeStart(e, col.key)}
+                    className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize bg-border/50 hover:bg-primary/40 transition-colors"
+                  />
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {invoices.map((inv) => {
-              const opt = assigneeOptions.find((o) => o.label === inv.translator);
+            {visibleInvoices.map((inv) => {
               const total = getInvoiceTotal(inv.feeIds);
               const isSelected = rowSelection.selectedIds.has(inv.id);
               return (
@@ -359,36 +578,24 @@ export default function InvoicesPage() {
                       className="mx-auto"
                     />
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium truncate">{inv.title || <span className="text-muted-foreground italic">未命名</span>}</span>
-                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    {inv.translator ? (
-                      <AssigneeTag label={inv.translator} avatarUrl={opt?.avatarUrl} />
-                    ) : (
-                      <span className="text-muted-foreground italic text-sm">未指定</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <InvoiceStatusBadge status={inv.status} />
-                  </td>
-                  <td className="px-4 py-3 text-center text-sm tabular-nums">{inv.feeIds.length}</td>
-                  <td className="px-4 py-3 text-center text-sm tabular-nums">{formatCurrency(total)}</td>
-                  <td className="px-4 py-3 text-center text-sm text-muted-foreground tabular-nums">
-                    {formatDate(inv.createdAt)}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground truncate max-w-[200px]">
-                    {inv.note || "—"}
-                  </td>
+                  {orderedCols.map((col) => (
+                    <td
+                      key={col.key}
+                      style={{ width: activeView.columnWidths[col.key] ?? 100, maxWidth: activeView.columnWidths[col.key] ?? 100 }}
+                      className={cn(
+                        "px-3 py-3 overflow-hidden border-r border-border/40 last:border-r-0",
+                        col.key !== "title" && col.key !== "note" && "text-center"
+                      )}
+                    >
+                      {col.render(inv, total)}
+                    </td>
+                  ))}
                 </tr>
               );
             })}
-            {invoices.length === 0 && (
+            {visibleInvoices.length === 0 && (
               <tr>
-                <td colSpan={8} className="text-center py-12 text-muted-foreground">
+                <td colSpan={orderedCols.length + 1} className="text-center py-12 text-muted-foreground">
                   尚無請款單
                 </td>
               </tr>
