@@ -406,7 +406,7 @@ function FilterGroupUI({
                   "text-[10px] font-semibold px-1.5 py-0.5 rounded cursor-pointer transition-colors",
                   group.logic === "and"
                     ? "bg-primary/10 text-primary hover:bg-primary/20"
-                    : "bg-orange-500/10 text-orange-600 hover:bg-orange-500/20"
+                    : "bg-accent text-accent-foreground hover:bg-accent/80"
                 )}
               >
                 {logicLabels[group.logic]}
