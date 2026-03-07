@@ -167,7 +167,7 @@ export default function TranslatorFeeDetail() {
   const confirmSwapOriginRef = useRef<"choose" | "assignRole">("choose");
   const [multiTranslatorPages, setMultiTranslatorPages] = useState<{ id: string; title: string; assignee: string }[] | null>(null);
   const [autoCreatedOptions, setAutoCreatedOptions] = useState<{ field: string; label: string }[] | null>(null);
-  const [showPricingTip, setShowPricingTip] = useState(true);
+  
 
   // Find the other fee that is firstFee in the same case group
   const otherFirstFee = (() => {
@@ -432,8 +432,6 @@ export default function TranslatorFeeDetail() {
   };
 
   const handleSubmit = () => {
-    // Hide pricing tip on finalize
-    setShowPricingTip(false);
     // Force-commit all pending changes immediately
     if (pendingChanges.length > 0) {
       const newEntries = pendingChanges.map((c) => ({
@@ -1463,6 +1461,48 @@ export default function TranslatorFeeDetail() {
           )}
         </div>
 
+        {/* Client Info Section — PM+ only */}
+        {isManager && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <ClientInfoSection
+                clientInfo={clientInfo}
+                onChange={(info) => {
+                  setClientInfo(info);
+                  if (id) feeStore.updateFee(id, { clientInfo: info });
+                }}
+                canEdit={canEdit}
+                translatorTotal={totalAmount}
+                allFees={allFees}
+                currentFeeId={id ?? ""}
+                currentInternalNote={internalNote}
+                onFirstFeeConflict={() => {
+                  setSwapResolved(false);
+                  setDisableOption12A(false);
+                  setDuplicateDialogStep("choose");
+                }}
+                onClientPriceEntered={(itemIndex, clientPrice, taskType, billingUnit) => {
+                  // Auto-fill translator unit price if empty
+                  if (itemIndex < taskItems.length) {
+                    const item = taskItems[itemIndex];
+                    if (!item.unitPrice || item.unitPrice === 0) {
+                      const tp = defaultPricingStore.getTranslatorPrice(clientPrice, taskType, billingUnit);
+                      if (tp !== undefined && tp > 0) {
+                        const updated = taskItems.map((ti, idx) =>
+                          idx === itemIndex ? { ...ti, unitPrice: tp } : ti
+                        );
+                        setTaskItems(updated);
+                        if (id) feeStore.updateFee(id, { taskItems: updated });
+                      }
+                    }
+                  }
+                }}
+              />
+            </div>
+          </>
+        )}
+
         <Separator />
 
         {/* Task Items Table */}
@@ -1561,7 +1601,6 @@ export default function TranslatorFeeDetail() {
                             const v = e.target.value;
                             if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitPrice", v as any);
                           }}
-                          onFocus={() => setShowPricingTip(false)}
                           onBlur={(e) => handleNumberBlur(item.id, "unitPrice", e.target.value)}
                           disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
                           className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
@@ -1609,11 +1648,7 @@ export default function TranslatorFeeDetail() {
               {taskItems.length > 0 && (
                 <TableFooter>
                     <TableRow>
-                      <TableCell colSpan={3} className="px-[18px]">
-                        <span className={`text-xs font-medium text-primary transition-opacity duration-500 ${showPricingTip ? "opacity-100" : "opacity-0"}`}>
-                          {showPricingTip && "首度填寫客戶報價時，系統會自動按照級距表（見「設定」）填入單價。"}
-                        </span>
-                      </TableCell>
+                      <TableCell colSpan={3} className="px-[18px]" />
                       <TableCell className="text-sm font-medium text-right">
                         稿費總額
                       </TableCell>
@@ -1627,49 +1662,6 @@ export default function TranslatorFeeDetail() {
             </Table>
           </div>
         </div>
-
-        {/* Client Info Section — PM+ only */}
-        {isManager && (
-          <>
-            <Separator />
-            <div className="space-y-3">
-              <ClientInfoSection
-                clientInfo={clientInfo}
-                onChange={(info) => {
-                  setClientInfo(info);
-                  if (id) feeStore.updateFee(id, { clientInfo: info });
-                }}
-                canEdit={canEdit}
-                translatorTotal={totalAmount}
-                allFees={allFees}
-                currentFeeId={id ?? ""}
-                currentInternalNote={internalNote}
-                onFirstFeeConflict={() => {
-                  setSwapResolved(false);
-                  setDisableOption12A(false);
-                  setDuplicateDialogStep("choose");
-                }}
-                onClientPriceEntered={(itemIndex, clientPrice, taskType, billingUnit) => {
-                  setShowPricingTip(false);
-                  // Auto-fill translator unit price if empty
-                  if (itemIndex < taskItems.length) {
-                    const item = taskItems[itemIndex];
-                    if (!item.unitPrice || item.unitPrice === 0) {
-                      const tp = defaultPricingStore.getTranslatorPrice(clientPrice, taskType, billingUnit);
-                      if (tp !== undefined && tp > 0) {
-                        const updated = taskItems.map((ti, idx) =>
-                          idx === itemIndex ? { ...ti, unitPrice: tp } : ti
-                        );
-                        setTaskItems(updated);
-                        if (id) feeStore.updateFee(id, { taskItems: updated });
-                      }
-                    }
-                  }
-                }}
-              />
-            </div>
-          </>
-        )}
 
         <Separator />
 
