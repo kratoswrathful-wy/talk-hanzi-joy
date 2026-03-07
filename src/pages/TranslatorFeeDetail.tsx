@@ -945,7 +945,10 @@ export default function TranslatorFeeDetail() {
         // ===== 🖖 翻譯案件 mapping (original logic) =====
         // Extract fields
         const caseId = data["案件編號"] || data["Name"] || data["title"] || "";
-        const people = data["譯者"] || data["審稿人員"] || [];
+        const rawTranslators = data["譯者"];
+        const rawReviewers = data["審稿人員"];
+        const people = (Array.isArray(rawTranslators) && rawTranslators.length > 0) ? rawTranslators
+          : (Array.isArray(rawReviewers) && rawReviewers.length > 0) ? rawReviewers : [];
         const workTypes = data["工作類型"] || [];
         const unitCount = data["計費單位數"] || null;
         const notionUnit = data["計費單位"] || "";
