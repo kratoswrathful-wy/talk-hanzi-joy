@@ -1707,10 +1707,10 @@ export default function TranslatorFeeDetail() {
           );
         })()}
 
-        {/* 留言與備註 — visible to assignee + PM+ */}
+        {/* 費用相關備註 — visible to assignee + PM+ */}
         <Separator />
         <div className="space-y-3">
-          <Label className="text-sm font-medium">留言與備註</Label>
+          <Label className="text-sm font-medium">費用相關備註</Label>
           <div className="space-y-2">
             {comments.map((c) => (
               <div key={c.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
@@ -1747,12 +1747,12 @@ export default function TranslatorFeeDetail() {
           />
         </div>
 
-        {/* 內部備註 — visible to PM+ only */}
+        {/* 費用內部備註 — visible to PM+ only */}
         {isManager && (
           <>
             <Separator />
             <div className="space-y-3">
-              <Label className="text-sm font-medium">內部備註</Label>
+              <Label className="text-sm font-medium">費用內部備註</Label>
               <div className="space-y-2">
                 {internalComments.map((c) => (
                   <div key={c.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
@@ -1767,7 +1767,7 @@ export default function TranslatorFeeDetail() {
               <CommentInput
                 draft={internalCommentDraft}
                 setDraft={setInternalCommentDraft}
-                placeholder="輸入內部備註..."
+                placeholder="輸入費用內部備註..."
                 onSubmit={(content, imageUrls) => {
                   setInternalComments((prev) => [...prev, {
                     id: `icomment-${Date.now()}`,

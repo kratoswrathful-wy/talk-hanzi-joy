@@ -107,7 +107,7 @@ const COMMIT_DELAY_MS = 5 * 60 * 1000;
 const fieldLabels: Record<string, string> = {
   title: "標題",
   status: "狀態",
-  note: "備註",
+  note: "客戶請款備註",
 };
 
 export default function ClientInvoiceDetailPage() {
@@ -428,11 +428,11 @@ export default function ClientInvoiceDetailPage() {
 
             {/* Note */}
             <div className="grid gap-1.5">
-              <Label className="text-xs text-muted-foreground">備註</Label>
+              <Label className="text-xs text-muted-foreground">客戶請款備註</Label>
               <Input
                 value={invoice.note}
                 onChange={(e) => handleNoteChange(e.target.value)}
-                placeholder="新增備註…"
+                placeholder="新增客戶請款備註…"
                 disabled={isPaid}
                 className="text-sm"
               />
@@ -638,10 +638,10 @@ export default function ClientInvoiceDetailPage() {
             </>
           )}
 
-          {/* Comments */}
+          {/* 客戶請款備註 */}
           <Separator />
           <div className="space-y-3">
-            <Label className="text-sm font-medium">留言與備註</Label>
+            <Label className="text-sm font-medium">客戶請款備註</Label>
             <div className="space-y-2">
               {comments.map((c) => (
                 <div key={c.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">

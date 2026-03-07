@@ -13,6 +13,7 @@ import TranslatorFeeDetail from "@/pages/TranslatorFeeDetail";
 import SettingsPage from "@/pages/SettingsPage";
 import ProfilePage from "@/pages/ProfilePage";
 import MembersPage from "@/pages/MembersPage";
+import PermissionsPage from "@/pages/PermissionsPage";
 import InvoicesPage from "@/pages/InvoicesPage";
 import InvoiceDetailPage from "@/pages/InvoiceDetailPage";
 import ClientInvoicesPage from "@/pages/ClientInvoicesPage";
@@ -60,6 +61,7 @@ function AuthenticatedRoutes() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/members" element={<MembersPage />} />
+        <Route path="/permissions" element={<PermissionsPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AppLayout>

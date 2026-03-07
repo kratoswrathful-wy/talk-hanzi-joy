@@ -34,6 +34,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -172,7 +175,7 @@ export default function ClientInvoicesPage() {
     },
     {
       key: "note",
-      label: "備註",
+      label: "客戶請款備註",
       minWidth: 100,
       render: (inv) => (
         <span className="text-sm text-muted-foreground truncate">{inv.note || "—"}</span>
@@ -415,6 +418,14 @@ export default function ClientInvoicesPage() {
 
   const canDelete = rowSelection.selectedCount > 0;
 
+  if (!isAdmin) {
+    return (
+      <div className="mx-auto max-w-3xl py-12 text-center text-muted-foreground">
+        您沒有權限檢視此頁面
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-4">
       <div className="flex items-center gap-3">
@@ -630,20 +641,24 @@ export default function ClientInvoicesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Client name input for creation */}
+      {/* Client selection for creation */}
       <Dialog open={showClientInput} onOpenChange={setShowClientInput}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>請輸入客戶名稱</DialogTitle>
+            <DialogTitle>選擇客戶</DialogTitle>
           </DialogHeader>
-          <div className="py-4">
-            <Input
-              value={newClientName}
-              onChange={(e) => setNewClientName(e.target.value)}
-              placeholder="客戶名稱…"
-              onKeyDown={(e) => { if (e.key === "Enter") handleConfirmCreate(); }}
-              autoFocus
-            />
+          <div className="py-4 space-y-3">
+            <Label>客戶</Label>
+            <Select value={newClientName} onValueChange={setNewClientName}>
+              <SelectTrigger>
+                <SelectValue placeholder="選擇客戶…" />
+              </SelectTrigger>
+              <SelectContent>
+                {clientOptions.map((opt) => (
+                  <SelectItem key={opt.id} value={opt.label}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowClientInput(false)}>取消</Button>

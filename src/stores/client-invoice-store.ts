@@ -45,7 +45,7 @@ function generateDefaultTitle(client: string): string {
   const now = new Date();
   const yyyy = now.getFullYear();
   const mm = String(now.getMonth() + 1).padStart(2, "0");
-  return `${client || "未指定"}_ClientInvoice_${yyyy}${mm}`;
+  return `Invoice_${client || "未指定"}_${yyyy}${mm}`;
 }
 
 let _cachedUserId: string | null = null;

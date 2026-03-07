@@ -110,7 +110,7 @@ const COMMIT_DELAY_MS = 5 * 60 * 1000; // 5 minutes
 const fieldLabels: Record<string, string> = {
   title: "標題",
   status: "狀態",
-  note: "備註",
+  note: "稿費請款備註",
 };
 
 export default function InvoiceDetailPage() {
@@ -689,10 +689,10 @@ export default function InvoiceDetailPage() {
           </>
         )}
 
-        {/* 留言與備註 */}
+        {/* 稿費請款備註 */}
         <Separator />
         <div className="space-y-3">
-          <Label className="text-sm font-medium">留言與備註</Label>
+          <Label className="text-sm font-medium">稿費請款備註</Label>
           <div className="space-y-2">
             {comments.map((c) => (
               <div key={c.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
@@ -712,12 +712,12 @@ export default function InvoiceDetailPage() {
           />
         </div>
 
-        {/* 內部備註 — PM+ only */}
+        {/* 稿費請款內部備註 — PM+ only */}
         {isAdmin && (
           <>
             <Separator />
             <div className="space-y-3">
-              <Label className="text-sm font-medium">內部備註</Label>
+              <Label className="text-sm font-medium">稿費請款內部備註</Label>
               <div className="space-y-2">
                 {internalComments.map((c) => (
                   <div key={c.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
@@ -732,7 +732,7 @@ export default function InvoiceDetailPage() {
               <CommentInput
                 draft={internalCommentDraft}
                 setDraft={setInternalCommentDraft}
-                placeholder="輸入內部備註..."
+                placeholder="輸入稿費請款內部備註..."
                 onSubmit={handleAddInternalComment}
               />
             </div>
