@@ -1262,7 +1262,7 @@ export default function TranslatorFeeDetail() {
             </Button>
           )}
           {canDelete && (
-            <Button variant="destructive" size="sm" className="text-xs min-w-[88px]" onClick={() => setDeleteDialogOpen(true)}>
+            <Button size="sm" className="text-xs min-w-[88px] text-white hover:opacity-80" style={{ backgroundColor: '#6B7280' }} onClick={() => setDeleteDialogOpen(true)}>
               刪除
             </Button>
           )}
