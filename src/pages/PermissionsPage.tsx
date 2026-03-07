@@ -464,14 +464,11 @@ export default function PermissionsPage() {
                           ) : (
                             <span
                               className="text-sm font-medium cursor-pointer hover:underline"
-                              onDoubleClick={() => handleRenameStart(role)}
-                              title="雙擊以更名"
+                              onClick={() => handleRenameStart(role)}
+                              title="點擊以更名"
                             >
                               {role.label}
                             </span>
-                          )}
-                          {role.builtIn && (
-                            <Badge variant="outline" className="text-xs">內建</Badge>
                           )}
                         </div>
                         <Button
