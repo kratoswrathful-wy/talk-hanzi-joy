@@ -89,6 +89,7 @@ function getSelectOptions(key: string): { value: string; label: string }[] {
 function getColorSelectFieldKey(key: string): string | undefined {
   if (key === "assignee") return "assignee";
   if (key === "client") return "client";
+  if (key === "dispatchRoute") return "dispatchRoute";
   return undefined;
 }
 
