@@ -66,8 +66,8 @@ const formatCurrency = (n: number) =>
 // Editable fields - computed/date/createdBy are not editable
 const editableFields = new Set([
   "title", "status", "assignee", "internalNote",
-  "client", "clientCaseId", "clientPoNumber",
-  "reconciled", "rateConfirmed", "invoiced",
+  "client", "contact", "clientCaseId", "clientPoNumber", "dispatchRoute",
+  "reconciled", "rateConfirmed", "invoiced", "sameCase",
 ]);
 
 function getEditType(key: string): "text" | "select" | "checkbox" | "colorSelect" {
