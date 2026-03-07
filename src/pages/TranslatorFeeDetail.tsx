@@ -1012,9 +1012,9 @@ export default function TranslatorFeeDetail() {
             return {
               id: `item-notion-${Date.now()}-${idx}`,
               taskType: matchedType as TaskType,
-              billingUnit: "字" as BillingUnit,
+              billingUnit,
               unitCount: idx === 0 && unitCount ? unitCount : 0,
-              unitPrice: getAutoPrice(matchedType as string, "字"),
+              unitPrice: getAutoPrice(matchedType as string, billingUnit),
             };
           });
           setTaskItems(mapped);
