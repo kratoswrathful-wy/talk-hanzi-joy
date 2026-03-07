@@ -430,43 +430,28 @@ export default function InvoiceDetailPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      {/* Back button */}
-      <Link
-        to="/invoices"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        返回請款單清單
-      </Link>
-
-      {/* Title + delete */}
-      <div className="flex items-center gap-3">
-        <div className="flex-1 min-w-0 space-y-1">
-          {isPaid ? (
-            <h1 className="text-lg font-semibold tracking-tight text-muted-foreground">
-              {invoice.title || "未命名"}
-            </h1>
-          ) : (
-            <Input
-              value={invoice.title}
-              onChange={(e) => handleTitleChange(e.target.value)}
-              placeholder="請款單標題"
-              className="text-lg font-semibold tracking-tight border-0 shadow-none px-0 h-auto py-0 focus-visible:ring-0 bg-transparent"
-            />
+      {/* Sticky top bar */}
+      <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border -mx-4 px-4 py-3 flex items-center justify-between gap-4">
+        <Link
+          to="/invoices"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          返回請款單清單
+        </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          {(isAdmin || isOwnInvoice) && (
+            <Button size="sm" className="text-xs min-w-[88px] text-white hover:opacity-80" style={{ backgroundColor: '#6B7280' }} onClick={() => {
+              if (isPaid) {
+                toast.error("這份請款單已經付款完畢，如欲刪除請洽團隊管理人員。");
+              } else {
+                setShowDelete(true);
+              }
+            }}>
+              刪除
+            </Button>
           )}
-          <InvoiceStatusBadge status={invoice.status} />
         </div>
-        {(isAdmin || isOwnInvoice) && (
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => {
-            if (isPaid) {
-              toast.error("這份請款單已經付款完畢，如欲刪除請洽團隊管理人員。");
-            } else {
-              setShowDelete(true);
-            }
-          }}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        )}
       </div>
 
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
