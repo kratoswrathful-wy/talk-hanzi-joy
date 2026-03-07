@@ -76,8 +76,11 @@ let store: PricingStore = {
 
 const listeners = new Set<Listener>();
 
+const SETTINGS_KEY = "default_pricing";
+
 function notify() {
   listeners.forEach((l) => l());
+  saveSetting(SETTINGS_KEY, store);
 }
 
 function generateGroupId() {
