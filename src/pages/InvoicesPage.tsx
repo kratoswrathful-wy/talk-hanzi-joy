@@ -456,7 +456,7 @@ export default function InvoicesPage() {
     <div className="mx-auto max-w-7xl space-y-4">
       <div className="flex items-center gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">請款單管理</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">稿費請款</h1>
         </div>
         <Button size="sm" className="gap-1.5" onClick={handleCreateInvoice}>
           <Plus className="h-4 w-4" />
