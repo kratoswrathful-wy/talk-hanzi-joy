@@ -62,8 +62,7 @@ export default function NewTranslatorFee() {
         // Try common property names
         const caseId = data["案件編號"] || data["Name"] || data["title"] || "";
         const rawT = data["譯者"];
-        const rawR = data["審稿人員"];
-        let people = (Array.isArray(rawT) && rawT.length > 0) ? rawT : (Array.isArray(rawR) && rawR.length > 0) ? rawR : [];
+        let people = (Array.isArray(rawT) && rawT.length > 0) ? rawT : [];
         let workTypes = data["工作類型"] || [];
         const unitCount = data["計費單位數"] || null;
         const notionUnit = data["計費單位"] || "";
