@@ -57,7 +57,7 @@ function handleTabKeyDown(
 function ClientPricingSection() {
   const { options: clientOptions, customColors } = useSelectOptions("client");
   const labelStyles = useLabelStyles();
-  const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
+  const { options: taskTypeOptions } = useSelectOptions("taskType");
   const { getAllClientPricing, setClientPrice, removeClientPrice } = useClientPricing();
   const allPricing = getAllClientPricing();
 
