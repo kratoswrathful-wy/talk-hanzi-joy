@@ -1047,7 +1047,7 @@ export default function TranslatorFeeDetail() {
           setClientInfo((prev) => ({
             ...prev,
             clientTaskItems: prev.clientTaskItems.map((item, idx) =>
-              idx === 0 ? { ...item, unitCount, billingUnit: "字" as BillingUnit } : item
+              idx === 0 ? { ...item, unitCount, billingUnit } : item
             ),
           }));
           if (id) {
