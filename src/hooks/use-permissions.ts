@@ -149,6 +149,15 @@ export function usePermissions() {
 
   const allRoles = getAllRolesOrdered(config);
 
+  const checkPerm = useCallback((moduleKey: string, itemKey: string, permType: "view" | "edit"): boolean => {
+    const modulePerms = (config as any)?.module_permissions?.[primaryRole]?.[moduleKey];
+    if (!modulePerms) return true;
+    if (!modulePerms.visible) return false;
+    const itemPerm = modulePerms.items?.[itemKey];
+    if (!itemPerm) return true;
+    return itemPerm[permType] ?? true;
+  }, [config, primaryRole]);
+
   return {
     config,
     loading,
@@ -158,5 +167,6 @@ export function usePermissions() {
     updateConfig,
     refetch: fetchConfig,
     allRoles,
+    checkPerm,
   };
 }

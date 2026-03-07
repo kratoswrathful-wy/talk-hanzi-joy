@@ -697,6 +697,32 @@ export default function ClientInvoiceDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Password delete dialog for paid invoices */}
+      <AlertDialog open={showPasswordDelete} onOpenChange={(open) => { if (!open) { setShowPasswordDelete(false); setDeletePassword(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>刪除已收款請款單</AlertDialogTitle>
+            <AlertDialogDescription>此請款單已全額收齊，請輸入您的密碼以確認刪除。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="px-6 pb-2">
+            <Input
+              type="password"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              placeholder="請輸入密碼…"
+              onKeyDown={(e) => { if (e.key === "Enter") handlePasswordDelete(); }}
+              autoFocus
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setShowPasswordDelete(false); setDeletePassword(""); }}>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handlePasswordDelete} disabled={deletingWithPassword} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deletingWithPassword ? "驗證中…" : "確認刪除"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Remove fee dialog */}
       <AlertDialog open={!!removeFeeId} onOpenChange={(open) => !open && setRemoveFeeId(null)}>
         <AlertDialogContent>

@@ -1,9 +1,9 @@
 export type ClientInvoiceStatus = "pending" | "partial" | "paid";
 
 export const clientInvoiceStatusLabels: Record<ClientInvoiceStatus, string> = {
-  pending: "待付款",
-  partial: "部份付款",
-  paid: "已付款",
+  pending: "待收款",
+  partial: "部份到帳",
+  paid: "全額收齊",
 };
 
 export interface ClientPaymentRecord {
