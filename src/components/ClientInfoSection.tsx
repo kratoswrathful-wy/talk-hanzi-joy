@@ -395,7 +395,7 @@ export default function ClientInfoSection({
                       }}
                       onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
                       className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
-                      disabled={clientItemsLocked}
+                      disabled={clientItemsLocked || clientInfo.reconciled}
                     />
                   </TableCell>
                   <TableCell className="text-right text-xs font-medium">
