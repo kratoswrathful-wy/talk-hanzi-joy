@@ -452,7 +452,7 @@ export default function ClientInfoSection({
                       value={clientInfo.clientPoNumber}
                       onChange={(e) => update("clientPoNumber", e.target.value)}
                       placeholder="客戶PO編號"
-                      disabled={!canEdit}
+                      disabled={!canEdit || clientInfo.reconciled}
                       className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
                     />
                   </div>
