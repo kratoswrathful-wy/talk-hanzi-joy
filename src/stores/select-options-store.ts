@@ -22,8 +22,11 @@ export const PRESET_COLORS = [
   "#5B21B6", // violet
   "#BE185D", // pink
   "#6B7280", // dark gray
-  "#9CA3AF", // gray
+  "#383A3F", // charcoal
 ];
+
+/** Default color used for new "contact" field options */
+export const CONTACT_DEFAULT_COLOR = "#383A3F";
 
 // Sort: English alphabetical, Chinese by stroke count
 function sortOptions(options: SelectOption[]): SelectOption[] {
