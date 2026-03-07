@@ -1529,7 +1529,7 @@ export default function TranslatorFeeDetail() {
                 {taskItems.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={canEdit ? 6 : 5}
+                      colSpan={canEdit && !clientInfo.rateConfirmed ? 6 : 5}
                       className="text-center text-sm text-muted-foreground py-6"
                     >
                       尚無任務項目
