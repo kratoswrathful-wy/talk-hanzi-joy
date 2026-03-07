@@ -1542,7 +1542,7 @@ export default function TranslatorFeeDetail() {
                         <ColorSelect
                           fieldKey="taskType"
                           value={item.taskType}
-                          disabled={!canEdit || isNoFeeTranslator}
+                          disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
                           onValueChange={(v) => handleUpdateItem(item.id, "taskType", v)}
                           triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
                         />
