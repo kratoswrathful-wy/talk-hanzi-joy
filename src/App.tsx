@@ -13,6 +13,7 @@ import TranslatorFeeDetail from "@/pages/TranslatorFeeDetail";
 import SettingsPage from "@/pages/SettingsPage";
 import ProfilePage from "@/pages/ProfilePage";
 import MembersPage from "@/pages/MembersPage";
+import PermissionsPage from "@/pages/PermissionsPage";
 import InvoicesPage from "@/pages/InvoicesPage";
 import InvoiceDetailPage from "@/pages/InvoiceDetailPage";
 import ClientInvoicesPage from "@/pages/ClientInvoicesPage";
