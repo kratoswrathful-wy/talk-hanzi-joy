@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { supabase } from "@/integrations/supabase/client";
+import { usePermissions } from "@/hooks/use-permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,41 +24,66 @@ import { ChevronDown, ChevronRight, Plus, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 type AppRole = "member" | "pm" | "executive";
-const builtInRoles: AppRole[] = ["member", "pm", "executive"];
-const roleLabels: Record<string, string> = {
+const BUILT_IN_ROLES: AppRole[] = ["member", "pm", "executive"];
+const BUILT_IN_LABELS: Record<string, string> = {
   member: "譯者",
   pm: "PM",
   executive: "執行官",
 };
 
+export interface RoleDefinition {
+  key: string;
+  label: string;
+  builtIn: boolean;
+}
+
 export default function PermissionsPage() {
   const { roles } = useAuth();
   const isExecutive = roles.some((r) => r.role === "executive");
+  const { config, loading, updateConfig } = usePermissions();
 
-  // Role management
-  const [allRoles, setAllRoles] = useState<string[]>([...builtInRoles]);
+  // Derive role definitions from config
+  const customRoles: RoleDefinition[] = (config as any).custom_roles || [];
+
+  const allRoles: RoleDefinition[] = [
+    ...BUILT_IN_ROLES.map((r) => ({ key: r, label: BUILT_IN_LABELS[r], builtIn: true })),
+    ...customRoles,
+  ];
+
   const [newRoleName, setNewRoleName] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<RoleDefinition | null>(null);
   const [deleteStep, setDeleteStep] = useState<1 | 2>(1);
   const [expandedRole, setExpandedRole] = useState<string | null>(null);
   const [rolesSectionOpen, setRolesSectionOpen] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  // TODO: Load custom roles from DB in the future
+  const saveCustomRoles = useCallback(async (newCustomRoles: RoleDefinition[]) => {
+    setSaving(true);
+    const newConfig = { ...config, custom_roles: newCustomRoles } as any;
+    const error = await updateConfig(newConfig);
+    setSaving(false);
+    return error;
+  }, [config, updateConfig]);
 
-  const handleAddRole = () => {
+  const handleAddRole = async () => {
     const name = newRoleName.trim();
     if (!name) return;
-    if (allRoles.includes(name)) {
+    if (allRoles.some((r) => r.label === name || r.key === name)) {
       toast.error("此身分已存在");
       return;
     }
-    setAllRoles((prev) => [...prev, name]);
-    roleLabels[name] = name;
-    setNewRoleName("");
-    toast.success(`已新增身分「${name}」`);
+    const key = `custom_${Date.now()}`;
+    const newRole: RoleDefinition = { key, label: name, builtIn: false };
+    const error = await saveCustomRoles([...customRoles, newRole]);
+    if (!error) {
+      setNewRoleName("");
+      toast.success(`已新增身分「${name}」`);
+    } else {
+      toast.error("儲存失敗");
+    }
   };
 
-  const handleDeleteClick = (role: string) => {
+  const handleDeleteClick = (role: RoleDefinition) => {
     setDeleteTarget(role);
     setDeleteStep(1);
   };
@@ -67,10 +92,15 @@ export default function PermissionsPage() {
     setDeleteStep(2);
   };
 
-  const handleDeleteStep2 = () => {
+  const handleDeleteStep2 = async () => {
     if (deleteTarget) {
-      setAllRoles((prev) => prev.filter((r) => r !== deleteTarget));
-      toast.success(`已刪除身分「${roleLabels[deleteTarget] || deleteTarget}」`);
+      const updated = customRoles.filter((r) => r.key !== deleteTarget.key);
+      const error = await saveCustomRoles(updated);
+      if (!error) {
+        toast.success(`已刪除身分「${deleteTarget.label}」`);
+      } else {
+        toast.error("刪除失敗");
+      }
     }
     setDeleteTarget(null);
     setDeleteStep(1);
@@ -85,6 +115,14 @@ export default function PermissionsPage() {
     return (
       <div className="mx-auto max-w-3xl py-12 text-center text-muted-foreground">
         您沒有權限檢視此頁面
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -117,31 +155,29 @@ export default function PermissionsPage() {
                   className="max-w-xs text-sm"
                   onKeyDown={(e) => { if (e.key === "Enter") handleAddRole(); }}
                 />
-                <Button size="sm" onClick={handleAddRole} disabled={!newRoleName.trim()}>
-                  <Plus className="h-4 w-4 mr-1" />
+                <Button size="sm" onClick={handleAddRole} disabled={!newRoleName.trim() || saving}>
+                  {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
                   新增
                 </Button>
               </div>
 
               <div className="divide-y divide-border">
                 {allRoles.map((role) => {
-                  const isBuiltIn = builtInRoles.includes(role as AppRole);
-                  const label = roleLabels[role] || role;
-                  const isExpanded = expandedRole === role;
+                  const isExpanded = expandedRole === role.key;
                   return (
-                    <div key={role} className="py-3">
+                    <div key={role.key} className="py-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
-                            onClick={() => setExpandedRole(isExpanded ? null : role)}
+                            onClick={() => setExpandedRole(isExpanded ? null : role.key)}
                           >
                             {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </Button>
-                          <span className="text-sm font-medium">{label}</span>
-                          {isBuiltIn && (
+                          <span className="text-sm font-medium">{role.label}</span>
+                          {role.builtIn && (
                             <Badge variant="outline" className="text-xs">內建</Badge>
                           )}
                         </div>
@@ -157,7 +193,7 @@ export default function PermissionsPage() {
 
                       {isExpanded && (
                         <div className="ml-9 mt-3 space-y-2">
-                          <RolePermissionPanel role={role} roleLabel={label} />
+                          <RolePermissionPanel roleKey={role.key} roleLabel={role.label} />
                         </div>
                       )}
                     </div>
@@ -175,7 +211,7 @@ export default function PermissionsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>確認刪除身分</AlertDialogTitle>
             <AlertDialogDescription>
-              確定要刪除「{roleLabels[deleteTarget || ""] || deleteTarget}」這個身分嗎？此操作無法復原。
+              確定要刪除「{deleteTarget?.label}」這個身分嗎？此操作無法復原。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -193,7 +229,7 @@ export default function PermissionsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>再次確認刪除</AlertDialogTitle>
             <AlertDialogDescription>
-              您即將永久刪除「{roleLabels[deleteTarget || ""] || deleteTarget}」身分。所有擁有此身分的成員將失去相關權限，且此操作無法復原。是否確定？
+              您即將永久刪除「{deleteTarget?.label}」身分。所有擁有此身分的成員將失去相關權限，且此操作無法復原。是否確定？
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -209,11 +245,6 @@ export default function PermissionsPage() {
 }
 
 // ─── Per-role permission panel ───
-// This is a skeleton that will be fully wired in the next iteration.
-
-interface ModulePermissions {
-  visible: boolean;
-}
 
 const MODULE_KEYS = [
   { key: "fee_management", label: "費用管理" },
@@ -223,7 +254,7 @@ const MODULE_KEYS = [
   { key: "permissions", label: "身分管理" },
 ] as const;
 
-function RolePermissionPanel({ role, roleLabel }: { role: string; roleLabel: string }) {
+function RolePermissionPanel({ roleKey, roleLabel }: { roleKey: string; roleLabel: string }) {
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
 
   return (

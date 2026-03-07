@@ -194,7 +194,7 @@ export default function InvoicesPage() {
     },
     {
       key: "note",
-      label: "稿費請款備註",
+      label: "備註",
       minWidth: 100,
       render: (inv) => (
         <span className="text-sm text-muted-foreground truncate">{inv.note || "—"}</span>
