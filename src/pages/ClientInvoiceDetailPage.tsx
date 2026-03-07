@@ -1,6 +1,7 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Plus, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -115,8 +116,13 @@ export default function ClientInvoiceDetailPage() {
   const navigate = useNavigate();
   const invoice = useClientInvoice(id);
   const fees = useFees();
-  const { isAdmin, profile } = useAuth();
+  const { isAdmin, profile, roles, user } = useAuth();
+  const { checkPerm } = usePermissions();
+  const isExecutive = roles.some((r) => r.role === "executive");
   const [showDelete, setShowDelete] = useState(false);
+  const [showPasswordDelete, setShowPasswordDelete] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deletingWithPassword, setDeletingWithPassword] = useState(false);
   const [removeFeeId, setRemoveFeeId] = useState<string | null>(null);
   const [showPartialInput, setShowPartialInput] = useState(false);
   const [partialAmount, setPartialAmount] = useState("");
@@ -270,6 +276,33 @@ export default function ClientInvoiceDetailPage() {
   const handleDelete = () => {
     clientInvoiceStore.deleteInvoice(invoice.id);
     navigate("/client-invoices");
+    toast.success("已刪除客戶請款單");
+  };
+
+  const handlePasswordDelete = async () => {
+    if (!deletePassword.trim()) {
+      toast.error("請輸入密碼");
+      return;
+    }
+    setDeletingWithPassword(true);
+    const email = profile?.email || user?.email;
+    if (!email) {
+      toast.error("無法驗證身分");
+      setDeletingWithPassword(false);
+      return;
+    }
+    const { error } = await supabase.auth.signInWithPassword({ email, password: deletePassword });
+    setDeletingWithPassword(false);
+    if (error) {
+      toast.error("密碼錯誤，無法刪除");
+      setDeletePassword("");
+      return;
+    }
+    clientInvoiceStore.deleteInvoice(invoice.id);
+    setShowPasswordDelete(false);
+    setDeletePassword("");
+    navigate("/client-invoices");
+    toast.success("已刪除客戶請款單");
   };
 
   const handleTitleChange = (newTitle: string) => {
@@ -291,9 +324,9 @@ export default function ClientInvoiceDetailPage() {
       payments: newPayments,
       transferDate: now,
     });
-    trackChange("status", clientInvoiceStatusLabels[invoice.status], "已付款");
+    trackChange("status", clientInvoiceStatusLabels[invoice.status], "全額收齊");
     forceCommitPending();
-    toast.success("已記錄全額付款");
+    toast.success("已記錄全額收齊");
   };
 
   const paidSoFar = invoice.payments.reduce((sum, p) => sum + (p.type === "partial" ? (p.amount || 0) : 0), 0);
@@ -329,7 +362,7 @@ export default function ClientInvoiceDetailPage() {
     if (newStatus === "paid") forceCommitPending();
     setShowPartialInput(false);
     setPartialAmount("");
-    toast.success("已記錄部份付款");
+    toast.success("已記錄部份到帳");
   };
 
   const handleNoteChange = (newNote: string) => {
@@ -375,10 +408,10 @@ export default function ClientInvoiceDetailPage() {
           返回客戶請款單清單
         </Link>
         <div className="flex items-center gap-2 shrink-0">
-          {isAdmin && (
+          {((!isPaid && isAdmin) || (isPaid && isExecutive)) && checkPerm("client_invoice", "cinv_detail_delete", "edit") && (
             <Button size="sm" className="text-xs min-w-[88px] text-white hover:opacity-80" style={{ backgroundColor: '#6B7280' }} onClick={() => {
               if (isPaid) {
-                toast.error("這份請款單已經付款完畢，如欲刪除請洽團隊管理人員。");
+                setShowPasswordDelete(true);
               } else {
                 setShowDelete(true);
               }
@@ -426,69 +459,10 @@ export default function ClientInvoiceDetailPage() {
               </div>
             </div>
 
-            {/* Note */}
-            <div className="grid gap-1.5">
-              <Label className="text-xs text-muted-foreground">客戶請款備註</Label>
-              <Input
-                value={invoice.note}
-                onChange={(e) => handleNoteChange(e.target.value)}
-                placeholder="新增客戶請款備註…"
-                disabled={isPaid}
-                className="text-sm"
-              />
-            </div>
           </div>
 
           {/* Fee list */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              {editable && availableFees.length > 0 && (
-                <Popover open={addFeeOpen} onOpenChange={(open) => {
-                  setAddFeeOpen(open);
-                  if (!open) setSelectedAddFees([]);
-                }}>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="icon" className="h-7 w-7">
-                      <Plus className="h-3.5 w-3.5" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="w-72 p-3 space-y-3">
-                    <p className="text-sm font-medium">加入費用</p>
-                    <div className="max-h-48 overflow-y-auto space-y-1">
-                      {availableFees.map((f) => {
-                        const clientInfo = f.clientInfo as any;
-                        const fTotal = clientInfo?.items
-                          ? clientInfo.items.reduce((s: number, i: any) => s + (i.quantity || 0) * (i.unitPrice || 0), 0)
-                          : 0;
-                        return (
-                          <label key={f.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent cursor-pointer text-sm">
-                            <Checkbox
-                              checked={selectedAddFees.includes(f.id)}
-                              onCheckedChange={(checked) => {
-                                setSelectedAddFees((prev) =>
-                                  checked ? [...prev, f.id] : prev.filter((x) => x !== f.id)
-                                );
-                              }}
-                            />
-                            <span className="flex-1 truncate">{f.title || "未命名"}</span>
-                            <span className="text-muted-foreground tabular-nums">{formatCurrency(fTotal)}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                    <Button
-                      size="sm"
-                      className="w-full"
-                      disabled={selectedAddFees.length === 0}
-                      onClick={handleAddFees}
-                    >
-                      加入 {selectedAddFees.length > 0 ? `(${selectedAddFees.length})` : ""}
-                    </Button>
-                  </PopoverContent>
-                </Popover>
-              )}
-            </div>
-
             <Table>
               <TableHeader>
                 <TableRow>
@@ -548,27 +522,68 @@ export default function ClientInvoiceDetailPage() {
                 </TableFooter>
               )}
             </Table>
-          </div>
 
-          {/* Payment section */}
-          <div className="space-y-3">
-            {invoice.payments.map((p, idx) => {
-              const paidUpToHere = invoice.payments.slice(0, idx + 1).reduce(
-                (s, pp) => s + (pp.type === "full" ? total : (pp.amount || 0)), 0
-              );
-              const remainingAfter = total - paidUpToHere;
-              return (
-                <div key={p.id} className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">付款時間：</span>
-                  <span>{formatTimestamp(new Date(p.timestamp))}</span>
-                  <span className="text-muted-foreground">
-                    {p.type === "full"
-                      ? "（全額付款）"
-                      : `（部份付款：${formatCurrency(p.amount || 0)} / 尚餘：${formatCurrency(Math.max(0, remainingAfter))}）`}
-                  </span>
-                </div>
-              );
-            })}
+            {/* Action row: + left, 收款 right */}
+            <div className="flex items-center justify-between">
+              <div>
+                {editable && availableFees.length > 0 && checkPerm("client_invoice", "cinv_detail_addFee", "edit") && (
+                  <Popover open={addFeeOpen} onOpenChange={(open) => {
+                    setAddFeeOpen(open);
+                    if (!open) setSelectedAddFees([]);
+                  }}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="icon" className="h-7 w-7">
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-72 p-3 space-y-3">
+                      <p className="text-sm font-medium">加入費用</p>
+                      <div className="max-h-48 overflow-y-auto space-y-1">
+                        {availableFees.map((f) => {
+                          const clientInfo = f.clientInfo as any;
+                          const fTotal = clientInfo?.items
+                            ? clientInfo.items.reduce((s: number, i: any) => s + (i.quantity || 0) * (i.unitPrice || 0), 0)
+                            : 0;
+                          return (
+                            <label key={f.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent cursor-pointer text-sm">
+                              <Checkbox
+                                checked={selectedAddFees.includes(f.id)}
+                                onCheckedChange={(checked) => {
+                                  setSelectedAddFees((prev) =>
+                                    checked ? [...prev, f.id] : prev.filter((x) => x !== f.id)
+                                  );
+                                }}
+                              />
+                              <span className="flex-1 truncate">{f.title || "未命名"}</span>
+                              <span className="text-muted-foreground tabular-nums">{formatCurrency(fTotal)}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <Button
+                        size="sm"
+                        className="w-full"
+                        disabled={selectedAddFees.length === 0}
+                        onClick={handleAddFees}
+                      >
+                        加入 {selectedAddFees.length > 0 ? `(${selectedAddFees.length})` : ""}
+                      </Button>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
+              {!isPaid && !showPartialInput && isAdmin && checkPerm("client_invoice", "cinv_detail_payFull", "edit") && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">收款</Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleFullPayment}>全額收齊</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setShowPartialInput(true)}>部份到帳</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
 
             {showPartialInput && (
               <div className="flex items-center gap-2 justify-end">
@@ -585,19 +600,24 @@ export default function ClientInvoiceDetailPage() {
               </div>
             )}
 
-            {!isPaid && !showPartialInput && isAdmin && (
-              <div className="flex justify-end">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">付款</Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={handleFullPayment}>全額付款</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setShowPartialInput(true)}>部份付款</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            )}
+            {/* Payment records */}
+            {invoice.payments.map((p, idx) => {
+              const paidUpToHere = invoice.payments.slice(0, idx + 1).reduce(
+                (s, pp) => s + (pp.type === "full" ? total : (pp.amount || 0)), 0
+              );
+              const remainingAfter = total - paidUpToHere;
+              return (
+                <div key={p.id} className="flex items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">收款時間：</span>
+                  <span>{formatTimestamp(new Date(p.timestamp))}</span>
+                  <span className="text-muted-foreground">
+                    {p.type === "full"
+                      ? "（全額收齊）"
+                      : `（部份到帳：${formatCurrency(p.amount || 0)} / 尚餘：${formatCurrency(Math.max(0, remainingAfter))}）`}
+                  </span>
+                </div>
+              );
+            })}
           </div>
 
           {/* Meta info */}
@@ -673,6 +693,32 @@ export default function ClientInvoiceDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">刪除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Password delete dialog for paid invoices */}
+      <AlertDialog open={showPasswordDelete} onOpenChange={(open) => { if (!open) { setShowPasswordDelete(false); setDeletePassword(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>刪除已收款請款單</AlertDialogTitle>
+            <AlertDialogDescription>此請款單已全額收齊，請輸入您的密碼以確認刪除。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="px-6 pb-2">
+            <Input
+              type="password"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              placeholder="請輸入密碼…"
+              onKeyDown={(e) => { if (e.key === "Enter") handlePasswordDelete(); }}
+              autoFocus
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setShowPasswordDelete(false); setDeletePassword(""); }}>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handlePasswordDelete} disabled={deletingWithPassword} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deletingWithPassword ? "驗證中…" : "確認刪除"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
