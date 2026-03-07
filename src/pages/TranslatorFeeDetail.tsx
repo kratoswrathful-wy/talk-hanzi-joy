@@ -1484,6 +1484,17 @@ export default function TranslatorFeeDetail() {
               })()}
             </div>
             <div className="flex items-center gap-2">
+              {canEdit && !isNoFeeTranslator && !clientInfo.rateConfirmed && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1 text-xs"
+                  onClick={handleAddItem}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  新增項目
+                </Button>
+              )}
               {isManager && (
                 <div className="flex items-center gap-1.5">
                   <Checkbox
@@ -1499,17 +1510,7 @@ export default function TranslatorFeeDetail() {
                   <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">費率無誤</Label>
                 </div>
               )}
-              {canEdit && !isNoFeeTranslator && !clientInfo.rateConfirmed && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1 text-xs"
-                  onClick={handleAddItem}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  新增項目
-                </Button>
-              )}
+            </div>
             </div>
           </div>
 
