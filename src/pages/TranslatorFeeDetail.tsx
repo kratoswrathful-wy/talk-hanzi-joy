@@ -948,6 +948,9 @@ export default function TranslatorFeeDetail() {
         const people = data["譯者"] || data["審稿人員"] || [];
         const workTypes = data["工作類型"] || [];
         const unitCount = data["計費單位數"] || null;
+        const notionUnit = data["計費單位"] || "";
+        const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
+        const billingUnit: BillingUnit = billingUnitMap[notionUnit] || "字";
 
         // 案件編號 > 標題（預填為「PO_案件編號」）
         if (caseId) {
