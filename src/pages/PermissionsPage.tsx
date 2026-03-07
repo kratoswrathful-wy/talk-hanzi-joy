@@ -460,6 +460,17 @@ export default function PermissionsPage() {
   );
 }
 
+// ─── Helper: check if all items in a module have all perms enabled ───
+
+function isAllPermsEnabled(modulePerms: ModulePerms, mod: PermissionModule): boolean {
+  const allItems = [...mod.listItems, ...mod.detailItems];
+  return allItems.every((item) => {
+    const view = getItemPerm(modulePerms, item.key, "view");
+    const edit = getItemPerm(modulePerms, item.key, "edit");
+    return view && edit;
+  });
+}
+
 // ─── Per-role permission panel ───
 
 function RolePermissionPanel({
@@ -468,12 +479,14 @@ function RolePermissionPanel({
   config,
   onToggleModuleVisible,
   onToggleItemPerm,
+  onToggleAllPerms,
 }: {
   roleKey: string;
   roleLabel: string;
   config: any;
   onToggleModuleVisible: (roleKey: string, moduleKey: string, visible: boolean) => void;
   onToggleItemPerm: (roleKey: string, moduleKey: string, itemKey: string, permType: "view" | "edit", value: boolean) => void;
+  onToggleAllPerms: (roleKey: string, moduleKey: string, value: boolean) => void;
 }) {
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
 
@@ -484,6 +497,7 @@ function RolePermissionPanel({
         const isExpanded = expandedModule === mod.key;
         const modulePerms = getModulePerms(config, roleKey, mod.key);
         const isVisible = modulePerms.visible;
+        const allEnabled = isVisible && isAllPermsEnabled(modulePerms, mod);
 
         return (
           <Collapsible key={mod.key} open={isExpanded} onOpenChange={(open) => setExpandedModule(open ? mod.key : null)}>
@@ -494,13 +508,28 @@ function RolePermissionPanel({
                   <span className="text-sm">{mod.label}</span>
                 </div>
               </CollapsibleTrigger>
-              <div className="flex items-center gap-2">
-                <Label className="text-xs text-muted-foreground">可見</Label>
-                <Switch
-                  checked={isVisible}
-                  onCheckedChange={(v) => onToggleModuleVisible(roleKey, mod.key, v)}
-                  className="scale-75"
-                />
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1">
+                  <Label className="text-xs text-muted-foreground">所有權限</Label>
+                  <Switch
+                    checked={allEnabled}
+                    onCheckedChange={(v) => {
+                      if (v && !isVisible) {
+                        onToggleModuleVisible(roleKey, mod.key, true);
+                      }
+                      onToggleAllPerms(roleKey, mod.key, v);
+                    }}
+                    className="scale-75"
+                  />
+                </div>
+                <div className="flex items-center gap-1">
+                  <Label className="text-xs text-muted-foreground">可見</Label>
+                  <Switch
+                    checked={isVisible}
+                    onCheckedChange={(v) => onToggleModuleVisible(roleKey, mod.key, v)}
+                    className="scale-75"
+                  />
+                </div>
               </div>
             </div>
             <CollapsibleContent>
@@ -569,27 +598,23 @@ function PermissionItemRow({
     <div className="flex items-center justify-between px-2 py-1 rounded hover:bg-muted/30 text-xs">
       <span className="text-foreground/80">{item.label}</span>
       <div className="flex items-center gap-3">
-        {(item.type === "view" || item.type === "both") && (
-          <div className="flex items-center gap-1">
-            <span className="text-muted-foreground">檢視</span>
-            <Switch
-              checked={viewEnabled}
-              onCheckedChange={(v) => onToggle("view", v)}
-              className="scale-[0.6]"
-            />
-          </div>
-        )}
-        {(item.type === "edit" || item.type === "both") && (
-          <div className="flex items-center gap-1">
-            <span className="text-muted-foreground">編輯</span>
-            <Switch
-              checked={editEnabled}
-              onCheckedChange={(v) => onToggle("edit", v)}
-              className="scale-[0.6]"
-              disabled={item.type === "both" && !viewEnabled}
-            />
-          </div>
-        )}
+        <div className="flex items-center gap-1">
+          <span className="text-muted-foreground">檢視</span>
+          <Switch
+            checked={viewEnabled}
+            onCheckedChange={(v) => onToggle("view", v)}
+            className="scale-[0.6]"
+          />
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-muted-foreground">編輯</span>
+          <Switch
+            checked={editEnabled}
+            onCheckedChange={(v) => onToggle("edit", v)}
+            className="scale-[0.6]"
+            disabled={!viewEnabled}
+          />
+        </div>
       </div>
     </div>
   );
