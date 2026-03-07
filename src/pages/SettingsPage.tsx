@@ -229,7 +229,7 @@ function ClientPricingSection() {
 
                           return (
                             <div
-                              key={`${tt.id}-${bu}`}
+                              key={`${tt.id}-${bu.id}`}
                               className="grid grid-cols-[1fr_60px_100px_36px] gap-2 items-center px-2 py-1 rounded-md hover:bg-secondary/30 transition-colors"
                             >
                               <span
