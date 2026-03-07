@@ -323,6 +323,33 @@ export default function InvoiceDetailPage() {
   const handleDelete = () => {
     invoiceStore.deleteInvoice(invoice.id);
     navigate("/invoices");
+    toast.success("已刪除請款單");
+  };
+
+  const handlePasswordDelete = async () => {
+    if (!deletePassword.trim()) {
+      toast.error("請輸入密碼");
+      return;
+    }
+    setDeletingWithPassword(true);
+    const email = profile?.email || user?.email;
+    if (!email) {
+      toast.error("無法驗證身分");
+      setDeletingWithPassword(false);
+      return;
+    }
+    const { error } = await supabase.auth.signInWithPassword({ email, password: deletePassword });
+    setDeletingWithPassword(false);
+    if (error) {
+      toast.error("密碼錯誤，無法刪除");
+      setDeletePassword("");
+      return;
+    }
+    invoiceStore.deleteInvoice(invoice.id);
+    setShowPasswordDelete(false);
+    setDeletePassword("");
+    navigate("/invoices");
+    toast.success("已刪除請款單");
   };
 
   const handleTitleChange = (newTitle: string) => {
