@@ -2,10 +2,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { selectOptionsStore } from "@/stores/select-options-store";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
 import { labelStyleStore } from "@/stores/label-style-store";
+import { resetLoadedKeys } from "@/stores/settings-persistence";
 
 let loaded = false;
+let loadTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function loadAllSettings() {
+  // Reset loaded flags so stores won't save until load completes
+  resetLoadedKeys();
+
   await Promise.all([
     selectOptionsStore.loadSettings(),
     defaultPricingStore.loadSettings(),
@@ -21,10 +26,13 @@ function ensureLoaded() {
   }
 }
 
-// Reset and reload on auth changes
+// Debounce auth state changes to avoid duplicate loads
 supabase.auth.onAuthStateChange(() => {
   loaded = false;
-  loadAllSettings();
+  if (loadTimer) clearTimeout(loadTimer);
+  loadTimer = setTimeout(() => {
+    loadAllSettings();
+  }, 100);
 });
 
 export function initSettings() {
