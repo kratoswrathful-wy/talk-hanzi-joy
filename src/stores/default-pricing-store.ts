@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { loadSetting, saveSetting } from "./settings-persistence";
 
 /**
  * Default pricing store
