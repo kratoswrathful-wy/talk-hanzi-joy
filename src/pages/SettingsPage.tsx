@@ -285,7 +285,7 @@ function ClientPricingSection() {
                                     variant="ghost"
                                     size="icon"
                                     className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                    onClick={() => removeClientPrice(client.label, tt.label, bu)}
+                                    onClick={() => removeClientPrice(client.label, tt.label, bu.label)}
                                   >
                                     <Trash2 className="h-3 w-3" />
                                   </Button>
