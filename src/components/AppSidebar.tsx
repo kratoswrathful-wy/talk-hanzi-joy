@@ -22,7 +22,8 @@ export function AppSidebar() {
 
   const navItems = [
     { title: "費用管理", url: "/fees", icon: Receipt },
-    { title: "請款單", url: "/invoices", icon: FileText },
+    { title: "稿費請款", url: "/invoices", icon: FileText },
+    { title: "客戶請款", url: "/client-invoices", icon: FileText },
     ...(isAdmin ? [{ title: "成員管理", url: "/members", icon: Users }] : []),
     { title: "個人檔案", url: "/profile", icon: User },
     { title: "設定", url: "/settings", icon: Settings },
