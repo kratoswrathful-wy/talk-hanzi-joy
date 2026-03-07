@@ -168,6 +168,17 @@ const allColumnDefs: ColumnDef[] = [
     ),
   },
   {
+    key: "contact",
+    label: "聯絡人",
+    minWidth: 70,
+    managerOnly: true,
+    render: (f, { editable, onCommit }) => (
+      <InlineEditCell value={f.clientInfo?.contact || ""} type="text" editable={editable} onCommit={(v) => onCommit("contact", v)}>
+        <span className="truncate text-sm text-muted-foreground">{f.clientInfo?.contact || "—"}</span>
+      </InlineEditCell>
+    ),
+  },
+  {
     key: "clientCaseId",
     label: "關鍵字",
     minWidth: 80,
@@ -190,8 +201,19 @@ const allColumnDefs: ColumnDef[] = [
     ),
   },
   {
+    key: "dispatchRoute",
+    label: "派案途徑",
+    minWidth: 80,
+    managerOnly: true,
+    render: (f, { editable, onCommit }) => (
+      <InlineEditCell value={f.clientInfo?.dispatchRoute || ""} type="colorSelect" fieldKey="dispatchRoute" editable={editable} onCommit={(v) => onCommit("dispatchRoute", v)}>
+        <DispatchRouteLabel value={f.clientInfo?.dispatchRoute || ""} />
+      </InlineEditCell>
+    ),
+  },
+  {
     key: "clientRevenue",
-    label: "營收",
+    label: "營收總額",
     minWidth: 80,
     managerOnly: true,
     render: (f) => {
@@ -215,7 +237,7 @@ const allColumnDefs: ColumnDef[] = [
   },
   {
     key: "reconciled",
-    label: "對帳",
+    label: "對帳完成",
     minWidth: 50,
     managerOnly: true,
     render: (f, { editable, onCommit }) => (
@@ -228,7 +250,7 @@ const allColumnDefs: ColumnDef[] = [
   },
   {
     key: "rateConfirmed",
-    label: "費率",
+    label: "費率無誤",
     minWidth: 50,
     managerOnly: true,
     render: (f, { editable, onCommit }) => (
@@ -241,13 +263,26 @@ const allColumnDefs: ColumnDef[] = [
   },
   {
     key: "invoiced",
-    label: "請款",
+    label: "請款完成",
     minWidth: 50,
     managerOnly: true,
     render: (f, { editable, onCommit }) => (
       <InlineEditCell value={!!f.clientInfo?.invoiced} type="checkbox" editable={editable} onCommit={(v) => onCommit("invoiced", v)}>
         <div className="flex justify-center">
           <Checkbox checked={!!f.clientInfo?.invoiced} disabled className="pointer-events-none" />
+        </div>
+      </InlineEditCell>
+    ),
+  },
+  {
+    key: "sameCase",
+    label: "費用群組",
+    minWidth: 50,
+    managerOnly: true,
+    render: (f, { editable, onCommit }) => (
+      <InlineEditCell value={!!f.clientInfo?.sameCase} type="checkbox" editable={editable} onCommit={(v) => onCommit("sameCase", v)}>
+        <div className="flex justify-center">
+          <Checkbox checked={!!f.clientInfo?.sameCase} disabled className="pointer-events-none" />
         </div>
       </InlineEditCell>
     ),
