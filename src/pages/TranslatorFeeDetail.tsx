@@ -1202,31 +1202,11 @@ export default function TranslatorFeeDetail() {
           </Link>
         )}
         <div className="flex items-center gap-2 shrink-0">
-          {canDelete && (
-            <Button variant="destructive" size="sm" className="text-xs" onClick={() => setDeleteDialogOpen(true)}>
-              刪除
-            </Button>
-          )}
-          {canSubmit && (
-            <Button
-              size="sm"
-              className="text-xs"
-              disabled={!isNoFeeTranslator && !clientInfo.rateConfirmed}
-              onClick={handleSubmit}
-            >
-              開立稿費條
-            </Button>
-          )}
-          {canRecall && (
-            <Button variant="outline" size="sm" className="text-xs" onClick={handleRecall}>
-              收回
-            </Button>
-          )}
           {isManager && isDraft && (
             <Button
               variant="outline"
               size="sm"
-              className="text-xs"
+              className="text-xs min-w-[88px]"
               onClick={() => {
                 if (isNavigationBlocked) {
                   if (needsRoleAssignment) {
@@ -1261,7 +1241,7 @@ export default function TranslatorFeeDetail() {
             <Button
               variant="outline"
               size="sm"
-              className="text-xs"
+              className="text-xs min-w-[88px]"
               onClick={() => {
                 if (isNavigationBlocked) {
                   if (needsRoleAssignment) {
@@ -1279,6 +1259,26 @@ export default function TranslatorFeeDetail() {
               }}
             >
               建立新費用頁面
+            </Button>
+          )}
+          {canDelete && (
+            <Button variant="destructive" size="sm" className="text-xs min-w-[88px]" onClick={() => setDeleteDialogOpen(true)}>
+              刪除
+            </Button>
+          )}
+          {canSubmit && (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px]"
+              disabled={!isNoFeeTranslator && !clientInfo.rateConfirmed}
+              onClick={handleSubmit}
+            >
+              開立稿費條
+            </Button>
+          )}
+          {canRecall && (
+            <Button variant="outline" size="sm" className="text-xs min-w-[88px]" onClick={handleRecall}>
+              收回為草稿
             </Button>
           )}
         </div>
