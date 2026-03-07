@@ -101,7 +101,7 @@ export default function ColorSelect({
     selectOptionsStore.addOption(fieldKey, label, newColor);
     onValueChange(label);
     setNewLabel("");
-    setNewColor(PRESET_COLORS[0]);
+    setNewColor(fieldKey === "contact" ? CONTACT_DEFAULT_COLOR : PRESET_COLORS[0]);
     setAddingNew(false);
     setOpen(false);
     setSearchQuery("");

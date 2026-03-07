@@ -752,7 +752,7 @@ export default function TranslatorFeeDetail() {
         if (contact) {
           const existingContacts = selectOptionsStore.getSortedOptions("contact");
           if (!existingContacts.find((o) => o.label === contact)) {
-            selectOptionsStore.addOption("contact", contact, "#6B7280");
+            selectOptionsStore.addOption("contact", contact, CONTACT_DEFAULT_COLOR);
             autoCreated.push({ field: "聯絡人", label: contact });
           }
         }
