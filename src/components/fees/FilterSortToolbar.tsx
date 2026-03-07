@@ -82,6 +82,7 @@ export function FilterSortToolbar({
   hiddenColumns,
   onToggleColumn,
   fieldMetasList,
+  statusOptionsList,
 }: Props) {
   const [newViewName, setNewViewName] = useState("");
   const [editingViewId, setEditingViewId] = useState<string | null>(null);
