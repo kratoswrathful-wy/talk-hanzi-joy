@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { loadSetting, saveSetting } from "./settings-persistence";
+import { loadSetting, saveSetting, markDirty } from "./settings-persistence";
 
 export interface SelectOption {
   id: string;
