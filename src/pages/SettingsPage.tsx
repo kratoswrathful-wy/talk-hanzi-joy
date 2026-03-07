@@ -221,9 +221,9 @@ function ClientPricingSection() {
                       <p className="text-xs text-muted-foreground px-2">尚無任務類型</p>
                     ) : (
                       taskTypeOptions.flatMap((tt) =>
-                        (["字", "小時"] as const).map((bu) => {
-                          const key = cellKey(client.label, tt.label, bu);
-                          const pricingKey = clientPricingKey(tt.label, bu);
+                        billingUnitOptions.map((bu) => {
+                          const key = cellKey(client.label, tt.label, bu.label);
+                          const pricingKey = clientPricingKey(tt.label, bu.label);
                           const currentPrice = pricing[pricingKey];
                           const isEditing = editingCell === key;
 
