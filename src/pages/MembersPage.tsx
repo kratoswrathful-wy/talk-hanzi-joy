@@ -192,7 +192,7 @@ export default function MembersPage() {
     for (const email of inviteEmails) {
       const { error } = await supabase.from("invitations").insert({
         email,
-        role: "member" as AppRole, // Always default to 譯者
+        role: "member" as "member" | "pm" | "executive",
         invited_by: user?.id,
       });
 
