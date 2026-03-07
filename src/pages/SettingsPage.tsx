@@ -438,13 +438,7 @@ function TaskTypeOrderSection() {
 
   const handleColorChange = (optId: string, color: string) => {
     const opt = taskTypeOptions.find((o) => o.id === optId);
-    selectOptionsStore.updateOptionColor("clientTaskType", optId, color);
-    // Sync to fee-side taskType field
-    if (opt) {
-      const feeOpts = selectOptionsStore.getField("taskType").options;
-      const feeOpt = feeOpts.find((o) => o.label === opt.label);
-      if (feeOpt) selectOptionsStore.updateOptionColor("taskType", feeOpt.id, color);
-    }
+    selectOptionsStore.updateOptionColor("taskType", optId, color);
   };
 
   return (
