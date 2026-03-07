@@ -650,8 +650,7 @@ export default function TranslatorFeeDetail() {
                 }
                 if (missingPeople) {
                   const caseRawT = caseData["譯者"];
-                  const caseRawR = caseData["審稿人員"];
-                  people = (Array.isArray(caseRawT) && caseRawT.length > 0) ? caseRawT : (Array.isArray(caseRawR) && caseRawR.length > 0) ? caseRawR : [];
+                  people = (Array.isArray(caseRawT) && caseRawT.length > 0) ? caseRawT : [];
                 }
               }
             } catch (e) {
