@@ -245,6 +245,7 @@ export function useClientPricing() {
     setClientPrice: defaultPricingStore.setClientPrice,
     removeClientPrice: defaultPricingStore.removeClientPrice,
     getClientPricing: defaultPricingStore.getClientPricing,
+    parseKey: parseClientPricingKey,
   };
 }
 
