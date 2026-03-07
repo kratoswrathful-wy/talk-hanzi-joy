@@ -54,14 +54,29 @@ export async function loadSetting<T>(key: string): Promise<T | null> {
     return null;
   }
 
-  markSettingLoaded(key);
-
-  // If DB had data, mark as dirty so future user edits can also save
+  // If found under env-prefixed key, use it
   if (data?.value != null) {
+    markSettingLoaded(key);
     dirtyKeys.add(key);
+    return data.value as T;
   }
 
-  return data?.value as T | null;
+  // Backward compatibility: try non-prefixed key (legacy data)
+  const { data: legacyData, error: legacyError } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", key)
+    .maybeSingle();
+
+  markSettingLoaded(key);
+
+  if (legacyError || !legacyData?.value) {
+    return null;
+  }
+
+  // Found legacy data — mark dirty so it will be saved under the prefixed key
+  dirtyKeys.add(key);
+  return legacyData.value as T;
 }
 
 /**
