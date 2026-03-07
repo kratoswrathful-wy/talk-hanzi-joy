@@ -64,6 +64,8 @@ interface Props {
   selectedCount: number;
   hiddenColumns: string[];
   onToggleColumn: (key: string) => void;
+  /** Override the default fieldMetas for use with different table types */
+  fieldMetasList?: { key: string; label: string; type: string }[];
 }
 
 export function FilterSortToolbar({
