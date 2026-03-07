@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { MoreHorizontal, Plus, Trash2, Palette, Check, Pencil, X, Search, MessageSquareText } from "lucide-react";
+import AssigneeTag from "@/components/AssigneeTag";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -140,6 +141,9 @@ export default function ColorSelect({
             )}
           >
             {selectedOption ? (
+              fieldKey === "assignee" ? (
+                <AssigneeTag label={selectedOption.label} avatarUrl={selectedOption.avatarUrl} />
+              ) : (
               <span
                 className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
                 style={{
@@ -150,6 +154,7 @@ export default function ColorSelect({
               >
                 <span className="truncate">{selectedOption.label}</span>
               </span>
+              )
             ) : (
               <span className="text-muted-foreground">{placeholder}</span>
             )}
@@ -196,6 +201,9 @@ export default function ColorSelect({
                     onClick={() => handleSelect(opt)}
                   >
                     <span className="inline-flex items-center gap-1">
+                      {fieldKey === "assignee" ? (
+                        <AssigneeTag label={opt.label} avatarUrl={opt.avatarUrl} />
+                      ) : (
                       <span
                         className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
                         style={{
@@ -206,6 +214,7 @@ export default function ColorSelect({
                       >
                         <span className="truncate">{opt.label}</span>
                       </span>
+                      )}
                       {value === opt.label && (
                         <span
                           role="button"

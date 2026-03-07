@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-store";
+import AssigneeTag from "@/components/AssigneeTag";
 import { supabase } from "@/integrations/supabase/client";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
@@ -294,12 +295,7 @@ function AssigneeLabel({ value }: { value: string }) {
   const { options } = useSelectOptions("assignee");
   const opt = options.find((o) => o.label === value);
   if (!value) return <span className="truncate text-sm text-muted-foreground">—</span>;
-  return (
-    <span className="inline-flex items-center gap-1.5 truncate text-sm">
-      {opt && <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: opt.color }} />}
-      {value}
-    </span>
-  );
+  return <AssigneeTag label={value} avatarUrl={opt?.avatarUrl} />;
 }
 
 function FeeStatusBadge({ status }: { status: FeeStatus }) {
