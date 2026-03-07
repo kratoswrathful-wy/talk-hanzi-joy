@@ -198,7 +198,7 @@ export default function ClientInfoSection({
                 />
                 <Label htmlFor="invoiced" className="text-xs cursor-pointer whitespace-nowrap">請款完成</Label>
               </div>
-              {canEdit && !clientItemsLocked && (
+              {canEdit && !clientItemsLocked && !clientInfo.reconciled && (
                 <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={addItem}>
                   <Plus className="h-3.5 w-3.5" />
                   新增項目
