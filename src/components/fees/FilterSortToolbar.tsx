@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Filter, ArrowUpDown, Plus, X, ChevronDown, Trash2, Eye, Columns3 } from "lucide-react";
+import { Filter, ArrowUpDown, Plus, X, ChevronDown, Eye, Columns3, FolderPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -9,13 +9,13 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   type TableFilter, type TableSort, type TableView, type FilterOperator,
-  type FieldMeta,
-  fieldMetas,
-} from "@/hooks/use-table-views";
+  type FieldMeta, type FilterGroup, type LogicOperator,
+  countConditions, flattenConditions,
+} from "@/lib/filter-types";
+import { fieldMetas } from "@/hooks/use-table-views";
 import { cn } from "@/lib/utils";
 import { useSelectOptions } from "@/stores/select-options-store";
 
-/** Maps field keys to their selectOptionsStore keys */
 const fieldToStoreKey: Record<string, string> = {
   assignee: "assignee",
   translator: "assignee",
@@ -32,6 +32,11 @@ const operatorLabels: Record<FilterOperator, string> = {
   is_not_checked: "未勾選",
   gt: "大於",
   lt: "小於",
+};
+
+const logicLabels: Record<LogicOperator, string> = {
+  and: "且",
+  or: "或",
 };
 
 function getOperatorsForType(type: string): FilterOperator[] {
@@ -54,9 +59,11 @@ interface Props {
   onSetActiveView: (id: string) => void;
   onAddView: (name: string) => void;
   onDeleteView: (id: string) => void;
-  onAddFilter: (filter: Omit<TableFilter, "id">) => void;
-  onRemoveFilter: (id: string) => void;
-  onUpdateFilter: (id: string, updates: Partial<TableFilter>) => void;
+  onAddCondition: (groupId: string, filter: Omit<TableFilter, "id">) => void;
+  onRemoveFilterNode: (nodeId: string) => void;
+  onUpdateCondition: (filterId: string, updates: Partial<TableFilter>) => void;
+  onAddFilterGroup: (parentGroupId: string, logic?: LogicOperator) => void;
+  onChangeGroupLogic: (groupId: string, logic: LogicOperator) => void;
   onAddSort: (sort: Omit<TableSort, "id">) => void;
   onRemoveSort: (id: string) => void;
   onUpdateSort: (id: string, updates: Partial<TableSort>) => void;
@@ -66,16 +73,15 @@ interface Props {
   selectedCount: number;
   hiddenColumns: string[];
   onToggleColumn: (key: string) => void;
-  /** Override the default fieldMetas for use with different table types */
   fieldMetasList?: FieldMeta[];
-  /** Override status options for filter dropdowns (default: fee statuses) */
   statusOptionsList?: { value: string; label: string }[];
 }
 
 export function FilterSortToolbar({
   views, activeView, activeViewId,
   onSetActiveView, onAddView, onDeleteView,
-  onAddFilter, onRemoveFilter, onUpdateFilter,
+  onAddCondition, onRemoveFilterNode, onUpdateCondition,
+  onAddFilterGroup, onChangeGroupLogic,
   onAddSort, onRemoveSort, onUpdateSort,
   onRenameView, onReorderViews,
   visibleFieldKeys,
@@ -94,6 +100,9 @@ export function FilterSortToolbar({
   const allFields = fieldMetasList || fieldMetas;
   const visibleFields = allFields.filter((f) => visibleFieldKeys.includes(f.key));
   const hiddenSet = new Set(hiddenColumns);
+
+  const filterCount = countConditions(activeView.filterTree);
+  const flatFilters = flattenConditions(activeView.filterTree);
 
   return (
     <div className="space-y-2">
@@ -189,45 +198,52 @@ export function FilterSortToolbar({
             <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5">
               <Filter className="h-3 w-3" />
               篩選
-              {activeView.filters.length > 0 && (
+              {filterCount > 0 && (
                 <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px]">
-                  {activeView.filters.length}
+                  {filterCount}
                 </Badge>
               )}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-[420px] p-3" align="start">
+          <PopoverContent className="w-[480px] p-3" align="start">
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground">篩選條件</p>
-              {activeView.filters.length === 0 && (
+              {activeView.filterTree.children.length === 0 && (
                 <p className="text-xs text-muted-foreground italic py-2">尚未新增篩選條件</p>
               )}
-              {activeView.filters.map((filter) => {
-                const meta = allFields.find((f) => f.key === filter.field);
-                const ops = meta ? getOperatorsForType(meta.type) : [];
-                return (
-                  <FilterRow
-                    key={filter.id}
-                    filter={filter}
-                    meta={meta}
-                    ops={ops}
-                    visibleFields={visibleFields}
-                    onUpdateFilter={onUpdateFilter}
-                    onRemoveFilter={onRemoveFilter}
-                    statusOptionsList={statusOptionsList}
-                  />
-                );
-              })}
+              <FilterGroupUI
+                group={activeView.filterTree}
+                isRoot={true}
+                visibleFields={visibleFields}
+                allFields={allFields}
+                onAddCondition={onAddCondition}
+                onRemoveNode={onRemoveFilterNode}
+                onUpdateCondition={onUpdateCondition}
+                onAddGroup={onAddFilterGroup}
+                onChangeLogic={onChangeGroupLogic}
+                statusOptionsList={statusOptionsList}
+              />
               <Separator />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs gap-1 w-full justify-start text-muted-foreground"
-                onClick={() => onAddFilter({ field: visibleFields[0]?.key || "title", operator: "contains", value: "" })}
-              >
-                <Plus className="h-3 w-3" />
-                新增篩選
-              </Button>
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs gap-1 flex-1 justify-start text-muted-foreground"
+                  onClick={() => onAddCondition("root", { field: visibleFields[0]?.key || "title", operator: "contains", value: "" })}
+                >
+                  <Plus className="h-3 w-3" />
+                  新增條件
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs gap-1 flex-1 justify-start text-muted-foreground"
+                  onClick={() => onAddFilterGroup("root", "and")}
+                >
+                  <FolderPlus className="h-3 w-3" />
+                  新增群組
+                </Button>
+              </div>
             </div>
           </PopoverContent>
         </Popover>
@@ -318,12 +334,12 @@ export function FilterSortToolbar({
         </Popover>
 
         {/* Active filter/sort pills */}
-        {activeView.filters.map((filter) => {
+        {flatFilters.map((filter) => {
           const meta = allFields.find((f) => f.key === filter.field);
           return (
             <Badge key={filter.id} variant="secondary" className="h-6 gap-1 text-xs font-normal">
               {meta?.label} {operatorLabels[filter.operator]} {needsValueInput(filter.operator) ? `"${filter.value}"` : ""}
-              <button onClick={() => onRemoveFilter(filter.id)} className="hover:text-destructive">
+              <button onClick={() => onRemoveFilterNode(filter.id)} className="hover:text-destructive">
                 <X className="h-3 w-3" />
               </button>
             </Badge>
@@ -352,22 +368,129 @@ export function FilterSortToolbar({
   );
 }
 
+/* ── Filter Group UI (recursive) ── */
+
+interface FilterGroupUIProps {
+  group: FilterGroup;
+  isRoot: boolean;
+  visibleFields: FieldMeta[];
+  allFields: FieldMeta[];
+  onAddCondition: (groupId: string, filter: Omit<TableFilter, "id">) => void;
+  onRemoveNode: (nodeId: string) => void;
+  onUpdateCondition: (filterId: string, updates: Partial<TableFilter>) => void;
+  onAddGroup: (parentGroupId: string, logic?: LogicOperator) => void;
+  onChangeLogic: (groupId: string, logic: LogicOperator) => void;
+  statusOptionsList?: { value: string; label: string }[];
+}
+
+function FilterGroupUI({
+  group, isRoot, visibleFields, allFields,
+  onAddCondition, onRemoveNode, onUpdateCondition, onAddGroup, onChangeLogic,
+  statusOptionsList,
+}: FilterGroupUIProps) {
+  if (group.children.length === 0 && isRoot) return null;
+
+  return (
+    <div className={cn(
+      "space-y-1",
+      !isRoot && "ml-2 pl-3 border-l-2 border-primary/20 rounded-sm py-1.5"
+    )}>
+      {group.children.map((node, index) => (
+        <div key={node.type === "condition" ? node.condition!.id : node.group!.id}>
+          {/* Logic connector label between items */}
+          {index > 0 && (
+            <div className="flex items-center gap-1.5 py-0.5 pl-1">
+              <button
+                onClick={() => onChangeLogic(group.id, group.logic === "and" ? "or" : "and")}
+                className={cn(
+                  "text-[10px] font-semibold px-1.5 py-0.5 rounded cursor-pointer transition-colors",
+                  group.logic === "and"
+                    ? "bg-primary/10 text-primary hover:bg-primary/20"
+                    : "bg-accent text-accent-foreground hover:bg-accent/80"
+                )}
+              >
+                {logicLabels[group.logic]}
+              </button>
+            </div>
+          )}
+
+          {node.type === "condition" && node.condition ? (
+            <FilterRow
+              filter={node.condition}
+              meta={allFields.find((f) => f.key === node.condition!.field)}
+              ops={allFields.find((f) => f.key === node.condition!.field)
+                ? getOperatorsForType(allFields.find((f) => f.key === node.condition!.field)!.type)
+                : []}
+              visibleFields={visibleFields}
+              onUpdateFilter={onUpdateCondition}
+              onRemoveFilter={onRemoveNode}
+              statusOptionsList={statusOptionsList}
+            />
+          ) : node.type === "group" && node.group ? (
+            <div className="relative">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-muted-foreground font-medium">群組</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 w-5 p-0 text-muted-foreground hover:text-destructive"
+                  onClick={() => onRemoveNode(node.group!.id)}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+              <FilterGroupUI
+                group={node.group}
+                isRoot={false}
+                visibleFields={visibleFields}
+                allFields={allFields}
+                onAddCondition={onAddCondition}
+                onRemoveNode={onRemoveNode}
+                onUpdateCondition={onUpdateCondition}
+                onAddGroup={onAddGroup}
+                onChangeLogic={onChangeLogic}
+                statusOptionsList={statusOptionsList}
+              />
+              <div className="flex gap-1 mt-1 ml-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-[10px] gap-1 text-muted-foreground px-2"
+                  onClick={() => onAddCondition(node.group!.id, { field: visibleFields[0]?.key || "title", operator: "contains", value: "" })}
+                >
+                  <Plus className="h-2.5 w-2.5" />
+                  條件
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-[10px] gap-1 text-muted-foreground px-2"
+                  onClick={() => onAddGroup(node.group!.id, "and")}
+                >
+                  <FolderPlus className="h-2.5 w-2.5" />
+                  子群組
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── Single filter condition row ── */
+
 const statusOptions = [
   { value: "draft", label: "草稿" },
   { value: "finalized", label: "開立完成" },
 ];
 
-function getFilterValueOptions(fieldKey: string, storeKey: string | undefined): { value: string; label: string }[] | null {
-  if (fieldKey === "status") return statusOptions;
-  if (!storeKey) return null;
-  return null; // will be handled by FilterRow with useSelectOptions
-}
-
 interface FilterRowProps {
   filter: TableFilter;
-  meta: (typeof fieldMetas)[number] | undefined;
+  meta: FieldMeta | undefined;
   ops: FilterOperator[];
-  visibleFields: (typeof fieldMetas)[number][];
+  visibleFields: FieldMeta[];
   onUpdateFilter: (id: string, updates: Partial<TableFilter>) => void;
   onRemoveFilter: (id: string) => void;
   statusOptionsList?: { value: string; label: string }[];
@@ -376,10 +499,9 @@ interface FilterRowProps {
 function FilterRow({ filter, meta, ops, visibleFields, onUpdateFilter, onRemoveFilter, statusOptionsList }: FilterRowProps) {
   const storeKey = meta ? fieldToStoreKey[meta.key] : undefined;
   const isSelectType = meta?.type === "select";
-  
-  // Get options from store for select-type fields
+
   const { options: storeOptions } = useSelectOptions(storeKey || "__noop__");
-  
+
   const selectOpts: { value: string; label: string }[] | null = (() => {
     if (filter.field === "status") return statusOptionsList || statusOptions;
     if (isSelectType && storeKey) {
@@ -420,8 +542,8 @@ function FilterRow({ filter, meta, ops, visibleFields, onUpdateFilter, onRemoveF
           <Input
             value={filter.value}
             onChange={(e) => onUpdateFilter(filter.id, { value: e.target.value })}
+            placeholder="值..."
             className="h-7 text-xs flex-1"
-            placeholder="值"
           />
         )
       )}

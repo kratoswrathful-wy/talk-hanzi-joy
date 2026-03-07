@@ -1,39 +1,15 @@
 import { useState, useCallback, useMemo } from "react";
-import { type TranslatorFee, type FeeStatus } from "@/data/fee-mock-data";
+import { type TranslatorFee } from "@/data/fee-mock-data";
+import {
+  type TableFilter, type TableSort, type TableView, type FilterGroup,
+  type FilterOperator, type FieldMeta, type LogicOperator,
+  createRootGroup, addConditionToGroup, addSubGroup, removeNode,
+  updateConditionInTree, setGroupLogic, countConditions, matchFilterTree,
+} from "@/lib/filter-types";
 
-export type FilterOperator = "equals" | "not_equals" | "contains" | "is_checked" | "is_not_checked" | "gt" | "lt";
-
-export interface TableFilter {
-  id: string;
-  field: string;
-  operator: FilterOperator;
-  value: string;
-}
-
-export interface TableSort {
-  id: string;
-  field: string;
-  direction: "asc" | "desc";
-}
-
-export interface TableView {
-  id: string;
-  name: string;
-  isDefault: boolean;
-  filters: TableFilter[];
-  sorts: TableSort[];
-  columnOrder: string[];
-  columnWidths: Record<string, number>;
-  hiddenColumns: string[];
-  /** Role that created this view; undefined for default view */
-  createdByRole?: string;
-}
-
-export interface FieldMeta {
-  key: string;
-  label: string;
-  type: "text" | "select" | "number" | "date" | "checkbox" | "computed";
-}
+// Re-export for consumers
+export type { TableFilter, TableSort, TableView, FilterOperator, FieldMeta, FilterGroup, LogicOperator };
+export { countConditions };
 
 export const fieldMetas: FieldMeta[] = [
   { key: "title", label: "標題", type: "text" },
@@ -126,7 +102,6 @@ const defaultColumnWidths: Record<string, number> = {
   clientRevenue: 100, profit: 100, reconciled: 70, rateConfirmed: 70, invoiced: 70,
   sameCase: 70, invoice: 100, createdBy: 80, createdAt: 110,
 };
-
 const defaultHiddenColumns = ["contact", "dispatchRoute", "sameCase"];
 
 function createDefaultView(): TableView {
@@ -134,7 +109,7 @@ function createDefaultView(): TableView {
     id: "default",
     name: "預設視圖",
     isDefault: true,
-    filters: [],
+    filterTree: createRootGroup(),
     sorts: [],
     columnOrder: [...defaultColumnOrder],
     columnWidths: { ...defaultColumnWidths },
@@ -146,13 +121,15 @@ export function useTableViews(currentRole?: string) {
   const [views, setViews] = useState<TableView[]>(() => [createDefaultView()]);
   const [activeViewId, setActiveViewId] = useState("default");
 
-  /** Views visible to current role: default + views created by this role */
   const visibleViews = useMemo(() =>
     views.filter((v) => v.isDefault || v.createdByRole === currentRole),
     [views, currentRole]
   );
 
-  const activeView = useMemo(() => visibleViews.find((v) => v.id === activeViewId) || visibleViews[0], [visibleViews, activeViewId]);
+  const activeView = useMemo(() =>
+    visibleViews.find((v) => v.id === activeViewId) || visibleViews[0],
+    [visibleViews, activeViewId]
+  );
 
   const updateView = useCallback((viewId: string, updates: Partial<TableView>) => {
     setViews((prev) => prev.map((v) => v.id === viewId ? { ...v, ...updates } : v));
@@ -200,21 +177,34 @@ export function useTableViews(currentRole?: string) {
     });
   }, []);
 
-  const addFilter = useCallback((filter: Omit<TableFilter, "id">) => {
+  // ── Filter tree operations ──
+  const addCondition = useCallback((groupId: string, filter: Omit<TableFilter, "id">) => {
     const id = `f-${Date.now()}`;
-    updateView(activeViewId, { filters: [...activeView.filters, { ...filter, id }] });
+    const newTree = addConditionToGroup(activeView.filterTree, groupId, { ...filter, id });
+    updateView(activeViewId, { filterTree: newTree });
   }, [activeViewId, activeView, updateView]);
 
-  const removeFilter = useCallback((filterId: string) => {
-    updateView(activeViewId, { filters: activeView.filters.filter((f) => f.id !== filterId) });
+  const removeFilterNode = useCallback((nodeId: string) => {
+    const newTree = removeNode(activeView.filterTree, nodeId);
+    updateView(activeViewId, { filterTree: newTree });
   }, [activeViewId, activeView, updateView]);
 
-  const updateFilter = useCallback((filterId: string, updates: Partial<TableFilter>) => {
-    updateView(activeViewId, {
-      filters: activeView.filters.map((f) => f.id === filterId ? { ...f, ...updates } : f),
-    });
+  const updateCondition = useCallback((filterId: string, updates: Partial<TableFilter>) => {
+    const newTree = updateConditionInTree(activeView.filterTree, filterId, updates);
+    updateView(activeViewId, { filterTree: newTree });
   }, [activeViewId, activeView, updateView]);
 
+  const addFilterGroup = useCallback((parentGroupId: string, logic: LogicOperator = "and") => {
+    const newTree = addSubGroup(activeView.filterTree, parentGroupId, logic);
+    updateView(activeViewId, { filterTree: newTree });
+  }, [activeViewId, activeView, updateView]);
+
+  const changeGroupLogic = useCallback((groupId: string, logic: LogicOperator) => {
+    const newTree = setGroupLogic(activeView.filterTree, groupId, logic);
+    updateView(activeViewId, { filterTree: newTree });
+  }, [activeViewId, activeView, updateView]);
+
+  // ── Sort operations ──
   const addSort = useCallback((sort: Omit<TableSort, "id">) => {
     const id = `s-${Date.now()}`;
     updateView(activeViewId, { sorts: [...activeView.sorts, { ...sort, id }] });
@@ -240,8 +230,8 @@ export function useTableViews(currentRole?: string) {
 
   const applyFiltersAndSorts = useCallback((fees: TranslatorFee[]): TranslatorFee[] => {
     let result = fees;
-    if (activeView.filters.length > 0) {
-      result = result.filter((fee) => activeView.filters.every((f) => matchFilter(fee, f)));
+    if (activeView.filterTree.children.length > 0) {
+      result = result.filter((fee) => matchFilterTree(fee, activeView.filterTree, matchFilter));
     }
     if (activeView.sorts.length > 0) {
       result = [...result].sort((a, b) => {
@@ -255,13 +245,11 @@ export function useTableViews(currentRole?: string) {
     return result;
   }, [activeView]);
 
-  // Auto-correct activeViewId when switching roles makes current view invisible
   const safeActiveViewId = useMemo(() => {
     if (visibleViews.some((v) => v.id === activeViewId)) return activeViewId;
     return "default";
   }, [visibleViews, activeViewId]);
 
-  // Sync state if corrected
   if (safeActiveViewId !== activeViewId) {
     setActiveViewId(safeActiveViewId);
   }
@@ -275,9 +263,11 @@ export function useTableViews(currentRole?: string) {
     deleteView,
     renameView,
     reorderViews,
-    addFilter,
-    removeFilter,
-    updateFilter,
+    addCondition,
+    removeFilterNode,
+    updateCondition,
+    addFilterGroup,
+    changeGroupLogic,
     addSort,
     removeSort,
     updateSort,

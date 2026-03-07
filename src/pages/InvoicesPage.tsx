@@ -483,9 +483,11 @@ export default function InvoicesPage() {
         onSetActiveView={tableViews.setActiveViewId}
         onAddView={tableViews.addView}
         onDeleteView={tableViews.deleteView}
-        onAddFilter={tableViews.addFilter}
-        onRemoveFilter={tableViews.removeFilter}
-        onUpdateFilter={tableViews.updateFilter}
+        onAddCondition={tableViews.addCondition}
+        onRemoveFilterNode={tableViews.removeFilterNode}
+        onUpdateCondition={tableViews.updateCondition}
+        onAddFilterGroup={tableViews.addFilterGroup}
+        onChangeGroupLogic={tableViews.changeGroupLogic}
         onAddSort={tableViews.addSort}
         onRemoveSort={tableViews.removeSort}
         onUpdateSort={tableViews.updateSort}
