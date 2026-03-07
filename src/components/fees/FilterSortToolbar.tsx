@@ -18,6 +18,7 @@ import { useSelectOptions } from "@/stores/select-options-store";
 /** Maps field keys to their selectOptionsStore keys */
 const fieldToStoreKey: Record<string, string> = {
   assignee: "assignee",
+  translator: "assignee",
   client: "client",
   status: "status",
   dispatchRoute: "dispatchRoute",
