@@ -381,7 +381,7 @@ function ClientPricingSection() {
 // ─── Task Type Settings Section (drag reorder + add/delete/color) ───
 
 function TaskTypeOrderSection() {
-  const { options: taskTypeOptions, customColors } = useSelectOptions("clientTaskType");
+  const { options: taskTypeOptions, customColors } = useSelectOptions("taskType");
   const labelStyles = useLabelStyles();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
