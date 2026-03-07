@@ -47,8 +47,23 @@ interface FieldOptions {
 let store: Record<string, FieldOptions> = {};
 const listeners = new Set<Listener>();
 
+const SETTINGS_KEY = "select_options";
+
+// Fields to persist (assignee is loaded from profiles, not settings)
+const PERSISTED_FIELDS = ["taskType", "billingUnit", "client", "contact", "clientTaskType", "dispatchRoute", "clientBillingUnit"];
+
+function persistableSnapshot() {
+  const snapshot: Record<string, FieldOptions> = {};
+  for (const key of PERSISTED_FIELDS) {
+    if (store[key]) snapshot[key] = store[key];
+  }
+  return snapshot;
+}
+
 function notify() {
   listeners.forEach((l) => l());
+  // Auto-save persisted fields to DB
+  saveSetting(SETTINGS_KEY, persistableSnapshot());
 }
 
 // Initialize default options for known fields
