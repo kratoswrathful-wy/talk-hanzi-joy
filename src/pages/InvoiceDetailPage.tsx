@@ -531,51 +531,6 @@ export default function InvoiceDetailPage() {
 
           {/* Fee list */}
           <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            {editable && availableFees.length > 0 && (
-              <Popover open={addFeeOpen} onOpenChange={(open) => {
-                setAddFeeOpen(open);
-                if (!open) setSelectedAddFees([]);
-              }}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-7 w-7">
-                    <Plus className="h-3.5 w-3.5" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-72 p-3 space-y-3">
-                  <p className="text-sm font-medium">加入費用</p>
-                  <div className="max-h-48 overflow-y-auto space-y-1">
-                    {availableFees.map((f) => {
-                      const fTotal = f.taskItems.reduce((s: number, i: any) => s + i.unitCount * i.unitPrice, 0);
-                      return (
-                        <label key={f.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent cursor-pointer text-sm">
-                          <Checkbox
-                            checked={selectedAddFees.includes(f.id)}
-                            onCheckedChange={(checked) => {
-                              setSelectedAddFees((prev) =>
-                                checked ? [...prev, f.id] : prev.filter((x) => x !== f.id)
-                              );
-                            }}
-                          />
-                          <span className="flex-1 truncate">{f.title || "未命名"}</span>
-                          <span className="text-muted-foreground tabular-nums">{formatCurrency(fTotal)}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                  <Button
-                    size="sm"
-                    className="w-full"
-                    disabled={selectedAddFees.length === 0}
-                    onClick={handleAddFees}
-                  >
-                    加入 {selectedAddFees.length > 0 ? `(${selectedAddFees.length})` : ""}
-                  </Button>
-                </PopoverContent>
-              </Popover>
-            )}
-          </div>
-
           <Table>
             <TableHeader>
               <TableRow>
@@ -632,10 +587,82 @@ export default function InvoiceDetailPage() {
               </TableFooter>
             )}
           </Table>
-        </div>
 
-        {/* Payment section */}
-        <div className="space-y-3">
+          {/* Action row: + left, 付款 right */}
+          <div className="flex items-center justify-between">
+            <div>
+              {editable && availableFees.length > 0 && checkPerm("translator_invoice", "inv_detail_addFee", "edit") && (
+                <Popover open={addFeeOpen} onOpenChange={(open) => {
+                  setAddFeeOpen(open);
+                  if (!open) setSelectedAddFees([]);
+                }}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="icon" className="h-7 w-7">
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-72 p-3 space-y-3">
+                    <p className="text-sm font-medium">加入費用</p>
+                    <div className="max-h-48 overflow-y-auto space-y-1">
+                      {availableFees.map((f) => {
+                        const fTotal = f.taskItems.reduce((s: number, i: any) => s + i.unitCount * i.unitPrice, 0);
+                        return (
+                          <label key={f.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent cursor-pointer text-sm">
+                            <Checkbox
+                              checked={selectedAddFees.includes(f.id)}
+                              onCheckedChange={(checked) => {
+                                setSelectedAddFees((prev) =>
+                                  checked ? [...prev, f.id] : prev.filter((x) => x !== f.id)
+                                );
+                              }}
+                            />
+                            <span className="flex-1 truncate">{f.title || "未命名"}</span>
+                            <span className="text-muted-foreground tabular-nums">{formatCurrency(fTotal)}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      disabled={selectedAddFees.length === 0}
+                      onClick={handleAddFees}
+                    >
+                      加入 {selectedAddFees.length > 0 ? `(${selectedAddFees.length})` : ""}
+                    </Button>
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
+            {!isPaid && !showPartialInput && isAdmin && checkPerm("translator_invoice", "inv_detail_payFull", "edit") && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">付款</Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleFullPayment}>全額付款</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowPartialInput(true)}>部份付款</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+
+          {showPartialInput && (
+            <div className="flex items-center gap-2 justify-end">
+              <Input
+                type="number"
+                value={partialAmount}
+                onChange={(e) => setPartialAmount(e.target.value)}
+                placeholder={`剩餘金額：${formatCurrency(remaining)}`}
+                className="w-48 h-9"
+                autoFocus
+              />
+              <Button size="sm" onClick={handlePartialPayment}>確認</Button>
+              <Button size="sm" variant="ghost" onClick={() => { setShowPartialInput(false); setPartialAmount(""); }}>取消</Button>
+            </div>
+          )}
+
+          {/* Payment records */}
           {invoice.payments.map((p, idx) => {
             const paidUpToHere = invoice.payments.slice(0, idx + 1).reduce(
               (s, pp) => s + (pp.type === "full" ? total : (pp.amount || 0)), 0
@@ -653,35 +680,6 @@ export default function InvoiceDetailPage() {
               </div>
             );
           })}
-
-          {showPartialInput && (
-            <div className="flex items-center gap-2 justify-end">
-              <Input
-                type="number"
-                value={partialAmount}
-                onChange={(e) => setPartialAmount(e.target.value)}
-                placeholder={`剩餘金額：${formatCurrency(remaining)}`}
-                className="w-48 h-9"
-                autoFocus
-              />
-              <Button size="sm" onClick={handlePartialPayment}>確認</Button>
-              <Button size="sm" variant="ghost" onClick={() => { setShowPartialInput(false); setPartialAmount(""); }}>取消</Button>
-            </div>
-          )}
-
-          {!isPaid && !showPartialInput && isAdmin && (
-            <div className="flex justify-end">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">付款</Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleFullPayment}>全額付款</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setShowPartialInput(true)}>部份付款</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          )}
         </div>
 
         {/* Meta info */}
