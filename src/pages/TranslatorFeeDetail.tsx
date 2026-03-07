@@ -1262,7 +1262,7 @@ export default function TranslatorFeeDetail() {
             </Button>
           )}
           {canDelete && (
-            <Button variant="destructive" size="sm" className="text-xs min-w-[88px]" onClick={() => setDeleteDialogOpen(true)}>
+            <Button size="sm" className="text-xs min-w-[88px] text-white hover:opacity-80" style={{ backgroundColor: '#6B7280' }} onClick={() => setDeleteDialogOpen(true)}>
               刪除
             </Button>
           )}
@@ -1485,17 +1485,16 @@ export default function TranslatorFeeDetail() {
               })()}
             </div>
             <div className="flex items-center gap-2">
-              {canEdit && !isNoFeeTranslator && !clientInfo.rateConfirmed && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1 text-xs"
-                  onClick={handleAddItem}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  新增項目
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className={`gap-1 text-xs ${canEdit && !isNoFeeTranslator && !clientInfo.rateConfirmed ? '' : 'invisible'}`}
+                onClick={handleAddItem}
+                disabled={!(canEdit && !isNoFeeTranslator && !clientInfo.rateConfirmed)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                新增項目
+              </Button>
               {isManager && (
                 <div className="flex items-center gap-1.5">
                   <Checkbox
