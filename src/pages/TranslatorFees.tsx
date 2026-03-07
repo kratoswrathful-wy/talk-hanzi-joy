@@ -658,42 +658,38 @@ export default function TranslatorFees() {
   return (
     <div className="mx-auto max-w-7xl space-y-4">
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">費用管理</h1>
-          </div>
-          {canCreateFee && (
-            <Button size="sm" className="gap-1.5" onClick={handleCreate}>
-              <Plus className="h-4 w-4" />
-              新增費用
+      <div className="flex items-center gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">費用管理</h1>
+        </div>
+        {canCreateFee && (
+          <Button size="sm" className="gap-1.5" onClick={handleCreate}>
+            <Plus className="h-4 w-4" />
+            新增費用
+          </Button>
+        )}
+        {isManager && rowSelection.selectedCount > 0 && (
+          <>
+            <InvoiceActions
+              selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
+              onDone={() => rowSelection.deselectAll()}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 text-muted-foreground hover:text-destructive"
+              onClick={() => setShowDeleteConfirm(true)}
+              title="刪除選取項目"
+            >
+              <Trash2 className="h-4.5 w-4.5" />
             </Button>
-          )}
-          {!activeView.isDefault && (
-            <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
-              此為自訂視圖，只有新增者本人可見
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {isManager && rowSelection.selectedCount > 0 && (
-            <>
-              <InvoiceActions
-                selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
-                onDone={() => rowSelection.deselectAll()}
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 text-muted-foreground hover:text-destructive"
-                onClick={() => setShowDeleteConfirm(true)}
-                title="刪除選取項目"
-              >
-                <Trash2 className="h-4.5 w-4.5" />
-              </Button>
-            </>
-          )}
-        </div>
+          </>
+        )}
+        {!activeView.isDefault && (
+          <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
+            此為自訂視圖，只有新增者本人可見
+          </span>
+        )}
       </div>
 
       {/* Filter/Sort/View toolbar */}
@@ -714,6 +710,8 @@ export default function TranslatorFees() {
         onReorderViews={tableViews.reorderViews}
         visibleFieldKeys={visibleFieldKeys}
         selectedCount={rowSelection.selectedCount}
+        hiddenColumns={activeView.hiddenColumns || []}
+        onToggleColumn={tableViews.toggleColumnVisibility}
       />
 
       <motion.div
