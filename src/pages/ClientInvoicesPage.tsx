@@ -95,15 +95,6 @@ interface ColumnDef {
 export default function ClientInvoicesPage() {
   const navigate = useNavigate();
   const { isAdmin, user, roles } = useAuth();
-
-  if (!isAdmin) {
-    return (
-      <div className="mx-auto max-w-3xl py-12 text-center text-muted-foreground">
-        您沒有權限檢視此頁面
-      </div>
-    );
-  }
-
   const isExecutive = roles.some((r) => r.role === "executive");
   const allInvoices = useClientInvoices();
   const fees = useFees();
