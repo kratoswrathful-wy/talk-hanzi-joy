@@ -456,7 +456,7 @@ export default function InvoiceDetailPage() {
 
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
         {/* Main content card */}
-        <div className="rounded-lg border border-border bg-card p-5 space-y-5">
+        <div className="rounded-xl border border-border bg-card p-6 space-y-6">
           {/* Title */}
           <div className="flex items-start justify-between gap-4">
             {isPaid ? (
@@ -468,24 +468,37 @@ export default function InvoiceDetailPage() {
                 value={invoice.title}
                 onChange={(e) => handleTitleChange(e.target.value)}
                 placeholder="請款單標題"
-                className="text-2xl font-semibold tracking-tight border-0 shadow-none px-0 h-auto py-0 focus-visible:ring-0 bg-transparent"
+                className="text-2xl font-semibold tracking-tight border-0 shadow-none px-0 h-auto py-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
               />
             )}
-            <InvoiceStatusBadge status={invoice.status} />
           </div>
 
           <Separator />
 
+          {/* Fields */}
+          <div className="grid gap-5">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">請款人</Label>
+                <div className="flex items-center h-10">
+                  <AssigneeTag
+                    label={translatorProfile?.display_name || invoice.translator || "未指定"}
+                    avatarUrl={translatorProfile?.avatar_url || opt?.avatarUrl}
+                  />
+                </div>
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">狀態</Label>
+                <div className="flex items-center h-10">
+                  <InvoiceStatusBadge status={invoice.status} />
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Fee list */}
           <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-medium text-muted-foreground">請款人：</h2>
-              <AssigneeTag
-                label={translatorProfile?.display_name || invoice.translator || "未指定"}
-                avatarUrl={translatorProfile?.avatar_url || opt?.avatarUrl}
-              />
-            </div>
             {editable && availableFees.length > 0 && (
               <Popover open={addFeeOpen} onOpenChange={(open) => {
                 setAddFeeOpen(open);
