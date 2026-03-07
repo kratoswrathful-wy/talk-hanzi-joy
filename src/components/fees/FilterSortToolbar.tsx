@@ -325,7 +325,7 @@ export function FilterSortToolbar({
           );
         })}
         {activeView.sorts.map((sort) => {
-          const meta = fieldMetas.find((f) => f.key === sort.field);
+          const meta = allFields.find((f) => f.key === sort.field);
           return (
             <Badge key={sort.id} variant="secondary" className="h-6 gap-1 text-xs font-normal">
               {meta?.label} {sort.direction === "asc" ? "↑" : "↓"}
