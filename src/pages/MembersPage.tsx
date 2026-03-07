@@ -220,7 +220,7 @@ export default function MembersPage() {
   const handleRoleChange = async (member: Member, newRole: AppRole) => {
     // Only allow role change for registered members (not invitations)
     if (member.isInvitation) return;
-    await supabase.from("user_roles").update({ role: newRole }).eq("user_id", member.id);
+    await supabase.from("user_roles").update({ role: newRole as "member" | "pm" | "executive" }).eq("user_id", member.id);
     fetchMembers();
     toast.success("角色已更新");
   };
