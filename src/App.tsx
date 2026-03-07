@@ -16,6 +16,7 @@ import MembersPage from "@/pages/MembersPage";
 import InvoicesPage from "@/pages/InvoicesPage";
 import InvoiceDetailPage from "@/pages/InvoiceDetailPage";
 import ClientInvoicesPage from "@/pages/ClientInvoicesPage";
+import ClientInvoiceDetailPage from "@/pages/ClientInvoiceDetailPage";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 import { initSettings } from "@/stores/settings-init";
