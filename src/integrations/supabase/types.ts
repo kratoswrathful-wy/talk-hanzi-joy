@@ -35,6 +35,93 @@ export type Database = {
         }
         Relationships: []
       }
+      client_invoice_fees: {
+        Row: {
+          client_invoice_id: string
+          created_at: string
+          env: string
+          fee_id: string
+          id: string
+        }
+        Insert: {
+          client_invoice_id: string
+          created_at?: string
+          env?: string
+          fee_id: string
+          id?: string
+        }
+        Update: {
+          client_invoice_id?: string
+          created_at?: string
+          env?: string
+          fee_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_invoice_fees_client_invoice_id_fkey"
+            columns: ["client_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "client_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_invoice_fees_fee_id_fkey"
+            columns: ["fee_id"]
+            isOneToOne: false
+            referencedRelation: "fees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_invoices: {
+        Row: {
+          client: string
+          comments: Json
+          created_at: string
+          created_by: string | null
+          edit_logs: Json
+          env: string
+          id: string
+          note: string
+          payments: Json
+          status: string
+          title: string
+          transfer_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          client?: string
+          comments?: Json
+          created_at?: string
+          created_by?: string | null
+          edit_logs?: Json
+          env?: string
+          id?: string
+          note?: string
+          payments?: Json
+          status?: string
+          title?: string
+          transfer_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          client?: string
+          comments?: Json
+          created_at?: string
+          created_by?: string | null
+          edit_logs?: Json
+          env?: string
+          id?: string
+          note?: string
+          payments?: Json
+          status?: string
+          title?: string
+          transfer_date?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       fees: {
         Row: {
           assignee: string
