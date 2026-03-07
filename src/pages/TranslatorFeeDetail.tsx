@@ -1624,7 +1624,7 @@ export default function TranslatorFeeDetail() {
                       <TableCell className="text-right text-sm font-bold">
                         {totalAmount.toLocaleString()}
                       </TableCell>
-                      {canEdit && !clientInfo.rateConfirmed && <TableCell />}
+                      {canEdit && <TableCell />}
                     </TableRow>
                 </TableFooter>
               )}
