@@ -1522,7 +1522,7 @@ export default function TranslatorFeeDetail() {
                   <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>稿費單價</TableHead>
                   <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>計費單位數</TableHead>
                   <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>小計</TableHead>
-                  {canEdit && <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>}
+                  {canEdit && !clientInfo.rateConfirmed && <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
