@@ -273,7 +273,7 @@ export default function ClientInfoSection({
                   <Checkbox
                     id="notFirstFee"
                     checked={clientInfo.notFirstFee}
-                    disabled={notFirstFeeDisabled}
+                    disabled={notFirstFeeDisabled || clientInfo.reconciled}
                     onCheckedChange={(checked) => update("notFirstFee", !!checked)}
                   />
                   <Label
