@@ -269,18 +269,16 @@ export default function InvoicesPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">請款單管理</h1>
-          </div>
-          <Button size="sm" className="gap-1.5" onClick={handleCreateInvoice}>
-            <Plus className="h-4 w-4" />
-            新增請款單
-          </Button>
+      <div className="flex items-center gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">請款單管理</h1>
         </div>
-        <div className="flex items-center gap-2">
-          {canDelete && (
+        <Button size="sm" className="gap-1.5" onClick={handleCreateInvoice}>
+          <Plus className="h-4 w-4" />
+          新增請款單
+        </Button>
+        {canDelete && (
+          <>
             <Button
               variant="ghost"
               size="icon"
@@ -290,8 +288,11 @@ export default function InvoicesPage() {
             >
               <Trash2 className="h-4.5 w-4.5" />
             </Button>
-          )}
-        </div>
+            <Badge variant="default" className="h-6 text-xs">
+              已選取 {rowSelection.selectedCount} 個項目
+            </Badge>
+          </>
+        )}
       </div>
 
       <motion.div
