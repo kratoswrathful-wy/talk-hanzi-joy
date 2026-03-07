@@ -247,7 +247,7 @@ export default function ClientInfoSection({
                   <Checkbox
                     id="isFirstFee"
                     checked={clientInfo.isFirstFee}
-                    disabled={isFirstFeeDisabled}
+                    disabled={isFirstFeeDisabled || clientInfo.reconciled}
                     onCheckedChange={(checked) => {
                       if (checked) {
                         const hasExisting = currentInternalNote && allFees.some(
