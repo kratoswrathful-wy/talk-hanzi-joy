@@ -62,7 +62,7 @@ function initDefaults() {
         { id: "opt-t1", label: "翻譯", color: PRESET_COLORS[9] },
         { id: "opt-t2", label: "校對", color: PRESET_COLORS[4] },
         { id: "opt-t3", label: "MTPE", color: PRESET_COLORS[6] },
-        { id: "opt-t4", label: "LQA", color: PRESET_COLORS[12] },
+        { id: "opt-t4", label: "LQA", color: PRESET_COLORS[11] },
       ],
       customColors: [],
     },
