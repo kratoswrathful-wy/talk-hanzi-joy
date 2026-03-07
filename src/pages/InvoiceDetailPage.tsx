@@ -455,8 +455,29 @@ export default function InvoiceDetailPage() {
       </div>
 
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-        {/* Fee list */}
-        <div className="rounded-lg border border-border bg-card p-5 space-y-3">
+        {/* Main content card */}
+        <div className="rounded-lg border border-border bg-card p-5 space-y-5">
+          {/* Title */}
+          <div className="flex items-start justify-between gap-4">
+            {isPaid ? (
+              <h1 className="text-2xl font-semibold tracking-tight text-muted-foreground">
+                {invoice.title || "未命名"}
+              </h1>
+            ) : (
+              <Input
+                value={invoice.title}
+                onChange={(e) => handleTitleChange(e.target.value)}
+                placeholder="請款單標題"
+                className="text-2xl font-semibold tracking-tight border-0 shadow-none px-0 h-auto py-0 focus-visible:ring-0 bg-transparent"
+              />
+            )}
+            <InvoiceStatusBadge status={invoice.status} />
+          </div>
+
+          <Separator />
+
+          {/* Fee list */}
+          <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-medium text-muted-foreground">請款人：</h2>
