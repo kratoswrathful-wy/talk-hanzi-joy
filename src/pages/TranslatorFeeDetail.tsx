@@ -1551,7 +1551,7 @@ export default function TranslatorFeeDetail() {
                         <ColorSelect
                           fieldKey="billingUnit"
                           value={item.billingUnit}
-                          disabled={!canEdit || isNoFeeTranslator}
+                          disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
                           onValueChange={(v) => handleUpdateItem(item.id, "billingUnit", v)}
                           triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
                         />
