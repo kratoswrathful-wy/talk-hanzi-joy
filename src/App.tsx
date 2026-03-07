@@ -17,6 +17,10 @@ import InvoicesPage from "@/pages/InvoicesPage";
 import InvoiceDetailPage from "@/pages/InvoiceDetailPage";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
+import { initSettings } from "@/stores/settings-init";
+
+// Initialize settings loading (will auto-reload on auth changes)
+initSettings();
 
 function TranslatorFeeDetailWrapper() {
   const { id } = useParams();

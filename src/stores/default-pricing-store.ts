@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { loadSetting, saveSetting } from "./settings-persistence";
 
 /**
  * Default pricing store
@@ -75,8 +76,11 @@ let store: PricingStore = {
 
 const listeners = new Set<Listener>();
 
+const SETTINGS_KEY = "default_pricing";
+
 function notify() {
   listeners.forEach((l) => l());
+  saveSetting(SETTINGS_KEY, store);
 }
 
 function generateGroupId() {
@@ -235,6 +239,18 @@ export const defaultPricingStore = {
   },
 
   getSnapshot: () => store,
+
+  /** Load persisted pricing from DB */
+  loadSettings: async () => {
+    const saved = await loadSetting<PricingStore>(SETTINGS_KEY);
+    if (saved && typeof saved === "object") {
+      if (saved.clientPricing) store = { ...store, clientPricing: saved.clientPricing };
+      if (saved.translatorTiers && Array.isArray(saved.translatorTiers)) {
+        store = { ...store, translatorTiers: saved.translatorTiers };
+      }
+      listeners.forEach((l) => l());
+    }
+  },
 };
 
 export function useClientPricing() {

@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { loadSetting, saveSetting } from "./settings-persistence";
 
 export interface SelectOption {
   id: string;
@@ -46,8 +47,23 @@ interface FieldOptions {
 let store: Record<string, FieldOptions> = {};
 const listeners = new Set<Listener>();
 
+const SETTINGS_KEY = "select_options";
+
+// Fields to persist (assignee is loaded from profiles, not settings)
+const PERSISTED_FIELDS = ["taskType", "billingUnit", "client", "contact", "clientTaskType", "dispatchRoute", "clientBillingUnit"];
+
+function persistableSnapshot() {
+  const snapshot: Record<string, FieldOptions> = {};
+  for (const key of PERSISTED_FIELDS) {
+    if (store[key]) snapshot[key] = store[key];
+  }
+  return snapshot;
+}
+
 function notify() {
   listeners.forEach((l) => l());
+  // Auto-save persisted fields to DB
+  saveSetting(SETTINGS_KEY, persistableSnapshot());
 }
 
 // Initialize default options for known fields
@@ -267,7 +283,21 @@ export const selectOptionsStore = {
       ...store,
       assignee: { ...store.assignee, options },
     };
-    notify();
+    // Don't persist assignee to settings – just notify
+    listeners.forEach((l) => l());
+  },
+
+  /** Load persisted settings from DB (non-assignee fields) */
+  loadSettings: async () => {
+    const saved = await loadSetting<Record<string, FieldOptions>>(SETTINGS_KEY);
+    if (saved && typeof saved === "object") {
+      for (const key of PERSISTED_FIELDS) {
+        if (saved[key]) {
+          store = { ...store, [key]: saved[key] };
+        }
+      }
+      listeners.forEach((l) => l());
+    }
   },
 };
 

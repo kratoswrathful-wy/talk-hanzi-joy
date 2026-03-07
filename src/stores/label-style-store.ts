@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { loadSetting, saveSetting } from "./settings-persistence";
 
 type Listener = () => void;
 
@@ -36,8 +37,11 @@ const DEFAULT_STATE: LabelStyleState = {
 let state: LabelStyleState = { ...DEFAULT_STATE };
 const listeners = new Set<Listener>();
 
+const SETTINGS_KEY = "label_styles";
+
 function notify() {
   listeners.forEach((l) => l());
+  saveSetting(SETTINGS_KEY, state);
 }
 
 export const labelStyleStore = {
@@ -89,6 +93,15 @@ export const labelStyleStore = {
   },
 
   getSnapshot: () => state,
+
+  /** Load persisted label styles from DB */
+  loadSettings: async () => {
+    const saved = await loadSetting<LabelStyleState>(SETTINGS_KEY);
+    if (saved && typeof saved === "object") {
+      state = { ...DEFAULT_STATE, ...saved };
+      listeners.forEach((l) => l());
+    }
+  },
 };
 
 export function useLabelStyles() {
