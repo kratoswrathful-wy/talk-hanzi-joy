@@ -272,7 +272,36 @@ export default function PermissionsPage() {
     setDeleteStep(1);
   };
 
-  // Drag-and-drop reorder
+  const handleRenameStart = (role: RoleDefinition) => {
+    setRenamingRole(role.key);
+    setRenameValue(role.label);
+  };
+
+  const handleRenameConfirm = async () => {
+    if (!renamingRole || !renameValue.trim()) {
+      setRenamingRole(null);
+      return;
+    }
+    const name = renameValue.trim();
+    if (allRoles.some((r) => r.key !== renamingRole && r.label === name)) {
+      toast.error("此名稱已被使用");
+      return;
+    }
+    const role = allRoles.find((r) => r.key === renamingRole);
+    if (!role) return;
+
+    if (role.builtIn) {
+      // Store label overrides for built-in roles
+      const overrides = { ...((config as any).role_label_overrides || {}), [role.key]: name };
+      await saveConfig({ ...config, role_label_overrides: overrides });
+    } else {
+      const updatedCustom = customRoles.map((r) => r.key === renamingRole ? { ...r, label: name } : r);
+      await saveConfig({ ...config, custom_roles: updatedCustom });
+    }
+    setRenamingRole(null);
+    toast.success(`已更名為「${name}」`);
+  };
+
   const handleDragEnd = async () => {
     if (draggedIdx === null || dragOverIdx === null || draggedIdx === dragOverIdx) {
       setDraggedIdx(null);
