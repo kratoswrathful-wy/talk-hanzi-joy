@@ -817,7 +817,7 @@ export default function TranslatorFeeDetail() {
           if (client) {
             for (let i = 0; i < finalClientItems.length; i++) {
               if (!finalClientItems[i].clientPrice || finalClientItems[i].clientPrice === 0) {
-                const defaultPrice = defaultPricingStore.getClientPrice(client, finalClientItems[i].taskType);
+                const defaultPrice = defaultPricingStore.getClientPrice(client, finalClientItems[i].taskType, finalClientItems[i].billingUnit);
                 if (defaultPrice !== undefined && defaultPrice > 0) {
                   finalClientItems[i] = { ...finalClientItems[i], clientPrice: defaultPrice };
                   pricingChanged = true;
@@ -1003,7 +1003,7 @@ export default function TranslatorFeeDetail() {
         // 工作類型 > 任務項目 + 計費單位數 > 第一項
         const getAutoPrice = (taskType: string, billingUnit: string = "字") => {
           if (clientInfo.client) {
-            const cp = defaultPricingStore.getClientPrice(clientInfo.client, taskType);
+            const cp = defaultPricingStore.getClientPrice(clientInfo.client, taskType, billingUnit);
             if (cp !== undefined) {
               const tp = defaultPricingStore.getTranslatorPrice(cp, taskType, billingUnit);
               return tp ?? 0;
@@ -1031,7 +1031,7 @@ export default function TranslatorFeeDetail() {
           const mappedClientItems: import("@/data/fee-mock-data").ClientTaskItem[] = workTypes.map((wt: string, idx: number) => {
             const matchedType = matchTaskType(wt);
             const cp = clientInfo.client
-              ? defaultPricingStore.getClientPrice(clientInfo.client, matchedType as string) ?? 0
+              ? defaultPricingStore.getClientPrice(clientInfo.client, matchedType as string, billingUnit) ?? 0
               : 0;
             return {
               id: `ci-notion-${Date.now()}-${idx}`,
@@ -1429,12 +1429,12 @@ export default function TranslatorFeeDetail() {
                     if (clientName) {
                       // Auto-fill client task item prices (always overwrite on client change)
                       updatedInfo.clientTaskItems = updatedInfo.clientTaskItems.map(item => {
-                        const price = defaultPricingStore.getClientPrice(clientName, item.taskType);
+                        const price = defaultPricingStore.getClientPrice(clientName, item.taskType, item.billingUnit);
                         return price !== undefined ? { ...item, clientPrice: price } : item;
                       });
                       // Auto-fill translator task item prices via tiers (always overwrite)
                       const updatedTaskItems = taskItems.map(item => {
-                        const cp = defaultPricingStore.getClientPrice(clientName, item.taskType);
+                        const cp = defaultPricingStore.getClientPrice(clientName, item.taskType, item.billingUnit);
                         if (cp === undefined) return item;
                         const tp = defaultPricingStore.getTranslatorPrice(cp, item.taskType, item.billingUnit);
                         return tp !== undefined ? { ...item, unitPrice: tp } : item;

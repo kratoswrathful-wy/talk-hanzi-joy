@@ -22,13 +22,30 @@ export interface TranslatorTier {
 
 type Listener = () => void;
 
+/** Helper to build composite key for client pricing: taskType::billingUnit */
+export function clientPricingKey(taskType: string, billingUnit: string): string {
+  return `${taskType}::${billingUnit}`;
+}
+
+/** Parse composite key back to { taskType, billingUnit } */
+export function parseClientPricingKey(key: string): { taskType: string; billingUnit: string } {
+  const idx = key.lastIndexOf("::");
+  if (idx === -1) return { taskType: key, billingUnit: "字" }; // legacy fallback
+  return { taskType: key.slice(0, idx), billingUnit: key.slice(idx + 2) };
+}
+
 interface PricingStore {
   clientPricing: Record<string, Record<string, number>>;
   translatorTiers: TranslatorTier[];
 }
 
 const defaultClientPricing: Record<string, Record<string, number>> = {
-  CCJK: { "翻譯": 1.2, "校對": 0.6, "MTPE": 0.9, "LQA": 450 },
+  CCJK: {
+    [clientPricingKey("翻譯", "字")]: 1.2,
+    [clientPricingKey("校對", "字")]: 0.6,
+    [clientPricingKey("MTPE", "字")]: 0.9,
+    [clientPricingKey("LQA", "小時")]: 450,
+  },
 };
 
 const grpTranslation = "grp-default-translation";
@@ -68,23 +85,31 @@ function generateGroupId() {
 
 export const defaultPricingStore = {
   // --- Client pricing ---
-  getClientPrice: (client: string, taskType: string): number | undefined => {
-    return store.clientPricing[client]?.[taskType];
+  getClientPrice: (client: string, taskType: string, billingUnit?: string): number | undefined => {
+    if (billingUnit) {
+      return store.clientPricing[client]?.[clientPricingKey(taskType, billingUnit)];
+    }
+    // fallback: try both units, prefer 字
+    return store.clientPricing[client]?.[clientPricingKey(taskType, "字")]
+      ?? store.clientPricing[client]?.[clientPricingKey(taskType, "小時")]
+      ?? store.clientPricing[client]?.[taskType]; // legacy key fallback
   },
 
-  setClientPrice: (client: string, taskType: string, price: number) => {
+  setClientPrice: (client: string, taskType: string, billingUnit: string, price: number) => {
+    const key = clientPricingKey(taskType, billingUnit);
     store = {
       ...store,
       clientPricing: {
         ...store.clientPricing,
-        [client]: { ...(store.clientPricing[client] || {}), [taskType]: price },
+        [client]: { ...(store.clientPricing[client] || {}), [key]: price },
       },
     };
     notify();
   },
 
-  removeClientPrice: (client: string, taskType: string) => {
-    const { [taskType]: _, ...rest } = store.clientPricing[client] || {};
+  removeClientPrice: (client: string, taskType: string, billingUnit: string) => {
+    const key = clientPricingKey(taskType, billingUnit);
+    const { [key]: _, ...rest } = store.clientPricing[client] || {};
     store = {
       ...store,
       clientPricing: { ...store.clientPricing, [client]: rest },
@@ -220,6 +245,7 @@ export function useClientPricing() {
     setClientPrice: defaultPricingStore.setClientPrice,
     removeClientPrice: defaultPricingStore.removeClientPrice,
     getClientPricing: defaultPricingStore.getClientPricing,
+    parseKey: parseClientPricingKey,
   };
 }
 

@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import ColorPicker from "@/components/ColorPicker";
 import { useSelectOptions, selectOptionsStore, PRESET_COLORS } from "@/stores/select-options-store";
 import { useLabelStyles, labelStyleStore } from "@/stores/label-style-store";
-import { useClientPricing, useTranslatorTiers, type TranslatorTier } from "@/stores/default-pricing-store";
+import { useClientPricing, useTranslatorTiers, type TranslatorTier, clientPricingKey, parseClientPricingKey } from "@/stores/default-pricing-store";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions, type PermissionConfig } from "@/hooks/use-permissions";
 import { Switch } from "@/components/ui/switch";
@@ -82,13 +82,13 @@ function ClientPricingSection() {
     });
   };
 
-  const handleSave = useCallback((client: string, taskType: string) => {
+  const handleSave = useCallback((client: string, taskType: string, billingUnit: string) => {
     const num = Number(editValue);
     if (!isNaN(num) && num >= 0) {
       if (num === 0) {
-        removeClientPrice(client, taskType);
+        removeClientPrice(client, taskType, billingUnit);
       } else {
-        setClientPrice(client, taskType, num);
+        setClientPrice(client, taskType, billingUnit, num);
       }
     }
     setEditingCell(null);
@@ -103,7 +103,7 @@ function ClientPricingSection() {
     setAdding(false);
   };
 
-  const cellKey = (client: string, taskType: string) => `${client}::${taskType}`;
+  const cellKey = (client: string, taskType: string, billingUnit: string) => `${client}::${taskType}::${billingUnit}`;
 
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
@@ -202,84 +202,90 @@ function ClientPricingSection() {
 
                 {isExpanded && (
                   <div className="ml-6 mt-1 mb-2 space-y-1">
-                    <div className="grid grid-cols-[1fr_100px_36px] gap-2 px-2 text-xs text-muted-foreground font-medium border-b border-border pb-1">
+                    <div className="grid grid-cols-[1fr_60px_100px_36px] gap-2 px-2 text-xs text-muted-foreground font-medium border-b border-border pb-1">
                       <span>任務類型</span>
+                      <span>單位</span>
                       <span className="text-right">報價</span>
                       <span />
                     </div>
                     {taskTypeOptions.length === 0 ? (
                       <p className="text-xs text-muted-foreground px-2">尚無任務類型</p>
                     ) : (
-                      taskTypeOptions.map((tt) => {
-                        const key = cellKey(client.label, tt.label);
-                        const currentPrice = pricing[tt.label];
-                        const isEditing = editingCell === key;
+                      taskTypeOptions.flatMap((tt) =>
+                        (["字", "小時"] as const).map((bu) => {
+                          const key = cellKey(client.label, tt.label, bu);
+                          const pricingKey = clientPricingKey(tt.label, bu);
+                          const currentPrice = pricing[pricingKey];
+                          const isEditing = editingCell === key;
 
-                        return (
-                          <div
-                            key={tt.id}
-                            className="grid grid-cols-[1fr_100px_36px] gap-2 items-center px-2 py-1 rounded-md hover:bg-secondary/30 transition-colors"
-                          >
-                            <span
-                              className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium w-fit"
-                              style={{
-                                backgroundColor: tt.color,
-                                color: labelStyles.taskType.textColor,
-                                borderColor: tt.color,
-                              }}
+                          return (
+                            <div
+                              key={`${tt.id}-${bu}`}
+                              className="grid grid-cols-[1fr_60px_100px_36px] gap-2 items-center px-2 py-1 rounded-md hover:bg-secondary/30 transition-colors"
                             >
-                              {tt.label}
-                            </span>
+                              <span
+                                className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium w-fit"
+                                style={{
+                                  backgroundColor: tt.color,
+                                  color: labelStyles.taskType.textColor,
+                                  borderColor: tt.color,
+                                }}
+                              >
+                                {tt.label}
+                              </span>
 
-                            <div data-cell-container>
-                              {isEditing ? (
-                                <Input
-                                  type="text"
-                                  inputMode="decimal"
-                                  value={editValue}
-                                  onChange={(e) => {
-                                    if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setEditValue(e.target.value);
-                                  }}
-                                  onBlur={() => handleSave(client.label, tt.label)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") handleSave(client.label, tt.label);
-                                    if (e.key === "Escape") setEditingCell(null);
-                                    handleTabKeyDown(e, () => handleSave(client.label, tt.label));
-                                  }}
-                                  autoFocus
-                                  className="h-7 text-xs text-right"
-                                />
-                              ) : (
-                                <button
-                                  data-editable-cell
-                                  className="w-full text-right text-sm tabular-nums hover:text-primary transition-colors cursor-pointer"
-                                  onClick={() => {
-                                    setEditingCell(key);
-                                    setEditValue(currentPrice !== undefined ? String(currentPrice) : "");
-                                  }}
-                                >
-                                  {currentPrice !== undefined ? currentPrice : (
-                                    <span className="text-muted-foreground text-xs">未設定</span>
-                                  )}
-                                </button>
-                              )}
-                            </div>
+                              <span className="text-xs text-muted-foreground">{bu}</span>
 
-                            <div className="flex justify-center">
-                              {currentPrice !== undefined && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                  onClick={() => removeClientPrice(client.label, tt.label)}
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              )}
+                              <div data-cell-container>
+                                {isEditing ? (
+                                  <Input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={editValue}
+                                    onChange={(e) => {
+                                      if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setEditValue(e.target.value);
+                                    }}
+                                    onBlur={() => handleSave(client.label, tt.label, bu)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") handleSave(client.label, tt.label, bu);
+                                      if (e.key === "Escape") setEditingCell(null);
+                                      handleTabKeyDown(e, () => handleSave(client.label, tt.label, bu));
+                                    }}
+                                    autoFocus
+                                    className="h-7 text-xs text-right"
+                                  />
+                                ) : (
+                                  <button
+                                    data-editable-cell
+                                    className="w-full text-right text-sm tabular-nums hover:text-primary transition-colors cursor-pointer"
+                                    onClick={() => {
+                                      setEditingCell(key);
+                                      setEditValue(currentPrice !== undefined ? String(currentPrice) : "");
+                                    }}
+                                  >
+                                    {currentPrice !== undefined ? currentPrice : (
+                                      <span className="text-muted-foreground text-xs">未設定</span>
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+
+                              <div className="flex justify-center">
+                                {currentPrice !== undefined && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                    onClick={() => removeClientPrice(client.label, tt.label, bu)}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })
+                          );
+                        })
+                      )
                     )}
                   </div>
                 )}
