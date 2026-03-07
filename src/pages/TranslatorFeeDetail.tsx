@@ -1499,7 +1499,7 @@ export default function TranslatorFeeDetail() {
                   <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">費率無誤</Label>
                 </div>
               )}
-              {canEdit && !isNoFeeTranslator && (
+              {canEdit && !isNoFeeTranslator && !clientInfo.rateConfirmed && (
                 <Button
                   variant="outline"
                   size="sm"
