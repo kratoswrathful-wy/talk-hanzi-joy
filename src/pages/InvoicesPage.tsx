@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Plus, ExternalLink, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import AssigneeTag from "@/components/AssigneeTag";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
