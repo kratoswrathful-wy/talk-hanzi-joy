@@ -401,10 +401,10 @@ export default function ClientInfoSection({
                   <TableCell className="text-right text-xs font-medium">
                     {clientInfo.notFirstFee ? <span className="text-muted-foreground">N/A</span> : (Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
                   </TableCell>
-                  {canEdit && !clientInfo.reconciled && (
+                  {canEdit && (
                     <TableCell className="px-2">
                       <div className="flex justify-center">
-                        {!clientItemsLocked && clientInfo.clientTaskItems.length > 1 ? (
+                        {!clientInfo.reconciled && !clientItemsLocked && clientInfo.clientTaskItems.length > 1 ? (
                           <Button
                             variant="ghost"
                             size="icon"
