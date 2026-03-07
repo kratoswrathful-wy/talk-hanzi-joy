@@ -295,7 +295,7 @@ export function FilterSortToolbar({
               屬性
               {hiddenColumns.length > 0 && (
                 <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px]">
-                  {visibleFields.length - hiddenColumns.length}/{visibleFields.length}
+                  {allFields.length - hiddenColumns.length}/{allFields.length}
                 </Badge>
               )}
             </Button>
