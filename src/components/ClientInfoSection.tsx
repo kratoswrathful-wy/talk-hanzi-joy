@@ -366,7 +366,7 @@ export default function ClientInfoSection({
                   </TableCell>
                   <TableCell className="text-center">
                     <ColorSelect
-                      fieldKey="clientBillingUnit"
+                      fieldKey="billingUnit"
                       value={item.billingUnit}
                       onValueChange={(v) => updateItem(item.id, "billingUnit", v as BillingUnit)}
                       triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
