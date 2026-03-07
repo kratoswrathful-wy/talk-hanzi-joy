@@ -254,11 +254,11 @@ function ClientPricingSection() {
                                     onChange={(e) => {
                                       if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setEditValue(e.target.value);
                                     }}
-                                    onBlur={() => handleSave(client.label, tt.label, bu)}
+                                    onBlur={() => handleSave(client.label, tt.label, bu.label)}
                                     onKeyDown={(e) => {
-                                      if (e.key === "Enter") handleSave(client.label, tt.label, bu);
+                                      if (e.key === "Enter") handleSave(client.label, tt.label, bu.label);
                                       if (e.key === "Escape") setEditingCell(null);
-                                      handleTabKeyDown(e, () => handleSave(client.label, tt.label, bu));
+                                      handleTabKeyDown(e, () => handleSave(client.label, tt.label, bu.label));
                                     }}
                                     autoFocus
                                     className="h-7 text-xs text-right"
