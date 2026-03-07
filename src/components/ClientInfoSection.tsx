@@ -381,7 +381,7 @@ export default function ClientInfoSection({
                       onFocus={() => handleClientPriceFocus(item.id)}
                       onBlur={(e) => handleNumberBlur(item.id, "clientPrice", e.target.value)}
                       className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
-                      disabled={clientItemsLocked}
+                      disabled={clientItemsLocked || clientInfo.reconciled}
                     />
                   </TableCell>
                   <TableCell className="text-right">
