@@ -324,9 +324,9 @@ export default function ClientInvoiceDetailPage() {
       payments: newPayments,
       transferDate: now,
     });
-    trackChange("status", clientInvoiceStatusLabels[invoice.status], "已付款");
+    trackChange("status", clientInvoiceStatusLabels[invoice.status], "全額收齊");
     forceCommitPending();
-    toast.success("已記錄全額付款");
+    toast.success("已記錄全額收齊");
   };
 
   const paidSoFar = invoice.payments.reduce((sum, p) => sum + (p.type === "partial" ? (p.amount || 0) : 0), 0);
