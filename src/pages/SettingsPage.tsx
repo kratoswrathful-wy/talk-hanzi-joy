@@ -407,7 +407,7 @@ function TaskTypeOrderSection() {
     const ids = taskTypeOptions.map((o) => o.id);
     const [moved] = ids.splice(dragIndex, 1);
     ids.splice(idx, 0, moved);
-    selectOptionsStore.reorderOptions("clientTaskType", ids);
+    selectOptionsStore.reorderOptions("taskType", ids);
     setDragIndex(null);
     setDragOverIndex(null);
   };
