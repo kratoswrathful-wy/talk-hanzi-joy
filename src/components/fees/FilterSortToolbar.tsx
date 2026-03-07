@@ -380,7 +380,7 @@ function FilterRow({ filter, meta, ops, visibleFields, onUpdateFilter, onRemoveF
   const { options: storeOptions } = useSelectOptions(storeKey || "__noop__");
   
   const selectOpts: { value: string; label: string }[] | null = (() => {
-    if (filter.field === "status") return statusOptions;
+    if (filter.field === "status") return statusOptionsList || statusOptions;
     if (isSelectType && storeKey) {
       return storeOptions.map((o) => ({ value: o.label, label: o.label }));
     }
