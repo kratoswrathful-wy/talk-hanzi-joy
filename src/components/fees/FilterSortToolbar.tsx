@@ -199,7 +199,7 @@ export function FilterSortToolbar({
                 <p className="text-xs text-muted-foreground italic py-2">尚未新增篩選條件</p>
               )}
               {activeView.filters.map((filter) => {
-                const meta = fieldMetas.find((f) => f.key === filter.field);
+                const meta = allFields.find((f) => f.key === filter.field);
                 const ops = meta ? getOperatorsForType(meta.type) : [];
                 return (
                   <FilterRow
