@@ -430,7 +430,7 @@ export default function ClientInfoSection({
               <TableRow>
                 <TableCell colSpan={3} className="px-[18px]">
                   <div className="flex items-center gap-2">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap">關鍵字</Label>
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap min-w-[3rem]">關鍵字</Label>
                     <Input
                       value={clientInfo.clientCaseId}
                       onChange={(e) => update("clientCaseId", e.target.value)}
@@ -451,7 +451,7 @@ export default function ClientInfoSection({
               <TableRow>
                 <TableCell colSpan={3} className="px-[18px]">
                   <div className="flex items-center gap-2">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap">PO #</Label>
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap min-w-[3rem]">PO #</Label>
                     <Input
                       value={clientInfo.clientPoNumber}
                       onChange={(e) => update("clientPoNumber", e.target.value)}
