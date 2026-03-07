@@ -1282,6 +1282,7 @@ function TierGroupEditorModal({
 function TranslatorTierSection() {
   const { tiers, addTier, addTierToGroup, updateTierRow, removeTierRow } = useTranslatorTiers();
   const { options: taskTypeOptions } = useSelectOptions("taskType");
+  const { options: buOptions } = useSelectOptions("billingUnit");
   const labelStyles = useLabelStyles();
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
