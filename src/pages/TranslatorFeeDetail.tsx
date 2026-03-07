@@ -629,8 +629,7 @@ export default function TranslatorFeeDetail() {
         const unit = data["單位"] || "";
         const dispatch = data["派案途徑"] || "";
         const irRawT = data["譯者"];
-        const irRawR = data["審稿人員"];
-        let people = (Array.isArray(irRawT) && irRawT.length > 0) ? irRawT : (Array.isArray(irRawR) && irRawR.length > 0) ? irRawR : [];
+        let people = (Array.isArray(irRawT) && irRawT.length > 0) ? irRawT : [];
         const casePages = data["案件頁面"] || [];
         const reconciled = data["對帳完成"] === true;
         const invoiced = data["請款完成"] === true;
