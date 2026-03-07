@@ -50,7 +50,7 @@ const listeners = new Set<Listener>();
 const SETTINGS_KEY = "select_options";
 
 // Fields to persist (assignee is loaded from profiles, not settings)
-const PERSISTED_FIELDS = ["taskType", "billingUnit", "client", "contact", "clientTaskType", "dispatchRoute", "clientBillingUnit"];
+const PERSISTED_FIELDS = ["taskType", "billingUnit", "client", "contact", "dispatchRoute"];
 
 function persistableSnapshot() {
   const snapshot: Record<string, FieldOptions> = {};
@@ -82,6 +82,7 @@ function initDefaults() {
         { id: "opt-t4", label: "LQA", color: PRESET_COLORS[11] },
       ],
       customColors: [],
+      manualOrder: true,
     },
     billingUnit: {
       options: [
@@ -100,27 +101,10 @@ function initDefaults() {
       options: [],
       customColors: [],
     },
-    clientTaskType: {
-      options: [
-        { id: "opt-ct1", label: "翻譯", color: PRESET_COLORS[9] },
-        { id: "opt-ct2", label: "校對", color: PRESET_COLORS[4] },
-        { id: "opt-ct3", label: "MTPE", color: PRESET_COLORS[6] },
-        { id: "opt-ct4", label: "LQA", color: PRESET_COLORS[11] },
-      ],
-      customColors: [],
-      manualOrder: true,
-    },
     dispatchRoute: {
       options: [
         { id: "opt-dr1", label: "V 信箱", color: PRESET_COLORS[6] },
         { id: "opt-dr2", label: "Teams", color: PRESET_COLORS[8] },
-      ],
-      customColors: [],
-    },
-    clientBillingUnit: {
-      options: [
-        { id: "opt-cb1", label: "字", color: PRESET_COLORS[8] },
-        { id: "opt-cb2", label: "小時", color: PRESET_COLORS[1] },
       ],
       customColors: [],
     },

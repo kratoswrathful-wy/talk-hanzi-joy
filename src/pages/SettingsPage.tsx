@@ -57,7 +57,7 @@ function handleTabKeyDown(
 function ClientPricingSection() {
   const { options: clientOptions, customColors } = useSelectOptions("client");
   const labelStyles = useLabelStyles();
-  const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
+  const { options: taskTypeOptions } = useSelectOptions("taskType");
   const { getAllClientPricing, setClientPrice, removeClientPrice } = useClientPricing();
   const allPricing = getAllClientPricing();
 
@@ -381,7 +381,7 @@ function ClientPricingSection() {
 // ─── Task Type Settings Section (drag reorder + add/delete/color) ───
 
 function TaskTypeOrderSection() {
-  const { options: taskTypeOptions, customColors } = useSelectOptions("clientTaskType");
+  const { options: taskTypeOptions, customColors } = useSelectOptions("taskType");
   const labelStyles = useLabelStyles();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -407,7 +407,7 @@ function TaskTypeOrderSection() {
     const ids = taskTypeOptions.map((o) => o.id);
     const [moved] = ids.splice(dragIndex, 1);
     ids.splice(idx, 0, moved);
-    selectOptionsStore.reorderOptions("clientTaskType", ids);
+    selectOptionsStore.reorderOptions("taskType", ids);
     setDragIndex(null);
     setDragOverIndex(null);
   };
@@ -420,8 +420,6 @@ function TaskTypeOrderSection() {
   const handleAddTaskType = () => {
     const label = newLabel.trim();
     if (!label || taskTypeOptions.some((o) => o.label === label)) return;
-    selectOptionsStore.addOption("clientTaskType", label, newColor);
-    // Also add to the fee-side taskType field
     selectOptionsStore.addOption("taskType", label, newColor);
     // Auto-populate hourly pricing (450) for all existing clients
     const clients = selectOptionsStore.getSortedOptions("client");
@@ -435,24 +433,12 @@ function TaskTypeOrderSection() {
 
   const handleDeleteTaskType = (optId: string) => {
     const opt = taskTypeOptions.find((o) => o.id === optId);
-    selectOptionsStore.deleteOption("clientTaskType", optId);
-    // Also remove from the fee-side taskType field
-    if (opt) {
-      const feeOpts = selectOptionsStore.getField("taskType").options;
-      const feeOpt = feeOpts.find((o) => o.label === opt.label);
-      if (feeOpt) selectOptionsStore.deleteOption("taskType", feeOpt.id);
-    }
+    selectOptionsStore.deleteOption("taskType", optId);
   };
 
   const handleColorChange = (optId: string, color: string) => {
     const opt = taskTypeOptions.find((o) => o.id === optId);
-    selectOptionsStore.updateOptionColor("clientTaskType", optId, color);
-    // Sync to fee-side taskType field
-    if (opt) {
-      const feeOpts = selectOptionsStore.getField("taskType").options;
-      const feeOpt = feeOpts.find((o) => o.label === opt.label);
-      if (feeOpt) selectOptionsStore.updateOptionColor("taskType", feeOpt.id, color);
-    }
+    selectOptionsStore.updateOptionColor("taskType", optId, color);
   };
 
   return (
@@ -509,8 +495,8 @@ function TaskTypeOrderSection() {
                     value={tt.color}
                     onChange={(color) => handleColorChange(tt.id, color)}
                     customColors={customColors}
-                    onAddCustomColor={(c) => selectOptionsStore.addCustomColor("clientTaskType", c)}
-                    onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("clientTaskType", c)}
+                    onAddCustomColor={(c) => selectOptionsStore.addCustomColor("taskType", c)}
+                    onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("taskType", c)}
                     colorUsageMap={{}}
                   />
                 </PopoverContent>
@@ -1099,7 +1085,7 @@ function TierGroupEditorModal({
 
 function TranslatorTierSection() {
   const { tiers, addTier, addTierToGroup, updateTierRow, removeTierRow } = useTranslatorTiers();
-  const { options: taskTypeOptions } = useSelectOptions("clientTaskType");
+  const { options: taskTypeOptions } = useSelectOptions("taskType");
   const labelStyles = useLabelStyles();
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
