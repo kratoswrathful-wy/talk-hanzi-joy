@@ -210,6 +210,8 @@ export default function PermissionsPage() {
   const [saving, setSaving] = useState(false);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [renamingRole, setRenamingRole] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   const saveConfig = useCallback(async (newConfig: any) => {
     setSaving(true);
@@ -270,7 +272,36 @@ export default function PermissionsPage() {
     setDeleteStep(1);
   };
 
-  // Drag-and-drop reorder
+  const handleRenameStart = (role: RoleDefinition) => {
+    setRenamingRole(role.key);
+    setRenameValue(role.label);
+  };
+
+  const handleRenameConfirm = async () => {
+    if (!renamingRole || !renameValue.trim()) {
+      setRenamingRole(null);
+      return;
+    }
+    const name = renameValue.trim();
+    if (allRoles.some((r) => r.key !== renamingRole && r.label === name)) {
+      toast.error("此名稱已被使用");
+      return;
+    }
+    const role = allRoles.find((r) => r.key === renamingRole);
+    if (!role) return;
+
+    if (role.builtIn) {
+      // Store label overrides for built-in roles
+      const overrides = { ...((config as any).role_label_overrides || {}), [role.key]: name };
+      await saveConfig({ ...config, role_label_overrides: overrides });
+    } else {
+      const updatedCustom = customRoles.map((r) => r.key === renamingRole ? { ...r, label: name } : r);
+      await saveConfig({ ...config, custom_roles: updatedCustom });
+    }
+    setRenamingRole(null);
+    toast.success(`已更名為「${name}」`);
+  };
+
   const handleDragEnd = async () => {
     if (draggedIdx === null || dragOverIdx === null || draggedIdx === dragOverIdx) {
       setDraggedIdx(null);
@@ -418,7 +449,27 @@ export default function PermissionsPage() {
                           >
                             {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </Button>
-                          <span className="text-sm font-medium">{role.label}</span>
+                          {renamingRole === role.key ? (
+                            <Input
+                              value={renameValue}
+                              onChange={(e) => setRenameValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleRenameConfirm();
+                                if (e.key === "Escape") setRenamingRole(null);
+                              }}
+                              onBlur={handleRenameConfirm}
+                              autoFocus
+                              className="h-7 w-32 text-sm"
+                            />
+                          ) : (
+                            <span
+                              className="text-sm font-medium cursor-pointer hover:underline"
+                              onDoubleClick={() => handleRenameStart(role)}
+                              title="雙擊以更名"
+                            >
+                              {role.label}
+                            </span>
+                          )}
                           {role.builtIn && (
                             <Badge variant="outline" className="text-xs">內建</Badge>
                           )}

@@ -12,6 +12,7 @@ export interface PermissionConfig {
   settings_sections: Record<string, Record<string, boolean>>;
   custom_roles?: RoleDefinition[];
   role_order?: string[];
+  role_label_overrides?: Record<string, string>;
   module_permissions?: any;
 }
 
@@ -35,12 +36,16 @@ const DEFAULT_CONFIG: PermissionConfig = {
 
 /** Build ordered list of all roles from config */
 export function getAllRolesOrdered(config: PermissionConfig): RoleDefinition[] {
+  const overrides = config.role_label_overrides || {};
   const builtInRoles: RoleDefinition[] = BUILT_IN_ROLES.map((r) => ({
     key: r,
-    label: BUILT_IN_LABELS[r],
+    label: overrides[r] || BUILT_IN_LABELS[r],
     builtIn: true,
   }));
-  const customRoles: RoleDefinition[] = config.custom_roles || [];
+  const customRoles: RoleDefinition[] = (config.custom_roles || []).map((r) => ({
+    ...r,
+    label: overrides[r.key] || r.label,
+  }));
   const allRolesMap = new Map<string, RoleDefinition>();
   for (const r of [...builtInRoles, ...customRoles]) {
     allRolesMap.set(r.key, r);
