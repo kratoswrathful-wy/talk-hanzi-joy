@@ -24,6 +24,7 @@ export interface TableView {
   sorts: TableSort[];
   columnOrder: string[];
   columnWidths: Record<string, number>;
+  hiddenColumns: string[];
   /** Role that created this view; undefined for default view */
   createdByRole?: string;
 }
