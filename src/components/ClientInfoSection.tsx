@@ -357,7 +357,7 @@ export default function ClientInfoSection({
                       value={item.taskType}
                       onValueChange={(v) => updateItem(item.id, "taskType", v as TaskType)}
                       triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
-                      disabled={clientItemsLocked}
+                      disabled={clientItemsLocked || clientInfo.reconciled}
                     />
                   </TableCell>
                   <TableCell className="text-center">
