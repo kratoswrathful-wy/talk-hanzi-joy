@@ -1317,7 +1317,7 @@ function TranslatorTierSection() {
     setModalEditingField(null);
   }, [modalEditValue, updateTierRow]);
 
-  const billingUnits = ["字", "小時"];
+  const billingUnits = buOptions.map((o) => o.label);
   const groups: TierGroup[] = [];
   const seenGroups = new Set<string>();
   for (const tier of tiers) {
