@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { usePermissions, type PermissionConfig } from "@/hooks/use-permissions";
+import { usePermissions, type PermissionConfig, type RoleDefinition, getAllRolesOrdered } from "@/hooks/use-permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,22 +22,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ChevronDown, ChevronRight, Plus, Trash2, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Trash2, Loader2, GripVertical } from "lucide-react";
 import { toast } from "sonner";
-
-type AppRole = "member" | "pm" | "executive";
-const BUILT_IN_ROLES: AppRole[] = ["member", "pm", "executive"];
-const BUILT_IN_LABELS: Record<string, string> = {
-  member: "譯者",
-  pm: "PM",
-  executive: "執行官",
-};
-
-export interface RoleDefinition {
-  key: string;
-  label: string;
-  builtIn: boolean;
-}
 
 // ─── Permission structure definitions ───
 
