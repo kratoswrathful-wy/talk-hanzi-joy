@@ -1,6 +1,7 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Plus, Trash2, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import AssigneeTag from "@/components/AssigneeTag";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -474,17 +475,10 @@ export default function InvoiceDetailPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-medium text-muted-foreground">請款人：</h2>
-              <div className="flex items-center gap-1.5">
-                {translatorProfile?.avatar_url ? (
-                  <Avatar className="h-5 w-5">
-                    <AvatarImage src={translatorProfile.avatar_url} />
-                    <AvatarFallback className="text-[10px]">{(invoice.translator || "?")[0]}</AvatarFallback>
-                  </Avatar>
-                ) : opt ? (
-                  <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: opt.color }} />
-                ) : null}
-                <span className="text-sm font-medium">{translatorProfile?.display_name || invoice.translator || "未指定"}</span>
-              </div>
+              <AssigneeTag
+                label={translatorProfile?.display_name || invoice.translator || "未指定"}
+                avatarUrl={translatorProfile?.avatar_url || opt?.avatarUrl}
+              />
             </div>
             {editable && availableFees.length > 0 && (
               <Popover open={addFeeOpen} onOpenChange={(open) => {

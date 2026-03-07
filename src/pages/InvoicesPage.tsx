@@ -674,15 +674,16 @@ export default function InvoicesPage() {
           <div className="py-4">
             <Select value={selectedTranslator} onValueChange={setSelectedTranslator}>
               <SelectTrigger>
-                <SelectValue placeholder="選擇譯者…" />
+                {selectedTranslator ? (
+                  <AssigneeLabel value={selectedTranslator} />
+                ) : (
+                  <SelectValue placeholder="選擇譯者…" />
+                )}
               </SelectTrigger>
               <SelectContent>
                 {assigneeOptions.map((opt) => (
                   <SelectItem key={opt.label} value={opt.label}>
-                    <span className="flex items-center gap-2">
-                      <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: opt.color }} />
-                      {opt.label}
-                    </span>
+                    <AssigneeTag label={opt.label} avatarUrl={opt.avatarUrl} />
                   </SelectItem>
                 ))}
               </SelectContent>
