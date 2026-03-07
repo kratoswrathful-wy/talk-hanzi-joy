@@ -67,6 +67,8 @@ interface Props {
   onToggleColumn: (key: string) => void;
   /** Override the default fieldMetas for use with different table types */
   fieldMetasList?: FieldMeta[];
+  /** Override status options for filter dropdowns (default: fee statuses) */
+  statusOptionsList?: { value: string; label: string }[];
 }
 
 export function FilterSortToolbar({
