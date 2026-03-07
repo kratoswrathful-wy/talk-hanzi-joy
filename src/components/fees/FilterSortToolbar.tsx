@@ -295,7 +295,7 @@ export function FilterSortToolbar({
               屬性
               {hiddenColumns.length > 0 && (
                 <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px]">
-                  {visibleFields.length - hiddenColumns.length}/{visibleFields.length}
+                  {allFields.length - hiddenColumns.length}/{allFields.length}
                 </Badge>
               )}
             </Button>
@@ -303,7 +303,7 @@ export function FilterSortToolbar({
           <PopoverContent className="w-[240px] p-3" align="start">
             <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground mb-2">顯示屬性</p>
-              {visibleFields.map((f) => (
+              {allFields.map((f) => (
                 <label key={f.key} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-muted cursor-pointer text-xs">
                   <Checkbox
                     checked={!hiddenSet.has(f.key)}
