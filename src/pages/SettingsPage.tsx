@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import ColorPicker from "@/components/ColorPicker";
 import { useSelectOptions, selectOptionsStore, PRESET_COLORS } from "@/stores/select-options-store";
 import { useLabelStyles, labelStyleStore } from "@/stores/label-style-store";
-import { useClientPricing, useTranslatorTiers, type TranslatorTier, clientPricingKey, parseClientPricingKey } from "@/stores/default-pricing-store";
+import { useClientPricing, useTranslatorTiers, defaultPricingStore, type TranslatorTier, clientPricingKey, parseClientPricingKey } from "@/stores/default-pricing-store";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions, type PermissionConfig } from "@/hooks/use-permissions";
 import { Switch } from "@/components/ui/switch";
@@ -98,6 +98,10 @@ function ClientPricingSection() {
     const label = newLabel.trim();
     if (!label || clientOptions.some((o) => o.label === label)) return;
     selectOptionsStore.addOption("client", label, newColor);
+    // Auto-populate hourly pricing (450) for all task types
+    for (const tt of taskTypeOptions) {
+      setClientPrice(label, tt.label, "小時", 450);
+    }
     setNewLabel("");
     setNewColor(PRESET_COLORS[0]);
     setAdding(false);
@@ -419,6 +423,11 @@ function TaskTypeOrderSection() {
     selectOptionsStore.addOption("clientTaskType", label, newColor);
     // Also add to the fee-side taskType field
     selectOptionsStore.addOption("taskType", label, newColor);
+    // Auto-populate hourly pricing (450) for all existing clients
+    const clients = selectOptionsStore.getSortedOptions("client");
+    for (const c of clients) {
+      defaultPricingStore.setClientPrice(c.label, label, "小時", 450);
+    }
     setNewLabel("");
     setNewColor(PRESET_COLORS[0]);
     setAdding(false);
