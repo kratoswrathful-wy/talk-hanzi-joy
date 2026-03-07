@@ -198,14 +198,9 @@ function getItemPerm(modulePerms: ModulePerms, itemKey: string, permType: "view"
 export default function PermissionsPage() {
   const { roles } = useAuth();
   const isExecutive = roles.some((r) => r.role === "executive");
-  const { config, loading, updateConfig } = usePermissions();
+  const { config, loading, updateConfig, allRoles } = usePermissions();
 
   const customRoles: RoleDefinition[] = (config as any).custom_roles || [];
-
-  const allRoles: RoleDefinition[] = [
-    ...BUILT_IN_ROLES.map((r) => ({ key: r, label: BUILT_IN_LABELS[r], builtIn: true })),
-    ...customRoles,
-  ];
 
   const [newRoleName, setNewRoleName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<RoleDefinition | null>(null);
@@ -213,6 +208,8 @@ export default function PermissionsPage() {
   const [expandedRole, setExpandedRole] = useState<string | null>(null);
   const [rolesSectionOpen, setRolesSectionOpen] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   const saveConfig = useCallback(async (newConfig: any) => {
     setSaving(true);
@@ -222,7 +219,8 @@ export default function PermissionsPage() {
   }, [updateConfig]);
 
   const saveCustomRoles = useCallback(async (newCustomRoles: RoleDefinition[]) => {
-    return saveConfig({ ...config, custom_roles: newCustomRoles });
+    const newOrder = getAllRolesOrdered({ ...config, custom_roles: newCustomRoles }).map((r) => r.key);
+    return saveConfig({ ...config, custom_roles: newCustomRoles, role_order: newOrder });
   }, [config, saveConfig]);
 
   const handleAddRole = async () => {
