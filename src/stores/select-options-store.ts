@@ -90,6 +90,7 @@ function initDefaults() {
         { id: "opt-b2", label: "小時", color: PRESET_COLORS[1] },
       ],
       customColors: [],
+      manualOrder: true,
     },
     client: {
       options: [

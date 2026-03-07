@@ -55,6 +55,11 @@ export const labelStyleStore = {
     notify();
   },
 
+  setBillingUnitTextColor: (color: string) => {
+    state = { ...state, billingUnit: { ...state.billingUnit, textColor: color } };
+    notify();
+  },
+
   setClientTextColor: (color: string) => {
     state = { ...state, client: { ...state.client, textColor: color } };
     notify();
