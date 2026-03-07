@@ -650,7 +650,9 @@ export default function TranslatorFeeDetail() {
                   workTypes = caseData["工作類型"] || [];
                 }
                 if (missingPeople) {
-                  people = caseData["譯者"] || caseData["審稿人員"] || [];
+                  const caseRawT = caseData["譯者"];
+                  const caseRawR = caseData["審稿人員"];
+                  people = (Array.isArray(caseRawT) && caseRawT.length > 0) ? caseRawT : (Array.isArray(caseRawR) && caseRawR.length > 0) ? caseRawR : [];
                 }
               }
             } catch (e) {
