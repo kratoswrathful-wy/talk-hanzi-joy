@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-store";
+import AssigneeTag from "@/components/AssigneeTag";
 import { supabase } from "@/integrations/supabase/client";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
