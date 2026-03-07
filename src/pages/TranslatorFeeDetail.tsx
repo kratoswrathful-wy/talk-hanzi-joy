@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, type TranslatorFee, defaultClientInfo } from "@/data/fee-mock-data";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
-import { selectOptionsStore, PRESET_COLORS } from "@/stores/select-options-store";
+import { selectOptionsStore, PRESET_COLORS, CONTACT_DEFAULT_COLOR } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
@@ -752,7 +752,7 @@ export default function TranslatorFeeDetail() {
         if (contact) {
           const existingContacts = selectOptionsStore.getSortedOptions("contact");
           if (!existingContacts.find((o) => o.label === contact)) {
-            selectOptionsStore.addOption("contact", contact, "#6B7280");
+            selectOptionsStore.addOption("contact", contact, CONTACT_DEFAULT_COLOR);
             autoCreated.push({ field: "聯絡人", label: contact });
           }
         }

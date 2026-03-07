@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { useSelectOptions, selectOptionsStore, type SelectOption, PRESET_COLORS } from "@/stores/select-options-store";
+import { useSelectOptions, selectOptionsStore, type SelectOption, PRESET_COLORS, CONTACT_DEFAULT_COLOR } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import ColorPicker from "@/components/ColorPicker";
 import {
@@ -50,7 +50,7 @@ export default function ColorSelect({
   const [open, setOpen] = useState(defaultOpen ?? false);
   const [addingNew, setAddingNew] = useState(false);
   const [newLabel, setNewLabel] = useState("");
-  const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
+  const [newColor, setNewColor] = useState(fieldKey === "contact" ? CONTACT_DEFAULT_COLOR : PRESET_COLORS[0]);
   const [showNewColorPicker, setShowNewColorPicker] = useState(false);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [colorPickerOptionId, setColorPickerOptionId] = useState<string | null>(null);
@@ -101,7 +101,7 @@ export default function ColorSelect({
     selectOptionsStore.addOption(fieldKey, label, newColor);
     onValueChange(label);
     setNewLabel("");
-    setNewColor(PRESET_COLORS[0]);
+    setNewColor(fieldKey === "contact" ? CONTACT_DEFAULT_COLOR : PRESET_COLORS[0]);
     setAddingNew(false);
     setOpen(false);
     setSearchQuery("");
