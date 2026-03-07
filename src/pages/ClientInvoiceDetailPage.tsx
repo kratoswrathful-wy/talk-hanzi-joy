@@ -107,7 +107,7 @@ const COMMIT_DELAY_MS = 5 * 60 * 1000;
 const fieldLabels: Record<string, string> = {
   title: "標題",
   status: "狀態",
-  note: "備註",
+  note: "客戶請款備註",
 };
 
 export default function ClientInvoiceDetailPage() {
