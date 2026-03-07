@@ -609,6 +609,11 @@ export default function TranslatorFeeDetail() {
           selectOptionsStore.addOption("taskType", taskType, color);
           // Also add to clientTaskType
           selectOptionsStore.addOption("clientTaskType", taskType, color);
+          // Auto-populate hourly pricing (450) for all existing clients
+          const clients = selectOptionsStore.getSortedOptions("client");
+          for (const c of clients) {
+            defaultPricingStore.setClientPrice(c.label, taskType, "小時", 450);
+          }
           autoCreated.push({ field: "任務類型", label: taskType });
         }
       };
