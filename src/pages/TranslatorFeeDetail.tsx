@@ -1509,6 +1509,161 @@ export default function TranslatorFeeDetail() {
 
         {/* Task Items Table */}
         <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Label className="text-sm font-medium">稿費內容</Label>
+              {isNoFeeTranslator && (
+                <span className="text-xs text-warning bg-warning/10 border border-warning/30 rounded px-2 py-0.5">無須開立稿費</span>
+              )}
+              {(() => {
+                const assigneeOpt = selectOptionsStore.getField("assignee").options.find(o => o.label === assignee || o.email === assignee);
+                return assigneeOpt?.note ? (
+                  <span className="text-xs text-muted-foreground bg-secondary/50 rounded px-2 py-0.5">{assigneeOpt.note}</span>
+                ) : null;
+              })()}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className={`gap-1 text-xs ${canEdit && !isNoFeeTranslator && !clientInfo.rateConfirmed ? '' : 'invisible'}`}
+                onClick={handleAddItem}
+                disabled={!(canEdit && !isNoFeeTranslator && !clientInfo.rateConfirmed)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                新增項目
+              </Button>
+              {isManager && (
+                <div className="flex items-center gap-1.5">
+                  <Checkbox
+                    id="rateConfirmed"
+                    checked={isNoFeeTranslator ? true : clientInfo.rateConfirmed}
+                    disabled={isFinalized || isNoFeeTranslator}
+                    onCheckedChange={(checked) => {
+                      const updated = { ...clientInfo, rateConfirmed: !!checked };
+                      setClientInfo(updated);
+                      if (id) feeStore.updateFee(id, { clientInfo: updated });
+                    }}
+                  />
+                  <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">費率無誤</Label>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-secondary/30">
+                  <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>譯者任務類型</TableHead>
+                  <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>計費單位</TableHead>
+                  <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>稿費單價</TableHead>
+                  <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>計費單位數</TableHead>
+                  <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>小計</TableHead>
+                  {canEdit && <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {taskItems.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={canEdit ? 6 : 5}
+                      className="text-center text-sm text-muted-foreground py-6"
+                    >
+                      尚無任務項目
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  taskItems.map((item, index) => (
+                    <TableRow key={item.id} className={isNoFeeTranslator ? "opacity-50" : ""}>
+                      <TableCell className="text-center">
+                        <ColorSelect
+                          fieldKey="taskType"
+                          value={item.taskType}
+                          disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
+                          onValueChange={(v) => handleUpdateItem(item.id, "taskType", v)}
+                          triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
+                        />
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <ColorSelect
+                          fieldKey="billingUnit"
+                          value={item.billingUnit}
+                          disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
+                          onValueChange={(v) => handleUpdateItem(item.id, "billingUnit", v)}
+                          triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={isNoFeeTranslator ? "N/A" : item.unitPrice}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitPrice", v as any);
+                          }}
+                          onBlur={(e) => handleNumberBlur(item.id, "unitPrice", e.target.value)}
+                          disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
+                          className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={item.unitCount}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitCount", v as any);
+                          }}
+                          onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
+                          disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
+                          className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
+                        />
+                      </TableCell>
+                      <TableCell className="text-right text-xs font-medium">
+                        {isNoFeeTranslator ? 0 : (Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}
+                      </TableCell>
+                      {canEdit && (
+                        <TableCell className="px-2">
+                          <div className="flex justify-center">
+                            {!clientInfo.rateConfirmed && taskItems.length > 1 ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                onClick={() => handleRemoveItem(item.id)}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            ) : (
+                              <div className="h-7 w-7" />
+                            )}
+                          </div>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+              {taskItems.length > 0 && (
+                <TableFooter>
+                    <TableRow>
+                      <TableCell colSpan={3} className="px-[18px]" />
+                      <TableCell className="text-sm font-medium text-right">
+                        稿費總額
+                      </TableCell>
+                      <TableCell className="text-right text-sm font-bold">
+                        {totalAmount.toLocaleString()}
+                      </TableCell>
+                      {canEdit && <TableCell />}
+                    </TableRow>
+                </TableFooter>
+              )}
+            </Table>
+          </div>
+        </div>
 
         <Separator />
 
