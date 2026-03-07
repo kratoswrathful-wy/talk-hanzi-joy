@@ -64,6 +64,9 @@ export default function NewTranslatorFee() {
         let people = data["譯者"] || data["審稿人員"] || [];
         let workTypes = data["工作類型"] || [];
         const unitCount = data["計費單位數"] || null;
+        const notionUnit = data["計費單位"] || "";
+        const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
+        const billingUnit: BillingUnit = billingUnitMap[notionUnit] || "字";
         const casePages = data["案件頁面"] || [];
 
         // If IR page is missing work types or translators, fetch from the related case page
