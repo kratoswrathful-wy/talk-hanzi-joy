@@ -428,11 +428,11 @@ export default function ClientInvoiceDetailPage() {
 
             {/* Note */}
             <div className="grid gap-1.5">
-              <Label className="text-xs text-muted-foreground">備註</Label>
+              <Label className="text-xs text-muted-foreground">客戶請款備註</Label>
               <Input
                 value={invoice.note}
                 onChange={(e) => handleNoteChange(e.target.value)}
-                placeholder="新增備註…"
+                placeholder="新增客戶請款備註…"
                 disabled={isPaid}
                 className="text-sm"
               />
