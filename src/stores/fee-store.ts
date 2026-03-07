@@ -1,5 +1,6 @@
 import { type TranslatorFee, type ClientInfo, defaultClientInfo } from "@/data/fee-mock-data";
 import { supabase } from "@/integrations/supabase/client";
+import { getEnvironment } from "@/lib/environment";
 
 type Listener = () => void;
 
@@ -73,6 +74,7 @@ function persistInsert(fee: TranslatorFee, userId: string | null) {
       id: fee.id,
       ...appToDb(fee),
       created_by: userId || null,
+      env: getEnvironment(),
     } as any)
     .then(({ error }) => {
       if (error) console.error("Failed to insert fee:", error);
@@ -103,11 +105,12 @@ export const feeStore = {
     return () => listeners.delete(listener);
   },
 
-  /** Load all fees from DB. Safe to call multiple times. */
+  /** Load all fees from DB filtered by current environment. */
   loadFees: async () => {
     const { data, error } = await supabase
       .from("fees")
       .select("*")
+      .eq("env", getEnvironment())
       .order("created_at", { ascending: false });
     if (!error && data) {
       fees = (data as unknown as DbFee[]).map(dbToApp);

@@ -42,6 +42,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           edit_logs: Json
+          env: string
           finalized_at: string | null
           finalized_by: string | null
           id: string
@@ -59,6 +60,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           edit_logs?: Json
+          env?: string
           finalized_at?: string | null
           finalized_by?: string | null
           id?: string
@@ -76,6 +78,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           edit_logs?: Json
+          env?: string
           finalized_at?: string | null
           finalized_by?: string | null
           id?: string
@@ -119,18 +122,21 @@ export type Database = {
       invoice_fees: {
         Row: {
           created_at: string
+          env: string
           fee_id: string
           id: string
           invoice_id: string
         }
         Insert: {
           created_at?: string
+          env?: string
           fee_id: string
           id?: string
           invoice_id: string
         }
         Update: {
           created_at?: string
+          env?: string
           fee_id?: string
           id?: string
           invoice_id?: string
@@ -158,6 +164,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           edit_logs: Json
+          env: string
           id: string
           note: string
           payments: Json
@@ -172,6 +179,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           edit_logs?: Json
+          env?: string
           id?: string
           note?: string
           payments?: Json
@@ -186,6 +194,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           edit_logs?: Json
+          env?: string
           id?: string
           note?: string
           payments?: Json

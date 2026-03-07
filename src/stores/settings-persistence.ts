@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { envKey } from "@/lib/environment";
 
 /** Debounced save to app_settings table */
 const saveTimers: Record<string, ReturnType<typeof setTimeout>> = {};
@@ -34,15 +35,21 @@ export function resetLoadedKeys() {
   }
 }
 
+/**
+ * Load a setting from DB using environment-prefixed key.
+ * e.g. "select_options" → "test:select_options" or "production:select_options"
+ */
 export async function loadSetting<T>(key: string): Promise<T | null> {
+  const dbKey = envKey(key);
+
   const { data, error } = await supabase
     .from("app_settings")
     .select("value")
-    .eq("key", key)
+    .eq("key", dbKey)
     .maybeSingle();
 
   if (error) {
-    console.error(`[settings] Failed to load "${key}":`, error.message);
+    console.error(`[settings] Failed to load "${dbKey}":`, error.message);
     markSettingLoaded(key);
     return null;
   }
@@ -57,11 +64,16 @@ export async function loadSetting<T>(key: string): Promise<T | null> {
   return data?.value as T | null;
 }
 
+/**
+ * Save a setting to DB using environment-prefixed key.
+ * Only saves if the key has been loaded AND marked dirty.
+ */
 export function saveSetting(key: string, value: unknown, debounceMs = 500) {
   // CRITICAL: Don't save until initial load from DB has completed
   // AND the key has been explicitly mutated by user action (dirty).
-  // This prevents hardcoded defaults from overwriting production data.
   if (!isSettingLoaded(key) || !dirtyKeys.has(key)) return;
+
+  const dbKey = envKey(key);
 
   clearTimeout(saveTimers[key]);
   saveTimers[key] = setTimeout(async () => {
@@ -71,14 +83,14 @@ export function saveSetting(key: string, value: unknown, debounceMs = 500) {
     const { error } = await supabase
       .from("app_settings")
       .upsert(
-        { key, value: value as any, updated_by: user.id },
+        { key: dbKey, value: value as any, updated_by: user.id },
         { onConflict: "key" }
       );
 
     if (error) {
       // RLS will block non-admin writes – this is expected, not an error for non-admins
       if (!error.message.includes("row-level security")) {
-        console.error(`[settings] Failed to save "${key}":`, error.message);
+        console.error(`[settings] Failed to save "${dbKey}":`, error.message);
       }
     }
   }, debounceMs);
