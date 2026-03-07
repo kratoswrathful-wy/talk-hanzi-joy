@@ -712,12 +712,12 @@ export default function InvoiceDetailPage() {
           />
         </div>
 
-        {/* 內部備註 — PM+ only */}
+        {/* 稿費請款內部備註 — PM+ only */}
         {isAdmin && (
           <>
             <Separator />
             <div className="space-y-3">
-              <Label className="text-sm font-medium">內部備註</Label>
+              <Label className="text-sm font-medium">稿費請款內部備註</Label>
               <div className="space-y-2">
                 {internalComments.map((c) => (
                   <div key={c.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
