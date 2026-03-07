@@ -429,6 +429,7 @@ export default function PermissionsPage() {
                             config={config}
                             onToggleModuleVisible={handleToggleModuleVisible}
                             onToggleItemPerm={handleToggleItemPerm}
+                            onToggleAllPerms={handleToggleAllPerms}
                           />
                         </div>
                       )}
