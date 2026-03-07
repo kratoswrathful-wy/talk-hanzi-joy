@@ -201,6 +201,9 @@ export default function ColorSelect({
                     onClick={() => handleSelect(opt)}
                   >
                     <span className="inline-flex items-center gap-1">
+                      {fieldKey === "assignee" ? (
+                        <AssigneeTag label={opt.label} avatarUrl={opt.avatarUrl} />
+                      ) : (
                       <span
                         className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
                         style={{
@@ -211,6 +214,7 @@ export default function ColorSelect({
                       >
                         <span className="truncate">{opt.label}</span>
                       </span>
+                      )}
                       {value === opt.label && (
                         <span
                           role="button"
