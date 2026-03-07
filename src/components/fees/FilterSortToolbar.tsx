@@ -78,6 +78,7 @@ export function FilterSortToolbar({
   selectedCount,
   hiddenColumns,
   onToggleColumn,
+  fieldMetasList,
 }: Props) {
   const [newViewName, setNewViewName] = useState("");
   const [editingViewId, setEditingViewId] = useState<string | null>(null);
@@ -85,7 +86,8 @@ export function FilterSortToolbar({
   const editInputRef = useRef<HTMLInputElement>(null);
   const dragViewRef = useRef<string | null>(null);
   const [dragOverViewId, setDragOverViewId] = useState<string | null>(null);
-  const visibleFields = fieldMetas.filter((f) => visibleFieldKeys.includes(f.key));
+  const allFields = fieldMetasList || fieldMetas;
+  const visibleFields = allFields.filter((f) => visibleFieldKeys.includes(f.key));
   const hiddenSet = new Set(hiddenColumns);
 
   return (
