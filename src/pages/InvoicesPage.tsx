@@ -673,7 +673,7 @@ export default function InvoicesPage() {
           </DialogHeader>
           <div className="py-4">
             <Select value={selectedTranslator} onValueChange={setSelectedTranslator}>
-              <SelectTrigger>
+              <SelectTrigger className="h-12">
                 {selectedTranslator ? (
                   <AssigneeLabel value={selectedTranslator} />
                 ) : (
