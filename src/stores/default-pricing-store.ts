@@ -80,6 +80,7 @@ const SETTINGS_KEY = "default_pricing";
 
 function notify() {
   listeners.forEach((l) => l());
+  markDirty(SETTINGS_KEY);
   saveSetting(SETTINGS_KEY, store);
 }
 

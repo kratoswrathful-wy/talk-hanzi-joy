@@ -3,8 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 /** Debounced save to app_settings table */
 const saveTimers: Record<string, ReturnType<typeof setTimeout>> = {};
 
-/** Track which keys have been loaded from DB to prevent overwriting before load */
+/** Track which keys have been loaded from DB (load attempted) */
 const loadedKeys = new Set<string>();
+
+/** Track which keys have been explicitly mutated by user actions.
+ *  CRITICAL: Only dirty keys are saved to DB, preventing hardcoded
+ *  defaults from overwriting production data on app init / publish. */
+const dirtyKeys = new Set<string>();
 
 export function isSettingLoaded(key: string): boolean {
   return loadedKeys.has(key);
@@ -14,8 +19,14 @@ export function markSettingLoaded(key: string) {
   loadedKeys.add(key);
 }
 
+/** Mark a key as user-mutated so it can be saved */
+export function markDirty(key: string) {
+  dirtyKeys.add(key);
+}
+
 export function resetLoadedKeys() {
   loadedKeys.clear();
+  dirtyKeys.clear();
   // Also cancel any pending saves
   for (const key of Object.keys(saveTimers)) {
     clearTimeout(saveTimers[key]);
@@ -32,19 +43,25 @@ export async function loadSetting<T>(key: string): Promise<T | null> {
 
   if (error) {
     console.error(`[settings] Failed to load "${key}":`, error.message);
-    // Still mark as loaded so the app can function with defaults
     markSettingLoaded(key);
     return null;
   }
 
   markSettingLoaded(key);
+
+  // If DB had data, mark as dirty so future user edits can also save
+  if (data?.value != null) {
+    dirtyKeys.add(key);
+  }
+
   return data?.value as T | null;
 }
 
 export function saveSetting(key: string, value: unknown, debounceMs = 500) {
   // CRITICAL: Don't save until initial load from DB has completed
-  // This prevents hardcoded defaults from overwriting production data
-  if (!isSettingLoaded(key)) return;
+  // AND the key has been explicitly mutated by user action (dirty).
+  // This prevents hardcoded defaults from overwriting production data.
+  if (!isSettingLoaded(key) || !dirtyKeys.has(key)) return;
 
   clearTimeout(saveTimers[key]);
   saveTimers[key] = setTimeout(async () => {

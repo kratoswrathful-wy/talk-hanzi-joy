@@ -41,6 +41,7 @@ const SETTINGS_KEY = "label_styles";
 
 function notify() {
   listeners.forEach((l) => l());
+  markDirty(SETTINGS_KEY);
   saveSetting(SETTINGS_KEY, state);
 }
 

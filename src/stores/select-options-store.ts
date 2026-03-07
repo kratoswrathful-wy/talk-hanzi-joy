@@ -62,7 +62,8 @@ function persistableSnapshot() {
 
 function notify() {
   listeners.forEach((l) => l());
-  // Auto-save persisted fields to DB
+  // Mark as user-mutated then save
+  markDirty(SETTINGS_KEY);
   saveSetting(SETTINGS_KEY, persistableSnapshot());
 }
 
