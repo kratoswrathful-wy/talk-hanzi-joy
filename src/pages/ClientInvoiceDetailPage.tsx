@@ -362,7 +362,7 @@ export default function ClientInvoiceDetailPage() {
     if (newStatus === "paid") forceCommitPending();
     setShowPartialInput(false);
     setPartialAmount("");
-    toast.success("已記錄部份付款");
+    toast.success("已記錄部份到帳");
   };
 
   const handleNoteChange = (newNote: string) => {
