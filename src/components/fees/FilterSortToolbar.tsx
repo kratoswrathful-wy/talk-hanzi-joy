@@ -65,7 +65,7 @@ interface Props {
   hiddenColumns: string[];
   onToggleColumn: (key: string) => void;
   /** Override the default fieldMetas for use with different table types */
-  fieldMetasList?: { key: string; label: string; type: string }[];
+  fieldMetasList?: FieldMeta[];
 }
 
 export function FilterSortToolbar({
