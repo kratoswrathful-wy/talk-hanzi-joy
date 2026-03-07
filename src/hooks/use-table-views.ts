@@ -283,6 +283,7 @@ export function useTableViews(currentRole?: string) {
     updateSort,
     setColumnOrder,
     setColumnWidth,
+    toggleColumnVisibility,
     applyFiltersAndSorts,
   };
 }
