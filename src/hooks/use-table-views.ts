@@ -158,6 +158,12 @@ export function useTableViews(currentRole?: string) {
     setViews((prev) => prev.map((v) => v.id === viewId ? { ...v, ...updates } : v));
   }, []);
 
+  const toggleColumnVisibility = useCallback((key: string) => {
+    const hidden = activeView.hiddenColumns || [];
+    const next = hidden.includes(key) ? hidden.filter((k) => k !== key) : [...hidden, key];
+    updateView(activeViewId, { hiddenColumns: next });
+  }, [activeViewId, activeView, updateView]);
+
   const addView = useCallback((name: string) => {
     const newView: TableView = {
       ...createDefaultView(),
