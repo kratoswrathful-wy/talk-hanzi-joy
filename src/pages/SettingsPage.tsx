@@ -101,7 +101,11 @@ function ClientPricingSection() {
     selectOptionsStore.addOption("client", label, newColor);
     // Auto-populate hourly pricing (450) for all task types
     for (const tt of taskTypeOptions) {
-      setClientPrice(label, tt.label, "小時", 450);
+      for (const bu of billingUnitOptions) {
+        if (bu.label === "小時") {
+          defaultPricingStore.setClientPrice(label, tt.label, bu.label, 450);
+        }
+      }
     }
     setNewLabel("");
     setNewColor(PRESET_COLORS[0]);
