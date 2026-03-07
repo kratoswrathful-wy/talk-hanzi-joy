@@ -1567,7 +1567,7 @@ export default function TranslatorFeeDetail() {
                           }}
                           onFocus={() => setShowPricingTip(false)}
                           onBlur={(e) => handleNumberBlur(item.id, "unitPrice", e.target.value)}
-                          disabled={!canEdit || isNoFeeTranslator}
+                          disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
                           className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
                         />
                       </TableCell>
