@@ -46,7 +46,7 @@ const roleLabels: Record<UserRole, string> = {
 
 const managerOnlyFields = new Set([
   "client", "contact", "clientCaseId", "clientPoNumber", "hdPath",
-  "reconciled", "rateConfirmed", "invoiced", "sameCase",
+  "reconciled", "rateConfirmed", "invoiced", "sameCase", "dispatchRoute",
   "clientRevenue", "profit", "internalNote",
 ]);
 
