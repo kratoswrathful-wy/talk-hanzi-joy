@@ -82,6 +82,7 @@ function initDefaults() {
         { id: "opt-t4", label: "LQA", color: PRESET_COLORS[11] },
       ],
       customColors: [],
+      manualOrder: true,
     },
     billingUnit: {
       options: [
