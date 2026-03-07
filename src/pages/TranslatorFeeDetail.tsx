@@ -1054,7 +1054,7 @@ export default function TranslatorFeeDetail() {
             const updatedClientInfo = {
               ...clientInfo,
               clientTaskItems: clientInfo.clientTaskItems.map((item, idx) =>
-                idx === 0 ? { ...item, unitCount, billingUnit: "字" as BillingUnit } : item
+                idx === 0 ? { ...item, unitCount, billingUnit } : item
               ),
             };
             feeStore.updateFee(id, { clientInfo: updatedClientInfo });
