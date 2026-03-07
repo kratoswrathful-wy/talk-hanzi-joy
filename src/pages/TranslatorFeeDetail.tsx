@@ -1767,7 +1767,7 @@ export default function TranslatorFeeDetail() {
               <CommentInput
                 draft={internalCommentDraft}
                 setDraft={setInternalCommentDraft}
-                placeholder="輸入內部備註..."
+                placeholder="輸入費用內部備註..."
                 onSubmit={(content, imageUrls) => {
                   setInternalComments((prev) => [...prev, {
                     id: `icomment-${Date.now()}`,

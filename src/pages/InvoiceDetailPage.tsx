@@ -732,7 +732,7 @@ export default function InvoiceDetailPage() {
               <CommentInput
                 draft={internalCommentDraft}
                 setDraft={setInternalCommentDraft}
-                placeholder="輸入內部備註..."
+                placeholder="輸入稿費請款內部備註..."
                 onSubmit={handleAddInternalComment}
               />
             </div>
