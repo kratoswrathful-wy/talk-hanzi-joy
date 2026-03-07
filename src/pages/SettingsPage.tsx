@@ -433,13 +433,7 @@ function TaskTypeOrderSection() {
 
   const handleDeleteTaskType = (optId: string) => {
     const opt = taskTypeOptions.find((o) => o.id === optId);
-    selectOptionsStore.deleteOption("clientTaskType", optId);
-    // Also remove from the fee-side taskType field
-    if (opt) {
-      const feeOpts = selectOptionsStore.getField("taskType").options;
-      const feeOpt = feeOpts.find((o) => o.label === opt.label);
-      if (feeOpt) selectOptionsStore.deleteOption("taskType", feeOpt.id);
-    }
+    selectOptionsStore.deleteOption("taskType", optId);
   };
 
   const handleColorChange = (optId: string, color: string) => {
