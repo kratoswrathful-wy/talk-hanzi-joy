@@ -350,32 +350,41 @@ function FeeStatusBadge({ status }: { status: FeeStatus }) {
 
 function ClientLabel({ value }: { value: string }) {
   const { options } = useSelectOptions("client");
+  const labelStyles = useLabelStyles();
+  const labelTextColor = labelStyles.client.textColor;
   const opt = options.find((o) => o.label === value);
   if (!value) return <span className="truncate text-sm text-muted-foreground">—</span>;
   return (
-    <Badge
-      variant="outline"
-      className="text-xs whitespace-nowrap border font-normal"
-      style={opt ? { backgroundColor: opt.color + "22", color: opt.color, borderColor: opt.color + "44" } : undefined}
+    <span
+      className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap"
+      style={{
+        backgroundColor: opt?.color || "#6B7280",
+        color: labelTextColor,
+        borderColor: opt?.color || "#6B7280",
+      }}
     >
-      {opt && <span className="inline-block w-2 h-2 rounded-full shrink-0 mr-1" style={{ backgroundColor: opt.color }} />}
-      {value}
-    </Badge>
+      <span className="truncate">{value}</span>
+    </span>
   );
 }
 
 function DispatchRouteLabel({ value }: { value: string }) {
   const { options } = useSelectOptions("dispatchRoute");
+  const labelStyles = useLabelStyles();
+  const labelTextColor = labelStyles.dispatchRoute.textColor;
   const opt = options.find((o) => o.label === value);
   if (!value) return <span className="truncate text-sm text-muted-foreground">—</span>;
   return (
-    <Badge
-      variant="outline"
-      className="text-xs whitespace-nowrap border font-normal"
-      style={opt ? { backgroundColor: opt.color + "22", color: opt.color, borderColor: opt.color + "44" } : undefined}
+    <span
+      className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap"
+      style={{
+        backgroundColor: opt?.color || "#6B7280",
+        color: labelTextColor,
+        borderColor: opt?.color || "#6B7280",
+      }}
     >
-      {value}
-    </Badge>
+      <span className="truncate">{value}</span>
+    </span>
   );
 }
 
