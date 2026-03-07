@@ -749,6 +749,11 @@ export default function TranslatorFeeDetail() {
           const existingClients = selectOptionsStore.getSortedOptions("client");
           if (!existingClients.find((o) => o.label === client)) {
             selectOptionsStore.addOption("client", client, PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]);
+            // Auto-populate hourly pricing (450) for all task types
+            const taskTypes = selectOptionsStore.getSortedOptions("clientTaskType");
+            for (const tt of taskTypes) {
+              defaultPricingStore.setClientPrice(client, tt.label, "小時", 450);
+            }
             autoCreated.push({ field: "客戶", label: client });
           }
         }
