@@ -530,7 +530,7 @@ export default function TranslatorFees() {
     const val = isUndo ? entry.oldValue : entry.newValue;
     const fee = feeStore.getFeeById(entry.feeId);
     if (!fee) return;
-    if (["client", "clientCaseId", "clientPoNumber", "reconciled", "rateConfirmed", "invoiced"].includes(entry.field)) {
+    if (["client", "contact", "clientCaseId", "clientPoNumber", "dispatchRoute", "reconciled", "rateConfirmed", "invoiced", "sameCase"].includes(entry.field)) {
       const ci = fee.clientInfo || {
         clientTaskItems: [], sameCase: false, isFirstFee: false, notFirstFee: false,
         client: "", contact: "", clientCaseId: "", eciKeywords: "", clientPoNumber: "",
