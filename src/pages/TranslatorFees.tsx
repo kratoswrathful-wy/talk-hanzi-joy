@@ -353,10 +353,29 @@ function ClientLabel({ value }: { value: string }) {
   const opt = options.find((o) => o.label === value);
   if (!value) return <span className="truncate text-sm text-muted-foreground">—</span>;
   return (
-    <span className="inline-flex items-center gap-1.5 truncate text-sm">
-      {opt && <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: opt.color }} />}
+    <Badge
+      variant="outline"
+      className="text-xs whitespace-nowrap border font-normal"
+      style={opt ? { backgroundColor: opt.color + "22", color: opt.color, borderColor: opt.color + "44" } : undefined}
+    >
+      {opt && <span className="inline-block w-2 h-2 rounded-full shrink-0 mr-1" style={{ backgroundColor: opt.color }} />}
       {value}
-    </span>
+    </Badge>
+  );
+}
+
+function DispatchRouteLabel({ value }: { value: string }) {
+  const { options } = useSelectOptions("dispatchRoute");
+  const opt = options.find((o) => o.label === value);
+  if (!value) return <span className="truncate text-sm text-muted-foreground">—</span>;
+  return (
+    <Badge
+      variant="outline"
+      className="text-xs whitespace-nowrap border font-normal"
+      style={opt ? { backgroundColor: opt.color + "22", color: opt.color, borderColor: opt.color + "44" } : undefined}
+    >
+      {value}
+    </Badge>
   );
 }
 
