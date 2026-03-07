@@ -1747,12 +1747,12 @@ export default function TranslatorFeeDetail() {
           />
         </div>
 
-        {/* 內部備註 — visible to PM+ only */}
+        {/* 費用內部備註 — visible to PM+ only */}
         {isManager && (
           <>
             <Separator />
             <div className="space-y-3">
-              <Label className="text-sm font-medium">內部備註</Label>
+              <Label className="text-sm font-medium">費用內部備註</Label>
               <div className="space-y-2">
                 {internalComments.map((c) => (
                   <div key={c.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
