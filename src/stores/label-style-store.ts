@@ -93,6 +93,15 @@ export const labelStyleStore = {
   },
 
   getSnapshot: () => state,
+
+  /** Load persisted label styles from DB */
+  loadSettings: async () => {
+    const saved = await loadSetting<LabelStyleState>(SETTINGS_KEY);
+    if (saved && typeof saved === "object") {
+      state = { ...DEFAULT_STATE, ...saved };
+      listeners.forEach((l) => l());
+    }
+  },
 };
 
 export function useLabelStyles() {

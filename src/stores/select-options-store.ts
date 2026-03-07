@@ -283,7 +283,21 @@ export const selectOptionsStore = {
       ...store,
       assignee: { ...store.assignee, options },
     };
-    notify();
+    // Don't persist assignee to settings – just notify
+    listeners.forEach((l) => l());
+  },
+
+  /** Load persisted settings from DB (non-assignee fields) */
+  loadSettings: async () => {
+    const saved = await loadSetting<Record<string, FieldOptions>>(SETTINGS_KEY);
+    if (saved && typeof saved === "object") {
+      for (const key of PERSISTED_FIELDS) {
+        if (saved[key]) {
+          store = { ...store, [key]: saved[key] };
+        }
+      }
+      listeners.forEach((l) => l());
+    }
   },
 };
 
