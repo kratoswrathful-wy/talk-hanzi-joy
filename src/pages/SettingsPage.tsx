@@ -103,7 +103,7 @@ function ClientPricingSection() {
     setAdding(false);
   };
 
-  const cellKey = (client: string, taskType: string) => `${client}::${taskType}`;
+  const cellKey = (client: string, taskType: string, billingUnit: string) => `${client}::${taskType}::${billingUnit}`;
 
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
