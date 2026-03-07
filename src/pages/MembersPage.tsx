@@ -299,25 +299,25 @@ export default function MembersPage() {
                     <div className="flex items-center gap-2 shrink-0">
                       {member.isInvitation ? (
                         <Badge variant="secondary" className="text-xs">
-                          {roleLabels[member.role]}
+                          {getRoleLabel(member.role)}
                         </Badge>
                       ) : isExecutive ? (
                         <Select
                           value={member.role}
                           onValueChange={(v) => handleRoleChange(member, v as AppRole)}
                         >
-                          <SelectTrigger className="w-24 h-8 text-xs">
+                          <SelectTrigger className="w-28 h-8 text-xs">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="member">譯者</SelectItem>
-                            <SelectItem value="pm">PM</SelectItem>
-                            <SelectItem value="executive">執行官</SelectItem>
+                            {permRoles.map((r) => (
+                              <SelectItem key={r.key} value={r.key}>{r.label}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       ) : (
                         <Badge variant="secondary" className="text-xs">
-                          {roleLabels[member.role]}
+                          {getRoleLabel(member.role)}
                         </Badge>
                       )}
                       {isExecutive && (
