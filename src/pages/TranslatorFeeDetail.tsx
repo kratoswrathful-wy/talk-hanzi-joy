@@ -1319,7 +1319,7 @@ export default function TranslatorFeeDetail() {
               <ColorSelect
                 fieldKey="assignee"
                 value={assignee}
-                disabled={!canEdit}
+                disabled={!canEdit || clientInfo.rateConfirmed}
                 onValueChange={(v) => {
                   trackChange("譯者", assignee, v);
                   setAssignee(v);
