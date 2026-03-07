@@ -1588,10 +1588,10 @@ export default function TranslatorFeeDetail() {
                       <TableCell className="text-right text-xs font-medium">
                         {isNoFeeTranslator ? 0 : (Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}
                       </TableCell>
-                      {canEdit && !clientInfo.rateConfirmed && (
+                      {canEdit && (
                         <TableCell className="px-2">
                           <div className="flex justify-center">
-                            {taskItems.length > 1 ? (
+                            {!clientInfo.rateConfirmed && taskItems.length > 1 ? (
                               <Button
                                 variant="ghost"
                                 size="icon"
