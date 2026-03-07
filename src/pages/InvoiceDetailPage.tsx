@@ -725,6 +725,7 @@ export default function InvoiceDetailPage() {
             </div>
           </>
         )}
+        </div>
       </motion.div>
 
       {/* Delete invoice dialog */}
