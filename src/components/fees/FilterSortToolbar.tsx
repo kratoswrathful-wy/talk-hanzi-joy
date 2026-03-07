@@ -213,6 +213,7 @@ export function FilterSortToolbar({
                     visibleFields={visibleFields}
                     onUpdateFilter={onUpdateFilter}
                     onRemoveFilter={onRemoveFilter}
+                    statusOptionsList={statusOptionsList}
                   />
                 );
               })}
