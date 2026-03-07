@@ -66,7 +66,9 @@ function getFieldValue(fee: TranslatorFee, field: string): string | number | boo
     case "taskSummary": return fee.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
     case "client": return fee.clientInfo?.client || "";
     case "clientCaseId": return fee.clientInfo?.clientCaseId || "";
+    case "contact": return fee.clientInfo?.contact || "";
     case "clientPoNumber": return fee.clientInfo?.clientPoNumber || "";
+    case "dispatchRoute": return fee.clientInfo?.dispatchRoute || "";
     case "clientRevenue": {
       if (!fee.clientInfo || fee.clientInfo.notFirstFee) return 0;
       return fee.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
