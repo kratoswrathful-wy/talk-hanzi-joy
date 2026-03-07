@@ -339,6 +339,7 @@ export default function PermissionsPage() {
       },
     };
     await saveConfig({ ...config, module_permissions: newModulePerms });
+  };
 
   if (!isExecutive) {
     return (
