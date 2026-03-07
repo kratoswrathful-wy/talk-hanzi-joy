@@ -1452,7 +1452,7 @@ export default function TranslatorFeeDetail() {
                 <ColorSelect
                   fieldKey="contact"
                   value={clientInfo.contact}
-                  disabled={!canEdit}
+                  disabled={!canEdit || clientInfo.reconciled}
                   onValueChange={(v) => {
                     trackChange("聯絡人", clientInfo.contact, v);
                     const updated = { ...clientInfo, contact: v };
