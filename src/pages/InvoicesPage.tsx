@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Plus, ExternalLink, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import AssigneeTag from "@/components/AssigneeTag";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -268,18 +269,16 @@ export default function InvoicesPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">請款單管理</h1>
-          </div>
-          <Button size="sm" className="gap-1.5" onClick={handleCreateInvoice}>
-            <Plus className="h-4 w-4" />
-            新增請款單
-          </Button>
+      <div className="flex items-center gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">請款單管理</h1>
         </div>
-        <div className="flex items-center gap-2">
-          {canDelete && (
+        <Button size="sm" className="gap-1.5" onClick={handleCreateInvoice}>
+          <Plus className="h-4 w-4" />
+          新增請款單
+        </Button>
+        {canDelete && (
+          <>
             <Button
               variant="ghost"
               size="icon"
@@ -289,8 +288,11 @@ export default function InvoicesPage() {
             >
               <Trash2 className="h-4.5 w-4.5" />
             </Button>
-          )}
-        </div>
+            <Badge variant="default" className="h-6 text-xs">
+              已選取 {rowSelection.selectedCount} 個項目
+            </Badge>
+          </>
+        )}
       </div>
 
       <motion.div
@@ -364,10 +366,11 @@ export default function InvoicesPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="inline-flex items-center gap-1.5 truncate text-sm">
-                      {opt && <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: opt.color }} />}
-                      {inv.translator || <span className="text-muted-foreground italic">未指定</span>}
-                    </span>
+                    {inv.translator ? (
+                      <AssigneeTag label={inv.translator} avatarUrl={opt?.avatarUrl} />
+                    ) : (
+                      <span className="text-muted-foreground italic text-sm">未指定</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <InvoiceStatusBadge status={inv.status} />
