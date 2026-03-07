@@ -92,12 +92,17 @@ export const defaultPricingStore = {
   // --- Client pricing ---
   getClientPrice: (client: string, taskType: string, billingUnit?: string): number | undefined => {
     if (billingUnit) {
-      return store.clientPricing[client]?.[clientPricingKey(taskType, billingUnit)];
+      const explicit = store.clientPricing[client]?.[clientPricingKey(taskType, billingUnit)];
+      if (explicit !== undefined) return explicit;
+      // Global fallback: all hourly services default to 450
+      if (billingUnit === "小時") return 450;
+      return undefined;
     }
     // fallback: try both units, prefer 字
     return store.clientPricing[client]?.[clientPricingKey(taskType, "字")]
       ?? store.clientPricing[client]?.[clientPricingKey(taskType, "小時")]
-      ?? store.clientPricing[client]?.[taskType]; // legacy key fallback
+      ?? store.clientPricing[client]?.[taskType] // legacy key fallback
+      ?? (undefined); // no global fallback without explicit billingUnit
   },
 
   setClientPrice: (client: string, taskType: string, billingUnit: string, price: number) => {
