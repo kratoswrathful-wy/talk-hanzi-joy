@@ -1031,7 +1031,7 @@ export default function TranslatorFeeDetail() {
           const mappedClientItems: import("@/data/fee-mock-data").ClientTaskItem[] = workTypes.map((wt: string, idx: number) => {
             const matchedType = matchTaskType(wt);
             const cp = clientInfo.client
-              ? defaultPricingStore.getClientPrice(clientInfo.client, matchedType as string) ?? 0
+              ? defaultPricingStore.getClientPrice(clientInfo.client, matchedType as string, billingUnit) ?? 0
               : 0;
             return {
               id: `ci-notion-${Date.now()}-${idx}`,
