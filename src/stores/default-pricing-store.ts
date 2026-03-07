@@ -22,13 +22,30 @@ export interface TranslatorTier {
 
 type Listener = () => void;
 
+/** Helper to build composite key for client pricing: taskType::billingUnit */
+export function clientPricingKey(taskType: string, billingUnit: string): string {
+  return `${taskType}::${billingUnit}`;
+}
+
+/** Parse composite key back to { taskType, billingUnit } */
+export function parseClientPricingKey(key: string): { taskType: string; billingUnit: string } {
+  const idx = key.lastIndexOf("::");
+  if (idx === -1) return { taskType: key, billingUnit: "字" }; // legacy fallback
+  return { taskType: key.slice(0, idx), billingUnit: key.slice(idx + 2) };
+}
+
 interface PricingStore {
   clientPricing: Record<string, Record<string, number>>;
   translatorTiers: TranslatorTier[];
 }
 
 const defaultClientPricing: Record<string, Record<string, number>> = {
-  CCJK: { "翻譯": 1.2, "校對": 0.6, "MTPE": 0.9, "LQA": 450 },
+  CCJK: {
+    [clientPricingKey("翻譯", "字")]: 1.2,
+    [clientPricingKey("校對", "字")]: 0.6,
+    [clientPricingKey("MTPE", "字")]: 0.9,
+    [clientPricingKey("LQA", "小時")]: 450,
+  },
 };
 
 const grpTranslation = "grp-default-translation";
