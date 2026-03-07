@@ -630,20 +630,24 @@ export default function ClientInvoicesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Client name input for creation */}
+      {/* Client selection for creation */}
       <Dialog open={showClientInput} onOpenChange={setShowClientInput}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>請輸入客戶名稱</DialogTitle>
+            <DialogTitle>選擇客戶</DialogTitle>
           </DialogHeader>
-          <div className="py-4">
-            <Input
-              value={newClientName}
-              onChange={(e) => setNewClientName(e.target.value)}
-              placeholder="客戶名稱…"
-              onKeyDown={(e) => { if (e.key === "Enter") handleConfirmCreate(); }}
-              autoFocus
-            />
+          <div className="py-4 space-y-3">
+            <Label>客戶</Label>
+            <Select value={newClientName} onValueChange={setNewClientName}>
+              <SelectTrigger>
+                <SelectValue placeholder="選擇客戶…" />
+              </SelectTrigger>
+              <SelectContent>
+                {clientOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowClientInput(false)}>取消</Button>
