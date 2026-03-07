@@ -366,10 +366,11 @@ export default function InvoicesPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="inline-flex items-center gap-1.5 truncate text-sm">
-                      {opt && <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: opt.color }} />}
-                      {inv.translator || <span className="text-muted-foreground italic">未指定</span>}
-                    </span>
+                    {inv.translator ? (
+                      <AssigneeTag label={inv.translator} avatarUrl={opt?.avatarUrl} />
+                    ) : (
+                      <span className="text-muted-foreground italic text-sm">未指定</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <InvoiceStatusBadge status={inv.status} />
