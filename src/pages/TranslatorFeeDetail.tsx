@@ -1029,7 +1029,7 @@ export default function TranslatorFeeDetail() {
             return {
               id: `ci-notion-${Date.now()}-${idx}`,
               taskType: matchedType as TaskType,
-              billingUnit: "字" as BillingUnit,
+              billingUnit,
               unitCount: idx === 0 && unitCount ? unitCount : 0,
               clientPrice: cp,
             };
