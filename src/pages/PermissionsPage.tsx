@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { usePermissions, type PermissionConfig } from "@/hooks/use-permissions";
+import { usePermissions, type PermissionConfig, type RoleDefinition, getAllRolesOrdered } from "@/hooks/use-permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,22 +22,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ChevronDown, ChevronRight, Plus, Trash2, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Trash2, Loader2, GripVertical } from "lucide-react";
 import { toast } from "sonner";
-
-type AppRole = "member" | "pm" | "executive";
-const BUILT_IN_ROLES: AppRole[] = ["member", "pm", "executive"];
-const BUILT_IN_LABELS: Record<string, string> = {
-  member: "譯者",
-  pm: "PM",
-  executive: "執行官",
-};
-
-export interface RoleDefinition {
-  key: string;
-  label: string;
-  builtIn: boolean;
-}
 
 // ─── Permission structure definitions ───
 
@@ -212,14 +198,9 @@ function getItemPerm(modulePerms: ModulePerms, itemKey: string, permType: "view"
 export default function PermissionsPage() {
   const { roles } = useAuth();
   const isExecutive = roles.some((r) => r.role === "executive");
-  const { config, loading, updateConfig } = usePermissions();
+  const { config, loading, updateConfig, allRoles } = usePermissions();
 
   const customRoles: RoleDefinition[] = (config as any).custom_roles || [];
-
-  const allRoles: RoleDefinition[] = [
-    ...BUILT_IN_ROLES.map((r) => ({ key: r, label: BUILT_IN_LABELS[r], builtIn: true })),
-    ...customRoles,
-  ];
 
   const [newRoleName, setNewRoleName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<RoleDefinition | null>(null);
@@ -227,6 +208,8 @@ export default function PermissionsPage() {
   const [expandedRole, setExpandedRole] = useState<string | null>(null);
   const [rolesSectionOpen, setRolesSectionOpen] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   const saveConfig = useCallback(async (newConfig: any) => {
     setSaving(true);
@@ -236,7 +219,8 @@ export default function PermissionsPage() {
   }, [updateConfig]);
 
   const saveCustomRoles = useCallback(async (newCustomRoles: RoleDefinition[]) => {
-    return saveConfig({ ...config, custom_roles: newCustomRoles });
+    const newOrder = getAllRolesOrdered({ ...config, custom_roles: newCustomRoles }).map((r) => r.key);
+    return saveConfig({ ...config, custom_roles: newCustomRoles, role_order: newOrder });
   }, [config, saveConfig]);
 
   const handleAddRole = async () => {
@@ -284,6 +268,24 @@ export default function PermissionsPage() {
   const handleCancelDelete = () => {
     setDeleteTarget(null);
     setDeleteStep(1);
+  };
+
+  // Drag-and-drop reorder
+  const handleDragEnd = async () => {
+    if (draggedIdx === null || dragOverIdx === null || draggedIdx === dragOverIdx) {
+      setDraggedIdx(null);
+      setDragOverIdx(null);
+      return;
+    }
+    const reordered = [...allRoles];
+    const [moved] = reordered.splice(draggedIdx, 1);
+    reordered.splice(dragOverIdx, 0, moved);
+    const newOrder = reordered.map((r) => r.key);
+    const newCustomRoles = reordered.filter((r) => !r.builtIn);
+    setDraggedIdx(null);
+    setDragOverIdx(null);
+    await saveConfig({ ...config, custom_roles: newCustomRoles, role_order: newOrder });
+    toast.success("排序已更新");
   };
 
   // Toggle module visibility
@@ -392,12 +394,22 @@ export default function PermissionsPage() {
               </div>
 
               <div className="divide-y divide-border">
-                {allRoles.map((role) => {
+                {allRoles.map((role, idx) => {
                   const isExpanded = expandedRole === role.key;
                   return (
-                    <div key={role.key} className="py-3">
+                    <div
+                      key={role.key}
+                      className={`py-3 transition-colors ${dragOverIdx === idx ? "bg-accent/40" : ""}`}
+                      draggable
+                      onDragStart={() => setDraggedIdx(idx)}
+                      onDragOver={(e) => { e.preventDefault(); setDragOverIdx(idx); }}
+                      onDragLeave={() => setDragOverIdx(null)}
+                      onDrop={(e) => { e.preventDefault(); handleDragEnd(); }}
+                      onDragEnd={() => { setDraggedIdx(null); setDragOverIdx(null); }}
+                    >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
+                          <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab shrink-0" />
                           <Button
                             variant="ghost"
                             size="icon"

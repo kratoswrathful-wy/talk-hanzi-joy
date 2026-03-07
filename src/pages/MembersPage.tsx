@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, KeyboardEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,8 +20,8 @@ import {
 import { toast } from "sonner";
 import { Loader2, Trash2, UserPlus, X } from "lucide-react";
 
-type AppRole = "member" | "pm" | "executive";
-const roleLabels: Record<AppRole, string> = { member: "譯者", pm: "PM", executive: "執行官" };
+type AppRole = string;
+const DEFAULT_ROLE_LABELS: Record<string, string> = { member: "譯者", pm: "PM", executive: "執行官" };
 
 interface Member {
   id: string;
@@ -135,7 +136,12 @@ function EmailTagInput({
 
 export default function MembersPage() {
   const { isAdmin, user, roles } = useAuth();
+  const { allRoles: permRoles } = usePermissions();
   const isExecutive = roles.some((r) => r.role === "executive");
+  const getRoleLabel = (key: string) => {
+    const found = permRoles.find((r) => r.key === key);
+    return found?.label || DEFAULT_ROLE_LABELS[key] || key;
+  };
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -186,7 +192,7 @@ export default function MembersPage() {
     for (const email of inviteEmails) {
       const { error } = await supabase.from("invitations").insert({
         email,
-        role: "member" as AppRole, // Always default to 譯者
+        role: "member" as "member" | "pm" | "executive",
         invited_by: user?.id,
       });
 
@@ -214,7 +220,7 @@ export default function MembersPage() {
   const handleRoleChange = async (member: Member, newRole: AppRole) => {
     // Only allow role change for registered members (not invitations)
     if (member.isInvitation) return;
-    await supabase.from("user_roles").update({ role: newRole }).eq("user_id", member.id);
+    await supabase.from("user_roles").update({ role: newRole as "member" | "pm" | "executive" }).eq("user_id", member.id);
     fetchMembers();
     toast.success("角色已更新");
   };
@@ -293,25 +299,25 @@ export default function MembersPage() {
                     <div className="flex items-center gap-2 shrink-0">
                       {member.isInvitation ? (
                         <Badge variant="secondary" className="text-xs">
-                          {roleLabels[member.role]}
+                          {getRoleLabel(member.role)}
                         </Badge>
                       ) : isExecutive ? (
                         <Select
                           value={member.role}
                           onValueChange={(v) => handleRoleChange(member, v as AppRole)}
                         >
-                          <SelectTrigger className="w-24 h-8 text-xs">
+                          <SelectTrigger className="w-28 h-8 text-xs">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="member">譯者</SelectItem>
-                            <SelectItem value="pm">PM</SelectItem>
-                            <SelectItem value="executive">執行官</SelectItem>
+                            {permRoles.map((r) => (
+                              <SelectItem key={r.key} value={r.key}>{r.label}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       ) : (
                         <Badge variant="secondary" className="text-xs">
-                          {roleLabels[member.role]}
+                          {getRoleLabel(member.role)}
                         </Badge>
                       )}
                       {isExecutive && (
