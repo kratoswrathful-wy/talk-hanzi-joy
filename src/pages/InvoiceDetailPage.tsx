@@ -1,6 +1,7 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Plus, Trash2, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import AssigneeTag from "@/components/AssigneeTag";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
