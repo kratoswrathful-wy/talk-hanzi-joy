@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   type TableFilter, type TableSort, type TableView, type FilterOperator,
+  type FieldMeta,
   fieldMetas,
 } from "@/hooks/use-table-views";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,7 @@ import { useSelectOptions } from "@/stores/select-options-store";
 /** Maps field keys to their selectOptionsStore keys */
 const fieldToStoreKey: Record<string, string> = {
   assignee: "assignee",
+  translator: "assignee",
   client: "client",
   status: "status",
   dispatchRoute: "dispatchRoute",
@@ -64,6 +66,10 @@ interface Props {
   selectedCount: number;
   hiddenColumns: string[];
   onToggleColumn: (key: string) => void;
+  /** Override the default fieldMetas for use with different table types */
+  fieldMetasList?: FieldMeta[];
+  /** Override status options for filter dropdowns (default: fee statuses) */
+  statusOptionsList?: { value: string; label: string }[];
 }
 
 export function FilterSortToolbar({
@@ -76,6 +82,8 @@ export function FilterSortToolbar({
   selectedCount,
   hiddenColumns,
   onToggleColumn,
+  fieldMetasList,
+  statusOptionsList,
 }: Props) {
   const [newViewName, setNewViewName] = useState("");
   const [editingViewId, setEditingViewId] = useState<string | null>(null);
@@ -83,7 +91,8 @@ export function FilterSortToolbar({
   const editInputRef = useRef<HTMLInputElement>(null);
   const dragViewRef = useRef<string | null>(null);
   const [dragOverViewId, setDragOverViewId] = useState<string | null>(null);
-  const visibleFields = fieldMetas.filter((f) => visibleFieldKeys.includes(f.key));
+  const allFields = fieldMetasList || fieldMetas;
+  const visibleFields = allFields.filter((f) => visibleFieldKeys.includes(f.key));
   const hiddenSet = new Set(hiddenColumns);
 
   return (
@@ -194,7 +203,7 @@ export function FilterSortToolbar({
                 <p className="text-xs text-muted-foreground italic py-2">尚未新增篩選條件</p>
               )}
               {activeView.filters.map((filter) => {
-                const meta = fieldMetas.find((f) => f.key === filter.field);
+                const meta = allFields.find((f) => f.key === filter.field);
                 const ops = meta ? getOperatorsForType(meta.type) : [];
                 return (
                   <FilterRow
@@ -205,6 +214,7 @@ export function FilterSortToolbar({
                     visibleFields={visibleFields}
                     onUpdateFilter={onUpdateFilter}
                     onRemoveFilter={onRemoveFilter}
+                    statusOptionsList={statusOptionsList}
                   />
                 );
               })}
@@ -309,7 +319,7 @@ export function FilterSortToolbar({
 
         {/* Active filter/sort pills */}
         {activeView.filters.map((filter) => {
-          const meta = fieldMetas.find((f) => f.key === filter.field);
+          const meta = allFields.find((f) => f.key === filter.field);
           return (
             <Badge key={filter.id} variant="secondary" className="h-6 gap-1 text-xs font-normal">
               {meta?.label} {operatorLabels[filter.operator]} {needsValueInput(filter.operator) ? `"${filter.value}"` : ""}
@@ -320,7 +330,7 @@ export function FilterSortToolbar({
           );
         })}
         {activeView.sorts.map((sort) => {
-          const meta = fieldMetas.find((f) => f.key === sort.field);
+          const meta = allFields.find((f) => f.key === sort.field);
           return (
             <Badge key={sort.id} variant="secondary" className="h-6 gap-1 text-xs font-normal">
               {meta?.label} {sort.direction === "asc" ? "↑" : "↓"}
@@ -360,9 +370,10 @@ interface FilterRowProps {
   visibleFields: (typeof fieldMetas)[number][];
   onUpdateFilter: (id: string, updates: Partial<TableFilter>) => void;
   onRemoveFilter: (id: string) => void;
+  statusOptionsList?: { value: string; label: string }[];
 }
 
-function FilterRow({ filter, meta, ops, visibleFields, onUpdateFilter, onRemoveFilter }: FilterRowProps) {
+function FilterRow({ filter, meta, ops, visibleFields, onUpdateFilter, onRemoveFilter, statusOptionsList }: FilterRowProps) {
   const storeKey = meta ? fieldToStoreKey[meta.key] : undefined;
   const isSelectType = meta?.type === "select";
   
@@ -370,7 +381,7 @@ function FilterRow({ filter, meta, ops, visibleFields, onUpdateFilter, onRemoveF
   const { options: storeOptions } = useSelectOptions(storeKey || "__noop__");
   
   const selectOpts: { value: string; label: string }[] | null = (() => {
-    if (filter.field === "status") return statusOptions;
+    if (filter.field === "status") return statusOptionsList || statusOptions;
     if (isSelectType && storeKey) {
       return storeOptions.map((o) => ({ value: o.label, label: o.label }));
     }
