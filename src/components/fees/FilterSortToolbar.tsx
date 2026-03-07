@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   type TableFilter, type TableSort, type TableView, type FilterOperator,
+  type FieldMeta,
   fieldMetas,
 } from "@/hooks/use-table-views";
 import { cn } from "@/lib/utils";
