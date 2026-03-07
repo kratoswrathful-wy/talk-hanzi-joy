@@ -10,12 +10,61 @@ export interface FieldPermission {
 export interface PermissionConfig {
   fields: Record<string, Record<string, FieldPermission>>;
   settings_sections: Record<string, Record<string, boolean>>;
+  custom_roles?: RoleDefinition[];
+  role_order?: string[];
+  module_permissions?: any;
 }
+
+export interface RoleDefinition {
+  key: string;
+  label: string;
+  builtIn: boolean;
+}
+
+const BUILT_IN_ROLES = ["member", "pm", "executive"];
+const BUILT_IN_LABELS: Record<string, string> = {
+  member: "譯者",
+  pm: "PM",
+  executive: "執行官",
+};
 
 const DEFAULT_CONFIG: PermissionConfig = {
   fields: {},
   settings_sections: {},
 };
+
+/** Build ordered list of all roles from config */
+export function getAllRolesOrdered(config: PermissionConfig): RoleDefinition[] {
+  const builtInRoles: RoleDefinition[] = BUILT_IN_ROLES.map((r) => ({
+    key: r,
+    label: BUILT_IN_LABELS[r],
+    builtIn: true,
+  }));
+  const customRoles: RoleDefinition[] = config.custom_roles || [];
+  const allRolesMap = new Map<string, RoleDefinition>();
+  for (const r of [...builtInRoles, ...customRoles]) {
+    allRolesMap.set(r.key, r);
+  }
+
+  const order = config.role_order;
+  if (order && order.length > 0) {
+    const ordered: RoleDefinition[] = [];
+    for (const key of order) {
+      const role = allRolesMap.get(key);
+      if (role) {
+        ordered.push(role);
+        allRolesMap.delete(key);
+      }
+    }
+    // Append any roles not in the order array
+    for (const role of allRolesMap.values()) {
+      ordered.push(role);
+    }
+    return ordered;
+  }
+
+  return [...builtInRoles, ...customRoles];
+}
 
 export function usePermissions() {
   const { primaryRole } = useAuth();
@@ -41,7 +90,7 @@ export function usePermissions() {
   const canViewField = useCallback(
     (fieldKey: string): boolean => {
       const roleConfig = config.fields[primaryRole];
-      if (!roleConfig || !roleConfig[fieldKey]) return true; // default: visible
+      if (!roleConfig || !roleConfig[fieldKey]) return true;
       return roleConfig[fieldKey].view;
     },
     [config, primaryRole]
@@ -67,7 +116,6 @@ export function usePermissions() {
 
   const updateConfig = useCallback(
     async (newConfig: PermissionConfig) => {
-      // Try update first, if no rows exist, insert
       const { data: existing } = await supabase
         .from("permission_settings")
         .select("id")
@@ -94,6 +142,8 @@ export function usePermissions() {
     []
   );
 
+  const allRoles = getAllRolesOrdered(config);
+
   return {
     config,
     loading,
@@ -102,5 +152,6 @@ export function usePermissions() {
     canViewSection,
     updateConfig,
     refetch: fetchConfig,
+    allRoles,
   };
 }
