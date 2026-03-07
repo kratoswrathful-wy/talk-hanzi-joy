@@ -647,7 +647,7 @@ export default function ClientInvoicesPage() {
               </SelectTrigger>
               <SelectContent>
                 {clientOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  <SelectItem key={opt.id} value={opt.label}>{opt.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
