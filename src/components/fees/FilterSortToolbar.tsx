@@ -369,9 +369,10 @@ interface FilterRowProps {
   visibleFields: (typeof fieldMetas)[number][];
   onUpdateFilter: (id: string, updates: Partial<TableFilter>) => void;
   onRemoveFilter: (id: string) => void;
+  statusOptionsList?: { value: string; label: string }[];
 }
 
-function FilterRow({ filter, meta, ops, visibleFields, onUpdateFilter, onRemoveFilter }: FilterRowProps) {
+function FilterRow({ filter, meta, ops, visibleFields, onUpdateFilter, onRemoveFilter, statusOptionsList }: FilterRowProps) {
   const storeKey = meta ? fieldToStoreKey[meta.key] : undefined;
   const isSelectType = meta?.type === "select";
   
