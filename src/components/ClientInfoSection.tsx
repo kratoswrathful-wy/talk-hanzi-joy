@@ -234,6 +234,7 @@ export default function ClientInfoSection({
                 onValueChange={(v) => update("dispatchRoute", v)}
                 triggerClassName="h-7 text-xs min-w-[90px]"
                 placeholder="選擇"
+                disabled={clientInfo.reconciled}
               />
             </div>
           </div>
