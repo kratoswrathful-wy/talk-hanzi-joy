@@ -450,7 +450,7 @@ export default function InvoicesPage() {
     doDelete();
   }, [password, user, doDelete]);
 
-  const canDelete = isAdmin && rowSelection.selectedCount > 0;
+  const canDelete = rowSelection.selectedCount > 0;
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">

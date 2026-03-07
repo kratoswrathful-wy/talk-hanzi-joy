@@ -455,8 +455,14 @@ export default function InvoiceDetailPage() {
           )}
           <InvoiceStatusBadge status={invoice.status} />
         </div>
-        {!isPaid && (
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setShowDelete(true)}>
+        {(isAdmin || isOwnInvoice) && (
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => {
+            if (isPaid) {
+              toast.error("這份請款單已經付款完畢，如欲刪除請洽團隊管理人員。");
+            } else {
+              setShowDelete(true);
+            }
+          }}>
             <Trash2 className="h-4 w-4" />
           </Button>
         )}
