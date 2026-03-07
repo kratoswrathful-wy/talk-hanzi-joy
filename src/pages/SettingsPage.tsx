@@ -98,6 +98,10 @@ function ClientPricingSection() {
     const label = newLabel.trim();
     if (!label || clientOptions.some((o) => o.label === label)) return;
     selectOptionsStore.addOption("client", label, newColor);
+    // Auto-populate hourly pricing (450) for all task types
+    for (const tt of taskTypeOptions) {
+      setClientPrice(label, tt.label, "小時", 450);
+    }
     setNewLabel("");
     setNewColor(PRESET_COLORS[0]);
     setAdding(false);
