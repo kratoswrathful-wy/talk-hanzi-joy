@@ -67,10 +67,25 @@ export function usePermissions() {
 
   const updateConfig = useCallback(
     async (newConfig: PermissionConfig) => {
-      const { error } = await supabase
+      // Try update first, if no rows exist, insert
+      const { data: existing } = await supabase
         .from("permission_settings")
-        .update({ config: newConfig as any, updated_at: new Date().toISOString() })
-        .not("id", "is", null); // update all rows (should be just 1)
+        .select("id")
+        .limit(1)
+        .single();
+
+      let error;
+      if (existing) {
+        ({ error } = await supabase
+          .from("permission_settings")
+          .update({ config: newConfig as any, updated_at: new Date().toISOString() })
+          .eq("id", existing.id));
+      } else {
+        ({ error } = await supabase
+          .from("permission_settings")
+          .insert({ config: newConfig as any }));
+      }
+
       if (!error) {
         setConfig(newConfig);
       }
