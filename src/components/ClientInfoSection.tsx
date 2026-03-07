@@ -345,7 +345,7 @@ export default function ClientInfoSection({
                 <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>客戶報價</TableHead>
                 <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>計費單位數</TableHead>
                 <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>小計</TableHead>
-                {canEdit && !clientInfo.reconciled && <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>}
+                {canEdit && <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -401,10 +401,10 @@ export default function ClientInfoSection({
                   <TableCell className="text-right text-xs font-medium">
                     {clientInfo.notFirstFee ? <span className="text-muted-foreground">N/A</span> : (Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
                   </TableCell>
-                  {canEdit && !clientInfo.reconciled && (
+                  {canEdit && (
                     <TableCell className="px-2">
                       <div className="flex justify-center">
-                        {!clientItemsLocked && clientInfo.clientTaskItems.length > 1 ? (
+                        {!clientInfo.reconciled && !clientItemsLocked && clientInfo.clientTaskItems.length > 1 ? (
                           <Button
                             variant="ghost"
                             size="icon"
@@ -442,7 +442,7 @@ export default function ClientInfoSection({
                 <TableCell className="text-right text-sm font-bold tabular-nums">
                   {clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}
                 </TableCell>
-                {canEdit && !clientInfo.reconciled && <TableCell />}
+                {canEdit && <TableCell />}
               </TableRow>
               <TableRow>
                 <TableCell colSpan={3} className="px-[18px]">
@@ -465,7 +465,7 @@ export default function ClientInfoSection({
                 <TableCell className={`text-right text-sm font-bold ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
                   {clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}
                 </TableCell>
-                {canEdit && !clientInfo.reconciled && <TableCell />}
+                {canEdit && <TableCell />}
               </TableRow>
             </TableFooter>
           </Table>

@@ -1522,14 +1522,14 @@ export default function TranslatorFeeDetail() {
                   <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>稿費單價</TableHead>
                   <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>計費單位數</TableHead>
                   <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>小計</TableHead>
-                  {canEdit && !clientInfo.rateConfirmed && <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>}
+                  {canEdit && <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {taskItems.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={canEdit && !clientInfo.rateConfirmed ? 6 : 5}
+                      colSpan={canEdit ? 6 : 5}
                       className="text-center text-sm text-muted-foreground py-6"
                     >
                       尚無任務項目
@@ -1588,10 +1588,10 @@ export default function TranslatorFeeDetail() {
                       <TableCell className="text-right text-xs font-medium">
                         {isNoFeeTranslator ? 0 : (Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}
                       </TableCell>
-                      {canEdit && !clientInfo.rateConfirmed && (
+                      {canEdit && (
                         <TableCell className="px-2">
                           <div className="flex justify-center">
-                            {taskItems.length > 1 ? (
+                            {!clientInfo.rateConfirmed && taskItems.length > 1 ? (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -1624,7 +1624,7 @@ export default function TranslatorFeeDetail() {
                       <TableCell className="text-right text-sm font-bold">
                         {totalAmount.toLocaleString()}
                       </TableCell>
-                      {canEdit && !clientInfo.rateConfirmed && <TableCell />}
+                      {canEdit && <TableCell />}
                     </TableRow>
                 </TableFooter>
               )}
