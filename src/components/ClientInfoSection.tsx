@@ -182,12 +182,16 @@ export default function ClientInfoSection({
           <div className="flex items-center justify-between">
             <Label className="text-sm font-medium">營收內容</Label>
             <div className="flex items-center gap-3">
-              {canEdit && !clientItemsLocked && !clientInfo.reconciled && (
-                <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={addItem}>
-                  <Plus className="h-3.5 w-3.5" />
-                  新增項目
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className={`gap-1 text-xs ${canEdit && !clientItemsLocked && !clientInfo.reconciled ? '' : 'invisible'}`}
+                onClick={addItem}
+                disabled={!(canEdit && !clientItemsLocked && !clientInfo.reconciled)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                新增項目
+              </Button>
               <div className="flex items-center gap-1.5">
                 <Checkbox
                   id="reconciled"
