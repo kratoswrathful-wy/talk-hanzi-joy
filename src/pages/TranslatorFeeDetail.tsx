@@ -1293,7 +1293,7 @@ export default function TranslatorFeeDetail() {
               if (id) feeStore.updateFee(id, { title: e.target.value });
             }}
             disabled={!canEdit}
-            className="text-lg font-semibold bg-transparent border-0 shadow-none px-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
+            className="text-2xl font-semibold tracking-tight bg-transparent border-0 shadow-none px-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
             placeholder="輸入稿費單標題"
           />
           {notionLoading && (
