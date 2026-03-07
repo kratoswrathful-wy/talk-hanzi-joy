@@ -556,7 +556,7 @@ export default function TranslatorFees() {
 
       // Get old value for undo
       let oldValue: string | boolean;
-      if (["client", "clientCaseId", "clientPoNumber", "reconciled", "rateConfirmed", "invoiced"].includes(field)) {
+      if (["client", "contact", "clientCaseId", "clientPoNumber", "dispatchRoute", "reconciled", "rateConfirmed", "invoiced", "sameCase"].includes(field)) {
         oldValue = (fee.clientInfo as any)?.[field] ?? (typeof value === "boolean" ? false : "");
       } else {
         oldValue = (fee as any)[field] ?? "";
