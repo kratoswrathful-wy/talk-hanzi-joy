@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { useSelectOptions, selectOptionsStore, type SelectOption, PRESET_COLORS } from "@/stores/select-options-store";
+import { useSelectOptions, selectOptionsStore, type SelectOption, PRESET_COLORS, CONTACT_DEFAULT_COLOR } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import ColorPicker from "@/components/ColorPicker";
 import {
