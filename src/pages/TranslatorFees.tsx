@@ -517,10 +517,11 @@ export default function TranslatorFees() {
     setShowDeleteConfirm(false);
   }, [rowSelection]);
 
-  // Apply column order from the view
+  // Apply column order from the view, excluding hidden columns
+  const hiddenSet = new Set(activeView.hiddenColumns || []);
   const orderedCols = activeView.columnOrder
     .map((key) => columnDefs.find((c) => c.key === key))
-    .filter(Boolean) as ColumnDef[];
+    .filter((c): c is ColumnDef => !!c && !hiddenSet.has(c.key));
 
   const totalWidth = orderedCols.reduce((s, c) => s + (activeView.columnWidths[c.key] ?? 100), 0) + 140;
 
