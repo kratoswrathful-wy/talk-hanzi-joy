@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { loadSetting, saveSetting } from "./settings-persistence";
+import { loadSetting, saveSetting, markDirty } from "./settings-persistence";
 
 export interface SelectOption {
   id: string;
@@ -62,7 +62,8 @@ function persistableSnapshot() {
 
 function notify() {
   listeners.forEach((l) => l());
-  // Auto-save persisted fields to DB
+  // Mark as user-mutated then save
+  markDirty(SETTINGS_KEY);
   saveSetting(SETTINGS_KEY, persistableSnapshot());
 }
 

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { loadSetting, saveSetting } from "./settings-persistence";
+import { loadSetting, saveSetting, markDirty } from "./settings-persistence";
 
 type Listener = () => void;
 
@@ -41,6 +41,7 @@ const SETTINGS_KEY = "label_styles";
 
 function notify() {
   listeners.forEach((l) => l());
+  markDirty(SETTINGS_KEY);
   saveSetting(SETTINGS_KEY, state);
 }
 

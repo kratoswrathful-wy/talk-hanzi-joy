@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { loadSetting, saveSetting } from "./settings-persistence";
+import { loadSetting, saveSetting, markDirty } from "./settings-persistence";
 
 /**
  * Default pricing store
@@ -80,6 +80,7 @@ const SETTINGS_KEY = "default_pricing";
 
 function notify() {
   listeners.forEach((l) => l());
+  markDirty(SETTINGS_KEY);
   saveSetting(SETTINGS_KEY, store);
 }
 
