@@ -11,7 +11,7 @@ interface AssigneeTagProps {
  * Used in fee table, fee detail, and ColorSelect for assignee fields.
  */
 export default function AssigneeTag({ label, avatarUrl, size = "sm" }: AssigneeTagProps) {
-  const avatarSize = size === "sm" ? "h-4 w-4" : "h-5 w-5";
+  const avatarSize = size === "sm" ? "h-6 w-6" : "h-7 w-7";
   const textSize = size === "sm" ? "text-xs" : "text-xs";
   const padding = size === "sm" ? "pl-0.5 pr-2 py-0.5" : "pl-0.5 pr-2.5 py-0.5";
 
