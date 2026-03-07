@@ -404,7 +404,7 @@ export default function InvoicesPage() {
   const handleDeleteClick = useCallback(() => {
     if (hasPaidInvoices) {
       if (!isExecutive) {
-        toast.error("只有執行官可以刪除已付款的請款單");
+        toast.error("這份請款單已經付款完畢，如欲刪除請洽團隊管理人員。");
         return;
       }
       setPassword("");
@@ -450,7 +450,7 @@ export default function InvoicesPage() {
     doDelete();
   }, [password, user, doDelete]);
 
-  const canDelete = isAdmin && rowSelection.selectedCount > 0;
+  const canDelete = rowSelection.selectedCount > 0;
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
