@@ -82,13 +82,13 @@ function ClientPricingSection() {
     });
   };
 
-  const handleSave = useCallback((client: string, taskType: string) => {
+  const handleSave = useCallback((client: string, taskType: string, billingUnit: string) => {
     const num = Number(editValue);
     if (!isNaN(num) && num >= 0) {
       if (num === 0) {
-        removeClientPrice(client, taskType);
+        removeClientPrice(client, taskType, billingUnit);
       } else {
-        setClientPrice(client, taskType, num);
+        setClientPrice(client, taskType, billingUnit, num);
       }
     }
     setEditingCell(null);
