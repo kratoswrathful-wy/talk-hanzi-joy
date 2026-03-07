@@ -243,7 +243,7 @@ function ClientPricingSection() {
                                 {tt.label}
                               </span>
 
-                              <span className="text-xs text-muted-foreground">{bu}</span>
+                              <span className="text-xs text-muted-foreground">{bu.label}</span>
 
                               <div data-cell-container>
                                 {isEditing ? (
