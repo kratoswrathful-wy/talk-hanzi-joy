@@ -14,6 +14,7 @@ export interface StatusStyle {
 
 interface LabelStyleState {
   taskType: LabelStyle;
+  billingUnit: LabelStyle;
   client: LabelStyle;
   dispatchRoute: LabelStyle;
   statusDraft: StatusStyle;
@@ -25,6 +26,7 @@ interface LabelStyleState {
 
 const DEFAULT_STATE: LabelStyleState = {
   taskType: { textColor: "#FFFFFF" },
+  billingUnit: { textColor: "#FFFFFF" },
   client: { textColor: "#FFFFFF" },
   dispatchRoute: { textColor: "#FFFFFF" },
   statusDraft: { bgColor: "#6B7280", textColor: "#FFFFFF" },
