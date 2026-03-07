@@ -136,7 +136,12 @@ function EmailTagInput({
 
 export default function MembersPage() {
   const { isAdmin, user, roles } = useAuth();
+  const { allRoles: permRoles } = usePermissions();
   const isExecutive = roles.some((r) => r.role === "executive");
+  const getRoleLabel = (key: string) => {
+    const found = permRoles.find((r) => r.key === key);
+    return found?.label || DEFAULT_ROLE_LABELS[key] || key;
+  };
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
