@@ -139,7 +139,7 @@ export default function NewTranslatorFee() {
             return {
               id: `item-notion-${idx}`,
               taskType: matchedType as TaskType,
-              billingUnit: "字" as BillingUnit,
+              billingUnit,
               unitCount: idx === 0 && unitCount ? unitCount : 0,
               unitPrice: 0,
             };
