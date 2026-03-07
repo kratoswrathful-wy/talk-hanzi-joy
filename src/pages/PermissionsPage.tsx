@@ -270,6 +270,24 @@ export default function PermissionsPage() {
     setDeleteStep(1);
   };
 
+  // Drag-and-drop reorder
+  const handleDragEnd = async () => {
+    if (draggedIdx === null || dragOverIdx === null || draggedIdx === dragOverIdx) {
+      setDraggedIdx(null);
+      setDragOverIdx(null);
+      return;
+    }
+    const reordered = [...allRoles];
+    const [moved] = reordered.splice(draggedIdx, 1);
+    reordered.splice(dragOverIdx, 0, moved);
+    const newOrder = reordered.map((r) => r.key);
+    const newCustomRoles = reordered.filter((r) => !r.builtIn);
+    setDraggedIdx(null);
+    setDragOverIdx(null);
+    await saveConfig({ ...config, custom_roles: newCustomRoles, role_order: newOrder });
+    toast.success("排序已更新");
+  };
+
   // Toggle module visibility
   const handleToggleModuleVisible = async (roleKey: string, moduleKey: string, visible: boolean) => {
     const modulePerms = getModulePerms(config, roleKey, moduleKey);
