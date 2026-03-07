@@ -420,8 +420,6 @@ function TaskTypeOrderSection() {
   const handleAddTaskType = () => {
     const label = newLabel.trim();
     if (!label || taskTypeOptions.some((o) => o.label === label)) return;
-    selectOptionsStore.addOption("clientTaskType", label, newColor);
-    // Also add to the fee-side taskType field
     selectOptionsStore.addOption("taskType", label, newColor);
     // Auto-populate hourly pricing (450) for all existing clients
     const clients = selectOptionsStore.getSortedOptions("client");
