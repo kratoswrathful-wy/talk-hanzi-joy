@@ -46,7 +46,7 @@ const roleLabels: Record<UserRole, string> = {
 
 const managerOnlyFields = new Set([
   "client", "contact", "clientCaseId", "clientPoNumber", "hdPath",
-  "reconciled", "rateConfirmed", "invoiced", "sameCase",
+  "reconciled", "rateConfirmed", "invoiced", "sameCase", "dispatchRoute",
   "clientRevenue", "profit", "internalNote",
 ]);
 
@@ -66,14 +66,14 @@ const formatCurrency = (n: number) =>
 // Editable fields - computed/date/createdBy are not editable
 const editableFields = new Set([
   "title", "status", "assignee", "internalNote",
-  "client", "clientCaseId", "clientPoNumber",
-  "reconciled", "rateConfirmed", "invoiced",
+  "client", "contact", "clientCaseId", "clientPoNumber", "dispatchRoute",
+  "reconciled", "rateConfirmed", "invoiced", "sameCase",
 ]);
 
 function getEditType(key: string): "text" | "select" | "checkbox" | "colorSelect" {
-  if (key === "status") return "select";
+  if (key === "status" || key === "dispatchRoute") return "select";
   if (["assignee", "client"].includes(key)) return "colorSelect";
-  if (["reconciled", "rateConfirmed", "invoiced"].includes(key)) return "checkbox";
+  if (["reconciled", "rateConfirmed", "invoiced", "sameCase"].includes(key)) return "checkbox";
   return "text";
 }
 
@@ -89,6 +89,7 @@ function getSelectOptions(key: string): { value: string; label: string }[] {
 function getColorSelectFieldKey(key: string): string | undefined {
   if (key === "assignee") return "assignee";
   if (key === "client") return "client";
+  if (key === "dispatchRoute") return "dispatchRoute";
   return undefined;
 }
 
@@ -168,6 +169,17 @@ const allColumnDefs: ColumnDef[] = [
     ),
   },
   {
+    key: "contact",
+    label: "聯絡人",
+    minWidth: 70,
+    managerOnly: true,
+    render: (f, { editable, onCommit }) => (
+      <InlineEditCell value={f.clientInfo?.contact || ""} type="text" editable={editable} onCommit={(v) => onCommit("contact", v)}>
+        <span className="truncate text-sm text-muted-foreground">{f.clientInfo?.contact || "—"}</span>
+      </InlineEditCell>
+    ),
+  },
+  {
     key: "clientCaseId",
     label: "關鍵字",
     minWidth: 80,
@@ -190,8 +202,19 @@ const allColumnDefs: ColumnDef[] = [
     ),
   },
   {
+    key: "dispatchRoute",
+    label: "派案途徑",
+    minWidth: 80,
+    managerOnly: true,
+    render: (f, { editable, onCommit }) => (
+      <InlineEditCell value={f.clientInfo?.dispatchRoute || ""} type="colorSelect" fieldKey="dispatchRoute" editable={editable} onCommit={(v) => onCommit("dispatchRoute", v)}>
+        <DispatchRouteLabel value={f.clientInfo?.dispatchRoute || ""} />
+      </InlineEditCell>
+    ),
+  },
+  {
     key: "clientRevenue",
-    label: "營收",
+    label: "營收總額",
     minWidth: 80,
     managerOnly: true,
     render: (f) => {
@@ -215,7 +238,7 @@ const allColumnDefs: ColumnDef[] = [
   },
   {
     key: "reconciled",
-    label: "對帳",
+    label: "對帳完成",
     minWidth: 50,
     managerOnly: true,
     render: (f, { editable, onCommit }) => (
@@ -228,7 +251,7 @@ const allColumnDefs: ColumnDef[] = [
   },
   {
     key: "rateConfirmed",
-    label: "費率",
+    label: "費率無誤",
     minWidth: 50,
     managerOnly: true,
     render: (f, { editable, onCommit }) => (
@@ -241,13 +264,26 @@ const allColumnDefs: ColumnDef[] = [
   },
   {
     key: "invoiced",
-    label: "請款",
+    label: "請款完成",
     minWidth: 50,
     managerOnly: true,
     render: (f, { editable, onCommit }) => (
       <InlineEditCell value={!!f.clientInfo?.invoiced} type="checkbox" editable={editable} onCommit={(v) => onCommit("invoiced", v)}>
         <div className="flex justify-center">
           <Checkbox checked={!!f.clientInfo?.invoiced} disabled className="pointer-events-none" />
+        </div>
+      </InlineEditCell>
+    ),
+  },
+  {
+    key: "sameCase",
+    label: "費用群組",
+    minWidth: 50,
+    managerOnly: true,
+    render: (f, { editable, onCommit }) => (
+      <InlineEditCell value={!!f.clientInfo?.sameCase} type="checkbox" editable={editable} onCommit={(v) => onCommit("sameCase", v)}>
+        <div className="flex justify-center">
+          <Checkbox checked={!!f.clientInfo?.sameCase} disabled className="pointer-events-none" />
         </div>
       </InlineEditCell>
     ),
@@ -317,10 +353,29 @@ function ClientLabel({ value }: { value: string }) {
   const opt = options.find((o) => o.label === value);
   if (!value) return <span className="truncate text-sm text-muted-foreground">—</span>;
   return (
-    <span className="inline-flex items-center gap-1.5 truncate text-sm">
-      {opt && <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: opt.color }} />}
+    <Badge
+      variant="outline"
+      className="text-xs whitespace-nowrap border font-normal"
+      style={opt ? { backgroundColor: opt.color + "22", color: opt.color, borderColor: opt.color + "44" } : undefined}
+    >
+      {opt && <span className="inline-block w-2 h-2 rounded-full shrink-0 mr-1" style={{ backgroundColor: opt.color }} />}
       {value}
-    </span>
+    </Badge>
+  );
+}
+
+function DispatchRouteLabel({ value }: { value: string }) {
+  const { options } = useSelectOptions("dispatchRoute");
+  const opt = options.find((o) => o.label === value);
+  if (!value) return <span className="truncate text-sm text-muted-foreground">—</span>;
+  return (
+    <Badge
+      variant="outline"
+      className="text-xs whitespace-nowrap border font-normal"
+      style={opt ? { backgroundColor: opt.color + "22", color: opt.color, borderColor: opt.color + "44" } : undefined}
+    >
+      {value}
+    </Badge>
   );
 }
 
@@ -462,10 +517,11 @@ export default function TranslatorFees() {
     setShowDeleteConfirm(false);
   }, [rowSelection]);
 
-  // Apply column order from the view
+  // Apply column order from the view, excluding hidden columns
+  const hiddenSet = new Set(activeView.hiddenColumns || []);
   const orderedCols = activeView.columnOrder
     .map((key) => columnDefs.find((c) => c.key === key))
-    .filter(Boolean) as ColumnDef[];
+    .filter((c): c is ColumnDef => !!c && !hiddenSet.has(c.key));
 
   const totalWidth = orderedCols.reduce((s, c) => s + (activeView.columnWidths[c.key] ?? 100), 0) + 140;
 
@@ -474,7 +530,7 @@ export default function TranslatorFees() {
     const val = isUndo ? entry.oldValue : entry.newValue;
     const fee = feeStore.getFeeById(entry.feeId);
     if (!fee) return;
-    if (["client", "clientCaseId", "clientPoNumber", "reconciled", "rateConfirmed", "invoiced"].includes(entry.field)) {
+    if (["client", "contact", "clientCaseId", "clientPoNumber", "dispatchRoute", "reconciled", "rateConfirmed", "invoiced", "sameCase"].includes(entry.field)) {
       const ci = fee.clientInfo || {
         clientTaskItems: [], sameCase: false, isFirstFee: false, notFirstFee: false,
         client: "", contact: "", clientCaseId: "", eciKeywords: "", clientPoNumber: "",
@@ -500,7 +556,7 @@ export default function TranslatorFees() {
 
       // Get old value for undo
       let oldValue: string | boolean;
-      if (["client", "clientCaseId", "clientPoNumber", "reconciled", "rateConfirmed", "invoiced"].includes(field)) {
+      if (["client", "contact", "clientCaseId", "clientPoNumber", "dispatchRoute", "reconciled", "rateConfirmed", "invoiced", "sameCase"].includes(field)) {
         oldValue = (fee.clientInfo as any)?.[field] ?? (typeof value === "boolean" ? false : "");
       } else {
         oldValue = (fee as any)[field] ?? "";
@@ -602,42 +658,38 @@ export default function TranslatorFees() {
   return (
     <div className="mx-auto max-w-7xl space-y-4">
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">費用管理</h1>
-          </div>
-          {canCreateFee && (
-            <Button size="sm" className="gap-1.5" onClick={handleCreate}>
-              <Plus className="h-4 w-4" />
-              新增費用
+      <div className="flex items-center gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">費用管理</h1>
+        </div>
+        {canCreateFee && (
+          <Button size="sm" className="gap-1.5" onClick={handleCreate}>
+            <Plus className="h-4 w-4" />
+            新增費用
+          </Button>
+        )}
+        {isManager && rowSelection.selectedCount > 0 && (
+          <>
+            <InvoiceActions
+              selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
+              onDone={() => rowSelection.deselectAll()}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 text-muted-foreground hover:text-destructive"
+              onClick={() => setShowDeleteConfirm(true)}
+              title="刪除選取項目"
+            >
+              <Trash2 className="h-4.5 w-4.5" />
             </Button>
-          )}
-          {!activeView.isDefault && (
-            <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
-              此為自訂視圖，只有新增者本人可見
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {isManager && rowSelection.selectedCount > 0 && (
-            <>
-              <InvoiceActions
-                selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
-                onDone={() => rowSelection.deselectAll()}
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 text-muted-foreground hover:text-destructive"
-                onClick={() => setShowDeleteConfirm(true)}
-                title="刪除選取項目"
-              >
-                <Trash2 className="h-4.5 w-4.5" />
-              </Button>
-            </>
-          )}
-        </div>
+          </>
+        )}
+        {!activeView.isDefault && (
+          <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
+            此為自訂視圖，只有新增者本人可見
+          </span>
+        )}
       </div>
 
       {/* Filter/Sort/View toolbar */}
@@ -658,6 +710,8 @@ export default function TranslatorFees() {
         onReorderViews={tableViews.reorderViews}
         visibleFieldKeys={visibleFieldKeys}
         selectedCount={rowSelection.selectedCount}
+        hiddenColumns={activeView.hiddenColumns || []}
+        onToggleColumn={tableViews.toggleColumnVisibility}
       />
 
       <motion.div

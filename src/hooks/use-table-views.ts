@@ -24,6 +24,7 @@ export interface TableView {
   sorts: TableSort[];
   columnOrder: string[];
   columnWidths: Record<string, number>;
+  hiddenColumns: string[];
   /** Role that created this view; undefined for default view */
   createdByRole?: string;
 }
@@ -37,17 +38,21 @@ export interface FieldMeta {
 export const fieldMetas: FieldMeta[] = [
   { key: "title", label: "標題", type: "text" },
   { key: "status", label: "狀態", type: "select" },
-  { key: "assignee", label: "開單對象", type: "select" },
+  { key: "assignee", label: "譯者", type: "select" },
   { key: "internalNote", label: "關聯案件", type: "text" },
   { key: "taskSummary", label: "稿費總額", type: "computed" },
   { key: "client", label: "客戶", type: "select" },
-  { key: "clientCaseId", label: "案號", type: "text" },
-  { key: "clientPoNumber", label: "客戶 PO", type: "text" },
-  { key: "clientRevenue", label: "營收", type: "computed" },
+  { key: "contact", label: "聯絡人", type: "text" },
+  { key: "clientCaseId", label: "關鍵字", type: "text" },
+  { key: "clientPoNumber", label: "客戶 PO#", type: "text" },
+  { key: "dispatchRoute", label: "派案途徑", type: "select" },
+  { key: "clientRevenue", label: "營收總額", type: "computed" },
   { key: "profit", label: "利潤", type: "computed" },
-  { key: "reconciled", label: "對帳", type: "checkbox" },
-  { key: "rateConfirmed", label: "費率", type: "checkbox" },
-  { key: "invoiced", label: "請款", type: "checkbox" },
+  { key: "reconciled", label: "對帳完成", type: "checkbox" },
+  { key: "rateConfirmed", label: "費率無誤", type: "checkbox" },
+  { key: "invoiced", label: "請款完成", type: "checkbox" },
+  { key: "sameCase", label: "費用群組", type: "checkbox" },
+  { key: "invoice", label: "請款單", type: "text" },
   { key: "createdBy", label: "建立者", type: "text" },
   { key: "createdAt", label: "建立時間", type: "date" },
 ];
@@ -61,7 +66,9 @@ function getFieldValue(fee: TranslatorFee, field: string): string | number | boo
     case "taskSummary": return fee.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
     case "client": return fee.clientInfo?.client || "";
     case "clientCaseId": return fee.clientInfo?.clientCaseId || "";
+    case "contact": return fee.clientInfo?.contact || "";
     case "clientPoNumber": return fee.clientInfo?.clientPoNumber || "";
+    case "dispatchRoute": return fee.clientInfo?.dispatchRoute || "";
     case "clientRevenue": {
       if (!fee.clientInfo || fee.clientInfo.notFirstFee) return 0;
       return fee.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
@@ -75,6 +82,7 @@ function getFieldValue(fee: TranslatorFee, field: string): string | number | boo
     case "reconciled": return !!fee.clientInfo?.reconciled;
     case "rateConfirmed": return !!fee.clientInfo?.rateConfirmed;
     case "invoiced": return !!fee.clientInfo?.invoiced;
+    case "sameCase": return !!fee.clientInfo?.sameCase;
     case "createdBy": return fee.createdBy;
     case "createdAt": return fee.createdAt;
     default: return "";
@@ -114,9 +122,12 @@ function compareFees(a: TranslatorFee, b: TranslatorFee, sort: TableSort): numbe
 const defaultColumnOrder = fieldMetas.map((f) => f.key);
 const defaultColumnWidths: Record<string, number> = {
   title: 220, status: 90, assignee: 100, internalNote: 160, taskSummary: 120,
-  client: 100, clientCaseId: 120, clientPoNumber: 100, clientRevenue: 100,
-  profit: 100, reconciled: 60, rateConfirmed: 60, invoiced: 60, createdBy: 80, createdAt: 110,
+  client: 100, contact: 100, clientCaseId: 120, clientPoNumber: 100, dispatchRoute: 100,
+  clientRevenue: 100, profit: 100, reconciled: 70, rateConfirmed: 70, invoiced: 70,
+  sameCase: 70, invoice: 100, createdBy: 80, createdAt: 110,
 };
+
+const defaultHiddenColumns = ["contact", "dispatchRoute", "sameCase"];
 
 function createDefaultView(): TableView {
   return {
@@ -127,6 +138,7 @@ function createDefaultView(): TableView {
     sorts: [],
     columnOrder: [...defaultColumnOrder],
     columnWidths: { ...defaultColumnWidths },
+    hiddenColumns: [...defaultHiddenColumns],
   };
 }
 
@@ -145,6 +157,12 @@ export function useTableViews(currentRole?: string) {
   const updateView = useCallback((viewId: string, updates: Partial<TableView>) => {
     setViews((prev) => prev.map((v) => v.id === viewId ? { ...v, ...updates } : v));
   }, []);
+
+  const toggleColumnVisibility = useCallback((key: string) => {
+    const hidden = activeView.hiddenColumns || [];
+    const next = hidden.includes(key) ? hidden.filter((k) => k !== key) : [...hidden, key];
+    updateView(activeViewId, { hiddenColumns: next });
+  }, [activeViewId, activeView, updateView]);
 
   const addView = useCallback((name: string) => {
     const newView: TableView = {
@@ -265,6 +283,7 @@ export function useTableViews(currentRole?: string) {
     updateSort,
     setColumnOrder,
     setColumnWidth,
+    toggleColumnVisibility,
     applyFiltersAndSorts,
   };
 }
