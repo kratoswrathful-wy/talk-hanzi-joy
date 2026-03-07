@@ -85,23 +85,31 @@ function generateGroupId() {
 
 export const defaultPricingStore = {
   // --- Client pricing ---
-  getClientPrice: (client: string, taskType: string): number | undefined => {
-    return store.clientPricing[client]?.[taskType];
+  getClientPrice: (client: string, taskType: string, billingUnit?: string): number | undefined => {
+    if (billingUnit) {
+      return store.clientPricing[client]?.[clientPricingKey(taskType, billingUnit)];
+    }
+    // fallback: try both units, prefer 字
+    return store.clientPricing[client]?.[clientPricingKey(taskType, "字")]
+      ?? store.clientPricing[client]?.[clientPricingKey(taskType, "小時")]
+      ?? store.clientPricing[client]?.[taskType]; // legacy key fallback
   },
 
-  setClientPrice: (client: string, taskType: string, price: number) => {
+  setClientPrice: (client: string, taskType: string, billingUnit: string, price: number) => {
+    const key = clientPricingKey(taskType, billingUnit);
     store = {
       ...store,
       clientPricing: {
         ...store.clientPricing,
-        [client]: { ...(store.clientPricing[client] || {}), [taskType]: price },
+        [client]: { ...(store.clientPricing[client] || {}), [key]: price },
       },
     };
     notify();
   },
 
-  removeClientPrice: (client: string, taskType: string) => {
-    const { [taskType]: _, ...rest } = store.clientPricing[client] || {};
+  removeClientPrice: (client: string, taskType: string, billingUnit: string) => {
+    const key = clientPricingKey(taskType, billingUnit);
+    const { [key]: _, ...rest } = store.clientPricing[client] || {};
     store = {
       ...store,
       clientPricing: { ...store.clientPricing, [client]: rest },
