@@ -1429,7 +1429,7 @@ export default function TranslatorFeeDetail() {
                     if (clientName) {
                       // Auto-fill client task item prices (always overwrite on client change)
                       updatedInfo.clientTaskItems = updatedInfo.clientTaskItems.map(item => {
-                        const price = defaultPricingStore.getClientPrice(clientName, item.taskType);
+                        const price = defaultPricingStore.getClientPrice(clientName, item.taskType, item.billingUnit);
                         return price !== undefined ? { ...item, clientPrice: price } : item;
                       });
                       // Auto-fill translator task item prices via tiers (always overwrite)
