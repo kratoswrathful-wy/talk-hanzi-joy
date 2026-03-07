@@ -198,7 +198,7 @@ export default function ClientInfoSection({
                 />
                 <Label htmlFor="invoiced" className="text-xs cursor-pointer whitespace-nowrap">請款完成</Label>
               </div>
-              {canEdit && !clientItemsLocked && (
+              {canEdit && !clientItemsLocked && !clientInfo.reconciled && (
                 <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={addItem}>
                   <Plus className="h-3.5 w-3.5" />
                   新增項目
@@ -213,7 +213,7 @@ export default function ClientInfoSection({
               <Checkbox
                 id="sameCase"
                 checked={clientInfo.sameCase}
-                disabled={!canEdit}
+                disabled={!canEdit || clientInfo.reconciled}
                 onCheckedChange={(checked) => {
                   if (!checked && clientInfo.sameCase) {
                     setShowUncheckWarning(true);
@@ -234,6 +234,7 @@ export default function ClientInfoSection({
                 onValueChange={(v) => update("dispatchRoute", v)}
                 triggerClassName="h-7 text-xs min-w-[90px]"
                 placeholder="選擇"
+                disabled={clientInfo.reconciled}
               />
             </div>
           </div>
@@ -246,7 +247,7 @@ export default function ClientInfoSection({
                   <Checkbox
                     id="isFirstFee"
                     checked={clientInfo.isFirstFee}
-                    disabled={isFirstFeeDisabled}
+                    disabled={isFirstFeeDisabled || clientInfo.reconciled}
                     onCheckedChange={(checked) => {
                       if (checked) {
                         const hasExisting = currentInternalNote && allFees.some(
@@ -272,7 +273,7 @@ export default function ClientInfoSection({
                   <Checkbox
                     id="notFirstFee"
                     checked={clientInfo.notFirstFee}
-                    disabled={notFirstFeeDisabled}
+                    disabled={notFirstFeeDisabled || clientInfo.reconciled}
                     onCheckedChange={(checked) => update("notFirstFee", !!checked)}
                   />
                   <Label
@@ -344,7 +345,7 @@ export default function ClientInfoSection({
                 <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>客戶報價</TableHead>
                 <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>計費單位數</TableHead>
                 <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>小計</TableHead>
-                {canEdit && <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>}
+                {canEdit && !clientInfo.reconciled && <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -356,7 +357,7 @@ export default function ClientInfoSection({
                       value={item.taskType}
                       onValueChange={(v) => updateItem(item.id, "taskType", v as TaskType)}
                       triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
-                      disabled={clientItemsLocked}
+                      disabled={clientItemsLocked || clientInfo.reconciled}
                     />
                   </TableCell>
                   <TableCell className="text-center">
@@ -365,7 +366,7 @@ export default function ClientInfoSection({
                       value={item.billingUnit}
                       onValueChange={(v) => updateItem(item.id, "billingUnit", v as BillingUnit)}
                       triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
-                      disabled={clientItemsLocked}
+                      disabled={clientItemsLocked || clientInfo.reconciled}
                     />
                   </TableCell>
                   <TableCell className="text-right">
@@ -380,7 +381,7 @@ export default function ClientInfoSection({
                       onFocus={() => handleClientPriceFocus(item.id)}
                       onBlur={(e) => handleNumberBlur(item.id, "clientPrice", e.target.value)}
                       className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
-                      disabled={clientItemsLocked}
+                      disabled={clientItemsLocked || clientInfo.reconciled}
                     />
                   </TableCell>
                   <TableCell className="text-right">
@@ -394,13 +395,13 @@ export default function ClientInfoSection({
                       }}
                       onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
                       className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
-                      disabled={clientItemsLocked}
+                      disabled={clientItemsLocked || clientInfo.reconciled}
                     />
                   </TableCell>
                   <TableCell className="text-right text-xs font-medium">
                     {clientInfo.notFirstFee ? <span className="text-muted-foreground">N/A</span> : (Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
                   </TableCell>
-                  {canEdit && (
+                  {canEdit && !clientInfo.reconciled && (
                     <TableCell className="px-2">
                       <div className="flex justify-center">
                         {!clientItemsLocked && clientInfo.clientTaskItems.length > 1 ? (
@@ -430,7 +431,7 @@ export default function ClientInfoSection({
                       value={clientInfo.clientCaseId}
                       onChange={(e) => update("clientCaseId", e.target.value)}
                       placeholder="客戶端案號或關鍵字"
-                      disabled={!canEdit}
+                      disabled={!canEdit || clientInfo.reconciled}
                       className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
                     />
                   </div>
@@ -441,7 +442,7 @@ export default function ClientInfoSection({
                 <TableCell className="text-right text-sm font-bold tabular-nums">
                   {clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}
                 </TableCell>
-                {canEdit && <TableCell />}
+                {canEdit && !clientInfo.reconciled && <TableCell />}
               </TableRow>
               <TableRow>
                 <TableCell colSpan={3} className="px-[18px]">
@@ -451,7 +452,7 @@ export default function ClientInfoSection({
                       value={clientInfo.clientPoNumber}
                       onChange={(e) => update("clientPoNumber", e.target.value)}
                       placeholder="客戶PO編號"
-                      disabled={!canEdit}
+                      disabled={!canEdit || clientInfo.reconciled}
                       className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
                     />
                   </div>
@@ -464,7 +465,7 @@ export default function ClientInfoSection({
                 <TableCell className={`text-right text-sm font-bold ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
                   {clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}
                 </TableCell>
-                {canEdit && <TableCell />}
+                {canEdit && !clientInfo.reconciled && <TableCell />}
               </TableRow>
             </TableFooter>
           </Table>

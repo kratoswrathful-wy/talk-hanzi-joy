@@ -1319,7 +1319,7 @@ export default function TranslatorFeeDetail() {
               <ColorSelect
                 fieldKey="assignee"
                 value={assignee}
-                disabled={!canEdit}
+                disabled={!canEdit || clientInfo.rateConfirmed}
                 onValueChange={(v) => {
                   trackChange("譯者", assignee, v);
                   setAssignee(v);
@@ -1339,72 +1339,78 @@ export default function TranslatorFeeDetail() {
           {/* 相關案件 */}
           <div className="grid gap-1.5">
             <Label className="text-xs text-muted-foreground">相關案件</Label>
-            {canEdit ? (
-              internalNote ? (
-                <div className="flex items-center gap-2">
-                  {internalNoteUrl ? (
-                    <a
-                      href={internalNoteUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center h-10 flex-1 rounded-md border border-input bg-secondary/50 px-3 text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors cursor-pointer"
+            {(() => {
+              const internalNoteLocked = clientInfo.rateConfirmed || clientInfo.reconciled;
+              const canEditNote = canEdit && !internalNoteLocked;
+              if (canEditNote) {
+                return internalNote ? (
+                  <div className="flex items-center gap-2">
+                    {internalNoteUrl ? (
+                      <a
+                        href={internalNoteUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center h-10 flex-1 rounded-md border border-input bg-secondary/50 px-3 text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors cursor-pointer"
+                      >
+                        {internalNote}
+                      </a>
+                    ) : (
+                      <div className="flex items-center h-10 flex-1 rounded-md border border-input bg-secondary/50 px-3 text-sm">
+                        {internalNote}
+                      </div>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0 h-8 w-8"
+                      onClick={() => {
+                        setInternalNote("");
+                        setInternalNoteUrl("");
+                        setNotionUrlInput("");
+                        if (id) feeStore.updateFee(id, { internalNote: "", internalNoteUrl: "" });
+                      }}
+                      title="清除"
                     >
-                      {internalNote}
-                    </a>
-                  ) : (
-                    <div className="flex items-center h-10 flex-1 rounded-md border border-input bg-secondary/50 px-3 text-sm">
-                      {internalNote}
-                    </div>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="shrink-0 h-8 w-8"
-                    onClick={() => {
-                      setInternalNote("");
-                      setInternalNoteUrl("");
-                      setNotionUrlInput("");
-                      if (id) feeStore.updateFee(id, { internalNote: "", internalNoteUrl: "" });
-                    }}
-                    title="清除"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={notionUrlInput}
+                      onChange={(e) => setNotionUrlInput(e.target.value)}
+                      className="bg-secondary/50 flex-1"
+                      placeholder="貼上 Notion 案件頁面網址"
+                      onKeyDown={(e) => { if (e.key === "Enter") handleFetchFromUrl(); }}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 text-xs"
+                      disabled={!notionUrlInput.trim() || notionLoading}
+                      onClick={handleFetchFromUrl}
+                    >
+                      {notionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "確認"}
+                    </Button>
+                  </div>
+                );
+              }
+              // Read-only (locked or not canEdit)
+              return internalNoteUrl ? (
+                <a
+                  href={internalNoteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors cursor-pointer"
+                >
+                  {internalNote || internalNoteUrl}
+                </a>
               ) : (
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={notionUrlInput}
-                    onChange={(e) => setNotionUrlInput(e.target.value)}
-                    className="bg-secondary/50 flex-1"
-                    placeholder="貼上 Notion 案件頁面網址"
-                    onKeyDown={(e) => { if (e.key === "Enter") handleFetchFromUrl(); }}
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0 text-xs"
-                    disabled={!notionUrlInput.trim() || notionLoading}
-                    onClick={handleFetchFromUrl}
-                  >
-                    {notionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "確認"}
-                  </Button>
+                <div className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-muted-foreground">
+                  {internalNote || "未設定"}
                 </div>
-              )
-            ) : internalNoteUrl ? (
-              <a
-                href={internalNoteUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors cursor-pointer"
-              >
-                {internalNote || internalNoteUrl}
-              </a>
-            ) : (
-              <div className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-muted-foreground">
-                {internalNote || "未設定"}
-              </div>
-            )}
+              );
+            })()}
           </div>
 
           {/* 客戶 + 聯絡人 */}
@@ -1415,7 +1421,7 @@ export default function TranslatorFeeDetail() {
                 <ColorSelect
                   fieldKey="client"
                   value={clientInfo.client}
-                  disabled={!canEdit}
+                  disabled={!canEdit || clientInfo.reconciled}
                   onValueChange={(clientName) => {
                     trackChange("客戶", clientInfo.client, clientName);
                     const updatedInfo = { ...clientInfo, client: clientName };
@@ -1446,7 +1452,7 @@ export default function TranslatorFeeDetail() {
                 <ColorSelect
                   fieldKey="contact"
                   value={clientInfo.contact}
-                  disabled={!canEdit}
+                  disabled={!canEdit || clientInfo.reconciled}
                   onValueChange={(v) => {
                     trackChange("聯絡人", clientInfo.contact, v);
                     const updated = { ...clientInfo, contact: v };
@@ -1483,7 +1489,7 @@ export default function TranslatorFeeDetail() {
                   <Checkbox
                     id="rateConfirmed"
                     checked={isNoFeeTranslator ? true : clientInfo.rateConfirmed}
-                    disabled={!canEdit || isNoFeeTranslator}
+                    disabled={isFinalized || isNoFeeTranslator}
                     onCheckedChange={(checked) => {
                       const updated = { ...clientInfo, rateConfirmed: !!checked };
                       setClientInfo(updated);
@@ -1493,7 +1499,7 @@ export default function TranslatorFeeDetail() {
                   <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">費率無誤</Label>
                 </div>
               )}
-              {canEdit && !isNoFeeTranslator && (
+              {canEdit && !isNoFeeTranslator && !clientInfo.rateConfirmed && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -1516,14 +1522,14 @@ export default function TranslatorFeeDetail() {
                   <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>稿費單價</TableHead>
                   <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>計費單位數</TableHead>
                   <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>小計</TableHead>
-                  {canEdit && <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>}
+                  {canEdit && !clientInfo.rateConfirmed && <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {taskItems.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={canEdit ? 6 : 5}
+                      colSpan={canEdit && !clientInfo.rateConfirmed ? 6 : 5}
                       className="text-center text-sm text-muted-foreground py-6"
                     >
                       尚無任務項目
@@ -1536,7 +1542,7 @@ export default function TranslatorFeeDetail() {
                         <ColorSelect
                           fieldKey="taskType"
                           value={item.taskType}
-                          disabled={!canEdit || isNoFeeTranslator}
+                          disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
                           onValueChange={(v) => handleUpdateItem(item.id, "taskType", v)}
                           triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
                         />
@@ -1545,7 +1551,7 @@ export default function TranslatorFeeDetail() {
                         <ColorSelect
                           fieldKey="billingUnit"
                           value={item.billingUnit}
-                          disabled={!canEdit || isNoFeeTranslator}
+                          disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
                           onValueChange={(v) => handleUpdateItem(item.id, "billingUnit", v)}
                           triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
                         />
@@ -1561,7 +1567,7 @@ export default function TranslatorFeeDetail() {
                           }}
                           onFocus={() => setShowPricingTip(false)}
                           onBlur={(e) => handleNumberBlur(item.id, "unitPrice", e.target.value)}
-                          disabled={!canEdit || isNoFeeTranslator}
+                          disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
                           className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
                         />
                       </TableCell>
@@ -1575,14 +1581,14 @@ export default function TranslatorFeeDetail() {
                             if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitCount", v as any);
                           }}
                           onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
-                          disabled={!canEdit || isNoFeeTranslator}
+                          disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
                           className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
                         />
                       </TableCell>
                       <TableCell className="text-right text-xs font-medium">
                         {isNoFeeTranslator ? 0 : (Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}
                       </TableCell>
-                      {canEdit && (
+                      {canEdit && !clientInfo.rateConfirmed && (
                         <TableCell className="px-2">
                           <div className="flex justify-center">
                             {taskItems.length > 1 ? (
@@ -1618,7 +1624,7 @@ export default function TranslatorFeeDetail() {
                       <TableCell className="text-right text-sm font-bold">
                         {totalAmount.toLocaleString()}
                       </TableCell>
-                      {canEdit && <TableCell />}
+                      {canEdit && !clientInfo.rateConfirmed && <TableCell />}
                     </TableRow>
                 </TableFooter>
               )}
