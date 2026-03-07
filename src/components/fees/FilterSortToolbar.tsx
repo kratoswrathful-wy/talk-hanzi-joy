@@ -1,11 +1,12 @@
 import { useState, useRef } from "react";
-import { Filter, ArrowUpDown, Plus, X, ChevronDown, Trash2, Eye } from "lucide-react";
+import { Filter, ArrowUpDown, Plus, X, ChevronDown, Trash2, Eye, Columns3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   type TableFilter, type TableSort, type TableView, type FilterOperator,
   fieldMetas,
@@ -18,6 +19,7 @@ const fieldToStoreKey: Record<string, string> = {
   assignee: "assignee",
   client: "client",
   status: "status",
+  dispatchRoute: "dispatchRoute",
 };
 
 const operatorLabels: Record<FilterOperator, string> = {
@@ -60,6 +62,8 @@ interface Props {
   onReorderViews: (fromId: string, toId: string) => void;
   visibleFieldKeys: string[];
   selectedCount: number;
+  hiddenColumns: string[];
+  onToggleColumn: (key: string) => void;
 }
 
 export function FilterSortToolbar({
@@ -70,6 +74,8 @@ export function FilterSortToolbar({
   onRenameView, onReorderViews,
   visibleFieldKeys,
   selectedCount,
+  hiddenColumns,
+  onToggleColumn,
 }: Props) {
   const [newViewName, setNewViewName] = useState("");
   const [editingViewId, setEditingViewId] = useState<string | null>(null);
@@ -78,6 +84,7 @@ export function FilterSortToolbar({
   const dragViewRef = useRef<string | null>(null);
   const [dragOverViewId, setDragOverViewId] = useState<string | null>(null);
   const visibleFields = fieldMetas.filter((f) => visibleFieldKeys.includes(f.key));
+  const hiddenSet = new Set(hiddenColumns);
 
   return (
     <div className="space-y-2">
@@ -165,7 +172,7 @@ export function FilterSortToolbar({
         </Popover>
       </div>
 
-      {/* Filter/Sort bar */}
+      {/* Filter/Sort/Properties bar */}
       <div className="flex items-center gap-2 flex-wrap">
         {/* Filter button */}
         <Popover>
@@ -270,6 +277,36 @@ export function FilterSortToolbar({
           </PopoverContent>
         </Popover>
 
+        {/* Column visibility button */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5">
+              <Columns3 className="h-3 w-3" />
+              屬性
+              {hiddenColumns.length > 0 && (
+                <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px]">
+                  {visibleFields.length - hiddenColumns.length}/{visibleFields.length}
+                </Badge>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[240px] p-3" align="start">
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground mb-2">顯示屬性</p>
+              {visibleFields.map((f) => (
+                <label key={f.key} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-muted cursor-pointer text-xs">
+                  <Checkbox
+                    checked={!hiddenSet.has(f.key)}
+                    onCheckedChange={() => onToggleColumn(f.key)}
+                    className="h-3.5 w-3.5"
+                  />
+                  {f.label}
+                </label>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+
         {/* Active filter/sort pills */}
         {activeView.filters.map((filter) => {
           const meta = fieldMetas.find((f) => f.key === filter.field);
@@ -296,8 +333,8 @@ export function FilterSortToolbar({
 
         {/* Selection indicator */}
         {selectedCount > 0 && (
-          <Badge variant="default" className="h-6 text-xs ml-auto">
-            已選取 {selectedCount} 項
+          <Badge variant="default" className="h-6 text-xs">
+            已選取 {selectedCount} 個項目
           </Badge>
         )}
       </div>
