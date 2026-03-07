@@ -428,8 +428,13 @@ function TaskTypeOrderSection() {
     selectOptionsStore.addOption("taskType", label, newColor);
     // Auto-populate hourly pricing (450) for all existing clients
     const clients = selectOptionsStore.getSortedOptions("client");
+    const buOpts = selectOptionsStore.getSortedOptions("billingUnit");
     for (const c of clients) {
-      defaultPricingStore.setClientPrice(c.label, label, "小時", 450);
+      for (const bu of buOpts) {
+        if (bu.label === "小時") {
+          defaultPricingStore.setClientPrice(c.label, label, bu.label, 450);
+        }
+      }
     }
     setNewLabel("");
     setNewColor(PRESET_COLORS[0]);
