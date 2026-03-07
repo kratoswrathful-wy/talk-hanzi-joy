@@ -1434,7 +1434,7 @@ export default function TranslatorFeeDetail() {
                       });
                       // Auto-fill translator task item prices via tiers (always overwrite)
                       const updatedTaskItems = taskItems.map(item => {
-                        const cp = defaultPricingStore.getClientPrice(clientName, item.taskType);
+                        const cp = defaultPricingStore.getClientPrice(clientName, item.taskType, item.billingUnit);
                         if (cp === undefined) return item;
                         const tp = defaultPricingStore.getTranslatorPrice(cp, item.taskType, item.billingUnit);
                         return tp !== undefined ? { ...item, unitPrice: tp } : item;
