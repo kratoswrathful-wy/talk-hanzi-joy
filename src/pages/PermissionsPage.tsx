@@ -321,6 +321,25 @@ export default function PermissionsPage() {
     await saveConfig({ ...config, module_permissions: newModulePerms });
   };
 
+  // Toggle all permissions for a module
+  const handleToggleAllPerms = async (roleKey: string, moduleKey: string, value: boolean) => {
+    const mod = PERMISSION_MODULES.find((m) => m.key === moduleKey);
+    if (!mod) return;
+    const modulePerms = getModulePerms(config, roleKey, moduleKey);
+    const allItems = [...mod.listItems, ...mod.detailItems];
+    const newItems: Record<string, { view: boolean; edit: boolean }> = { ...modulePerms.items };
+    for (const item of allItems) {
+      newItems[item.key] = { view: value, edit: value };
+    }
+    const newModulePerms = {
+      ...(config as any).module_permissions,
+      [roleKey]: {
+        ...((config as any).module_permissions?.[roleKey] || {}),
+        [moduleKey]: { ...modulePerms, visible: value ? true : modulePerms.visible, items: newItems },
+      },
+    };
+    await saveConfig({ ...config, module_permissions: newModulePerms });
+
   if (!isExecutive) {
     return (
       <div className="mx-auto max-w-3xl py-12 text-center text-muted-foreground">
