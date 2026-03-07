@@ -408,10 +408,10 @@ export default function ClientInvoiceDetailPage() {
           返回客戶請款單清單
         </Link>
         <div className="flex items-center gap-2 shrink-0">
-          {isAdmin && (
+          {((!isPaid && isAdmin) || (isPaid && isExecutive)) && checkPerm("client_invoice", "cinv_detail_delete", "edit") && (
             <Button size="sm" className="text-xs min-w-[88px] text-white hover:opacity-80" style={{ backgroundColor: '#6B7280' }} onClick={() => {
               if (isPaid) {
-                toast.error("這份請款單已經付款完畢，如欲刪除請洽團隊管理人員。");
+                setShowPasswordDelete(true);
               } else {
                 setShowDelete(true);
               }
