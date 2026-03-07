@@ -37,8 +37,11 @@ const DEFAULT_STATE: LabelStyleState = {
 let state: LabelStyleState = { ...DEFAULT_STATE };
 const listeners = new Set<Listener>();
 
+const SETTINGS_KEY = "label_styles";
+
 function notify() {
   listeners.forEach((l) => l());
+  saveSetting(SETTINGS_KEY, state);
 }
 
 export const labelStyleStore = {
