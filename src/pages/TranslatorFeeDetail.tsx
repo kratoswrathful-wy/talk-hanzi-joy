@@ -628,7 +628,9 @@ export default function TranslatorFeeDetail() {
         const unitCount = data["計費單位數"] ?? null;
         const unit = data["單位"] || "";
         const dispatch = data["派案途徑"] || "";
-        let people = data["譯者"] || data["審稿人員"] || [];
+        const irRawT = data["譯者"];
+        const irRawR = data["審稿人員"];
+        let people = (Array.isArray(irRawT) && irRawT.length > 0) ? irRawT : (Array.isArray(irRawR) && irRawR.length > 0) ? irRawR : [];
         const casePages = data["案件頁面"] || [];
         const reconciled = data["對帳完成"] === true;
         const invoiced = data["請款完成"] === true;
@@ -648,7 +650,9 @@ export default function TranslatorFeeDetail() {
                   workTypes = caseData["工作類型"] || [];
                 }
                 if (missingPeople) {
-                  people = caseData["譯者"] || caseData["審稿人員"] || [];
+                  const caseRawT = caseData["譯者"];
+                  const caseRawR = caseData["審稿人員"];
+                  people = (Array.isArray(caseRawT) && caseRawT.length > 0) ? caseRawT : (Array.isArray(caseRawR) && caseRawR.length > 0) ? caseRawR : [];
                 }
               }
             } catch (e) {
@@ -945,9 +949,15 @@ export default function TranslatorFeeDetail() {
         // ===== 🖖 翻譯案件 mapping (original logic) =====
         // Extract fields
         const caseId = data["案件編號"] || data["Name"] || data["title"] || "";
-        const people = data["譯者"] || data["審稿人員"] || [];
+        const rawTranslators = data["譯者"];
+        const rawReviewers = data["審稿人員"];
+        const people = (Array.isArray(rawTranslators) && rawTranslators.length > 0) ? rawTranslators
+          : (Array.isArray(rawReviewers) && rawReviewers.length > 0) ? rawReviewers : [];
         const workTypes = data["工作類型"] || [];
         const unitCount = data["計費單位數"] || null;
+        const notionUnit = data["計費單位"] || "";
+        const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
+        const billingUnit: BillingUnit = billingUnitMap[notionUnit] || "字";
 
         // 案件編號 > 標題（預填為「PO_案件編號」）
         if (caseId) {
@@ -1009,9 +1019,9 @@ export default function TranslatorFeeDetail() {
             return {
               id: `item-notion-${Date.now()}-${idx}`,
               taskType: matchedType as TaskType,
-              billingUnit: "字" as BillingUnit,
+              billingUnit,
               unitCount: idx === 0 && unitCount ? unitCount : 0,
-              unitPrice: getAutoPrice(matchedType as string, "字"),
+              unitPrice: getAutoPrice(matchedType as string, billingUnit),
             };
           });
           setTaskItems(mapped);
@@ -1026,7 +1036,7 @@ export default function TranslatorFeeDetail() {
             return {
               id: `ci-notion-${Date.now()}-${idx}`,
               taskType: matchedType as TaskType,
-              billingUnit: "字" as BillingUnit,
+              billingUnit,
               unitCount: idx === 0 && unitCount ? unitCount : 0,
               clientPrice: cp,
             };
@@ -1044,14 +1054,14 @@ export default function TranslatorFeeDetail() {
           setClientInfo((prev) => ({
             ...prev,
             clientTaskItems: prev.clientTaskItems.map((item, idx) =>
-              idx === 0 ? { ...item, unitCount, billingUnit: "字" as BillingUnit } : item
+              idx === 0 ? { ...item, unitCount, billingUnit } : item
             ),
           }));
           if (id) {
             const updatedClientInfo = {
               ...clientInfo,
               clientTaskItems: clientInfo.clientTaskItems.map((item, idx) =>
-                idx === 0 ? { ...item, unitCount, billingUnit: "字" as BillingUnit } : item
+                idx === 0 ? { ...item, unitCount, billingUnit } : item
               ),
             };
             feeStore.updateFee(id, { clientInfo: updatedClientInfo });
@@ -1106,7 +1116,7 @@ export default function TranslatorFeeDetail() {
             ? workTypes.map((wt: string, idx: number) => ({
                 id: `item-case-base-${Date.now()}-${idx}`,
                 taskType: matchTaskType(wt) as TaskType,
-                billingUnit: "字" as BillingUnit,
+                billingUnit,
                 unitCount: idx === 0 && unitCount ? unitCount : 0,
                 unitPrice: 0,
               }))

@@ -61,9 +61,14 @@ export default function NewTranslatorFee() {
         // Auto-fill form fields from Notion data
         // Try common property names
         const caseId = data["案件編號"] || data["Name"] || data["title"] || "";
-        let people = data["譯者"] || data["審稿人員"] || [];
+        const rawT = data["譯者"];
+        const rawR = data["審稿人員"];
+        let people = (Array.isArray(rawT) && rawT.length > 0) ? rawT : (Array.isArray(rawR) && rawR.length > 0) ? rawR : [];
         let workTypes = data["工作類型"] || [];
         const unitCount = data["計費單位數"] || null;
+        const notionUnit = data["計費單位"] || "";
+        const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
+        const billingUnit: BillingUnit = billingUnitMap[notionUnit] || "字";
         const casePages = data["案件頁面"] || [];
 
         // If IR page is missing work types or translators, fetch from the related case page
@@ -81,7 +86,9 @@ export default function NewTranslatorFee() {
                   workTypes = caseData["工作類型"] || [];
                 }
                 if (missingPeople) {
-                  people = caseData["譯者"] || caseData["審稿人員"] || [];
+                  const cRawT = caseData["譯者"];
+                  const cRawR = caseData["審稿人員"];
+                  people = (Array.isArray(cRawT) && cRawT.length > 0) ? cRawT : (Array.isArray(cRawR) && cRawR.length > 0) ? cRawR : [];
                 }
               }
             } catch (e) {
@@ -136,7 +143,7 @@ export default function NewTranslatorFee() {
             return {
               id: `item-notion-${idx}`,
               taskType: matchedType as TaskType,
-              billingUnit: "字" as BillingUnit,
+              billingUnit,
               unitCount: idx === 0 && unitCount ? unitCount : 0,
               unitPrice: 0,
             };
