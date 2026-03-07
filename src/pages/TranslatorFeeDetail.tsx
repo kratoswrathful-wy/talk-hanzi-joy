@@ -1609,11 +1609,7 @@ export default function TranslatorFeeDetail() {
               {taskItems.length > 0 && (
                 <TableFooter>
                     <TableRow>
-                      <TableCell colSpan={3} className="px-[18px]">
-                        <span className={`text-xs font-medium text-primary transition-opacity duration-500 ${showPricingTip ? "opacity-100" : "opacity-0"}`}>
-                          {showPricingTip && "首度填寫客戶報價時，系統會自動按照級距表（見「設定」）填入單價。"}
-                        </span>
-                      </TableCell>
+                      <TableCell colSpan={3} className="px-[18px]" />
                       <TableCell className="text-sm font-medium text-right">
                         稿費總額
                       </TableCell>
