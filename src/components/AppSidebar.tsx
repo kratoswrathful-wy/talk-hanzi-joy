@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 
 export function AppSidebar() {
-  const { profile, isAdmin, signOut } = useAuth();
+  const { profile, isAdmin, roles, signOut } = useAuth();
 
   const isExecutive = roles.some((r) => r.role === "executive");
 
