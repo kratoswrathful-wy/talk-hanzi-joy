@@ -1,5 +1,6 @@
 import type { Invoice, InvoiceStatus, PaymentRecord } from "@/data/invoice-types";
 import { supabase } from "@/integrations/supabase/client";
+import { getEnvironment } from "@/lib/environment";
 
 type Listener = () => void;
 
@@ -71,16 +72,20 @@ export const invoiceStore = {
   },
 
   loadInvoices: async () => {
+    const env = getEnvironment();
+
     const { data: invData, error } = await supabase
       .from("invoices")
       .select("*")
+      .eq("env", env)
       .order("created_at", { ascending: false });
 
     if (error || !invData) return { error };
 
     const { data: linkData } = await supabase
       .from("invoice_fees")
-      .select("invoice_id, fee_id");
+      .select("invoice_id, fee_id")
+      .eq("env", env);
 
     const feeMap = new Map<string, string[]>();
     if (linkData) {
@@ -104,6 +109,7 @@ export const invoiceStore = {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const title = generateDefaultTitle(translator);
+    const env = getEnvironment();
 
     const newInvoice: Invoice = {
       id,
@@ -128,6 +134,7 @@ export const invoiceStore = {
       status: "pending",
       note: "",
       created_by: uid,
+      env,
     } as any);
 
     if (error) {
@@ -138,7 +145,7 @@ export const invoiceStore = {
     }
 
     if (feeIds.length > 0) {
-      const links = feeIds.map((feeId) => ({ invoice_id: id, fee_id: feeId }));
+      const links = feeIds.map((feeId) => ({ invoice_id: id, fee_id: feeId, env }));
       const { error: linkErr } = await supabase.from("invoice_fees").insert(links as any);
       if (linkErr) console.error("Failed to link fees:", linkErr);
     }
@@ -195,7 +202,7 @@ export const invoiceStore = {
     );
     notify();
 
-    const links = newFeeIds.map((feeId) => ({ invoice_id: invoiceId, fee_id: feeId }));
+    const links = newFeeIds.map((feeId) => ({ invoice_id: invoiceId, fee_id: feeId, env: getEnvironment() }));
     const { error } = await supabase.from("invoice_fees").insert(links as any);
     if (error) console.error("Failed to add fees to invoice:", error);
   },
