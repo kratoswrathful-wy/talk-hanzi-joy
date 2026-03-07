@@ -1581,7 +1581,7 @@ export default function TranslatorFeeDetail() {
                             if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitCount", v as any);
                           }}
                           onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
-                          disabled={!canEdit || isNoFeeTranslator}
+                          disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
                           className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
                         />
                       </TableCell>
