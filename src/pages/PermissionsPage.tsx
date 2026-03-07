@@ -210,6 +210,8 @@ export default function PermissionsPage() {
   const [saving, setSaving] = useState(false);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [renamingRole, setRenamingRole] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   const saveConfig = useCallback(async (newConfig: any) => {
     setSaving(true);
