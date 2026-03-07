@@ -404,7 +404,7 @@ export default function InvoicesPage() {
   const handleDeleteClick = useCallback(() => {
     if (hasPaidInvoices) {
       if (!isExecutive) {
-        toast.error("只有執行官可以刪除已付款的請款單");
+        toast.error("這份請款單已經付款完畢，如欲刪除請洽團隊管理人員。");
         return;
       }
       setPassword("");
