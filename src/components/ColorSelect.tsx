@@ -141,6 +141,9 @@ export default function ColorSelect({
             )}
           >
             {selectedOption ? (
+              fieldKey === "assignee" ? (
+                <AssigneeTag label={selectedOption.label} avatarUrl={selectedOption.avatarUrl} />
+              ) : (
               <span
                 className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
                 style={{
@@ -151,6 +154,7 @@ export default function ColorSelect({
               >
                 <span className="truncate">{selectedOption.label}</span>
               </span>
+              )
             ) : (
               <span className="text-muted-foreground">{placeholder}</span>
             )}
