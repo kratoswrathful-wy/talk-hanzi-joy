@@ -82,6 +82,7 @@ function getFieldValue(fee: TranslatorFee, field: string): string | number | boo
     case "reconciled": return !!fee.clientInfo?.reconciled;
     case "rateConfirmed": return !!fee.clientInfo?.rateConfirmed;
     case "invoiced": return !!fee.clientInfo?.invoiced;
+    case "sameCase": return !!fee.clientInfo?.sameCase;
     case "createdBy": return fee.createdBy;
     case "createdAt": return fee.createdAt;
     default: return "";
