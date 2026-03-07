@@ -817,7 +817,7 @@ export default function TranslatorFeeDetail() {
           if (client) {
             for (let i = 0; i < finalClientItems.length; i++) {
               if (!finalClientItems[i].clientPrice || finalClientItems[i].clientPrice === 0) {
-                const defaultPrice = defaultPricingStore.getClientPrice(client, finalClientItems[i].taskType);
+                const defaultPrice = defaultPricingStore.getClientPrice(client, finalClientItems[i].taskType, finalClientItems[i].billingUnit);
                 if (defaultPrice !== undefined && defaultPrice > 0) {
                   finalClientItems[i] = { ...finalClientItems[i], clientPrice: defaultPrice };
                   pricingChanged = true;
