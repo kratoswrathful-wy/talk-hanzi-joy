@@ -116,8 +116,13 @@ export default function ClientInvoiceDetailPage() {
   const navigate = useNavigate();
   const invoice = useClientInvoice(id);
   const fees = useFees();
-  const { isAdmin, profile } = useAuth();
+  const { isAdmin, profile, roles, user } = useAuth();
+  const { checkPerm } = usePermissions();
+  const isExecutive = roles.some((r) => r.role === "executive");
   const [showDelete, setShowDelete] = useState(false);
+  const [showPasswordDelete, setShowPasswordDelete] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deletingWithPassword, setDeletingWithPassword] = useState(false);
   const [removeFeeId, setRemoveFeeId] = useState<string | null>(null);
   const [showPartialInput, setShowPartialInput] = useState(false);
   const [partialAmount, setPartialAmount] = useState("");
