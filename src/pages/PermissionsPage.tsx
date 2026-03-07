@@ -449,7 +449,27 @@ export default function PermissionsPage() {
                           >
                             {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </Button>
-                          <span className="text-sm font-medium">{role.label}</span>
+                          {renamingRole === role.key ? (
+                            <Input
+                              value={renameValue}
+                              onChange={(e) => setRenameValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleRenameConfirm();
+                                if (e.key === "Escape") setRenamingRole(null);
+                              }}
+                              onBlur={handleRenameConfirm}
+                              autoFocus
+                              className="h-7 w-32 text-sm"
+                            />
+                          ) : (
+                            <span
+                              className="text-sm font-medium cursor-pointer hover:underline"
+                              onDoubleClick={() => handleRenameStart(role)}
+                              title="雙擊以更名"
+                            >
+                              {role.label}
+                            </span>
+                          )}
                           {role.builtIn && (
                             <Badge variant="outline" className="text-xs">內建</Badge>
                           )}
