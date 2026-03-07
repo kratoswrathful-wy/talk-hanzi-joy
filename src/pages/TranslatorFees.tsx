@@ -71,9 +71,9 @@ const editableFields = new Set([
 ]);
 
 function getEditType(key: string): "text" | "select" | "checkbox" | "colorSelect" {
-  if (key === "status") return "select";
+  if (key === "status" || key === "dispatchRoute") return "select";
   if (["assignee", "client"].includes(key)) return "colorSelect";
-  if (["reconciled", "rateConfirmed", "invoiced"].includes(key)) return "checkbox";
+  if (["reconciled", "rateConfirmed", "invoiced", "sameCase"].includes(key)) return "checkbox";
   return "text";
 }
 
