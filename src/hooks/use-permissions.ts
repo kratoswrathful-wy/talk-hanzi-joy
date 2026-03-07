@@ -12,6 +12,7 @@ export interface PermissionConfig {
   settings_sections: Record<string, Record<string, boolean>>;
   custom_roles?: RoleDefinition[];
   role_order?: string[];
+  role_label_overrides?: Record<string, string>;
   module_permissions?: any;
 }
 
