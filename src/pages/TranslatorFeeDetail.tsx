@@ -1512,7 +1512,6 @@ export default function TranslatorFeeDetail() {
                 </div>
               )}
             </div>
-            </div>
           </div>
 
           <div className="rounded-lg border border-border overflow-hidden">
