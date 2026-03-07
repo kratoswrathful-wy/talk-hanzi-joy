@@ -366,7 +366,7 @@ export default function ClientInfoSection({
                       value={item.billingUnit}
                       onValueChange={(v) => updateItem(item.id, "billingUnit", v as BillingUnit)}
                       triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
-                      disabled={clientItemsLocked}
+                      disabled={clientItemsLocked || clientInfo.reconciled}
                     />
                   </TableCell>
                   <TableCell className="text-right">
