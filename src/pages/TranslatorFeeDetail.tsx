@@ -1109,7 +1109,7 @@ export default function TranslatorFeeDetail() {
             ? workTypes.map((wt: string, idx: number) => ({
                 id: `item-case-base-${Date.now()}-${idx}`,
                 taskType: matchTaskType(wt) as TaskType,
-                billingUnit: "字" as BillingUnit,
+                billingUnit,
                 unitCount: idx === 0 && unitCount ? unitCount : 0,
                 unitPrice: 0,
               }))
