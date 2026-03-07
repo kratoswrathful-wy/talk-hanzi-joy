@@ -605,8 +605,6 @@ export default function TranslatorFeeDetail() {
         if (!existingOptions.find((o) => o.label === taskType)) {
           const color = PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
           selectOptionsStore.addOption("taskType", taskType, color);
-          // Also add to clientTaskType
-          selectOptionsStore.addOption("clientTaskType", taskType, color);
           autoCreated.push({ field: "任務類型", label: taskType });
         }
       };
