@@ -21,9 +21,11 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "@/hooks/use-toast";
 import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
+import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-store";
 
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
@@ -49,9 +51,26 @@ function ToolInstance({
   showRemove: boolean;
 }) {
   const { options: toolOptions } = useSelectOptions("executionTool");
+  const templates = useToolTemplates();
+  const [tplOpen, setTplOpen] = useState(false);
   const selectedTool = toolOptions.find((o) => o.label === entry.tool);
   const fields = selectedTool?.toolFields || [];
   const values = entry.fieldValues || {};
+
+  // Filter templates matching selected tool (or show all if no tool selected)
+  const matchingTemplates = entry.tool
+    ? templates.filter((t) => t.tool === entry.tool)
+    : templates;
+
+  const applyTemplate = (tpl: ToolTemplate) => {
+    // Set tool and merge non-empty field values
+    const newValues: Record<string, string> = { ...values };
+    for (const [key, val] of Object.entries(tpl.fieldValues)) {
+      if (val) newValues[key] = val;
+    }
+    onUpdate({ tool: tpl.tool, fieldValues: newValues });
+    setTplOpen(false);
+  };
 
   return (
     <div className="relative border border-border rounded-lg p-3 space-y-1">
@@ -65,14 +84,47 @@ function ToolInstance({
           <X className="h-3.5 w-3.5" />
         </Button>
       )}
-      <Field label="執行工具">
-        <ColorSelect
-          fieldKey="executionTool"
-          value={entry.tool}
-          onValueChange={(v) => onUpdate({ tool: v })}
-          className="max-w-xs"
-        />
-      </Field>
+      <div className="flex items-center gap-2">
+        <div className="flex-1">
+          <Field label="執行工具">
+            <ColorSelect
+              fieldKey="executionTool"
+              value={entry.tool}
+              onValueChange={(v) => onUpdate({ tool: v })}
+              className="max-w-xs"
+            />
+          </Field>
+        </div>
+        <Popover open={tplOpen} onOpenChange={setTplOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8 text-xs shrink-0 mt-1">
+              範本
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-2" align="end">
+            {matchingTemplates.length === 0 ? (
+              <p className="text-xs text-muted-foreground px-2 py-1">無可用範本</p>
+            ) : (
+              <div className="space-y-1">
+                {matchingTemplates.map((tpl) => (
+                  <button
+                    key={tpl.id}
+                    className="w-full text-left px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
+                    onClick={() => applyTemplate(tpl)}
+                  >
+                    <span
+                      className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                      style={{ backgroundColor: "#383A3F", color: "#fff" }}
+                    >
+                      {tpl.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
+      </div>
       {fields.map((f) => (
         <Field key={f.id} label={f.label}>
           <Input

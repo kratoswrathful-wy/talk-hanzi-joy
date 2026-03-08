@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2, GripVertical, Palette, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Trash2, GripVertical, Palette, ChevronDown, ChevronRight, Pencil, Save } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import ColorPicker from "@/components/ColorPicker";
 import { useSelectOptions, selectOptionsStore, PRESET_COLORS } from "@/stores/select-options-store";
 import { useLabelStyles, labelStyleStore } from "@/stores/label-style-store";
+import { useToolTemplates, toolTemplateStore, type ToolTemplate } from "@/stores/tool-template-store";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 function getColorUsageMap(options: { label: string; color: string }[]): Record<string, string[]> {
@@ -17,6 +19,7 @@ function getColorUsageMap(options: { label: string; color: string }[]): Record<s
   return map;
 }
 
+/* ── Tool Sub-Field Manager ── */
 function ToolFieldManager({ optionId, fields }: { optionId: string; fields: { id: string; label: string }[] }) {
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
@@ -132,9 +135,194 @@ function ToolFieldManager({ optionId, fields }: { optionId: string; fields: { id
   );
 }
 
+/* ── Template Card (collapsible) ── */
+function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { id: string; label: string; color: string; toolFields?: { id: string; label: string }[] }[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<ToolTemplate>(tpl);
+
+  const selectedTool = toolOptions.find((o) => o.label === draft.tool);
+  const fields = selectedTool?.toolFields || [];
+
+  const startEdit = () => {
+    setDraft({ ...tpl });
+    setEditing(true);
+    setExpanded(true);
+  };
+
+  const handleSave = () => {
+    toolTemplateStore.update(tpl.id, {
+      name: draft.name,
+      tool: draft.tool,
+      fieldValues: draft.fieldValues,
+    });
+    setEditing(false);
+  };
+
+  return (
+    <div className="border border-border rounded-lg overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-2 px-3 py-2 bg-secondary/20">
+        <button
+          className="h-5 w-5 rounded flex items-center justify-center hover:bg-muted transition-colors shrink-0"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+        </button>
+        <span className="text-sm font-medium flex-1">{tpl.name}</span>
+        {tpl.tool && (
+          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: toolOptions.find((o) => o.label === tpl.tool)?.color || "#383A3F", color: "#fff" }}>
+            {tpl.tool}
+          </span>
+        )}
+        <button
+          className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
+          onClick={() => toolTemplateStore.remove(tpl.id)}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* Expanded content */}
+      {expanded && (
+        <div className="px-4 py-3 space-y-2 border-t border-border">
+          {editing ? (
+            <>
+              <div className="grid grid-cols-[80px_1fr] items-center gap-2">
+                <span className="text-xs text-muted-foreground">範本名稱</span>
+                <Input
+                  value={draft.name}
+                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                  className="h-7 text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-[80px_1fr] items-center gap-2">
+                <span className="text-xs text-muted-foreground">工具</span>
+                <Select value={draft.tool} onValueChange={(v) => setDraft({ ...draft, tool: v, fieldValues: {} })}>
+                  <SelectTrigger className="h-7 text-sm">
+                    <SelectValue placeholder="選擇工具" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {toolOptions.map((o) => (
+                      <SelectItem key={o.id} value={o.label}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {fields.map((f) => (
+                <div key={f.id} className="grid grid-cols-[80px_1fr] items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{f.label}</span>
+                  <Input
+                    value={draft.fieldValues[f.id] || ""}
+                    onChange={(e) => setDraft({ ...draft, fieldValues: { ...draft.fieldValues, [f.id]: e.target.value } })}
+                    className="h-7 text-sm"
+                  />
+                </div>
+              ))}
+              <div className="flex justify-end pt-1">
+                <Button size="sm" className="h-7 text-xs gap-1" onClick={handleSave}>
+                  <Save className="h-3 w-3" />
+                  儲存變更
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              {fields.length === 0 && !tpl.tool && (
+                <p className="text-xs text-muted-foreground">尚未設定工具</p>
+              )}
+              {fields.map((f) => {
+                const val = tpl.fieldValues[f.id];
+                if (!val) return null;
+                return (
+                  <div key={f.id} className="grid grid-cols-[80px_1fr] items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{f.label}</span>
+                    <span className="text-sm">{val}</span>
+                  </div>
+                );
+              })}
+              <div className="flex justify-end pt-1">
+                <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={startEdit}>
+                  <Pencil className="h-3 w-3" />
+                  編輯
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── New Template Form (inline) ── */
+function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; label: string; toolFields?: { id: string; label: string }[] }[]; onDone: () => void }) {
+  const [name, setName] = useState("");
+  const [tool, setTool] = useState("");
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+
+  const selectedTool = toolOptions.find((o) => o.label === tool);
+  const fields = selectedTool?.toolFields || [];
+
+  const handleSave = () => {
+    if (!name.trim()) return;
+    toolTemplateStore.add({ name: name.trim(), tool, fieldValues });
+    onDone();
+  };
+
+  return (
+    <div className="border border-border rounded-lg p-4 space-y-2">
+      <div className="grid grid-cols-[80px_1fr] items-center gap-2">
+        <span className="text-xs text-muted-foreground">範本名稱</span>
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="h-7 text-sm"
+          placeholder="輸入範本名稱"
+          autoFocus
+        />
+      </div>
+      <div className="grid grid-cols-[80px_1fr] items-center gap-2">
+        <span className="text-xs text-muted-foreground">工具</span>
+        <Select value={tool} onValueChange={(v) => { setTool(v); setFieldValues({}); }}>
+          <SelectTrigger className="h-7 text-sm">
+            <SelectValue placeholder="選擇工具" />
+          </SelectTrigger>
+          <SelectContent>
+            {toolOptions.map((o) => (
+              <SelectItem key={o.id} value={o.label}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {fields.map((f) => (
+        <div key={f.id} className="grid grid-cols-[80px_1fr] items-center gap-2">
+          <span className="text-xs text-muted-foreground">{f.label}</span>
+          <Input
+            value={fieldValues[f.id] || ""}
+            onChange={(e) => setFieldValues({ ...fieldValues, [f.id]: e.target.value })}
+            className="h-7 text-sm"
+          />
+        </div>
+      ))}
+      <div className="flex gap-1.5 justify-end pt-1">
+        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onDone}>
+          取消
+        </Button>
+        <Button size="sm" className="h-7 text-xs gap-1" disabled={!name.trim()} onClick={handleSave}>
+          <Save className="h-3 w-3" />
+          儲存變更
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Main Page ── */
 export default function ToolManagementPage() {
   const { options: toolOptions, customColors } = useSelectOptions("executionTool");
   const labelStyles = useLabelStyles();
+  const templates = useToolTemplates();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
@@ -143,6 +331,7 @@ export default function ToolManagementPage() {
   const [colorPickerOptionId, setColorPickerOptionId] = useState<string | null>(null);
   const [textColorOpen, setTextColorOpen] = useState(false);
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
+  const [addingTemplate, setAddingTemplate] = useState(false);
 
   const toggleExpand = (id: string) => {
     setExpandedTools((prev) => {
@@ -183,11 +372,13 @@ export default function ToolManagementPage() {
       <div>
         <h1 className="text-xl font-bold tracking-tight">工具管理</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          管理執行工具選項的顯示順序、顏色與自訂欄位，變更會套用到所有案件
+          管理執行工具選項與範本，變更會套用到所有案件
         </p>
       </div>
 
+      {/* ── 工具區塊 ── */}
       <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+        <h2 className="text-base font-semibold">工具</h2>
         <div className="space-y-1">
           {toolOptions.map((opt, idx) => (
             <div key={opt.id}>
@@ -305,7 +496,7 @@ export default function ToolManagementPage() {
           </Button>
         )}
 
-        {/* Label text color picker - collapsible */}
+        {/* Label text color picker */}
         <div className="border-t border-border pt-4">
           <button
             className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left"
@@ -332,6 +523,41 @@ export default function ToolManagementPage() {
               />
             </div>
           )}
+        </div>
+      </div>
+
+      {/* ── 範本區塊 ── */}
+      <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold">範本</h2>
+          {!addingTemplate && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1 text-xs"
+              onClick={() => setAddingTemplate(true)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              新增範本
+            </Button>
+          )}
+        </div>
+
+        {addingTemplate && (
+          <NewTemplateForm
+            toolOptions={toolOptions}
+            onDone={() => setAddingTemplate(false)}
+          />
+        )}
+
+        {templates.length === 0 && !addingTemplate && (
+          <p className="text-sm text-muted-foreground">尚未建立任何範本</p>
+        )}
+
+        <div className="space-y-2">
+          {templates.map((tpl) => (
+            <TemplateCard key={tpl.id} tpl={tpl} toolOptions={toolOptions} />
+          ))}
         </div>
       </div>
     </div>
