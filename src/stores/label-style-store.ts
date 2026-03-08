@@ -30,6 +30,7 @@ const DEFAULT_STATE: LabelStyleState = {
   billingUnit: { textColor: "#FFFFFF" },
   client: { textColor: "#FFFFFF" },
   dispatchRoute: { textColor: "#FFFFFF" },
+  caseCategory: { textColor: "#FFFFFF" },
   statusDraft: { bgColor: "#6B7280", textColor: "#FFFFFF" },
   statusFinalized: { bgColor: "#22C55E", textColor: "#FFFFFF" },
   invoicePending: { bgColor: "#6B7280", textColor: "#FFFFFF" },
