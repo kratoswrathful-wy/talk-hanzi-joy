@@ -1320,9 +1320,22 @@ export default function TranslatorFeeDetail() {
             </Tooltip>
           )}
           {canRecall && (
-            <Button variant="outline" size="sm" className="text-xs min-w-[88px]" onClick={handleRecall}>
-              收回為草稿
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs min-w-[88px]"
+                    disabled={linkedTranslatorInvoices.length > 0}
+                    onClick={handleRecall}
+                  >
+                    收回為草稿
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {linkedTranslatorInvoices.length > 0 && <TooltipContent>此費用已列入稿費請款單，無法收回</TooltipContent>}
+            </Tooltip>
           )}
         </div>
         </TooltipProvider>
