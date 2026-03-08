@@ -7,6 +7,7 @@ type Listener = () => void;
 let cases: CaseRecord[] = [];
 let loaded = false;
 let loadPromise: Promise<void> | null = null;
+let loadVersion = 0; // version counter to discard stale loads
 const listeners = new Set<Listener>();
 
 function notify() {
