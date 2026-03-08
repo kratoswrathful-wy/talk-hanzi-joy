@@ -124,15 +124,18 @@ function NoteDetailView({
   note,
   onUpdate,
   onBack,
+  onDelete,
 }: {
   note: InternalNote;
   onUpdate: (updates: Partial<InternalNote>) => void;
   onBack: () => void;
+  onDelete: () => void;
 }) {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const [invalidateOpen, setInvalidateOpen] = useState(false);
   const [invalidateReason, setInvalidateReason] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [commentDraft, setCommentDraft] = useState("");
 
   const comments = note.comments || [];
