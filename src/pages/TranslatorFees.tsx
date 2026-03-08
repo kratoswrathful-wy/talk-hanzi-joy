@@ -1005,6 +1005,37 @@ export default function TranslatorFees() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Delete validation warning for multi-select */}
+      <AlertDialog open={showDeleteValidation} onOpenChange={setShowDeleteValidation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>部分項目無法刪除</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>以下項目不符合刪除條件：</p>
+                <ul className="list-disc pl-5 space-y-1.5 max-h-60 overflow-y-auto">
+                  {deleteValidationIssues.map((issue) => (
+                    <li key={issue.feeId} className="text-sm">
+                      <Link
+                        to={`/fees/${issue.feeId}`}
+                        className="text-primary hover:underline font-medium"
+                        onClick={() => setShowDeleteValidation(false)}
+                      >
+                        {issue.title}
+                      </Link>
+                      <span className="text-muted-foreground ml-1">— {issue.reason}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>關閉</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
