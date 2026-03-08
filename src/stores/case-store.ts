@@ -34,6 +34,7 @@ function fromDb(row: any): CaseRecord {
     executionTool: row.execution_tool ?? "",
     toolFieldValues: (row.tool_field_values && typeof row.tool_field_values === "object" && !Array.isArray(row.tool_field_values)) ? row.tool_field_values as Record<string, string> : {},
     tools: Array.isArray(row.tools) ? (row.tools as ToolEntry[]) : [],
+    questionTools: Array.isArray(row.question_tools) ? (row.question_tools as ToolEntry[]) : [],
     deliveryMethod: row.delivery_method ?? "",
     clientReceipt: row.client_receipt ?? "",
     customGuidelinesUrl: Array.isArray(row.custom_guidelines_url) ? row.custom_guidelines_url : [],
