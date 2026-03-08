@@ -664,8 +664,8 @@ export default function TranslatorFeeDetail() {
       if (isInternalFeeRecord) {
         // ===== 💹 內部費用紀錄 mapping =====
         const feeNumber = data["費用編號"] || "";
-        const client = data["客戶"] || "";
-        const contact = data["聯絡人"] || "";
+        const client = (data["客戶"] || "").replace(/\s+/g, " ").trim();
+        const contact = (data["聯絡人"] || "").replace(/\s+/g, " ").trim();
         const clientCaseId = data["客戶端案號"] || "";
         const clientPo = data["客戶 PO#"] || "";
         const quoteRate = data["報價費率"] ?? null;
