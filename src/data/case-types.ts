@@ -32,8 +32,8 @@ export interface CaseRecord {
   tools: ToolEntry[];
   deliveryMethod: string;
   clientReceipt: string;
-  customGuidelinesUrl: string;
-  clientGuidelines: string;
+  customGuidelinesUrl: { name: string; url: string }[];
+  clientGuidelines: { name: string; url: string }[];
   commonInfo: { label: string; url: string }[];
   internalNoteForm: boolean;
   clientQuestionForm: boolean;
