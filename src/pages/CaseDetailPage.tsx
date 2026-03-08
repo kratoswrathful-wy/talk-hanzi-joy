@@ -56,8 +56,6 @@ function ToolInstance({
   const [tplOpen, setTplOpen] = useState(false);
   const [conflictTpl, setConflictTpl] = useState<ToolTemplate | null>(null);
   const [conflictFields, setConflictFields] = useState<{ id: string; label: string; current: string; incoming: string }[]>([]);
-  // For each conflict field, true = use template value, false = keep current
-  const [conflictChoices, setConflictChoices] = useState<Record<string, boolean>>({});
 
   const selectedTool = toolOptions.find((o) => o.label === entry.tool);
   const fields = selectedTool?.toolFields || [];
@@ -82,38 +80,27 @@ function ToolInstance({
     if (conflicts.length > 0) {
       setConflictTpl(tpl);
       setConflictFields(conflicts);
-      // Default: use template value for all conflicts
-      const defaults: Record<string, boolean> = {};
-      conflicts.forEach((c) => { defaults[c.id] = true; });
-      setConflictChoices(defaults);
       setTplOpen(false);
     } else {
-      applyTemplate(tpl, {});
+      applyTemplate(tpl);
     }
   };
 
-  const applyTemplate = (tpl: ToolTemplate, overrideChoices?: Record<string, boolean>) => {
-    const choices = overrideChoices ?? conflictChoices;
+  const applyTemplate = (tpl: ToolTemplate) => {
     const newValues: Record<string, string> = { ...values };
     for (const [key, val] of Object.entries(tpl.fieldValues)) {
-      if (!val) continue;
-      const hasConflict = conflictFields.some((cf) => cf.id === key);
-      if (hasConflict) {
-        // Apply only if user chose template version
-        if (choices[key]) newValues[key] = val;
-      } else {
-        newValues[key] = val;
-      }
+      if (val) newValues[key] = val;
     }
     onUpdate({ tool: tpl.tool, fieldValues: newValues });
     setTplOpen(false);
     setConflictTpl(null);
     setConflictFields([]);
-    setConflictChoices({});
   };
 
-  const handleConflictConfirm = () => {
-    if (conflictTpl) applyTemplate(conflictTpl);
+  const keepCurrent = () => {
+    // Keep current values, don't apply template
+    setConflictTpl(null);
+    setConflictFields([]);
   };
 
   return (
@@ -202,36 +189,34 @@ function ToolInstance({
       </div>
 
       {/* Conflict resolution dialog */}
-      <AlertDialog open={!!conflictTpl} onOpenChange={(v) => { if (!v) { setConflictTpl(null); setConflictFields([]); setConflictChoices({}); } }}>
+      <AlertDialog open={!!conflictTpl} onOpenChange={(v) => { if (!v) { setConflictTpl(null); setConflictFields([]); } }}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle>欄位內容衝突</AlertDialogTitle>
             <AlertDialogDescription>
-              套用範本「{conflictTpl?.name}」將會覆蓋以下已填寫的欄位，請勾選要使用範本版本的欄位：
+              套用範本「{conflictTpl?.name}」將會覆蓋以下已填寫的欄位，請選擇要保留的版本：
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-3 py-2 max-h-60 overflow-y-auto">
             {conflictFields.map((cf) => (
-              <label key={cf.id} className="flex items-start gap-3 rounded-md border border-border p-3 cursor-pointer hover:bg-secondary/20 transition-colors">
-                <Checkbox
-                  checked={!!conflictChoices[cf.id]}
-                  onCheckedChange={(v) => setConflictChoices((prev) => ({ ...prev, [cf.id]: !!v }))}
-                  className="mt-0.5"
-                />
-                <div className="flex-1 space-y-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground">{cf.label}</p>
-                  <div className="text-xs text-muted-foreground">
-                    目前：<span className="text-foreground ml-1">{cf.current}</span>
+              <div key={cf.id} className="rounded-md border border-border p-2 space-y-1">
+                <p className="text-xs font-medium text-foreground">{cf.label}</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">目前：</span>
+                    <span className="ml-1">{cf.current}</span>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    範本：<span className="text-foreground ml-1">{cf.incoming}</span>
+                  <div>
+                    <span className="text-muted-foreground">範本：</span>
+                    <span className="ml-1">{cf.incoming}</span>
                   </div>
                 </div>
-              </label>
+              </div>
             ))}
           </div>
           <AlertDialogFooter>
-            <AlertDialogAction onClick={handleConflictConfirm}>確定</AlertDialogAction>
+            <AlertDialogCancel onClick={keepCurrent}>保留目前內容</AlertDialogCancel>
+            <AlertDialogAction onClick={() => conflictTpl && applyTemplate(conflictTpl)}>套用範本內容</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
