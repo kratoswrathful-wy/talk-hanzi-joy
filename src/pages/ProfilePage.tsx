@@ -281,12 +281,12 @@ export default function ProfilePage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="phone">電話號碼</Label>
-              <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="例如：02-1234-5678" />
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="mobile">手機號碼</Label>
               <Input id="mobile" type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="例如：0912-345-678" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">電話號碼</Label>
+              <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="例如：02-1234-5678" />
             </div>
           </div>
           <div className="space-y-2">
