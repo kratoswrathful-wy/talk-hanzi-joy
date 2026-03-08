@@ -283,8 +283,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "費用群組",
     minWidth: 50,
     managerOnly: true,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={!!f.clientInfo?.sameCase} type="checkbox" editable={editable} onCommit={(v) => onCommit("sameCase", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={!!f.clientInfo?.sameCase} type="checkbox" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("sameCase", v)}>
         <div className="flex justify-center">
           <Checkbox checked={!!f.clientInfo?.sameCase} disabled className="pointer-events-none" />
         </div>
