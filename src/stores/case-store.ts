@@ -32,6 +32,7 @@ function fromDb(row: any): CaseRecord {
     taskStatus: row.task_status ?? "",
     executionTool: row.execution_tool ?? "",
     toolFieldValues: (row.tool_field_values && typeof row.tool_field_values === "object" && !Array.isArray(row.tool_field_values)) ? row.tool_field_values as Record<string, string> : {},
+    tools: Array.isArray(row.tools) ? (row.tools as ToolEntry[]) : [],
     deliveryMethod: row.delivery_method ?? "",
     clientReceipt: row.client_receipt ?? "",
     customGuidelinesUrl: row.custom_guidelines_url ?? "",
