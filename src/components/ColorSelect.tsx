@@ -218,9 +218,8 @@ export default function ColorSelect({
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <AssigneeTag label={opt.label} avatarUrl={opt.avatarUrl} />
                         {(() => {
-                          const tzLabel = getTimezoneOffsetLabel(opt.timezone);
+                           const tzLabel = getTimezoneOffsetLabel(opt.timezone);
                           const statusText = opt.statusMessage;
-                          const draftBg = labelStyles.statusDraft.bgColor;
                           if (!tzLabel && !statusText) return null;
                           return (
                             <div className="flex items-center gap-1.5 min-w-0 flex-1">
@@ -230,7 +229,6 @@ export default function ColorSelect({
                                 style={{ minWidth: "3.25rem" }}
                               >
                                 {tzLabel || "\u00A0"}
-                              </span>
                               </span>
                               {statusText && (
                                 <Tooltip>
