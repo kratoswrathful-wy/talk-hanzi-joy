@@ -369,7 +369,8 @@ export default function ColorSelect({
               )}
             </div>
 
-            {/* Add new - sticky at bottom */}
+            {/* Add new - sticky at bottom (hidden for assignee/person field) */}
+            {fieldKey !== "assignee" && (
             <div className="border-t border-border p-1 sticky bottom-0 bg-popover">
               {addingNew ? (
                 <div className="px-2 py-1.5 space-y-2">
@@ -408,6 +409,7 @@ export default function ColorSelect({
                 </button>
               )}
             </div>
+            )}
           </div>
         </PopoverContent>
       </Popover>
