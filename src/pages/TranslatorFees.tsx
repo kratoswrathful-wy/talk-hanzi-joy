@@ -423,7 +423,11 @@ function TranslatorInvoiceStatus({ feeId }: { feeId: string }) {
   const linked = invoices.find((inv) => inv.feeIds.includes(feeId));
   if (!linked) return <span className="text-sm text-muted-foreground">尚未請款</span>;
   const labelMap: Record<string, string> = { pending: "待付款", partial: "部份付款", paid: "已付款" };
-  return <Badge variant="outline" className="text-xs whitespace-nowrap">{labelMap[linked.status] || linked.status}</Badge>;
+  return (
+    <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+      <Badge variant="outline" className="text-xs whitespace-nowrap cursor-default">{labelMap[linked.status] || linked.status}</Badge>
+    </TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip></TooltipProvider>
+  );
 }
 
 function ClientInvoiceStatusCell({ feeId }: { feeId: string }) {
@@ -431,7 +435,11 @@ function ClientInvoiceStatusCell({ feeId }: { feeId: string }) {
   const linked = invoices.find((inv) => inv.feeIds.includes(feeId));
   if (!linked) return <span className="text-sm text-muted-foreground">尚未請款</span>;
   const labelMap: Record<string, string> = { pending: "待收款", partial: "部份到帳", paid: "全額收齊" };
-  return <Badge variant="outline" className="text-xs whitespace-nowrap">{labelMap[linked.status] || linked.status}</Badge>;
+  return (
+    <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+      <Badge variant="outline" className="text-xs whitespace-nowrap cursor-default">{labelMap[linked.status] || linked.status}</Badge>
+    </TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip></TooltipProvider>
+  );
 }
 
 function InvoiceLink({ feeId }: { feeId: string }) {
