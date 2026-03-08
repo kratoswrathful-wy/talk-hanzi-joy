@@ -1204,80 +1204,116 @@ export default function TranslatorFeeDetail() {
             返回費用清單
           </Link>
         )}
+        <TooltipProvider delayDuration={200}>
         <div className="flex items-center gap-2 shrink-0">
-          {isManager && isDraft && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs min-w-[88px]"
-              onClick={() => {
-                if (isNavigationBlocked) {
-                  if (needsRoleAssignment) {
-                    toast.error("請將本頁面指定為相關案件的主要或非主要營收紀錄。");
-                    setDuplicateDialogStep("assignRole");
-                  } else {
-                    toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
-                    setDisableOption12A(false);
-                    setDuplicateDialogStep("choose");
-                  }
-                  return;
-                }
-                // Clone current fee with incrementing copy count
-                const copyCount = (window as any).__copyCount ?? 0;
-                (window as any).__copyCount = copyCount + 1;
-                const draft = feeStore.createDraft();
-                feeStore.updateFee(draft.id, {
-                  title: title ? `${title} 副本${copyCount + 1}` : "",
-                  assignee,
-                  taskItems: taskItems.map((item, idx) => ({ ...item, id: `item-clone-${Date.now()}-${idx}` })),
-                  internalNote,
-                  internalNoteUrl,
-                  clientInfo: { ...clientInfo },
-                });
-                navigate(`/fees/${draft.id}`);
-              }}
-            >
-              複製本頁
-            </Button>
+          {isManager && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs min-w-[88px]"
+                    disabled={!isDraft}
+                    onClick={() => {
+                      if (isNavigationBlocked) {
+                        if (needsRoleAssignment) {
+                          toast.error("請將本頁面指定為相關案件的主要或非主要營收紀錄。");
+                          setDuplicateDialogStep("assignRole");
+                        } else {
+                          toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
+                          setDisableOption12A(false);
+                          setDuplicateDialogStep("choose");
+                        }
+                        return;
+                      }
+                      const copyCount = (window as any).__copyCount ?? 0;
+                      (window as any).__copyCount = copyCount + 1;
+                      const draft = feeStore.createDraft();
+                      feeStore.updateFee(draft.id, {
+                        title: title ? `${title} 副本${copyCount + 1}` : "",
+                        assignee,
+                        taskItems: taskItems.map((item, idx) => ({ ...item, id: `item-clone-${Date.now()}-${idx}` })),
+                        internalNote,
+                        internalNoteUrl,
+                        clientInfo: { ...clientInfo },
+                      });
+                      navigate(`/fees/${draft.id}`);
+                    }}
+                  >
+                    複製本頁
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {!isDraft && <TooltipContent>已開立稿費條，無法複製</TooltipContent>}
+            </Tooltip>
           )}
           {isManager && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs min-w-[88px]"
-              onClick={() => {
-                if (isNavigationBlocked) {
-                  if (needsRoleAssignment) {
-                    toast.error("請將本頁面指定為相關案件的主要或非主要營收紀錄。");
-                    setDuplicateDialogStep("assignRole");
-                  } else {
-                    toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
-                    setDisableOption12A(false);
-                    setDuplicateDialogStep("choose");
-                  }
-                  return;
-                }
-                const draft = feeStore.createDraft();
-                navigate(`/fees/${draft.id}`);
-              }}
-            >
-              新增費用頁面
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs min-w-[88px]"
+                    disabled={isFinalized}
+                    onClick={() => {
+                      if (isNavigationBlocked) {
+                        if (needsRoleAssignment) {
+                          toast.error("請將本頁面指定為相關案件的主要或非主要營收紀錄。");
+                          setDuplicateDialogStep("assignRole");
+                        } else {
+                          toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
+                          setDisableOption12A(false);
+                          setDuplicateDialogStep("choose");
+                        }
+                        return;
+                      }
+                      const draft = feeStore.createDraft();
+                      navigate(`/fees/${draft.id}`);
+                    }}
+                  >
+                    新增費用頁面
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {isFinalized && <TooltipContent>已開立稿費條，請先收回為草稿</TooltipContent>}
+            </Tooltip>
           )}
-          {canDelete && (
-            <Button size="sm" className="text-xs min-w-[88px] text-white hover:opacity-80" style={{ backgroundColor: '#6B7280' }} onClick={() => setDeleteDialogOpen(true)}>
-              刪除
-            </Button>
+          {isManager && isDraft && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    size="sm"
+                    className="text-xs min-w-[88px] text-white hover:opacity-80"
+                    style={{ backgroundColor: '#6B7280' }}
+                    disabled={isFinalized}
+                    onClick={() => setDeleteDialogOpen(true)}
+                  >
+                    刪除
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {isFinalized && <TooltipContent>已開立稿費條，無法刪除</TooltipContent>}
+            </Tooltip>
           )}
-          {canSubmit && (
-            <Button
-              size="sm"
-              className="text-xs min-w-[88px]"
-              disabled={!isNoFeeTranslator && !clientInfo.rateConfirmed}
-              onClick={handleSubmit}
-            >
-              開立稿費條
-            </Button>
+          {isManager && isDraft && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    size="sm"
+                    className="text-xs min-w-[88px]"
+                    disabled={!isNoFeeTranslator && !clientInfo.rateConfirmed}
+                    onClick={handleSubmit}
+                  >
+                    開立稿費條
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {!isNoFeeTranslator && !clientInfo.rateConfirmed && <TooltipContent>請先勾選「費率無誤」</TooltipContent>}
+            </Tooltip>
           )}
           {canRecall && (
             <Button variant="outline" size="sm" className="text-xs min-w-[88px]" onClick={handleRecall}>
@@ -1285,6 +1321,7 @@ export default function TranslatorFeeDetail() {
             </Button>
           )}
         </div>
+        </TooltipProvider>
       </div>
 
       {/* Main content card */}
