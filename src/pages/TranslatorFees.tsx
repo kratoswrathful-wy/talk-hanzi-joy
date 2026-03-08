@@ -18,7 +18,7 @@ import { InvoiceActions } from "@/components/InvoiceActions";
 import { ClientInvoiceActions } from "@/components/ClientInvoiceActions";
 import { useInvoices } from "@/hooks/use-invoice-store";
 import { useClientInvoices } from "@/hooks/use-client-invoice-store";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-store";
 import AssigneeTag from "@/components/AssigneeTag";
 import { supabase } from "@/integrations/supabase/client";
+import { getFieldLock, getMultiSelectFieldLock, type FeeFieldLockContext } from "@/lib/fee-field-locks";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
   draft: "草稿",
