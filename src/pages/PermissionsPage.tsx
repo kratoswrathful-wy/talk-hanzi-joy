@@ -654,6 +654,7 @@ function SectionBulkButtons({
 }) {
   const allView = isSectionAllView(modulePerms, items);
   const allEdit = isSectionAllEdit(modulePerms, items);
+  const noEdit = isSectionNoEdit(modulePerms, items);
   const hasEditableItems = items.some((item) => item.type !== "view");
   // "可見" = at least one item is viewable
   const anyVisible = items.some((item) => getItemPerm(modulePerms, item.key, "view"));
