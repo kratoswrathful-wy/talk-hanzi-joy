@@ -111,7 +111,7 @@ const allColumnDefs: ColumnDef[] = [
     minWidth: 120,
     render: (f, { editable, lockedTooltip, onCommit }) => (
       <div className="relative flex items-center group/title">
-        <InlineEditCell value={f.title} type="text" editable={editable} onCommit={(v) => onCommit("title", v)} className="flex-1 min-w-0 pr-6">
+        <InlineEditCell value={f.title} type="text" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("title", v)} className="flex-1 min-w-0 pr-6">
           <span className="truncate font-medium text-card-foreground">
             {f.title || <span className="text-muted-foreground italic">未命名稿費單</span>}
           </span>
