@@ -446,13 +446,15 @@ export default function InvoiceDetailPage() {
     trackChange("note", oldNote || "(空)", newNote || "(空)");
   };
 
-  const handleAddComment = (content: string, imageUrls?: string[]) => {
+  const handleAddComment = (content: string, imageUrls?: string[], fileUrls?: { name: string; url: string }[], replyTo?: string) => {
     const authorName = profile?.display_name || profile?.email || "使用者";
     const newComment: CommentEntry = {
       id: `comment-${Date.now()}`,
       author: authorName,
       content,
       imageUrls,
+      fileUrls,
+      replyTo,
       timestamp: formatTimestamp(new Date()),
     };
     const updated = [...comments, newComment];
@@ -462,21 +464,21 @@ export default function InvoiceDetailPage() {
     }
   };
 
-  const handleAddInternalComment = (content: string, imageUrls?: string[]) => {
+  const handleAddInternalComment = (content: string, imageUrls?: string[], fileUrls?: { name: string; url: string }[], replyTo?: string) => {
     const authorName = profile?.display_name || profile?.email || "使用者";
     const newComment: CommentEntry = {
       id: `icomment-${Date.now()}`,
       author: authorName,
       content,
       imageUrls,
+      fileUrls,
+      replyTo,
       timestamp: formatTimestamp(new Date()),
     };
     const updated = [...internalComments, newComment];
     setInternalComments(updated);
     if (id) {
-      // Store internal comments separately in the comments jsonb
-      const allComments = [...comments];
-      invoiceStore.updateInvoice(id, { comments: allComments, internalComments: updated } as any);
+      invoiceStore.updateInvoice(id, { comments: [...comments], internalComments: updated } as any);
     }
   };
 

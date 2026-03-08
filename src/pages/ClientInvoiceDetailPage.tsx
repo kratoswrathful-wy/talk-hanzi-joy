@@ -396,13 +396,15 @@ export default function ClientInvoiceDetailPage() {
     trackChange("note", oldNote || "(空)", newNote || "(空)");
   };
 
-  const handleAddComment = (content: string, imageUrls?: string[]) => {
+  const handleAddComment = (content: string, imageUrls?: string[], fileUrls?: { name: string; url: string }[], replyTo?: string) => {
     const authorName = profile?.display_name || profile?.email || "使用者";
     const newComment: CommentEntry = {
       id: `comment-${Date.now()}`,
       author: authorName,
       content,
       imageUrls,
+      fileUrls,
+      replyTo,
       timestamp: formatTimestamp(new Date()),
     };
     const updated = [...comments, newComment];
