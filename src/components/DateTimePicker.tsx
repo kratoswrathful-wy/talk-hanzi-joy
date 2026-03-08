@@ -191,7 +191,7 @@ export default function DateTimePicker({
     const y = parseInt(yearInput) || new Date().getFullYear();
     if (mm < 1 || mm > 12 || dd < 1 || dd > getDaysInMonth(new Date(y, mm - 1))) {
       setDateError(true);
-      toast.error("日期格式不正確，月份須為 01-12，日期須為有效日");
+      setValidationMsg("日期格式不正確，月份須為 01-12，日期須為有效日");
       return false;
     }
     setDateError(false);
@@ -203,7 +203,7 @@ export default function DateTimePicker({
     const mi = parseInt(timeRolling.padded.slice(2, 4));
     if (hh > 23 || mi > 59) {
       setTimeError(true);
-      toast.error("時間格式不正確，小時須為 0-23，分鐘須為 0-59");
+      setValidationMsg("時間格式不正確，小時須為 0-23，分鐘須為 0-59");
       return false;
     }
     setTimeError(false);
