@@ -243,14 +243,17 @@ export const selectOptionsStore = {
     (profiles || []).forEach((p: any, i: number) => {
       registeredEmails.add(p.email);
       const s = settingsMap.get(p.email);
-      if (s?.frozen) return; // Skip frozen members
+      if (s?.frozen) return;
+      const tzOffset = getTimezoneOffsetLabel(p.timezone);
+      const displayLabel = p.display_name || p.email;
       options.push({
         id: `assignee-${p.email}`,
-        label: p.display_name || p.email,
+        label: displayLabel,
         email: p.email,
         color: PRESET_COLORS[i % PRESET_COLORS.length],
         note: s?.note || "",
         avatarUrl: p.avatar_url || null,
+        timezone: p.timezone || null,
       });
     });
 
