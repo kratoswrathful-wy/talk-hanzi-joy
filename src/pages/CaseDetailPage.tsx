@@ -670,10 +670,12 @@ export default function CaseDetailPage() {
                 </Button>
               );
               return translatorEmpty ? (
-                <Tooltip>
-                  <TooltipTrigger asChild><span>{btn}</span></TooltipTrigger>
-                  <TooltipContent>譯者欄不得空白</TooltipContent>
-                </Tooltip>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild><span>{btn}</span></TooltipTrigger>
+                    <TooltipContent>譯者欄不得空白</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               ) : btn;
             })()
           ) : null}
