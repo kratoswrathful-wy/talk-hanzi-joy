@@ -38,12 +38,14 @@ import { useAuth } from "@/hooks/use-auth";
 const caseStatusLabels: Record<CaseStatus, string> = {
   draft: "草稿",
   inquiry: "詢案中",
+  dispatched: "已派出",
   finalized: "開立完成",
 };
 
 function CaseStatusBadge({ status }: { status: CaseStatus }) {
   const labelStyles = useLabelStyles();
   const style = status === "finalized" ? labelStyles.statusFinalized
+    : status === "dispatched" ? { bgColor: "#16A34A", textColor: "#FFFFFF" }
     : status === "inquiry" ? { bgColor: "#2563EB", textColor: "#FFFFFF" }
     : labelStyles.statusDraft;
   return (
@@ -476,7 +478,7 @@ export default function CaseDetailPage() {
   const [loading, setLoading] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [creatorName, setCreatorName] = useState("");
-  const { primaryRole: currentRole } = useAuth();
+  const { primaryRole: currentRole, profile } = useAuth();
   const isManager = currentRole === "pm" || currentRole === "executive";
 
   // Comment drafts
@@ -547,7 +549,10 @@ export default function CaseDetailPage() {
 
   const isDraft = caseData.status === "draft";
   const isInquiry = caseData.status === "inquiry";
+  const isDispatched = caseData.status === "dispatched";
   const isFinalized = caseData.status === "finalized";
+  const isMember = currentRole === "member";
+  const isPmOrAbove = currentRole === "pm" || currentRole === "executive";
 
   const handleDuplicate = async () => {
     const dup = await caseStore.duplicate(caseData.id);
@@ -569,8 +574,18 @@ export default function CaseDetailPage() {
     toast({ title: "已收回為草稿" });
   };
 
+  const handleAcceptCase = () => {
+    const displayName = profile?.display_name || "";
+    const currentTranslators = caseData.translator || [];
+    const updatedTranslators = currentTranslators.includes(displayName)
+      ? currentTranslators
+      : [...currentTranslators, displayName];
+    save({ status: "dispatched" as CaseStatus, translator: updatedTranslators });
+    toast({ title: "已承接本案" });
+  };
+
   const handleFinalize = () => {
-    save({ status: "finalized" as CaseStatus });
+    save({ status: "dispatched" as CaseStatus });
     toast({ title: "已確定指派" });
   };
 
@@ -605,7 +620,7 @@ export default function CaseDetailPage() {
           >
             新增案件頁面
           </Button>
-          {isInquiry ? (
+          {isInquiry && isPmOrAbove ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] text-white hover:opacity-80"
@@ -614,18 +629,18 @@ export default function CaseDetailPage() {
             >
               收回為草稿
             </Button>
-          ) : (
+          ) : !isInquiry ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] text-white hover:opacity-80"
               style={{ backgroundColor: '#6B7280' }}
-              disabled={isFinalized}
+              disabled={isDispatched || isFinalized}
               onClick={() => setDeleteOpen(true)}
             >
               刪除
             </Button>
-          )}
-          {isDraft ? (
+          ) : null}
+          {isDraft && isPmOrAbove ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px]"
@@ -633,7 +648,15 @@ export default function CaseDetailPage() {
             >
               公布
             </Button>
-          ) : isInquiry ? (
+          ) : isInquiry && isMember ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleAcceptCase}
+            >
+              承接本案
+            </Button>
+          ) : isInquiry && isPmOrAbove ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
@@ -674,7 +697,7 @@ export default function CaseDetailPage() {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <Field label="譯者">
-            {isFinalized ? (
+            {(isDispatched || isFinalized) ? (
               <div className="flex items-center gap-1 flex-wrap min-h-[32px] px-2 py-1 rounded-md bg-muted/50 border border-border">
                 {(caseData.translator || []).length > 0
                   ? (caseData.translator || []).map((t, i) => (

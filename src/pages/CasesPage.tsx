@@ -30,6 +30,7 @@ import type { CaseRecord, CaseStatus } from "@/data/case-types";
 const caseStatusLabels: Record<CaseStatus, string> = {
   draft: "草稿",
   inquiry: "詢案中",
+  dispatched: "已派出",
   finalized: "開立完成",
 };
 
@@ -47,6 +48,7 @@ const formatDateTime = (iso: string | null) => {
 function CaseStatusBadge({ status }: { status: CaseStatus }) {
   const labelStyles = useLabelStyles();
   const style = status === "finalized" ? labelStyles.statusFinalized
+    : status === "dispatched" ? { bgColor: "#16A34A", textColor: "#FFFFFF" }
     : status === "inquiry" ? { bgColor: "#2563EB", textColor: "#FFFFFF" }
     : labelStyles.statusDraft;
   return (
