@@ -19,6 +19,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+function getColorUsageMap(options: { color: string; label: string }[]): Record<string, string[]> {
+  const map: Record<string, string[]> = {};
+  for (const opt of options) {
+    const key = opt.color.toUpperCase();
+    if (!map[key]) map[key] = [];
+    map[key].push(opt.label);
+  }
+  return map;
+}
+
 /** Find the next editable cell in DOM order and click it */
 function focusNextEditableCell(container: Element | null, reverse = false) {
   const allCells = Array.from(
