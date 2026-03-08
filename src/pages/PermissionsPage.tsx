@@ -246,6 +246,11 @@ function isSectionAllEdit(modulePerms: ModulePerms, items: PermissionItem[]): bo
   return editableItems.length > 0 && editableItems.every((item) => getItemPerm(modulePerms, item.key, "edit"));
 }
 
+function isSectionNoEdit(modulePerms: ModulePerms, items: PermissionItem[]): boolean {
+  const editableItems = items.filter((item) => item.type !== "view");
+  return editableItems.length === 0 || editableItems.every((item) => !getItemPerm(modulePerms, item.key, "edit"));
+}
+
 // ─── Main Component ───
 
 export default function PermissionsPage() {
@@ -649,6 +654,7 @@ function SectionBulkButtons({
 }) {
   const allView = isSectionAllView(modulePerms, items);
   const allEdit = isSectionAllEdit(modulePerms, items);
+  const noEdit = isSectionNoEdit(modulePerms, items);
   const hasEditableItems = items.some((item) => item.type !== "view");
   // "可見" = at least one item is viewable
   const anyVisible = items.some((item) => getItemPerm(modulePerms, item.key, "view"));
@@ -669,7 +675,7 @@ function SectionBulkButtons({
         <div className="flex items-center gap-1">
           <Label className="text-xs text-foreground/70 whitespace-nowrap">全部可見但不可編輯</Label>
           <Switch
-            checked={allView && !allEdit}
+            checked={allView && noEdit}
             onCheckedChange={() => onSetViewOnly?.()}
             className="scale-75 data-[state=checked]:bg-primary/70"
           />
