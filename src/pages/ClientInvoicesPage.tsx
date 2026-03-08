@@ -51,13 +51,17 @@ function StatusBadge({ status }: { status: ClientInvoiceStatus }) {
   };
   const colors = styleMap[status];
   return (
-    <Badge
-      variant="default"
-      className="text-xs whitespace-nowrap border"
-      style={{ backgroundColor: colors.bgColor, color: colors.textColor, borderColor: colors.bgColor }}
-    >
-      {clientInvoiceStatusLabels[status]}
-    </Badge>
+    <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+      <span className="cursor-default">
+        <Badge
+          variant="default"
+          className="text-xs whitespace-nowrap border"
+          style={{ backgroundColor: colors.bgColor, color: colors.textColor, borderColor: colors.bgColor }}
+        >
+          {clientInvoiceStatusLabels[status]}
+        </Badge>
+      </span>
+    </TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip></TooltipProvider>
   );
 }
 
