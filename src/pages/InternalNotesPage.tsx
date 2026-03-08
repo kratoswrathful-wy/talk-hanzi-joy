@@ -4,6 +4,7 @@
  */
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Plus, ExternalLink, Trash2, GripVertical } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
