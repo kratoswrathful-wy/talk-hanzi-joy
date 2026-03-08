@@ -30,6 +30,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { useInternalNotes, internalNotesStore } from "@/stores/internal-notes-store";
 
 /* ── Helpers ── */
 const formatDate = (iso: string) => {
