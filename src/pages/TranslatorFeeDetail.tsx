@@ -1,9 +1,10 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
-import { ArrowLeft, Plus, X, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, X, Loader2, FileText } from "lucide-react";
 import { CommentContent } from "@/components/comments/CommentContent";
 import { CommentInput } from "@/components/comments/CommentInput";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { invoiceStore } from "@/stores/invoice-store";
 
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
