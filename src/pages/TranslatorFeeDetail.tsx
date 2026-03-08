@@ -127,6 +127,8 @@ export default function TranslatorFeeDetail() {
   const { id } = useParams();
   const feeData = useFee(id);
   const allFees = useFees();
+  const allInvoices = useInvoices();
+  const allClientInvoices = useClientInvoices();
 
   const navigate = useNavigate();
   const [title, setTitle] = useState(feeData?.title ?? "");
