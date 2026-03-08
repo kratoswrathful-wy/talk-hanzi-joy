@@ -171,6 +171,7 @@ export default function MembersPage() {
   const canChangeRole = checkPerm("team_members", "members_changeRole", "edit");
   const canRemove = checkPerm("team_members", "members_remove", "edit");
   const canSort = checkPerm("team_members", "members_sort", "edit");
+  const canViewNote = checkPerm("team_members", "members_note", "view");
   const canEditNote = checkPerm("team_members", "members_note", "edit");
   const canEditNoFee = checkPerm("team_members", "members_noFee", "edit");
   const canFreeze = checkPerm("team_members", "members_freeze", "edit");
@@ -535,7 +536,7 @@ export default function MembersPage() {
                           <Button size="sm" className="h-6 text-xs" onClick={() => handleSaveNote(member.email)}>儲存</Button>
                         </div>
                       </div>
-                    ) : member.note ? (
+                    ) : (canViewNote && member.note) ? (
                       <div className="pl-10">
                         <p className="text-xs text-muted-foreground px-1">{member.note}</p>
                       </div>
