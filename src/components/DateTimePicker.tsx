@@ -288,6 +288,20 @@ export default function DateTimePicker({
 
   const handleOpenChange = (v: boolean) => {
     if (disabled) return;
+    if (v && !value) {
+      // Default to next whole hour
+      const now = new Date();
+      const next = new Date(now);
+      next.setMinutes(0, 0, 0);
+      next.setHours(now.getHours() + 1);
+      setYearInput(format(next, "yyyy"));
+      dateRolling.reset(format(next, "MMdd"));
+      timeRolling.reset(format(next, "HHmm"));
+      setDisplayMonth(next);
+      setDateError(false);
+      setTimeError(false);
+      onChange(next.toISOString());
+    }
     if (!v) {
       if (!validateDate() || !validateTime()) return;
       commitAll();
