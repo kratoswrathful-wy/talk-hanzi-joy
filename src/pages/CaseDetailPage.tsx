@@ -1,13 +1,13 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Trash2, Plus, X } from "lucide-react";
+import { ArrowLeft, Trash2, Plus, X, GripVertical, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { caseStore } from "@/hooks/use-case-store";
-import type { CaseRecord, ToolEntry } from "@/data/case-types";
+import type { CaseRecord, ToolEntry, ToolEntryField } from "@/data/case-types";
 import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
 import DateTimePicker from "@/components/DateTimePicker";
@@ -27,12 +27,140 @@ import { toast } from "@/hooks/use-toast";
 import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-store";
+import { cn } from "@/lib/utils";
 
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
     <div className={`grid grid-cols-[120px_1fr] items-start gap-3 py-1 ${className || ""}`}>
       <span className="text-sm text-muted-foreground pt-1">{label}</span>
       <div>{children}</div>
+    </div>
+  );
+}
+
+/* ── Inline Field Manager for Case Detail ── */
+function CaseToolFieldManager({
+  fields,
+  onFieldsChange,
+}: {
+  fields: ToolEntryField[];
+  onFieldsChange: (fields: ToolEntryField[]) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const handleAdd = () => {
+    const label = newLabel.trim();
+    if (!label) return;
+    const id = `cf-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
+    onFieldsChange([...fields, { id, label }]);
+    setNewLabel("");
+    setAdding(false);
+  };
+
+  const handleRename = (fieldId: string) => {
+    const label = editLabel.trim();
+    if (!label) return;
+    onFieldsChange(fields.map((f) => (f.id === fieldId ? { ...f, label } : f)));
+    setEditingId(null);
+  };
+
+  const handleRemove = (fieldId: string) => {
+    onFieldsChange(fields.filter((f) => f.id !== fieldId));
+  };
+
+  const handleDrop = (idx: number) => {
+    if (dragIndex === null || dragIndex === idx) return;
+    const next = [...fields];
+    const [moved] = next.splice(dragIndex, 1);
+    next.splice(idx, 0, moved);
+    onFieldsChange(next);
+    setDragIndex(null);
+    setDragOverIndex(null);
+  };
+
+  return (
+    <div className="space-y-1 mt-1">
+      {fields.map((f, idx) => (
+        <div
+          key={f.id}
+          draggable
+          onDragStart={() => setDragIndex(idx)}
+          onDragOver={(e) => { e.preventDefault(); if (dragIndex !== null && dragIndex !== idx) setDragOverIndex(idx); }}
+          onDrop={() => handleDrop(idx)}
+          onDragEnd={() => { setDragIndex(null); setDragOverIndex(null); }}
+          className={cn(
+            "flex items-center gap-1 group",
+            dragOverIndex === idx && "bg-primary/10 rounded-md border border-dashed border-primary/30",
+            dragIndex === idx && "opacity-50",
+          )}
+        >
+          <GripVertical className="h-3 w-3 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing" />
+          {editingId === f.id ? (
+            <div className="flex items-center gap-1 flex-1">
+              <Input
+                value={editLabel}
+                onChange={(e) => setEditLabel(e.target.value)}
+                onBlur={() => handleRename(f.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleRename(f.id);
+                  if (e.key === "Escape") setEditingId(null);
+                }}
+                className="h-6 text-xs w-24"
+                autoFocus
+              />
+            </div>
+          ) : (
+            <button
+              className="h-5 w-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted text-muted-foreground transition-all shrink-0"
+              onClick={() => { setEditingId(f.id); setEditLabel(f.label); }}
+            >
+              <Pencil className="h-2.5 w-2.5" />
+            </button>
+          )}
+          <button
+            className="h-5 w-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted text-muted-foreground hover:text-destructive transition-all shrink-0"
+            onClick={() => handleRemove(f.id)}
+          >
+            <Trash2 className="h-2.5 w-2.5" />
+          </button>
+        </div>
+      ))}
+      {adding ? (
+        <div className="flex items-center gap-1.5 ml-4">
+          <Input
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            placeholder="欄位名稱"
+            className="h-6 text-xs w-32"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleAdd();
+              if (e.key === "Escape") setAdding(false);
+            }}
+          />
+          <Button size="sm" className="h-6 text-xs px-2" disabled={!newLabel.trim()} onClick={handleAdd}>
+            新增
+          </Button>
+          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => setAdding(false)}>
+            取消
+          </Button>
+        </div>
+      ) : (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1 text-xs h-6 px-2 text-muted-foreground ml-4"
+          onClick={() => setAdding(true)}
+        >
+          <Plus className="h-3 w-3" />
+          新增欄位
+        </Button>
+      )}
     </div>
   );
 }
@@ -59,13 +187,14 @@ function ToolInstance({
     fieldChanges: { added: string[]; removed: string[] };
     conflicts: { id: string; label: string; current: string; incoming: string }[];
   } | null>(null);
+  const [fieldMgmtOpen, setFieldMgmtOpen] = useState(false);
 
   const selectedTool = toolOptions.find((o) => o.label === entry.tool);
-  const fields = selectedTool?.toolFields || [];
+  // Use entry's custom fields if present, otherwise fall back to tool defaults
+  const fields: ToolEntryField[] = entry.fields || selectedTool?.toolFields || [];
   const values = entry.fieldValues || {};
   const hasToolSelected = !!entry.tool;
 
-  // Only show templates matching current tool, sorted alphabetically
   const matchingTemplates = allTemplates.filter((t) => t.tool === entry.tool);
 
   const tryApplyTemplate = (tpl: ToolTemplate) => {
@@ -76,7 +205,16 @@ function ToolInstance({
     // Detect field arrangement changes
     const addedFields = tplFields.filter((f) => !currentFieldIds.includes(f.id)).map((f) => f.label);
     const removedFields = fields.filter((f) => !tplFieldIds.includes(f.id)).map((f) => f.label);
-    const hasFieldChanges = addedFields.length > 0 || removedFields.length > 0;
+    // Also check for renamed fields (same position different label)
+    const renamedFields: string[] = [];
+    for (const tf of tplFields) {
+      const current = fields.find((f) => f.id === tf.id);
+      if (current && current.label !== tf.label) {
+        renamedFields.push(`${current.label} → ${tf.label}`);
+      }
+    }
+    const hasFieldChanges = addedFields.length > 0 || removedFields.length > 0 || renamedFields.length > 0
+      || tplFieldIds.join(",") !== currentFieldIds.join(","); // order change
 
     // Detect content conflicts
     const conflicts: { id: string; label: string; current: string; incoming: string }[] = [];
@@ -102,11 +240,17 @@ function ToolInstance({
   };
 
   const applyTemplate = (tpl: ToolTemplate) => {
-    const newValues: Record<string, string> = { ...values };
-    for (const [key, val] of Object.entries(tpl.fieldValues)) {
-      if (val) newValues[key] = val;
+    // Replace fields entirely with template's fields
+    const tplFields = tpl.fields || [];
+    const newValues: Record<string, string> = {};
+    // Only keep values for fields that exist in the template
+    for (const f of tplFields) {
+      const tplVal = tpl.fieldValues[f.id];
+      const currentVal = values[f.id];
+      // Use template value if non-empty, otherwise keep current if field exists
+      newValues[f.id] = tplVal || currentVal || "";
     }
-    onUpdate({ tool: tpl.tool, fieldValues: newValues });
+    onUpdate({ tool: tpl.tool, fields: tplFields, fieldValues: newValues });
     setTplOpen(false);
     setPendingTpl(null);
     setWarningDetails(null);
@@ -115,6 +259,23 @@ function ToolInstance({
   const dismissWarning = () => {
     setPendingTpl(null);
     setWarningDetails(null);
+  };
+
+  const handleFieldsChange = (newFields: ToolEntryField[]) => {
+    // Clean up fieldValues for removed fields
+    const newFieldIds = new Set(newFields.map((f) => f.id));
+    const newValues: Record<string, string> = {};
+    for (const [k, v] of Object.entries(values)) {
+      if (newFieldIds.has(k)) newValues[k] = v;
+    }
+    onUpdate({ fields: newFields, fieldValues: newValues });
+  };
+
+  // When tool changes, reset to tool's default fields
+  const handleToolChange = (newTool: string) => {
+    const newToolOpt = toolOptions.find((o) => o.label === newTool);
+    const defaultFields = (newToolOpt?.toolFields || []).map((f) => ({ id: f.id, label: f.label }));
+    onUpdate({ tool: newTool, fields: defaultFields, fieldValues: {} });
   };
 
   return (
@@ -136,7 +297,7 @@ function ToolInstance({
               <ColorSelect
                 fieldKey="executionTool"
                 value={entry.tool}
-                onValueChange={(v) => onUpdate({ tool: v })}
+                onValueChange={handleToolChange}
                 className="max-w-xs"
               />
             </Field>
@@ -200,6 +361,26 @@ function ToolInstance({
             />
           </Field>
         ))}
+        {/* Field management toggle */}
+        {hasToolSelected && (
+          <div className="pt-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1 text-xs h-6 px-2 text-muted-foreground"
+              onClick={() => setFieldMgmtOpen((v) => !v)}
+            >
+              <Pencil className="h-3 w-3" />
+              {fieldMgmtOpen ? "收起欄位管理" : "管理欄位"}
+            </Button>
+            {fieldMgmtOpen && (
+              <CaseToolFieldManager
+                fields={fields}
+                onFieldsChange={handleFieldsChange}
+              />
+            )}
+          </div>
+        )}
       </div>
 
       {/* Template apply warning dialog */}
@@ -212,7 +393,6 @@ function ToolInstance({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-3 py-2 max-h-60 overflow-y-auto">
-            {/* Field arrangement changes */}
             {warningDetails && (warningDetails.fieldChanges.added.length > 0 || warningDetails.fieldChanges.removed.length > 0) && (
               <div className="rounded-md border border-border p-2 space-y-1">
                 <p className="text-xs font-medium text-foreground">欄位變動</p>
@@ -228,7 +408,6 @@ function ToolInstance({
                 )}
               </div>
             )}
-            {/* Content conflicts */}
             {warningDetails && warningDetails.conflicts.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-medium text-foreground">內容衝突</p>
@@ -320,7 +499,6 @@ export default function CaseDetailPage() {
 
   return (
     <div className="space-y-4 max-w-3xl">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate("/cases")}>
@@ -334,20 +512,13 @@ export default function CaseDetailPage() {
         </Button>
       </div>
 
-      {/* Title */}
       <Field label="案件編號">
-        <Input
-          value={caseData.title}
-          onChange={(e) => save({ title: e.target.value })}
-          className="max-w-md"
-        />
+        <Input value={caseData.title} onChange={(e) => save({ title: e.target.value })} className="max-w-md" />
       </Field>
 
       <Separator />
 
-      {/* 基本資訊 */}
       <h2 className="text-base font-semibold">基本資訊</h2>
-
       <div className="grid grid-cols-2 gap-4">
         <Field label="類型">
           <ColorSelect fieldKey="caseCategory" value={caseData.category} onValueChange={(v) => save({ category: v })} />
@@ -356,7 +527,6 @@ export default function CaseDetailPage() {
           <MultiColorSelect fieldKey="taskType" values={caseData.workType} onValuesChange={(v) => save({ workType: v })} />
         </Field>
       </div>
-
       <div className="grid grid-cols-2 gap-4">
         <Field label="計費單位">
           <ColorSelect fieldKey="billingUnit" value={caseData.billingUnit} onValueChange={(v) => save({ billingUnit: v })} />
@@ -365,11 +535,9 @@ export default function CaseDetailPage() {
           <Input type="number" value={caseData.unitCount || ""} onChange={(e) => save({ unitCount: Number(e.target.value) || 0 })} className="max-w-[120px]" />
         </Field>
       </div>
-
       <Field label="詢案備註">
         <Textarea value={caseData.inquiryNote} onChange={(e) => save({ inquiryNote: e.target.value })} className="max-w-md" rows={2} />
       </Field>
-
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <Field label="譯者">
@@ -391,7 +559,6 @@ export default function CaseDetailPage() {
 
       <Separator />
 
-      {/* ── 工具區塊 ── */}
       <h2 className="text-base font-semibold">工具</h2>
       <div className="space-y-3">
         {tools.map((entry, idx) => (
@@ -412,7 +579,6 @@ export default function CaseDetailPage() {
 
       <Separator />
 
-      {/* Status & Delivery */}
       <h2 className="text-base font-semibold">狀態與交件</h2>
       <Field label="任務狀態">
         <Input value={caseData.taskStatus} onChange={(e) => save({ taskStatus: e.target.value })} className="max-w-xs" />
@@ -426,7 +592,6 @@ export default function CaseDetailPage() {
 
       <Separator />
 
-      {/* Guidelines & Resources */}
       <h2 className="text-base font-semibold">準則與資源</h2>
       <Field label="自製準則頁面">
         <Input value={caseData.customGuidelinesUrl} onChange={(e) => save({ customGuidelinesUrl: e.target.value })} className="max-w-md" placeholder="URL" />
@@ -440,7 +605,6 @@ export default function CaseDetailPage() {
 
       <Separator />
 
-      {/* Checkboxes */}
       <h2 className="text-base font-semibold">核取項目</h2>
       <Field label="填寫內部註記表單">
         <Checkbox checked={caseData.internalNoteForm} onCheckedChange={(v) => save({ internalNoteForm: !!v })} />
@@ -451,7 +615,6 @@ export default function CaseDetailPage() {
 
       <Separator />
 
-      {/* Login Info */}
       <h2 className="text-base font-semibold">登入資訊</h2>
       <Field label="其他登入資訊">
         <Input value={caseData.otherLoginInfo} onChange={(e) => save({ otherLoginInfo: e.target.value })} className="max-w-md" />
@@ -471,7 +634,6 @@ export default function CaseDetailPage() {
 
       <Separator />
 
-      {/* Track & Fee */}
       <h2 className="text-base font-semibold">追蹤與費用</h2>
       <Field label="追蹤修訂">
         <Input value={caseData.trackChanges} onChange={(e) => save({ trackChanges: e.target.value })} className="max-w-md" />
@@ -482,13 +644,11 @@ export default function CaseDetailPage() {
 
       <Separator />
 
-      {/* Meta */}
       <h2 className="text-base font-semibold">建立資訊</h2>
       <Field label="建立時間">
         <span className="text-sm">{new Date(caseData.createdAt).toLocaleString("zh-TW")}</span>
       </Field>
 
-      {/* Delete dialog */}
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

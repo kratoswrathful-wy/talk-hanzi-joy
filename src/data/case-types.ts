@@ -1,6 +1,12 @@
+export interface ToolEntryField {
+  id: string;
+  label: string;
+}
+
 export interface ToolEntry {
   id: string;
   tool: string;
+  fields?: ToolEntryField[]; // custom fields (overrides tool defaults when present)
   fieldValues: Record<string, string>;
 }
 
