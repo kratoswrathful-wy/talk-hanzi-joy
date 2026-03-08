@@ -1738,7 +1738,7 @@ export default function TranslatorFeeDetail() {
                               />
                             </div>
                           </TooltipTrigger>
-                          {clientInfo.rateConfirmed && canEdit && <TooltipContent>已確認項目及費率，不得修改稿費內容</TooltipContent>}
+                          {clientInfo.rateConfirmed && <TooltipContent>已確認項目及費率，不得修改稿費內容</TooltipContent>}
                         </Tooltip>
                       </TableCell>
                       <TableCell className="text-right">
