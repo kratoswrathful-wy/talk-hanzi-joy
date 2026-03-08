@@ -719,7 +719,7 @@ export default function CaseDetailPage() {
               const url = `${window.location.origin}/cases/${id}`;
               const msg = `請問這件可以做嗎？\n${caseData?.title || ""}（${url}）`;
               navigator.clipboard.writeText(msg).then(() => {
-                toast.success("已複製詢案訊息至剪貼簿");
+                toast({ description: "已複製詢案訊息至剪貼簿" });
               });
             }}
           >
