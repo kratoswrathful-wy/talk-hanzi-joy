@@ -118,8 +118,16 @@ function loadActiveViewFromStorage(): string {
 }
 
 export function useCaseTableViews(currentRole?: string) {
-  const [views, setViews] = useState<TableView[]>(() => [createDefaultView()]);
-  const [activeViewId, setActiveViewId] = useState("default");
+  const [views, setViews] = useState<TableView[]>(loadViewsFromStorage);
+  const [activeViewId, setActiveViewId] = useState(loadActiveViewFromStorage);
+
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(views)); } catch {}
+  }, [views]);
+
+  useEffect(() => {
+    try { localStorage.setItem(ACTIVE_VIEW_KEY, activeViewId); } catch {}
+  }, [activeViewId]);
 
   const visibleViews = useMemo(() =>
     views.filter((v) => v.isDefault || v.createdByRole === currentRole),
