@@ -29,6 +29,7 @@ import type { CaseRecord, CaseStatus } from "@/data/case-types";
 
 const caseStatusLabels: Record<CaseStatus, string> = {
   draft: "草稿",
+  inquiry: "詢案中",
   finalized: "開立完成",
 };
 
