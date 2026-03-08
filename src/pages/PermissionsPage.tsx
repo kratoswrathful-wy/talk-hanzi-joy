@@ -680,9 +680,6 @@ function SectionBulkButtons({
             className="scale-75 data-[state=checked]:bg-primary/70"
           />
         </div>
-            className="scale-75 data-[state=checked]:bg-primary/70"
-          />
-        </div>
       )}
       {hasEditableItems && (
         <div className="flex items-center gap-1">
