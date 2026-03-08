@@ -447,6 +447,13 @@ export default function ColorSelect({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Profile Viewer for assignee field */}
+      <ProfileViewerDialog
+        open={!!profileViewerEmail}
+        onOpenChange={(open) => { if (!open) setProfileViewerEmail(null); }}
+        email={profileViewerEmail}
+      />
     </>
   );
 }
