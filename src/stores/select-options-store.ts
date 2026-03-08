@@ -1,14 +1,16 @@
 import { useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getTimezoneOffsetLabel } from "@/data/timezone-options";
 import { loadSetting, saveSetting, markDirty } from "./settings-persistence";
 
 export interface SelectOption {
   id: string;
   label: string;
-  email?: string; // for assignee options: the member's email
-  color: string; // hex color
-  note?: string; // optional note (e.g. translator fee note)
-  avatarUrl?: string | null; // for assignee options: profile avatar
+  email?: string;
+  color: string;
+  note?: string;
+  avatarUrl?: string | null;
+  timezone?: string | null;
 }
 
 export const PRESET_COLORS = [
@@ -226,7 +228,7 @@ export const selectOptionsStore = {
   /** Load assignee options from profiles + invitations in DB, respecting sort_order and frozen */
   loadAssignees: async () => {
     const [{ data: profiles }, { data: invitations }, { data: settings }] = await Promise.all([
-      supabase.from("profiles").select("email, display_name, avatar_url"),
+      supabase.from("profiles").select("email, display_name, avatar_url, timezone"),
       supabase.from("invitations").select("email, role").is("accepted_at", null),
       supabase.from("member_translator_settings").select("email, note, no_fee, sort_order, frozen"),
     ]);
@@ -241,14 +243,17 @@ export const selectOptionsStore = {
     (profiles || []).forEach((p: any, i: number) => {
       registeredEmails.add(p.email);
       const s = settingsMap.get(p.email);
-      if (s?.frozen) return; // Skip frozen members
+      if (s?.frozen) return;
+      const tzOffset = getTimezoneOffsetLabel(p.timezone);
+      const displayLabel = p.display_name || p.email;
       options.push({
         id: `assignee-${p.email}`,
-        label: p.display_name || p.email,
+        label: displayLabel,
         email: p.email,
         color: PRESET_COLORS[i % PRESET_COLORS.length],
         note: s?.note || "",
         avatarUrl: p.avatar_url || null,
+        timezone: p.timezone || null,
       });
     });
 

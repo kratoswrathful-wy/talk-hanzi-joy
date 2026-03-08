@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { MoreHorizontal, Plus, Trash2, Palette, Check, Pencil, X, Search, MessageSquareText } from "lucide-react";
+import ProfileViewerDialog from "@/components/ProfileViewerDialog";
 import AssigneeTag from "@/components/AssigneeTag";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,7 @@ export default function ColorSelect({
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [noteValue, setNoteValue] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
+  const [profileViewerEmail, setProfileViewerEmail] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const newInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -127,6 +129,13 @@ export default function ColorSelect({
     setMenuOpenId(null);
   };
 
+  // For disabled assignee: click name/avatar to open profile viewer
+  const handleDisabledAssigneeClick = () => {
+    if (disabled && fieldKey === "assignee" && selectedOption?.email) {
+      setProfileViewerEmail(selectedOption.email);
+    }
+  };
+
   return (
     <>
       <Popover open={open} onOpenChange={(v) => { if (!disabled) setOpen(v); }}>
@@ -135,15 +144,17 @@ export default function ColorSelect({
             role="button"
             tabIndex={disabled ? -1 : 0}
             aria-disabled={disabled}
+            onClick={disabled && fieldKey === "assignee" ? handleDisabledAssigneeClick : undefined}
             className={cn(
               "flex items-center gap-1.5 h-10 px-3 rounded-md border border-input bg-secondary/50 text-sm transition-colors hover:bg-secondary/70 text-left w-full",
-              disabled && "opacity-50 cursor-not-allowed",
+              disabled && fieldKey !== "assignee" && "opacity-50 cursor-not-allowed",
+              disabled && fieldKey === "assignee" && "opacity-50 cursor-pointer",
               triggerClassName
             )}
           >
             {selectedOption ? (
               fieldKey === "assignee" ? (
-                <AssigneeTag label={selectedOption.label} avatarUrl={selectedOption.avatarUrl} />
+                <AssigneeTag label={selectedOption.label} avatarUrl={selectedOption.avatarUrl} timezone={selectedOption.timezone} />
               ) : (
               <span
                 className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
@@ -203,7 +214,7 @@ export default function ColorSelect({
                   >
                     <span className="inline-flex items-center gap-1">
                       {fieldKey === "assignee" ? (
-                        <AssigneeTag label={opt.label} avatarUrl={opt.avatarUrl} />
+                        <AssigneeTag label={opt.label} avatarUrl={opt.avatarUrl} timezone={opt.timezone} />
                       ) : (
                       <span
                         className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
@@ -436,6 +447,13 @@ export default function ColorSelect({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Profile Viewer for assignee field */}
+      <ProfileViewerDialog
+        open={!!profileViewerEmail}
+        onOpenChange={(open) => { if (!open) setProfileViewerEmail(null); }}
+        email={profileViewerEmail}
+      />
     </>
   );
 }

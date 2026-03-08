@@ -24,6 +24,7 @@ import {
 import { toast } from "sonner";
 import { Loader2, Trash2, UserPlus, X, GripVertical, Pencil, Snowflake } from "lucide-react";
 import { selectOptionsStore } from "@/stores/select-options-store";
+import ProfileViewerDialog from "@/components/ProfileViewerDialog";
 import { cn } from "@/lib/utils";
 
 type AppRole = string;
@@ -165,6 +166,7 @@ export default function MembersPage() {
   // Drag reorder
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [profileViewerEmail, setProfileViewerEmail] = useState<string | null>(null);
 
   const canViewFrozen = checkPerm("team_members", "members_showFrozen", "view");
   const canInvite = checkPerm("team_members", "members_invite", "edit");
@@ -418,13 +420,13 @@ export default function MembersPage() {
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 min-w-0">
                         {canSort && <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-                        <Avatar className="h-8 w-8 shrink-0">
+                        <Avatar className="h-8 w-8 shrink-0 cursor-pointer hover:opacity-80" onClick={() => setProfileViewerEmail(member.email)}>
                           <AvatarImage src={member.avatar_url || undefined} />
                           <AvatarFallback className="text-xs">{initials}</AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="truncate text-sm font-medium">{displayLabel}</span>
+                            <span className="truncate text-sm font-medium cursor-pointer hover:underline" onClick={() => setProfileViewerEmail(member.email)}>{displayLabel}</span>
                             {member.isInvitation && (
                               <Badge variant="outline" className="text-xs shrink-0">待接受</Badge>
                             )}
@@ -609,6 +611,13 @@ export default function MembersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Profile Viewer */}
+      <ProfileViewerDialog
+        open={!!profileViewerEmail}
+        onOpenChange={(open) => { if (!open) setProfileViewerEmail(null); }}
+        email={profileViewerEmail}
+      />
     </div>
   );
 }
