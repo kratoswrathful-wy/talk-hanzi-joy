@@ -78,9 +78,11 @@ export function usePermissions() {
   const [loading, setLoading] = useState(true);
 
   const fetchConfig = useCallback(async () => {
+    const env = getEnvironment();
     const { data } = await supabase
       .from("permission_settings")
       .select("config")
+      .eq("env" as any, env)
       .limit(1)
       .single();
     if (data?.config) {
