@@ -19,6 +19,7 @@ import { useCommonLinks } from "@/stores/common-links-store";
 export interface FileItem {
   name: string;
   url: string;
+  size?: number; // bytes, only for uploaded files
 }
 
 interface FileFieldProps {
