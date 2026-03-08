@@ -18,7 +18,7 @@ const feeStatusLabels: Record<FeeStatus, string> = {
   finalized: "開立完成",
 };
 import ClientInfoSection from "@/components/ClientInfoSection";
-import { useFee, useFees, feeStore } from "@/hooks/use-fee-store";
+import { useFee, useFees, feeStore, useFeesLoaded } from "@/hooks/use-fee-store";
 import { useInvoices } from "@/hooks/use-invoice-store";
 import { useClientInvoices } from "@/hooks/use-client-invoice-store";
 import { supabase } from "@/integrations/supabase/client";
