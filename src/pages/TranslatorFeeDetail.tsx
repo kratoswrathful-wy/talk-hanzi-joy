@@ -1652,7 +1652,7 @@ export default function TranslatorFeeDetail() {
                       <Checkbox
                         id="rateConfirmed"
                         checked={isNoFeeTranslator ? true : clientInfo.rateConfirmed}
-                        disabled={isFinalized || isNoFeeTranslator || linkedTranslatorInvoices.length > 0}
+                        disabled={isFinalized || isNoFeeTranslator || linkedTranslatorInvoices.length > 0 || !assignee}
                         onCheckedChange={(checked) => {
                           const updated = { ...clientInfo, rateConfirmed: !!checked };
                           setClientInfo(updated);
@@ -1668,8 +1668,9 @@ export default function TranslatorFeeDetail() {
                       <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">費率無誤</Label>
                     </div>
                   </TooltipTrigger>
-                  {isFinalized && <TooltipContent>已向譯者開立稿費條，不得修改稿費費率確認狀態</TooltipContent>}
-                  {linkedTranslatorInvoices.length > 0 && !isFinalized && <TooltipContent>已向譯者開立稿費條，無法修改費率確認狀態</TooltipContent>}
+                  {!assignee && <TooltipContent>譯者欄為空白，無法確認費率</TooltipContent>}
+                  {assignee && isFinalized && <TooltipContent>已向譯者開立稿費條，不得修改稿費費率確認狀態</TooltipContent>}
+                  {assignee && linkedTranslatorInvoices.length > 0 && !isFinalized && <TooltipContent>已向譯者開立稿費條，無法修改費率確認狀態</TooltipContent>}
                 </Tooltip>
               )}
             </div>
