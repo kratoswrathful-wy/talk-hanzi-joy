@@ -102,7 +102,7 @@ interface ColumnDef {
   label: string;
   minWidth: number;
   managerOnly?: boolean;
-  render: (fee: TranslatorFee, opts: { isManager: boolean; editable: boolean; lockedTooltip?: string; onCommit: (field: string, value: string | boolean) => void }) => React.ReactNode;
+  render: (fee: TranslatorFee, opts: { isManager: boolean; editable: boolean; lockedTooltip?: string; onCommit: (field: string, value: string | boolean | string[]) => void }) => React.ReactNode;
 }
 
 const allColumnDefs: ColumnDef[] = [
@@ -664,7 +664,7 @@ export default function TranslatorFees() {
   const undoRedo = useUndoRedo({ onApply: applyUndoEntry });
 
   // Inline edit commit: applies to selected fees if multiple selected, otherwise just the one
-  const handleCellCommit = useCallback((feeId: string, field: string, value: string | boolean) => {
+  const handleCellCommit = useCallback((feeId: string, field: string, value: string | boolean | string[]) => {
     const targetIds = rowSelection.selectedIds.has(feeId) && rowSelection.selectedCount > 1
       ? Array.from(rowSelection.selectedIds)
       : [feeId];
@@ -678,14 +678,14 @@ export default function TranslatorFees() {
       if (lock.locked) continue;
 
       // Get old value for undo
-      let oldValue: string | boolean;
+      let oldValue: string | boolean | string[];
       if (["client", "contact", "clientCaseId", "clientPoNumber", "dispatchRoute", "reconciled", "rateConfirmed", "invoiced", "sameCase"].includes(field)) {
         oldValue = (fee.clientInfo as any)?.[field] ?? (typeof value === "boolean" ? false : "");
       } else {
         oldValue = (fee as any)[field] ?? "";
       }
 
-      undoRedo.push({ feeId: id, field, oldValue, newValue: value });
+      undoRedo.push({ feeId: id, field, oldValue: oldValue as string | boolean, newValue: value as string | boolean });
 
       // Client info fields
       if (["client", "clientCaseId", "clientPoNumber", "reconciled", "rateConfirmed", "invoiced"].includes(field)) {
@@ -1126,7 +1126,7 @@ function FeeRow({
                 isManager,
                 editable,
                 lockedTooltip,
-                onCommit: (field, value) => onCellCommit(fee.id, field, value),
+                onCommit: (field, value) => onCellCommit(fee.id, field, value as string | boolean),
               })}
             </td>
           );

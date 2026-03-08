@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Trash2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,12 +31,15 @@ import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-stor
 
 const caseStatusLabels: Record<CaseStatus, string> = {
   draft: "草稿",
+  inquiry: "詢案中",
   finalized: "開立完成",
 };
 
 function CaseStatusBadge({ status }: { status: CaseStatus }) {
   const labelStyles = useLabelStyles();
-  const style = status === "finalized" ? labelStyles.statusFinalized : labelStyles.statusDraft;
+  const style = status === "finalized" ? labelStyles.statusFinalized
+    : status === "inquiry" ? { bgColor: "#2563EB", textColor: "#FFFFFF" }
+    : labelStyles.statusDraft;
   return (
     <Badge
       variant="default"
@@ -459,19 +462,69 @@ export default function CaseDetailPage() {
     return <div className="flex items-center justify-center h-64 text-muted-foreground">找不到此案件</div>;
   }
 
+  const isDraft = caseData.status === "draft";
+
+  const handleDuplicate = async () => {
+    const dup = await caseStore.duplicate(caseData.id);
+    if (dup) navigate(`/cases/${dup.id}`);
+  };
+
+  const handleNewCase = async () => {
+    const newCase = await caseStore.create({ title: "" });
+    if (newCase) navigate(`/cases/${newCase.id}`);
+  };
+
+  const handlePublish = () => {
+    save({ status: "inquiry" as CaseStatus });
+    toast({ title: "案件已公布" });
+  };
+
   return (
     <div className="space-y-4 max-w-3xl">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/cases")}>
-            <ArrowLeft className="h-4 w-4" />
+        <Link
+          to="/cases"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          返回案件清單
+        </Link>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs min-w-[88px]"
+            disabled={!isDraft}
+            onClick={handleDuplicate}
+          >
+            複製本頁
           </Button>
-          <h1 className="text-2xl font-bold tracking-tight">案件詳情</h1>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs min-w-[88px]"
+            onClick={handleNewCase}
+          >
+            新增案件頁面
+          </Button>
+          <Button
+            size="sm"
+            className="text-xs min-w-[88px] text-white hover:opacity-80"
+            style={{ backgroundColor: '#6B7280' }}
+            onClick={() => setDeleteOpen(true)}
+          >
+            刪除
+          </Button>
+          {isDraft && (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px]"
+              onClick={handlePublish}
+            >
+              公布
+            </Button>
+          )}
         </div>
-        <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
-          <Trash2 className="mr-1.5 h-4 w-4" />
-          刪除
-        </Button>
       </div>
 
       <Field label="案件編號">

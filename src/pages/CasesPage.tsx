@@ -29,6 +29,7 @@ import type { CaseRecord, CaseStatus } from "@/data/case-types";
 
 const caseStatusLabels: Record<CaseStatus, string> = {
   draft: "草稿",
+  inquiry: "詢案中",
   finalized: "開立完成",
 };
 
@@ -45,7 +46,9 @@ const formatDateTime = (iso: string | null) => {
 
 function CaseStatusBadge({ status }: { status: CaseStatus }) {
   const labelStyles = useLabelStyles();
-  const style = status === "finalized" ? labelStyles.statusFinalized : labelStyles.statusDraft;
+  const style = status === "finalized" ? labelStyles.statusFinalized
+    : status === "inquiry" ? { bgColor: "#2563EB", textColor: "#FFFFFF" }
+    : labelStyles.statusDraft;
   return (
     <Badge
       variant="default"
@@ -61,7 +64,7 @@ interface ColumnDef {
   key: string;
   label: string;
   minWidth: number;
-  render: (c: CaseRecord, opts: { editable: boolean; onCommit: (field: string, value: string | boolean) => void }) => React.ReactNode;
+  render: (c: CaseRecord, opts: { editable: boolean; onCommit: (field: string, value: string | boolean | string[]) => void }) => React.ReactNode;
 }
 
 function CategoryLabel({ value }: { value: string }) {
@@ -196,7 +199,7 @@ const allColumnDefs: ColumnDef[] = [
     label: "譯者",
     minWidth: 90,
     render: (c, { editable, onCommit }) => (
-      <InlineEditCell value={(c.translator || []).join(", ")} type="colorSelect" fieldKey="assignee" editable={editable} onCommit={(v) => onCommit("translator", v)}>
+      <InlineEditCell value={c.translator || []} type="multiColorSelect" fieldKey="assignee" editable={editable} onCommit={(v) => onCommit("translator", v)}>
         <AssigneeLabel value={(c.translator || []).join(", ")} />
       </InlineEditCell>
     ),
@@ -341,7 +344,7 @@ export default function CasesPage() {
     setShowDeleteConfirm(false);
   }, [rowSelection]);
 
-  const handleCellCommit = useCallback((caseId: string, field: string, value: string | boolean) => {
+  const handleCellCommit = useCallback((caseId: string, field: string, value: string | boolean | string[]) => {
     const targetIds = rowSelection.selectedIds.has(caseId) && rowSelection.selectedCount > 1
       ? Array.from(rowSelection.selectedIds)
       : [caseId];

@@ -178,8 +178,8 @@ export default function MultiColorSelect({
                   <div key={opt.id} className="relative group">
                     <button
                       className={cn(
-                        "flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm transition-colors hover:bg-accent hover:text-accent-foreground text-left",
-                        isChecked && "bg-accent/60"
+                      "flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm transition-colors hover:bg-accent hover:text-accent-foreground text-left",
+                      isChecked && "bg-destructive/30"
                       )}
                       onClick={() => handleToggle(opt)}
                     >
