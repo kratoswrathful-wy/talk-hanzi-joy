@@ -546,6 +546,8 @@ export default function CaseDetailPage() {
   }
 
   const isDraft = caseData.status === "draft";
+  const isInquiry = caseData.status === "inquiry";
+  const isFinalized = caseData.status === "finalized";
 
   const handleDuplicate = async () => {
     const dup = await caseStore.duplicate(caseData.id);
@@ -565,6 +567,11 @@ export default function CaseDetailPage() {
   const handleRevertToDraft = () => {
     save({ status: "draft" as CaseStatus });
     toast({ title: "已收回為草稿" });
+  };
+
+  const handleFinalize = () => {
+    save({ status: "finalized" as CaseStatus });
+    toast({ title: "已確定指派" });
   };
 
   const comments = caseData.comments || [];
