@@ -193,6 +193,11 @@ export default function ProfilePage() {
 
   const handleSave = async () => {
     if (!user) return;
+    // Validate email format
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      toast.error("請輸入有效的電子信箱格式");
+      return;
+    }
     setSaving(true);
     const { error: profileError } = await supabase
       .from("profiles")
