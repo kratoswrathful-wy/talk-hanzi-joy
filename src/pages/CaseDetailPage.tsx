@@ -816,32 +816,30 @@ export default function CaseDetailPage() {
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-1">
-          <Field label="譯者">
-            {(isDispatched || isTaskCompleted || isDelivered || isFeedback || isFeedbackCompleted || isFinalized) ? (
-              <div className="flex items-center gap-1 flex-wrap min-h-[32px] px-2 py-1 rounded-md bg-muted/50 border border-border">
-                {(caseData.translator || []).length > 0
-                  ? (caseData.translator || []).map((t, i) => (
-                      <Badge key={i} variant="secondary" className="text-xs">{t}</Badge>
-                    ))
-                  : <span className="text-sm text-muted-foreground">—</span>}
-              </div>
-            ) : (
-              <MultiColorSelect fieldKey="assignee" values={caseData.translator || []} onValuesChange={(v) => save({ translator: v })} />
-            )}
-          </Field>
-          <Field label="翻譯交期">
-            <DateTimePicker value={caseData.translationDeadline} onChange={(v) => save({ translationDeadline: v })} className="w-full" />
-          </Field>
-        </div>
-        <div className="space-y-1">
-          <Field label="審稿人員">
-            <ColorSelect fieldKey="assignee" value={caseData.reviewer} onValueChange={(v) => save({ reviewer: v })} />
-          </Field>
-          <Field label="審稿交期">
-            <DateTimePicker value={caseData.reviewDeadline} onChange={(v) => save({ reviewDeadline: v })} className="w-full" />
-          </Field>
-        </div>
+        <Field label="譯者">
+          {(isDispatched || isTaskCompleted || isDelivered || isFeedback || isFeedbackCompleted || isFinalized) ? (
+            <div className="flex items-center gap-1 flex-wrap min-h-[36px] px-2 py-1 rounded-md bg-muted/50 border border-border">
+              {(caseData.translator || []).length > 0
+                ? (caseData.translator || []).map((t, i) => (
+                    <Badge key={i} variant="secondary" className="text-xs">{t}</Badge>
+                  ))
+                : <span className="text-sm text-muted-foreground">—</span>}
+            </div>
+          ) : (
+            <MultiColorSelect fieldKey="assignee" values={caseData.translator || []} onValuesChange={(v) => save({ translator: v })} />
+          )}
+        </Field>
+        <Field label="審稿人員">
+          <ColorSelect fieldKey="assignee" value={caseData.reviewer} onValueChange={(v) => save({ reviewer: v })} />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="翻譯交期">
+          <DateTimePicker value={caseData.translationDeadline} onChange={(v) => save({ translationDeadline: v })} className="w-full" />
+        </Field>
+        <Field label="審稿交期">
+          <DateTimePicker value={caseData.reviewDeadline} onChange={(v) => save({ reviewDeadline: v })} className="w-full" />
+        </Field>
       </div>
 
       <Separator />
