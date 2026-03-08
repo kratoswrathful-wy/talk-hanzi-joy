@@ -21,6 +21,8 @@ import ClientInvoiceDetailPage from "@/pages/ClientInvoiceDetailPage";
 import CasesPage from "@/pages/CasesPage";
 import CaseDetailPage from "@/pages/CaseDetailPage";
 import ToolManagementPage from "@/pages/ToolManagementPage";
+import FieldReferencePage from "@/pages/FieldReferencePage";
+import InternalNotesPage from "@/pages/InternalNotesPage";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 import { initSettings } from "@/stores/settings-init";
