@@ -588,9 +588,14 @@ export default function CaseDetailPage() {
     toast({ title: "已承接本案" });
   };
 
-  const handleFinalize = () => {
-    save({ status: "dispatched" as CaseStatus });
-    toast({ title: "已確定指派" });
+  const handleCompleteTask = () => {
+    save({ status: "completed" as CaseStatus });
+    toast({ title: "任務完成" });
+  };
+
+  const handleCancelDispatch = () => {
+    save({ status: "inquiry" as CaseStatus });
+    toast({ title: "已取消指派" });
   };
 
   const comments = caseData.comments || [];
