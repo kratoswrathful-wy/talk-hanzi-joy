@@ -1520,6 +1520,17 @@ export default function TranslatorFeeDetail() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Label className="text-sm font-medium">稿費內容</Label>
+              {linkedTranslatorInvoices.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground">稿費請款單</span>
+                  {linkedTranslatorInvoices.map((inv, idx) => (
+                    <span key={inv.id}>
+                      <Link to={`/invoices/${inv.id}`} className="text-xs text-primary hover:underline">{inv.title || "未命名"}</Link>
+                      {idx < linkedTranslatorInvoices.length - 1 && <span className="text-xs text-muted-foreground">、</span>}
+                    </span>
+                  ))}
+                </div>
+              )}
               {isNoFeeTranslator && (
                 <span className="text-xs text-warning bg-warning/10 border border-warning/30 rounded px-2 py-0.5">無須開立稿費</span>
               )}
