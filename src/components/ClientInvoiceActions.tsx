@@ -362,9 +362,10 @@ export function ClientInvoiceActions({ selectedFees, onDone }: ClientInvoiceActi
                       </Link>
                       <span className="text-muted-foreground ml-1">— {issue.reason}</span>
                     </li>
-                  ))}</ul
-                </div>
-              </AlertDialogDescription>
+                  ))}
+                </ul>
+              </div>
+            </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>關閉</AlertDialogCancel>
