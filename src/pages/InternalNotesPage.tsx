@@ -243,7 +243,7 @@ function NoteDetailView({
       </Field>
 
       <Field label="內部指派對象" icon="👥">
-        <ColorSelect fieldKey="assignee" value={note.internalAssignee} onValueChange={(v) => onUpdate({ internalAssignee: v })} />
+        <MultiColorSelect fieldKey="assignee" values={note.internalAssignee || []} onValuesChange={(v) => onUpdate({ internalAssignee: v })} />
       </Field>
 
       <Separator />
