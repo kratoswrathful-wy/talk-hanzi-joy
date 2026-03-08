@@ -27,6 +27,8 @@ export function AppSidebar() {
   const canViewClientInvoices = checkPerm("client_invoices", "cinv_list_view", "view");
   const canViewCases = checkPerm("case_management", "case_list_view", "view");
   const canViewTools = checkPerm("tool_management", "tool_list_view", "view");
+  const canViewFieldRef = checkPerm("field_reference", "field_ref_view", "view");
+  const canViewInternalNotes = checkPerm("internal_notes", "inotes_list_view", "view");
 
   const navItems = [
     ...(canViewCases ? [{ title: "案件管理", url: "/cases", icon: Briefcase }] : []),
