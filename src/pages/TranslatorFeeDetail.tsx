@@ -1256,7 +1256,6 @@ export default function TranslatorFeeDetail() {
                     variant="outline"
                     size="sm"
                     className="text-xs min-w-[88px]"
-                    disabled={isFinalized}
                     onClick={() => {
                       if (isNavigationBlocked) {
                         if (needsRoleAssignment) {
@@ -1277,10 +1276,9 @@ export default function TranslatorFeeDetail() {
                   </Button>
                 </span>
               </TooltipTrigger>
-              {isFinalized && <TooltipContent>已開立稿費條，請先收回為草稿</TooltipContent>}
             </Tooltip>
           )}
-          {isManager && isDraft && (
+          {isManager && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <span>
@@ -1306,7 +1304,13 @@ export default function TranslatorFeeDetail() {
                     size="sm"
                     className="text-xs min-w-[88px]"
                     disabled={!isNoFeeTranslator && !clientInfo.rateConfirmed}
-                    onClick={handleSubmit}
+                    onClick={() => {
+                      if (!assignee) {
+                        toast.error("請先選擇譯者，才能開立稿費條。");
+                        return;
+                      }
+                      handleSubmit();
+                    }}
                   >
                     開立稿費條
                   </Button>
@@ -1360,7 +1364,7 @@ export default function TranslatorFeeDetail() {
               <ColorSelect
                 fieldKey="assignee"
                 value={assignee}
-                disabled={!canEdit || clientInfo.rateConfirmed}
+                disabled={!canEdit}
                 onValueChange={(v) => {
                   trackChange("譯者", assignee, v);
                   setAssignee(v);
@@ -1616,13 +1620,18 @@ export default function TranslatorFeeDetail() {
           {/* Finalize prompt after rate confirmation */}
           {showFinalizePrompt && isDraft && isManager && (
             <div className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
-              <span className="text-xs text-foreground">是否同時開立稿費條？</span>
+              <span className="text-xs text-foreground">是否直接向譯者開立稿費條？（按空白鍵或揀選按鈕確認）</span>
               <div className="flex items-center gap-1.5">
                 <Button
                   ref={finalizePromptRef}
                   size="sm"
                   className="h-7 text-xs px-3"
                   onClick={() => {
+                    if (!assignee) {
+                      toast.error("請先選擇譯者，才能開立稿費條。");
+                      setShowFinalizePrompt(false);
+                      return;
+                    }
                     setShowFinalizePrompt(false);
                     handleSubmit();
                   }}
