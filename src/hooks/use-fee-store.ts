@@ -10,10 +10,12 @@ function ensureLoaded() {
   }
 }
 
-// Reset cache on auth changes (login/logout/switch)
-supabase.auth.onAuthStateChange(() => {
+// Reset cache on auth changes — only reload on sign-in to avoid race conditions
+supabase.auth.onAuthStateChange((event) => {
   loadPromise = null;
-  feeStore.loadFees();
+  if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
+    feeStore.loadFees();
+  }
 });
 
 export function useFees() {
