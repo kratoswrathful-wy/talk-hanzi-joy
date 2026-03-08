@@ -1615,25 +1615,30 @@ export default function TranslatorFeeDetail() {
                 新增項目
               </Button>
               {isManager && (
-                <div className="flex items-center gap-1.5 relative">
-                  <Checkbox
-                    id="rateConfirmed"
-                    checked={isNoFeeTranslator ? true : clientInfo.rateConfirmed}
-                    disabled={isFinalized || isNoFeeTranslator}
-                    onCheckedChange={(checked) => {
-                      const updated = { ...clientInfo, rateConfirmed: !!checked };
-                      setClientInfo(updated);
-                      if (id) feeStore.updateFee(id, { clientInfo: updated });
-                      // When checking rateConfirmed, show finalize prompt
-                      if (checked && !isNoFeeTranslator) {
-                        setShowFinalizePrompt(true);
-                        // Focus the confirm button after render
-                        setTimeout(() => finalizePromptRef.current?.focus(), 100);
-                      }
-                    }}
-                  />
-                  <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">費率無誤</Label>
-                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1.5 relative">
+                      <Checkbox
+                        id="rateConfirmed"
+                        checked={isNoFeeTranslator ? true : clientInfo.rateConfirmed}
+                        disabled={isFinalized || isNoFeeTranslator || linkedTranslatorInvoices.length > 0}
+                        onCheckedChange={(checked) => {
+                          const updated = { ...clientInfo, rateConfirmed: !!checked };
+                          setClientInfo(updated);
+                          if (id) feeStore.updateFee(id, { clientInfo: updated });
+                          // When checking rateConfirmed, show finalize prompt
+                          if (checked && !isNoFeeTranslator) {
+                            setShowFinalizePrompt(true);
+                            // Focus the confirm button after render
+                            setTimeout(() => finalizePromptRef.current?.focus(), 100);
+                          }
+                        }}
+                      />
+                      <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">費率無誤</Label>
+                    </div>
+                  </TooltipTrigger>
+                  {linkedTranslatorInvoices.length > 0 && !isFinalized && <TooltipContent>此費用已列入稿費請款單，無法取消費率確認</TooltipContent>}
+                </Tooltip>
               )}
             </div>
           </div>
