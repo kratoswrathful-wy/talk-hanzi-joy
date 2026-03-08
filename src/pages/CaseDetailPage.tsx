@@ -107,14 +107,16 @@ function ToolInstance({
   onUpdate,
   onRemove,
   showRemove,
+  toolFieldKey = "executionTool",
 }: {
   entry: ToolEntry;
   index: number;
   onUpdate: (updates: Partial<ToolEntry>) => void;
   onRemove: () => void;
   showRemove: boolean;
+  toolFieldKey?: string;
 }) {
-  const { options: toolOptions } = useSelectOptions("executionTool");
+  const { options: toolOptions } = useSelectOptions(toolFieldKey);
   const allTemplates = useToolTemplates();
   const [tplOpen, setTplOpen] = useState(false);
   const [pendingTpl, setPendingTpl] = useState<ToolTemplate | null>(null);
