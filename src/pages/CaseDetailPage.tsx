@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Trash2, Plus, X, GripVertical, Pencil } from "lucide-react";
+import { ArrowLeft, Trash2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,7 +27,7 @@ import { toast } from "@/hooks/use-toast";
 import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-store";
-import { cn } from "@/lib/utils";
+
 
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
@@ -38,132 +38,6 @@ function Field({ label, children, className }: { label: string; children: React.
   );
 }
 
-/* ── Inline Field Manager for Case Detail ── */
-function CaseToolFieldManager({
-  fields,
-  onFieldsChange,
-}: {
-  fields: ToolEntryField[];
-  onFieldsChange: (fields: ToolEntryField[]) => void;
-}) {
-  const [adding, setAdding] = useState(false);
-  const [newLabel, setNewLabel] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editLabel, setEditLabel] = useState("");
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-
-  const handleAdd = () => {
-    const label = newLabel.trim();
-    if (!label) return;
-    const id = `cf-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
-    onFieldsChange([...fields, { id, label }]);
-    setNewLabel("");
-    setAdding(false);
-  };
-
-  const handleRename = (fieldId: string) => {
-    const label = editLabel.trim();
-    if (!label) return;
-    onFieldsChange(fields.map((f) => (f.id === fieldId ? { ...f, label } : f)));
-    setEditingId(null);
-  };
-
-  const handleRemove = (fieldId: string) => {
-    onFieldsChange(fields.filter((f) => f.id !== fieldId));
-  };
-
-  const handleDrop = (idx: number) => {
-    if (dragIndex === null || dragIndex === idx) return;
-    const next = [...fields];
-    const [moved] = next.splice(dragIndex, 1);
-    next.splice(idx, 0, moved);
-    onFieldsChange(next);
-    setDragIndex(null);
-    setDragOverIndex(null);
-  };
-
-  return (
-    <div className="space-y-1 mt-1">
-      {fields.map((f, idx) => (
-        <div
-          key={f.id}
-          draggable
-          onDragStart={() => setDragIndex(idx)}
-          onDragOver={(e) => { e.preventDefault(); if (dragIndex !== null && dragIndex !== idx) setDragOverIndex(idx); }}
-          onDrop={() => handleDrop(idx)}
-          onDragEnd={() => { setDragIndex(null); setDragOverIndex(null); }}
-          className={cn(
-            "flex items-center gap-1 group",
-            dragOverIndex === idx && "bg-primary/10 rounded-md border border-dashed border-primary/30",
-            dragIndex === idx && "opacity-50",
-          )}
-        >
-          <GripVertical className="h-3 w-3 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing" />
-          {editingId === f.id ? (
-            <div className="flex items-center gap-1 flex-1">
-              <Input
-                value={editLabel}
-                onChange={(e) => setEditLabel(e.target.value)}
-                onBlur={() => handleRename(f.id)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleRename(f.id);
-                  if (e.key === "Escape") setEditingId(null);
-                }}
-                className="h-6 text-xs w-24"
-                autoFocus
-              />
-            </div>
-          ) : (
-            <button
-              className="h-5 w-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted text-muted-foreground transition-all shrink-0"
-              onClick={() => { setEditingId(f.id); setEditLabel(f.label); }}
-            >
-              <Pencil className="h-2.5 w-2.5" />
-            </button>
-          )}
-          <button
-            className="h-5 w-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted text-muted-foreground hover:text-destructive transition-all shrink-0"
-            onClick={() => handleRemove(f.id)}
-          >
-            <Trash2 className="h-2.5 w-2.5" />
-          </button>
-        </div>
-      ))}
-      {adding ? (
-        <div className="flex items-center gap-1.5 ml-4">
-          <Input
-            value={newLabel}
-            onChange={(e) => setNewLabel(e.target.value)}
-            placeholder="欄位名稱"
-            className="h-6 text-xs w-32"
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleAdd();
-              if (e.key === "Escape") setAdding(false);
-            }}
-          />
-          <Button size="sm" className="h-6 text-xs px-2" disabled={!newLabel.trim()} onClick={handleAdd}>
-            新增
-          </Button>
-          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => setAdding(false)}>
-            取消
-          </Button>
-        </div>
-      ) : (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1 text-xs h-6 px-2 text-muted-foreground ml-4"
-          onClick={() => setAdding(true)}
-        >
-          <Plus className="h-3 w-3" />
-          新增欄位
-        </Button>
-      )}
-    </div>
-  );
-}
 
 /* ── Single Tool Instance ── */
 function ToolInstance({
@@ -187,7 +61,9 @@ function ToolInstance({
     fieldChanges: { added: string[]; removed: string[] };
     conflicts: { id: string; label: string; current: string; incoming: string }[];
   } | null>(null);
-  const [fieldMgmtOpen, setFieldMgmtOpen] = useState(false);
+  const [deleteFieldId, setDeleteFieldId] = useState<string | null>(null);
+  const [addingField, setAddingField] = useState(false);
+  const [newFieldLabel, setNewFieldLabel] = useState("");
 
   const selectedTool = toolOptions.find((o) => o.label === entry.tool);
   // Use entry's custom fields if present, otherwise fall back to tool defaults
@@ -351,7 +227,8 @@ function ToolInstance({
           </TooltipProvider>
         </div>
         {fields.map((f) => (
-          <Field key={f.id} label={f.label}>
+          <div key={f.id} className="grid grid-cols-[120px_1fr_auto] items-start gap-3 py-1">
+            <span className="text-sm text-muted-foreground pt-1">{f.label}</span>
             <Input
               value={values[f.id] || ""}
               onChange={(e) =>
@@ -359,29 +236,93 @@ function ToolInstance({
               }
               className="max-w-xs"
             />
-          </Field>
+            <button
+              className="mt-1.5 h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0"
+              onClick={() => setDeleteFieldId(f.id)}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
         ))}
-        {/* Field management toggle */}
+        {/* Add field */}
         {hasToolSelected && (
-          <div className="pt-1">
+          addingField ? (
+            <div className="flex items-center gap-1.5 py-1 ml-[132px]">
+              <Input
+                value={newFieldLabel}
+                onChange={(e) => setNewFieldLabel(e.target.value)}
+                placeholder="欄位名稱"
+                className="h-7 text-sm w-40"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newFieldLabel.trim()) {
+                    const id = `cf-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
+                    const newFields = [...fields, { id, label: newFieldLabel.trim() }];
+                    handleFieldsChange(newFields);
+                    setNewFieldLabel("");
+                    setAddingField(false);
+                  }
+                  if (e.key === "Escape") { setAddingField(false); setNewFieldLabel(""); }
+                }}
+              />
+              <Button
+                size="sm"
+                className="h-7 text-xs px-2"
+                disabled={!newFieldLabel.trim()}
+                onClick={() => {
+                  const id = `cf-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
+                  const newFields = [...fields, { id, label: newFieldLabel.trim() }];
+                  handleFieldsChange(newFields);
+                  setNewFieldLabel("");
+                  setAddingField(false);
+                }}
+              >
+                確定
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => { setAddingField(false); setNewFieldLabel(""); }}>
+                取消
+              </Button>
+            </div>
+          ) : (
             <Button
               variant="ghost"
               size="sm"
-              className="gap-1 text-xs h-6 px-2 text-muted-foreground"
-              onClick={() => setFieldMgmtOpen((v) => !v)}
+              className="gap-1 text-xs text-muted-foreground ml-[132px]"
+              onClick={() => setAddingField(true)}
             >
-              <Pencil className="h-3 w-3" />
-              {fieldMgmtOpen ? "收起欄位管理" : "管理欄位"}
+              <Plus className="h-3 w-3" />
+              新增欄位
             </Button>
-            {fieldMgmtOpen && (
-              <CaseToolFieldManager
-                fields={fields}
-                onFieldsChange={handleFieldsChange}
-              />
-            )}
-          </div>
+          )
         )}
       </div>
+
+      {/* Delete field confirmation */}
+      <AlertDialog open={!!deleteFieldId} onOpenChange={(v) => { if (!v) setDeleteFieldId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>確認刪除欄位</AlertDialogTitle>
+            <AlertDialogDescription>
+              確定要刪除欄位「{fields.find((f) => f.id === deleteFieldId)?.label}」嗎？該欄位的內容也會一併移除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (deleteFieldId) {
+                handleFieldsChange(fields.filter((f) => f.id !== deleteFieldId));
+                // Also clean up fieldValues
+                const newValues = { ...values };
+                delete newValues[deleteFieldId];
+                onUpdate({ fields: fields.filter((f) => f.id !== deleteFieldId), fieldValues: newValues });
+              }
+              setDeleteFieldId(null);
+            }}>
+              確認刪除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Template apply warning dialog */}
       <AlertDialog open={!!pendingTpl} onOpenChange={(v) => { if (!v) dismissWarning(); }}>
