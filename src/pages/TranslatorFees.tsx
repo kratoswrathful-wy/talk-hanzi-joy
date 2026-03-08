@@ -124,8 +124,8 @@ const allColumnDefs: ColumnDef[] = [
     key: "status",
     label: "狀態",
     minWidth: 70,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={f.status} type="select" options={getSelectOptions("status")} editable={editable} onCommit={(v) => onCommit("status", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={f.status} type="select" options={getSelectOptions("status")} editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("status", v)}>
         <FeeStatusBadge status={f.status} />
       </InlineEditCell>
     ),
