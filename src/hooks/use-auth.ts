@@ -7,6 +7,11 @@ interface Profile {
   display_name: string | null;
   avatar_url: string | null;
   email: string;
+  timezone: string | null;
+  status_message: string | null;
+  phone: string | null;
+  mobile: string | null;
+  bio: string | null;
 }
 
 interface UserRole {
