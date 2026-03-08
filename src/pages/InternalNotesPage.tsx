@@ -103,7 +103,7 @@ function NoteListView({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">內部提問及備註</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">內部註記</h1>
         <Button size="sm" className="gap-1.5" onClick={onCreate}>
           <Plus className="h-4 w-4" />
           新增

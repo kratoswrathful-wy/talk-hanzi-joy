@@ -99,7 +99,7 @@ const sections: { title: string; fields: { name: string; type: string; location:
     ],
   },
   {
-    title: "內部提問及備註",
+    title: "內部註記",
     fields: [
       { name: "標題", type: "文字", location: "總表 / 詳情頁" },
       { name: "關聯案件", type: "關聯", location: "詳情頁" },

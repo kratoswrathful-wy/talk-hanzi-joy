@@ -254,7 +254,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
   },
   {
     key: "internal_notes",
-    label: "內部提問及備註",
+    label: "內部註記",
     listItems: [
       { key: "inotes_list_view", label: "檢視列表", type: "both" },
       { key: "inotes_list_create", label: "新增紀錄", type: "both", attribute: "按鈕" },
