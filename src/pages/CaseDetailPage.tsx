@@ -950,9 +950,25 @@ export default function CaseDetailPage() {
             新增
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">
-          點擊「新增」將在內部註記模組建立一筆新紀錄，標題自動依序編號。
-        </p>
+        {linkedNotes.length > 0 ? (
+          <div className="space-y-1">
+            {linkedNotes.map((n) => (
+              <Link
+                key={n.id}
+                to={`/internal-notes?noteId=${n.id}`}
+                className="flex items-center gap-2 text-sm text-primary hover:underline"
+              >
+                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                {n.title}
+                {n.invalidated && <Badge variant="destructive" className="text-[10px] px-1.5 py-0">已失效</Badge>}
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            尚無內部註記。點擊「新增」將在內部註記模組建立一筆新紀錄。
+          </p>
+        )}
       </div>
 
       <Separator />
