@@ -92,21 +92,28 @@ function ToolInstance({
     }
   };
 
-  const applyTemplate = (tpl: ToolTemplate) => {
+  const applyTemplate = (tpl: ToolTemplate, overrideChoices?: Record<string, boolean>) => {
+    const choices = overrideChoices ?? conflictChoices;
     const newValues: Record<string, string> = { ...values };
     for (const [key, val] of Object.entries(tpl.fieldValues)) {
-      if (val) newValues[key] = val;
+      if (!val) continue;
+      const hasConflict = conflictFields.some((cf) => cf.id === key);
+      if (hasConflict) {
+        // Apply only if user chose template version
+        if (choices[key]) newValues[key] = val;
+      } else {
+        newValues[key] = val;
+      }
     }
     onUpdate({ tool: tpl.tool, fieldValues: newValues });
     setTplOpen(false);
     setConflictTpl(null);
     setConflictFields([]);
+    setConflictChoices({});
   };
 
-  const keepCurrent = () => {
-    // Keep current values, don't apply template
-    setConflictTpl(null);
-    setConflictFields([]);
+  const handleConflictConfirm = () => {
+    if (conflictTpl) applyTemplate(conflictTpl);
   };
 
   return (
