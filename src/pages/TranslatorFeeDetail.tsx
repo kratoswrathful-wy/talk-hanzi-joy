@@ -1250,7 +1250,7 @@ export default function TranslatorFeeDetail() {
                 navigate(`/fees/${draft.id}`);
               }}
             >
-              建立新費用頁面
+              新增費用頁面
             </Button>
           )}
           {canDelete && (
