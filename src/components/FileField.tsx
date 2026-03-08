@@ -17,6 +17,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { supabase } from "@/integrations/supabase/client";
 import { useCommonLinks } from "@/stores/common-links-store";
 
+const formatBytes = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
 export interface FileItem {
   name: string;
   url: string;
@@ -38,6 +44,8 @@ export default function FileField({ value, onChange }: FileFieldProps) {
   const [linksOpen, setLinksOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadTotal, setUploadTotal] = useState(0);
+  const [uploadedBytes, setUploadedBytes] = useState(0);
+  const [totalBytes, setTotalBytes] = useState(0);
   const commonLinks = useCommonLinks();
 
   const uploadFiles = useCallback(async (files: File[]) => {
@@ -45,16 +53,22 @@ export default function FileField({ value, onChange }: FileFieldProps) {
     setUploading(true);
     setUploadProgress(0);
     setUploadTotal(files.length);
+    const total = files.reduce((sum, f) => sum + f.size, 0);
+    setTotalBytes(total);
+    setUploadedBytes(0);
+    let doneBytes = 0;
     const newItems: FileItem[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+      setUploadProgress(i);
       const path = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}/${file.name}`;
       const { error } = await supabase.storage.from("case-files").upload(path, file);
       if (!error) {
         const { data: urlData } = supabase.storage.from("case-files").getPublicUrl(path);
         newItems.push({ name: file.name, url: urlData.publicUrl, size: file.size });
       }
-      setUploadProgress(i + 1);
+      doneBytes += file.size;
+      setUploadedBytes(doneBytes);
     }
     if (newItems.length > 0) {
       onChange([...value, ...newItems]);
@@ -200,11 +214,11 @@ export default function FileField({ value, onChange }: FileFieldProps) {
 
       {/* Upload progress */}
       {uploading && (
-        <div className="flex items-center gap-2 px-1">
-          <Progress value={(uploadProgress / uploadTotal) * 100} className="h-2 flex-1" />
-          <span className="text-[11px] text-muted-foreground shrink-0">
-            {uploadProgress}/{uploadTotal}
+        <div className="space-y-1 px-1">
+          <span className="text-xs text-muted-foreground">
+            正在上傳第 {uploadProgress + 1}/{uploadTotal} 個檔案（{formatBytes(uploadedBytes)}/{formatBytes(totalBytes)}）
           </span>
+          <Progress value={(uploadedBytes / totalBytes) * 100} className="h-2" />
         </div>
       )}
 
