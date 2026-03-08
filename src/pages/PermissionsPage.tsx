@@ -517,13 +517,14 @@ export default function PermissionsPage() {
 // ─── Per-role permission panel ───
 
 function RolePermissionPanel({
-  roleKey, roleLabel, config, onToggleModuleVisible, onToggleItemPerm, onToggleAllPerms, onToggleSectionPerms,
+  roleKey, roleLabel, config, onToggleModuleVisible, onToggleItemPerm, onToggleAllPerms, onToggleSectionPerms, onSetSectionViewOnly,
 }: {
   roleKey: string; roleLabel: string; config: any;
   onToggleModuleVisible: (roleKey: string, moduleKey: string, visible: boolean) => void;
   onToggleItemPerm: (roleKey: string, moduleKey: string, itemKey: string, permType: "view" | "edit", value: boolean) => void;
   onToggleAllPerms: (roleKey: string, moduleKey: string, value: boolean) => void;
   onToggleSectionPerms: (roleKey: string, moduleKey: string, items: PermissionItem[], permType: "view" | "edit", value: boolean) => void;
+  onSetSectionViewOnly: (roleKey: string, moduleKey: string, items: PermissionItem[]) => void;
 }) {
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
 
