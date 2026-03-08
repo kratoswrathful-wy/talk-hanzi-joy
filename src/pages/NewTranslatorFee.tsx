@@ -339,7 +339,9 @@ export default function NewTranslatorFee() {
                       />
                     </TableCell>
                     <TableCell className="text-right text-xs font-medium tabular-nums">
-                      {(item.unitCount * item.unitPrice).toLocaleString()}
+                      <Tooltip><TooltipTrigger asChild>
+                        <span className="cursor-default">{(item.unitCount * item.unitPrice).toLocaleString()}</span>
+                      </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip>
                     </TableCell>
                     <TableCell>
                       <Button
