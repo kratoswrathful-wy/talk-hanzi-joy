@@ -19,6 +19,7 @@ function fromDb(row: any): CaseRecord {
   return {
     id: row.id,
     title: row.title ?? "",
+    status: (row.status === "finalized" ? "finalized" : "draft") as any,
     category: row.category ?? "",
     workType: Array.isArray(row.work_type) ? row.work_type : [],
     processNote: row.process_note ?? "",
