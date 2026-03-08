@@ -497,6 +497,8 @@ export default function CaseDetailPage() {
   // Comment drafts
   const [commentDraft, setCommentDraft] = useState("");
   const [internalCommentDraft, setInternalCommentDraft] = useState("");
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [internalReplyingTo, setInternalReplyingTo] = useState<string | null>(null);
 
   const roleLabels: Record<string, string> = { member: "成員", pm: "專案經理", executive: "執行官" };
 
