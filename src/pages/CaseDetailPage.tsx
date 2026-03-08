@@ -671,10 +671,11 @@ export default function CaseDetailPage() {
 
       <Separator />
 
-      <h2 className="text-base font-semibold">建立資訊</h2>
-      <Field label="建立時間">
-        <span className="text-sm">{new Date(caseData.createdAt).toLocaleString("zh-TW")}</span>
-      </Field>
+      {/* Meta info - same format as fee detail */}
+      <div className="flex gap-6 text-xs text-muted-foreground">
+        <span>建立者：{creatorName || "—"}</span>
+        <span>建立時間：{new Date(caseData.createdAt).toLocaleString("zh-TW")}</span>
+      </div>
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>

@@ -279,36 +279,38 @@ export default function MultiColorSelect({
               })}
             </div>
 
-            {/* Add new */}
-            <div className="border-t border-border p-1">
-              {addingNew ? (
-                <div className="p-2 space-y-2">
-                  <Input
-                    ref={newInputRef}
-                    value={newLabel}
-                    onChange={(e) => setNewLabel(e.target.value)}
-                    placeholder="輸入名稱"
-                    className="h-8 text-sm"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleAdd();
-                      if (e.key === "Escape") setAddingNew(false);
-                    }}
-                  />
-                  <div className="flex gap-1.5 justify-end">
-                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAddingNew(false)}>取消</Button>
-                    <Button size="sm" className="h-7 text-xs" disabled={!newLabel.trim()} onClick={handleAdd}>新增</Button>
+            {/* Add new - hidden for assignee fields (managed in team members) */}
+            {fieldKey !== "assignee" && (
+              <div className="border-t border-border p-1">
+                {addingNew ? (
+                  <div className="p-2 space-y-2">
+                    <Input
+                      ref={newInputRef}
+                      value={newLabel}
+                      onChange={(e) => setNewLabel(e.target.value)}
+                      placeholder="輸入名稱"
+                      className="h-8 text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleAdd();
+                        if (e.key === "Escape") setAddingNew(false);
+                      }}
+                    />
+                    <div className="flex gap-1.5 justify-end">
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAddingNew(false)}>取消</Button>
+                      <Button size="sm" className="h-7 text-xs" disabled={!newLabel.trim()} onClick={handleAdd}>新增</Button>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <button
-                  className="flex items-center gap-2 w-full px-3 py-2 rounded text-sm hover:bg-accent hover:text-accent-foreground transition-colors text-muted-foreground"
-                  onClick={() => setAddingNew(true)}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  新增選項
-                </button>
-              )}
-            </div>
+                ) : (
+                  <button
+                    className="flex items-center gap-2 w-full px-3 py-2 rounded text-sm hover:bg-accent hover:text-accent-foreground transition-colors text-muted-foreground"
+                    onClick={() => setAddingNew(true)}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    新增選項
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </PopoverContent>
       </Popover>
