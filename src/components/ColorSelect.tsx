@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useSelectOptions, selectOptionsStore, type SelectOption, PRESET_COLORS, CONTACT_DEFAULT_COLOR } from "@/stores/select-options-store";
-import { useLabelStyles } from "@/stores/label-style-store";
+import { useLabelStyles, labelStyleStore } from "@/stores/label-style-store";
 import ColorPicker from "@/components/ColorPicker";
 import {
   AlertDialog,
@@ -220,19 +220,34 @@ export default function ColorSelect({
                         {(() => {
                           const tzLabel = getTimezoneOffsetLabel(opt.timezone);
                           const statusText = opt.statusMessage;
-                          const infoText = [tzLabel, statusText].filter(Boolean).join(" ");
-                          if (!infoText) return null;
+                          const draftBg = labelStyles.statusDraft.bgColor;
+                          if (!tzLabel && !statusText) return null;
                           return (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="text-xs text-muted-foreground truncate min-w-0 flex-1">
-                                  {infoText}
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="right" className="max-w-xs">
-                                <p className="whitespace-pre-wrap break-words">{infoText}</p>
-                              </TooltipContent>
-                            </Tooltip>
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                              {/* Fixed-width timezone badge so status text always aligns */}
+                              <span
+                                className="inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-medium shrink-0"
+                                style={{
+                                  backgroundColor: tzLabel ? draftBg : "transparent",
+                                  color: tzLabel ? "#FFFFFF" : "transparent",
+                                  minWidth: "3.25rem",
+                                }}
+                              >
+                                {tzLabel || "\u00A0"}
+                              </span>
+                              {statusText && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="text-xs truncate min-w-0 flex-1" style={{ color: "#FFFFFF" }}>
+                                      {statusText}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="right" className="max-w-xs">
+                                    <p className="whitespace-pre-wrap break-words">{statusText}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              )}
+                            </div>
                           );
                         })()}
                         {value === opt.label && (
