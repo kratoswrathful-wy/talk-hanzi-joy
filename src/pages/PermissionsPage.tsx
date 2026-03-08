@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import {
   Collapsible,
   CollapsibleContent,
@@ -30,13 +31,13 @@ import { toast } from "sonner";
 interface PermissionItem {
   key: string;
   label: string;
-  type: "view" | "edit" | "both"; // "both" = separate view & edit toggles
-  attribute?: string; // e.g., "文字", "單選", "按鈕"
+  type: "view" | "edit" | "both";
+  attribute?: string;
 }
 
 interface DetailSection {
   label: string;
-  isHeaderOnly?: boolean; // true = section label only, no control item for the section itself
+  isHeaderOnly?: boolean;
   items: PermissionItem[];
 }
 
@@ -47,7 +48,6 @@ interface PermissionModule {
   detailSections: DetailSection[];
 }
 
-/** Flatten all detail items from sections */
 function getAllDetailItems(mod: PermissionModule): PermissionItem[] {
   return mod.detailSections.flatMap((s) => s.items);
 }
@@ -64,9 +64,9 @@ const PERMISSION_MODULES: PermissionModule[] = [
       {
         label: "頁面一般操作",
         items: [
-          { key: "fee_detail_delete", label: "刪除", type: "both", attribute: "按鈕" },
+          { key: "fee_detail_delete", label: "刪除頁面", type: "both", attribute: "按鈕" },
           { key: "fee_detail_copy", label: "複製頁面", type: "both", attribute: "按鈕" },
-          { key: "fee_detail_createNew", label: "建立新費用頁面", type: "both", attribute: "按鈕" },
+          { key: "fee_detail_createNew", label: "新增費用頁面", type: "both", attribute: "按鈕" },
           { key: "fee_detail_finalize", label: "開立稿費條", type: "both", attribute: "按鈕" },
           { key: "fee_detail_recall", label: "收回為草稿", type: "both", attribute: "按鈕" },
         ],
@@ -130,7 +130,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
       {
         label: "頁面一般操作",
         items: [
-          { key: "inv_detail_delete", label: "刪除", type: "both", attribute: "按鈕" },
+          { key: "inv_detail_delete", label: "刪除頁面", type: "both", attribute: "按鈕" },
           { key: "inv_detail_payFull", label: "全額付款", type: "both", attribute: "按鈕" },
           { key: "inv_detail_payPartial", label: "部份付款", type: "both", attribute: "按鈕" },
         ],
@@ -165,7 +165,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
       {
         label: "頁面一般操作",
         items: [
-          { key: "cinv_detail_delete", label: "刪除", type: "both", attribute: "按鈕" },
+          { key: "cinv_detail_delete", label: "刪除頁面", type: "both", attribute: "按鈕" },
           { key: "cinv_detail_payFull", label: "全額收齊", type: "both", attribute: "按鈕" },
           { key: "cinv_detail_payPartial", label: "部份到帳", type: "both", attribute: "按鈕" },
         ],
@@ -211,7 +211,8 @@ const PERMISSION_MODULES: PermissionModule[] = [
     detailSections: [],
   },
 ];
-// ─── Helpers to read/write permission values from config ───
+
+// ─── Helpers ───
 
 interface ModulePerms {
   visible: boolean;
@@ -224,8 +225,28 @@ function getModulePerms(config: any, roleKey: string, moduleKey: string): Module
 }
 
 function getItemPerm(modulePerms: ModulePerms, itemKey: string, permType: "view" | "edit"): boolean {
-  return modulePerms.items?.[itemKey]?.[permType] ?? true; // default: enabled
+  return modulePerms.items?.[itemKey]?.[permType] ?? true;
 }
+
+function isAllPermsEnabled(modulePerms: ModulePerms, mod: PermissionModule): boolean {
+  const allItems = [...mod.listItems, ...getAllDetailItems(mod)];
+  return allItems.every((item) => {
+    const view = getItemPerm(modulePerms, item.key, "view");
+    if (item.type === "view") return view;
+    return view && getItemPerm(modulePerms, item.key, "edit");
+  });
+}
+
+function isSectionAllView(modulePerms: ModulePerms, items: PermissionItem[]): boolean {
+  return items.every((item) => getItemPerm(modulePerms, item.key, "view"));
+}
+
+function isSectionAllEdit(modulePerms: ModulePerms, items: PermissionItem[]): boolean {
+  const editableItems = items.filter((item) => item.type !== "view");
+  return editableItems.length > 0 && editableItems.every((item) => getItemPerm(modulePerms, item.key, "edit"));
+}
+
+// ─── Main Component ───
 
 export default function PermissionsPage() {
   const { roles } = useAuth();
@@ -275,55 +296,30 @@ export default function PermissionsPage() {
     }
   };
 
-  const handleDeleteClick = (role: RoleDefinition) => {
-    setDeleteTarget(role);
-    setDeleteStep(1);
-  };
-
+  const handleDeleteClick = (role: RoleDefinition) => { setDeleteTarget(role); setDeleteStep(1); };
   const handleDeleteStep1 = () => setDeleteStep(2);
-
   const handleDeleteStep2 = async () => {
     if (deleteTarget) {
       const updated = customRoles.filter((r) => r.key !== deleteTarget.key);
-      // Also remove module_permissions for deleted role
       const newModulePerms = { ...(config as any).module_permissions };
       delete newModulePerms[deleteTarget.key];
       const error = await saveConfig({ ...config, custom_roles: updated, module_permissions: newModulePerms });
-      if (!error) {
-        toast.success(`已刪除身分「${deleteTarget.label}」`);
-      } else {
-        toast.error("刪除失敗");
-      }
+      if (!error) toast.success(`已刪除身分「${deleteTarget.label}」`);
+      else toast.error("刪除失敗");
     }
     setDeleteTarget(null);
     setDeleteStep(1);
   };
+  const handleCancelDelete = () => { setDeleteTarget(null); setDeleteStep(1); };
 
-  const handleCancelDelete = () => {
-    setDeleteTarget(null);
-    setDeleteStep(1);
-  };
-
-  const handleRenameStart = (role: RoleDefinition) => {
-    setRenamingRole(role.key);
-    setRenameValue(role.label);
-  };
-
+  const handleRenameStart = (role: RoleDefinition) => { setRenamingRole(role.key); setRenameValue(role.label); };
   const handleRenameConfirm = async () => {
-    if (!renamingRole || !renameValue.trim()) {
-      setRenamingRole(null);
-      return;
-    }
+    if (!renamingRole || !renameValue.trim()) { setRenamingRole(null); return; }
     const name = renameValue.trim();
-    if (allRoles.some((r) => r.key !== renamingRole && r.label === name)) {
-      toast.error("此名稱已被使用");
-      return;
-    }
+    if (allRoles.some((r) => r.key !== renamingRole && r.label === name)) { toast.error("此名稱已被使用"); return; }
     const role = allRoles.find((r) => r.key === renamingRole);
     if (!role) return;
-
     if (role.builtIn) {
-      // Store label overrides for built-in roles
       const overrides = { ...((config as any).role_label_overrides || {}), [role.key]: name };
       await saveConfig({ ...config, role_label_overrides: overrides });
     } else {
@@ -335,11 +331,7 @@ export default function PermissionsPage() {
   };
 
   const handleDragEnd = async () => {
-    if (draggedIdx === null || dragOverIdx === null || draggedIdx === dragOverIdx) {
-      setDraggedIdx(null);
-      setDragOverIdx(null);
-      return;
-    }
+    if (draggedIdx === null || dragOverIdx === null || draggedIdx === dragOverIdx) { setDraggedIdx(null); setDragOverIdx(null); return; }
     const reordered = [...allRoles];
     const [moved] = reordered.splice(draggedIdx, 1);
     reordered.splice(dragOverIdx, 0, moved);
@@ -351,42 +343,21 @@ export default function PermissionsPage() {
     toast.success("排序已更新");
   };
 
-  // Toggle module visibility
   const handleToggleModuleVisible = async (roleKey: string, moduleKey: string, visible: boolean) => {
     const modulePerms = getModulePerms(config, roleKey, moduleKey);
-    const newModulePerms = {
-      ...(config as any).module_permissions,
-      [roleKey]: {
-        ...((config as any).module_permissions?.[roleKey] || {}),
-        [moduleKey]: { ...modulePerms, visible },
-      },
-    };
+    const newModulePerms = { ...(config as any).module_permissions, [roleKey]: { ...((config as any).module_permissions?.[roleKey] || {}), [moduleKey]: { ...modulePerms, visible } } };
     await saveConfig({ ...config, module_permissions: newModulePerms });
   };
 
-  // Toggle individual item permission
   const handleToggleItemPerm = async (roleKey: string, moduleKey: string, itemKey: string, permType: "view" | "edit", value: boolean) => {
     const modulePerms = getModulePerms(config, roleKey, moduleKey);
     const currentItem = modulePerms.items?.[itemKey] || { view: true, edit: true };
     const newItem = { ...currentItem, [permType]: value };
-    // If edit is turned off, keep view as-is. If view is turned off, also turn off edit.
-    if (permType === "view" && !value) {
-      newItem.edit = false;
-    }
-    const newModulePerms = {
-      ...(config as any).module_permissions,
-      [roleKey]: {
-        ...((config as any).module_permissions?.[roleKey] || {}),
-        [moduleKey]: {
-          ...modulePerms,
-          items: { ...modulePerms.items, [itemKey]: newItem },
-        },
-      },
-    };
+    if (permType === "view" && !value) newItem.edit = false;
+    const newModulePerms = { ...(config as any).module_permissions, [roleKey]: { ...((config as any).module_permissions?.[roleKey] || {}), [moduleKey]: { ...modulePerms, items: { ...modulePerms.items, [itemKey]: newItem } } } };
     await saveConfig({ ...config, module_permissions: newModulePerms });
   };
 
-  // Toggle all permissions for a module
   const handleToggleAllPerms = async (roleKey: string, moduleKey: string, value: boolean) => {
     const mod = PERMISSION_MODULES.find((m) => m.key === moduleKey);
     if (!mod) return;
@@ -394,36 +365,34 @@ export default function PermissionsPage() {
     const allItems = [...mod.listItems, ...getAllDetailItems(mod)];
     const newItems: Record<string, { view: boolean; edit: boolean }> = { ...modulePerms.items };
     for (const item of allItems) {
-      if (item.type === "view") {
-        newItems[item.key] = { view: value, edit: false };
+      newItems[item.key] = item.type === "view" ? { view: value, edit: false } : { view: value, edit: value };
+    }
+    const newModulePerms = { ...(config as any).module_permissions, [roleKey]: { ...((config as any).module_permissions?.[roleKey] || {}), [moduleKey]: { ...modulePerms, visible: value ? true : modulePerms.visible, items: newItems } } };
+    await saveConfig({ ...config, module_permissions: newModulePerms });
+  };
+
+  const handleToggleSectionPerms = async (roleKey: string, moduleKey: string, items: PermissionItem[], permType: "view" | "edit", value: boolean) => {
+    const modulePerms = getModulePerms(config, roleKey, moduleKey);
+    const newItems: Record<string, { view: boolean; edit: boolean }> = { ...modulePerms.items };
+    for (const item of items) {
+      const current = newItems[item.key] || { view: true, edit: true };
+      if (permType === "view") {
+        newItems[item.key] = { view: value, edit: value ? current.edit : false };
       } else {
-        newItems[item.key] = { view: value, edit: value };
+        if (item.type === "view") continue;
+        newItems[item.key] = { ...current, edit: value };
       }
     }
-    const newModulePerms = {
-      ...(config as any).module_permissions,
-      [roleKey]: {
-        ...((config as any).module_permissions?.[roleKey] || {}),
-        [moduleKey]: { ...modulePerms, visible: value ? true : modulePerms.visible, items: newItems },
-      },
-    };
+    const newModulePerms = { ...(config as any).module_permissions, [roleKey]: { ...((config as any).module_permissions?.[roleKey] || {}), [moduleKey]: { ...modulePerms, items: newItems } } };
     await saveConfig({ ...config, module_permissions: newModulePerms });
   };
 
   if (!isExecutive) {
-    return (
-      <div className="mx-auto max-w-3xl py-12 text-center text-muted-foreground">
-        您沒有權限檢視此頁面
-      </div>
-    );
+    return <div className="mx-auto max-w-3xl py-12 text-center text-muted-foreground">您沒有權限檢視此頁面</div>;
   }
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   }
 
   return (
@@ -433,7 +402,6 @@ export default function PermissionsPage() {
         <p className="mt-1 text-sm text-muted-foreground">管理角色身分與各模組權限設定</p>
       </div>
 
-      {/* Role Management */}
       <Card>
         <Collapsible open={rolesSectionOpen} onOpenChange={setRolesSectionOpen}>
           <CollapsibleTrigger asChild>
@@ -447,13 +415,7 @@ export default function PermissionsPage() {
           <CollapsibleContent>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-2">
-                <Input
-                  value={newRoleName}
-                  onChange={(e) => setNewRoleName(e.target.value)}
-                  placeholder="新增身分名稱…"
-                  className="max-w-xs text-sm"
-                  onKeyDown={(e) => { if (e.key === "Enter") handleAddRole(); }}
-                />
+                <Input value={newRoleName} onChange={(e) => setNewRoleName(e.target.value)} placeholder="新增身分名稱…" className="max-w-xs text-sm" onKeyDown={(e) => { if (e.key === "Enter") handleAddRole(); }} />
                 <Button size="sm" onClick={handleAddRole} disabled={!newRoleName.trim() || saving}>
                   {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
                   新增
@@ -477,42 +439,16 @@ export default function PermissionsPage() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab shrink-0" />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => setExpandedRole(isExpanded ? null : role.key)}
-                          >
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setExpandedRole(isExpanded ? null : role.key)}>
                             {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </Button>
                           {renamingRole === role.key ? (
-                            <Input
-                              value={renameValue}
-                              onChange={(e) => setRenameValue(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") handleRenameConfirm();
-                                if (e.key === "Escape") setRenamingRole(null);
-                              }}
-                              onBlur={handleRenameConfirm}
-                              autoFocus
-                              className="h-7 w-32 text-sm"
-                            />
+                            <Input value={renameValue} onChange={(e) => setRenameValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleRenameConfirm(); if (e.key === "Escape") setRenamingRole(null); }} onBlur={handleRenameConfirm} autoFocus className="h-7 w-32 text-sm" />
                           ) : (
-                            <span
-                              className="text-sm font-medium cursor-pointer hover:underline"
-                              onClick={() => handleRenameStart(role)}
-                              title="點擊以更名"
-                            >
-                              {role.label}
-                            </span>
+                            <span className="text-sm font-medium cursor-pointer hover:underline" onClick={() => handleRenameStart(role)} title="點擊以更名">{role.label}</span>
                           )}
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={() => handleDeleteClick(role)}
-                        >
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteClick(role)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -526,6 +462,7 @@ export default function PermissionsPage() {
                             onToggleModuleVisible={handleToggleModuleVisible}
                             onToggleItemPerm={handleToggleItemPerm}
                             onToggleAllPerms={handleToggleAllPerms}
+                            onToggleSectionPerms={handleToggleSectionPerms}
                           />
                         </div>
                       )}
@@ -538,38 +475,28 @@ export default function PermissionsPage() {
         </Collapsible>
       </Card>
 
-      {/* Delete Confirmation - Step 1 */}
       <AlertDialog open={!!deleteTarget && deleteStep === 1} onOpenChange={(open) => { if (!open && deleteStep === 1) handleCancelDelete(); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>確認刪除身分</AlertDialogTitle>
-            <AlertDialogDescription>
-              確定要刪除「{deleteTarget?.label}」這個身分嗎？此操作無法復原。
-            </AlertDialogDescription>
+            <AlertDialogDescription>確定要刪除「{deleteTarget?.label}」這個身分嗎？此操作無法復原。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={handleCancelDelete}>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={(e) => { e.preventDefault(); handleDeleteStep1(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              繼續
-            </AlertDialogAction>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); handleDeleteStep1(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">繼續</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Delete Confirmation - Step 2 */}
       <AlertDialog open={!!deleteTarget && deleteStep === 2} onOpenChange={(open) => { if (!open) handleCancelDelete(); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>再次確認刪除</AlertDialogTitle>
-            <AlertDialogDescription>
-              您即將永久刪除「{deleteTarget?.label}」身分。所有擁有此身分的成員將失去相關權限，且此操作無法復原。是否確定？
-            </AlertDialogDescription>
+            <AlertDialogDescription>您即將永久刪除「{deleteTarget?.label}」身分。所有擁有此身分的成員將失去相關權限，且此操作無法復原。是否確定？</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={handleCancelDelete}>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteStep2} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              確認刪除
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteStep2} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">確認刪除</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -577,34 +504,16 @@ export default function PermissionsPage() {
   );
 }
 
-// ─── Helper: check if all items in a module have all perms enabled ───
-
-function isAllPermsEnabled(modulePerms: ModulePerms, mod: PermissionModule): boolean {
-  const allItems = [...mod.listItems, ...getAllDetailItems(mod)];
-  return allItems.every((item) => {
-    const view = getItemPerm(modulePerms, item.key, "view");
-    if (item.type === "view") return view;
-    const edit = getItemPerm(modulePerms, item.key, "edit");
-    return view && edit;
-  });
-}
-
 // ─── Per-role permission panel ───
 
 function RolePermissionPanel({
-  roleKey,
-  roleLabel,
-  config,
-  onToggleModuleVisible,
-  onToggleItemPerm,
-  onToggleAllPerms,
+  roleKey, roleLabel, config, onToggleModuleVisible, onToggleItemPerm, onToggleAllPerms, onToggleSectionPerms,
 }: {
-  roleKey: string;
-  roleLabel: string;
-  config: any;
+  roleKey: string; roleLabel: string; config: any;
   onToggleModuleVisible: (roleKey: string, moduleKey: string, visible: boolean) => void;
   onToggleItemPerm: (roleKey: string, moduleKey: string, itemKey: string, permType: "view" | "edit", value: boolean) => void;
   onToggleAllPerms: (roleKey: string, moduleKey: string, value: boolean) => void;
+  onToggleSectionPerms: (roleKey: string, moduleKey: string, items: PermissionItem[], permType: "view" | "edit", value: boolean) => void;
 }) {
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
 
@@ -629,24 +538,11 @@ function RolePermissionPanel({
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1">
                   <Label className="text-xs text-muted-foreground">所有權限</Label>
-                  <Switch
-                    checked={allEnabled}
-                    onCheckedChange={(v) => {
-                      if (v && !isVisible) {
-                        onToggleModuleVisible(roleKey, mod.key, true);
-                      }
-                      onToggleAllPerms(roleKey, mod.key, v);
-                    }}
-                    className="scale-75"
-                  />
+                  <Switch checked={allEnabled} onCheckedChange={(v) => { if (v && !isVisible) onToggleModuleVisible(roleKey, mod.key, true); onToggleAllPerms(roleKey, mod.key, v); }} className="scale-75" />
                 </div>
                 <div className="flex items-center gap-1">
                   <Label className="text-xs text-muted-foreground">可見</Label>
-                  <Switch
-                    checked={isVisible}
-                    onCheckedChange={(v) => onToggleModuleVisible(roleKey, mod.key, v)}
-                    className="scale-75"
-                  />
+                  <Switch checked={isVisible} onCheckedChange={(v) => onToggleModuleVisible(roleKey, mod.key, v)} className="scale-75" />
                 </div>
               </div>
             </div>
@@ -656,15 +552,21 @@ function RolePermissionPanel({
                   {/* List items */}
                   {mod.listItems.length > 0 && (
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1.5">總表操作</p>
-                      <div className="space-y-1">
-                        {mod.listItems.map((item) => (
-                          <PermissionItemRow
-                            key={item.key}
-                            item={item}
-                            modulePerms={modulePerms}
-                            onToggle={(permType, value) => onToggleItemPerm(roleKey, mod.key, item.key, permType, value)}
-                          />
+                      <div className="flex items-center justify-between mb-1.5">
+                        <p className="text-xs font-medium text-muted-foreground">總表操作</p>
+                        <SectionBulkButtons
+                          level="list"
+                          modulePerms={modulePerms}
+                          items={mod.listItems}
+                          onToggle={(permType, value) => onToggleSectionPerms(roleKey, mod.key, mod.listItems, permType, value)}
+                        />
+                      </div>
+                      <div>
+                        {mod.listItems.map((item, i) => (
+                          <div key={item.key}>
+                            {i > 0 && <Separator className="my-0" />}
+                            <PermissionItemRow item={item} modulePerms={modulePerms} onToggle={(permType, value) => onToggleItemPerm(roleKey, mod.key, item.key, permType, value)} />
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -676,15 +578,21 @@ function RolePermissionPanel({
                       <p className="text-xs font-medium text-muted-foreground mb-1.5">詳情頁操作</p>
                       {mod.detailSections.map((section) => (
                         <div key={section.label}>
-                          <p className="text-xs font-semibold text-foreground/70 mb-1 ml-1">{section.label}</p>
-                          <div className="space-y-1">
-                            {section.items.map((item) => (
-                              <PermissionItemRow
-                                key={item.key}
-                                item={item}
-                                modulePerms={modulePerms}
-                                onToggle={(permType, value) => onToggleItemPerm(roleKey, mod.key, item.key, permType, value)}
-                              />
+                          <div className="flex items-center justify-between mb-1 ml-1">
+                            <p className="text-xs font-semibold text-foreground/70">{section.label}</p>
+                            <SectionBulkButtons
+                              level="detail"
+                              modulePerms={modulePerms}
+                              items={section.items}
+                              onToggle={(permType, value) => onToggleSectionPerms(roleKey, mod.key, section.items, permType, value)}
+                            />
+                          </div>
+                          <div>
+                            {section.items.map((item, i) => (
+                              <div key={item.key}>
+                                {i > 0 && <Separator className="my-0" />}
+                                <PermissionItemRow item={item} modulePerms={modulePerms} onToggle={(permType, value) => onToggleItemPerm(roleKey, mod.key, item.key, permType, value)} />
+                              </div>
                             ))}
                           </div>
                         </div>
@@ -705,13 +613,70 @@ function RolePermissionPanel({
   );
 }
 
-function PermissionItemRow({
-  item,
+// ─── Section bulk buttons with color tiers ───
+
+function SectionBulkButtons({
+  level,
   modulePerms,
+  items,
   onToggle,
 }: {
-  item: PermissionItem;
+  level: "list" | "detail";
   modulePerms: ModulePerms;
+  items: PermissionItem[];
+  onToggle: (permType: "view" | "edit", value: boolean) => void;
+}) {
+  const allView = isSectionAllView(modulePerms, items);
+  const allEdit = isSectionAllEdit(modulePerms, items);
+  const hasEditableItems = items.some((item) => item.type !== "view");
+
+  // Different color tiers: list-level uses accent tones, detail-level uses muted tones
+  const viewClass = level === "list"
+    ? allView
+      ? "bg-primary/15 hover:bg-primary/25 border-primary/30 text-primary"
+      : "bg-accent/30 hover:bg-accent/50 border-accent/40 text-accent-foreground"
+    : allView
+      ? "bg-secondary/80 hover:bg-secondary border-secondary text-secondary-foreground"
+      : "bg-muted/50 hover:bg-muted/80 border-muted-foreground/20 text-muted-foreground";
+
+  const editClass = level === "list"
+    ? allEdit
+      ? "bg-primary/15 hover:bg-primary/25 border-primary/30 text-primary"
+      : "bg-accent/30 hover:bg-accent/50 border-accent/40 text-accent-foreground"
+    : allEdit
+      ? "bg-secondary/80 hover:bg-secondary border-secondary text-secondary-foreground"
+      : "bg-muted/50 hover:bg-muted/80 border-muted-foreground/20 text-muted-foreground";
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <Button
+        variant="outline"
+        size="sm"
+        className={`h-5 px-2 text-[10px] ${viewClass}`}
+        onClick={() => onToggle("view", !allView)}
+      >
+        全部可見
+      </Button>
+      {hasEditableItems && (
+        <Button
+          variant="outline"
+          size="sm"
+          className={`h-5 px-2 text-[10px] ${editClass}`}
+          onClick={() => onToggle("edit", !allEdit)}
+        >
+          全可編輯
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// ─── Single permission item row ───
+
+function PermissionItemRow({
+  item, modulePerms, onToggle,
+}: {
+  item: PermissionItem; modulePerms: ModulePerms;
   onToggle: (permType: "view" | "edit", value: boolean) => void;
 }) {
   const viewEnabled = getItemPerm(modulePerms, item.key, "view");
@@ -719,31 +684,22 @@ function PermissionItemRow({
   const isViewOnly = item.type === "view";
 
   return (
-    <div className="flex items-center justify-between px-2 py-1 rounded hover:bg-muted/30 text-xs">
-      <div className="flex items-center gap-1.5">
+    <div className="flex items-center justify-between px-2 py-1.5 text-xs">
+      <div className="flex items-center gap-2">
         <span className="text-foreground/80">{item.label}</span>
         {item.attribute && (
-          <span className="text-muted-foreground/60 text-[10px]">({item.attribute})</span>
+          <span className="text-muted-foreground/70 text-[11px]">{item.attribute}</span>
         )}
       </div>
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1">
           <span className="text-muted-foreground">檢視</span>
-          <Switch
-            checked={viewEnabled}
-            onCheckedChange={(v) => onToggle("view", v)}
-            className="scale-[0.6]"
-          />
+          <Switch checked={viewEnabled} onCheckedChange={(v) => onToggle("view", v)} className="scale-[0.6]" />
         </div>
         {!isViewOnly && (
           <div className="flex items-center gap-1">
             <span className="text-muted-foreground">編輯</span>
-            <Switch
-              checked={editEnabled}
-              onCheckedChange={(v) => onToggle("edit", v)}
-              className="scale-[0.6]"
-              disabled={!viewEnabled}
-            />
+            <Switch checked={editEnabled} onCheckedChange={(v) => onToggle("edit", v)} className="scale-[0.6]" disabled={!viewEnabled} />
           </div>
         )}
       </div>
