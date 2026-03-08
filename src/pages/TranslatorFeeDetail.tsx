@@ -1406,41 +1406,23 @@ export default function TranslatorFeeDetail() {
           <div className="grid gap-1.5">
             <Label className="text-xs text-muted-foreground">相關案件</Label>
             {(() => {
-              const internalNoteLocked = clientInfo.rateConfirmed || clientInfo.reconciled;
-              const canEditNote = canEdit && !internalNoteLocked;
+              // Locking logic for 相關案件:
+              // 1. If internalNote has value (Notion fetched) → locked, no delete, tooltip "相關案件已擷取完畢，不得修改"
+              // 2. If any field is locked AND internalNote is empty → locked, tooltip "頁面上目前有鎖定欄位，無法擷取並修改資訊"
+              // 3. Otherwise → open
+              const anyFieldLocked = isFinalized || clientInfo.rateConfirmed || clientInfo.reconciled || linkedTranslatorInvoices.length > 0 || linkedClientInvoices.length > 0;
+              const noteFetched = !!internalNote;
+              const noteLocked = noteFetched || (anyFieldLocked && !internalNote);
+              const noteTooltip = noteFetched
+                ? "相關案件已擷取完畢，不得修改"
+                : (anyFieldLocked && !internalNote)
+                  ? "頁面上目前有鎖定欄位，無法擷取並修改資訊"
+                  : "";
+              const canEditNote = canEdit && !noteLocked;
+
               if (canEditNote) {
-                return internalNote ? (
-                  <div className="flex items-center gap-2">
-                    {internalNoteUrl ? (
-                      <a
-                        href={internalNoteUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center h-10 flex-1 rounded-md border border-input bg-secondary/50 px-3 text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors cursor-pointer"
-                      >
-                        {internalNote}
-                      </a>
-                    ) : (
-                      <div className="flex items-center h-10 flex-1 rounded-md border border-input bg-secondary/50 px-3 text-sm">
-                        {internalNote}
-                      </div>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0 h-8 w-8"
-                      onClick={() => {
-                        setInternalNote("");
-                        setInternalNoteUrl("");
-                        setNotionUrlInput("");
-                        if (id) feeStore.updateFee(id, { internalNote: "", internalNoteUrl: "" });
-                      }}
-                      title="清除"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                ) : (
+                // Editable empty state — show URL input
+                return (
                   <div className="flex items-center gap-2">
                     <Input
                       value={notionUrlInput}
@@ -1461,20 +1443,30 @@ export default function TranslatorFeeDetail() {
                   </div>
                 );
               }
-              // Read-only (locked or not canEdit)
-              return internalNoteUrl ? (
-                <a
-                  href={internalNoteUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors cursor-pointer"
-                >
-                  {internalNote || internalNoteUrl}
-                </a>
-              ) : (
-                <div className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-muted-foreground">
-                  {internalNote || "未設定"}
-                </div>
+
+              // Locked or read-only state
+              return (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      {internalNoteUrl ? (
+                        <a
+                          href={internalNoteUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors cursor-pointer opacity-60"
+                        >
+                          {internalNote || internalNoteUrl}
+                        </a>
+                      ) : (
+                        <div className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-muted-foreground opacity-60">
+                          {internalNote || "未設定"}
+                        </div>
+                      )}
+                    </div>
+                  </TooltipTrigger>
+                  {noteTooltip && <TooltipContent>{noteTooltip}</TooltipContent>}
+                </Tooltip>
               );
             })()}
           </div>
