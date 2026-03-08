@@ -53,6 +53,8 @@ function AuthenticatedRoutes() {
     <AppLayout>
       <Routes>
         <Route path="/" element={<Navigate to="/fees" replace />} />
+        <Route path="/cases" element={<CasesPage />} />
+        <Route path="/cases/:id" element={<CaseDetailPage />} />
         <Route path="/fees" element={<TranslatorFees />} />
         <Route path="/fees/new" element={<NewTranslatorFee />} />
         <Route path="/fees/:id" element={<TranslatorFeeDetailWrapper />} />
