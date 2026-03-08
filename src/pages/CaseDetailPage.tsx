@@ -42,12 +42,14 @@ const caseStatusLabels: Record<CaseStatus, string> = {
   task_completed: "任務完成",
   delivered: "已交件",
   feedback: "處理回饋",
+  feedback_completed: "回饋處理完畢",
   finalized: "開立完成",
 };
 
 function CaseStatusBadge({ status }: { status: CaseStatus }) {
   const labelStyles = useLabelStyles();
   const style = status === "finalized" ? labelStyles.statusFinalized
+    : status === "feedback_completed" ? { bgColor: "#EA580C", textColor: "#FFFFFF" }
     : status === "feedback" ? { bgColor: "#D97706", textColor: "#FFFFFF" }
     : status === "delivered" ? { bgColor: "#0891B2", textColor: "#FFFFFF" }
     : status === "task_completed" ? { bgColor: "#8B5CF6", textColor: "#FFFFFF" }
@@ -559,6 +561,7 @@ export default function CaseDetailPage() {
   const isTaskCompleted = caseData.status === "task_completed";
   const isDelivered = caseData.status === "delivered";
   const isFeedback = caseData.status === "feedback";
+  const isFeedbackCompleted = caseData.status === "feedback_completed";
   const isFinalized = caseData.status === "finalized";
   const isMember = currentRole === "member";
   const isPmOrAbove = currentRole === "pm" || currentRole === "executive";
@@ -621,6 +624,11 @@ export default function CaseDetailPage() {
   const handleFeedback = () => {
     save({ status: "feedback" as CaseStatus });
     toast({ title: "處理回饋中" });
+  };
+
+  const handleFeedbackComplete = () => {
+    save({ status: "feedback_completed" as CaseStatus });
+    toast({ title: "回饋處理完畢" });
   };
 
   const isCurrentUserTranslator = (() => {
@@ -687,6 +695,15 @@ export default function CaseDetailPage() {
             >
               退回修正
             </Button>
+          ) : isFeedbackCompleted && isPmOrAbove ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] text-white hover:opacity-80"
+              style={{ backgroundColor: '#6B7280' }}
+              onClick={handleRevertToDispatched}
+            >
+              退回處理
+            </Button>
           ) : isDraft ? (
             <Button
               size="sm"
@@ -736,7 +753,7 @@ export default function CaseDetailPage() {
                 </TooltipProvider>
               ) : btn;
             })()
-          ) : (isDispatched || isFeedback) && (isCurrentUserTranslator || isPmOrAbove) ? (
+          ) : isDispatched && (isCurrentUserTranslator || isPmOrAbove) ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
@@ -744,7 +761,15 @@ export default function CaseDetailPage() {
             >
               任務完成
             </Button>
-          ) : isTaskCompleted && isPmOrAbove ? (
+          ) : isFeedback && (isCurrentUserTranslator || isPmOrAbove) ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleFeedbackComplete}
+            >
+              處理完畢
+            </Button>
+          ) : (isTaskCompleted || isFeedbackCompleted) && isPmOrAbove ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
@@ -793,7 +818,7 @@ export default function CaseDetailPage() {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <Field label="譯者">
-            {(isDispatched || isTaskCompleted || isDelivered || isFeedback || isFinalized) ? (
+            {(isDispatched || isTaskCompleted || isDelivered || isFeedback || isFeedbackCompleted || isFinalized) ? (
               <div className="flex items-center gap-1 flex-wrap min-h-[32px] px-2 py-1 rounded-md bg-muted/50 border border-border">
                 {(caseData.translator || []).length > 0
                   ? (caseData.translator || []).map((t, i) => (
