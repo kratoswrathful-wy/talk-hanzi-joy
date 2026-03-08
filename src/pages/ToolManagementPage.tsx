@@ -32,7 +32,7 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
   const handleAdd = () => {
     const label = newLabel.trim();
     if (!label) return;
-    selectOptionsStore.addToolField(optionId, label);
+    selectOptionsStore.addToolField(optionId, label, fieldKey);
     setNewLabel("");
     setAdding(false);
   };
