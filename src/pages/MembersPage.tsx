@@ -398,14 +398,14 @@ export default function MembersPage() {
                 return (
                   <div
                     key={member.id}
-                    draggable={isExecutive}
+                    draggable={canSort}
                     onDragStart={() => setDragIndex(idx)}
                     onDragOver={(e) => { e.preventDefault(); if (dragIndex !== null && dragIndex !== idx) setDragOverIndex(idx); }}
                     onDrop={() => handleDrop(idx)}
                     onDragEnd={() => { setDragIndex(null); setDragOverIndex(null); }}
                     className={cn(
                       "px-2 py-2.5 rounded-md transition-colors space-y-1.5",
-                      isExecutive && "cursor-grab active:cursor-grabbing",
+                      canSort && "cursor-grab active:cursor-grabbing",
                       dragOverIndex === idx && "bg-primary/10 border border-dashed border-primary/30",
                       dragIndex === idx && "opacity-50",
                       dragOverIndex !== idx && "hover:bg-secondary/30",
@@ -414,7 +414,7 @@ export default function MembersPage() {
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 min-w-0">
-                        {isExecutive && <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                        {canSort && <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
                         <Avatar className="h-8 w-8 shrink-0">
                           <AvatarImage src={member.avatar_url || undefined} />
                           <AvatarFallback className="text-xs">{initials}</AvatarFallback>
