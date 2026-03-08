@@ -136,7 +136,11 @@ export default function FileField({ value, onChange }: FileFieldProps) {
               } ${dragIdx === idx ? "opacity-50" : ""}`}
             >
               <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
-              <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              {item.url.includes("/storage/v1/object/") ? (
+                <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              ) : (
+                <LinkIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              )}
               {editingIdx === idx ? (
                 <input
                   className="text-sm bg-transparent border-b border-primary outline-none flex-1 max-w-[280px]"
