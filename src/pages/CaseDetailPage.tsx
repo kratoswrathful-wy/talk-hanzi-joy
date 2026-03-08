@@ -82,9 +82,13 @@ function ToolInstance({
     if (conflicts.length > 0) {
       setConflictTpl(tpl);
       setConflictFields(conflicts);
+      // Default: use template value for all conflicts
+      const defaults: Record<string, boolean> = {};
+      conflicts.forEach((c) => { defaults[c.id] = true; });
+      setConflictChoices(defaults);
       setTplOpen(false);
     } else {
-      applyTemplate(tpl);
+      applyTemplate(tpl, {});
     }
   };
 
