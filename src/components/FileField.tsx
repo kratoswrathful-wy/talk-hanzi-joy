@@ -19,6 +19,7 @@ import { useCommonLinks } from "@/stores/common-links-store";
 export interface FileItem {
   name: string;
   url: string;
+  size?: number; // bytes, only for uploaded files
 }
 
 interface FileFieldProps {
@@ -45,7 +46,7 @@ export default function FileField({ value, onChange }: FileFieldProps) {
       const { error } = await supabase.storage.from("case-files").upload(path, file);
       if (!error) {
         const { data: urlData } = supabase.storage.from("case-files").getPublicUrl(path);
-        newItems.push({ name: file.name, url: urlData.publicUrl });
+        newItems.push({ name: file.name, url: urlData.publicUrl, size: file.size });
       }
     }
     if (newItems.length > 0) {
@@ -154,14 +155,23 @@ export default function FileField({ value, onChange }: FileFieldProps) {
                   autoFocus
                 />
               ) : (
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-primary hover:underline truncate max-w-[320px]"
-                >
-                  {item.name}
-                </a>
+                <>
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary hover:underline truncate max-w-[320px]"
+                  >
+                    {item.name}
+                  </a>
+                  {item.size != null && (
+                    <span className="text-[11px] text-muted-foreground shrink-0">
+                      {item.size < 1024 ? `${item.size} B`
+                        : item.size < 1024 * 1024 ? `${(item.size / 1024).toFixed(1)} KB`
+                        : `${(item.size / (1024 * 1024)).toFixed(1)} MB`}
+                    </span>
+                  )}
+                </>
               )}
               <button
                 onClick={() => { setEditingIdx(idx); setEditName(item.name); }}
