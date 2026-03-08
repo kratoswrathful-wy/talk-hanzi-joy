@@ -58,7 +58,7 @@ async function getUserId() {
   _cachedUserId = data?.session?.user?.id ?? null;
   return _cachedUserId;
 }
-supabase.auth.onAuthStateChange((_event, session) => {
+supabase.auth.onAuthStateChange((event, session) => {
   _cachedUserId = session?.user?.id ?? null;
 });
 
