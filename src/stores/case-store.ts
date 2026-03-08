@@ -196,7 +196,7 @@ supabase.auth.onAuthStateChange((event) => {
 async function duplicate(id: string): Promise<CaseRecord | null> {
   const source = cases.find((c) => c.id === id);
   if (!source) return null;
-  const { id: _id, createdAt, updatedAt, createdBy, ...rest } = source;
+  const { id: _id, createdAt, updatedAt, createdBy, comments: _c, internalComments: _ic, ...rest } = source;
 
   // Replace 6-digit date (YYMMDD) in title with today's date
   const now = new Date();
