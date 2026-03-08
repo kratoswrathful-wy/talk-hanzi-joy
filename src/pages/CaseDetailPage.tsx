@@ -760,22 +760,26 @@ export default function CaseDetailPage() {
               產生詢案訊息
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs min-w-[88px]"
-            onClick={handleDuplicate}
-          >
-            複製本頁
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs min-w-[88px]"
-            onClick={handleNewCase}
-          >
-            新增案件頁面
-          </Button>
+          {isPmOrAbove && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs min-w-[88px]"
+              onClick={handleDuplicate}
+            >
+              複製本頁
+            </Button>
+          )}
+          {isPmOrAbove && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs min-w-[88px]"
+              onClick={handleNewCase}
+            >
+              新增案件頁面
+            </Button>
+          )}
           {/* Left-side grey button */}
           {isInquiry && isPmOrAbove ? (
             <Button

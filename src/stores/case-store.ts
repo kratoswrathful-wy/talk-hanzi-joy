@@ -196,22 +196,45 @@ async function duplicate(id: string): Promise<CaseRecord | null> {
   const mm = String(now.getMonth() + 1).padStart(2, "0");
   const dd = String(now.getDate()).padStart(2, "0");
   const todayStr = `${yy}${mm}${dd}`;
-  let newTitle = source.title.replace(/\d{6}/, todayStr);
 
-  // Remove old (複製) suffix if present
-  newTitle = newTitle.replace(/\s*\(複製\)\s*$/, "");
+  // Extract prefix: everything before the 6-digit date
+  const dateMatch = source.title.match(/^(.*?)(\d{6})(_.+)?$/);
+  let prefix: string;
+  if (dateMatch) {
+    prefix = dateMatch[1]; // e.g. "God of War "
+  } else {
+    prefix = source.title + " ";
+  }
+  const baseTitle = `${prefix}${todayStr}`;
 
-  // Handle name collisions: check existing titles and add _01, _02 etc.
-  const existingTitles = new Set(cases.map((c) => c.title));
-  if (existingTitles.has(newTitle)) {
-    let seq = 1;
-    while (existingTitles.has(`${newTitle}_${String(seq).padStart(2, "0")}`)) {
-      seq++;
-    }
-    newTitle = `${newTitle}_${String(seq).padStart(2, "0")}`;
+  // Find all existing cases with the same prefix+date pattern
+  const pattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${todayStr}(_\\d{2})?$`);
+  const matching = cases.filter((c) => pattern.test(c.title));
+
+  if (matching.length === 0) {
+    // No collision, just use baseTitle
+    return create({ ...rest, title: baseTitle });
   }
 
-  return create({ ...rest, title: newTitle });
+  // There are existing matches. Find the exact base (no suffix) and rename it if needed.
+  const exactMatch = matching.find((c) => c.title === baseTitle);
+  if (exactMatch) {
+    // Rename the existing exact match to _01
+    await update(exactMatch.id, { title: `${baseTitle}_01` });
+  }
+
+  // Find max existing suffix number
+  let maxSeq = exactMatch ? 1 : 0;
+  for (const c of matching) {
+    const suffixMatch = c.title.match(/_(\d{2})$/);
+    if (suffixMatch) {
+      const num = parseInt(suffixMatch[1], 10);
+      if (num > maxSeq) maxSeq = num;
+    }
+  }
+
+  const nextSeq = String(maxSeq + 1).padStart(2, "0");
+  return create({ ...rest, title: `${baseTitle}_${nextSeq}` });
 }
 
 export const caseStore = { load, getAll, getById, create, update, remove, duplicate, subscribe, reset };

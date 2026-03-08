@@ -449,11 +449,13 @@ export default function CasesPage() {
     <div className="mx-auto max-w-7xl space-y-4">
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">案件管理</h1>
-        <Button size="sm" className="gap-1.5" onClick={handleCreate}>
-          <Plus className="h-4 w-4" />
-          新增案件
-        </Button>
-        {rowSelection.selectedCount > 0 && (
+        {isAdmin && (
+          <Button size="sm" className="gap-1.5" onClick={handleCreate}>
+            <Plus className="h-4 w-4" />
+            新增案件
+          </Button>
+        )}
+        {rowSelection.selectedCount > 0 && isAdmin && (
           <>
             <span className="text-xs text-muted-foreground">已選取 {rowSelection.selectedCount} 個項目</span>
             {rowSelection.selectedCount === 1 && (

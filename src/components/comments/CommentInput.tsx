@@ -4,11 +4,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { getEnvironment } from "@/lib/environment";
 
-interface MentionUser {
+interface MentionPage {
   id: string;
-  display_name: string;
-  avatar_url: string | null;
+  title: string;
 }
 
 export function CommentInput({
@@ -25,7 +25,8 @@ export function CommentInput({
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [fileAttachments, setFileAttachments] = useState<{ name: string; url: string }[]>([]);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
-  const [mentionUsers, setMentionUsers] = useState<MentionUser[]>([]);
+  const [mentionPages, setMentionPages] = useState<MentionPage[]>([]);
+  const [mentionFilter, setMentionFilter] = useState("");
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [linkText, setLinkText] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
@@ -33,36 +34,71 @@ export function CommentInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const attachInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch real profiles for @ mentions
+  // Fetch case pages for @ mentions
   useEffect(() => {
-    supabase
-      .from("profiles")
-      .select("id, display_name, avatar_url")
-      .then(({ data }) => {
+    const env = getEnvironment();
+    (supabase.from("cases").select("id, title") as any)
+      .eq("env", env)
+      .order("created_at", { ascending: false })
+      .then(({ data }: any) => {
         if (data) {
-          setMentionUsers(
+          setMentionPages(
             data
-              .filter((p: any) => p.display_name)
-              .map((p: any) => ({ id: p.id, display_name: p.display_name, avatar_url: p.avatar_url }))
+              .filter((p: any) => p.title)
+              .map((p: any) => ({ id: p.id, title: p.title }))
           );
         }
       });
   }, []);
+
+  const filteredPages = mentionFilter
+    ? mentionPages.filter((p) => p.title.toLowerCase().includes(mentionFilter.toLowerCase()))
+    : mentionPages;
 
   const insertAtCursor = (text: string) => {
     const el = textareaRef.current;
     if (el) {
       const start = el.selectionStart;
       const end = el.selectionEnd;
-      const newVal = draft.slice(0, start) + text + draft.slice(end);
+      // Remove any trailing @ trigger text
+      let before = draft.slice(0, start);
+      const atIdx = before.lastIndexOf("@");
+      if (atIdx >= 0) {
+        before = before.slice(0, atIdx);
+      }
+      const newVal = before + text + draft.slice(end);
       setDraft(newVal);
       setTimeout(() => {
-        el.selectionStart = el.selectionEnd = start + text.length;
+        el.selectionStart = el.selectionEnd = before.length + text.length;
         el.focus();
       }, 0);
     } else {
       setDraft(draft + text);
     }
+  };
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setDraft(val);
+
+    // Detect "@" trigger
+    const cursorPos = e.target.selectionStart;
+    const textBefore = val.slice(0, cursorPos);
+    const atIdx = textBefore.lastIndexOf("@");
+    if (atIdx >= 0) {
+      const afterAt = textBefore.slice(atIdx + 1);
+      // Only trigger if @ is at start or preceded by whitespace
+      if (atIdx === 0 || /\s/.test(textBefore[atIdx - 1])) {
+        // No newline in the filter text
+        if (!afterAt.includes("\n")) {
+          setShowMentionPicker(true);
+          setMentionFilter(afterAt);
+          return;
+        }
+      }
+    }
+    setShowMentionPicker(false);
+    setMentionFilter("");
   };
 
   const handleFileSelect = (file: File) => {
@@ -75,7 +111,6 @@ export function CommentInput({
   };
 
   const handleAttachFile = async (file: File) => {
-    // Upload to Supabase storage
     const ext = file.name.split(".").pop() || "bin";
     const path = `comment-files/${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
     const { error } = await supabase.storage.from("case-files").upload(path, file);
@@ -117,26 +152,28 @@ export function CommentInput({
         <Textarea
           ref={textareaRef}
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={handleTextChange}
           onPaste={handlePaste}
           placeholder={placeholder}
           className="min-h-[60px] text-xs pr-2"
         />
         {showMentionPicker && (
-          <div className="absolute bottom-full left-0 mb-1 z-10 rounded-md border border-border bg-popover p-1 shadow-md max-h-48 overflow-y-auto">
-            {mentionUsers.length === 0 ? (
-              <p className="px-3 py-1.5 text-xs text-muted-foreground">無可用使用者</p>
+          <div className="absolute bottom-full left-0 mb-1 z-10 rounded-md border border-border bg-popover p-1 shadow-md max-h-48 overflow-y-auto min-w-[200px]">
+            {filteredPages.length === 0 ? (
+              <p className="px-3 py-1.5 text-xs text-muted-foreground">無符合的頁面</p>
             ) : (
-              mentionUsers.map((user) => (
+              filteredPages.slice(0, 20).map((page) => (
                 <button
-                  key={user.id}
-                  className="block w-full text-left px-3 py-1.5 text-xs rounded hover:bg-accent hover:text-accent-foreground transition-colors"
+                  key={page.id}
+                  className="block w-full text-left px-3 py-1.5 text-xs rounded hover:bg-accent hover:text-accent-foreground transition-colors truncate"
                   onClick={() => {
-                    insertAtCursor(`@${user.display_name} `);
+                    const link = `[@${page.title}](/cases/${page.id})`;
+                    insertAtCursor(link + " ");
                     setShowMentionPicker(false);
+                    setMentionFilter("");
                   }}
                 >
-                  {user.display_name}
+                  {page.title}
                 </button>
               ))
             )}
@@ -231,7 +268,12 @@ export function CommentInput({
               className="text-xs h-7"
               disabled={!linkText.trim() || !linkUrl.trim()}
               onClick={() => {
-                insertAtCursor(`[${linkText}](${linkUrl})`);
+                const el = textareaRef.current;
+                const start = el?.selectionStart ?? draft.length;
+                const end = el?.selectionEnd ?? draft.length;
+                const text = `[${linkText}](${linkUrl})`;
+                const newVal = draft.slice(0, start) + text + draft.slice(end);
+                setDraft(newVal);
                 setLinkText("");
                 setLinkUrl("");
                 setShowLinkDialog(false);
@@ -249,8 +291,22 @@ export function CommentInput({
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            title="@提及使用者"
-            onClick={() => setShowMentionPicker(!showMentionPicker)}
+            title="@提及頁面"
+            onClick={() => {
+              // Insert @ at cursor to trigger picker
+              const el = textareaRef.current;
+              if (el) {
+                const start = el.selectionStart;
+                const newVal = draft.slice(0, start) + "@" + draft.slice(el.selectionEnd);
+                setDraft(newVal);
+                setShowMentionPicker(true);
+                setMentionFilter("");
+                setTimeout(() => {
+                  el.selectionStart = el.selectionEnd = start + 1;
+                  el.focus();
+                }, 0);
+              }
+            }}
           >
             <AtSign className="h-3.5 w-3.5" />
           </Button>
