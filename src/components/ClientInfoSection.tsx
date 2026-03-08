@@ -3,6 +3,7 @@ import { Plus, X, FileText } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { clientInvoiceStore } from "@/stores/client-invoice-store";
+import { useClientInvoices } from "@/hooks/use-client-invoice-store";
 import { toast } from "sonner";
 import { selectOptionsStore } from "@/stores/select-options-store";
 import { useSyncExternalStore } from "react";
@@ -12,6 +13,14 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import ColorSelect from "@/components/ColorSelect";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
