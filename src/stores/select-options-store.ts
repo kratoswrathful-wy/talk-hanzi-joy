@@ -11,6 +11,7 @@ export interface SelectOption {
   note?: string;
   avatarUrl?: string | null;
   timezone?: string | null;
+  statusMessage?: string | null;
 }
 
 export const PRESET_COLORS = [
