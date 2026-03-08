@@ -51,6 +51,7 @@ export default function FileField({ value, onChange }: FileFieldProps) {
 
   const uploadFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
+    cancelRef.current = false;
     setUploading(true);
     setUploadProgress(0);
     setUploadTotal(files.length);
@@ -60,10 +61,12 @@ export default function FileField({ value, onChange }: FileFieldProps) {
     let doneBytes = 0;
     const newItems: FileItem[] = [];
     for (let i = 0; i < files.length; i++) {
+      if (cancelRef.current) break;
       const file = files[i];
       setUploadProgress(i);
       const path = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}/${file.name}`;
       const { error } = await supabase.storage.from("case-files").upload(path, file);
+      if (cancelRef.current) break;
       if (!error) {
         const { data: urlData } = supabase.storage.from("case-files").getPublicUrl(path);
         newItems.push({ name: file.name, url: urlData.publicUrl, size: file.size });
@@ -71,7 +74,7 @@ export default function FileField({ value, onChange }: FileFieldProps) {
       doneBytes += file.size;
       setUploadedBytes(doneBytes);
     }
-    if (newItems.length > 0) {
+    if (newItems.length > 0 && !cancelRef.current) {
       onChange([...value, ...newItems]);
     }
     setUploading(false);
