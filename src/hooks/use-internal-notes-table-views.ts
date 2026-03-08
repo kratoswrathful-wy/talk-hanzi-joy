@@ -9,32 +9,37 @@ import {
 export type { TableFilter, TableSort, TableView, FilterOperator, FieldMeta, FilterGroup, LogicOperator };
 export { countConditions };
 
+export interface NoteComment {
+  id: string;
+  author: string;
+  content: string;
+  imageUrls?: string[];
+  createdAt: string;
+}
+
 export interface InternalNote {
   id: string;
   title: string;
-  relatedCase: string;
-  noteId: string;
+  relatedCase: string;          // case title — locked once set
   createdAt: string;
-  noteType: string;
   creator: string;
-  status: string;
-  internalAssignee: string;
-  fileName: string;
-  idRowCount: string;
-  sourceText: string;
-  translatedText: string;
-  questionOrNote: string;
-  reference: string;
-  internalResolution: string;
-  remarks: string;
+  status: string;               // single-select via noteStatus
+  noteType: string;             // 性質 — single-select via noteNature
+  internalAssignee: string;     // default = case reviewer
+  referenceFiles: { name: string; url: string }[];
+  comments: NoteComment[];
+  // Invalidation
+  invalidated: boolean;
+  invalidatedBy?: string;
+  invalidatedAt?: string;
+  invalidationReason?: string;
 }
 
 export const internalNotesFieldMetas: FieldMeta[] = [
   { key: "title", label: "標題", type: "text" },
-  { key: "noteId", label: "註記編號", type: "text" },
-  { key: "noteType", label: "性質", type: "select" },
-  { key: "status", label: "狀態", type: "select" },
   { key: "relatedCase", label: "關聯案件", type: "text" },
+  { key: "status", label: "狀態", type: "select" },
+  { key: "noteType", label: "性質", type: "select" },
   { key: "creator", label: "建立者", type: "text" },
   { key: "internalAssignee", label: "內部指派", type: "text" },
   { key: "createdAt", label: "建立時間", type: "date" },
@@ -43,10 +48,9 @@ export const internalNotesFieldMetas: FieldMeta[] = [
 function getFieldValue(note: InternalNote, field: string): string | number | boolean {
   switch (field) {
     case "title": return note.title;
-    case "noteId": return note.noteId;
-    case "noteType": return note.noteType;
-    case "status": return note.status;
     case "relatedCase": return note.relatedCase;
+    case "status": return note.invalidated ? "已失效" : note.status;
+    case "noteType": return note.noteType;
     case "creator": return note.creator;
     case "internalAssignee": return note.internalAssignee;
     case "createdAt": return note.createdAt;
@@ -78,8 +82,8 @@ function compareNotes(a: InternalNote, b: InternalNote, sort: TableSort): number
 
 const defaultColumnOrder = internalNotesFieldMetas.map((f) => f.key);
 const defaultColumnWidths: Record<string, number> = {
-  title: 200, noteId: 140, noteType: 100, status: 120,
-  relatedCase: 140, creator: 100, internalAssignee: 100, createdAt: 110,
+  title: 200, relatedCase: 140, status: 120, noteType: 100,
+  creator: 100, internalAssignee: 100, createdAt: 110,
 };
 const defaultHiddenColumns: string[] = [];
 
