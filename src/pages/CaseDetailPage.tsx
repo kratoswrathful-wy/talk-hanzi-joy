@@ -695,9 +695,6 @@ export default function CaseDetailPage() {
       <Separator />
 
       <h2 className="text-base font-semibold">準則與檔案</h2>
-      <Field label="常用連結">
-        <CommonLinksSelect values={caseData.commonLinks || []} onValuesChange={(v) => save({ commonLinks: v })} />
-      </Field>
       <Field label="交件方式">
         <Input value={caseData.deliveryMethod} onChange={(e) => save({ deliveryMethod: e.target.value })} className="max-w-md" />
       </Field>
