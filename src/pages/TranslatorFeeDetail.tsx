@@ -1245,7 +1245,7 @@ export default function TranslatorFeeDetail() {
                   </Button>
                 </span>
               </TooltipTrigger>
-              {!isDraft && <TooltipContent>已開立稿費條，無法複製</TooltipContent>}
+              {!isDraft && <TooltipContent>已向譯者開立稿費條，為避免鎖定欄位發生錯亂，不得複製</TooltipContent>}
             </Tooltip>
           )}
           {isManager && (
