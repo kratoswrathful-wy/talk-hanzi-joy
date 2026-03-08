@@ -197,8 +197,15 @@ const PERMISSION_MODULES: PermissionModule[] = [
       { key: "case_list_view", label: "檢視案件清單", type: "both" },
       { key: "case_list_create", label: "新增案件", type: "both", attribute: "按鈕" },
       { key: "case_list_delete", label: "刪除", type: "both", attribute: "按鈕" },
+      { key: "case_list_viewDraft", label: "檢視草稿", type: "view" },
     ],
     detailSections: [
+      {
+        label: "頁面一般操作",
+        items: [
+          { key: "case_detail_viewDraft", label: "檢視草稿", type: "view" },
+        ],
+      },
       {
         label: "案件基本資訊",
         items: [
