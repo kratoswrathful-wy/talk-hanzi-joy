@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
-import type { CaseRecord } from "@/data/case-types";
+import type { CaseRecord, ToolEntry } from "@/data/case-types";
 
 type Listener = () => void;
 
