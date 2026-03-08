@@ -185,7 +185,7 @@ export default function InvoicesPage() {
       key: "totalAmount",
       label: "總金額",
       minWidth: 80,
-      render: (_inv, total) => <span className="text-sm tabular-nums">{formatCurrency(total)}</span>,
+      render: (_inv, total) => <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-sm tabular-nums cursor-default">{formatCurrency(total)}</span></TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>,
     },
     {
       key: "transferDate",

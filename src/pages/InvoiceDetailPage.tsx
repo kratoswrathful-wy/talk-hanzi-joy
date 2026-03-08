@@ -591,7 +591,7 @@ export default function InvoiceDetailPage() {
                     <span className="text-muted-foreground text-sm">共 {linkedFees.length} 筆稿費</span>
                   </TableCell>
                   <TableCell className="text-center">
-                    <span className="font-semibold tabular-nums">{formatCurrency(total)}</span>
+                    <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="font-semibold tabular-nums cursor-default">{formatCurrency(total)}</span></TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
                   </TableCell>
                   {editable && <TableCell />}
                 </TableRow>
