@@ -1,10 +1,15 @@
-import { useState, useRef } from "react";
-import { AtSign, Image, Link2, Send, X } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { AtSign, Image, Link2, Send, X, Paperclip } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 
-const mentionUsers = ["王小明", "李美玲", "張大偉", "陳雅婷"];
+interface MentionUser {
+  id: string;
+  display_name: string;
+  avatar_url: string | null;
+}
 
 export function CommentInput({
   draft,
@@ -15,15 +20,34 @@ export function CommentInput({
   draft: string;
   setDraft: (v: string) => void;
   placeholder: string;
-  onSubmit: (content: string, imageUrls?: string[]) => void;
+  onSubmit: (content: string, imageUrls?: string[], fileUrls?: { name: string; url: string }[]) => void;
 }) {
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [fileAttachments, setFileAttachments] = useState<{ name: string; url: string }[]>([]);
   const [showMentionPicker, setShowMentionPicker] = useState(false);
+  const [mentionUsers, setMentionUsers] = useState<MentionUser[]>([]);
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [linkText, setLinkText] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const attachInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch real profiles for @ mentions
+  useEffect(() => {
+    supabase
+      .from("profiles")
+      .select("id, display_name, avatar_url")
+      .then(({ data }) => {
+        if (data) {
+          setMentionUsers(
+            data
+              .filter((p: any) => p.display_name)
+              .map((p: any) => ({ id: p.id, display_name: p.display_name, avatar_url: p.avatar_url }))
+          );
+        }
+      });
+  }, []);
 
   const insertAtCursor = (text: string) => {
     const el = textareaRef.current;
@@ -50,6 +74,18 @@ export function CommentInput({
     reader.readAsDataURL(file);
   };
 
+  const handleAttachFile = async (file: File) => {
+    // Upload to Supabase storage
+    const ext = file.name.split(".").pop() || "bin";
+    const path = `comment-files/${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
+    const { error } = await supabase.storage.from("case-files").upload(path, file);
+    if (error) return;
+    const { data: urlData } = supabase.storage.from("case-files").getPublicUrl(path);
+    if (urlData?.publicUrl) {
+      setFileAttachments((prev) => [...prev, { name: file.name, url: urlData.publicUrl }]);
+    }
+  };
+
   const handlePaste = (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
     if (!items) return;
@@ -64,10 +100,15 @@ export function CommentInput({
   };
 
   const handleSubmit = () => {
-    if (!draft.trim() && imagePreviews.length === 0) return;
-    onSubmit(draft.trim(), imagePreviews.length > 0 ? imagePreviews : undefined);
+    if (!draft.trim() && imagePreviews.length === 0 && fileAttachments.length === 0) return;
+    onSubmit(
+      draft.trim(),
+      imagePreviews.length > 0 ? imagePreviews : undefined,
+      fileAttachments.length > 0 ? fileAttachments : undefined,
+    );
     setDraft("");
     setImagePreviews([]);
+    setFileAttachments([]);
   };
 
   return (
@@ -82,19 +123,23 @@ export function CommentInput({
           className="min-h-[60px] text-xs pr-2"
         />
         {showMentionPicker && (
-          <div className="absolute bottom-full left-0 mb-1 z-10 rounded-md border border-border bg-popover p-1 shadow-md">
-            {mentionUsers.map((user) => (
-              <button
-                key={user}
-                className="block w-full text-left px-3 py-1.5 text-xs rounded hover:bg-accent hover:text-accent-foreground transition-colors"
-                onClick={() => {
-                  insertAtCursor(`@${user} `);
-                  setShowMentionPicker(false);
-                }}
-              >
-                {user}
-              </button>
-            ))}
+          <div className="absolute bottom-full left-0 mb-1 z-10 rounded-md border border-border bg-popover p-1 shadow-md max-h-48 overflow-y-auto">
+            {mentionUsers.length === 0 ? (
+              <p className="px-3 py-1.5 text-xs text-muted-foreground">無可用使用者</p>
+            ) : (
+              mentionUsers.map((user) => (
+                <button
+                  key={user.id}
+                  className="block w-full text-left px-3 py-1.5 text-xs rounded hover:bg-accent hover:text-accent-foreground transition-colors"
+                  onClick={() => {
+                    insertAtCursor(`@${user.display_name} `);
+                    setShowMentionPicker(false);
+                  }}
+                >
+                  {user.display_name}
+                </button>
+              ))
+            )}
           </div>
         )}
       </div>
@@ -117,6 +162,23 @@ export function CommentInput({
         </div>
       )}
 
+      {fileAttachments.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {fileAttachments.map((f, idx) => (
+            <div key={idx} className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary/30 px-2 py-1 text-xs">
+              <Paperclip className="h-3 w-3 text-muted-foreground" />
+              <span className="truncate max-w-[160px]">{f.name}</span>
+              <button
+                className="h-4 w-4 flex items-center justify-center rounded-full hover:bg-destructive/20 text-muted-foreground hover:text-destructive"
+                onClick={() => setFileAttachments((prev) => prev.filter((_, i) => i !== idx))}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <input
         ref={fileInputRef}
         type="file"
@@ -127,6 +189,20 @@ export function CommentInput({
           const files = e.target.files;
           if (files) {
             Array.from(files).forEach((file) => handleFileSelect(file));
+          }
+          e.target.value = "";
+        }}
+      />
+
+      <input
+        ref={attachInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          const files = e.target.files;
+          if (files) {
+            Array.from(files).forEach((file) => handleAttachFile(file));
           }
           e.target.value = "";
         }}
@@ -191,6 +267,15 @@ export function CommentInput({
             variant="ghost"
             size="icon"
             className="h-7 w-7"
+            title="上傳檔案"
+            onClick={() => attachInputRef.current?.click()}
+          >
+            <Paperclip className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
             title="插入超連結"
             onClick={() => {
               setShowLinkDialog(!showLinkDialog);
@@ -204,7 +289,7 @@ export function CommentInput({
         <Button
           size="sm"
           className="gap-1 text-xs"
-          disabled={!draft.trim() && imagePreviews.length === 0}
+          disabled={!draft.trim() && imagePreviews.length === 0 && fileAttachments.length === 0}
           onClick={handleSubmit}
         >
           <Send className="h-3 w-3" />

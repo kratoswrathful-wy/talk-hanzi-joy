@@ -1,7 +1,15 @@
 import { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Paperclip, ExternalLink } from "lucide-react";
 
-export function CommentContent({ content, imageUrls }: { content: string; imageUrls?: string[] }) {
+export function CommentContent({
+  content,
+  imageUrls,
+  fileUrls,
+}: {
+  content: string;
+  imageUrls?: string[];
+  fileUrls?: { name: string; url: string }[];
+}) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const regex = /(@\S+)|\[([^\]]+)\]\(([^)]+)\)/g;
   const rendered: React.ReactNode[] = [];
@@ -58,6 +66,23 @@ export function CommentContent({ content, imageUrls }: { content: string; imageU
               className="max-w-xs max-h-48 rounded-md border border-border cursor-pointer hover:opacity-80 transition-opacity"
               onClick={() => setLightboxIndex(idx)}
             />
+          ))}
+        </div>
+      )}
+      {fileUrls && fileUrls.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-2">
+          {fileUrls.map((f, idx) => (
+            <a
+              key={idx}
+              href={f.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-secondary/30 px-2 py-1 text-xs hover:bg-secondary/50 transition-colors"
+            >
+              <Paperclip className="h-3 w-3 text-muted-foreground" />
+              <span className="truncate max-w-[160px]">{f.name}</span>
+              <ExternalLink className="h-3 w-3 text-muted-foreground" />
+            </a>
           ))}
         </div>
       )}

@@ -19,6 +19,8 @@ export interface CaseComment {
   author: string;
   content: string;
   imageUrls?: string[];
+  fileUrls?: { name: string; url: string }[];
+  replyTo?: string; // id of parent comment
   createdAt: string;
 }
 

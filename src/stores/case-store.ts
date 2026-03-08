@@ -189,7 +189,29 @@ async function duplicate(id: string): Promise<CaseRecord | null> {
   const source = cases.find((c) => c.id === id);
   if (!source) return null;
   const { id: _id, createdAt, updatedAt, createdBy, ...rest } = source;
-  return create({ ...rest, title: `${source.title} (複製)` });
+
+  // Replace 6-digit date (YYMMDD) in title with today's date
+  const now = new Date();
+  const yy = String(now.getFullYear()).slice(2);
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const todayStr = `${yy}${mm}${dd}`;
+  let newTitle = source.title.replace(/\d{6}/, todayStr);
+
+  // Remove old (複製) suffix if present
+  newTitle = newTitle.replace(/\s*\(複製\)\s*$/, "");
+
+  // Handle name collisions: check existing titles and add _01, _02 etc.
+  const existingTitles = new Set(cases.map((c) => c.title));
+  if (existingTitles.has(newTitle)) {
+    let seq = 1;
+    while (existingTitles.has(`${newTitle}_${String(seq).padStart(2, "0")}`)) {
+      seq++;
+    }
+    newTitle = `${newTitle}_${String(seq).padStart(2, "0")}`;
+  }
+
+  return create({ ...rest, title: newTitle });
 }
 
 export const caseStore = { load, getAll, getById, create, update, remove, duplicate, subscribe, reset };
