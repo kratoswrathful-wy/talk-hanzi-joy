@@ -57,7 +57,7 @@ function ToolSubFields({ caseData, save }: { caseData: CaseRecord; save: (update
   );
 }
 
-
+export default function CaseDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [caseData, setCaseData] = useState<CaseRecord | null>(null);
