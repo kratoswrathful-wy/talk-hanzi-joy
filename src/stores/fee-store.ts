@@ -92,9 +92,12 @@ async function getUserId() {
   _cachedUserId = data?.session?.user?.id ?? null;
   return _cachedUserId;
 }
-// Listen for auth changes — only reload on sign-in
+// Listen for auth changes — reset loaded state and reload
 supabase.auth.onAuthStateChange((event, session) => {
   _cachedUserId = session?.user?.id ?? null;
+  // Mark as not loaded so detail pages show loading instead of "not found"
+  loaded = false;
+  notify();
   if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
     // Will be triggered by use-fee-store's listener
   }

@@ -18,7 +18,7 @@ const feeStatusLabels: Record<FeeStatus, string> = {
   finalized: "開立完成",
 };
 import ClientInfoSection from "@/components/ClientInfoSection";
-import { useFee, useFees, feeStore } from "@/hooks/use-fee-store";
+import { useFee, useFees, feeStore, useFeesLoaded } from "@/hooks/use-fee-store";
 import { useInvoices } from "@/hooks/use-invoice-store";
 import { useClientInvoices } from "@/hooks/use-client-invoice-store";
 import { supabase } from "@/integrations/supabase/client";
@@ -136,6 +136,7 @@ export default function TranslatorFeeDetail() {
   const { id } = useParams();
   const feeData = useFee(id);
   const allFees = useFees();
+  const feesLoaded = useFeesLoaded();
   const allInvoices = useInvoices();
   const allClientInvoices = useClientInvoices();
 
@@ -386,6 +387,13 @@ export default function TranslatorFeeDetail() {
   }, []);
 
   if (!feeData) {
+    if (!feesLoaded) {
+      return (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
     return (
       <div className="flex items-center justify-center py-20">
         <p className="text-muted-foreground">找不到該筆稿費紀錄</p>
