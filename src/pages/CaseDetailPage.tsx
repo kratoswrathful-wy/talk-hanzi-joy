@@ -501,11 +501,23 @@ export default function CaseDetailPage() {
   const roleLabels: Record<string, string> = { member: "成員", pm: "專案經理", executive: "執行官" };
 
   useEffect(() => {
-    caseStore.load().then(() => {
+    let mounted = true;
+    const doLoad = () => {
+      caseStore.load().then(() => {
+        if (!mounted) return;
+        const found = caseStore.getById(id!);
+        setCaseData(found ?? null);
+        setLoading(false);
+      });
+    };
+    doLoad();
+    // Re-load when store resets (e.g. role switch triggers auth change → reset)
+    const unsub = caseStore.subscribe(() => {
+      if (!mounted) return;
       const found = caseStore.getById(id!);
-      setCaseData(found ?? null);
-      setLoading(false);
+      if (found) setCaseData(found);
     });
+    return () => { mounted = false; unsub(); };
   }, [id]);
 
   useEffect(() => {
@@ -629,7 +641,17 @@ export default function CaseDetailPage() {
 
   const handleDuplicate = async () => {
     const dup = await caseStore.duplicate(caseData.id);
-    if (dup) navigate(`/cases/${dup.id}`);
+    if (dup) {
+      // Clear specified fields on the duplicated case
+      await caseStore.update(dup.id, {
+        translator: [],
+        unitCount: 0,
+        translationDeadline: null,
+        reviewDeadline: null,
+        caseReferenceMaterials: [],
+      });
+      navigate(`/cases/${dup.id}`);
+    }
   };
 
   const handleNewCase = async () => {
@@ -740,7 +762,6 @@ export default function CaseDetailPage() {
             variant="outline"
             size="sm"
             className="text-xs min-w-[88px]"
-            disabled={!isDraft}
             onClick={handleDuplicate}
           >
             複製本頁
@@ -889,16 +910,16 @@ export default function CaseDetailPage() {
         <Field label="內容性質">
           <ColorSelect fieldKey="caseCategory" value={caseData.category} onValueChange={(v) => save({ category: v })} />
         </Field>
-        <Field label="工作類型">
-          <MultiColorSelect fieldKey="taskType" values={caseData.workType} onValuesChange={(v) => save({ workType: v })} />
+        <Field label="計費單位">
+          <ColorSelect fieldKey="billingUnit" value={caseData.billingUnit} onValueChange={(v) => save({ billingUnit: v })} />
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-4">
+        <Field label="工作類型">
+          <MultiColorSelect fieldKey="taskType" values={caseData.workType} onValuesChange={(v) => save({ workType: v })} />
+        </Field>
         <Field label="計費單位數">
           <Input type="number" value={caseData.unitCount || ""} onChange={(e) => save({ unitCount: Number(e.target.value) || 0 })} className="max-w-[120px]" />
-        </Field>
-        <Field label="計費單位">
-          <ColorSelect fieldKey="billingUnit" value={caseData.billingUnit} onValueChange={(v) => save({ billingUnit: v })} />
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-4">
