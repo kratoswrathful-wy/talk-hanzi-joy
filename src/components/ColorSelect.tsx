@@ -50,6 +50,7 @@ export default function ColorSelect({
     : fieldKey === "dispatchRoute" ? labelStyles.dispatchRoute.textColor
     : fieldKey === "billingUnit" ? labelStyles.billingUnit.textColor
     : fieldKey === "taskType" ? labelStyles.taskType.textColor
+    : fieldKey === "caseCategory" ? labelStyles.caseCategory.textColor
     : "#D1DAEA";
   const [open, setOpen] = useState(defaultOpen ?? false);
   const [addingNew, setAddingNew] = useState(false);

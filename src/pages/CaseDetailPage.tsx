@@ -5,10 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { caseStore } from "@/hooks/use-case-store";
 import type { CaseRecord } from "@/data/case-types";
+import ColorSelect from "@/components/ColorSelect";
+import MultiColorSelect from "@/components/MultiColorSelect";
+import DateTimePicker from "@/components/DateTimePicker";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -21,11 +23,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 
-// Field row component for consistent layout
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
-    <div className="grid grid-cols-[160px_1fr] items-start gap-4 py-2">
-      <span className="text-sm text-muted-foreground pt-1.5">{label}</span>
+    <div className={`grid grid-cols-[120px_1fr] items-start gap-3 py-1 ${className || ""}`}>
+      <span className="text-sm text-muted-foreground pt-1">{label}</span>
       <div>{children}</div>
     </div>
   );
@@ -67,7 +68,7 @@ export default function CaseDetailPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-4 max-w-3xl">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -93,48 +94,90 @@ export default function CaseDetailPage() {
 
       <Separator />
 
-      {/* Basic Info */}
-      <h2 className="text-lg font-semibold">基本資訊</h2>
-      <Field label="類型">
-        <Input value={caseData.category} onChange={(e) => save({ category: e.target.value })} className="max-w-xs" />
-      </Field>
-      <Field label="工作類型">
-        <Input value={caseData.workType} onChange={(e) => save({ workType: e.target.value })} className="max-w-xs" />
-      </Field>
-      <Field label="流程備註">
-        <Textarea value={caseData.processNote} onChange={(e) => save({ processNote: e.target.value })} className="max-w-md" rows={2} />
-      </Field>
-      <Field label="計費單位">
-        <Input value={caseData.billingUnit} onChange={(e) => save({ billingUnit: e.target.value })} className="max-w-xs" />
-      </Field>
-      <Field label="計費單位數">
-        <Input type="number" value={caseData.unitCount || ""} onChange={(e) => save({ unitCount: Number(e.target.value) || 0 })} className="max-w-[120px]" />
-      </Field>
+      {/* 基本資訊 */}
+      <h2 className="text-base font-semibold">基本資訊</h2>
+
+      {/* Category + WorkType side by side */}
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="類型">
+          <ColorSelect
+            fieldKey="caseCategory"
+            value={caseData.category}
+            onValueChange={(v) => save({ category: v })}
+          />
+        </Field>
+        <Field label="工作類型">
+          <MultiColorSelect
+            fieldKey="taskType"
+            values={caseData.workType}
+            onValuesChange={(v) => save({ workType: v })}
+          />
+        </Field>
+      </div>
+
+      {/* BillingUnit + UnitCount side by side */}
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="計費單位">
+          <ColorSelect
+            fieldKey="billingUnit"
+            value={caseData.billingUnit}
+            onValueChange={(v) => save({ billingUnit: v })}
+          />
+        </Field>
+        <Field label="計費單位數">
+          <Input
+            type="number"
+            value={caseData.unitCount || ""}
+            onChange={(e) => save({ unitCount: Number(e.target.value) || 0 })}
+            className="max-w-[120px]"
+          />
+        </Field>
+      </div>
+
       <Field label="詢案備註">
         <Textarea value={caseData.inquiryNote} onChange={(e) => save({ inquiryNote: e.target.value })} className="max-w-md" rows={2} />
       </Field>
 
-      <Separator />
-
-      {/* Assignment */}
-      <h2 className="text-lg font-semibold">人員與交期</h2>
-      <Field label="譯者">
-        <Input value={caseData.translator} onChange={(e) => save({ translator: e.target.value })} className="max-w-xs" />
-      </Field>
-      <Field label="翻譯交期">
-        <Input type="datetime-local" value={caseData.translationDeadline?.slice(0, 16) || ""} onChange={(e) => save({ translationDeadline: e.target.value ? new Date(e.target.value).toISOString() : null })} className="max-w-xs" />
-      </Field>
-      <Field label="審稿人員">
-        <Input value={caseData.reviewer} onChange={(e) => save({ reviewer: e.target.value })} className="max-w-xs" />
-      </Field>
-      <Field label="審稿交期">
-        <Input type="datetime-local" value={caseData.reviewDeadline?.slice(0, 16) || ""} onChange={(e) => save({ reviewDeadline: e.target.value ? new Date(e.target.value).toISOString() : null })} className="max-w-xs" />
-      </Field>
+      {/* Translator + Reviewer side by side */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1">
+          <Field label="譯者">
+            <ColorSelect
+              fieldKey="assignee"
+              value={caseData.translator}
+              onValueChange={(v) => save({ translator: v })}
+            />
+          </Field>
+          <Field label="翻譯交期">
+            <DateTimePicker
+              value={caseData.translationDeadline}
+              onChange={(v) => save({ translationDeadline: v })}
+              className="w-full"
+            />
+          </Field>
+        </div>
+        <div className="space-y-1">
+          <Field label="審稿人員">
+            <ColorSelect
+              fieldKey="assignee"
+              value={caseData.reviewer}
+              onValueChange={(v) => save({ reviewer: v })}
+            />
+          </Field>
+          <Field label="審稿交期">
+            <DateTimePicker
+              value={caseData.reviewDeadline}
+              onChange={(v) => save({ reviewDeadline: v })}
+              className="w-full"
+            />
+          </Field>
+        </div>
+      </div>
 
       <Separator />
 
       {/* Status & Tools */}
-      <h2 className="text-lg font-semibold">狀態與工具</h2>
+      <h2 className="text-base font-semibold">狀態與工具</h2>
       <Field label="任務狀態">
         <Input value={caseData.taskStatus} onChange={(e) => save({ taskStatus: e.target.value })} className="max-w-xs" />
       </Field>
@@ -151,7 +194,7 @@ export default function CaseDetailPage() {
       <Separator />
 
       {/* Guidelines & Resources */}
-      <h2 className="text-lg font-semibold">準則與資源</h2>
+      <h2 className="text-base font-semibold">準則與資源</h2>
       <Field label="自製準則頁面">
         <Input value={caseData.customGuidelinesUrl} onChange={(e) => save({ customGuidelinesUrl: e.target.value })} className="max-w-md" placeholder="URL" />
       </Field>
@@ -165,7 +208,7 @@ export default function CaseDetailPage() {
       <Separator />
 
       {/* Checkboxes */}
-      <h2 className="text-lg font-semibold">核取項目</h2>
+      <h2 className="text-base font-semibold">核取項目</h2>
       <Field label="填寫內部註記表單">
         <Checkbox checked={caseData.internalNoteForm} onCheckedChange={(v) => save({ internalNoteForm: !!v })} />
       </Field>
@@ -176,7 +219,7 @@ export default function CaseDetailPage() {
       <Separator />
 
       {/* Login Info */}
-      <h2 className="text-lg font-semibold">登入資訊</h2>
+      <h2 className="text-base font-semibold">登入資訊</h2>
       <Field label="其他登入資訊">
         <Input value={caseData.otherLoginInfo} onChange={(e) => save({ otherLoginInfo: e.target.value })} className="max-w-md" />
       </Field>
@@ -196,7 +239,7 @@ export default function CaseDetailPage() {
       <Separator />
 
       {/* Track & Fee */}
-      <h2 className="text-lg font-semibold">追蹤與費用</h2>
+      <h2 className="text-base font-semibold">追蹤與費用</h2>
       <Field label="追蹤修訂">
         <Input value={caseData.trackChanges} onChange={(e) => save({ trackChanges: e.target.value })} className="max-w-md" />
       </Field>
@@ -207,7 +250,7 @@ export default function CaseDetailPage() {
       <Separator />
 
       {/* Meta */}
-      <h2 className="text-lg font-semibold">建立資訊</h2>
+      <h2 className="text-base font-semibold">建立資訊</h2>
       <Field label="建立時間">
         <span className="text-sm">{new Date(caseData.createdAt).toLocaleString("zh-TW")}</span>
       </Field>

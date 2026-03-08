@@ -20,7 +20,7 @@ function fromDb(row: any): CaseRecord {
     id: row.id,
     title: row.title ?? "",
     category: row.category ?? "",
-    workType: row.work_type ?? "",
+    workType: Array.isArray(row.work_type) ? row.work_type : [],
     processNote: row.process_note ?? "",
     billingUnit: row.billing_unit ?? "",
     unitCount: Number(row.unit_count) || 0,

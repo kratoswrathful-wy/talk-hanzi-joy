@@ -52,7 +52,7 @@ const listeners = new Set<Listener>();
 const SETTINGS_KEY = "select_options";
 
 // Fields to persist (assignee is loaded from profiles, not settings)
-const PERSISTED_FIELDS = ["taskType", "billingUnit", "client", "contact", "dispatchRoute"];
+const PERSISTED_FIELDS = ["taskType", "billingUnit", "client", "contact", "dispatchRoute", "caseCategory"];
 
 function persistableSnapshot() {
   const snapshot: Record<string, FieldOptions> = {};
@@ -110,6 +110,14 @@ function initDefaults() {
         { id: "opt-dr2", label: "Teams", color: PRESET_COLORS[8] },
       ],
       customColors: [],
+    },
+    caseCategory: {
+      options: [
+        { id: "opt-cc1", label: "筆譯", color: PRESET_COLORS[6] },
+        { id: "opt-cc2", label: "口譯", color: PRESET_COLORS[4] },
+      ],
+      customColors: [],
+      manualOrder: true,
     },
   };
 }

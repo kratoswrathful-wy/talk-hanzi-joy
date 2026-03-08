@@ -17,6 +17,7 @@ interface LabelStyleState {
   billingUnit: LabelStyle;
   client: LabelStyle;
   dispatchRoute: LabelStyle;
+  caseCategory: LabelStyle;
   statusDraft: StatusStyle;
   statusFinalized: StatusStyle;
   invoicePending: StatusStyle;
@@ -29,6 +30,7 @@ const DEFAULT_STATE: LabelStyleState = {
   billingUnit: { textColor: "#FFFFFF" },
   client: { textColor: "#FFFFFF" },
   dispatchRoute: { textColor: "#FFFFFF" },
+  caseCategory: { textColor: "#FFFFFF" },
   statusDraft: { bgColor: "#6B7280", textColor: "#FFFFFF" },
   statusFinalized: { bgColor: "#22C55E", textColor: "#FFFFFF" },
   invoicePending: { bgColor: "#6B7280", textColor: "#FFFFFF" },
@@ -67,6 +69,11 @@ export const labelStyleStore = {
 
   setDispatchRouteTextColor: (color: string) => {
     state = { ...state, dispatchRoute: { ...state.dispatchRoute, textColor: color } };
+    notify();
+  },
+
+  setCaseCategoryTextColor: (color: string) => {
+    state = { ...state, caseCategory: { ...state.caseCategory, textColor: color } };
     notify();
   },
 

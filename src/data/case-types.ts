@@ -2,7 +2,7 @@ export interface CaseRecord {
   id: string;
   title: string;
   category: string;
-  workType: string;
+  workType: string[];
   processNote: string;
   billingUnit: string;
   unitCount: number;

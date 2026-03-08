@@ -74,7 +74,7 @@ export type Database = {
           translator_final: Json
           unit_count: number
           updated_at: string
-          work_type: string
+          work_type: Json
           working_files: Json
         }
         Insert: {
@@ -115,7 +115,7 @@ export type Database = {
           translator_final?: Json
           unit_count?: number
           updated_at?: string
-          work_type?: string
+          work_type?: Json
           working_files?: Json
         }
         Update: {
@@ -156,7 +156,7 @@ export type Database = {
           translator_final?: Json
           unit_count?: number
           updated_at?: string
-          work_type?: string
+          work_type?: Json
           working_files?: Json
         }
         Relationships: []
