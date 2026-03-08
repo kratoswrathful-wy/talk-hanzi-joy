@@ -211,7 +211,7 @@ export default function ColorSelect({
                   <button
                     className={cn(
                       "flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm transition-colors hover:bg-accent hover:text-accent-foreground text-left",
-                      value === opt.label && "bg-accent/60"
+                      value === opt.label && "bg-destructive/30"
                     )}
                     onClick={() => handleSelect(opt)}
                   >
