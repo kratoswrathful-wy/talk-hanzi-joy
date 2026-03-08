@@ -42,6 +42,8 @@ interface ClientInfoSectionProps {
   onFirstFeeConflict?: () => void;
   /** Called when a client price is first entered (was 0/empty, now has value) */
   onClientPriceEntered?: (itemIndex: number, clientPrice: number, taskType: string, billingUnit: string) => void;
+  /** Linked client invoices for this fee */
+  linkedClientInvoices?: { id: string; title: string }[];
 }
 
 export default function ClientInfoSection({
