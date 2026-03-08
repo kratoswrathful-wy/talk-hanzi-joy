@@ -10,7 +10,7 @@ export interface ToolEntry {
   fieldValues: Record<string, string>;
 }
 
-export type CaseStatus = "draft" | "finalized";
+export type CaseStatus = "draft" | "inquiry" | "finalized";
 
 export interface CaseRecord {
   id: string;
