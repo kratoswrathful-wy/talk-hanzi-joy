@@ -137,6 +137,7 @@ function NoteDetailView({
   const [invalidateReason, setInvalidateReason] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [commentDraft, setCommentDraft] = useState("");
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
   const comments = note.comments || [];
 
