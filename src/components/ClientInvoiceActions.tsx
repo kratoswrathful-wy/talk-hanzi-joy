@@ -367,12 +367,11 @@ export function ClientInvoiceActions({ selectedFees, onDone }: ClientInvoiceActi
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>關閉</AlertDialogCancel>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </>
-    );
-  }
+          <AlertDialogFooter>
+            <AlertDialogCancel>關閉</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
 }
