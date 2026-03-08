@@ -687,7 +687,7 @@ function PermissionItemRow({
         {!isViewOnly && (
           <div className="flex items-center gap-1">
             <span className="text-muted-foreground">編輯</span>
-            <Switch checked={editEnabled} onCheckedChange={(v) => onToggle("edit", v)} className="scale-[0.6] data-[state=checked]:bg-primary/45" disabled={!viewEnabled} />
+            <Switch checked={editEnabled} onCheckedChange={(v) => onToggle("edit", v)} className="scale-[0.6] data-[state=checked]:bg-primary/70" disabled={!viewEnabled} />
           </div>
         )}
       </div>
