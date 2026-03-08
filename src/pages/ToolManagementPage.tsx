@@ -40,7 +40,7 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
   const handleRename = (fieldId: string) => {
     const label = editLabel.trim();
     if (!label) return;
-    selectOptionsStore.renameToolField(optionId, fieldId, label);
+    selectOptionsStore.renameToolField(optionId, fieldId, label, fieldKey);
     setEditingId(null);
   };
 
