@@ -53,6 +53,62 @@ function getAllDetailItems(mod: PermissionModule): PermissionItem[] {
 }
 
 const PERMISSION_MODULES: PermissionModule[] = [
+  // 1. 案件管理
+  {
+    key: "case_management",
+    label: "案件管理",
+    listItems: [
+      { key: "case_list_view", label: "檢視案件清單", type: "both" },
+      { key: "case_list_create", label: "新增案件", type: "both", attribute: "按鈕" },
+      { key: "case_list_delete", label: "刪除", type: "both", attribute: "按鈕" },
+      { key: "case_list_viewDraft", label: "檢視草稿", type: "view" },
+    ],
+    detailSections: [
+      {
+        label: "頁面一般操作",
+        items: [
+          { key: "case_detail_viewDraft", label: "檢視草稿", type: "view" },
+        ],
+      },
+      {
+        label: "案件基本資訊",
+        items: [
+          { key: "case_detail_title", label: "案件編號", type: "both", attribute: "文字" },
+          { key: "case_detail_category", label: "類型", type: "both", attribute: "單選" },
+          { key: "case_detail_workType", label: "工作類型", type: "both", attribute: "單選" },
+          { key: "case_detail_taskStatus", label: "任務狀態", type: "both", attribute: "單選" },
+          { key: "case_detail_translator", label: "譯者", type: "both", attribute: "人員（多選）" },
+          { key: "case_detail_reviewer", label: "審稿人員", type: "both", attribute: "人員（單選）" },
+        ],
+      },
+    ],
+  },
+  // 2. 內部註記
+  {
+    key: "internal_notes",
+    label: "內部註記",
+    listItems: [
+      { key: "inotes_list_view", label: "檢視列表", type: "both" },
+      { key: "inotes_list_create", label: "新增紀錄", type: "both", attribute: "按鈕" },
+      { key: "inotes_list_delete", label: "刪除紀錄", type: "both", attribute: "按鈕" },
+    ],
+    detailSections: [
+      {
+        label: "紀錄詳情",
+        items: [
+          { key: "inotes_detail_title", label: "標題", type: "both", attribute: "文字" },
+          { key: "inotes_detail_relatedCase", label: "關聯案件", type: "both", attribute: "關聯" },
+          { key: "inotes_detail_noteType", label: "性質", type: "both", attribute: "單選" },
+          { key: "inotes_detail_status", label: "狀態", type: "both", attribute: "單選" },
+          { key: "inotes_detail_assignee", label: "內部指派對象", type: "both", attribute: "人員（單選）" },
+          { key: "inotes_detail_content", label: "問題或註記內容", type: "both", attribute: "長文字" },
+          { key: "inotes_detail_resolution", label: "內部處理結論", type: "both", attribute: "長文字" },
+          { key: "inotes_detail_remarks", label: "備註", type: "both", attribute: "長文字" },
+        ],
+      },
+    ],
+  },
+  // 3. 費用管理
   {
     key: "fee_management",
     label: "費用管理",
@@ -121,6 +177,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
       },
     ],
   },
+  // 4. 稿費請款
   {
     key: "translator_invoice",
     label: "稿費請款",
@@ -156,6 +213,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
       },
     ],
   },
+  // 5. 客戶請款
   {
     key: "client_invoice",
     label: "客戶請款",
@@ -190,35 +248,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
       },
     ],
   },
-  {
-    key: "case_management",
-    label: "案件管理",
-    listItems: [
-      { key: "case_list_view", label: "檢視案件清單", type: "both" },
-      { key: "case_list_create", label: "新增案件", type: "both", attribute: "按鈕" },
-      { key: "case_list_delete", label: "刪除", type: "both", attribute: "按鈕" },
-      { key: "case_list_viewDraft", label: "檢視草稿", type: "view" },
-    ],
-    detailSections: [
-      {
-        label: "頁面一般操作",
-        items: [
-          { key: "case_detail_viewDraft", label: "檢視草稿", type: "view" },
-        ],
-      },
-      {
-        label: "案件基本資訊",
-        items: [
-          { key: "case_detail_title", label: "案件編號", type: "both", attribute: "文字" },
-          { key: "case_detail_category", label: "類型", type: "both", attribute: "單選" },
-          { key: "case_detail_workType", label: "工作類型", type: "both", attribute: "單選" },
-          { key: "case_detail_taskStatus", label: "任務狀態", type: "both", attribute: "單選" },
-          { key: "case_detail_translator", label: "譯者", type: "both", attribute: "人員（多選）" },
-          { key: "case_detail_reviewer", label: "審稿人員", type: "both", attribute: "人員（單選）" },
-        ],
-      },
-    ],
-  },
+  // 6. 工具管理
   {
     key: "tool_management",
     label: "工具管理",
@@ -228,6 +258,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
     ],
     detailSections: [],
   },
+  // 7. 團隊成員
   {
     key: "team_members",
     label: "團隊成員",
@@ -244,6 +275,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
     ],
     detailSections: [],
   },
+  // 8. 內部資料
   {
     key: "field_reference",
     label: "內部資料",
@@ -251,30 +283,6 @@ const PERMISSION_MODULES: PermissionModule[] = [
       { key: "field_ref_view", label: "檢視欄位對照表", type: "view" },
     ],
     detailSections: [],
-  },
-  {
-    key: "internal_notes",
-    label: "內部註記",
-    listItems: [
-      { key: "inotes_list_view", label: "檢視列表", type: "both" },
-      { key: "inotes_list_create", label: "新增紀錄", type: "both", attribute: "按鈕" },
-      { key: "inotes_list_delete", label: "刪除紀錄", type: "both", attribute: "按鈕" },
-    ],
-    detailSections: [
-      {
-        label: "紀錄詳情",
-        items: [
-          { key: "inotes_detail_title", label: "標題", type: "both", attribute: "文字" },
-          { key: "inotes_detail_relatedCase", label: "關聯案件", type: "both", attribute: "關聯" },
-          { key: "inotes_detail_noteType", label: "性質", type: "both", attribute: "單選" },
-          { key: "inotes_detail_status", label: "狀態", type: "both", attribute: "單選" },
-          { key: "inotes_detail_assignee", label: "內部指派對象", type: "both", attribute: "人員（單選）" },
-          { key: "inotes_detail_content", label: "問題或註記內容", type: "both", attribute: "長文字" },
-          { key: "inotes_detail_resolution", label: "內部處理結論", type: "both", attribute: "長文字" },
-          { key: "inotes_detail_remarks", label: "備註", type: "both", attribute: "長文字" },
-        ],
-      },
-    ],
   },
 ];
 
