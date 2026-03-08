@@ -29,6 +29,7 @@ export const caseFieldMetas: FieldMeta[] = [
 function getFieldValue(c: CaseRecord, field: string): string | number | boolean {
   switch (field) {
     case "title": return c.title;
+    case "status": return c.status;
     case "category": return c.category;
     case "workType": return (c.workType || []).join(", ");
     case "billingUnit": return c.billingUnit;
