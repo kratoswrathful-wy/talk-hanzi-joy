@@ -559,12 +559,13 @@ function RolePermissionPanel({
                           modulePerms={modulePerms}
                           items={mod.listItems}
                           onToggle={(permType, value) => onToggleSectionPerms(roleKey, mod.key, mod.listItems, permType, value)}
+                          onToggleVisible={(v) => onToggleSectionPerms(roleKey, mod.key, mod.listItems, "view", v)}
                         />
                       </div>
                       <div>
                         {mod.listItems.map((item, i) => (
                           <div key={item.key}>
-                            {i > 0 && <Separator className="my-0" />}
+                            {i > 0 && <div className="border-t border-dashed border-border/50" />}
                             <PermissionItemRow item={item} modulePerms={modulePerms} onToggle={(permType, value) => onToggleItemPerm(roleKey, mod.key, item.key, permType, value)} />
                           </div>
                         ))}
@@ -574,10 +575,11 @@ function RolePermissionPanel({
 
                   {/* Detail sections */}
                   {mod.detailSections.length > 0 && (
-                    <div className="space-y-3">
+                    <div>
                       <p className="text-xs font-medium text-muted-foreground mb-1.5">詳情頁操作</p>
-                      {mod.detailSections.map((section) => (
+                      {mod.detailSections.map((section, sIdx) => (
                         <div key={section.label}>
+                          {sIdx > 0 && <Separator className="my-3" />}
                           <div className="flex items-center justify-between mb-1 ml-1">
                             <p className="text-xs font-semibold text-foreground/70">{section.label}</p>
                             <SectionBulkButtons
@@ -585,12 +587,13 @@ function RolePermissionPanel({
                               modulePerms={modulePerms}
                               items={section.items}
                               onToggle={(permType, value) => onToggleSectionPerms(roleKey, mod.key, section.items, permType, value)}
+                              onToggleVisible={(v) => onToggleSectionPerms(roleKey, mod.key, section.items, "view", v)}
                             />
                           </div>
                           <div>
                             {section.items.map((item, i) => (
                               <div key={item.key}>
-                                {i > 0 && <Separator className="my-0" />}
+                                {i > 0 && <div className="border-t border-dashed border-border/50" />}
                                 <PermissionItemRow item={item} modulePerms={modulePerms} onToggle={(permType, value) => onToggleItemPerm(roleKey, mod.key, item.key, permType, value)} />
                               </div>
                             ))}
