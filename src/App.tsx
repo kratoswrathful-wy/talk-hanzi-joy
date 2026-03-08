@@ -18,6 +18,8 @@ import InvoicesPage from "@/pages/InvoicesPage";
 import InvoiceDetailPage from "@/pages/InvoiceDetailPage";
 import ClientInvoicesPage from "@/pages/ClientInvoicesPage";
 import ClientInvoiceDetailPage from "@/pages/ClientInvoiceDetailPage";
+import CasesPage from "@/pages/CasesPage";
+import CaseDetailPage from "@/pages/CaseDetailPage";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 import { initSettings } from "@/stores/settings-init";
@@ -51,6 +53,8 @@ function AuthenticatedRoutes() {
     <AppLayout>
       <Routes>
         <Route path="/" element={<Navigate to="/fees" replace />} />
+        <Route path="/cases" element={<CasesPage />} />
+        <Route path="/cases/:id" element={<CaseDetailPage />} />
         <Route path="/fees" element={<TranslatorFees />} />
         <Route path="/fees/new" element={<NewTranslatorFee />} />
         <Route path="/fees/:id" element={<TranslatorFeeDetailWrapper />} />

@@ -1,0 +1,230 @@
+import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { ArrowLeft, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { caseStore } from "@/hooks/use-case-store";
+import type { CaseRecord } from "@/data/case-types";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+import { toast } from "@/hooks/use-toast";
+
+// Field row component for consistent layout
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[160px_1fr] items-start gap-4 py-2">
+      <span className="text-sm text-muted-foreground pt-1.5">{label}</span>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+export default function CaseDetailPage() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [caseData, setCaseData] = useState<CaseRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  useEffect(() => {
+    caseStore.load().then(() => {
+      const found = caseStore.getById(id!);
+      setCaseData(found ?? null);
+      setLoading(false);
+    });
+  }, [id]);
+
+  const save = (partial: Partial<CaseRecord>) => {
+    if (!caseData) return;
+    setCaseData({ ...caseData, ...partial });
+    caseStore.update(caseData.id, partial);
+  };
+
+  const handleDelete = async () => {
+    if (!caseData) return;
+    await caseStore.remove(caseData.id);
+    toast({ title: "已刪除案件" });
+    navigate("/cases");
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-64 text-muted-foreground">載入中…</div>;
+  }
+  if (!caseData) {
+    return <div className="flex items-center justify-center h-64 text-muted-foreground">找不到此案件</div>;
+  }
+
+  return (
+    <div className="space-y-6 max-w-3xl">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/cases")}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-2xl font-bold tracking-tight">案件詳情</h1>
+        </div>
+        <Button variant="destructive" size="sm" onClick={() => setDeleteOpen(true)}>
+          <Trash2 className="mr-1.5 h-4 w-4" />
+          刪除
+        </Button>
+      </div>
+
+      {/* Title */}
+      <Field label="案件編號">
+        <Input
+          value={caseData.title}
+          onChange={(e) => save({ title: e.target.value })}
+          className="max-w-md"
+        />
+      </Field>
+
+      <Separator />
+
+      {/* Basic Info */}
+      <h2 className="text-lg font-semibold">基本資訊</h2>
+      <Field label="類型">
+        <Input value={caseData.category} onChange={(e) => save({ category: e.target.value })} className="max-w-xs" />
+      </Field>
+      <Field label="工作類型">
+        <Input value={caseData.workType} onChange={(e) => save({ workType: e.target.value })} className="max-w-xs" />
+      </Field>
+      <Field label="流程備註">
+        <Textarea value={caseData.processNote} onChange={(e) => save({ processNote: e.target.value })} className="max-w-md" rows={2} />
+      </Field>
+      <Field label="計費單位">
+        <Input value={caseData.billingUnit} onChange={(e) => save({ billingUnit: e.target.value })} className="max-w-xs" />
+      </Field>
+      <Field label="計費單位數">
+        <Input type="number" value={caseData.unitCount || ""} onChange={(e) => save({ unitCount: Number(e.target.value) || 0 })} className="max-w-[120px]" />
+      </Field>
+      <Field label="詢案備註">
+        <Textarea value={caseData.inquiryNote} onChange={(e) => save({ inquiryNote: e.target.value })} className="max-w-md" rows={2} />
+      </Field>
+
+      <Separator />
+
+      {/* Assignment */}
+      <h2 className="text-lg font-semibold">人員與交期</h2>
+      <Field label="譯者">
+        <Input value={caseData.translator} onChange={(e) => save({ translator: e.target.value })} className="max-w-xs" />
+      </Field>
+      <Field label="翻譯交期">
+        <Input type="datetime-local" value={caseData.translationDeadline?.slice(0, 16) || ""} onChange={(e) => save({ translationDeadline: e.target.value ? new Date(e.target.value).toISOString() : null })} className="max-w-xs" />
+      </Field>
+      <Field label="審稿人員">
+        <Input value={caseData.reviewer} onChange={(e) => save({ reviewer: e.target.value })} className="max-w-xs" />
+      </Field>
+      <Field label="審稿交期">
+        <Input type="datetime-local" value={caseData.reviewDeadline?.slice(0, 16) || ""} onChange={(e) => save({ reviewDeadline: e.target.value ? new Date(e.target.value).toISOString() : null })} className="max-w-xs" />
+      </Field>
+
+      <Separator />
+
+      {/* Status & Tools */}
+      <h2 className="text-lg font-semibold">狀態與工具</h2>
+      <Field label="任務狀態">
+        <Input value={caseData.taskStatus} onChange={(e) => save({ taskStatus: e.target.value })} className="max-w-xs" />
+      </Field>
+      <Field label="執行工具">
+        <Input value={caseData.executionTool} onChange={(e) => save({ executionTool: e.target.value })} className="max-w-xs" />
+      </Field>
+      <Field label="交件方式">
+        <Input value={caseData.deliveryMethod} onChange={(e) => save({ deliveryMethod: e.target.value })} className="max-w-md" />
+      </Field>
+      <Field label="客戶收件">
+        <Input value={caseData.clientReceipt} onChange={(e) => save({ clientReceipt: e.target.value })} className="max-w-xs" />
+      </Field>
+
+      <Separator />
+
+      {/* Guidelines & Resources */}
+      <h2 className="text-lg font-semibold">準則與資源</h2>
+      <Field label="自製準則頁面">
+        <Input value={caseData.customGuidelinesUrl} onChange={(e) => save({ customGuidelinesUrl: e.target.value })} className="max-w-md" placeholder="URL" />
+      </Field>
+      <Field label="客戶指定準則">
+        <Input value={caseData.clientGuidelines} onChange={(e) => save({ clientGuidelines: e.target.value })} className="max-w-md" />
+      </Field>
+      <Field label="提問表單">
+        <Input value={caseData.questionForm} onChange={(e) => save({ questionForm: e.target.value })} className="max-w-md" />
+      </Field>
+
+      <Separator />
+
+      {/* Checkboxes */}
+      <h2 className="text-lg font-semibold">核取項目</h2>
+      <Field label="填寫內部註記表單">
+        <Checkbox checked={caseData.internalNoteForm} onCheckedChange={(v) => save({ internalNoteForm: !!v })} />
+      </Field>
+      <Field label="填寫客戶提問表單">
+        <Checkbox checked={caseData.clientQuestionForm} onCheckedChange={(v) => save({ clientQuestionForm: !!v })} />
+      </Field>
+
+      <Separator />
+
+      {/* Login Info */}
+      <h2 className="text-lg font-semibold">登入資訊</h2>
+      <Field label="其他登入資訊">
+        <Input value={caseData.otherLoginInfo} onChange={(e) => save({ otherLoginInfo: e.target.value })} className="max-w-md" />
+      </Field>
+      <Field label="登入帳號">
+        <Input value={caseData.loginAccount} onChange={(e) => save({ loginAccount: e.target.value })} className="max-w-xs" />
+      </Field>
+      <Field label="登入密碼">
+        <Input value={caseData.loginPassword} onChange={(e) => save({ loginPassword: e.target.value })} className="max-w-xs" />
+      </Field>
+      <Field label="線上工具專案">
+        <Input value={caseData.onlineToolProject} onChange={(e) => save({ onlineToolProject: e.target.value })} className="max-w-md" />
+      </Field>
+      <Field label="線上工具檔名">
+        <Input value={caseData.onlineToolFilename} onChange={(e) => save({ onlineToolFilename: e.target.value })} className="max-w-md" />
+      </Field>
+
+      <Separator />
+
+      {/* Track & Fee */}
+      <h2 className="text-lg font-semibold">追蹤與費用</h2>
+      <Field label="追蹤修訂">
+        <Input value={caseData.trackChanges} onChange={(e) => save({ trackChanges: e.target.value })} className="max-w-md" />
+      </Field>
+      <Field label="稿費條">
+        <Input value={caseData.feeEntry} onChange={(e) => save({ feeEntry: e.target.value })} className="max-w-md" />
+      </Field>
+
+      <Separator />
+
+      {/* Meta */}
+      <h2 className="text-lg font-semibold">建立資訊</h2>
+      <Field label="建立時間">
+        <span className="text-sm">{new Date(caseData.createdAt).toLocaleString("zh-TW")}</span>
+      </Field>
+
+      {/* Delete dialog */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>確認刪除</AlertDialogTitle>
+            <AlertDialogDescription>此操作無法復原，確定要刪除此案件嗎？</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>確認刪除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
