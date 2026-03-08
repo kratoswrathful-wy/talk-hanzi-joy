@@ -620,7 +620,7 @@ export default function CaseDetailPage() {
           >
             新增案件頁面
           </Button>
-          {isInquiry ? (
+          {isInquiry && isPmOrAbove ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] text-white hover:opacity-80"
@@ -629,18 +629,18 @@ export default function CaseDetailPage() {
             >
               收回為草稿
             </Button>
-          ) : (
+          ) : !isInquiry ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] text-white hover:opacity-80"
               style={{ backgroundColor: '#6B7280' }}
-              disabled={isFinalized}
+              disabled={isDispatched || isFinalized}
               onClick={() => setDeleteOpen(true)}
             >
               刪除
             </Button>
-          )}
-          {isDraft ? (
+          ) : null}
+          {isDraft && isPmOrAbove ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px]"
@@ -648,7 +648,15 @@ export default function CaseDetailPage() {
             >
               公布
             </Button>
-          ) : isInquiry ? (
+          ) : isInquiry && isMember ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleAcceptCase}
+            >
+              承接本案
+            </Button>
+          ) : isInquiry && isPmOrAbove ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
