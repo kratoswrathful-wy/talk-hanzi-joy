@@ -227,7 +227,8 @@ function ToolInstance({
           </TooltipProvider>
         </div>
         {fields.map((f) => (
-          <Field key={f.id} label={f.label}>
+          <div key={f.id} className="grid grid-cols-[120px_1fr_auto] items-start gap-3 py-1">
+            <span className="text-sm text-muted-foreground pt-1">{f.label}</span>
             <Input
               value={values[f.id] || ""}
               onChange={(e) =>
@@ -235,29 +236,93 @@ function ToolInstance({
               }
               className="max-w-xs"
             />
-          </Field>
+            <button
+              className="mt-1.5 h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0"
+              onClick={() => setDeleteFieldId(f.id)}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
         ))}
-        {/* Field management toggle */}
+        {/* Add field */}
         {hasToolSelected && (
-          <div className="pt-1">
+          addingField ? (
+            <div className="flex items-center gap-1.5 py-1 ml-[132px]">
+              <Input
+                value={newFieldLabel}
+                onChange={(e) => setNewFieldLabel(e.target.value)}
+                placeholder="欄位名稱"
+                className="h-7 text-sm w-40"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newFieldLabel.trim()) {
+                    const id = `cf-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
+                    const newFields = [...fields, { id, label: newFieldLabel.trim() }];
+                    handleFieldsChange(newFields);
+                    setNewFieldLabel("");
+                    setAddingField(false);
+                  }
+                  if (e.key === "Escape") { setAddingField(false); setNewFieldLabel(""); }
+                }}
+              />
+              <Button
+                size="sm"
+                className="h-7 text-xs px-2"
+                disabled={!newFieldLabel.trim()}
+                onClick={() => {
+                  const id = `cf-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
+                  const newFields = [...fields, { id, label: newFieldLabel.trim() }];
+                  handleFieldsChange(newFields);
+                  setNewFieldLabel("");
+                  setAddingField(false);
+                }}
+              >
+                確定
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => { setAddingField(false); setNewFieldLabel(""); }}>
+                取消
+              </Button>
+            </div>
+          ) : (
             <Button
               variant="ghost"
               size="sm"
-              className="gap-1 text-xs h-6 px-2 text-muted-foreground"
-              onClick={() => setFieldMgmtOpen((v) => !v)}
+              className="gap-1 text-xs text-muted-foreground ml-[132px]"
+              onClick={() => setAddingField(true)}
             >
-              <Pencil className="h-3 w-3" />
-              {fieldMgmtOpen ? "收起欄位管理" : "管理欄位"}
+              <Plus className="h-3 w-3" />
+              新增欄位
             </Button>
-            {fieldMgmtOpen && (
-              <CaseToolFieldManager
-                fields={fields}
-                onFieldsChange={handleFieldsChange}
-              />
-            )}
-          </div>
+          )
         )}
       </div>
+
+      {/* Delete field confirmation */}
+      <AlertDialog open={!!deleteFieldId} onOpenChange={(v) => { if (!v) setDeleteFieldId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>確認刪除欄位</AlertDialogTitle>
+            <AlertDialogDescription>
+              確定要刪除欄位「{fields.find((f) => f.id === deleteFieldId)?.label}」嗎？該欄位的內容也會一併移除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (deleteFieldId) {
+                handleFieldsChange(fields.filter((f) => f.id !== deleteFieldId));
+                // Also clean up fieldValues
+                const newValues = { ...values };
+                delete newValues[deleteFieldId];
+                onUpdate({ fields: fields.filter((f) => f.id !== deleteFieldId), fieldValues: newValues });
+              }
+              setDeleteFieldId(null);
+            }}>
+              確認刪除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Template apply warning dialog */}
       <AlertDialog open={!!pendingTpl} onOpenChange={(v) => { if (!v) dismissWarning(); }}>
