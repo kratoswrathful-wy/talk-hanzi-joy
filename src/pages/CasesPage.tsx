@@ -32,6 +32,8 @@ const caseStatusLabels: Record<CaseStatus, string> = {
   inquiry: "詢案中",
   dispatched: "已派出",
   task_completed: "任務完成",
+  delivered: "已交件",
+  feedback: "處理回饋",
   finalized: "開立完成",
 };
 
@@ -49,6 +51,8 @@ const formatDateTime = (iso: string | null) => {
 function CaseStatusBadge({ status }: { status: CaseStatus }) {
   const labelStyles = useLabelStyles();
   const style = status === "finalized" ? labelStyles.statusFinalized
+    : status === "feedback" ? { bgColor: "#D97706", textColor: "#FFFFFF" }
+    : status === "delivered" ? { bgColor: "#0891B2", textColor: "#FFFFFF" }
     : status === "task_completed" ? { bgColor: "#8B5CF6", textColor: "#FFFFFF" }
     : status === "dispatched" ? { bgColor: "#16A34A", textColor: "#FFFFFF" }
     : status === "inquiry" ? { bgColor: "#2563EB", textColor: "#FFFFFF" }

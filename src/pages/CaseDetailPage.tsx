@@ -40,12 +40,16 @@ const caseStatusLabels: Record<CaseStatus, string> = {
   inquiry: "詢案中",
   dispatched: "已派出",
   task_completed: "任務完成",
+  delivered: "已交件",
+  feedback: "處理回饋",
   finalized: "開立完成",
 };
 
 function CaseStatusBadge({ status }: { status: CaseStatus }) {
   const labelStyles = useLabelStyles();
   const style = status === "finalized" ? labelStyles.statusFinalized
+    : status === "feedback" ? { bgColor: "#D97706", textColor: "#FFFFFF" }
+    : status === "delivered" ? { bgColor: "#0891B2", textColor: "#FFFFFF" }
     : status === "task_completed" ? { bgColor: "#8B5CF6", textColor: "#FFFFFF" }
     : status === "dispatched" ? { bgColor: "#16A34A", textColor: "#FFFFFF" }
     : status === "inquiry" ? { bgColor: "#2563EB", textColor: "#FFFFFF" }
@@ -553,6 +557,8 @@ export default function CaseDetailPage() {
   const isInquiry = caseData.status === "inquiry";
   const isDispatched = caseData.status === "dispatched";
   const isTaskCompleted = caseData.status === "task_completed";
+  const isDelivered = caseData.status === "delivered";
+  const isFeedback = caseData.status === "feedback";
   const isFinalized = caseData.status === "finalized";
   const isMember = currentRole === "member";
   const isPmOrAbove = currentRole === "pm" || currentRole === "executive";
@@ -602,6 +608,21 @@ export default function CaseDetailPage() {
     toast({ title: "已取消指派" });
   };
 
+  const handleRevertToDispatched = () => {
+    save({ status: "dispatched" as CaseStatus });
+    toast({ title: "已退回修正" });
+  };
+
+  const handleDelivered = () => {
+    save({ status: "delivered" as CaseStatus });
+    toast({ title: "已交件完畢" });
+  };
+
+  const handleFeedback = () => {
+    save({ status: "feedback" as CaseStatus });
+    toast({ title: "處理回饋中" });
+  };
+
   const isCurrentUserTranslator = (() => {
     const displayName = profile?.display_name || "";
     return displayName && (caseData.translator || []).includes(displayName);
@@ -638,6 +659,7 @@ export default function CaseDetailPage() {
           >
             新增案件頁面
           </Button>
+          {/* Left-side grey button */}
           {isInquiry && isPmOrAbove ? (
             <Button
               size="sm"
@@ -656,17 +678,26 @@ export default function CaseDetailPage() {
             >
               取消指派
             </Button>
-          ) : !isInquiry && !isDispatched ? (
+          ) : (isTaskCompleted || isDelivered) && isPmOrAbove ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] text-white hover:opacity-80"
               style={{ backgroundColor: '#6B7280' }}
-              disabled={isFinalized || caseData.status === "task_completed"}
+              onClick={handleRevertToDispatched}
+            >
+              退回修正
+            </Button>
+          ) : isDraft ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] text-white hover:opacity-80"
+              style={{ backgroundColor: '#6B7280' }}
               onClick={() => setDeleteOpen(true)}
             >
               刪除
             </Button>
           ) : null}
+          {/* Right-side primary button */}
           {isDraft && isPmOrAbove ? (
             <Button
               size="sm"
@@ -713,6 +744,22 @@ export default function CaseDetailPage() {
             >
               任務完成
             </Button>
+          ) : isTaskCompleted && isPmOrAbove ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleDelivered}
+            >
+              交件完畢
+            </Button>
+          ) : isDelivered && isPmOrAbove ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleFeedback}
+            >
+              處理回饋
+            </Button>
           ) : null}
         </div>
       </div>
@@ -746,7 +793,7 @@ export default function CaseDetailPage() {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <Field label="譯者">
-            {(isDispatched || isTaskCompleted || isFinalized) ? (
+            {(isDispatched || isTaskCompleted || isDelivered || isFeedback || isFinalized) ? (
               <div className="flex items-center gap-1 flex-wrap min-h-[32px] px-2 py-1 rounded-md bg-muted/50 border border-border">
                 {(caseData.translator || []).length > 0
                   ? (caseData.translator || []).map((t, i) => (
