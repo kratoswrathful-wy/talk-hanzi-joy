@@ -60,6 +60,7 @@ export default function ClientInfoSection({
   onFirstFeeConflict,
   linkedClientInvoices = [],
   onClientPriceEntered,
+  isInClientInvoice = false,
 }: ClientInfoSectionProps) {
   const [showUncheckWarning, setShowUncheckWarning] = useState(false);
   const clientPriceOnFocusRef = useRef<Record<string, number>>({});
