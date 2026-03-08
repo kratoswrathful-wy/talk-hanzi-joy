@@ -1954,7 +1954,9 @@ export default function TranslatorFeeDetail() {
                         稿費總額
                       </TableCell>
                       <TableCell className="text-right text-sm font-bold">
-                        {totalAmount.toLocaleString()}
+                        <Tooltip><TooltipTrigger asChild>
+                          <span className="cursor-default">{totalAmount.toLocaleString()}</span>
+                        </TooltipTrigger><TooltipContent className="text-xs">自動計算/填入</TooltipContent></Tooltip>
                       </TableCell>
                       <TableCell />
                     </TableRow>

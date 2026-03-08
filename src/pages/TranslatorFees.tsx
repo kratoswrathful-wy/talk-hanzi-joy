@@ -158,7 +158,11 @@ const allColumnDefs: ColumnDef[] = [
     minWidth: 80,
     render: (f) => {
       const total = f.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
-      return <span className="text-sm tabular-nums">{formatCurrency(total)}</span>;
+      return (
+        <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+          <span className="text-sm tabular-nums cursor-default">{formatCurrency(total)}</span>
+        </TooltipTrigger><TooltipContent className="text-xs">自動計算/填入</TooltipContent></Tooltip></TooltipProvider>
+      );
     },
   },
   {
@@ -224,7 +228,11 @@ const allColumnDefs: ColumnDef[] = [
     render: (f) => {
       if (!f.clientInfo || f.clientInfo.notFirstFee) return <span className="text-sm text-muted-foreground">N/A</span>;
       const rev = f.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
-      return <span className="text-sm tabular-nums">{formatCurrency(rev)}</span>;
+      return (
+        <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+          <span className="text-sm tabular-nums cursor-default">{formatCurrency(rev)}</span>
+        </TooltipTrigger><TooltipContent className="text-xs">自動計算/填入</TooltipContent></Tooltip></TooltipProvider>
+      );
     },
   },
   {
@@ -237,7 +245,11 @@ const allColumnDefs: ColumnDef[] = [
       const rev = f.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
       const cost = f.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
       const p = rev - cost;
-      return <span className={cn("text-sm tabular-nums font-medium", p >= 0 ? "text-success" : "text-destructive")}>{formatCurrency(p)}</span>;
+      return (
+        <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+          <span className={cn("text-sm tabular-nums font-medium cursor-default", p >= 0 ? "text-success" : "text-destructive")}>{formatCurrency(p)}</span>
+        </TooltipTrigger><TooltipContent className="text-xs">自動計算/填入</TooltipContent></Tooltip></TooltipProvider>
+      );
     },
   },
   {
