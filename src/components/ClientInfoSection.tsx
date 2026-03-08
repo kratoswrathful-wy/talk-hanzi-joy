@@ -78,7 +78,20 @@ export default function ClientInfoSection({
   const [showUncheckWarning, setShowUncheckWarning] = useState(false);
   const [showInvoiceNavPrompt, setShowInvoiceNavPrompt] = useState<{ invoiceId: string } | null>(null);
   const invoiceNavPromptRef = useRef<HTMLButtonElement>(null);
+  const invoiceNavPromptContainerRef = useRef<HTMLDivElement>(null);
   const clientPriceOnFocusRef = useRef<Record<string, number>>({});
+
+  // Click-outside to dismiss prompt
+  useEffect(() => {
+    if (!showInvoiceNavPrompt) return;
+    const handleClick = (e: MouseEvent) => {
+      if (invoiceNavPromptContainerRef.current && !invoiceNavPromptContainerRef.current.contains(e.target as Node)) {
+        setShowInvoiceNavPrompt(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showInvoiceNavPrompt]);
   const storeSnapshot = useSyncExternalStore(selectOptionsStore.subscribe, selectOptionsStore.getSnapshot);
   const assigneeOptions = storeSnapshot.assignee.options;
 
