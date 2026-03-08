@@ -1,31 +1,24 @@
 import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Paperclip, ExternalLink, Lock } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { usePermissions } from "@/hooks/use-permissions";
 
-/** Check if a route is accessible based on module permissions */
+/** Check if a route is accessible based on user role */
 function useRouteAccessChecker() {
   const { primaryRole } = useAuth();
-  const { checkPerm } = usePermissions();
+  const isMember = primaryRole === "member";
+  const isPm = primaryRole === "pm";
 
   return (route: string): boolean => {
-    // Client invoices → client_invoices module
-    if (route.startsWith("/client-invoices/")) {
-      return checkPerm("client_invoices", "page", "view");
+    // Members cannot access fees, client invoices, or internal notes
+    if (isMember) {
+      if (route.startsWith("/fees/") || route.startsWith("/fees?")) return false;
+      if (route.startsWith("/client-invoices/") || route.startsWith("/client-invoices?")) return false;
+      if (route.startsWith("/internal-notes")) return false;
     }
-    // Translator invoices
-    if (route.startsWith("/invoices/")) {
-      return checkPerm("invoices", "page", "view");
+    // PMs cannot access permissions page
+    if (isPm) {
+      if (route.startsWith("/permissions")) return false;
     }
-    // Fees
-    if (route.startsWith("/fees/")) {
-      return checkPerm("fees", "page", "view");
-    }
-    // Internal notes
-    if (route.startsWith("/internal-notes")) {
-      return checkPerm("internal_notes", "page", "view");
-    }
-    // Cases and others are generally accessible
     return true;
   };
 }
