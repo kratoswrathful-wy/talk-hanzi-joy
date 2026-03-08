@@ -1334,7 +1334,7 @@ export default function TranslatorFeeDetail() {
                   </Button>
                 </span>
               </TooltipTrigger>
-              {linkedTranslatorInvoices.length > 0 && <TooltipContent>此費用已列入稿費請款單，無法收回</TooltipContent>}
+              {linkedTranslatorInvoices.length > 0 && <TooltipContent>此費用已列入稿費請款單，不得收回</TooltipContent>}
             </Tooltip>
           )}
         </div>
