@@ -14,7 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { Check, Plus, X } from "lucide-react";
+import { Check, Pipette, Plus, X } from "lucide-react";
 
 interface ColorPickerProps {
   value: string;
@@ -404,6 +404,32 @@ export default function ColorPicker({
                 className="h-8 text-xs font-mono flex-1"
                 placeholder="#FF0000"
               />
+              {"EyeDropper" in window && (
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 shrink-0 p-0"
+                        onClick={async () => {
+                          try {
+                            const dropper = new (window as any).EyeDropper();
+                            const result = await dropper.open();
+                            const hex = result.sRGBHex.toUpperCase();
+                            setHexInput(hex);
+                            setHsv(hexToHsv(hex));
+                            onChange(hex);
+                          } catch {}
+                        }}
+                      >
+                        <Pipette className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="text-xs">擷取螢幕顏色</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               {onAddCustomColor && (
                 <Button
                   variant="outline"
