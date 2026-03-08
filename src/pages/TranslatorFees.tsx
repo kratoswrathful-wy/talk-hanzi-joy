@@ -425,7 +425,7 @@ function TranslatorInvoiceStatus({ feeId }: { feeId: string }) {
   const labelMap: Record<string, string> = { pending: "待付款", partial: "部份付款", paid: "已付款" };
   return (
     <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-      <Badge variant="outline" className="text-xs whitespace-nowrap cursor-default">{labelMap[linked.status] || linked.status}</Badge>
+      <span className="cursor-default"><Badge variant="outline" className="text-xs whitespace-nowrap">{labelMap[linked.status] || linked.status}</Badge></span>
     </TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip></TooltipProvider>
   );
 }
