@@ -601,6 +601,7 @@ function RolePermissionPanel({
                               items={section.items}
                               onToggle={(permType, value) => onToggleSectionPerms(roleKey, mod.key, section.items, permType, value)}
                               onToggleVisible={(v) => onToggleSectionPerms(roleKey, mod.key, section.items, "view", v)}
+                              onSetViewOnly={() => onSetSectionViewOnly(roleKey, mod.key, section.items)}
                             />
                           </div>
                           <div>
