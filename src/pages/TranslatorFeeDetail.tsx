@@ -1448,7 +1448,11 @@ export default function TranslatorFeeDetail() {
                   const inv = linkedTranslatorInvoices.length > 0 ? allInvoices.find((i) => i.id === linkedTranslatorInvoices[0].id) : null;
                   if (!inv) return <span className="text-sm text-muted-foreground">尚未請款</span>;
                   const labelMap: Record<string, string> = { pending: "待付款", partial: "部份付款", paid: "已付款" };
-                  return <Badge variant="outline" className="text-xs">{labelMap[inv.status] || inv.status}</Badge>;
+                  return (
+                    <Tooltip><TooltipTrigger asChild>
+                      <Badge variant="outline" className="text-xs cursor-default">{labelMap[inv.status] || inv.status}</Badge>
+                    </TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip>
+                  );
                 })()}
               </div>
             </div>
