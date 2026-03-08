@@ -161,8 +161,18 @@ function NoteDetailView({
 
 /* ── Main page ── */
 export default function InternalNotesPage() {
-  const [notes, setNotes] = useState<InternalNote[]>([]);
+  const notes = useInternalNotes();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Auto-open note if ?noteId= is in URL
+  useEffect(() => {
+    const noteId = searchParams.get("noteId");
+    if (noteId && notes.find((n) => n.id === noteId)) {
+      setSelectedId(noteId);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, notes]);
 
   const tableViews = useInternalNotesTableViews("executive");
   const { activeView } = tableViews;
