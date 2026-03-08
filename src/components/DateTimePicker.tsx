@@ -419,5 +419,31 @@ export default function DateTimePicker({
         </div>
       </PopoverContent>
     </Popover>
+
+    <AlertDialog open={!!validationMsg} onOpenChange={() => {}}>
+      <AlertDialogContent className="max-w-sm">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="h-5 w-5" />
+            輸入格式錯誤
+          </AlertDialogTitle>
+          <AlertDialogDescription>{validationMsg}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogAction
+            onClick={() => {
+              setValidationMsg(null);
+              setTimeout(() => {
+                if (dateError) dateRef.current?.focus();
+                else if (timeError) timeRef.current?.focus();
+              }, 50);
+            }}
+          >
+            返回修正
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
