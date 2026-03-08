@@ -475,24 +475,22 @@ export default function ClientInfoSection({
                   <TableCell className="text-right text-xs font-medium">
                     {clientInfo.notFirstFee ? <span className="text-muted-foreground">N/A</span> : (Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
                   </TableCell>
-                  {canEdit && (
-                    <TableCell className="px-2">
-                      <div className="flex justify-center">
-                        {!clientInfo.reconciled && !clientItemsLocked && clientInfo.clientTaskItems.length > 1 ? (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            onClick={() => removeItem(item.id)}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        ) : (
-                          <div className="h-7 w-7" />
-                        )}
-                      </div>
-                    </TableCell>
-                  )}
+                  <TableCell className="px-2">
+                    <div className="flex justify-center">
+                      {canEdit && !clientInfo.reconciled && !clientItemsLocked && clientInfo.clientTaskItems.length > 1 ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={() => removeItem(item.id)}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : (
+                        <div className="h-7 w-7" />
+                      )}
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
