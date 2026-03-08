@@ -45,6 +45,7 @@ const caseStatusLabels: Record<CaseStatus, string> = {
 function CaseStatusBadge({ status }: { status: CaseStatus }) {
   const labelStyles = useLabelStyles();
   const style = status === "finalized" ? labelStyles.statusFinalized
+    : status === "dispatched" ? { bgColor: "#16A34A", textColor: "#FFFFFF" }
     : status === "inquiry" ? { bgColor: "#2563EB", textColor: "#FFFFFF" }
     : labelStyles.statusDraft;
   return (
