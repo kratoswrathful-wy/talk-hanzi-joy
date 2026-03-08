@@ -290,6 +290,20 @@ const allColumnDefs: ColumnDef[] = [
     ),
   },
   {
+    key: "translatorInvoiceStatus",
+    label: "稿費請款狀態",
+    minWidth: 90,
+    managerOnly: true,
+    render: (f) => <TranslatorInvoiceStatus feeId={f.id} />,
+  },
+  {
+    key: "clientInvoiceStatus",
+    label: "客戶請款狀態",
+    minWidth: 90,
+    managerOnly: true,
+    render: (f) => <ClientInvoiceStatusCell feeId={f.id} />,
+  },
+  {
     key: "invoice",
     label: "請款單",
     minWidth: 80,
