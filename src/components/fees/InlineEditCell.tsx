@@ -20,7 +20,7 @@ interface Props {
   children: React.ReactNode;
 }
 
-export function InlineEditCell({ value, type, options, fieldKey, editable, onCommit, className, children }: Props) {
+export function InlineEditCell({ value, type, options, fieldKey, editable, lockedTooltip, onCommit, className, children }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value));
   const inputRef = useRef<HTMLInputElement>(null);
