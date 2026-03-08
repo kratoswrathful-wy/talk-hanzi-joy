@@ -111,6 +111,14 @@ function initDefaults() {
       ],
       customColors: [],
     },
+    caseCategory: {
+      options: [
+        { id: "opt-cc1", label: "筆譯", color: PRESET_COLORS[6] },
+        { id: "opt-cc2", label: "口譯", color: PRESET_COLORS[4] },
+      ],
+      customColors: [],
+      manualOrder: true,
+    },
   };
 }
 

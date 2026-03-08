@@ -72,6 +72,11 @@ export const labelStyleStore = {
     notify();
   },
 
+  setCaseCategoryTextColor: (color: string) => {
+    state = { ...state, caseCategory: { ...state.caseCategory, textColor: color } };
+    notify();
+  },
+
   setStatusDraftStyle: (updates: Partial<StatusStyle>) => {
     state = { ...state, statusDraft: { ...state.statusDraft, ...updates } };
     notify();
