@@ -315,14 +315,14 @@ export default function InternalNotesPage() {
   // Delete
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const handleDeleteSelected = useCallback(() => {
-    setNotes((prev) => prev.filter((n) => !rowSelection.selectedIds.has(n.id)));
+    internalNotesStore.removeMany(rowSelection.selectedIds);
     rowSelection.deselectAll();
     setShowDeleteConfirm(false);
   }, [rowSelection]);
 
   const handleCreate = () => {
     const n = emptyNote();
-    setNotes([n, ...notes]);
+    internalNotesStore.add(n);
     setSelectedId(n.id);
   };
 
