@@ -49,6 +49,7 @@ const caseStatusLabels: Record<CaseStatus, string> = {
 function CaseStatusBadge({ status }: { status: CaseStatus }) {
   const labelStyles = useLabelStyles();
   const style = status === "finalized" ? labelStyles.statusFinalized
+    : status === "feedback_completed" ? { bgColor: "#EA580C", textColor: "#FFFFFF" }
     : status === "feedback" ? { bgColor: "#D97706", textColor: "#FFFFFF" }
     : status === "delivered" ? { bgColor: "#0891B2", textColor: "#FFFFFF" }
     : status === "task_completed" ? { bgColor: "#8B5CF6", textColor: "#FFFFFF" }
