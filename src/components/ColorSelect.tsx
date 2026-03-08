@@ -276,7 +276,7 @@ export default function ColorSelect({
                           onClick={(e) => { e.stopPropagation(); onValueChange(""); setOpen(false); }}
                           title="取消選取"
                         >
-                          <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                          <X className="h-3 w-3 text-foreground/60 hover:text-destructive" />
                         </span>
                       )}
                     </span>
