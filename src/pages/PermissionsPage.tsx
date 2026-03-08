@@ -189,6 +189,28 @@ const PERMISSION_MODULES: PermissionModule[] = [
     ],
   },
   {
+    key: "case_management",
+    label: "案件管理",
+    listItems: [
+      { key: "case_list_view", label: "檢視案件清單", type: "both" },
+      { key: "case_list_create", label: "新增案件", type: "both", attribute: "按鈕" },
+      { key: "case_list_delete", label: "刪除", type: "both", attribute: "按鈕" },
+    ],
+    detailSections: [
+      {
+        label: "案件基本資訊",
+        items: [
+          { key: "case_detail_title", label: "案件編號", type: "both", attribute: "文字" },
+          { key: "case_detail_category", label: "類型", type: "both", attribute: "單選" },
+          { key: "case_detail_workType", label: "工作類型", type: "both", attribute: "單選" },
+          { key: "case_detail_taskStatus", label: "任務狀態", type: "both", attribute: "單選" },
+          { key: "case_detail_translator", label: "譯者", type: "both", attribute: "人員" },
+          { key: "case_detail_reviewer", label: "審稿人員", type: "both", attribute: "人員" },
+        ],
+      },
+    ],
+  },
+  {
     key: "team_members",
     label: "團隊成員",
     listItems: [
