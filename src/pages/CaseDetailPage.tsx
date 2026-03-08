@@ -202,34 +202,36 @@ function ToolInstance({
       </div>
 
       {/* Conflict resolution dialog */}
-      <AlertDialog open={!!conflictTpl} onOpenChange={(v) => { if (!v) { setConflictTpl(null); setConflictFields([]); } }}>
+      <AlertDialog open={!!conflictTpl} onOpenChange={(v) => { if (!v) { setConflictTpl(null); setConflictFields([]); setConflictChoices({}); } }}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle>欄位內容衝突</AlertDialogTitle>
             <AlertDialogDescription>
-              套用範本「{conflictTpl?.name}」將會覆蓋以下已填寫的欄位，請選擇要保留的版本：
+              套用範本「{conflictTpl?.name}」將會覆蓋以下已填寫的欄位，請勾選要使用範本版本的欄位：
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-3 py-2 max-h-60 overflow-y-auto">
             {conflictFields.map((cf) => (
-              <div key={cf.id} className="rounded-md border border-border p-2 space-y-1">
-                <p className="text-xs font-medium text-foreground">{cf.label}</p>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="text-muted-foreground">目前：</span>
-                    <span className="ml-1">{cf.current}</span>
+              <label key={cf.id} className="flex items-start gap-3 rounded-md border border-border p-3 cursor-pointer hover:bg-secondary/20 transition-colors">
+                <Checkbox
+                  checked={!!conflictChoices[cf.id]}
+                  onCheckedChange={(v) => setConflictChoices((prev) => ({ ...prev, [cf.id]: !!v }))}
+                  className="mt-0.5"
+                />
+                <div className="flex-1 space-y-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground">{cf.label}</p>
+                  <div className="text-xs text-muted-foreground">
+                    目前：<span className="text-foreground ml-1">{cf.current}</span>
                   </div>
-                  <div>
-                    <span className="text-muted-foreground">範本：</span>
-                    <span className="ml-1">{cf.incoming}</span>
+                  <div className="text-xs text-muted-foreground">
+                    範本：<span className="text-foreground ml-1">{cf.incoming}</span>
                   </div>
                 </div>
-              </div>
+              </label>
             ))}
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={keepCurrent}>保留目前內容</AlertDialogCancel>
-            <AlertDialogAction onClick={() => conflictTpl && applyTemplate(conflictTpl)}>套用範本內容</AlertDialogAction>
+            <AlertDialogAction onClick={handleConflictConfirm}>確定</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
