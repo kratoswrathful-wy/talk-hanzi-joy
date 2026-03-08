@@ -708,7 +708,7 @@ function BillingUnitOrderSection() {
                     customColors={customColors}
                     onAddCustomColor={(c) => selectOptionsStore.addCustomColor("billingUnit", c)}
                     onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("billingUnit", c)}
-                    colorUsageMap={{}}
+                    colorUsageMap={getColorUsageMap(billingUnitOptions)}
                   />
                 </PopoverContent>
               </Popover>
