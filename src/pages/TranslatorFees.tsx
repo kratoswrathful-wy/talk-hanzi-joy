@@ -421,7 +421,7 @@ function DispatchRouteLabel({ value }: { value: string }) {
 function TranslatorInvoiceStatus({ feeId }: { feeId: string }) {
   const invoices = useInvoices();
   const linked = invoices.find((inv) => inv.feeIds.includes(feeId));
-  if (!linked) return <span className="text-sm text-muted-foreground">尚未請款</span>;
+  if (!linked) return <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-sm text-muted-foreground cursor-default">尚未請款</span></TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip></TooltipProvider>;
   const labelMap: Record<string, string> = { pending: "待付款", partial: "部份付款", paid: "已付款" };
   return (
     <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
@@ -433,7 +433,7 @@ function TranslatorInvoiceStatus({ feeId }: { feeId: string }) {
 function ClientInvoiceStatusCell({ feeId }: { feeId: string }) {
   const invoices = useClientInvoices();
   const linked = invoices.find((inv) => inv.feeIds.includes(feeId));
-  if (!linked) return <span className="text-sm text-muted-foreground">尚未請款</span>;
+  if (!linked) return <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-sm text-muted-foreground cursor-default">尚未請款</span></TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip></TooltipProvider>;
   const labelMap: Record<string, string> = { pending: "待收款", partial: "部份到帳", paid: "全額收齊" };
   return (
     <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
