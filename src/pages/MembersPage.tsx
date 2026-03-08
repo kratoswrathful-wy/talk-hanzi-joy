@@ -382,18 +382,36 @@ export default function MembersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Remove Confirmation */}
-      <AlertDialog open={!!removeTarget} onOpenChange={(open) => !open && setRemoveTarget(null)}>
+      {/* Remove Confirmation - Step 1 */}
+      <AlertDialog open={!!removeTarget && removeStep === 1} onOpenChange={(open) => { if (!open) { setRemoveTarget(null); setRemoveStep(1); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>確認移除</AlertDialogTitle>
             <AlertDialogDescription>
-              確定要移除 {removeTarget?.display_name || removeTarget?.email} 嗎？此操作無法復原。
+              確定要移除 {removeTarget?.display_name || removeTarget?.email} 嗎？
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRemove}>確認移除</AlertDialogAction>
+            <AlertDialogAction onClick={handleRemoveStep1}>確認</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Remove Confirmation - Step 2 */}
+      <AlertDialog open={!!removeTarget && removeStep === 2} onOpenChange={(open) => { if (!open) { setRemoveTarget(null); setRemoveStep(1); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>再次確認</AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作無法復原。確定要永久移除 {removeTarget?.display_name || removeTarget?.email} 嗎？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRemove} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              確認移除
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
