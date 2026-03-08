@@ -321,7 +321,7 @@ export default function InvoiceDetailPage() {
     if (removeFeeId) {
       invoiceStore.removeFeeFromInvoice(invoice.id, removeFeeId);
       const fee = fees.find((f) => f.id === removeFeeId);
-      trackChange("費用", fee?.title || removeFeeId, "已移除");
+      trackChange("費用", fee?.title || "未命名費用", "已移除");
       setRemoveFeeId(null);
     }
   };
