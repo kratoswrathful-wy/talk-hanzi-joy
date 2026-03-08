@@ -641,7 +641,17 @@ export default function CaseDetailPage() {
 
   const handleDuplicate = async () => {
     const dup = await caseStore.duplicate(caseData.id);
-    if (dup) navigate(`/cases/${dup.id}`);
+    if (dup) {
+      // Clear specified fields on the duplicated case
+      await caseStore.update(dup.id, {
+        translator: [],
+        unitCount: 0,
+        translationDeadline: null,
+        reviewDeadline: null,
+        caseReferenceMaterials: [],
+      });
+      navigate(`/cases/${dup.id}`);
+    }
   };
 
   const handleNewCase = async () => {
