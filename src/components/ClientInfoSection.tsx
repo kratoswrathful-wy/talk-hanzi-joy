@@ -339,7 +339,7 @@ export default function ClientInfoSection({
 
           {/* Client invoice navigation prompt */}
           {showInvoiceNavPrompt && (
-            <div className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+            <div ref={invoiceNavPromptContainerRef} className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
               <span className="text-xs text-foreground">是否前往客戶請款單？</span>
               <div className="flex items-center gap-1.5">
                 <Button

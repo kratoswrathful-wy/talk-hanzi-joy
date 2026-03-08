@@ -1815,7 +1815,7 @@ export default function TranslatorFeeDetail() {
 
           {/* Invoice navigation prompt after adding to invoice */}
           {showInvoiceNavPrompt && showInvoiceNavPrompt.type === 'translator' && (
-            <div className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+            <div ref={invoiceNavPromptContainerRef} className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
               <span className="text-xs text-foreground">是否前往稿費請款單？</span>
               <div className="flex items-center gap-1.5">
                 <Button
