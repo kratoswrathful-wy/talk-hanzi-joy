@@ -218,13 +218,14 @@ export default function ClientInfoSection({
                     <Checkbox
                       id="reconciled"
                       checked={clientInfo.reconciled}
-                      disabled={isInClientInvoice}
+                      disabled={isInClientInvoice || !clientInfo.client}
                       onCheckedChange={(checked) => update("reconciled", !!checked)}
                     />
-                    <Label htmlFor="reconciled" className={`text-xs cursor-pointer whitespace-nowrap ${isInClientInvoice ? 'text-muted-foreground/50' : ''}`}>對帳完成</Label>
+                    <Label htmlFor="reconciled" className={`text-xs cursor-pointer whitespace-nowrap ${isInClientInvoice || !clientInfo.client ? 'text-muted-foreground/50' : ''}`}>對帳完成</Label>
                   </div>
                 </TooltipTrigger>
-                {isInClientInvoice && <TooltipContent>此費用已列入客戶請款單，無法修改對帳狀態</TooltipContent>}
+                {!clientInfo.client && <TooltipContent>客戶欄為空白，無法對帳</TooltipContent>}
+                {clientInfo.client && isInClientInvoice && <TooltipContent>此費用已列入客戶請款單，無法修改對帳狀態</TooltipContent>}
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
