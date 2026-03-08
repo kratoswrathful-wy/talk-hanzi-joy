@@ -16,6 +16,7 @@ export interface CaseRecord {
   id: string;
   title: string;
   status: CaseStatus;
+  category: string;
   workType: string[];
   processNote: string;
   billingUnit: string;
