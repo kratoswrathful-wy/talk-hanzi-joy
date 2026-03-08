@@ -2,6 +2,7 @@
  * 內部註記 — full table view with FilterSortToolbar matching fee management pattern.
  */
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { toast } from "sonner";
 import { Plus, ExternalLink, Trash2, GripVertical } from "lucide-react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
