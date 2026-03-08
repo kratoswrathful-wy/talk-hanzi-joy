@@ -166,6 +166,8 @@ export default function TranslatorFeeDetail() {
   const [internalComments, setInternalComments] = useState<CommentEntry[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
   const [internalCommentDraft, setInternalCommentDraft] = useState("");
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [internalReplyingTo, setInternalReplyingTo] = useState<string | null>(null);
   const [notionLoading, setNotionLoading] = useState(false);
   const [isNoFeeTranslator, setIsNoFeeTranslator] = useState(false);
   const [creatorName, setCreatorName] = useState(feeData?.createdBy || "");

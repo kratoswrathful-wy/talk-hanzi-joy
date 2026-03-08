@@ -142,6 +142,7 @@ export default function ClientInvoiceDetailPage() {
   // Comments
   const [comments, setComments] = useState<CommentEntry[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
   // Edit history
   const [editLog, setEditLog] = useState<EditLogEntry[]>([]);

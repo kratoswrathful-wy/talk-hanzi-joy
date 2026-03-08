@@ -148,6 +148,8 @@ export default function InvoiceDetailPage() {
   const [internalComments, setInternalComments] = useState<CommentEntry[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
   const [internalCommentDraft, setInternalCommentDraft] = useState("");
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [internalReplyingTo, setInternalReplyingTo] = useState<string | null>(null);
 
   // Edit history
   const [editLog, setEditLog] = useState<EditLogEntry[]>([]);
