@@ -219,9 +219,18 @@ export default function FileField({ value, onChange }: FileFieldProps) {
       {/* Upload progress */}
       {uploading && (
         <div className="space-y-1 px-1">
-          <span className="text-xs text-muted-foreground">
-            正在上傳第 {uploadProgress + 1}/{uploadTotal} 個檔案（{formatBytes(uploadedBytes)}/{formatBytes(totalBytes)}）
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground flex-1">
+              正在上傳第 {uploadProgress + 1}/{uploadTotal} 個檔案（{formatBytes(uploadedBytes)}/{formatBytes(totalBytes)}）
+            </span>
+            <button
+              onClick={() => { cancelRef.current = true; setUploading(false); }}
+              className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0"
+              title="取消上傳"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
           <Progress value={(uploadedBytes / totalBytes) * 100} className="h-2" />
         </div>
       )}
