@@ -171,4 +171,11 @@ supabase.auth.onAuthStateChange(() => {
   reset();
 });
 
-export const caseStore = { load, getAll, getById, create, update, remove, subscribe, reset };
+async function duplicate(id: string): Promise<CaseRecord | null> {
+  const source = cases.find((c) => c.id === id);
+  if (!source) return null;
+  const { id: _id, createdAt, updatedAt, createdBy, ...rest } = source;
+  return create({ ...rest, title: `${source.title} (複製)` });
+}
+
+export const caseStore = { load, getAll, getById, create, update, remove, duplicate, subscribe, reset };

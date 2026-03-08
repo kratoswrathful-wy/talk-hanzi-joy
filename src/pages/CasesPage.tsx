@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Plus, GripVertical, ExternalLink, Trash2 } from "lucide-react";
+import { Plus, GripVertical, ExternalLink, Trash2, Copy } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
@@ -401,6 +401,21 @@ export default function CasesPage() {
         {rowSelection.selectedCount > 0 && (
           <>
             <span className="text-xs text-muted-foreground">已選取 {rowSelection.selectedCount} 個項目</span>
+            {rowSelection.selectedCount === 1 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 gap-1 text-muted-foreground"
+                onClick={async () => {
+                  const id = Array.from(rowSelection.selectedIds)[0];
+                  const newCase = await caseStore.duplicate(id);
+                  if (newCase) navigate(`/cases/${newCase.id}`);
+                }}
+              >
+                <Copy className="h-4 w-4" />
+                複製本單
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
