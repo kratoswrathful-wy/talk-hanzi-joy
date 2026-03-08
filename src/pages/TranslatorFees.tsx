@@ -664,7 +664,7 @@ export default function TranslatorFees() {
   const undoRedo = useUndoRedo({ onApply: applyUndoEntry });
 
   // Inline edit commit: applies to selected fees if multiple selected, otherwise just the one
-  const handleCellCommit = useCallback((feeId: string, field: string, value: string | boolean) => {
+  const handleCellCommit = useCallback((feeId: string, field: string, value: string | boolean | string[]) => {
     const targetIds = rowSelection.selectedIds.has(feeId) && rowSelection.selectedCount > 1
       ? Array.from(rowSelection.selectedIds)
       : [feeId];
