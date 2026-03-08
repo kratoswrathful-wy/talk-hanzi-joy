@@ -25,7 +25,7 @@ function fromDb(row: any): CaseRecord {
     billingUnit: row.billing_unit ?? "",
     unitCount: Number(row.unit_count) || 0,
     inquiryNote: row.inquiry_note ?? "",
-    translator: row.translator ?? "",
+    translator: Array.isArray(row.translator) ? row.translator as string[] : row.translator ? [row.translator as string] : [],
     translationDeadline: row.translation_deadline,
     reviewer: row.reviewer ?? "",
     reviewDeadline: row.review_deadline,
