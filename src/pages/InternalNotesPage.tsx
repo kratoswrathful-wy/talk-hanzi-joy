@@ -164,7 +164,7 @@ function NoteDetailView({
       creator: profile?.display_name || "",
       status: note.status,
       noteType: note.noteType,
-      internalAssignee: reviewer,
+      internalAssignee: reviewer ? [reviewer] : [],
       fileName: note.fileName,
       idRowCount: note.idRowCount,
       sourceText: note.sourceText,
