@@ -35,6 +35,132 @@ export type Database = {
         }
         Relationships: []
       }
+      cases: {
+        Row: {
+          billing_unit: string
+          category: string
+          client_guidelines: string
+          client_question_form: boolean
+          client_receipt: string
+          common_info: Json
+          created_at: string
+          created_by: string | null
+          custom_guidelines_url: string
+          delivery_method: string
+          env: string
+          execution_tool: string
+          fee_entry: string
+          id: string
+          inquiry_note: string
+          internal_note_form: boolean
+          internal_records: Json
+          internal_review_final: Json
+          login_account: string
+          login_password: string
+          online_tool_filename: string
+          online_tool_project: string
+          other_login_info: string
+          process_note: string
+          question_form: string
+          reference_materials: Json
+          review_deadline: string | null
+          reviewer: string
+          source_files: Json
+          task_status: string
+          title: string
+          track_changes: string
+          translation_deadline: string | null
+          translator: string
+          translator_final: Json
+          unit_count: number
+          updated_at: string
+          work_type: string
+          working_files: Json
+        }
+        Insert: {
+          billing_unit?: string
+          category?: string
+          client_guidelines?: string
+          client_question_form?: boolean
+          client_receipt?: string
+          common_info?: Json
+          created_at?: string
+          created_by?: string | null
+          custom_guidelines_url?: string
+          delivery_method?: string
+          env?: string
+          execution_tool?: string
+          fee_entry?: string
+          id?: string
+          inquiry_note?: string
+          internal_note_form?: boolean
+          internal_records?: Json
+          internal_review_final?: Json
+          login_account?: string
+          login_password?: string
+          online_tool_filename?: string
+          online_tool_project?: string
+          other_login_info?: string
+          process_note?: string
+          question_form?: string
+          reference_materials?: Json
+          review_deadline?: string | null
+          reviewer?: string
+          source_files?: Json
+          task_status?: string
+          title?: string
+          track_changes?: string
+          translation_deadline?: string | null
+          translator?: string
+          translator_final?: Json
+          unit_count?: number
+          updated_at?: string
+          work_type?: string
+          working_files?: Json
+        }
+        Update: {
+          billing_unit?: string
+          category?: string
+          client_guidelines?: string
+          client_question_form?: boolean
+          client_receipt?: string
+          common_info?: Json
+          created_at?: string
+          created_by?: string | null
+          custom_guidelines_url?: string
+          delivery_method?: string
+          env?: string
+          execution_tool?: string
+          fee_entry?: string
+          id?: string
+          inquiry_note?: string
+          internal_note_form?: boolean
+          internal_records?: Json
+          internal_review_final?: Json
+          login_account?: string
+          login_password?: string
+          online_tool_filename?: string
+          online_tool_project?: string
+          other_login_info?: string
+          process_note?: string
+          question_form?: string
+          reference_materials?: Json
+          review_deadline?: string | null
+          reviewer?: string
+          source_files?: Json
+          task_status?: string
+          title?: string
+          track_changes?: string
+          translation_deadline?: string | null
+          translator?: string
+          translator_final?: Json
+          unit_count?: number
+          updated_at?: string
+          work_type?: string
+          working_files?: Json
+        }
+        Relationships: []
+      }
       client_invoice_fees: {
         Row: {
           client_invoice_id: string
