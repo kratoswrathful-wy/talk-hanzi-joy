@@ -678,7 +678,7 @@ export default function CaseDetailPage() {
             >
               取消指派
             </Button>
-          ) : (isTaskCompleted || isDelivered) && isPmOrAbove ? (
+          ) : (isTaskCompleted || isDelivered || isFeedback) && isPmOrAbove ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] text-white hover:opacity-80"
