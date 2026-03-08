@@ -124,9 +124,11 @@ export function usePermissions() {
 
   const updateConfig = useCallback(
     async (newConfig: PermissionConfig) => {
+      const env = getEnvironment();
       const { data: existing } = await supabase
         .from("permission_settings")
         .select("id")
+        .eq("env" as any, env)
         .limit(1)
         .single();
 
@@ -139,7 +141,7 @@ export function usePermissions() {
       } else {
         ({ error } = await supabase
           .from("permission_settings")
-          .insert({ config: newConfig as any }));
+          .insert({ config: newConfig as any, env } as any));
       }
 
       if (!error) {
