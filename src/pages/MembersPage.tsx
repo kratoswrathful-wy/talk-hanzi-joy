@@ -166,6 +166,7 @@ export default function MembersPage() {
   // Drag reorder
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [profileViewerEmail, setProfileViewerEmail] = useState<string | null>(null);
 
   const canViewFrozen = checkPerm("team_members", "members_showFrozen", "view");
   const canInvite = checkPerm("team_members", "members_invite", "edit");
