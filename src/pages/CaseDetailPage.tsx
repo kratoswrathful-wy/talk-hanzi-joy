@@ -29,6 +29,25 @@ import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-store";
 
+const caseStatusLabels: Record<CaseStatus, string> = {
+  draft: "草稿",
+  finalized: "開立完成",
+};
+
+function CaseStatusBadge({ status }: { status: CaseStatus }) {
+  const labelStyles = useLabelStyles();
+  const style = status === "finalized" ? labelStyles.statusFinalized : labelStyles.statusDraft;
+  return (
+    <Badge
+      variant="default"
+      className="text-xs whitespace-nowrap border"
+      style={{ backgroundColor: style.bgColor, color: style.textColor, borderColor: style.bgColor }}
+    >
+      {caseStatusLabels[status]}
+    </Badge>
+  );
+}
+
 
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
