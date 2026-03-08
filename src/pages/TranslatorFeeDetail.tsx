@@ -1627,6 +1627,11 @@ export default function TranslatorFeeDetail() {
                   size="sm"
                   className="h-7 text-xs px-3"
                   onClick={() => {
+                    if (!assignee) {
+                      toast.error("請先選擇譯者，才能開立稿費條。");
+                      setShowFinalizePrompt(false);
+                      return;
+                    }
                     setShowFinalizePrompt(false);
                     handleSubmit();
                   }}
