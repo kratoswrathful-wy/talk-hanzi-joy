@@ -52,7 +52,7 @@ function fromDb(row: any): CaseRecord {
     questionForm: row.question_form ?? "",
     translatorFinal: Array.isArray(row.translator_final) ? row.translator_final : [],
     internalReviewFinal: Array.isArray(row.internal_review_final) ? row.internal_review_final : [],
-    trackChanges: row.track_changes ?? "",
+    trackChanges: Array.isArray(row.track_changes) ? row.track_changes : [],
     feeEntry: row.fee_entry ?? "",
     internalRecords: Array.isArray(row.internal_records) ? row.internal_records : [],
     createdBy: row.created_by,

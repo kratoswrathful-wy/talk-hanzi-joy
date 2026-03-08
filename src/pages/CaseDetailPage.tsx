@@ -504,6 +504,11 @@ export default function CaseDetailPage() {
     toast({ title: "案件已公布" });
   };
 
+  const handleRevertToDraft = () => {
+    save({ status: "draft" as CaseStatus });
+    toast({ title: "已收回為草稿" });
+  };
+
   return (
     <div className="space-y-4 max-w-3xl">
       <div className="flex items-center justify-between">
