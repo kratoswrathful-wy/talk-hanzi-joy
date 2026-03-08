@@ -48,7 +48,7 @@ export interface CaseRecord {
   questionForm: string;
   translatorFinal: { name: string; url: string }[];
   internalReviewFinal: { name: string; url: string }[];
-  trackChanges: string;
+  trackChanges: { name: string; url: string }[];
   feeEntry: string;
   internalRecords: { id: string; author: string; text: string; createdAt: string }[];
   createdBy: string | null;
