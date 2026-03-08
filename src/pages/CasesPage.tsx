@@ -344,7 +344,7 @@ export default function CasesPage() {
     setShowDeleteConfirm(false);
   }, [rowSelection]);
 
-  const handleCellCommit = useCallback((caseId: string, field: string, value: string | boolean) => {
+  const handleCellCommit = useCallback((caseId: string, field: string, value: string | boolean | string[]) => {
     const targetIds = rowSelection.selectedIds.has(caseId) && rowSelection.selectedCount > 1
       ? Array.from(rowSelection.selectedIds)
       : [caseId];
