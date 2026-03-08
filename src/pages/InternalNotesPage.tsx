@@ -192,16 +192,6 @@ function NoteDetailView({
           <Button variant="outline" size="sm" className="text-xs min-w-[88px]" onClick={handleNewSameCaseNote}>
             新增同案件註記
           </Button>
-          {!note.invalidated && (
-            <Button
-              size="sm"
-              className="text-xs min-w-[88px] text-white hover:opacity-80"
-              style={{ backgroundColor: "#6B7280" }}
-              onClick={() => setInvalidateOpen(true)}
-            >
-              本註記已失效
-            </Button>
-          )}
           <Button
             size="sm"
             className="text-xs min-w-[88px] text-white hover:opacity-80"
@@ -210,6 +200,16 @@ function NoteDetailView({
           >
             刪除
           </Button>
+          {!note.invalidated && (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] text-white hover:opacity-80"
+              style={{ backgroundColor: "#383A3F" }}
+              onClick={() => setInvalidateOpen(true)}
+            >
+              本註記已失效
+            </Button>
+          )}
         </div>
       </div>
 
