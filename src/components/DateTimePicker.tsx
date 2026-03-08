@@ -7,7 +7,6 @@ import { DayPicker } from "react-day-picker";
 import { buttonVariants } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
-import { toast } from "sonner";
 
 interface DateTimePickerProps {
   value: string | null;
@@ -142,6 +141,7 @@ export default function DateTimePicker({
 
   const [timeError, setTimeError] = useState(false);
   const [dateError, setDateError] = useState(false);
+  const [validationMsg, setValidationMsg] = useState<string | null>(null);
   const [displayMonth, setDisplayMonth] = useState<Date>(parsedDate || new Date());
 
   const dateDisplay = `${dateRolling.padded.slice(0, 2)}/${dateRolling.padded.slice(2, 4)}`;
@@ -162,6 +162,7 @@ export default function DateTimePicker({
     }
     setTimeError(false);
     setDateError(false);
+    setValidationMsg(null);
   }, [value]);
 
   const buildIso = (year: string, mmdd: string, hhmm: string): string | null => {
@@ -191,7 +192,7 @@ export default function DateTimePicker({
     const y = parseInt(yearInput) || new Date().getFullYear();
     if (mm < 1 || mm > 12 || dd < 1 || dd > getDaysInMonth(new Date(y, mm - 1))) {
       setDateError(true);
-      toast.error("日期格式不正確，月份須為 01-12，日期須為有效日");
+      setValidationMsg("日期格式不正確，月份須為 01-12，日期須為有效日");
       return false;
     }
     setDateError(false);
@@ -203,7 +204,7 @@ export default function DateTimePicker({
     const mi = parseInt(timeRolling.padded.slice(2, 4));
     if (hh > 23 || mi > 59) {
       setTimeError(true);
-      toast.error("時間格式不正確，小時須為 0-23，分鐘須為 0-59");
+      setValidationMsg("時間格式不正確，小時須為 0-23，分鐘須為 0-59");
       return false;
     }
     setTimeError(false);
@@ -333,7 +334,28 @@ export default function DateTimePicker({
           {displayText || placeholder}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
+      <PopoverContent className="w-auto p-0 relative" align="start" sideOffset={4}>
+        {/* Validation overlay */}
+        {validationMsg && (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/95 rounded-md p-6 gap-3">
+            <p className="text-sm text-destructive font-medium text-center">{validationMsg}</p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-destructive text-destructive hover:bg-destructive/10"
+              onClick={() => {
+                setValidationMsg(null);
+                // Focus the errored field
+                setTimeout(() => {
+                  if (dateError) dateRef.current?.focus();
+                  else if (timeError) timeRef.current?.focus();
+                }, 50);
+              }}
+            >
+              返回修正
+            </Button>
+          </div>
+        )}
         <div className="p-3 space-y-3">
           {/* Year + MM/DD + HH:mm inputs */}
           <div className="flex items-center gap-1.5">
