@@ -477,9 +477,6 @@ export default function CaseDetailPage() {
           <Input type="number" value={caseData.unitCount || ""} onChange={(e) => save({ unitCount: Number(e.target.value) || 0 })} className="max-w-[120px]" />
         </Field>
       </div>
-      <Field label="詢案備註">
-        <Textarea value={caseData.inquiryNote} onChange={(e) => save({ inquiryNote: e.target.value })} className="max-w-md" rows={2} />
-      </Field>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <Field label="譯者">
