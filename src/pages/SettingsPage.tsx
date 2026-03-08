@@ -19,6 +19,16 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+function getColorUsageMap(options: { color: string; label: string }[]): Record<string, string[]> {
+  const map: Record<string, string[]> = {};
+  for (const opt of options) {
+    const key = opt.color.toUpperCase();
+    if (!map[key]) map[key] = [];
+    map[key].push(opt.label);
+  }
+  return map;
+}
+
 /** Find the next editable cell in DOM order and click it */
 function focusNextEditableCell(container: Element | null, reverse = false) {
   const allCells = Array.from(
@@ -196,7 +206,7 @@ function ClientPricingSection() {
                           customColors={customColors}
                           onAddCustomColor={(c) => selectOptionsStore.addCustomColor("client", c)}
                           onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("client", c)}
-                          colorUsageMap={{}}
+                          colorUsageMap={getColorUsageMap(clientOptions)}
                         />
                       </PopoverContent>
                     </Popover>
@@ -507,7 +517,7 @@ function TaskTypeOrderSection() {
                     customColors={customColors}
                     onAddCustomColor={(c) => selectOptionsStore.addCustomColor("taskType", c)}
                     onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("taskType", c)}
-                    colorUsageMap={{}}
+                    colorUsageMap={getColorUsageMap(taskTypeOptions)}
                   />
                 </PopoverContent>
               </Popover>
@@ -698,7 +708,7 @@ function BillingUnitOrderSection() {
                     customColors={customColors}
                     onAddCustomColor={(c) => selectOptionsStore.addCustomColor("billingUnit", c)}
                     onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("billingUnit", c)}
-                    colorUsageMap={{}}
+                    colorUsageMap={getColorUsageMap(billingUnitOptions)}
                   />
                 </PopoverContent>
               </Popover>
@@ -1922,7 +1932,7 @@ function DispatchRouteSection() {
                     customColors={customColors}
                     onAddCustomColor={(c) => selectOptionsStore.addCustomColor("dispatchRoute", c)}
                     onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("dispatchRoute", c)}
-                    colorUsageMap={{}}
+                    colorUsageMap={getColorUsageMap(routeOptions)}
                   />
                 </PopoverContent>
               </Popover>
