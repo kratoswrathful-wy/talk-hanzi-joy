@@ -240,6 +240,23 @@ export default function TranslatorFeeDetail() {
   // Combined blocking condition
   const isNavigationBlocked = hasDuplicateFirstFee || needsRoleAssignment;
 
+  // Sync local state when feeData loads asynchronously (e.g. navigating before store is ready)
+  useEffect(() => {
+    if (!feeData) return;
+    setTitle(feeData.title);
+    setTaskItems(feeData.taskItems?.length ? feeData.taskItems : [{ id: `item-${Date.now()}`, taskType: "翻譯", billingUnit: "字", unitCount: 0, unitPrice: 0 }]);
+    setStatus(feeData.status);
+    setAssignee(feeData.assignee);
+    setInternalNote(feeData.internalNote);
+    setInternalNoteUrl(feeData.internalNoteUrl ?? "");
+    setNotionUrlInput(feeData.internalNoteUrl ?? "");
+    setClientInfo(feeData.clientInfo ?? { ...defaultClientInfo });
+    setCreatorName(feeData.createdBy || "");
+    setComments((feeData.notes ?? []).map((n) => ({ id: n.id, author: n.author, content: n.text, timestamp: formatTimestamp(n.createdAt) })));
+    setEditLog((feeData.editLogs ?? []).map((l) => ({ id: l.id, changedBy: l.author, description: l.field ? `${l.field} ${l.oldValue} → ${l.newValue}` : l.newValue, timestamp: formatTimestamp(l.timestamp) })));
+    hasBeenSubmittedRef.current = feeData.status === "finalized";
+  }, [feeData?.id, feeData?.status]);
+
   // Load assignees from DB on mount
   useEffect(() => {
     selectOptionsStore.loadAssignees();
