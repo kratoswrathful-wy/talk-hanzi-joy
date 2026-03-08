@@ -226,16 +226,31 @@ export default function MembersPage() {
     toast.success("角色已更新");
   };
 
+  const handleRemoveStep1 = () => {
+    setRemoveStep(2);
+  };
+
   const handleRemove = async () => {
     if (!removeTarget) return;
     if (removeTarget.isInvitation) {
       await supabase.from("invitations").delete().eq("id", removeTarget.invitationId!);
+      toast.success("邀請已移除");
     } else {
-      await supabase.from("user_roles").delete().eq("user_id", removeTarget.id);
+      // Call edge function to fully delete user (roles + profile + auth)
+      const { error } = await supabase.functions.invoke("delete-user", {
+        body: { user_id: removeTarget.id },
+      });
+      if (error) {
+        toast.error("移除失敗：" + error.message);
+        setRemoveTarget(null);
+        setRemoveStep(1);
+        return;
+      }
+      toast.success("成員已移除");
     }
     setRemoveTarget(null);
+    setRemoveStep(1);
     fetchMembers();
-    toast.success("成員已移除");
   };
 
   if (!isAdmin) {
