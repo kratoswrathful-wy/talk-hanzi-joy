@@ -537,11 +537,11 @@ function RolePermissionPanel({
               </CollapsibleTrigger>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1">
-                  <Label className="text-xs text-muted-foreground">所有權限</Label>
+                  <Label className="text-xs text-foreground">所有權限</Label>
                   <Switch checked={allEnabled} onCheckedChange={(v) => { if (v && !isVisible) onToggleModuleVisible(roleKey, mod.key, true); onToggleAllPerms(roleKey, mod.key, v); }} className="scale-75" />
                 </div>
                 <div className="flex items-center gap-1">
-                  <Label className="text-xs text-muted-foreground">可見</Label>
+                  <Label className="text-xs text-foreground">可見</Label>
                   <Switch checked={isVisible} onCheckedChange={(v) => onToggleModuleVisible(roleKey, mod.key, v)} className="scale-75" />
                 </div>
               </div>
