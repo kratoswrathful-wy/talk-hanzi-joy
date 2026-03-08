@@ -1,5 +1,5 @@
 /**
- * 欄位屬性對照表 — lists all configurable fields across the system with their type.
+ * 內部資料 — lists all configurable fields across the system with their type.
  * PM+ visible.
  */
 
@@ -99,7 +99,7 @@ const sections: { title: string; fields: { name: string; type: string; location:
     ],
   },
   {
-    title: "內部提問及備註",
+    title: "內部註記",
     fields: [
       { name: "標題", type: "文字", location: "總表 / 詳情頁" },
       { name: "關聯案件", type: "關聯", location: "詳情頁" },
@@ -145,7 +145,7 @@ const typeColorMap: Record<string, string> = {
 export default function FieldReferencePage() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">欄位屬性對照表</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">內部資料</h1>
       <p className="text-sm text-muted-foreground">
         系統中所有模組的設定項目及其對應屬性類型一覽。
       </p>

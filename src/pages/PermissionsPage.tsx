@@ -246,7 +246,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
   },
   {
     key: "field_reference",
-    label: "欄位對照表",
+    label: "內部資料",
     listItems: [
       { key: "field_ref_view", label: "檢視欄位對照表", type: "view" },
     ],
@@ -254,7 +254,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
   },
   {
     key: "internal_notes",
-    label: "內部提問及備註",
+    label: "內部註記",
     listItems: [
       { key: "inotes_list_view", label: "檢視列表", type: "both" },
       { key: "inotes_list_create", label: "新增紀錄", type: "both", attribute: "按鈕" },
