@@ -398,51 +398,79 @@ export default function ClientInfoSection({
               {displayClientTaskItems.map((item, index) => (
                 <TableRow key={item.id} className={clientItemsLocked ? "opacity-50" : ""}>
                   <TableCell className="text-center">
-                    <ColorSelect
-                      fieldKey="taskType"
-                      value={item.taskType}
-                      onValueChange={(v) => updateItem(item.id, "taskType", v as TaskType)}
-                      triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
-                      disabled={clientItemsLocked || clientInfo.reconciled}
-                    />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <ColorSelect
+                            fieldKey="taskType"
+                            value={item.taskType}
+                            onValueChange={(v) => updateItem(item.id, "taskType", v as TaskType)}
+                            triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
+                            disabled={clientItemsLocked || clientInfo.reconciled}
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      {clientInfo.reconciled && !clientItemsLocked && <TooltipContent>已對帳完成，不得修改營收內容</TooltipContent>}
+                    </Tooltip>
                   </TableCell>
                   <TableCell className="text-center">
-                    <ColorSelect
-                      fieldKey="billingUnit"
-                      value={item.billingUnit}
-                      onValueChange={(v) => updateItem(item.id, "billingUnit", v as BillingUnit)}
-                      triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
-                      disabled={clientItemsLocked || clientInfo.reconciled}
-                    />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <ColorSelect
+                            fieldKey="billingUnit"
+                            value={item.billingUnit}
+                            onValueChange={(v) => updateItem(item.id, "billingUnit", v as BillingUnit)}
+                            triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
+                            disabled={clientItemsLocked || clientInfo.reconciled}
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      {clientInfo.reconciled && !clientItemsLocked && <TooltipContent>已對帳完成，不得修改營收內容</TooltipContent>}
+                    </Tooltip>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      value={item.clientPrice}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "clientPrice", v as any);
-                      }}
-                      onFocus={() => handleClientPriceFocus(item.id)}
-                      onBlur={(e) => handleNumberBlur(item.id, "clientPrice", e.target.value)}
-                      className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
-                      disabled={clientItemsLocked || clientInfo.reconciled}
-                    />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <Input
+                            type="text"
+                            inputMode="decimal"
+                            value={item.clientPrice}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "clientPrice", v as any);
+                            }}
+                            onFocus={() => handleClientPriceFocus(item.id)}
+                            onBlur={(e) => handleNumberBlur(item.id, "clientPrice", e.target.value)}
+                            className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
+                            disabled={clientItemsLocked || clientInfo.reconciled}
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      {clientInfo.reconciled && !clientItemsLocked && <TooltipContent>已對帳完成，不得修改營收內容</TooltipContent>}
+                    </Tooltip>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      value={item.unitCount}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "unitCount", v as any);
-                      }}
-                      onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
-                      className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
-                      disabled={clientItemsLocked || clientInfo.reconciled}
-                    />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <Input
+                            type="text"
+                            inputMode="decimal"
+                            value={item.unitCount}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "unitCount", v as any);
+                            }}
+                            onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
+                            className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
+                            disabled={clientItemsLocked || clientInfo.reconciled}
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      {clientInfo.reconciled && !clientItemsLocked && <TooltipContent>已對帳完成，不得修改營收內容</TooltipContent>}
+                    </Tooltip>
                   </TableCell>
                   <TableCell className="text-right text-xs font-medium">
                     {clientInfo.notFirstFee ? <span className="text-muted-foreground">N/A</span> : (Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
