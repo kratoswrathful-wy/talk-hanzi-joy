@@ -438,39 +438,39 @@ export default function MembersPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {isExecutive && (
-                          <>
-                            <div className="flex items-center gap-1.5">
-                              <Checkbox
-                                id={`no-fee-${member.email}`}
-                                checked={member.no_fee}
-                                onCheckedChange={(checked) => handleToggleNoFee(member.email, !!checked)}
-                              />
-                              <Label htmlFor={`no-fee-${member.email}`} className="text-xs cursor-pointer text-muted-foreground">
-                                不開單
-                              </Label>
-                            </div>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant={member.frozen ? "secondary" : "ghost"}
-                                  size="sm"
-                                  className={cn("h-7 text-xs gap-1", member.frozen && "text-blue-400")}
-                                  onClick={() => handleToggleFrozen(member.email, !member.frozen)}
-                                >
-                                  <Snowflake className="h-3 w-3" />
-                                  {member.frozen ? "解凍" : "凍結"}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>凍結人員會從所有人員下拉式選單隱藏</TooltipContent>
-                            </Tooltip>
-                          </>
+                        {canEditNoFee && (
+                          <div className="flex items-center gap-1.5">
+                            <Checkbox
+                              id={`no-fee-${member.email}`}
+                              checked={member.no_fee}
+                              onCheckedChange={(checked) => handleToggleNoFee(member.email, !!checked)}
+                            />
+                            <Label htmlFor={`no-fee-${member.email}`} className="text-xs cursor-pointer text-muted-foreground">
+                              不開單
+                            </Label>
+                          </div>
+                        )}
+                        {canFreeze && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant={member.frozen ? "secondary" : "ghost"}
+                                size="sm"
+                                className={cn("h-7 text-xs gap-1", member.frozen && "text-blue-400")}
+                                onClick={() => handleToggleFrozen(member.email, !member.frozen)}
+                              >
+                                <Snowflake className="h-3 w-3" />
+                                {member.frozen ? "解凍" : "凍結"}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>凍結人員會從所有人員下拉式選單隱藏</TooltipContent>
+                          </Tooltip>
                         )}
                         {member.isInvitation ? (
                           <Badge variant="secondary" className="text-xs">
                             {getRoleLabel(member.role)}
                           </Badge>
-                        ) : isExecutive ? (
+                        ) : canChangeRole ? (
                           <Select
                             value={member.role}
                             onValueChange={(v) => handleRoleChange(member, v as AppRole)}
@@ -489,30 +489,30 @@ export default function MembersPage() {
                             {getRoleLabel(member.role)}
                           </Badge>
                         )}
-                        {isExecutive && (
-                          <>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 text-muted-foreground"
-                                  onClick={() => { setEditingEmail(member.email); setEditValue(member.note); }}
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>編輯人員備註</TooltipContent>
-                            </Tooltip>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                              onClick={() => setRemoveTarget(member)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </>
+                        {canEditNote && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground"
+                                onClick={() => { setEditingEmail(member.email); setEditValue(member.note); }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>編輯人員備註</TooltipContent>
+                          </Tooltip>
+                        )}
+                        {canRemove && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            onClick={() => setRemoveTarget(member)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         )}
                       </div>
                     </div>
