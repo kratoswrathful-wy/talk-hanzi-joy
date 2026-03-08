@@ -387,6 +387,16 @@ export default function PermissionsPage() {
     await saveConfig({ ...config, module_permissions: newModulePerms });
   };
 
+  const handleSetSectionViewOnly = async (roleKey: string, moduleKey: string, items: PermissionItem[]) => {
+    const modulePerms = getModulePerms(config, roleKey, moduleKey);
+    const newItems: Record<string, { view: boolean; edit: boolean }> = { ...modulePerms.items };
+    for (const item of items) {
+      newItems[item.key] = { view: true, edit: false };
+    }
+    const newModulePerms = { ...(config as any).module_permissions, [roleKey]: { ...((config as any).module_permissions?.[roleKey] || {}), [moduleKey]: { ...modulePerms, items: newItems } } };
+    await saveConfig({ ...config, module_permissions: newModulePerms });
+  };
+
   if (!isExecutive) {
     return <div className="mx-auto max-w-3xl py-12 text-center text-muted-foreground">您沒有權限檢視此頁面</div>;
   }
