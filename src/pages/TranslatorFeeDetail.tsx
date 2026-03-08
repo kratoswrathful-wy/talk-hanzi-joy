@@ -1306,7 +1306,13 @@ export default function TranslatorFeeDetail() {
                     size="sm"
                     className="text-xs min-w-[88px]"
                     disabled={!isNoFeeTranslator && !clientInfo.rateConfirmed}
-                    onClick={handleSubmit}
+                    onClick={() => {
+                      if (!assignee) {
+                        toast.error("請先選擇譯者，才能開立稿費條。");
+                        return;
+                      }
+                      handleSubmit();
+                    }}
                   >
                     開立稿費條
                   </Button>
