@@ -956,6 +956,12 @@ export default function ToolManagementPage() {
         )}
       </div>
 
+      {/* ── 內部註記狀態 ── */}
+      <SimpleSelectSection fieldKey="noteStatus" title="內部註記狀態" addLabel="新增狀態" />
+
+      {/* ── 內部註記性質 ── */}
+      <SimpleSelectSection fieldKey="noteNature" title="內部註記性質" addLabel="新增性質" />
+
       {/* ── 範本區塊 ── */}
       <div className="rounded-xl border border-border bg-card p-6 space-y-4">
         <div className="flex items-center justify-between">
