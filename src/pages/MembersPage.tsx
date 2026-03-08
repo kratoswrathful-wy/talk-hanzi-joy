@@ -426,7 +426,7 @@ export default function MembersPage() {
                         </Avatar>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="truncate text-sm font-medium">{displayLabel}</span>
+                            <span className="truncate text-sm font-medium cursor-pointer hover:underline" onClick={() => setProfileViewerEmail(member.email)}>{displayLabel}</span>
                             {member.isInvitation && (
                               <Badge variant="outline" className="text-xs shrink-0">待接受</Badge>
                             )}
