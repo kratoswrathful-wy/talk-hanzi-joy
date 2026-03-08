@@ -973,7 +973,6 @@ function FeeRow({
             </td>
           );
         })}
-        ))}
         <td className="px-2 py-3 text-center">
           {fee.notes.length > 0 && (
             <button
