@@ -4,6 +4,7 @@
  */
 import { useState, useRef, useEffect } from "react";
 import { Plus, Trash2, Palette, Check, Pencil, X, Search, MoreHorizontal } from "lucide-react";
+import AssigneeTag from "@/components/AssigneeTag";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -129,15 +130,19 @@ export default function MultiColorSelect({
             )}
           >
             {selectedOptions.length > 0 ? (
-              selectedOptions.map((opt) => (
-                <span
-                  key={opt.id}
-                  className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
-                  style={{ backgroundColor: opt.color, color: labelTextColor, borderColor: opt.color }}
-                >
-                  {opt.label}
-                </span>
-              ))
+              selectedOptions.map((opt) =>
+                fieldKey === "assignee" ? (
+                  <AssigneeTag key={opt.id} label={opt.label} avatarUrl={opt.avatarUrl} />
+                ) : (
+                  <span
+                    key={opt.id}
+                    className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
+                    style={{ backgroundColor: opt.color, color: labelTextColor, borderColor: opt.color }}
+                  >
+                    {opt.label}
+                  </span>
+                )
+              )
             ) : (
               <span className="text-muted-foreground text-sm">{placeholder}</span>
             )}
@@ -184,12 +189,16 @@ export default function MultiColorSelect({
                       )}>
                         {isChecked && <Check className="h-3 w-3 text-primary-foreground" />}
                       </div>
-                      <span
-                        className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
-                        style={{ backgroundColor: opt.color, color: labelTextColor, borderColor: opt.color }}
-                      >
-                        {opt.label}
-                      </span>
+                      {fieldKey === "assignee" ? (
+                        <AssigneeTag label={opt.label} avatarUrl={opt.avatarUrl} />
+                      ) : (
+                        <span
+                          className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
+                          style={{ backgroundColor: opt.color, color: labelTextColor, borderColor: opt.color }}
+                        >
+                          {opt.label}
+                        </span>
+                      )}
                     </button>
                     {/* Menu */}
                     <Popover
