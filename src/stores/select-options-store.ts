@@ -134,6 +134,11 @@ function initDefaults() {
       customColors: [],
       manualOrder: true,
     },
+    questionTool: {
+      options: [],
+      customColors: [],
+      manualOrder: true,
+    },
   };
 }
 
