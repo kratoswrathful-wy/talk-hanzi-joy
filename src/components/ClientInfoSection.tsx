@@ -391,7 +391,7 @@ export default function ClientInfoSection({
                 <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>客戶報價</TableHead>
                 <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>計費單位數</TableHead>
                 <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>小計</TableHead>
-                {canEdit && <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>}
+                <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
