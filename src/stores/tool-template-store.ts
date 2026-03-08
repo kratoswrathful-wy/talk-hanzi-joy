@@ -1,11 +1,17 @@
 import { useSyncExternalStore } from "react";
 import { loadSetting, saveSetting, markDirty } from "./settings-persistence";
 
+export interface TemplateField {
+  id: string;
+  label: string;
+}
+
 export interface ToolTemplate {
   id: string;
   name: string;
   tool: string; // tool label (e.g. "memoQ")
-  fieldValues: Record<string, string>; // toolField.id → value
+  fields: TemplateField[]; // custom field list (can differ from tool's defaults)
+  fieldValues: Record<string, string>; // field.id → value
 }
 
 type Listener = () => void;
@@ -28,7 +34,8 @@ export const toolTemplateStore = {
 
   add: (tpl: Omit<ToolTemplate, "id">): string => {
     const id = `tpl-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
-    templates = [...templates, { ...tpl, id }];
+    const newTpl = { ...tpl, id, fields: tpl.fields || [] };
+    templates = [...templates, newTpl];
     notify();
     return id;
   },

@@ -54,8 +54,11 @@ function ToolInstance({
   const { options: toolOptions } = useSelectOptions("executionTool");
   const allTemplates = useToolTemplates();
   const [tplOpen, setTplOpen] = useState(false);
-  const [conflictTpl, setConflictTpl] = useState<ToolTemplate | null>(null);
-  const [conflictFields, setConflictFields] = useState<{ id: string; label: string; current: string; incoming: string }[]>([]);
+  const [pendingTpl, setPendingTpl] = useState<ToolTemplate | null>(null);
+  const [warningDetails, setWarningDetails] = useState<{
+    fieldChanges: { added: string[]; removed: string[] };
+    conflicts: { id: string; label: string; current: string; incoming: string }[];
+  } | null>(null);
 
   const selectedTool = toolOptions.find((o) => o.label === entry.tool);
   const fields = selectedTool?.toolFields || [];
@@ -66,20 +69,32 @@ function ToolInstance({
   const matchingTemplates = allTemplates.filter((t) => t.tool === entry.tool);
 
   const tryApplyTemplate = (tpl: ToolTemplate) => {
-    // Check for conflicts: fields that have existing non-empty values AND the template wants to overwrite with different value
+    const tplFields = tpl.fields || [];
+    const currentFieldIds = fields.map((f) => f.id);
+    const tplFieldIds = tplFields.map((f) => f.id);
+
+    // Detect field arrangement changes
+    const addedFields = tplFields.filter((f) => !currentFieldIds.includes(f.id)).map((f) => f.label);
+    const removedFields = fields.filter((f) => !tplFieldIds.includes(f.id)).map((f) => f.label);
+    const hasFieldChanges = addedFields.length > 0 || removedFields.length > 0;
+
+    // Detect content conflicts
     const conflicts: { id: string; label: string; current: string; incoming: string }[] = [];
     for (const [key, val] of Object.entries(tpl.fieldValues)) {
       if (!val) continue;
       const current = values[key];
       if (current && current !== val) {
-        const fieldDef = fields.find((f) => f.id === key);
+        const fieldDef = tplFields.find((f) => f.id === key) || fields.find((f) => f.id === key);
         conflicts.push({ id: key, label: fieldDef?.label || key, current, incoming: val });
       }
     }
 
-    if (conflicts.length > 0) {
-      setConflictTpl(tpl);
-      setConflictFields(conflicts);
+    if (hasFieldChanges || conflicts.length > 0) {
+      setPendingTpl(tpl);
+      setWarningDetails({
+        fieldChanges: { added: addedFields, removed: removedFields },
+        conflicts,
+      });
       setTplOpen(false);
     } else {
       applyTemplate(tpl);
@@ -93,14 +108,13 @@ function ToolInstance({
     }
     onUpdate({ tool: tpl.tool, fieldValues: newValues });
     setTplOpen(false);
-    setConflictTpl(null);
-    setConflictFields([]);
+    setPendingTpl(null);
+    setWarningDetails(null);
   };
 
-  const keepCurrent = () => {
-    // Keep current values, don't apply template
-    setConflictTpl(null);
-    setConflictFields([]);
+  const dismissWarning = () => {
+    setPendingTpl(null);
+    setWarningDetails(null);
   };
 
   return (
@@ -188,35 +202,57 @@ function ToolInstance({
         ))}
       </div>
 
-      {/* Conflict resolution dialog */}
-      <AlertDialog open={!!conflictTpl} onOpenChange={(v) => { if (!v) { setConflictTpl(null); setConflictFields([]); } }}>
+      {/* Template apply warning dialog */}
+      <AlertDialog open={!!pendingTpl} onOpenChange={(v) => { if (!v) dismissWarning(); }}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>欄位內容衝突</AlertDialogTitle>
+            <AlertDialogTitle>套用範本確認</AlertDialogTitle>
             <AlertDialogDescription>
-              套用範本「{conflictTpl?.name}」將會覆蓋以下已填寫的欄位，請選擇要保留的版本：
+              套用範本「{pendingTpl?.name}」可能影響現有內容，請確認是否執行：
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-3 py-2 max-h-60 overflow-y-auto">
-            {conflictFields.map((cf) => (
-              <div key={cf.id} className="rounded-md border border-border p-2 space-y-1">
-                <p className="text-xs font-medium text-foreground">{cf.label}</p>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="text-muted-foreground">目前：</span>
-                    <span className="ml-1">{cf.current}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">範本：</span>
-                    <span className="ml-1">{cf.incoming}</span>
-                  </div>
-                </div>
+            {/* Field arrangement changes */}
+            {warningDetails && (warningDetails.fieldChanges.added.length > 0 || warningDetails.fieldChanges.removed.length > 0) && (
+              <div className="rounded-md border border-border p-2 space-y-1">
+                <p className="text-xs font-medium text-foreground">欄位變動</p>
+                {warningDetails.fieldChanges.added.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    新增欄位：<span className="text-foreground">{warningDetails.fieldChanges.added.join("、")}</span>
+                  </p>
+                )}
+                {warningDetails.fieldChanges.removed.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    移除欄位：<span className="text-destructive">{warningDetails.fieldChanges.removed.join("、")}</span>
+                  </p>
+                )}
               </div>
-            ))}
+            )}
+            {/* Content conflicts */}
+            {warningDetails && warningDetails.conflicts.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-foreground">內容衝突</p>
+                {warningDetails.conflicts.map((cf) => (
+                  <div key={cf.id} className="rounded-md border border-border p-2 space-y-1">
+                    <p className="text-xs font-medium text-foreground">{cf.label}</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-muted-foreground">目前：</span>
+                        <span className="ml-1">{cf.current}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">範本：</span>
+                        <span className="ml-1">{cf.incoming}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={keepCurrent}>保留目前內容</AlertDialogCancel>
-            <AlertDialogAction onClick={() => conflictTpl && applyTemplate(conflictTpl)}>套用範本內容</AlertDialogAction>
+            <AlertDialogCancel onClick={dismissWarning}>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => pendingTpl && applyTemplate(pendingTpl)}>確認套用</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
