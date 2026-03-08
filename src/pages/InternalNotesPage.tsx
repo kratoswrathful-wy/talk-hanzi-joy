@@ -4,6 +4,7 @@
  */
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Plus, ExternalLink, Trash2, GripVertical } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { useInternalNotes, internalNotesStore } from "@/stores/internal-notes-store";
 
 /* ── Helpers ── */
 const formatDate = (iso: string) => {
@@ -159,8 +161,18 @@ function NoteDetailView({
 
 /* ── Main page ── */
 export default function InternalNotesPage() {
-  const [notes, setNotes] = useState<InternalNote[]>([]);
+  const notes = useInternalNotes();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Auto-open note if ?noteId= is in URL
+  useEffect(() => {
+    const noteId = searchParams.get("noteId");
+    if (noteId && notes.find((n) => n.id === noteId)) {
+      setSelectedId(noteId);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, notes]);
 
   const tableViews = useInternalNotesTableViews("executive");
   const { activeView } = tableViews;
@@ -303,14 +315,14 @@ export default function InternalNotesPage() {
   // Delete
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const handleDeleteSelected = useCallback(() => {
-    setNotes((prev) => prev.filter((n) => !rowSelection.selectedIds.has(n.id)));
+    internalNotesStore.removeMany(rowSelection.selectedIds);
     rowSelection.deselectAll();
     setShowDeleteConfirm(false);
   }, [rowSelection]);
 
   const handleCreate = () => {
     const n = emptyNote();
-    setNotes([n, ...notes]);
+    internalNotesStore.add(n);
     setSelectedId(n.id);
   };
 
@@ -320,9 +332,9 @@ export default function InternalNotesPage() {
     return (
       <NoteDetailView
         note={selectedNote}
-        onUpdate={(updates) => setNotes(notes.map((n) => n.id === selectedId ? { ...n, ...updates } : n))}
+        onUpdate={(updates) => internalNotesStore.update(selectedId!, updates)}
         onBack={() => setSelectedId(null)}
-        onDelete={() => { setNotes(notes.filter((n) => n.id !== selectedId)); setSelectedId(null); }}
+        onDelete={() => { internalNotesStore.remove(selectedId!); setSelectedId(null); }}
       />
     );
   }

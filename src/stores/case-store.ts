@@ -34,6 +34,7 @@ function fromDb(row: any): CaseRecord {
     executionTool: row.execution_tool ?? "",
     toolFieldValues: (row.tool_field_values && typeof row.tool_field_values === "object" && !Array.isArray(row.tool_field_values)) ? row.tool_field_values as Record<string, string> : {},
     tools: Array.isArray(row.tools) ? (row.tools as ToolEntry[]) : [],
+    questionTools: Array.isArray(row.question_tools) ? (row.question_tools as ToolEntry[]) : [],
     deliveryMethod: row.delivery_method ?? "",
     clientReceipt: row.client_receipt ?? "",
     customGuidelinesUrl: Array.isArray(row.custom_guidelines_url) ? row.custom_guidelines_url : [],
@@ -84,6 +85,7 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.executionTool !== undefined) map.execution_tool = c.executionTool;
   if (c.toolFieldValues !== undefined) map.tool_field_values = c.toolFieldValues;
   if (c.tools !== undefined) map.tools = c.tools;
+  if (c.questionTools !== undefined) map.question_tools = c.questionTools;
   if (c.deliveryMethod !== undefined) map.delivery_method = c.deliveryMethod;
   if (c.clientReceipt !== undefined) map.client_receipt = c.clientReceipt;
   if (c.customGuidelinesUrl !== undefined) map.custom_guidelines_url = c.customGuidelinesUrl;

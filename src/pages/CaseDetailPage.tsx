@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Trash2, Plus, X, Copy, Check } from "lucide-react";
+import { ArrowLeft, Trash2, Plus, X, Copy, Check, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,8 @@ import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-store";
 import { useAuth } from "@/hooks/use-auth";
+import { internalNotesStore } from "@/stores/internal-notes-store";
+import type { InternalNote } from "@/hooks/use-internal-notes-table-views";
 
 
 const caseStatusLabels: Record<CaseStatus, string> = {
@@ -105,14 +107,16 @@ function ToolInstance({
   onUpdate,
   onRemove,
   showRemove,
+  toolFieldKey = "executionTool",
 }: {
   entry: ToolEntry;
   index: number;
   onUpdate: (updates: Partial<ToolEntry>) => void;
   onRemove: () => void;
   showRemove: boolean;
+  toolFieldKey?: string;
 }) {
-  const { options: toolOptions } = useSelectOptions("executionTool");
+  const { options: toolOptions } = useSelectOptions(toolFieldKey);
   const allTemplates = useToolTemplates();
   const [tplOpen, setTplOpen] = useState(false);
   const [pendingTpl, setPendingTpl] = useState<ToolTemplate | null>(null);
@@ -232,9 +236,9 @@ function ToolInstance({
         )}
         <div className="flex items-center gap-2">
           <div className="flex-1">
-            <Field label="執行工具">
+            <Field label={toolFieldKey === "questionTool" ? "提問工具" : "執行工具"}>
               <ColorSelect
-                fieldKey="executionTool"
+                fieldKey={toolFieldKey}
                 value={entry.tool}
                 onValueChange={handleToolChange}
                 className="max-w-xs"
@@ -539,6 +543,70 @@ export default function CaseDetailPage() {
 
   const addTool = () => {
     saveTools([...tools, { id: `te-${Date.now()}`, tool: "", fieldValues: {} }]);
+  };
+
+  /* ── Question Tool helpers ── */
+  const questionTools: ToolEntry[] = caseData?.questionTools?.length
+    ? caseData.questionTools
+    : [{ id: `qt-${Date.now()}`, tool: "", fieldValues: {} }];
+
+  const saveQuestionTools = (newTools: ToolEntry[]) => {
+    save({ questionTools: newTools });
+  };
+
+  const updateQuestionTool = (idx: number, updates: Partial<ToolEntry>) => {
+    const next = questionTools.map((t, i) => (i === idx ? { ...t, ...updates } : t));
+    saveQuestionTools(next);
+  };
+
+  const removeQuestionTool = (idx: number) => {
+    const next = questionTools.filter((_, i) => i !== idx);
+    saveQuestionTools(next.length ? next : [{ id: `qt-${Date.now()}`, tool: "", fieldValues: {} }]);
+  };
+
+  const addQuestionTool = () => {
+    saveQuestionTools([...questionTools, { id: `qt-${Date.now()}`, tool: "", fieldValues: {} }]);
+  };
+
+  /* ── Internal Note creation from case ── */
+  const handleCreateInternalNote = () => {
+    // Extract case number without date suffix
+    const caseTitle = caseData?.title || "";
+    // Remove trailing date pattern (e.g., _2026-03-08 or _20260308 etc.)
+    const baseId = caseTitle.replace(/[_\-]?\d{4}[\-\/]?\d{2}[\-\/]?\d{2}$/, "").trim() || caseTitle;
+    const prefix = `${baseId}_Note_`;
+
+    // Find existing notes with this prefix to determine next sequence number
+    const existingNotes = internalNotesStore.findByTitlePrefix(prefix);
+    let maxSeq = 0;
+    for (const note of existingNotes) {
+      const suffix = note.title.slice(prefix.length);
+      const num = parseInt(suffix, 10);
+      if (!isNaN(num) && num > maxSeq) maxSeq = num;
+    }
+    const nextSeq = String(maxSeq + 1).padStart(5, "0");
+
+    const newNote: InternalNote = {
+      id: `note-${Date.now()}`,
+      title: `${prefix}${nextSeq}`,
+      relatedCase: caseTitle,
+      noteId: "",
+      createdAt: new Date().toISOString(),
+      noteType: "",
+      creator: profile?.display_name || "",
+      status: "",
+      internalAssignee: "",
+      fileName: "",
+      idRowCount: "",
+      sourceText: "",
+      translatedText: "",
+      questionOrNote: "",
+      reference: "",
+      internalResolution: "",
+      remarks: "",
+    };
+    internalNotesStore.add(newNote);
+    navigate(`/internal-notes?noteId=${newNote.id}`);
   };
 
   const handleDelete = async () => {
@@ -860,6 +928,44 @@ export default function CaseDetailPage() {
           <Plus className="h-4 w-4" />
           新增工具
         </Button>
+      </div>
+
+      <Separator />
+
+      <h2 className="text-base font-semibold">提問</h2>
+
+      {/* 客戶提問表單 */}
+      <div className="space-y-3">
+        <Label className="text-sm font-medium text-muted-foreground">客戶提問表單</Label>
+        {questionTools.map((entry, idx) => (
+          <ToolInstance
+            key={entry.id}
+            entry={entry}
+            index={idx}
+            onUpdate={(u) => updateQuestionTool(idx, u)}
+            onRemove={() => removeQuestionTool(idx)}
+            showRemove={questionTools.length > 1}
+            toolFieldKey="questionTool"
+          />
+        ))}
+        <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={addQuestionTool}>
+          <Plus className="h-4 w-4" />
+          新增提問工具
+        </Button>
+      </div>
+
+      {/* 內部提問或註記 */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Label className="text-sm font-medium text-muted-foreground">內部提問或註記</Label>
+          <Button variant="outline" size="sm" className="gap-1 text-xs h-7" onClick={handleCreateInternalNote}>
+            <Plus className="h-3.5 w-3.5" />
+            新增
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          點擊「新增」將在內部註記模組建立一筆新紀錄，標題自動依序編號。
+        </p>
       </div>
 
       <Separator />

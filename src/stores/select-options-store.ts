@@ -58,7 +58,7 @@ const listeners = new Set<Listener>();
 const SETTINGS_KEY = "select_options";
 
 // Fields to persist (assignee is loaded from profiles, not settings)
-const PERSISTED_FIELDS = ["taskType", "billingUnit", "client", "contact", "dispatchRoute", "caseCategory", "executionTool"];
+const PERSISTED_FIELDS = ["taskType", "billingUnit", "client", "contact", "dispatchRoute", "caseCategory", "executionTool", "questionTool"];
 
 function persistableSnapshot() {
   const snapshot: Record<string, FieldOptions> = {};
@@ -131,6 +131,11 @@ function initDefaults() {
         { id: "opt-et2", label: "Phrase", color: PRESET_COLORS[8] },
         { id: "opt-et3", label: "XTM", color: PRESET_COLORS[4] },
       ],
+      customColors: [],
+      manualOrder: true,
+    },
+    questionTool: {
+      options: [],
       customColors: [],
       manualOrder: true,
     },
@@ -207,13 +212,13 @@ export const selectOptionsStore = {
     notify();
   },
 
-  // Tool sub-field management
-  addToolField: (optionId: string, label: string) => {
-    const field = selectOptionsStore.getField("executionTool");
+  // Tool sub-field management (generic for any tool-type field)
+  addToolField: (optionId: string, label: string, fieldKey: string = "executionTool") => {
+    const field = selectOptionsStore.getField(fieldKey);
     const fieldId = `tf-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
     store = {
       ...store,
-      executionTool: {
+      [fieldKey]: {
         ...field,
         options: field.options.map((o) =>
           o.id === optionId
@@ -226,11 +231,11 @@ export const selectOptionsStore = {
     return fieldId;
   },
 
-  removeToolField: (optionId: string, fieldId: string) => {
-    const field = selectOptionsStore.getField("executionTool");
+  removeToolField: (optionId: string, fieldId: string, fieldKey: string = "executionTool") => {
+    const field = selectOptionsStore.getField(fieldKey);
     store = {
       ...store,
-      executionTool: {
+      [fieldKey]: {
         ...field,
         options: field.options.map((o) =>
           o.id === optionId
@@ -242,11 +247,11 @@ export const selectOptionsStore = {
     notify();
   },
 
-  renameToolField: (optionId: string, fieldId: string, newLabel: string) => {
-    const field = selectOptionsStore.getField("executionTool");
+  renameToolField: (optionId: string, fieldId: string, newLabel: string, fieldKey: string = "executionTool") => {
+    const field = selectOptionsStore.getField(fieldKey);
     store = {
       ...store,
-      executionTool: {
+      [fieldKey]: {
         ...field,
         options: field.options.map((o) =>
           o.id === optionId
@@ -258,11 +263,11 @@ export const selectOptionsStore = {
     notify();
   },
 
-  reorderToolFields: (optionId: string, orderedIds: string[]) => {
-    const field = selectOptionsStore.getField("executionTool");
+  reorderToolFields: (optionId: string, orderedIds: string[], fieldKey: string = "executionTool") => {
+    const field = selectOptionsStore.getField(fieldKey);
     store = {
       ...store,
-      executionTool: {
+      [fieldKey]: {
         ...field,
         options: field.options.map((o) => {
           if (o.id !== optionId) return o;
