@@ -594,8 +594,8 @@ export default function CaseDetailPage() {
     navigate(`/internal-notes?noteId=${newNote.id}`);
   };
 
-  // Get linked notes for this case
-  const linkedNotes = caseData ? internalNotesStore.findByCase(caseData.title) : [];
+  // Get linked notes for this case (reactive via useInternalNotes)
+  const linkedNotes = caseData ? allInternalNotes.filter((n) => n.relatedCase === caseData.title) : [];
 
   const handleDelete = async () => {
     if (!caseData) return;
