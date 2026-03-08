@@ -33,8 +33,31 @@ function Field({ label, children, className }: { label: string; children: React.
     </div>
   );
 }
+function ToolSubFields({ caseData, save }: { caseData: CaseRecord; save: (updates: Partial<CaseRecord>) => void }) {
+  const { options: toolOptions } = useSelectOptions("executionTool");
+  const selectedTool = toolOptions.find((o) => o.label === caseData.executionTool);
+  const fields = selectedTool?.toolFields || [];
 
-export default function CaseDetailPage() {
+  if (fields.length === 0) return null;
+
+  const values = caseData.toolFieldValues || {};
+
+  return (
+    <>
+      {fields.map((f) => (
+        <Field key={f.id} label={f.label}>
+          <Input
+            value={values[f.id] || ""}
+            onChange={(e) => save({ toolFieldValues: { ...values, [f.id]: e.target.value } })}
+            className="max-w-xs"
+          />
+        </Field>
+      ))}
+    </>
+  );
+}
+
+
   const { id } = useParams();
   const navigate = useNavigate();
   const [caseData, setCaseData] = useState<CaseRecord | null>(null);
