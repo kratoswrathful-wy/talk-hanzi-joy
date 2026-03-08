@@ -238,7 +238,14 @@ export default function ClientInvoiceDetailPage() {
 
   const availableFees = useMemo(() => {
     if (!invoice) return [];
-    return fees.filter((f) => !allLinkedFeeIds.has(f.id));
+    return fees.filter((f) => {
+      if (allLinkedFeeIds.has(f.id)) return false;
+      const ci = f.clientInfo as any;
+      // Must have matching client and reconciled checked
+      if (!ci?.client || ci.client !== invoice.client) return false;
+      if (!ci?.reconciled) return false;
+      return true;
+    });
   }, [fees, invoice, allLinkedFeeIds]);
 
   if (!invoice) {
