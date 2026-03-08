@@ -187,8 +187,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "關鍵字",
     minWidth: 80,
     managerOnly: true,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={f.clientInfo?.clientCaseId || ""} type="text" editable={editable} onCommit={(v) => onCommit("clientCaseId", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={f.clientInfo?.clientCaseId || ""} type="text" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("clientCaseId", v)}>
         <span className="truncate text-sm text-muted-foreground">{f.clientInfo?.clientCaseId || f.clientInfo?.eciKeywords || "—"}</span>
       </InlineEditCell>
     ),
