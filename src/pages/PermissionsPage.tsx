@@ -387,6 +387,16 @@ export default function PermissionsPage() {
     await saveConfig({ ...config, module_permissions: newModulePerms });
   };
 
+  const handleSetSectionViewOnly = async (roleKey: string, moduleKey: string, items: PermissionItem[]) => {
+    const modulePerms = getModulePerms(config, roleKey, moduleKey);
+    const newItems: Record<string, { view: boolean; edit: boolean }> = { ...modulePerms.items };
+    for (const item of items) {
+      newItems[item.key] = { view: true, edit: false };
+    }
+    const newModulePerms = { ...(config as any).module_permissions, [roleKey]: { ...((config as any).module_permissions?.[roleKey] || {}), [moduleKey]: { ...modulePerms, items: newItems } } };
+    await saveConfig({ ...config, module_permissions: newModulePerms });
+  };
+
   if (!isExecutive) {
     return <div className="mx-auto max-w-3xl py-12 text-center text-muted-foreground">您沒有權限檢視此頁面</div>;
   }
@@ -463,6 +473,7 @@ export default function PermissionsPage() {
                             onToggleItemPerm={handleToggleItemPerm}
                             onToggleAllPerms={handleToggleAllPerms}
                             onToggleSectionPerms={handleToggleSectionPerms}
+                            onSetSectionViewOnly={handleSetSectionViewOnly}
                           />
                         </div>
                       )}
@@ -507,13 +518,14 @@ export default function PermissionsPage() {
 // ─── Per-role permission panel ───
 
 function RolePermissionPanel({
-  roleKey, roleLabel, config, onToggleModuleVisible, onToggleItemPerm, onToggleAllPerms, onToggleSectionPerms,
+  roleKey, roleLabel, config, onToggleModuleVisible, onToggleItemPerm, onToggleAllPerms, onToggleSectionPerms, onSetSectionViewOnly,
 }: {
   roleKey: string; roleLabel: string; config: any;
   onToggleModuleVisible: (roleKey: string, moduleKey: string, visible: boolean) => void;
   onToggleItemPerm: (roleKey: string, moduleKey: string, itemKey: string, permType: "view" | "edit", value: boolean) => void;
   onToggleAllPerms: (roleKey: string, moduleKey: string, value: boolean) => void;
   onToggleSectionPerms: (roleKey: string, moduleKey: string, items: PermissionItem[], permType: "view" | "edit", value: boolean) => void;
+  onSetSectionViewOnly: (roleKey: string, moduleKey: string, items: PermissionItem[]) => void;
 }) {
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
 
@@ -560,6 +572,7 @@ function RolePermissionPanel({
                           items={mod.listItems}
                           onToggle={(permType, value) => onToggleSectionPerms(roleKey, mod.key, mod.listItems, permType, value)}
                           onToggleVisible={(v) => onToggleSectionPerms(roleKey, mod.key, mod.listItems, "view", v)}
+                          onSetViewOnly={() => onSetSectionViewOnly(roleKey, mod.key, mod.listItems)}
                         />
                       </div>
                       <div>
@@ -588,6 +601,7 @@ function RolePermissionPanel({
                               items={section.items}
                               onToggle={(permType, value) => onToggleSectionPerms(roleKey, mod.key, section.items, permType, value)}
                               onToggleVisible={(v) => onToggleSectionPerms(roleKey, mod.key, section.items, "view", v)}
+                              onSetViewOnly={() => onSetSectionViewOnly(roleKey, mod.key, section.items)}
                             />
                           </div>
                           <div>
@@ -624,12 +638,14 @@ function SectionBulkButtons({
   items,
   onToggle,
   onToggleVisible,
+  onSetViewOnly,
 }: {
   level: "list" | "detail";
   modulePerms: ModulePerms;
   items: PermissionItem[];
   onToggle: (permType: "view" | "edit", value: boolean) => void;
   onToggleVisible?: (visible: boolean) => void;
+  onSetViewOnly?: () => void;
 }) {
   const allView = isSectionAllView(modulePerms, items);
   const allEdit = isSectionAllEdit(modulePerms, items);
@@ -660,10 +676,7 @@ function SectionBulkButtons({
             <Label className="text-xs text-foreground/70 whitespace-nowrap">全部可見但不可編輯</Label>
             <Switch
               checked={allView && !allEdit}
-              onCheckedChange={() => {
-                onToggle("view", true);
-                onToggle("edit", false);
-              }}
+              onCheckedChange={() => onSetViewOnly?.()}
               className="scale-75 data-[state=checked]:bg-primary/70"
             />
           </div>
