@@ -255,7 +255,7 @@ function NoteDetailView({
       </Field>
 
       <Field label="內部指派對象" icon="👥">
-        <MultiColorSelect fieldKey="assignee" values={note.internalAssignee || []} onValuesChange={(v) => onUpdate({ internalAssignee: v })} />
+        <MultiColorSelect fieldKey="assignee" values={Array.isArray(note.internalAssignee) ? note.internalAssignee : note.internalAssignee ? [note.internalAssignee] : []} onValuesChange={(v) => onUpdate({ internalAssignee: v })} />
       </Field>
 
       <Separator />
