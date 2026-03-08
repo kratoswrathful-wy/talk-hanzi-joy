@@ -561,7 +561,6 @@ function RolePermissionPanel({
                   <Label className="text-xs text-foreground font-medium">賦予所有檢視及編輯權限</Label>
                   <Switch checked={allEnabled} onCheckedChange={(v) => { if (v && !isVisible) onToggleModuleVisible(roleKey, mod.key, true); onToggleAllPerms(roleKey, mod.key, v); }} className="scale-75 data-[state=checked]:bg-primary" />
                 </div>
-                </div>
               </div>
             </div>
             <CollapsibleContent>
