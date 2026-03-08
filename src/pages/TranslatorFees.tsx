@@ -102,7 +102,7 @@ interface ColumnDef {
   label: string;
   minWidth: number;
   managerOnly?: boolean;
-  render: (fee: TranslatorFee, opts: { isManager: boolean; editable: boolean; lockedTooltip?: string; onCommit: (field: string, value: string | boolean) => void }) => React.ReactNode;
+  render: (fee: TranslatorFee, opts: { isManager: boolean; editable: boolean; lockedTooltip?: string; onCommit: (field: string, value: string | boolean | string[]) => void }) => React.ReactNode;
 }
 
 const allColumnDefs: ColumnDef[] = [
