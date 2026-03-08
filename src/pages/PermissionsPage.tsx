@@ -537,12 +537,12 @@ function RolePermissionPanel({
               </CollapsibleTrigger>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1">
-                  <Label className="text-xs text-foreground">所有權限</Label>
-                  <Switch checked={allEnabled} onCheckedChange={(v) => { if (v && !isVisible) onToggleModuleVisible(roleKey, mod.key, true); onToggleAllPerms(roleKey, mod.key, v); }} className="scale-75" />
+                  <Label className="text-xs text-foreground font-medium">所有權限</Label>
+                  <Switch checked={allEnabled} onCheckedChange={(v) => { if (v && !isVisible) onToggleModuleVisible(roleKey, mod.key, true); onToggleAllPerms(roleKey, mod.key, v); }} className="scale-75 data-[state=checked]:bg-primary" />
                 </div>
                 <div className="flex items-center gap-1">
-                  <Label className="text-xs text-foreground">可見</Label>
-                  <Switch checked={isVisible} onCheckedChange={(v) => onToggleModuleVisible(roleKey, mod.key, v)} className="scale-75" />
+                  <Label className="text-xs text-foreground font-medium">可見</Label>
+                  <Switch checked={isVisible} onCheckedChange={(v) => onToggleModuleVisible(roleKey, mod.key, v)} className="scale-75 data-[state=checked]:bg-primary" />
                 </div>
               </div>
             </div>
@@ -642,17 +642,17 @@ function SectionBulkButtons({
       {onToggleVisible && (
         <div className="flex items-center gap-1">
           <Label className="text-xs text-foreground/70">本區塊可見</Label>
-          <Switch checked={anyVisible} onCheckedChange={(v) => onToggleVisible(v)} className="scale-75" />
+          <Switch checked={anyVisible} onCheckedChange={(v) => onToggleVisible(v)} className="scale-75 data-[state=checked]:bg-primary/70" />
         </div>
       )}
       <div className="flex items-center gap-1">
         <Label className="text-xs text-foreground/70">全部可見</Label>
-        <Switch checked={allView} onCheckedChange={(v) => onToggle("view", v)} className="scale-75" />
+        <Switch checked={allView} onCheckedChange={(v) => onToggle("view", v)} className="scale-75 data-[state=checked]:bg-primary/70" />
       </div>
       {hasEditableItems && (
         <div className="flex items-center gap-1">
           <Label className="text-xs text-foreground/70">全可編輯</Label>
-          <Switch checked={allEdit} onCheckedChange={(v) => onToggle("edit", v)} className="scale-75" />
+          <Switch checked={allEdit} onCheckedChange={(v) => onToggle("edit", v)} className="scale-75 data-[state=checked]:bg-primary/70" />
         </div>
       )}
     </div>
@@ -682,12 +682,12 @@ function PermissionItemRow({
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1">
           <span className="text-muted-foreground">檢視</span>
-          <Switch checked={viewEnabled} onCheckedChange={(v) => onToggle("view", v)} className="scale-[0.6]" />
+          <Switch checked={viewEnabled} onCheckedChange={(v) => onToggle("view", v)} className="scale-[0.6] data-[state=checked]:bg-primary/45" />
         </div>
         {!isViewOnly && (
           <div className="flex items-center gap-1">
             <span className="text-muted-foreground">編輯</span>
-            <Switch checked={editEnabled} onCheckedChange={(v) => onToggle("edit", v)} className="scale-[0.6]" disabled={!viewEnabled} />
+            <Switch checked={editEnabled} onCheckedChange={(v) => onToggle("edit", v)} className="scale-[0.6] data-[state=checked]:bg-primary/45" disabled={!viewEnabled} />
           </div>
         )}
       </div>
