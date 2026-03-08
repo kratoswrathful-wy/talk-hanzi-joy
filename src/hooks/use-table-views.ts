@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { type TranslatorFee } from "@/data/fee-mock-data";
 import {
   type TableFilter, type TableSort, type TableView, type FilterGroup,
@@ -119,9 +119,44 @@ function createDefaultView(): TableView {
   };
 }
 
+const STORAGE_KEY = "fee-table-views";
+const ACTIVE_VIEW_KEY = "fee-table-active-view";
+
+function loadViewsFromStorage(): TableView[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as TableView[];
+      if (!parsed.some((v) => v.id === "default")) {
+        return [createDefaultView(), ...parsed];
+      }
+      return parsed;
+    }
+  } catch (e) {
+    console.warn("Failed to load fee views from storage:", e);
+  }
+  return [createDefaultView()];
+}
+
+function loadActiveViewFromStorage(): string {
+  try {
+    return localStorage.getItem(ACTIVE_VIEW_KEY) || "default";
+  } catch {
+    return "default";
+  }
+}
+
 export function useTableViews(currentRole?: string) {
-  const [views, setViews] = useState<TableView[]>(() => [createDefaultView()]);
-  const [activeViewId, setActiveViewId] = useState("default");
+  const [views, setViews] = useState<TableView[]>(loadViewsFromStorage);
+  const [activeViewId, setActiveViewId] = useState(loadActiveViewFromStorage);
+
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(views)); } catch {}
+  }, [views]);
+
+  useEffect(() => {
+    try { localStorage.setItem(ACTIVE_VIEW_KEY, activeViewId); } catch {}
+  }, [activeViewId]);
 
   const visibleViews = useMemo(() =>
     views.filter((v) => v.isDefault || v.createdByRole === currentRole),

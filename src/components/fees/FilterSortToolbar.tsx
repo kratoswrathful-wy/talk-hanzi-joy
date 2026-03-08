@@ -309,11 +309,9 @@ export function FilterSortToolbar({
             <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5">
               <Columns3 className="h-3 w-3" />
               屬性
-              {hiddenColumns.length > 0 && (
-                <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px]">
-                  {allFields.length - hiddenColumns.length}/{allFields.length}
-                </Badge>
-              )}
+              <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px]">
+                {allFields.filter((f) => !hiddenSet.has(f.key)).length}/{allFields.length}
+              </Badge>
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[240px] p-3" align="start">
