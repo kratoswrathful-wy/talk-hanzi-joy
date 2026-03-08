@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { selectOptionsStore } from "@/stores/select-options-store";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
 import { labelStyleStore } from "@/stores/label-style-store";
+import { toolTemplateStore } from "@/stores/tool-template-store";
 import { resetLoadedKeys } from "@/stores/settings-persistence";
 
 let loaded = false;
