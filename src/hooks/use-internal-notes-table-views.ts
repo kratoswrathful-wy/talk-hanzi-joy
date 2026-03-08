@@ -26,6 +26,11 @@ export interface InternalNote {
   status: string;               // single-select via noteStatus
   noteType: string;             // 性質 — single-select via noteNature
   internalAssignee: string;     // default = case reviewer
+  fileName: string;
+  idRowCount: string;
+  sourceText: string;
+  translatedText: string;
+  questionOrNote: string;
   referenceFiles: { name: string; url: string }[];
   comments: NoteComment[];
   // Invalidation
