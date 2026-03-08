@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import ColorPicker from "@/components/ColorPicker";
 import { useSelectOptions, selectOptionsStore, PRESET_COLORS } from "@/stores/select-options-store";
 import { useLabelStyles, labelStyleStore } from "@/stores/label-style-store";
-import { useToolTemplates, toolTemplateStore, type ToolTemplate } from "@/stores/tool-template-store";
+import { useToolTemplates, toolTemplateStore, type ToolTemplate, type TemplateField } from "@/stores/tool-template-store";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
@@ -135,17 +135,155 @@ function ToolFieldManager({ optionId, fields }: { optionId: string; fields: { id
   );
 }
 
+/* ── Template Field Manager (for templates) ── */
+function TemplateFieldManager({
+  fields,
+  fieldValues,
+  onFieldsChange,
+  onFieldValuesChange,
+}: {
+  fields: TemplateField[];
+  fieldValues: Record<string, string>;
+  onFieldsChange: (fields: TemplateField[]) => void;
+  onFieldValuesChange: (values: Record<string, string>) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const handleAdd = () => {
+    const label = newLabel.trim();
+    if (!label) return;
+    const id = `tf-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
+    onFieldsChange([...fields, { id, label }]);
+    setNewLabel("");
+    setAdding(false);
+  };
+
+  const handleRename = (fieldId: string) => {
+    const label = editLabel.trim();
+    if (!label) return;
+    onFieldsChange(fields.map((f) => (f.id === fieldId ? { ...f, label } : f)));
+    setEditingId(null);
+  };
+
+  const handleRemove = (fieldId: string) => {
+    onFieldsChange(fields.filter((f) => f.id !== fieldId));
+    const next = { ...fieldValues };
+    delete next[fieldId];
+    onFieldValuesChange(next);
+  };
+
+  const handleDrop = (idx: number) => {
+    if (dragIndex === null || dragIndex === idx) return;
+    const next = [...fields];
+    const [moved] = next.splice(dragIndex, 1);
+    next.splice(idx, 0, moved);
+    onFieldsChange(next);
+    setDragIndex(null);
+    setDragOverIndex(null);
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs text-muted-foreground">範本欄位</p>
+      {fields.map((f, idx) => (
+        <div
+          key={f.id}
+          draggable
+          onDragStart={() => setDragIndex(idx)}
+          onDragOver={(e) => { e.preventDefault(); if (dragIndex !== null && dragIndex !== idx) setDragOverIndex(idx); }}
+          onDrop={() => handleDrop(idx)}
+          onDragEnd={() => { setDragIndex(null); setDragOverIndex(null); }}
+          className={cn(
+            "flex items-center gap-2 rounded-md group cursor-grab active:cursor-grabbing",
+            dragOverIndex === idx && "bg-primary/10 border border-dashed border-primary/30",
+            dragIndex === idx && "opacity-50",
+            dragOverIndex !== idx && "hover:bg-secondary/20"
+          )}
+        >
+          <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
+          <div className="grid grid-cols-[80px_1fr] items-center gap-2 flex-1">
+            {editingId === f.id ? (
+              <Input
+                value={editLabel}
+                onChange={(e) => setEditLabel(e.target.value)}
+                onBlur={() => handleRename(f.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleRename(f.id);
+                  if (e.key === "Escape") setEditingId(null);
+                }}
+                className="h-6 text-xs"
+                autoFocus
+              />
+            ) : (
+              <span
+                className="text-xs text-muted-foreground cursor-pointer hover:underline"
+                onClick={() => { setEditingId(f.id); setEditLabel(f.label); }}
+              >
+                {f.label}
+              </span>
+            )}
+            <Input
+              value={fieldValues[f.id] || ""}
+              onChange={(e) => onFieldValuesChange({ ...fieldValues, [f.id]: e.target.value })}
+              className="h-7 text-sm"
+            />
+          </div>
+          <button
+            className="h-5 w-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted text-muted-foreground hover:text-destructive transition-all shrink-0"
+            onClick={() => handleRemove(f.id)}
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        </div>
+      ))}
+      {adding ? (
+        <div className="flex items-center gap-1.5">
+          <Input
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            placeholder="欄位名稱"
+            className="h-6 text-xs flex-1"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleAdd();
+              if (e.key === "Escape") setAdding(false);
+            }}
+          />
+          <Button size="sm" className="h-6 text-xs px-2" disabled={!newLabel.trim()} onClick={handleAdd}>
+            新增
+          </Button>
+          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => setAdding(false)}>
+            取消
+          </Button>
+        </div>
+      ) : (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1 text-xs h-6 px-2 text-muted-foreground"
+          onClick={() => setAdding(true)}
+        >
+          <Plus className="h-3 w-3" />
+          新增欄位
+        </Button>
+      )}
+    </div>
+  );
+}
+
 /* ── Template Card (collapsible) ── */
 function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { id: string; label: string; color: string; toolFields?: { id: string; label: string }[] }[] }) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ToolTemplate>(tpl);
 
-  const selectedTool = toolOptions.find((o) => o.label === draft.tool);
-  const fields = selectedTool?.toolFields || [];
-
   const startEdit = () => {
-    setDraft({ ...tpl });
+    setDraft({ ...tpl, fields: [...(tpl.fields || [])], fieldValues: { ...tpl.fieldValues } });
     setEditing(true);
     setExpanded(true);
   };
@@ -154,10 +292,20 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
     toolTemplateStore.update(tpl.id, {
       name: draft.name,
       tool: draft.tool,
+      fields: draft.fields,
       fieldValues: draft.fieldValues,
     });
     setEditing(false);
   };
+
+  const handleToolChange = (newTool: string) => {
+    // When changing tool, initialize fields from tool's default fields
+    const selectedTool = toolOptions.find((o) => o.label === newTool);
+    const defaultFields = (selectedTool?.toolFields || []).map((f) => ({ id: f.id, label: f.label }));
+    setDraft({ ...draft, tool: newTool, fields: defaultFields, fieldValues: {} });
+  };
+
+  const displayFields = tpl.fields || [];
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
@@ -198,7 +346,7 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
               </div>
               <div className="grid grid-cols-[80px_1fr] items-center gap-2">
                 <span className="text-xs text-muted-foreground">工具</span>
-                <Select value={draft.tool} onValueChange={(v) => setDraft({ ...draft, tool: v, fieldValues: {} })}>
+                <Select value={draft.tool} onValueChange={handleToolChange}>
                   <SelectTrigger className="h-7 text-sm">
                     <SelectValue placeholder="選擇工具" />
                   </SelectTrigger>
@@ -209,16 +357,12 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
                   </SelectContent>
                 </Select>
               </div>
-              {fields.map((f) => (
-                <div key={f.id} className="grid grid-cols-[80px_1fr] items-center gap-2">
-                  <span className="text-xs text-muted-foreground">{f.label}</span>
-                  <Input
-                    value={draft.fieldValues[f.id] || ""}
-                    onChange={(e) => setDraft({ ...draft, fieldValues: { ...draft.fieldValues, [f.id]: e.target.value } })}
-                    className="h-7 text-sm"
-                  />
-                </div>
-              ))}
+              <TemplateFieldManager
+                fields={draft.fields || []}
+                fieldValues={draft.fieldValues}
+                onFieldsChange={(f) => setDraft({ ...draft, fields: f })}
+                onFieldValuesChange={(v) => setDraft({ ...draft, fieldValues: v })}
+              />
               <div className="flex justify-end pt-1">
                 <Button size="sm" className="h-7 text-xs gap-1" onClick={handleSave}>
                   <Save className="h-3 w-3" />
@@ -228,10 +372,10 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
             </>
           ) : (
             <>
-              {fields.length === 0 && !tpl.tool && (
+              {displayFields.length === 0 && !tpl.tool && (
                 <p className="text-xs text-muted-foreground">尚未設定工具</p>
               )}
-              {fields.map((f) => {
+              {displayFields.map((f) => {
                 const val = tpl.fieldValues[f.id];
                 if (!val) return null;
                 return (
@@ -259,14 +403,20 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
 function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; label: string; toolFields?: { id: string; label: string }[] }[]; onDone: () => void }) {
   const [name, setName] = useState("");
   const [tool, setTool] = useState("");
+  const [fields, setFields] = useState<TemplateField[]>([]);
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
 
-  const selectedTool = toolOptions.find((o) => o.label === tool);
-  const fields = selectedTool?.toolFields || [];
+  const handleToolChange = (newTool: string) => {
+    const selectedTool = toolOptions.find((o) => o.label === newTool);
+    const defaultFields = (selectedTool?.toolFields || []).map((f) => ({ id: f.id, label: f.label }));
+    setTool(newTool);
+    setFields(defaultFields);
+    setFieldValues({});
+  };
 
   const handleSave = () => {
     if (!name.trim()) return;
-    toolTemplateStore.add({ name: name.trim(), tool, fieldValues });
+    toolTemplateStore.add({ name: name.trim(), tool, fields, fieldValues });
     onDone();
   };
 
@@ -284,7 +434,7 @@ function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; l
       </div>
       <div className="grid grid-cols-[80px_1fr] items-center gap-2">
         <span className="text-xs text-muted-foreground">工具</span>
-        <Select value={tool} onValueChange={(v) => { setTool(v); setFieldValues({}); }}>
+        <Select value={tool} onValueChange={handleToolChange}>
           <SelectTrigger className="h-7 text-sm">
             <SelectValue placeholder="選擇工具" />
           </SelectTrigger>
@@ -295,16 +445,14 @@ function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; l
           </SelectContent>
         </Select>
       </div>
-      {fields.map((f) => (
-        <div key={f.id} className="grid grid-cols-[80px_1fr] items-center gap-2">
-          <span className="text-xs text-muted-foreground">{f.label}</span>
-          <Input
-            value={fieldValues[f.id] || ""}
-            onChange={(e) => setFieldValues({ ...fieldValues, [f.id]: e.target.value })}
-            className="h-7 text-sm"
-          />
-        </div>
-      ))}
+      {tool && (
+        <TemplateFieldManager
+          fields={fields}
+          fieldValues={fieldValues}
+          onFieldsChange={setFields}
+          onFieldValuesChange={setFieldValues}
+        />
+      )}
       <div className="flex gap-1.5 justify-end pt-1">
         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onDone}>
           取消
