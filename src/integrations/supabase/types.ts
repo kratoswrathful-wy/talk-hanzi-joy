@@ -72,7 +72,7 @@ export type Database = {
           tools: Json
           track_changes: string
           translation_deadline: string | null
-          translator: string
+          translator: Json
           translator_final: Json
           unit_count: number
           updated_at: string
@@ -115,7 +115,7 @@ export type Database = {
           tools?: Json
           track_changes?: string
           translation_deadline?: string | null
-          translator?: string
+          translator?: Json
           translator_final?: Json
           unit_count?: number
           updated_at?: string
@@ -158,7 +158,7 @@ export type Database = {
           tools?: Json
           track_changes?: string
           translation_deadline?: string | null
-          translator?: string
+          translator?: Json
           translator_final?: Json
           unit_count?: number
           updated_at?: string
