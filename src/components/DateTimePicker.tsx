@@ -302,6 +302,10 @@ export default function DateTimePicker({
       setTimeError(false);
       onChange(next.toISOString());
     }
+    if (v) {
+      // Always focus date input when opening
+      setTimeout(() => dateRef.current?.focus(), 50);
+    }
     if (!v) {
       if (!validateDate() || !validateTime()) return;
       commitAll();
