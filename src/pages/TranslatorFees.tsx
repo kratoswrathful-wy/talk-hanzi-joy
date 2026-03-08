@@ -403,6 +403,22 @@ function DispatchRouteLabel({ value }: { value: string }) {
   );
 }
 
+function TranslatorInvoiceStatus({ feeId }: { feeId: string }) {
+  const invoices = useInvoices();
+  const linked = invoices.find((inv) => inv.feeIds.includes(feeId));
+  if (!linked) return <span className="text-sm text-muted-foreground">尚未請款</span>;
+  const labelMap: Record<string, string> = { pending: "待付款", partial: "部份付款", paid: "已付款" };
+  return <Badge variant="outline" className="text-xs whitespace-nowrap">{labelMap[linked.status] || linked.status}</Badge>;
+}
+
+function ClientInvoiceStatusCell({ feeId }: { feeId: string }) {
+  const invoices = useClientInvoices();
+  const linked = invoices.find((inv) => inv.feeIds.includes(feeId));
+  if (!linked) return <span className="text-sm text-muted-foreground">尚未請款</span>;
+  const labelMap: Record<string, string> = { pending: "待收款", partial: "部份到帳", paid: "全額收齊" };
+  return <Badge variant="outline" className="text-xs whitespace-nowrap">{labelMap[linked.status] || linked.status}</Badge>;
+}
+
 function InvoiceLink({ feeId }: { feeId: string }) {
   const navigate = useNavigate();
   const invoices = useInvoices();
