@@ -126,6 +126,12 @@ function AssigneeLabel({ value }: { value: string }) {
   return <AssigneeTag label={value} avatarUrl={opt?.avatarUrl} />;
 }
 
+function TranslatorAvatarTag({ name }: { name: string }) {
+  const { options } = useSelectOptions("assignee");
+  const opt = options.find((o) => o.label === name);
+  return <AssigneeTag label={name} avatarUrl={opt?.avatarUrl} />;
+}
+
 function OpenButton({ caseId }: { caseId: string }) {
   const navigate = useNavigate();
   return (
