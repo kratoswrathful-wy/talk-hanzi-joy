@@ -21,9 +21,10 @@ Deno.serve(async (req) => {
 
     // Only allow specific test emails
     const allowedEmails = [
-      "valodja.j@gmail.com",
-      "kratoswrathful@gmail.com",
-      "alexandria1up@gmail.com",
+      "test-exec@test.local",
+      "test-pm@test.local",
+      "test-t1@test.local",
+      "test-t2@test.local",
     ];
     if (!allowedEmails.includes(email)) {
       return new Response(JSON.stringify({ error: "unauthorized email" }), {

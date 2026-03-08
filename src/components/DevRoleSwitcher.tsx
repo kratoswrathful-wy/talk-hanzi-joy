@@ -9,9 +9,10 @@ interface TestAccount {
 }
 
 const TEST_ACCOUNTS: TestAccount[] = [
-  { email: "valodja.j@gmail.com", label: "執行官" },
-  { email: "kratoswrathful@gmail.com", label: "譯者 - K" },
-  { email: "alexandria1up@gmail.com", label: "PM - Alex1UP" },
+  { email: "test-exec@test.local", label: "執行長" },
+  { email: "test-pm@test.local", label: "PM" },
+  { email: "test-t1@test.local", label: "譯者一" },
+  { email: "test-t2@test.local", label: "譯者二" },
 ];
 
 export function DevRoleSwitcher() {
