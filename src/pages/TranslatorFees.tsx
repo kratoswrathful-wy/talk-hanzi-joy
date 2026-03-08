@@ -487,6 +487,24 @@ export default function TranslatorFees() {
   const visibleFees = tableViews.applyFiltersAndSorts(baseFees);
 
   const rowSelection = useRowSelection(visibleFees.map((f) => f.id));
+  const allInvoices = useInvoices();
+  const allClientInvoices = useClientInvoices();
+
+  // Build lock context for a fee (linked invoices)
+  const getLockContext = useCallback((fee: TranslatorFee): FeeFieldLockContext => {
+    return {
+      linkedTranslatorInvoiceIds: allInvoices.filter((inv) => inv.feeIds.includes(fee.id)).map((inv) => inv.id),
+      linkedClientInvoiceIds: allClientInvoices.filter((inv) => inv.feeIds.includes(fee.id)).map((inv) => inv.id),
+    };
+  }, [allInvoices, allClientInvoices]);
+
+  // For multi-select: compute aggregate lock tooltip for a field
+  const getMultiLockTooltip = useCallback((field: string): string | undefined => {
+    if (rowSelection.selectedCount <= 1) return undefined;
+    const selectedFees = visibleFees.filter((f) => rowSelection.selectedIds.has(f.id));
+    const lock = getMultiSelectFieldLock(selectedFees, field, getLockContext);
+    return lock.locked ? lock.reason : undefined;
+  }, [rowSelection.selectedCount, rowSelection.selectedIds, visibleFees, getLockContext]);
 
   // Column resize
   const resizingRef = useRef<{ key: string; startX: number; startWidth: number } | null>(null);
