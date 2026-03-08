@@ -387,6 +387,13 @@ export default function TranslatorFeeDetail() {
   }, []);
 
   if (!feeData) {
+    if (!feesLoaded) {
+      return (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
     return (
       <div className="flex items-center justify-center py-20">
         <p className="text-muted-foreground">找不到該筆稿費紀錄</p>
