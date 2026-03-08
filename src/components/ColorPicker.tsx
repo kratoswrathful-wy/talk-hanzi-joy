@@ -286,22 +286,22 @@ export default function ColorPicker({
         </div>
 
         {/* Custom colors */}
-        {(customColors.length > 0 || onAddCustomColor) && (
+        {(allCustomColors.length > 0 || onAddCustomColor) && (
           <div>
             <p className="text-xs text-muted-foreground mb-1.5">自訂色彩</p>
             <div className="flex flex-wrap gap-1.5 items-center">
-              {customColors.map((c) => (
+              {allCustomColors.map((c) => (
                 <ColorSwatch
                   key={c}
                   color={c}
-                  selected={value === c}
+                  selected={value?.toUpperCase() === c}
                   labels={getLabels(c)}
                   onSelect={() => {
                     onChange(c);
                     setHexInput(c);
                     setHsv(hexToHsv(c));
                   }}
-                  onRemove={onRemoveCustomColor ? () => setDeleteColorConfirm(c) : undefined}
+                  onRemove={onRemoveCustomColor && customColors.map((x) => x.toUpperCase()).includes(c) ? () => setDeleteColorConfirm(c) : undefined}
                 />
               ))}
             </div>
