@@ -11,24 +11,47 @@ export function CommentContent({
   fileUrls?: { name: string; url: string }[];
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const regex = /(@\S+)|\[([^\]]+)\]\(([^)]+)\)/g;
+  // Match [@title](/route) links and plain @mentions
+  const regex = /\[@([^\]]+)\]\(([^)]+)\)|(@\S+)|\[([^\]]+)\]\(([^)]+)\)/g;
   const rendered: React.ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
+
+  // Determine which internal routes the current user can access
+  // Fee/invoice/client_invoice pages may not be accessible to members
+  const restrictedPrefixes = ["/fees/", "/invoices/", "/client-invoices/"];
+
   while ((match = regex.exec(content)) !== null) {
     if (match.index > lastIndex) {
       rendered.push(<span key={`t-${lastIndex}`}>{content.slice(lastIndex, match.index)}</span>);
     }
-    if (match[1]) {
+    if (match[1] && match[2]) {
+      // [@title](/route) — internal page mention
+      const title = match[1];
+      const route = match[2];
+      const isInternal = route.startsWith("/");
+      rendered.push(
+        <a
+          key={`l-${match.index}`}
+          href={isInternal ? route : route}
+          {...(isInternal ? {} : { target: "_blank", rel: "noopener noreferrer" })}
+          className="text-primary font-medium bg-primary/10 rounded px-0.5 underline underline-offset-2 hover:text-primary/80"
+        >
+          @{title}
+        </a>
+      );
+    } else if (match[3]) {
+      // Plain @mention
       rendered.push(
         <span key={`m-${match.index}`} className="text-primary font-medium bg-primary/10 rounded px-0.5">
-          {match[1]}
+          {match[3]}
         </span>
       );
-    } else if (match[2] && match[3]) {
+    } else if (match[4] && match[5]) {
+      // [text](url) — plain markdown link
       rendered.push(
-        <a key={`l-${match.index}`} href={match[3]} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:text-primary/80">
-          {match[2]}
+        <a key={`l2-${match.index}`} href={match[5]} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2 hover:text-primary/80">
+          {match[4]}
         </a>
       );
     }

@@ -180,9 +180,10 @@ function reset() {
   cases = [];
 }
 
-// Listen for auth changes to reset cache
+// Listen for auth changes to reset cache and reload
 supabase.auth.onAuthStateChange(() => {
   reset();
+  load();
 });
 
 async function duplicate(id: string): Promise<CaseRecord | null> {
