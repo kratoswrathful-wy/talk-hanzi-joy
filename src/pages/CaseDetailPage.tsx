@@ -33,7 +33,7 @@ import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-store";
 import { useAuth } from "@/hooks/use-auth";
-import { internalNotesStore } from "@/stores/internal-notes-store";
+import { internalNotesStore, useInternalNotes } from "@/stores/internal-notes-store";
 import type { InternalNote } from "@/hooks/use-internal-notes-table-views";
 
 
@@ -492,6 +492,7 @@ export default function CaseDetailPage() {
   const [creatorName, setCreatorName] = useState("");
   const { primaryRole: currentRole, profile } = useAuth();
   const isManager = currentRole === "pm" || currentRole === "executive";
+  const allInternalNotes = useInternalNotes(); // reactive
 
   // Comment drafts
   const [commentDraft, setCommentDraft] = useState("");
@@ -570,44 +571,31 @@ export default function CaseDetailPage() {
 
   /* ── Internal Note creation from case ── */
   const handleCreateInternalNote = () => {
-    // Extract case number without date suffix
     const caseTitle = caseData?.title || "";
-    // Remove trailing date pattern (e.g., _2026-03-08 or _20260308 etc.)
     const baseId = caseTitle.replace(/[_\-]?\d{4}[\-\/]?\d{2}[\-\/]?\d{2}$/, "").trim() || caseTitle;
     const prefix = `${baseId}_Note_`;
-
-    // Find existing notes with this prefix to determine next sequence number
-    const existingNotes = internalNotesStore.findByTitlePrefix(prefix);
-    let maxSeq = 0;
-    for (const note of existingNotes) {
-      const suffix = note.title.slice(prefix.length);
-      const num = parseInt(suffix, 10);
-      if (!isNaN(num) && num > maxSeq) maxSeq = num;
-    }
+    const maxSeq = internalNotesStore.getMaxSeqForPrefix(prefix);
     const nextSeq = String(maxSeq + 1).padStart(5, "0");
 
     const newNote: InternalNote = {
       id: `note-${Date.now()}`,
       title: `${prefix}${nextSeq}`,
       relatedCase: caseTitle,
-      noteId: "",
       createdAt: new Date().toISOString(),
-      noteType: "",
       creator: profile?.display_name || "",
       status: "",
-      internalAssignee: "",
-      fileName: "",
-      idRowCount: "",
-      sourceText: "",
-      translatedText: "",
-      questionOrNote: "",
-      reference: "",
-      internalResolution: "",
-      remarks: "",
+      noteType: "",
+      internalAssignee: caseData?.reviewer || "",
+      referenceFiles: [],
+      comments: [],
+      invalidated: false,
     };
     internalNotesStore.add(newNote);
     navigate(`/internal-notes?noteId=${newNote.id}`);
   };
+
+  // Get linked notes for this case (reactive via useInternalNotes)
+  const linkedNotes = caseData ? allInternalNotes.filter((n) => n.relatedCase === caseData.title) : [];
 
   const handleDelete = async () => {
     if (!caseData) return;
@@ -963,9 +951,25 @@ export default function CaseDetailPage() {
             新增
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">
-          點擊「新增」將在內部註記模組建立一筆新紀錄，標題自動依序編號。
-        </p>
+        {linkedNotes.length > 0 ? (
+          <div className="space-y-1">
+            {linkedNotes.map((n) => (
+              <Link
+                key={n.id}
+                to={`/internal-notes?noteId=${n.id}`}
+                className="flex items-center gap-2 text-sm text-primary hover:underline"
+              >
+                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                {n.title}
+                {n.invalidated && <Badge variant="destructive" className="text-[10px] px-1.5 py-0">已失效</Badge>}
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            尚無內部註記。點擊「新增」將在內部註記模組建立一筆新紀錄。
+          </p>
+        )}
       </div>
 
       <Separator />

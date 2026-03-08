@@ -46,6 +46,23 @@ export const internalNotesStore = {
   findByTitlePrefix: (prefix: string): InternalNote[] =>
     notes.filter((n) => n.title.startsWith(prefix)),
 
+  /** Find all notes whose relatedCase matches */
+  findByCase: (caseTitle: string): InternalNote[] =>
+    notes.filter((n) => n.relatedCase === caseTitle),
+
+  /** Get max sequence number across ALL notes (global) */
+  getMaxSeqForPrefix: (prefix: string): number => {
+    let max = 0;
+    for (const n of notes) {
+      if (n.title.startsWith(prefix)) {
+        const suffix = n.title.slice(prefix.length);
+        const num = parseInt(suffix, 10);
+        if (!isNaN(num) && num > max) max = num;
+      }
+    }
+    return max;
+  },
+
   subscribe: (listener: Listener) => {
     listeners.add(listener);
     return () => listeners.delete(listener);
