@@ -5,6 +5,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import AssigneeTag from "@/components/AssigneeTag";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
