@@ -1484,49 +1484,63 @@ export default function TranslatorFeeDetail() {
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-1.5">
                 <Label className="text-xs text-muted-foreground">客戶</Label>
-                <ColorSelect
-                  fieldKey="client"
-                  value={clientInfo.client}
-                  disabled={!isManager || clientInfo.reconciled}
-                  onValueChange={(clientName) => {
-                    trackChange("客戶", clientInfo.client, clientName);
-                    const updatedInfo = { ...clientInfo, client: clientName };
-                    if (clientName) {
-                      // Auto-fill client task item prices (always overwrite on client change)
-                      updatedInfo.clientTaskItems = updatedInfo.clientTaskItems.map(item => {
-                        const price = defaultPricingStore.getClientPrice(clientName, item.taskType, item.billingUnit);
-                        return price !== undefined ? { ...item, clientPrice: price } : item;
-                      });
-                      // Auto-fill translator task item prices via tiers (always overwrite)
-                      const updatedTaskItems = taskItems.map(item => {
-                        const cp = defaultPricingStore.getClientPrice(clientName, item.taskType, item.billingUnit);
-                        if (cp === undefined) return item;
-                        const tp = defaultPricingStore.getTranslatorPrice(cp, item.taskType, item.billingUnit);
-                        return tp !== undefined ? { ...item, unitPrice: tp } : item;
-                      });
-                      setTaskItems(updatedTaskItems);
-                      if (id) feeStore.updateFee(id, { taskItems: updatedTaskItems });
-                    }
-                    setClientInfo(updatedInfo);
-                    if (id) feeStore.updateFee(id, { clientInfo: updatedInfo });
-                  }}
-                  placeholder="選擇客戶"
-                />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <ColorSelect
+                        fieldKey="client"
+                        value={clientInfo.client}
+                        disabled={!isManager || clientInfo.reconciled || linkedClientInvoices.length > 0}
+                        onValueChange={(clientName) => {
+                          trackChange("客戶", clientInfo.client, clientName);
+                          const updatedInfo = { ...clientInfo, client: clientName };
+                          if (clientName) {
+                            updatedInfo.clientTaskItems = updatedInfo.clientTaskItems.map(item => {
+                              const price = defaultPricingStore.getClientPrice(clientName, item.taskType, item.billingUnit);
+                              return price !== undefined ? { ...item, clientPrice: price } : item;
+                            });
+                            const updatedTaskItems = taskItems.map(item => {
+                              const cp = defaultPricingStore.getClientPrice(clientName, item.taskType, item.billingUnit);
+                              if (cp === undefined) return item;
+                              const tp = defaultPricingStore.getTranslatorPrice(cp, item.taskType, item.billingUnit);
+                              return tp !== undefined ? { ...item, unitPrice: tp } : item;
+                            });
+                            setTaskItems(updatedTaskItems);
+                            if (id) feeStore.updateFee(id, { taskItems: updatedTaskItems });
+                          }
+                          setClientInfo(updatedInfo);
+                          if (id) feeStore.updateFee(id, { clientInfo: updatedInfo });
+                        }}
+                        placeholder="選擇客戶"
+                      />
+                    </div>
+                  </TooltipTrigger>
+                  {linkedClientInvoices.length > 0 && <TooltipContent>此費用已列入客戶請款單，不得修改客戶</TooltipContent>}
+                  {!linkedClientInvoices.length && clientInfo.reconciled && <TooltipContent>已勾選對帳完成，不得修改客戶</TooltipContent>}
+                </Tooltip>
               </div>
               <div className="grid gap-1.5">
                 <Label className="text-xs text-muted-foreground">聯絡人</Label>
-                <ColorSelect
-                  fieldKey="contact"
-                  value={clientInfo.contact}
-                  disabled={!isManager || clientInfo.reconciled}
-                  onValueChange={(v) => {
-                    trackChange("聯絡人", clientInfo.contact, v);
-                    const updated = { ...clientInfo, contact: v };
-                    setClientInfo(updated);
-                    if (id) feeStore.updateFee(id, { clientInfo: updated });
-                  }}
-                  placeholder="選擇聯絡人"
-                />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <ColorSelect
+                        fieldKey="contact"
+                        value={clientInfo.contact}
+                        disabled={!isManager || clientInfo.reconciled || linkedClientInvoices.length > 0}
+                        onValueChange={(v) => {
+                          trackChange("聯絡人", clientInfo.contact, v);
+                          const updated = { ...clientInfo, contact: v };
+                          setClientInfo(updated);
+                          if (id) feeStore.updateFee(id, { clientInfo: updated });
+                        }}
+                        placeholder="選擇聯絡人"
+                      />
+                    </div>
+                  </TooltipTrigger>
+                  {linkedClientInvoices.length > 0 && <TooltipContent>此費用已列入客戶請款單，不得修改聯絡人</TooltipContent>}
+                  {!linkedClientInvoices.length && clientInfo.reconciled && <TooltipContent>已勾選對帳完成，不得修改聯絡人</TooltipContent>}
+                </Tooltip>
               </div>
             </div>
           )}
