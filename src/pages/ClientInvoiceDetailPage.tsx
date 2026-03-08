@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,13 +61,17 @@ function StatusBadge({ status }: { status: ClientInvoiceStatus }) {
   };
   const colors = styleMap[status];
   return (
-    <Badge
-      variant="default"
-      className="border"
-      style={{ backgroundColor: colors.bgColor, color: colors.textColor, borderColor: colors.bgColor }}
-    >
-      {clientInvoiceStatusLabels[status]}
-    </Badge>
+    <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+      <span className="cursor-default">
+        <Badge
+          variant="default"
+          className="border"
+          style={{ backgroundColor: colors.bgColor, color: colors.textColor, borderColor: colors.bgColor }}
+        >
+          {clientInvoiceStatusLabels[status]}
+        </Badge>
+      </span>
+    </TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip></TooltipProvider>
   );
 }
 
@@ -492,7 +497,7 @@ export default function ClientInvoiceDetailPage() {
                           {fee.title || <span className="text-muted-foreground italic">未命名</span>}
                         </Link>
                       </TableCell>
-                      <TableCell className="text-center text-sm tabular-nums">{formatCurrency(feeTotal)}</TableCell>
+                      <TableCell className="text-center text-sm tabular-nums"><TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="cursor-default">{formatCurrency(feeTotal)}</span></TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider></TableCell>
                       {editable && (
                         <TableCell className="text-center">
                           <Button
@@ -523,7 +528,7 @@ export default function ClientInvoiceDetailPage() {
                       <span className="text-muted-foreground text-sm">共 {linkedFees.length} 筆費用</span>
                     </TableCell>
                     <TableCell className="text-center">
-                      <span className="font-semibold tabular-nums">{formatCurrency(total)}</span>
+                      <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="font-semibold tabular-nums cursor-default">{formatCurrency(total)}</span></TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
                     </TableCell>
                     {editable && <TableCell />}
                   </TableRow>

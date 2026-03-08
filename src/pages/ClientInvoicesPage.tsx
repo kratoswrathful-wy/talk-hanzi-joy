@@ -3,6 +3,7 @@ import { Plus, ExternalLink, Trash2, GripVertical } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -50,13 +51,17 @@ function StatusBadge({ status }: { status: ClientInvoiceStatus }) {
   };
   const colors = styleMap[status];
   return (
-    <Badge
-      variant="default"
-      className="text-xs whitespace-nowrap border"
-      style={{ backgroundColor: colors.bgColor, color: colors.textColor, borderColor: colors.bgColor }}
-    >
-      {clientInvoiceStatusLabels[status]}
-    </Badge>
+    <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+      <span className="cursor-default">
+        <Badge
+          variant="default"
+          className="text-xs whitespace-nowrap border"
+          style={{ backgroundColor: colors.bgColor, color: colors.textColor, borderColor: colors.bgColor }}
+        >
+          {clientInvoiceStatusLabels[status]}
+        </Badge>
+      </span>
+    </TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip></TooltipProvider>
   );
 }
 
@@ -161,7 +166,7 @@ export default function ClientInvoicesPage() {
       key: "totalAmount",
       label: "總金額",
       minWidth: 80,
-      render: (_inv, total) => <span className="text-sm tabular-nums">{formatCurrency(total)}</span>,
+      render: (_inv, total) => <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-sm tabular-nums cursor-default">{formatCurrency(total)}</span></TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>,
     },
     {
       key: "transferDate",
