@@ -148,6 +148,7 @@ export default function MembersPage() {
   const [inviteEmails, setInviteEmails] = useState<string[]>([]);
   const [inviting, setInviting] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
+  const [removeStep, setRemoveStep] = useState<1 | 2>(1);
 
   const fetchMembers = useCallback(async () => {
     setLoading(true);
