@@ -363,7 +363,9 @@ export default function NewTranslatorFee() {
                     合計
                   </TableCell>
                   <TableCell className="text-right text-sm font-semibold tabular-nums">
-                    {total.toLocaleString()}
+                    <Tooltip><TooltipTrigger asChild>
+                      <span className="cursor-default">{total.toLocaleString()}</span>
+                    </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip>
                   </TableCell>
                   <TableCell />
                 </TableRow>

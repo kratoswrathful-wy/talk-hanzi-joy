@@ -585,7 +585,9 @@ export default function ClientInfoSection({
                     </Tooltip>
                   </TableCell>
                   <TableCell className="text-right text-xs font-medium">
-                    {clientInfo.notFirstFee ? <span className="text-muted-foreground">N/A</span> : (Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
+                    <Tooltip><TooltipTrigger asChild>
+                      <span className="cursor-default">{clientInfo.notFirstFee ? <span className="text-muted-foreground">N/A</span> : (Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}</span>
+                    </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip>
                   </TableCell>
                   <TableCell className="px-2">
                     <div className="flex justify-center">
