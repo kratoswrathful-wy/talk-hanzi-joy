@@ -148,6 +148,7 @@ export default function MembersPage() {
   const [inviteEmails, setInviteEmails] = useState<string[]>([]);
   const [inviting, setInviting] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
+  const [removeStep, setRemoveStep] = useState<1 | 2>(1);
 
   const fetchMembers = useCallback(async () => {
     setLoading(true);
@@ -225,16 +226,31 @@ export default function MembersPage() {
     toast.success("角色已更新");
   };
 
+  const handleRemoveStep1 = () => {
+    setRemoveStep(2);
+  };
+
   const handleRemove = async () => {
     if (!removeTarget) return;
     if (removeTarget.isInvitation) {
       await supabase.from("invitations").delete().eq("id", removeTarget.invitationId!);
+      toast.success("邀請已移除");
     } else {
-      await supabase.from("user_roles").delete().eq("user_id", removeTarget.id);
+      // Call edge function to fully delete user (roles + profile + auth)
+      const { error } = await supabase.functions.invoke("delete-user", {
+        body: { user_id: removeTarget.id },
+      });
+      if (error) {
+        toast.error("移除失敗：" + error.message);
+        setRemoveTarget(null);
+        setRemoveStep(1);
+        return;
+      }
+      toast.success("成員已移除");
     }
     setRemoveTarget(null);
+    setRemoveStep(1);
     fetchMembers();
-    toast.success("成員已移除");
   };
 
   if (!isAdmin) {
@@ -366,18 +382,36 @@ export default function MembersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Remove Confirmation */}
-      <AlertDialog open={!!removeTarget} onOpenChange={(open) => !open && setRemoveTarget(null)}>
+      {/* Remove Confirmation - Step 1 */}
+      <AlertDialog open={!!removeTarget && removeStep === 1} onOpenChange={(open) => { if (!open) { setRemoveTarget(null); setRemoveStep(1); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>確認移除</AlertDialogTitle>
             <AlertDialogDescription>
-              確定要移除 {removeTarget?.display_name || removeTarget?.email} 嗎？此操作無法復原。
+              確定要移除 {removeTarget?.display_name || removeTarget?.email} 嗎？
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRemove}>確認移除</AlertDialogAction>
+            <AlertDialogAction onClick={handleRemoveStep1}>確認</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Remove Confirmation - Step 2 */}
+      <AlertDialog open={!!removeTarget && removeStep === 2} onOpenChange={(open) => { if (!open) { setRemoveTarget(null); setRemoveStep(1); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>再次確認</AlertDialogTitle>
+            <AlertDialogDescription>
+              此操作無法復原。確定要永久移除 {removeTarget?.display_name || removeTarget?.email} 嗎？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRemove} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              確認移除
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
