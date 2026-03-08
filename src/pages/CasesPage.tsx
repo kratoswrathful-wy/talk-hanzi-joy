@@ -25,7 +25,12 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import type { CaseRecord } from "@/data/case-types";
+import type { CaseRecord, CaseStatus } from "@/data/case-types";
+
+const caseStatusLabels: Record<CaseStatus, string> = {
+  draft: "草稿",
+  finalized: "開立完成",
+};
 
 const formatDate = (iso: string) => {
   const d = new Date(iso);
