@@ -209,8 +209,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "派案途徑",
     minWidth: 80,
     managerOnly: true,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={f.clientInfo?.dispatchRoute || ""} type="colorSelect" fieldKey="dispatchRoute" editable={editable} onCommit={(v) => onCommit("dispatchRoute", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={f.clientInfo?.dispatchRoute || ""} type="colorSelect" fieldKey="dispatchRoute" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("dispatchRoute", v)}>
         <DispatchRouteLabel value={f.clientInfo?.dispatchRoute || ""} />
       </InlineEditCell>
     ),
