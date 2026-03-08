@@ -848,6 +848,8 @@ export default function ToolManagementPage() {
           ))}
         </div>
       </div>
+      {/* ── 常用連結區塊 ── */}
+      <CommonLinksSection />
     </div>
   );
 }
