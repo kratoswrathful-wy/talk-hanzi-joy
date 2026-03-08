@@ -1,23 +1,29 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getTimezoneOffsetLabel } from "@/data/timezone-options";
 
 interface AssigneeTagProps {
   label: string;
   avatarUrl?: string | null;
   size?: "sm" | "md";
+  timezone?: string | null;
+  onClick?: () => void;
 }
 
 /**
  * Black-background tag with avatar + display name for translator/assignee display.
- * Used in fee table, fee detail, and ColorSelect for assignee fields.
+ * Shows UTC offset if timezone is not Taiwan Standard Time.
  */
-export default function AssigneeTag({ label, avatarUrl, size = "sm" }: AssigneeTagProps) {
+export default function AssigneeTag({ label, avatarUrl, size = "sm", timezone, onClick }: AssigneeTagProps) {
   const avatarSize = size === "sm" ? "h-8 w-8" : "h-9 w-9";
   const textSize = size === "sm" ? "text-xs" : "text-xs";
   const padding = size === "sm" ? "pl-0.5 pr-2 py-0.5" : "pl-0.5 pr-2.5 py-0.5";
+  const tzLabel = getTimezoneOffsetLabel(timezone);
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full ${padding} ${textSize} font-medium`}
+      role={onClick ? "button" : undefined}
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-full ${padding} ${textSize} font-medium ${onClick ? "cursor-pointer hover:opacity-80" : ""}`}
       style={{ backgroundColor: "#1a1a1a", color: "#D1DAEA" }}
     >
       <Avatar className={avatarSize}>
@@ -26,7 +32,7 @@ export default function AssigneeTag({ label, avatarUrl, size = "sm" }: AssigneeT
           {label.charAt(0).toUpperCase()}
         </AvatarFallback>
       </Avatar>
-      <span className="truncate">{label}</span>
+      <span className="truncate">{label}{tzLabel ? ` ${tzLabel}` : ""}</span>
     </span>
   );
 }
