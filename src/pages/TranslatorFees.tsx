@@ -614,6 +614,10 @@ export default function TranslatorFees() {
       const fee = feeStore.getFeeById(id);
       if (!fee) continue;
 
+      // Skip locked items in multi-select
+      const lock = getFieldLock(fee, field, getLockContext(fee));
+      if (lock.locked) continue;
+
       // Get old value for undo
       let oldValue: string | boolean;
       if (["client", "contact", "clientCaseId", "clientPoNumber", "dispatchRoute", "reconciled", "rateConfirmed", "invoiced", "sameCase"].includes(field)) {
@@ -636,7 +640,7 @@ export default function TranslatorFees() {
         feeStore.updateFee(id, { [field]: value });
       }
     }
-  }, [rowSelection.selectedIds, rowSelection.selectedCount, undoRedo]);
+  }, [rowSelection.selectedIds, rowSelection.selectedCount, undoRedo, getLockContext]);
 
   // Marquee (rubber-band) selection
   const tableContainerRef = useRef<HTMLDivElement>(null);
