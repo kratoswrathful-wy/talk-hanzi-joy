@@ -455,7 +455,7 @@ export default function CasesPage() {
             新增案件
           </Button>
         )}
-        {rowSelection.selectedCount > 0 && (
+        {rowSelection.selectedCount > 0 && isAdmin && (
           <>
             <span className="text-xs text-muted-foreground">已選取 {rowSelection.selectedCount} 個項目</span>
             {rowSelection.selectedCount === 1 && (
