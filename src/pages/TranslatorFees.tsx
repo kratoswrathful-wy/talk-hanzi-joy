@@ -685,7 +685,7 @@ export default function TranslatorFees() {
         oldValue = (fee as any)[field] ?? "";
       }
 
-      undoRedo.push({ feeId: id, field, oldValue, newValue: value as string | boolean });
+      undoRedo.push({ feeId: id, field, oldValue: oldValue as string | boolean, newValue: value as string | boolean });
 
       // Client info fields
       if (["client", "clientCaseId", "clientPoNumber", "reconciled", "rateConfirmed", "invoiced"].includes(field)) {
