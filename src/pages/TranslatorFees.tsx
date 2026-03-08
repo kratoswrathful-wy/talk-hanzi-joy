@@ -245,7 +245,11 @@ const allColumnDefs: ColumnDef[] = [
       const rev = f.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
       const cost = f.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
       const p = rev - cost;
-      return <span className={cn("text-sm tabular-nums font-medium", p >= 0 ? "text-success" : "text-destructive")}>{formatCurrency(p)}</span>;
+      return (
+        <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+          <span className={cn("text-sm tabular-nums font-medium cursor-default", p >= 0 ? "text-success" : "text-destructive")}>{formatCurrency(p)}</span>
+        </TooltipTrigger><TooltipContent className="text-xs">自動計算/填入</TooltipContent></Tooltip></TooltipProvider>
+      );
     },
   },
   {
