@@ -656,17 +656,17 @@ function SectionBulkButtons({
         </div>
         )}
         {hasEditableItems && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-6 text-[11px] px-2 ml-1"
-            onClick={() => {
-              onToggle("view", true);
-              onToggle("edit", false);
-            }}
-          >
-            全部可見但不可編輯
-          </Button>
+          <div className="flex items-center gap-1">
+            <Label className="text-xs text-foreground/70 whitespace-nowrap">全部可見但不可編輯</Label>
+            <Switch
+              checked={allView && !allEdit}
+              onCheckedChange={() => {
+                onToggle("view", true);
+                onToggle("edit", false);
+              }}
+              className="scale-75 data-[state=checked]:bg-primary/70"
+            />
+          </div>
         )}
       </div>
   );
