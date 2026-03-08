@@ -771,26 +771,90 @@ export default function TranslatorFees() {
             新增費用
           </Button>
         )}
-        {isManager && rowSelection.selectedCount > 0 && (
-          <>
-            <InvoiceActions
-              selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
-              onDone={() => rowSelection.deselectAll()}
-            />
-            <ClientInvoiceActions
-              selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
-              onDone={() => rowSelection.deselectAll()}
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 text-muted-foreground hover:text-destructive"
-              onClick={() => setShowDeleteConfirm(true)}
-              title="刪除選取項目"
-            >
-              <Trash2 className="h-4.5 w-4.5" />
-            </Button>
-          </>
+        {isManager && (
+          <TooltipProvider delayDuration={200}>
+            {/* Translator Invoice button */}
+            {rowSelection.selectedCount >= 2 ? (
+              <InvoiceActions
+                selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
+                onDone={() => rowSelection.deselectAll()}
+              />
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    {rowSelection.selectedCount === 1 ? (
+                      <InvoiceActions
+                        selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
+                        onDone={() => rowSelection.deselectAll()}
+                      />
+                    ) : (
+                      <Button variant="outline" size="sm" className="gap-1.5 h-9" disabled>
+                        <FileText className="h-4 w-4" />
+                        譯者請款
+                      </Button>
+                    )}
+                  </span>
+                </TooltipTrigger>
+                {rowSelection.selectedCount === 0 && (
+                  <TooltipContent>請先選取項目</TooltipContent>
+                )}
+              </Tooltip>
+            )}
+
+            {/* Client Invoice button */}
+            {rowSelection.selectedCount >= 2 ? (
+              <ClientInvoiceActions
+                selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
+                onDone={() => rowSelection.deselectAll()}
+              />
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    {rowSelection.selectedCount === 1 ? (
+                      <ClientInvoiceActions
+                        selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
+                        onDone={() => rowSelection.deselectAll()}
+                      />
+                    ) : (
+                      <Button variant="outline" size="sm" className="gap-1.5 h-9" disabled>
+                        <FileText className="h-4 w-4" />
+                        客戶請款
+                      </Button>
+                    )}
+                  </span>
+                </TooltipTrigger>
+                {rowSelection.selectedCount === 0 && (
+                  <TooltipContent>請先選取項目</TooltipContent>
+                )}
+              </Tooltip>
+            )}
+
+            {/* Delete button */}
+            {(() => {
+              const deleteReason = getDeleteDisabledReason();
+              const isDisabled = !!deleteReason;
+              return (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                        disabled={isDisabled}
+                        onClick={handleDeleteClick}
+                      >
+                        <Trash2 className="h-4.5 w-4.5" />
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {isDisabled && <TooltipContent>{deleteReason}</TooltipContent>}
+                </Tooltip>
+              );
+            })()}
+          </TooltipProvider>
         )}
         {!activeView.isDefault && (
           <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
