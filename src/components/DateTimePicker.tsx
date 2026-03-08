@@ -480,7 +480,7 @@ function FixInput({
     </Popover>
 
     <AlertDialog open={!!validationMsg} onOpenChange={() => {}}>
-      <AlertDialogContent className="max-w-sm" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+      <AlertDialogContent className="max-w-sm" onEscapeKeyDown={(e: any) => e.preventDefault()}>
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2 text-destructive">
             <AlertTriangle className="h-5 w-5" />
