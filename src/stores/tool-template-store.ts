@@ -34,7 +34,8 @@ export const toolTemplateStore = {
 
   add: (tpl: Omit<ToolTemplate, "id">): string => {
     const id = `tpl-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
-    templates = [...templates, { ...tpl, id }];
+    const newTpl = { ...tpl, id, fields: tpl.fields || [] };
+    templates = [...templates, newTpl];
     notify();
     return id;
   },
