@@ -1,5 +1,34 @@
 import { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Paperclip, ExternalLink } from "lucide-react";
+import { ChevronLeft, ChevronRight, Paperclip, ExternalLink, Lock } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
+
+/** Check if a route is accessible based on module permissions */
+function useRouteAccessChecker() {
+  const { primaryRole } = useAuth();
+  const { checkPerm } = usePermissions();
+
+  return (route: string): boolean => {
+    // Client invoices → client_invoices module
+    if (route.startsWith("/client-invoices/")) {
+      return checkPerm("client_invoices", "page", "view");
+    }
+    // Translator invoices
+    if (route.startsWith("/invoices/")) {
+      return checkPerm("invoices", "page", "view");
+    }
+    // Fees
+    if (route.startsWith("/fees/")) {
+      return checkPerm("fees", "page", "view");
+    }
+    // Internal notes
+    if (route.startsWith("/internal-notes")) {
+      return checkPerm("internal_notes", "page", "view");
+    }
+    // Cases and others are generally accessible
+    return true;
+  };
+}
 
 export function CommentContent({
   content,
@@ -11,15 +40,13 @@ export function CommentContent({
   fileUrls?: { name: string; url: string }[];
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const canAccessRoute = useRouteAccessChecker();
+
   // Match [@title](/route) links and plain @mentions
   const regex = /\[@([^\]]+)\]\(([^)]+)\)|(@\S+)|\[([^\]]+)\]\(([^)]+)\)/g;
   const rendered: React.ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
-
-  // Determine which internal routes the current user can access
-  // Fee/invoice/client_invoice pages may not be accessible to members
-  const restrictedPrefixes = ["/fees/", "/invoices/", "/client-invoices/"];
 
   while ((match = regex.exec(content)) !== null) {
     if (match.index > lastIndex) {
@@ -30,16 +57,30 @@ export function CommentContent({
       const title = match[1];
       const route = match[2];
       const isInternal = route.startsWith("/");
-      rendered.push(
-        <a
-          key={`l-${match.index}`}
-          href={isInternal ? route : route}
-          {...(isInternal ? {} : { target: "_blank", rel: "noopener noreferrer" })}
-          className="text-primary font-medium bg-primary/10 rounded px-0.5 underline underline-offset-2 hover:text-primary/80"
-        >
-          @{title}
-        </a>
-      );
+      const hasAccess = !isInternal || canAccessRoute(route);
+
+      if (hasAccess) {
+        rendered.push(
+          <a
+            key={`l-${match.index}`}
+            href={route}
+            {...(isInternal ? {} : { target: "_blank", rel: "noopener noreferrer" })}
+            className="text-primary font-medium bg-primary/10 rounded px-0.5 underline underline-offset-2 hover:text-primary/80"
+          >
+            @{title}
+          </a>
+        );
+      } else {
+        rendered.push(
+          <span
+            key={`l-${match.index}`}
+            className="inline-flex items-center gap-0.5 text-muted-foreground bg-muted rounded px-1 py-0.5 text-xs"
+          >
+            <Lock className="h-3 w-3" />
+            無權限檢視
+          </span>
+        );
+      }
     } else if (match[3]) {
       // Plain @mention
       rendered.push(
