@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { ArrowLeft, Plus, X, Loader2 } from "lucide-react";
 import { CommentContent } from "@/components/comments/CommentContent";
 import { CommentInput } from "@/components/comments/CommentInput";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
@@ -17,6 +18,8 @@ const feeStatusLabels: Record<FeeStatus, string> = {
 };
 import ClientInfoSection from "@/components/ClientInfoSection";
 import { useFee, useFees, feeStore } from "@/hooks/use-fee-store";
+import { useInvoices } from "@/hooks/use-invoice-store";
+import { useClientInvoices } from "@/hooks/use-client-invoice-store";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -124,6 +127,8 @@ export default function TranslatorFeeDetail() {
   const { id } = useParams();
   const feeData = useFee(id);
   const allFees = useFees();
+  const allInvoices = useInvoices();
+  const allClientInvoices = useClientInvoices();
 
   const navigate = useNavigate();
   const [title, setTitle] = useState(feeData?.title ?? "");
@@ -167,6 +172,12 @@ export default function TranslatorFeeDetail() {
   const confirmSwapOriginRef = useRef<"choose" | "assignRole">("choose");
   const [multiTranslatorPages, setMultiTranslatorPages] = useState<{ id: string; title: string; assignee: string }[] | null>(null);
   const [autoCreatedOptions, setAutoCreatedOptions] = useState<{ field: string; label: string }[] | null>(null);
+  const [showFinalizePrompt, setShowFinalizePrompt] = useState(false);
+  const finalizePromptRef = useRef<HTMLButtonElement>(null);
+
+  // Compute linked invoices for this fee
+  const linkedTranslatorInvoices = id ? allInvoices.filter((inv) => inv.feeIds.includes(id)).map((inv) => ({ id: inv.id, title: inv.title })) : [];
+  const linkedClientInvoices = id ? allClientInvoices.filter((inv) => inv.feeIds.includes(id)).map((inv) => ({ id: inv.id, title: inv.title })) : [];
   
 
   // Find the other fee that is firstFee in the same case group
@@ -1193,80 +1204,116 @@ export default function TranslatorFeeDetail() {
             返回費用清單
           </Link>
         )}
+        <TooltipProvider delayDuration={200}>
         <div className="flex items-center gap-2 shrink-0">
-          {isManager && isDraft && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs min-w-[88px]"
-              onClick={() => {
-                if (isNavigationBlocked) {
-                  if (needsRoleAssignment) {
-                    toast.error("請將本頁面指定為相關案件的主要或非主要營收紀錄。");
-                    setDuplicateDialogStep("assignRole");
-                  } else {
-                    toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
-                    setDisableOption12A(false);
-                    setDuplicateDialogStep("choose");
-                  }
-                  return;
-                }
-                // Clone current fee with incrementing copy count
-                const copyCount = (window as any).__copyCount ?? 0;
-                (window as any).__copyCount = copyCount + 1;
-                const draft = feeStore.createDraft();
-                feeStore.updateFee(draft.id, {
-                  title: title ? `${title} 副本${copyCount + 1}` : "",
-                  assignee,
-                  taskItems: taskItems.map((item, idx) => ({ ...item, id: `item-clone-${Date.now()}-${idx}` })),
-                  internalNote,
-                  internalNoteUrl,
-                  clientInfo: { ...clientInfo },
-                });
-                navigate(`/fees/${draft.id}`);
-              }}
-            >
-              複製本頁
-            </Button>
+          {isManager && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs min-w-[88px]"
+                    disabled={!isDraft}
+                    onClick={() => {
+                      if (isNavigationBlocked) {
+                        if (needsRoleAssignment) {
+                          toast.error("請將本頁面指定為相關案件的主要或非主要營收紀錄。");
+                          setDuplicateDialogStep("assignRole");
+                        } else {
+                          toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
+                          setDisableOption12A(false);
+                          setDuplicateDialogStep("choose");
+                        }
+                        return;
+                      }
+                      const copyCount = (window as any).__copyCount ?? 0;
+                      (window as any).__copyCount = copyCount + 1;
+                      const draft = feeStore.createDraft();
+                      feeStore.updateFee(draft.id, {
+                        title: title ? `${title} 副本${copyCount + 1}` : "",
+                        assignee,
+                        taskItems: taskItems.map((item, idx) => ({ ...item, id: `item-clone-${Date.now()}-${idx}` })),
+                        internalNote,
+                        internalNoteUrl,
+                        clientInfo: { ...clientInfo },
+                      });
+                      navigate(`/fees/${draft.id}`);
+                    }}
+                  >
+                    複製本頁
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {!isDraft && <TooltipContent>已開立稿費條，無法複製</TooltipContent>}
+            </Tooltip>
           )}
           {isManager && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs min-w-[88px]"
-              onClick={() => {
-                if (isNavigationBlocked) {
-                  if (needsRoleAssignment) {
-                    toast.error("請將本頁面指定為相關案件的主要或非主要營收紀錄。");
-                    setDuplicateDialogStep("assignRole");
-                  } else {
-                    toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
-                    setDisableOption12A(false);
-                    setDuplicateDialogStep("choose");
-                  }
-                  return;
-                }
-                const draft = feeStore.createDraft();
-                navigate(`/fees/${draft.id}`);
-              }}
-            >
-              新增費用頁面
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs min-w-[88px]"
+                    disabled={isFinalized}
+                    onClick={() => {
+                      if (isNavigationBlocked) {
+                        if (needsRoleAssignment) {
+                          toast.error("請將本頁面指定為相關案件的主要或非主要營收紀錄。");
+                          setDuplicateDialogStep("assignRole");
+                        } else {
+                          toast.error("同一案件中有多個「主要營收紀錄」，請先更改勾選內容");
+                          setDisableOption12A(false);
+                          setDuplicateDialogStep("choose");
+                        }
+                        return;
+                      }
+                      const draft = feeStore.createDraft();
+                      navigate(`/fees/${draft.id}`);
+                    }}
+                  >
+                    新增費用頁面
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {isFinalized && <TooltipContent>已開立稿費條，請先收回為草稿</TooltipContent>}
+            </Tooltip>
           )}
-          {canDelete && (
-            <Button size="sm" className="text-xs min-w-[88px] text-white hover:opacity-80" style={{ backgroundColor: '#6B7280' }} onClick={() => setDeleteDialogOpen(true)}>
-              刪除
-            </Button>
+          {isManager && isDraft && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    size="sm"
+                    className="text-xs min-w-[88px] text-white hover:opacity-80"
+                    style={{ backgroundColor: '#6B7280' }}
+                    disabled={isFinalized}
+                    onClick={() => setDeleteDialogOpen(true)}
+                  >
+                    刪除
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {isFinalized && <TooltipContent>已開立稿費條，無法刪除</TooltipContent>}
+            </Tooltip>
           )}
-          {canSubmit && (
-            <Button
-              size="sm"
-              className="text-xs min-w-[88px]"
-              disabled={!isNoFeeTranslator && !clientInfo.rateConfirmed}
-              onClick={handleSubmit}
-            >
-              開立稿費條
-            </Button>
+          {isManager && isDraft && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    size="sm"
+                    className="text-xs min-w-[88px]"
+                    disabled={!isNoFeeTranslator && !clientInfo.rateConfirmed}
+                    onClick={handleSubmit}
+                  >
+                    開立稿費條
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {!isNoFeeTranslator && !clientInfo.rateConfirmed && <TooltipContent>請先勾選「費率無誤」</TooltipContent>}
+            </Tooltip>
           )}
           {canRecall && (
             <Button variant="outline" size="sm" className="text-xs min-w-[88px]" onClick={handleRecall}>
@@ -1274,6 +1321,7 @@ export default function TranslatorFeeDetail() {
             </Button>
           )}
         </div>
+        </TooltipProvider>
       </div>
 
       {/* Main content card */}
@@ -1496,6 +1544,7 @@ export default function TranslatorFeeDetail() {
                     }
                   }
                 }}
+                linkedClientInvoices={linkedClientInvoices}
               />
             </div>
           </>
@@ -1508,6 +1557,17 @@ export default function TranslatorFeeDetail() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Label className="text-sm font-medium">稿費內容</Label>
+              {linkedTranslatorInvoices.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground">稿費請款單</span>
+                  {linkedTranslatorInvoices.map((inv, idx) => (
+                    <span key={inv.id}>
+                      <Link to={`/invoices/${inv.id}`} className="text-xs text-primary hover:underline">{inv.title || "未命名"}</Link>
+                      {idx < linkedTranslatorInvoices.length - 1 && <span className="text-xs text-muted-foreground">、</span>}
+                    </span>
+                  ))}
+                </div>
+              )}
               {isNoFeeTranslator && (
                 <span className="text-xs text-warning bg-warning/10 border border-warning/30 rounded px-2 py-0.5">無須開立稿費</span>
               )}
@@ -1530,7 +1590,7 @@ export default function TranslatorFeeDetail() {
                 新增項目
               </Button>
               {isManager && (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 relative">
                   <Checkbox
                     id="rateConfirmed"
                     checked={isNoFeeTranslator ? true : clientInfo.rateConfirmed}
@@ -1539,6 +1599,12 @@ export default function TranslatorFeeDetail() {
                       const updated = { ...clientInfo, rateConfirmed: !!checked };
                       setClientInfo(updated);
                       if (id) feeStore.updateFee(id, { clientInfo: updated });
+                      // When checking rateConfirmed, show finalize prompt
+                      if (checked && !isNoFeeTranslator) {
+                        setShowFinalizePrompt(true);
+                        // Focus the confirm button after render
+                        setTimeout(() => finalizePromptRef.current?.focus(), 100);
+                      }
                     }}
                   />
                   <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">費率無誤</Label>
@@ -1546,6 +1612,34 @@ export default function TranslatorFeeDetail() {
               )}
             </div>
           </div>
+
+          {/* Finalize prompt after rate confirmation */}
+          {showFinalizePrompt && isDraft && isManager && (
+            <div className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+              <span className="text-xs text-foreground">是否同時開立稿費條？</span>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  ref={finalizePromptRef}
+                  size="sm"
+                  className="h-7 text-xs px-3"
+                  onClick={() => {
+                    setShowFinalizePrompt(false);
+                    handleSubmit();
+                  }}
+                >
+                  開立稿費條
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs px-3"
+                  onClick={() => setShowFinalizePrompt(false)}
+                >
+                  稍後再說
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div className="rounded-lg border border-border overflow-hidden">
             <Table>

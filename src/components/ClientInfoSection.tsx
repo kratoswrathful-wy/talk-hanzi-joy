@@ -42,6 +42,8 @@ interface ClientInfoSectionProps {
   onFirstFeeConflict?: () => void;
   /** Called when a client price is first entered (was 0/empty, now has value) */
   onClientPriceEntered?: (itemIndex: number, clientPrice: number, taskType: string, billingUnit: string) => void;
+  /** Linked client invoices for this fee */
+  linkedClientInvoices?: { id: string; title: string }[];
 }
 
 export default function ClientInfoSection({
@@ -53,6 +55,7 @@ export default function ClientInfoSection({
   currentFeeId,
   currentInternalNote,
   onFirstFeeConflict,
+  linkedClientInvoices = [],
   onClientPriceEntered,
 }: ClientInfoSectionProps) {
   const [showUncheckWarning, setShowUncheckWarning] = useState(false);
@@ -179,8 +182,19 @@ export default function ClientInfoSection({
       <div className="space-y-3">
         <div className="space-y-1">
           {/* Row 1: Title + checkboxes + Add button */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
             <Label className="text-sm font-medium">營收內容</Label>
+            {linkedClientInvoices.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">客戶請款單</span>
+                {linkedClientInvoices.map((inv, idx) => (
+                  <span key={inv.id}>
+                    <Link to={`/client-invoices/${inv.id}`} className="text-xs text-primary hover:underline">{inv.title || "未命名"}</Link>
+                    {idx < linkedClientInvoices.length - 1 && <span className="text-xs text-muted-foreground">、</span>}
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <Button
                 variant="outline"
