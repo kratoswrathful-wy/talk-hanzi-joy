@@ -42,14 +42,18 @@ export default function FileField({ value, onChange }: FileFieldProps) {
   const uploadFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
     setUploading(true);
+    setUploadProgress(0);
+    setUploadTotal(files.length);
     const newItems: FileItem[] = [];
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
       const path = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}/${file.name}`;
       const { error } = await supabase.storage.from("case-files").upload(path, file);
       if (!error) {
         const { data: urlData } = supabase.storage.from("case-files").getPublicUrl(path);
         newItems.push({ name: file.name, url: urlData.publicUrl, size: file.size });
       }
+      setUploadProgress(i + 1);
     }
     if (newItems.length > 0) {
       onChange([...value, ...newItems]);
