@@ -787,14 +787,16 @@ export default function TranslatorFeeDetail() {
         // Auto-create client/contact options if they don't exist
         if (client) {
           const existingClients = selectOptionsStore.getSortedOptions("client");
-          if (!existingClients.find((o) => o.label === client)) {
+          const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+          if (!existingClients.find((o) => normalize(o.label) === normalize(client))) {
             selectOptionsStore.addOption("client", client, PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]);
             autoCreated.push({ field: "客戶", label: client });
           }
         }
         if (contact) {
           const existingContacts = selectOptionsStore.getSortedOptions("contact");
-          if (!existingContacts.find((o) => o.label === contact)) {
+          const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+          if (!existingContacts.find((o) => normalize(o.label) === normalize(contact))) {
             selectOptionsStore.addOption("contact", contact, CONTACT_DEFAULT_COLOR);
             autoCreated.push({ field: "聯絡人", label: contact });
           }
