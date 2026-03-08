@@ -33,7 +33,7 @@ import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-store";
 import { useAuth } from "@/hooks/use-auth";
-import { Checkbox } from "@/components/ui/checkbox";
+
 
 const caseStatusLabels: Record<CaseStatus, string> = {
   draft: "草稿",
