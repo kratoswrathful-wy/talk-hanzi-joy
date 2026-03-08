@@ -91,6 +91,8 @@ interface CommentEntry {
   author: string;
   content: string;
   imageUrls?: string[];
+  fileUrls?: { name: string; url: string }[];
+  replyTo?: string;
   timestamp: string;
 }
 

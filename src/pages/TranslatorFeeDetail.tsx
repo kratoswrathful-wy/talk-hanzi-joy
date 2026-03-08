@@ -102,6 +102,8 @@ interface CommentEntry {
   author: string;
   content: string; // supports markdown-like: @user, [text](url), ![img](url)
   imageUrls?: string[];
+  fileUrls?: { name: string; url: string }[];
+  replyTo?: string;
   timestamp: string;
 }
 
