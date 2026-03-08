@@ -16,6 +16,7 @@ import { useUndoRedo, type UndoEntry } from "@/hooks/use-undo-redo";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { InvoiceActions } from "@/components/InvoiceActions";
 import { useInvoices } from "@/hooks/use-invoice-store";
+import { useClientInvoices } from "@/hooks/use-client-invoice-store";
 import { useState, useRef, useCallback, useEffect } from "react";
 import {
   AlertDialog,
