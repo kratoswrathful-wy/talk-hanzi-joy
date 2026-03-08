@@ -134,8 +134,8 @@ const allColumnDefs: ColumnDef[] = [
     key: "assignee",
     label: "譯者",
     minWidth: 70,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={f.assignee} type="colorSelect" fieldKey="assignee" editable={editable} onCommit={(v) => onCommit("assignee", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={f.assignee} type="colorSelect" fieldKey="assignee" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("assignee", v)}>
         <AssigneeLabel value={f.assignee} />
       </InlineEditCell>
     ),
