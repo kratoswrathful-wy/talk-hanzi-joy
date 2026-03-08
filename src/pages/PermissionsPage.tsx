@@ -244,6 +244,38 @@ const PERMISSION_MODULES: PermissionModule[] = [
     ],
     detailSections: [],
   },
+  {
+    key: "field_reference",
+    label: "欄位對照表",
+    listItems: [
+      { key: "field_ref_view", label: "檢視欄位對照表", type: "view" },
+    ],
+    detailSections: [],
+  },
+  {
+    key: "internal_notes",
+    label: "內部提問及備註",
+    listItems: [
+      { key: "inotes_list_view", label: "檢視列表", type: "both" },
+      { key: "inotes_list_create", label: "新增紀錄", type: "both", attribute: "按鈕" },
+      { key: "inotes_list_delete", label: "刪除紀錄", type: "both", attribute: "按鈕" },
+    ],
+    detailSections: [
+      {
+        label: "紀錄詳情",
+        items: [
+          { key: "inotes_detail_title", label: "標題", type: "both", attribute: "文字" },
+          { key: "inotes_detail_relatedCase", label: "關聯案件", type: "both", attribute: "關聯" },
+          { key: "inotes_detail_noteType", label: "性質", type: "both", attribute: "單選" },
+          { key: "inotes_detail_status", label: "狀態", type: "both", attribute: "單選" },
+          { key: "inotes_detail_assignee", label: "內部指派對象", type: "both", attribute: "人員（單選）" },
+          { key: "inotes_detail_content", label: "問題或註記內容", type: "both", attribute: "長文字" },
+          { key: "inotes_detail_resolution", label: "內部處理結論", type: "both", attribute: "長文字" },
+          { key: "inotes_detail_remarks", label: "備註", type: "both", attribute: "長文字" },
+        ],
+      },
+    ],
+  },
 ];
 
 // ─── Helpers ───
