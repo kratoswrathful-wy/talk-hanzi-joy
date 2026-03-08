@@ -678,14 +678,14 @@ export default function TranslatorFees() {
       if (lock.locked) continue;
 
       // Get old value for undo
-      let oldValue: string | boolean;
+      let oldValue: string | boolean | string[];
       if (["client", "contact", "clientCaseId", "clientPoNumber", "dispatchRoute", "reconciled", "rateConfirmed", "invoiced", "sameCase"].includes(field)) {
         oldValue = (fee.clientInfo as any)?.[field] ?? (typeof value === "boolean" ? false : "");
       } else {
         oldValue = (fee as any)[field] ?? "";
       }
 
-      undoRedo.push({ feeId: id, field, oldValue, newValue: value });
+      undoRedo.push({ feeId: id, field, oldValue, newValue: value as string | boolean });
 
       // Client info fields
       if (["client", "clientCaseId", "clientPoNumber", "reconciled", "rateConfirmed", "invoiced"].includes(field)) {
