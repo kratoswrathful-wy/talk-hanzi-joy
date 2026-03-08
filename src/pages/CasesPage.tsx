@@ -135,6 +135,12 @@ const allColumnDefs: ColumnDef[] = [
     ),
   },
   {
+    key: "status",
+    label: "狀態",
+    minWidth: 70,
+    render: (c) => <CaseStatusBadge status={c.status} />,
+  },
+  {
     key: "category",
     label: "類型",
     minWidth: 80,

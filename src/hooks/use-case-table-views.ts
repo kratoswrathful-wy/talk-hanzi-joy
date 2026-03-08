@@ -12,6 +12,7 @@ export { countConditions };
 
 export const caseFieldMetas: FieldMeta[] = [
   { key: "title", label: "案件編號", type: "text" },
+  { key: "status", label: "狀態", type: "select" },
   { key: "category", label: "類型", type: "select" },
   { key: "workType", label: "工作類型", type: "select" },
   { key: "billingUnit", label: "計費單位", type: "select" },
