@@ -580,9 +580,10 @@ export default function PermissionsPage() {
 // ─── Helper: check if all items in a module have all perms enabled ───
 
 function isAllPermsEnabled(modulePerms: ModulePerms, mod: PermissionModule): boolean {
-  const allItems = [...mod.listItems, ...mod.detailItems];
+  const allItems = [...mod.listItems, ...getAllDetailItems(mod)];
   return allItems.every((item) => {
     const view = getItemPerm(modulePerms, item.key, "view");
+    if (item.type === "view") return view;
     const edit = getItemPerm(modulePerms, item.key, "edit");
     return view && edit;
   });
