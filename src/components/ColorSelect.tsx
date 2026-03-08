@@ -224,16 +224,13 @@ export default function ColorSelect({
                           if (!tzLabel && !statusText) return null;
                           return (
                             <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                              {/* Fixed-width timezone badge so status text always aligns */}
+                              {/* Fixed-width timezone text so status always aligns */}
                               <span
-                                className="inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-medium shrink-0"
-                                style={{
-                                  backgroundColor: tzLabel ? draftBg : "transparent",
-                                  color: tzLabel ? "#FFFFFF" : "transparent",
-                                  minWidth: "3.25rem",
-                                }}
+                                className="text-xs text-muted-foreground shrink-0 text-right"
+                                style={{ minWidth: "3.25rem" }}
                               >
                                 {tzLabel || "\u00A0"}
+                              </span>
                               </span>
                               {statusText && (
                                 <Tooltip>
