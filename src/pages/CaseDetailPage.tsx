@@ -626,6 +626,11 @@ export default function CaseDetailPage() {
     toast({ title: "處理回饋中" });
   };
 
+  const handleFeedbackComplete = () => {
+    save({ status: "feedback_completed" as CaseStatus });
+    toast({ title: "回饋處理完畢" });
+  };
+
   const isCurrentUserTranslator = (() => {
     const displayName = profile?.display_name || "";
     return displayName && (caseData.translator || []).includes(displayName);
