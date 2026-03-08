@@ -43,6 +43,20 @@ const formatDateTime = (iso: string | null) => {
   return d.toLocaleString("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
 };
 
+function CaseStatusBadge({ status }: { status: CaseStatus }) {
+  const labelStyles = useLabelStyles();
+  const style = status === "finalized" ? labelStyles.statusFinalized : labelStyles.statusDraft;
+  return (
+    <Badge
+      variant="default"
+      className="text-xs whitespace-nowrap border"
+      style={{ backgroundColor: style.bgColor, color: style.textColor, borderColor: style.bgColor }}
+    >
+      {caseStatusLabels[status]}
+    </Badge>
+  );
+}
+
 interface ColumnDef {
   key: string;
   label: string;
