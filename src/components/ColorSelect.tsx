@@ -228,7 +228,8 @@ export default function ColorSelect({
                       )}
                     </span>
                   </button>
-                  {/* "..." menu */}
+                  {/* "..." menu - hidden for assignee/person field */}
+                  {fieldKey !== "assignee" && (
                   <Popover
                     open={menuOpenId === opt.id}
                     onOpenChange={(v) => {
@@ -360,6 +361,7 @@ export default function ColorSelect({
                       )}
                     </PopoverContent>
                   </Popover>
+                  )}
                 </div>
               ))}
               {filteredOptions.length === 0 && (
