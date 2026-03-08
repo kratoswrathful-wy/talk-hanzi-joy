@@ -674,7 +674,17 @@ export default function CaseDetailPage() {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <Field label="譯者">
-            <MultiColorSelect fieldKey="assignee" values={caseData.translator || []} onValuesChange={(v) => save({ translator: v })} />
+            {isFinalized ? (
+              <div className="flex items-center gap-1 flex-wrap min-h-[32px] px-2 py-1 rounded-md bg-muted/50 border border-border">
+                {(caseData.translator || []).length > 0
+                  ? (caseData.translator || []).map((t, i) => (
+                      <Badge key={i} variant="secondary" className="text-xs">{t}</Badge>
+                    ))
+                  : <span className="text-sm text-muted-foreground">—</span>}
+              </div>
+            ) : (
+              <MultiColorSelect fieldKey="assignee" values={caseData.translator || []} onValuesChange={(v) => save({ translator: v })} />
+            )}
           </Field>
           <Field label="翻譯交期">
             <DateTimePicker value={caseData.translationDeadline} onChange={(v) => save({ translationDeadline: v })} className="w-full" />
