@@ -1,7 +1,9 @@
 import { useState, useRef } from "react";
-import { Plus, X } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Plus, X, FileText } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { clientInvoiceStore } from "@/stores/client-invoice-store";
+import { toast } from "sonner";
 import { selectOptionsStore } from "@/stores/select-options-store";
 import { useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
