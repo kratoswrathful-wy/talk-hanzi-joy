@@ -352,7 +352,9 @@ export default function MembersPage() {
     selectOptionsStore.loadAssignees();
   };
 
-  if (!isAdmin) {
+  const canViewMembers = checkPerm("team_members", "members_view", "view");
+
+  if (!canViewMembers) {
     return (
       <div className="mx-auto max-w-3xl py-12 text-center text-muted-foreground">
         您沒有權限檢視此頁面
