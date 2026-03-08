@@ -659,6 +659,7 @@ export default function CaseDetailPage() {
           >
             新增案件頁面
           </Button>
+          {/* Left-side grey button */}
           {isInquiry && isPmOrAbove ? (
             <Button
               size="sm"
@@ -677,17 +678,26 @@ export default function CaseDetailPage() {
             >
               取消指派
             </Button>
-          ) : !isInquiry && !isDispatched ? (
+          ) : (isTaskCompleted || isDelivered) && isPmOrAbove ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] text-white hover:opacity-80"
               style={{ backgroundColor: '#6B7280' }}
-              disabled={isFinalized || caseData.status === "task_completed"}
+              onClick={handleRevertToDispatched}
+            >
+              退回修正
+            </Button>
+          ) : isDraft ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] text-white hover:opacity-80"
+              style={{ backgroundColor: '#6B7280' }}
               onClick={() => setDeleteOpen(true)}
             >
               刪除
             </Button>
           ) : null}
+          {/* Right-side primary button */}
           {isDraft && isPmOrAbove ? (
             <Button
               size="sm"
@@ -733,6 +743,22 @@ export default function CaseDetailPage() {
               onClick={handleTaskComplete}
             >
               任務完成
+            </Button>
+          ) : isTaskCompleted && isPmOrAbove ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleDelivered}
+            >
+              交件完畢
+            </Button>
+          ) : isDelivered && isPmOrAbove ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleFeedback}
+            >
+              處理回饋
             </Button>
           ) : null}
         </div>
