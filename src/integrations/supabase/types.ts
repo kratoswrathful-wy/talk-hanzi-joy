@@ -66,6 +66,7 @@ export type Database = {
           other_login_info: string
           process_note: string
           question_form: string
+          question_tools: Json | null
           reference_materials: Json
           review_deadline: string | null
           reviewer: string
@@ -115,6 +116,7 @@ export type Database = {
           other_login_info?: string
           process_note?: string
           question_form?: string
+          question_tools?: Json | null
           reference_materials?: Json
           review_deadline?: string | null
           reviewer?: string
@@ -164,6 +166,7 @@ export type Database = {
           other_login_info?: string
           process_note?: string
           question_form?: string
+          question_tools?: Json | null
           reference_materials?: Json
           review_deadline?: string | null
           reviewer?: string

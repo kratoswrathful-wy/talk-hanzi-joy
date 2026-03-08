@@ -1,0 +1,1 @@
+ALTER TABLE public.cases ADD COLUMN IF NOT EXISTS question_tools jsonb DEFAULT '[]'::jsonb;
