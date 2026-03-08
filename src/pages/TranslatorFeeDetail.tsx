@@ -1256,7 +1256,6 @@ export default function TranslatorFeeDetail() {
                     variant="outline"
                     size="sm"
                     className="text-xs min-w-[88px]"
-                    disabled={isFinalized}
                     onClick={() => {
                       if (isNavigationBlocked) {
                         if (needsRoleAssignment) {
