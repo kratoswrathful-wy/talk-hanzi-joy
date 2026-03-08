@@ -552,9 +552,11 @@ export default function CaseDetailPage() {
   const isDraft = caseData.status === "draft";
   const isInquiry = caseData.status === "inquiry";
   const isDispatched = caseData.status === "dispatched";
+  const isCompleted = caseData.status === "completed";
   const isFinalized = caseData.status === "finalized";
   const isMember = currentRole === "member";
   const isPmOrAbove = currentRole === "pm" || currentRole === "executive";
+  const isCurrentUserTranslator = (caseData.translator || []).includes(profile?.display_name || "\0");
 
   const handleDuplicate = async () => {
     const dup = await caseStore.duplicate(caseData.id);
