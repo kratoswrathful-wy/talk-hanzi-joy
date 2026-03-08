@@ -1,0 +1,1 @@
+ALTER TABLE public.cases ADD COLUMN IF NOT EXISTS tool_field_values jsonb NOT NULL DEFAULT '{}'::jsonb;

@@ -68,6 +68,7 @@ export type Database = {
           source_files: Json
           task_status: string
           title: string
+          tool_field_values: Json
           track_changes: string
           translation_deadline: string | null
           translator: string
@@ -109,6 +110,7 @@ export type Database = {
           source_files?: Json
           task_status?: string
           title?: string
+          tool_field_values?: Json
           track_changes?: string
           translation_deadline?: string | null
           translator?: string
@@ -150,6 +152,7 @@ export type Database = {
           source_files?: Json
           task_status?: string
           title?: string
+          tool_field_values?: Json
           track_changes?: string
           translation_deadline?: string | null
           translator?: string
