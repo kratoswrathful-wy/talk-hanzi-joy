@@ -245,34 +245,44 @@ export default function ClientInfoSection({
 
           {/* Row 2: sameCase (left) + dispatch route (right) */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="sameCase"
-                checked={clientInfo.sameCase}
-                disabled={!canEdit || clientInfo.reconciled}
-                onCheckedChange={(checked) => {
-                  if (!checked && clientInfo.sameCase) {
-                    setShowUncheckWarning(true);
-                  } else {
-                    update("sameCase", !!checked);
-                  }
-                }}
-              />
-              <Label htmlFor="sameCase" className="text-xs cursor-pointer whitespace-nowrap">
-                費用群組（勾選後系統會自動以「相關案件」相同者判定群組所屬費用）
-              </Label>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Label className="text-xs text-muted-foreground whitespace-nowrap">派案途徑</Label>
-              <ColorSelect
-                fieldKey="dispatchRoute"
-                value={clientInfo.dispatchRoute || ""}
-                onValueChange={(v) => update("dispatchRoute", v)}
-                triggerClassName="h-7 text-xs min-w-[90px]"
-                placeholder="選擇"
-                disabled={clientInfo.reconciled}
-              />
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="sameCase"
+                    checked={clientInfo.sameCase}
+                    disabled={!canEdit || clientInfo.reconciled}
+                    onCheckedChange={(checked) => {
+                      if (!checked && clientInfo.sameCase) {
+                        setShowUncheckWarning(true);
+                      } else {
+                        update("sameCase", !!checked);
+                      }
+                    }}
+                  />
+                  <Label htmlFor="sameCase" className="text-xs cursor-pointer whitespace-nowrap">
+                    費用群組（勾選後系統會自動以「相關案件」相同者判定群組所屬費用）
+                  </Label>
+                </div>
+              </TooltipTrigger>
+              {clientInfo.reconciled && <TooltipContent>已對帳完成，不得修改營收內容</TooltipContent>}
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs text-muted-foreground whitespace-nowrap">派案途徑</Label>
+                  <ColorSelect
+                    fieldKey="dispatchRoute"
+                    value={clientInfo.dispatchRoute || ""}
+                    onValueChange={(v) => update("dispatchRoute", v)}
+                    triggerClassName="h-7 text-xs min-w-[90px]"
+                    placeholder="選擇"
+                    disabled={clientInfo.reconciled}
+                  />
+                </div>
+              </TooltipTrigger>
+              {clientInfo.reconciled && <TooltipContent>已對帳完成，不得修改營收內容</TooltipContent>}
+            </Tooltip>
           </div>
 
           {/* Sub-options for sameCase - immediately below parent */}
