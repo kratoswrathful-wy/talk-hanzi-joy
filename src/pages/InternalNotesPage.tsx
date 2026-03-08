@@ -177,7 +177,6 @@ function NoteDetailView({
     toast.success(`已建立新註記頁面「${title}」，現有內容複製自原頁面，請確實妥善編輯更改。`);
     navigate(`/internal-notes?noteId=${newNote.id}`);
   };
-  };
 
   return (
     <div className="space-y-4 max-w-3xl">
