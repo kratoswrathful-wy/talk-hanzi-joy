@@ -26,13 +26,14 @@ export function AppSidebar() {
   const canViewMembers = checkPerm("team_members", "members_view", "view");
   const canViewClientInvoices = checkPerm("client_invoices", "cinv_list_view", "view");
   const canViewCases = checkPerm("case_management", "case_list_view", "view");
+  const canViewTools = checkPerm("tool_management", "tool_list_view", "view");
 
   const navItems = [
     ...(canViewCases ? [{ title: "案件管理", url: "/cases", icon: Briefcase }] : []),
     { title: "費用管理", url: "/fees", icon: Receipt },
     { title: "稿費請款", url: "/invoices", icon: FileText },
     ...(canViewClientInvoices ? [{ title: "客戶請款", url: "/client-invoices", icon: FileText }] : []),
-    { title: "工具管理", url: "/tools", icon: Wrench },
+    ...(canViewTools ? [{ title: "工具管理", url: "/tools", icon: Wrench }] : []),
     ...(canViewMembers ? [{ title: "團隊成員", url: "/members", icon: Users }] : []),
     ...(isExecutive ? [{ title: "權限管理", url: "/permissions", icon: Shield }] : []),
     { title: "個人檔案", url: "/profile", icon: User },

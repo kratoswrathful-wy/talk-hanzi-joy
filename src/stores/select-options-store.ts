@@ -2,6 +2,11 @@ import { useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { loadSetting, saveSetting, markDirty } from "./settings-persistence";
 
+export interface ToolFieldDef {
+  id: string;
+  label: string;
+}
+
 export interface SelectOption {
   id: string;
   label: string;
@@ -11,6 +16,7 @@ export interface SelectOption {
   avatarUrl?: string | null;
   timezone?: string | null;
   statusMessage?: string | null;
+  toolFields?: ToolFieldDef[];
 }
 
 export const PRESET_COLORS = [
@@ -196,6 +202,75 @@ export const selectOptionsStore = {
       [fieldKey]: {
         ...field,
         options: field.options.map((o) => (o.id === optionId ? { ...o, note } : o)),
+      },
+    };
+    notify();
+  },
+
+  // Tool sub-field management
+  addToolField: (optionId: string, label: string) => {
+    const field = selectOptionsStore.getField("executionTool");
+    const fieldId = `tf-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
+    store = {
+      ...store,
+      executionTool: {
+        ...field,
+        options: field.options.map((o) =>
+          o.id === optionId
+            ? { ...o, toolFields: [...(o.toolFields || []), { id: fieldId, label }] }
+            : o
+        ),
+      },
+    };
+    notify();
+    return fieldId;
+  },
+
+  removeToolField: (optionId: string, fieldId: string) => {
+    const field = selectOptionsStore.getField("executionTool");
+    store = {
+      ...store,
+      executionTool: {
+        ...field,
+        options: field.options.map((o) =>
+          o.id === optionId
+            ? { ...o, toolFields: (o.toolFields || []).filter((f) => f.id !== fieldId) }
+            : o
+        ),
+      },
+    };
+    notify();
+  },
+
+  renameToolField: (optionId: string, fieldId: string, newLabel: string) => {
+    const field = selectOptionsStore.getField("executionTool");
+    store = {
+      ...store,
+      executionTool: {
+        ...field,
+        options: field.options.map((o) =>
+          o.id === optionId
+            ? { ...o, toolFields: (o.toolFields || []).map((f) => f.id === fieldId ? { ...f, label: newLabel } : f) }
+            : o
+        ),
+      },
+    };
+    notify();
+  },
+
+  reorderToolFields: (optionId: string, orderedIds: string[]) => {
+    const field = selectOptionsStore.getField("executionTool");
+    store = {
+      ...store,
+      executionTool: {
+        ...field,
+        options: field.options.map((o) => {
+          if (o.id !== optionId) return o;
+          const fields = o.toolFields || [];
+          const ordered = orderedIds.map((id) => fields.find((f) => f.id === id)).filter(Boolean) as ToolFieldDef[];
+          const remaining = fields.filter((f) => !orderedIds.includes(f.id));
+          return { ...o, toolFields: [...ordered, ...remaining] };
+        }),
       },
     };
     notify();

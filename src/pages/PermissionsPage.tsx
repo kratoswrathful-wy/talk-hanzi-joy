@@ -211,6 +211,15 @@ const PERMISSION_MODULES: PermissionModule[] = [
     ],
   },
   {
+    key: "tool_management",
+    label: "工具管理",
+    listItems: [
+      { key: "tool_list_view", label: "檢視工具清單", type: "both" },
+      { key: "tool_list_edit", label: "編輯工具選項", type: "both", attribute: "按鈕" },
+    ],
+    detailSections: [],
+  },
+  {
     key: "team_members",
     label: "團隊成員",
     listItems: [

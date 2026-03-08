@@ -22,6 +22,8 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
+import { useSelectOptions } from "@/stores/select-options-store";
+import { useLabelStyles } from "@/stores/label-style-store";
 
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
@@ -29,6 +31,29 @@ function Field({ label, children, className }: { label: string; children: React.
       <span className="text-sm text-muted-foreground pt-1">{label}</span>
       <div>{children}</div>
     </div>
+  );
+}
+function ToolSubFields({ caseData, save }: { caseData: CaseRecord; save: (updates: Partial<CaseRecord>) => void }) {
+  const { options: toolOptions } = useSelectOptions("executionTool");
+  const selectedTool = toolOptions.find((o) => o.label === caseData.executionTool);
+  const fields = selectedTool?.toolFields || [];
+
+  if (fields.length === 0) return null;
+
+  const values = caseData.toolFieldValues || {};
+
+  return (
+    <>
+      {fields.map((f) => (
+        <Field key={f.id} label={f.label}>
+          <Input
+            value={values[f.id] || ""}
+            onChange={(e) => save({ toolFieldValues: { ...values, [f.id]: e.target.value } })}
+            className="max-w-xs"
+          />
+        </Field>
+      ))}
+    </>
   );
 }
 
@@ -182,8 +207,9 @@ export default function CaseDetailPage() {
         <Input value={caseData.taskStatus} onChange={(e) => save({ taskStatus: e.target.value })} className="max-w-xs" />
       </Field>
       <Field label="執行工具">
-        <Input value={caseData.executionTool} onChange={(e) => save({ executionTool: e.target.value })} className="max-w-xs" />
+        <ColorSelect fieldKey="executionTool" value={caseData.executionTool} onValueChange={(v) => save({ executionTool: v })} className="max-w-xs" />
       </Field>
+      <ToolSubFields caseData={caseData} save={save} />
       <Field label="交件方式">
         <Input value={caseData.deliveryMethod} onChange={(e) => save({ deliveryMethod: e.target.value })} className="max-w-md" />
       </Field>
