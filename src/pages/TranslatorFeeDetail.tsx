@@ -51,6 +51,14 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 import { useState, useRef, useEffect, useCallback } from "react";
 
 type UserRole = "assignee" | "pm" | "executive";
@@ -175,6 +183,10 @@ export default function TranslatorFeeDetail() {
   const [autoCreatedOptions, setAutoCreatedOptions] = useState<{ field: string; label: string }[] | null>(null);
   const [showFinalizePrompt, setShowFinalizePrompt] = useState(false);
   const finalizePromptRef = useRef<HTMLButtonElement>(null);
+  
+  // Invoice navigation prompt state
+  const [showInvoiceNavPrompt, setShowInvoiceNavPrompt] = useState<{ type: 'translator' | 'client'; invoiceId: string } | null>(null);
+  const invoiceNavPromptRef = useRef<HTMLButtonElement>(null);
 
   // Compute linked invoices for this fee
   const linkedTranslatorInvoices = id ? allInvoices.filter((inv) => inv.feeIds.includes(id)).map((inv) => ({ id: inv.id, title: inv.title })) : [];
@@ -1641,24 +1653,58 @@ export default function TranslatorFeeDetail() {
                 const canAddToTranslatorInvoice = isFinalized && assignee && !isNoFeeTranslator && linkedTranslatorInvoices.length === 0;
                 const canAddItem = canEdit && !isNoFeeTranslator && !clientInfo.rateConfirmed;
                 
+                // Get existing unpaid invoices for this translator
+                const existingInvoices = allInvoices.filter(
+                  (inv) => inv.translator === assignee && inv.status !== "paid"
+                );
+                
                 if (canAddToTranslatorInvoice) {
                   return (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1 text-xs"
-                      onClick={async () => {
-                        if (!id) return;
-                        const inv = await invoiceStore.createInvoice(assignee, [id]);
-                        if (inv) {
-                          toast.success("已建立稿費請款單");
-                          navigate(`/invoices/${inv.id}`);
-                        }
-                      }}
-                    >
-                      <FileText className="h-3.5 w-3.5" />
-                      收錄至稿費請款單
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="gap-1 text-xs">
+                          <FileText className="h-3.5 w-3.5" />
+                          收錄至稿費請款單
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={async () => {
+                            if (!id) return;
+                            const inv = await invoiceStore.createInvoice(assignee, [id]);
+                            if (inv) {
+                              toast.success("已收錄至稿費請款單");
+                              setShowInvoiceNavPrompt({ type: 'translator', invoiceId: inv.id });
+                              setTimeout(() => invoiceNavPromptRef.current?.focus(), 100);
+                            }
+                          }}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          新建請款單
+                        </DropdownMenuItem>
+                        {existingInvoices.length > 0 && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel className="text-xs text-muted-foreground">收錄至現有請款單</DropdownMenuLabel>
+                            {existingInvoices.map((inv) => (
+                              <DropdownMenuItem
+                                key={inv.id}
+                                onClick={async () => {
+                                  if (!id) return;
+                                  await invoiceStore.addFeesToInvoice(inv.id, [id]);
+                                  toast.success("已收錄至稿費請款單");
+                                  setShowInvoiceNavPrompt({ type: 'translator', invoiceId: inv.id });
+                                  setTimeout(() => invoiceNavPromptRef.current?.focus(), 100);
+                                }}
+                              >
+                                <FileText className="h-4 w-4 mr-2" />
+                                {inv.title || inv.translator} — {inv.feeIds.length} 筆
+                              </DropdownMenuItem>
+                            ))}
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   );
                 }
                 
@@ -1735,6 +1781,35 @@ export default function TranslatorFeeDetail() {
                   size="sm"
                   className="h-7 text-xs px-3"
                   onClick={() => setShowFinalizePrompt(false)}
+                >
+                  稍後再說
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Invoice navigation prompt after adding to invoice */}
+          {showInvoiceNavPrompt && showInvoiceNavPrompt.type === 'translator' && (
+            <div className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+              <span className="text-xs text-foreground">是否前往稿費請款單？</span>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  ref={invoiceNavPromptRef}
+                  size="sm"
+                  className="h-7 text-xs px-3"
+                  onClick={() => {
+                    const invId = showInvoiceNavPrompt.invoiceId;
+                    setShowInvoiceNavPrompt(null);
+                    navigate(`/invoices/${invId}`);
+                  }}
+                >
+                  前往請款單
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs px-3"
+                  onClick={() => setShowInvoiceNavPrompt(null)}
                 >
                   稍後再說
                 </Button>
