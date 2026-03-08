@@ -32,6 +32,8 @@ const caseStatusLabels: Record<CaseStatus, string> = {
   inquiry: "詢案中",
   dispatched: "已派出",
   task_completed: "任務完成",
+  delivered: "已交件",
+  feedback: "處理回饋",
   finalized: "開立完成",
 };
 
