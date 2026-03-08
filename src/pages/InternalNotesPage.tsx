@@ -160,20 +160,22 @@ function NoteDetailView({
       relatedCase: note.relatedCase,
       createdAt: new Date().toISOString(),
       creator: profile?.display_name || "",
-      status: "",
-      noteType: "",
+      status: note.status,
+      noteType: note.noteType,
       internalAssignee: reviewer,
-      fileName: "",
-      idRowCount: "",
-      sourceText: "",
-      translatedText: "",
-      questionOrNote: "",
-      referenceFiles: [],
+      fileName: note.fileName,
+      idRowCount: note.idRowCount,
+      sourceText: note.sourceText,
+      translatedText: note.translatedText,
+      questionOrNote: note.questionOrNote,
+      referenceFiles: note.referenceFiles.map((f) => ({ ...f })),
       comments: [],
       invalidated: false,
     };
     internalNotesStore.add(newNote);
+    toast.success(`已建立新註記頁面「${title}」，現有內容複製自原頁面，請確實妥善編輯更改。`);
     navigate(`/internal-notes?noteId=${newNote.id}`);
+  };
   };
 
   return (
