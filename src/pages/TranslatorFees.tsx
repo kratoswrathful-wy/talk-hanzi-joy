@@ -18,7 +18,7 @@ import { InvoiceActions } from "@/components/InvoiceActions";
 import { ClientInvoiceActions } from "@/components/ClientInvoiceActions";
 import { useInvoices } from "@/hooks/use-invoice-store";
 import { useClientInvoices } from "@/hooks/use-client-invoice-store";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-store";
 import AssigneeTag from "@/components/AssigneeTag";
 import { supabase } from "@/integrations/supabase/client";
+import { getFieldLock, getMultiSelectFieldLock, type FeeFieldLockContext } from "@/lib/fee-field-locks";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
   draft: "草稿",
@@ -100,7 +101,7 @@ interface ColumnDef {
   label: string;
   minWidth: number;
   managerOnly?: boolean;
-  render: (fee: TranslatorFee, opts: { isManager: boolean; editable: boolean; onCommit: (field: string, value: string | boolean) => void }) => React.ReactNode;
+  render: (fee: TranslatorFee, opts: { isManager: boolean; editable: boolean; lockedTooltip?: string; onCommit: (field: string, value: string | boolean) => void }) => React.ReactNode;
 }
 
 const allColumnDefs: ColumnDef[] = [
@@ -108,9 +109,9 @@ const allColumnDefs: ColumnDef[] = [
     key: "title",
     label: "標題",
     minWidth: 120,
-    render: (f, { editable, onCommit }) => (
+    render: (f, { editable, lockedTooltip, onCommit }) => (
       <div className="relative flex items-center group/title">
-        <InlineEditCell value={f.title} type="text" editable={editable} onCommit={(v) => onCommit("title", v)} className="flex-1 min-w-0 pr-6">
+        <InlineEditCell value={f.title} type="text" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("title", v)} className="flex-1 min-w-0 pr-6">
           <span className="truncate font-medium text-card-foreground">
             {f.title || <span className="text-muted-foreground italic">未命名稿費單</span>}
           </span>
@@ -123,8 +124,8 @@ const allColumnDefs: ColumnDef[] = [
     key: "status",
     label: "狀態",
     minWidth: 70,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={f.status} type="select" options={getSelectOptions("status")} editable={editable} onCommit={(v) => onCommit("status", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={f.status} type="select" options={getSelectOptions("status")} editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("status", v)}>
         <FeeStatusBadge status={f.status} />
       </InlineEditCell>
     ),
@@ -133,8 +134,8 @@ const allColumnDefs: ColumnDef[] = [
     key: "assignee",
     label: "譯者",
     minWidth: 70,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={f.assignee} type="colorSelect" fieldKey="assignee" editable={editable} onCommit={(v) => onCommit("assignee", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={f.assignee} type="colorSelect" fieldKey="assignee" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("assignee", v)}>
         <AssigneeLabel value={f.assignee} />
       </InlineEditCell>
     ),
@@ -144,8 +145,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "關聯案件",
     minWidth: 100,
     managerOnly: true,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={f.internalNote} type="text" editable={editable} onCommit={(v) => onCommit("internalNote", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={f.internalNote} type="text" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("internalNote", v)}>
         <span className="truncate text-sm text-muted-foreground">{f.internalNote || "—"}</span>
       </InlineEditCell>
     ),
@@ -164,8 +165,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "客戶",
     minWidth: 70,
     managerOnly: true,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={f.clientInfo?.client || ""} type="colorSelect" fieldKey="client" editable={editable} onCommit={(v) => onCommit("client", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={f.clientInfo?.client || ""} type="colorSelect" fieldKey="client" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("client", v)}>
         <ClientLabel value={f.clientInfo?.client || ""} />
       </InlineEditCell>
     ),
@@ -175,8 +176,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "聯絡人",
     minWidth: 70,
     managerOnly: true,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={f.clientInfo?.contact || ""} type="text" editable={editable} onCommit={(v) => onCommit("contact", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={f.clientInfo?.contact || ""} type="text" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("contact", v)}>
         <span className="truncate text-sm text-muted-foreground">{f.clientInfo?.contact || "—"}</span>
       </InlineEditCell>
     ),
@@ -186,8 +187,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "關鍵字",
     minWidth: 80,
     managerOnly: true,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={f.clientInfo?.clientCaseId || ""} type="text" editable={editable} onCommit={(v) => onCommit("clientCaseId", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={f.clientInfo?.clientCaseId || ""} type="text" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("clientCaseId", v)}>
         <span className="truncate text-sm text-muted-foreground">{f.clientInfo?.clientCaseId || f.clientInfo?.eciKeywords || "—"}</span>
       </InlineEditCell>
     ),
@@ -197,8 +198,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "客戶 PO#",
     minWidth: 80,
     managerOnly: true,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={f.clientInfo?.clientPoNumber || ""} type="text" editable={editable} onCommit={(v) => onCommit("clientPoNumber", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={f.clientInfo?.clientPoNumber || ""} type="text" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("clientPoNumber", v)}>
         <span className="truncate text-sm text-muted-foreground">{f.clientInfo?.clientPoNumber || "—"}</span>
       </InlineEditCell>
     ),
@@ -208,8 +209,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "派案途徑",
     minWidth: 80,
     managerOnly: true,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={f.clientInfo?.dispatchRoute || ""} type="colorSelect" fieldKey="dispatchRoute" editable={editable} onCommit={(v) => onCommit("dispatchRoute", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={f.clientInfo?.dispatchRoute || ""} type="colorSelect" fieldKey="dispatchRoute" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("dispatchRoute", v)}>
         <DispatchRouteLabel value={f.clientInfo?.dispatchRoute || ""} />
       </InlineEditCell>
     ),
@@ -243,8 +244,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "對帳完成",
     minWidth: 50,
     managerOnly: true,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={!!f.clientInfo?.reconciled} type="checkbox" editable={editable} onCommit={(v) => onCommit("reconciled", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={!!f.clientInfo?.reconciled} type="checkbox" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("reconciled", v)}>
         <div className="flex justify-center">
           <Checkbox checked={!!f.clientInfo?.reconciled} disabled className="pointer-events-none" />
         </div>
@@ -256,8 +257,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "費率無誤",
     minWidth: 50,
     managerOnly: true,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={!!f.clientInfo?.rateConfirmed} type="checkbox" editable={editable} onCommit={(v) => onCommit("rateConfirmed", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={!!f.clientInfo?.rateConfirmed} type="checkbox" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("rateConfirmed", v)}>
         <div className="flex justify-center">
           <Checkbox checked={!!f.clientInfo?.rateConfirmed} disabled className="pointer-events-none" />
         </div>
@@ -269,8 +270,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "請款完成",
     minWidth: 50,
     managerOnly: true,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={!!f.clientInfo?.invoiced} type="checkbox" editable={editable} onCommit={(v) => onCommit("invoiced", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={!!f.clientInfo?.invoiced} type="checkbox" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("invoiced", v)}>
         <div className="flex justify-center">
           <Checkbox checked={!!f.clientInfo?.invoiced} disabled className="pointer-events-none" />
         </div>
@@ -282,8 +283,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "費用群組",
     minWidth: 50,
     managerOnly: true,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={!!f.clientInfo?.sameCase} type="checkbox" editable={editable} onCommit={(v) => onCommit("sameCase", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={!!f.clientInfo?.sameCase} type="checkbox" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("sameCase", v)}>
         <div className="flex justify-center">
           <Checkbox checked={!!f.clientInfo?.sameCase} disabled className="pointer-events-none" />
         </div>
@@ -486,6 +487,24 @@ export default function TranslatorFees() {
   const visibleFees = tableViews.applyFiltersAndSorts(baseFees);
 
   const rowSelection = useRowSelection(visibleFees.map((f) => f.id));
+  const allInvoices = useInvoices();
+  const allClientInvoices = useClientInvoices();
+
+  // Build lock context for a fee (linked invoices)
+  const getLockContext = useCallback((fee: TranslatorFee): FeeFieldLockContext => {
+    return {
+      linkedTranslatorInvoiceIds: allInvoices.filter((inv) => inv.feeIds.includes(fee.id)).map((inv) => inv.id),
+      linkedClientInvoiceIds: allClientInvoices.filter((inv) => inv.feeIds.includes(fee.id)).map((inv) => inv.id),
+    };
+  }, [allInvoices, allClientInvoices]);
+
+  // For multi-select: compute aggregate lock tooltip for a field
+  const getMultiLockTooltip = useCallback((field: string): string | undefined => {
+    if (rowSelection.selectedCount <= 1) return undefined;
+    const selectedFees = visibleFees.filter((f) => rowSelection.selectedIds.has(f.id));
+    const lock = getMultiSelectFieldLock(selectedFees, field, getLockContext);
+    return lock.locked ? lock.reason : undefined;
+  }, [rowSelection.selectedCount, rowSelection.selectedIds, visibleFees, getLockContext]);
 
   // Column resize
   const resizingRef = useRef<{ key: string; startX: number; startWidth: number } | null>(null);
@@ -595,6 +614,10 @@ export default function TranslatorFees() {
       const fee = feeStore.getFeeById(id);
       if (!fee) continue;
 
+      // Skip locked items in multi-select
+      const lock = getFieldLock(fee, field, getLockContext(fee));
+      if (lock.locked) continue;
+
       // Get old value for undo
       let oldValue: string | boolean;
       if (["client", "contact", "clientCaseId", "clientPoNumber", "dispatchRoute", "reconciled", "rateConfirmed", "invoiced", "sameCase"].includes(field)) {
@@ -617,7 +640,7 @@ export default function TranslatorFees() {
         feeStore.updateFee(id, { [field]: value });
       }
     }
-  }, [rowSelection.selectedIds, rowSelection.selectedCount, undoRedo]);
+  }, [rowSelection.selectedIds, rowSelection.selectedCount, undoRedo, getLockContext]);
 
   // Marquee (rubber-band) selection
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -844,6 +867,9 @@ export default function TranslatorFees() {
                   onSelect={rowSelection.handleClick}
                   onCellCommit={handleCellCommit}
                   registerRowRef={registerRowRef}
+                  getLockContext={getLockContext}
+                  getMultiLockTooltip={getMultiLockTooltip}
+                  isMultiSelected={rowSelection.selectedCount > 1 && isSelected}
                 />
               );
             })}
@@ -882,7 +908,7 @@ export default function TranslatorFees() {
 
 function FeeRow({
   fee, orderedCols, columnWidths, expanded, onToggleExpand, currentRole, isManager,
-  isSelected, onSelect, onCellCommit, registerRowRef,
+  isSelected, onSelect, onCellCommit, registerRowRef, getLockContext, getMultiLockTooltip, isMultiSelected,
 }: {
   fee: TranslatorFee;
   orderedCols: ColumnDef[];
@@ -895,8 +921,27 @@ function FeeRow({
   onSelect: (id: string, e: React.MouseEvent) => void;
   onCellCommit: (feeId: string, field: string, value: string | boolean) => void;
   registerRowRef: (id: string, el: HTMLTableRowElement | null) => void;
+  getLockContext: (fee: TranslatorFee) => FeeFieldLockContext;
+  getMultiLockTooltip: (field: string) => string | undefined;
+  isMultiSelected: boolean;
 }) {
-  const canEdit = isManager; // Only PM+ can edit in table
+  const lockCtx = useMemo(() => getLockContext(fee), [fee, getLockContext]);
+
+  const getEditable = useCallback((colKey: string): { editable: boolean; lockedTooltip?: string } => {
+    if (!isManager || !editableFields.has(colKey)) return { editable: false };
+
+    // Multi-select: if any selected item locks this field, block editing for all
+    if (isMultiSelected) {
+      const multiTooltip = getMultiLockTooltip(colKey);
+      if (multiTooltip) return { editable: false, lockedTooltip: multiTooltip };
+    }
+
+    // Single-item lock
+    const lock = getFieldLock(fee, colKey, lockCtx);
+    if (lock.locked) return { editable: false, lockedTooltip: lock.reason };
+
+    return { editable: true };
+  }, [isManager, fee, lockCtx, isMultiSelected, getMultiLockTooltip]);
 
   return (
     <>
@@ -915,19 +960,23 @@ function FeeRow({
             className="mx-auto"
           />
         </td>
-        {orderedCols.map((col) => (
-          <td
-            key={col.key}
-            style={{ width: columnWidths[col.key] ?? 100, maxWidth: columnWidths[col.key] ?? 100 }}
-            className={cn("px-3 py-3 overflow-hidden border-r border-border/40 last:border-r-0", col.key !== "title" && col.key !== "clientCaseId" && col.key !== "clientPoNumber" && "text-center")}
-          >
-            {col.render(fee, {
-              isManager,
-              editable: canEdit && editableFields.has(col.key),
-              onCommit: (field, value) => onCellCommit(fee.id, field, value),
-            })}
-          </td>
-        ))}
+        {orderedCols.map((col) => {
+          const { editable, lockedTooltip } = getEditable(col.key);
+          return (
+            <td
+              key={col.key}
+              style={{ width: columnWidths[col.key] ?? 100, maxWidth: columnWidths[col.key] ?? 100 }}
+              className={cn("px-3 py-3 overflow-hidden border-r border-border/40 last:border-r-0", col.key !== "title" && col.key !== "clientCaseId" && col.key !== "clientPoNumber" && "text-center")}
+            >
+              {col.render(fee, {
+                isManager,
+                editable,
+                lockedTooltip,
+                onCommit: (field, value) => onCellCommit(fee.id, field, value),
+              })}
+            </td>
+          );
+        })}
         <td className="px-2 py-3 text-center">
           {fee.notes.length > 0 && (
             <button
