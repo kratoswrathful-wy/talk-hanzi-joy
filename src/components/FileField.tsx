@@ -38,6 +38,7 @@ export default function FileField({ value, onChange }: FileFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadCancelled, setUploadCancelled] = useState(false);
   const [urlDialogOpen, setUrlDialogOpen] = useState(false);
   const [urlDraft, setUrlDraft] = useState("");
   const [urlNameDraft, setUrlNameDraft] = useState("");
