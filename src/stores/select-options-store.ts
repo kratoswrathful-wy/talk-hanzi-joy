@@ -58,7 +58,7 @@ const listeners = new Set<Listener>();
 const SETTINGS_KEY = "select_options";
 
 // Fields to persist (assignee is loaded from profiles, not settings)
-const PERSISTED_FIELDS = ["taskType", "billingUnit", "client", "contact", "dispatchRoute", "caseCategory", "executionTool", "questionTool"];
+const PERSISTED_FIELDS = ["taskType", "billingUnit", "client", "contact", "dispatchRoute", "caseCategory", "executionTool", "questionTool", "noteStatus", "noteNature"];
 
 function persistableSnapshot() {
   const snapshot: Record<string, FieldOptions> = {};
