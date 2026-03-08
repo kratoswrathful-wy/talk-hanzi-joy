@@ -184,6 +184,8 @@ export default function InvoiceDetailPage() {
         author: c.author,
         content: c.content,
         imageUrls: c.imageUrls,
+        fileUrls: c.fileUrls,
+        replyTo: c.replyTo,
         timestamp: c.timestamp,
       })));
     }
@@ -195,6 +197,8 @@ export default function InvoiceDetailPage() {
         author: c.author,
         content: c.content,
         imageUrls: c.imageUrls,
+        fileUrls: c.fileUrls,
+        replyTo: c.replyTo,
         timestamp: c.timestamp,
       })));
     }

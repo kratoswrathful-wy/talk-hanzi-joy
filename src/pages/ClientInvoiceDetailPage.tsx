@@ -169,7 +169,7 @@ export default function ClientInvoiceDetailPage() {
     const rawComments = (invoice as any).comments;
     if (Array.isArray(rawComments)) {
       setComments(rawComments.map((c: any) => ({
-        id: c.id, author: c.author, content: c.content, imageUrls: c.imageUrls, timestamp: c.timestamp,
+        id: c.id, author: c.author, content: c.content, imageUrls: c.imageUrls, fileUrls: c.fileUrls, replyTo: c.replyTo, timestamp: c.timestamp,
       })));
     }
     const rawEditLogs = (invoice as any).edit_logs;
