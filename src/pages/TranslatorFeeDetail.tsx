@@ -183,10 +183,35 @@ export default function TranslatorFeeDetail() {
   const [autoCreatedOptions, setAutoCreatedOptions] = useState<{ field: string; label: string }[] | null>(null);
   const [showFinalizePrompt, setShowFinalizePrompt] = useState(false);
   const finalizePromptRef = useRef<HTMLButtonElement>(null);
+  const finalizePromptContainerRef = useRef<HTMLDivElement>(null);
   
   // Invoice navigation prompt state
   const [showInvoiceNavPrompt, setShowInvoiceNavPrompt] = useState<{ type: 'translator' | 'client'; invoiceId: string } | null>(null);
   const invoiceNavPromptRef = useRef<HTMLButtonElement>(null);
+  const invoiceNavPromptContainerRef = useRef<HTMLDivElement>(null);
+
+  // Click-outside to dismiss prompts
+  useEffect(() => {
+    if (!showFinalizePrompt) return;
+    const handleClick = (e: MouseEvent) => {
+      if (finalizePromptContainerRef.current && !finalizePromptContainerRef.current.contains(e.target as Node)) {
+        setShowFinalizePrompt(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showFinalizePrompt]);
+
+  useEffect(() => {
+    if (!showInvoiceNavPrompt) return;
+    const handleClick = (e: MouseEvent) => {
+      if (invoiceNavPromptContainerRef.current && !invoiceNavPromptContainerRef.current.contains(e.target as Node)) {
+        setShowInvoiceNavPrompt(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showInvoiceNavPrompt]);
 
   // Compute linked invoices for this fee
   const linkedTranslatorInvoices = id ? allInvoices.filter((inv) => inv.feeIds.includes(id)).map((inv) => ({ id: inv.id, title: inv.title })) : [];
