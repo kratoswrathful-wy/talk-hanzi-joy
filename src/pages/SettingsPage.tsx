@@ -327,19 +327,14 @@ function ClientPricingSection() {
               if (e.key === "Escape") setAdding(false);
             }}
           />
-          <div className="flex flex-wrap gap-1">
-            {PRESET_COLORS.map((c) => (
-              <button
-                key={c}
-                className={cn(
-                  "w-5 h-5 rounded-full border-2 transition-transform hover:scale-110",
-                  newColor === c ? "border-foreground scale-110" : "border-transparent"
-                )}
-                style={{ backgroundColor: c }}
-                onClick={() => setNewColor(c)}
-              />
-            ))}
-          </div>
+          <ColorPicker
+            value={newColor}
+            onChange={(color) => setNewColor(color)}
+            customColors={customColors}
+            onAddCustomColor={(c) => selectOptionsStore.addCustomColor("client", c)}
+            onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("client", c)}
+            colorUsageMap={getColorUsageMap(clientOptions)}
+          />
           <div className="flex gap-1.5 justify-end">
             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAdding(false)}>
               取消
