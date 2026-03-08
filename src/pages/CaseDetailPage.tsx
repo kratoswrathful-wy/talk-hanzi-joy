@@ -52,92 +52,175 @@ function ToolInstance({
   showRemove: boolean;
 }) {
   const { options: toolOptions } = useSelectOptions("executionTool");
-  const templates = useToolTemplates();
+  const allTemplates = useToolTemplates();
   const [tplOpen, setTplOpen] = useState(false);
+  const [conflictTpl, setConflictTpl] = useState<ToolTemplate | null>(null);
+  const [conflictFields, setConflictFields] = useState<{ id: string; label: string; current: string; incoming: string }[]>([]);
+
   const selectedTool = toolOptions.find((o) => o.label === entry.tool);
   const fields = selectedTool?.toolFields || [];
   const values = entry.fieldValues || {};
+  const hasToolSelected = !!entry.tool;
 
-  // Filter templates matching selected tool (or show all if no tool selected)
-  const matchingTemplates = entry.tool
-    ? templates.filter((t) => t.tool === entry.tool)
-    : templates;
+  // Only show templates matching current tool, sorted alphabetically
+  const matchingTemplates = allTemplates.filter((t) => t.tool === entry.tool);
+
+  const tryApplyTemplate = (tpl: ToolTemplate) => {
+    // Check for conflicts: fields that have existing non-empty values AND the template wants to overwrite with different value
+    const conflicts: { id: string; label: string; current: string; incoming: string }[] = [];
+    for (const [key, val] of Object.entries(tpl.fieldValues)) {
+      if (!val) continue;
+      const current = values[key];
+      if (current && current !== val) {
+        const fieldDef = fields.find((f) => f.id === key);
+        conflicts.push({ id: key, label: fieldDef?.label || key, current, incoming: val });
+      }
+    }
+
+    if (conflicts.length > 0) {
+      setConflictTpl(tpl);
+      setConflictFields(conflicts);
+      setTplOpen(false);
+    } else {
+      applyTemplate(tpl);
+    }
+  };
 
   const applyTemplate = (tpl: ToolTemplate) => {
-    // Set tool and merge non-empty field values
     const newValues: Record<string, string> = { ...values };
     for (const [key, val] of Object.entries(tpl.fieldValues)) {
       if (val) newValues[key] = val;
     }
     onUpdate({ tool: tpl.tool, fieldValues: newValues });
     setTplOpen(false);
+    setConflictTpl(null);
+    setConflictFields([]);
+  };
+
+  const keepCurrent = () => {
+    // Keep current values, don't apply template
+    setConflictTpl(null);
+    setConflictFields([]);
   };
 
   return (
-    <div className="relative border border-border rounded-lg p-3 space-y-1">
-      {showRemove && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:text-destructive"
-          onClick={onRemove}
-        >
-          <X className="h-3.5 w-3.5" />
-        </Button>
-      )}
-      <div className="flex items-center gap-2">
-        <div className="flex-1">
-          <Field label="執行工具">
-            <ColorSelect
-              fieldKey="executionTool"
-              value={entry.tool}
-              onValueChange={(v) => onUpdate({ tool: v })}
+    <>
+      <div className="relative border border-border rounded-lg p-3 space-y-1">
+        {showRemove && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:text-destructive"
+            onClick={onRemove}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        <div className="flex items-center gap-2">
+          <div className="flex-1">
+            <Field label="執行工具">
+              <ColorSelect
+                fieldKey="executionTool"
+                value={entry.tool}
+                onValueChange={(v) => onUpdate({ tool: v })}
+                className="max-w-xs"
+              />
+            </Field>
+          </div>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block mt-1">
+                  <Popover open={tplOpen} onOpenChange={(v) => hasToolSelected && setTplOpen(v)}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs shrink-0"
+                        disabled={!hasToolSelected}
+                      >
+                        範本
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-56 p-2" align="end">
+                      {matchingTemplates.length === 0 ? (
+                        <p className="text-xs text-muted-foreground px-2 py-1">無可用範本</p>
+                      ) : (
+                        <div className="space-y-1">
+                          {matchingTemplates.map((tpl) => (
+                            <button
+                              key={tpl.id}
+                              className="w-full text-left px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
+                              onClick={() => tryApplyTemplate(tpl)}
+                            >
+                              <span
+                                className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                                style={{ backgroundColor: "#383A3F", color: "#fff" }}
+                              >
+                                {tpl.name}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                </span>
+              </TooltipTrigger>
+              {!hasToolSelected && (
+                <TooltipContent side="top">
+                  <p>請先選取工具</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        {fields.map((f) => (
+          <Field key={f.id} label={f.label}>
+            <Input
+              value={values[f.id] || ""}
+              onChange={(e) =>
+                onUpdate({ fieldValues: { ...values, [f.id]: e.target.value } })
+              }
               className="max-w-xs"
             />
           </Field>
-        </div>
-        <Popover open={tplOpen} onOpenChange={setTplOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="h-8 text-xs shrink-0 mt-1">
-              範本
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-56 p-2" align="end">
-            {matchingTemplates.length === 0 ? (
-              <p className="text-xs text-muted-foreground px-2 py-1">無可用範本</p>
-            ) : (
-              <div className="space-y-1">
-                {matchingTemplates.map((tpl) => (
-                  <button
-                    key={tpl.id}
-                    className="w-full text-left px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
-                    onClick={() => applyTemplate(tpl)}
-                  >
-                    <span
-                      className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-                      style={{ backgroundColor: "#383A3F", color: "#fff" }}
-                    >
-                      {tpl.name}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </PopoverContent>
-        </Popover>
+        ))}
       </div>
-      {fields.map((f) => (
-        <Field key={f.id} label={f.label}>
-          <Input
-            value={values[f.id] || ""}
-            onChange={(e) =>
-              onUpdate({ fieldValues: { ...values, [f.id]: e.target.value } })
-            }
-            className="max-w-xs"
-          />
-        </Field>
-      ))}
-    </div>
+
+      {/* Conflict resolution dialog */}
+      <AlertDialog open={!!conflictTpl} onOpenChange={(v) => { if (!v) { setConflictTpl(null); setConflictFields([]); } }}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>欄位內容衝突</AlertDialogTitle>
+            <AlertDialogDescription>
+              套用範本「{conflictTpl?.name}」將會覆蓋以下已填寫的欄位，請選擇要保留的版本：
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3 py-2 max-h-60 overflow-y-auto">
+            {conflictFields.map((cf) => (
+              <div key={cf.id} className="rounded-md border border-border p-2 space-y-1">
+                <p className="text-xs font-medium text-foreground">{cf.label}</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">目前：</span>
+                    <span className="ml-1">{cf.current}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">範本：</span>
+                    <span className="ml-1">{cf.incoming}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={keepCurrent}>保留目前內容</AlertDialogCancel>
+            <AlertDialogAction onClick={() => conflictTpl && applyTemplate(conflictTpl)}>套用範本內容</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
