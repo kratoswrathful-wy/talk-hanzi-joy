@@ -421,6 +421,16 @@ export default function CaseDetailPage() {
     });
   }, [id]);
 
+  // Resolve creator UUID to display name
+  useEffect(() => {
+    const uid = caseData?.createdBy;
+    if (!uid || uid.length !== 36) return;
+    supabase.from("profiles").select("display_name, email").eq("id", uid).maybeSingle()
+      .then(({ data }) => {
+        if (data) setCreatorName(data.display_name || data.email);
+      });
+  }, [caseData?.createdBy]);
+
   const save = (partial: Partial<CaseRecord>) => {
     if (!caseData) return;
     setCaseData({ ...caseData, ...partial });
