@@ -549,7 +549,10 @@ export default function CaseDetailPage() {
 
   const isDraft = caseData.status === "draft";
   const isInquiry = caseData.status === "inquiry";
+  const isDispatched = caseData.status === "dispatched";
   const isFinalized = caseData.status === "finalized";
+  const isMember = currentRole === "member";
+  const isPmOrAbove = currentRole === "pm" || currentRole === "executive";
 
   const handleDuplicate = async () => {
     const dup = await caseStore.duplicate(caseData.id);
@@ -571,8 +574,18 @@ export default function CaseDetailPage() {
     toast({ title: "已收回為草稿" });
   };
 
+  const handleAcceptCase = () => {
+    const displayName = profile?.display_name || "";
+    const currentTranslators = caseData.translator || [];
+    const updatedTranslators = currentTranslators.includes(displayName)
+      ? currentTranslators
+      : [...currentTranslators, displayName];
+    save({ status: "dispatched" as CaseStatus, translator: updatedTranslators });
+    toast({ title: "已承接本案" });
+  };
+
   const handleFinalize = () => {
-    save({ status: "finalized" as CaseStatus });
+    save({ status: "dispatched" as CaseStatus });
     toast({ title: "已確定指派" });
   };
 
