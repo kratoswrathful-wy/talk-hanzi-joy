@@ -1698,7 +1698,7 @@ const sectionLabelMap: Record<string, string> = {
   task_type_order: "任務類型順序",
   client_pricing: "客戶預設報價",
   translator_tiers: "譯者單價級距",
-  translator_notes: "譯者稿費備註",
+  translator_notes: "譯者備註",
 };
 
 const roleLabelMap: Record<string, string> = {
