@@ -223,24 +223,25 @@ export const selectOptionsStore = {
 
   getSnapshot: () => store,
 
-  /** Load assignee options from profiles + invitations in DB, respecting sort_order */
+  /** Load assignee options from profiles + invitations in DB, respecting sort_order and frozen */
   loadAssignees: async () => {
     const [{ data: profiles }, { data: invitations }, { data: settings }] = await Promise.all([
       supabase.from("profiles").select("email, display_name, avatar_url"),
       supabase.from("invitations").select("email, role").is("accepted_at", null),
-      supabase.from("member_translator_settings").select("email, note, no_fee, sort_order"),
+      supabase.from("member_translator_settings").select("email, note, no_fee, sort_order, frozen"),
     ]);
 
-    const settingsMap = new Map<string, { note: string; no_fee: boolean; sort_order: number }>();
-    (settings || []).forEach((s: any) => settingsMap.set(s.email, { note: s.note || "", no_fee: s.no_fee || false, sort_order: s.sort_order ?? 0 }));
+    const settingsMap = new Map<string, { note: string; no_fee: boolean; sort_order: number; frozen: boolean }>();
+    (settings || []).forEach((s: any) => settingsMap.set(s.email, { note: s.note || "", no_fee: s.no_fee || false, sort_order: s.sort_order ?? 0, frozen: s.frozen || false }));
 
     const options: SelectOption[] = [];
     const registeredEmails = new Set<string>();
 
-    // Registered members
+    // Registered members (exclude frozen)
     (profiles || []).forEach((p: any, i: number) => {
       registeredEmails.add(p.email);
       const s = settingsMap.get(p.email);
+      if (s?.frozen) return; // Skip frozen members
       options.push({
         id: `assignee-${p.email}`,
         label: p.display_name || p.email,
@@ -251,10 +252,11 @@ export const selectOptionsStore = {
       });
     });
 
-    // Invited but not registered
+    // Invited but not registered (exclude frozen)
     (invitations || []).forEach((inv: any, i: number) => {
       if (!registeredEmails.has(inv.email)) {
         const s = settingsMap.get(inv.email);
+        if (s?.frozen) return; // Skip frozen members
         options.push({
           id: `assignee-${inv.email}`,
           label: inv.email,
