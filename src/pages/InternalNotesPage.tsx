@@ -245,6 +245,22 @@ function NoteDetailView({
 
       <Separator />
 
+      <Field label="檔案名稱" icon="≡">
+        <Input value={note.fileName} onChange={(e) => onUpdate({ fileName: e.target.value })} className="max-w-md" />
+      </Field>
+      <Field label="ID / 行數" icon="≡">
+        <Input value={note.idRowCount} onChange={(e) => onUpdate({ idRowCount: e.target.value })} className="max-w-xs" />
+      </Field>
+      <Field label="原文" icon="≡">
+        <Textarea value={note.sourceText} onChange={(e) => onUpdate({ sourceText: e.target.value })} className="min-h-[60px]" />
+      </Field>
+      <Field label="譯文" icon="≡">
+        <Textarea value={note.translatedText} onChange={(e) => onUpdate({ translatedText: e.target.value })} className="min-h-[60px]" />
+      </Field>
+      <Field label="問題或註記內容" icon="≡">
+        <Textarea value={note.questionOrNote} onChange={(e) => onUpdate({ questionOrNote: e.target.value })} className="min-h-[80px]" />
+      </Field>
+
       <Field label="參考資料或截圖" icon="📎">
         <FileField
           value={note.referenceFiles || []}
