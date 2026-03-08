@@ -125,10 +125,10 @@ export function usePermissions() {
   const updateConfig = useCallback(
     async (newConfig: PermissionConfig) => {
       const env = getEnvironment();
-      const { data: existing } = await supabase
+      const { data: existing } = await (supabase
         .from("permission_settings")
-        .select("id")
-        .eq("env" as any, env)
+        .select("id") as any)
+        .eq("env", env)
         .limit(1)
         .single();
 
