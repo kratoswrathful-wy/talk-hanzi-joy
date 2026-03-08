@@ -641,7 +641,7 @@ function SectionBulkButtons({
     <div className="flex items-center gap-4">
       {onToggleVisible && (
         <div className="flex items-center gap-1">
-          <Label className="text-xs text-muted-foreground">可見</Label>
+          <Label className="text-xs text-muted-foreground">本區塊可見</Label>
           <Switch checked={anyVisible} onCheckedChange={(v) => onToggleVisible(v)} className="scale-75" />
         </div>
       )}
