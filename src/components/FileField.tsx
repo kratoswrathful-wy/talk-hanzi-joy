@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { Upload, Link as LinkIcon, X, FileText, BookmarkPlus } from "lucide-react";
+import { Upload, Link as LinkIcon, X, FileText, BookmarkPlus, GripVertical, Pencil, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
