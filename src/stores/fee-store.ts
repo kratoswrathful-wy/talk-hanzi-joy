@@ -6,6 +6,7 @@ type Listener = () => void;
 
 let fees: TranslatorFee[] = [];
 let loaded = false;
+let loadSeq = 0; // sequence counter to prevent stale results
 const listeners = new Set<Listener>();
 
 function notify() {
