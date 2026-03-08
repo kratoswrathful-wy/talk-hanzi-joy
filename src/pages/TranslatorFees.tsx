@@ -109,7 +109,7 @@ const allColumnDefs: ColumnDef[] = [
     key: "title",
     label: "標題",
     minWidth: 120,
-    render: (f, { editable, onCommit }) => (
+    render: (f, { editable, lockedTooltip, onCommit }) => (
       <div className="relative flex items-center group/title">
         <InlineEditCell value={f.title} type="text" editable={editable} onCommit={(v) => onCommit("title", v)} className="flex-1 min-w-0 pr-6">
           <span className="truncate font-medium text-card-foreground">
