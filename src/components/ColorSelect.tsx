@@ -61,6 +61,7 @@ export default function ColorSelect({
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [noteValue, setNoteValue] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; label: string } | null>(null);
+  const [profileViewerEmail, setProfileViewerEmail] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const newInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
