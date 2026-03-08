@@ -270,8 +270,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "請款完成",
     minWidth: 50,
     managerOnly: true,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={!!f.clientInfo?.invoiced} type="checkbox" editable={editable} onCommit={(v) => onCommit("invoiced", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={!!f.clientInfo?.invoiced} type="checkbox" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("invoiced", v)}>
         <div className="flex justify-center">
           <Checkbox checked={!!f.clientInfo?.invoiced} disabled className="pointer-events-none" />
         </div>
