@@ -141,7 +141,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
         label: "請款單基本資料",
         items: [
           { key: "inv_detail_title", label: "標題", type: "both", attribute: "文字" },
-          { key: "inv_detail_translator", label: "請款人", type: "both", attribute: "單選" },
+          { key: "inv_detail_translator", label: "請款人", type: "both", attribute: "人員（單選）" },
           { key: "inv_detail_status", label: "狀態", type: "view", attribute: "自動填入（無法編輯）" },
           { key: "inv_detail_addFee", label: "加入費用", type: "both", attribute: "按鈕" },
           { key: "inv_detail_removeFee", label: "移除費用", type: "both", attribute: "按鈕" },
