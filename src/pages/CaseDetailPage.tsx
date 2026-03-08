@@ -184,8 +184,9 @@ export default function CaseDetailPage() {
         <Input value={caseData.taskStatus} onChange={(e) => save({ taskStatus: e.target.value })} className="max-w-xs" />
       </Field>
       <Field label="執行工具">
-        <Input value={caseData.executionTool} onChange={(e) => save({ executionTool: e.target.value })} className="max-w-xs" />
+        <ColorSelect fieldKey="executionTool" value={caseData.executionTool} onChange={(v) => save({ executionTool: v })} className="max-w-xs" />
       </Field>
+      <ToolSubFields caseData={caseData} save={save} />
       <Field label="交件方式">
         <Input value={caseData.deliveryMethod} onChange={(e) => save({ deliveryMethod: e.target.value })} className="max-w-md" />
       </Field>
