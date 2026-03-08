@@ -324,8 +324,8 @@ function NoteDetailView({
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
+  ); // end NoteDetailView return
+} // end NoteDetailView
 
 /* ── Case selection dialog for creating a note from the list ── */
 function NewNoteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
