@@ -533,7 +533,7 @@ export default function CaseDetailPage() {
           >
             刪除
           </Button>
-          {isDraft && (
+          {isDraft ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px]"
@@ -541,7 +541,16 @@ export default function CaseDetailPage() {
             >
               公布
             </Button>
-          )}
+          ) : caseData.status === "inquiry" ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs min-w-[88px]"
+              onClick={handleRevertToDraft}
+            >
+              收回為草稿
+            </Button>
+          ) : null}
         </div>
       </div>
 
