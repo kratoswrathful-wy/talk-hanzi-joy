@@ -26,7 +26,7 @@ export const TIMEZONE_OPTIONS: TimezoneOption[] = [
   { value: "Asia/Kolkata", label: "印度標準時間 (UTC+5:30)", utcOffset: "UTC+5:30", offsetHours: 5.5 },
   { value: "Asia/Dhaka", label: "孟加拉時間 (UTC+6)", utcOffset: "UTC+6", offsetHours: 6 },
   { value: "Asia/Bangkok", label: "中南半島時間 (UTC+7)", utcOffset: "UTC+7", offsetHours: 7 },
-  { value: "Asia/Taipei", label: "台灣標準時間", utcOffset: "UTC+8", offsetHours: 8 },
+  { value: "Asia/Taipei", label: "台灣標準時間 (UTC+8)", utcOffset: "UTC+8", offsetHours: 8 },
   { value: "Asia/Tokyo", label: "日本標準時間 (UTC+9)", utcOffset: "UTC+9", offsetHours: 9 },
   { value: "Australia/Sydney", label: "澳洲東部時間 (UTC+10)", utcOffset: "UTC+10", offsetHours: 10 },
   { value: "Pacific/Noumea", label: "新喀里多尼亞 (UTC+11)", utcOffset: "UTC+11", offsetHours: 11 },
