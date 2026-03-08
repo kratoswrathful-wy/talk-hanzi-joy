@@ -246,7 +246,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
   },
   {
     key: "field_reference",
-    label: "欄位對照表",
+    label: "內部資料",
     listItems: [
       { key: "field_ref_view", label: "檢視欄位對照表", type: "view" },
     ],
