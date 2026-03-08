@@ -21,9 +21,11 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "@/hooks/use-toast";
 import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
+import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-store";
 
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
