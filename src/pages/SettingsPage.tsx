@@ -517,7 +517,7 @@ function TaskTypeOrderSection() {
                     customColors={customColors}
                     onAddCustomColor={(c) => selectOptionsStore.addCustomColor("taskType", c)}
                     onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("taskType", c)}
-                    colorUsageMap={{}}
+                    colorUsageMap={getColorUsageMap(taskTypeOptions)}
                   />
                 </PopoverContent>
               </Popover>
