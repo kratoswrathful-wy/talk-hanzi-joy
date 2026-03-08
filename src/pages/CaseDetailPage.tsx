@@ -540,7 +540,7 @@ export default function CaseDetailPage() {
   const [loading, setLoading] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [creatorName, setCreatorName] = useState("");
-  const { role: currentRole } = useAuth();
+  const { primaryRole: currentRole } = useAuth();
   const isManager = currentRole === "pm" || currentRole === "executive";
 
   // Comment drafts
