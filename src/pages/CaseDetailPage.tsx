@@ -39,12 +39,14 @@ const caseStatusLabels: Record<CaseStatus, string> = {
   draft: "草稿",
   inquiry: "詢案中",
   dispatched: "已派出",
+  task_completed: "任務完成",
   finalized: "開立完成",
 };
 
 function CaseStatusBadge({ status }: { status: CaseStatus }) {
   const labelStyles = useLabelStyles();
   const style = status === "finalized" ? labelStyles.statusFinalized
+    : status === "task_completed" ? { bgColor: "#8B5CF6", textColor: "#FFFFFF" }
     : status === "dispatched" ? { bgColor: "#16A34A", textColor: "#FFFFFF" }
     : status === "inquiry" ? { bgColor: "#2563EB", textColor: "#FFFFFF" }
     : labelStyles.statusDraft;
@@ -550,6 +552,7 @@ export default function CaseDetailPage() {
   const isDraft = caseData.status === "draft";
   const isInquiry = caseData.status === "inquiry";
   const isDispatched = caseData.status === "dispatched";
+  const isTaskCompleted = caseData.status === "task_completed";
   const isFinalized = caseData.status === "finalized";
   const isMember = currentRole === "member";
   const isPmOrAbove = currentRole === "pm" || currentRole === "executive";
@@ -588,6 +591,21 @@ export default function CaseDetailPage() {
     save({ status: "dispatched" as CaseStatus });
     toast({ title: "已確定指派" });
   };
+
+  const handleTaskComplete = () => {
+    save({ status: "task_completed" as CaseStatus });
+    toast({ title: "任務已完成" });
+  };
+
+  const handleCancelDispatch = () => {
+    save({ status: "inquiry" as CaseStatus });
+    toast({ title: "已取消指派" });
+  };
+
+  const isCurrentUserTranslator = (() => {
+    const displayName = profile?.display_name || "";
+    return displayName && (caseData.translator || []).includes(displayName);
+  })();
 
   const comments = caseData.comments || [];
   const internalComments = caseData.internalComments || [];
@@ -629,12 +647,21 @@ export default function CaseDetailPage() {
             >
               收回為草稿
             </Button>
-          ) : !isInquiry ? (
+          ) : isDispatched && isPmOrAbove ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] text-white hover:opacity-80"
               style={{ backgroundColor: '#6B7280' }}
-              disabled={isDispatched || isFinalized}
+              onClick={handleCancelDispatch}
+            >
+              取消指派
+            </Button>
+          ) : !isInquiry && !isDispatched ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] text-white hover:opacity-80"
+              style={{ backgroundColor: '#6B7280' }}
+              disabled={isFinalized || caseData.status === "task_completed"}
               onClick={() => setDeleteOpen(true)}
             >
               刪除
@@ -678,6 +705,14 @@ export default function CaseDetailPage() {
                 </TooltipProvider>
               ) : btn;
             })()
+          ) : isDispatched && isCurrentUserTranslator ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleTaskComplete}
+            >
+              任務完成
+            </Button>
           ) : null}
         </div>
       </div>
@@ -711,7 +746,7 @@ export default function CaseDetailPage() {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <Field label="譯者">
-            {(isDispatched || isFinalized) ? (
+            {(isDispatched || isTaskCompleted || isFinalized) ? (
               <div className="flex items-center gap-1 flex-wrap min-h-[32px] px-2 py-1 rounded-md bg-muted/50 border border-border">
                 {(caseData.translator || []).length > 0
                   ? (caseData.translator || []).map((t, i) => (

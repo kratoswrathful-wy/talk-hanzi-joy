@@ -12,7 +12,7 @@ export interface ToolEntry {
   fileValues?: Record<string, { name: string; url: string }[]>; // for file-type fields
 }
 
-export type CaseStatus = "draft" | "inquiry" | "dispatched" | "finalized";
+export type CaseStatus = "draft" | "inquiry" | "dispatched" | "task_completed" | "finalized";
 
 export interface CaseComment {
   id: string;
