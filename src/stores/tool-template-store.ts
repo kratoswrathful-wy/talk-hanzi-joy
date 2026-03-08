@@ -24,7 +24,7 @@ function notify() {
 }
 
 export const toolTemplateStore = {
-  getAll: (): ToolTemplate[] => snapshot,
+  getAll: (): ToolTemplate[] => [...snapshot].sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" })),
 
   add: (tpl: Omit<ToolTemplate, "id">): string => {
     const id = `tpl-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
