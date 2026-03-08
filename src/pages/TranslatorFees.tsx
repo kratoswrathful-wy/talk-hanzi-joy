@@ -176,8 +176,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "聯絡人",
     minWidth: 70,
     managerOnly: true,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={f.clientInfo?.contact || ""} type="text" editable={editable} onCommit={(v) => onCommit("contact", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={f.clientInfo?.contact || ""} type="text" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("contact", v)}>
         <span className="truncate text-sm text-muted-foreground">{f.clientInfo?.contact || "—"}</span>
       </InlineEditCell>
     ),
