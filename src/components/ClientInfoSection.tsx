@@ -222,23 +222,56 @@ export default function ClientInfoSection({
                 const canAddToClientInvoice = clientInfo.client && clientInfo.reconciled && !isInClientInvoice;
                 const canAddItem = canEdit && !clientItemsLocked && !clientInfo.reconciled;
                 
+                // Get existing unpaid invoices for this client
+                const existingInvoices = allClientInvoices.filter(
+                  (inv) => inv.client === clientInfo.client && inv.status !== "paid"
+                );
+                
                 if (canAddToClientInvoice) {
                   return (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1 text-xs"
-                      onClick={async () => {
-                        const inv = await clientInvoiceStore.createInvoice(clientInfo.client, [currentFeeId]);
-                        if (inv) {
-                          toast.success("已建立客戶請款單");
-                          navigate(`/client-invoices/${inv.id}`);
-                        }
-                      }}
-                    >
-                      <FileText className="h-3.5 w-3.5" />
-                      收錄至客戶請款單
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="gap-1 text-xs">
+                          <FileText className="h-3.5 w-3.5" />
+                          收錄至客戶請款單
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={async () => {
+                            const inv = await clientInvoiceStore.createInvoice(clientInfo.client, [currentFeeId]);
+                            if (inv) {
+                              toast.success("已收錄至客戶請款單");
+                              setShowInvoiceNavPrompt({ invoiceId: inv.id });
+                              setTimeout(() => invoiceNavPromptRef.current?.focus(), 100);
+                            }
+                          }}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          新建請款單
+                        </DropdownMenuItem>
+                        {existingInvoices.length > 0 && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel className="text-xs text-muted-foreground">收錄至現有請款單</DropdownMenuLabel>
+                            {existingInvoices.map((inv) => (
+                              <DropdownMenuItem
+                                key={inv.id}
+                                onClick={async () => {
+                                  await clientInvoiceStore.addFeesToInvoice(inv.id, [currentFeeId]);
+                                  toast.success("已收錄至客戶請款單");
+                                  setShowInvoiceNavPrompt({ invoiceId: inv.id });
+                                  setTimeout(() => invoiceNavPromptRef.current?.focus(), 100);
+                                }}
+                              >
+                                <FileText className="h-4 w-4 mr-2" />
+                                {inv.title || inv.client} — {inv.feeIds.length} 筆
+                              </DropdownMenuItem>
+                            ))}
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   );
                 }
                 
@@ -291,6 +324,34 @@ export default function ClientInfoSection({
             </div>
           </div>
 
+          {/* Client invoice navigation prompt */}
+          {showInvoiceNavPrompt && (
+            <div className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+              <span className="text-xs text-foreground">是否前往客戶請款單？</span>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  ref={invoiceNavPromptRef}
+                  size="sm"
+                  className="h-7 text-xs px-3"
+                  onClick={() => {
+                    const invId = showInvoiceNavPrompt.invoiceId;
+                    setShowInvoiceNavPrompt(null);
+                    navigate(`/client-invoices/${invId}`);
+                  }}
+                >
+                  前往請款單
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs px-3"
+                  onClick={() => setShowInvoiceNavPrompt(null)}
+                >
+                  稍後再說
+                </Button>
+              </div>
+            </div>
+          )}
           {/* Row 2: sameCase (left) + dispatch route (right) */}
           <div className="flex items-center justify-between">
             <Tooltip>
