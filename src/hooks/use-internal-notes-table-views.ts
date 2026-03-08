@@ -25,7 +25,7 @@ export interface InternalNote {
   creator: string;
   status: string;               // single-select via noteStatus
   noteType: string;             // 性質 — single-select via noteNature
-  internalAssignee: string;     // default = case reviewer
+  internalAssignee: string[];    // default = [case reviewer]
   fileName: string;
   idRowCount: string;
   sourceText: string;
