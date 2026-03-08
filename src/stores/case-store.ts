@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
-import type { CaseRecord } from "@/data/case-types";
+import type { CaseRecord, ToolEntry } from "@/data/case-types";
 
 type Listener = () => void;
 
@@ -32,6 +32,7 @@ function fromDb(row: any): CaseRecord {
     taskStatus: row.task_status ?? "",
     executionTool: row.execution_tool ?? "",
     toolFieldValues: (row.tool_field_values && typeof row.tool_field_values === "object" && !Array.isArray(row.tool_field_values)) ? row.tool_field_values as Record<string, string> : {},
+    tools: Array.isArray(row.tools) ? (row.tools as ToolEntry[]) : [],
     deliveryMethod: row.delivery_method ?? "",
     clientReceipt: row.client_receipt ?? "",
     customGuidelinesUrl: row.custom_guidelines_url ?? "",
@@ -75,6 +76,7 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.taskStatus !== undefined) map.task_status = c.taskStatus;
   if (c.executionTool !== undefined) map.execution_tool = c.executionTool;
   if (c.toolFieldValues !== undefined) map.tool_field_values = c.toolFieldValues;
+  if (c.tools !== undefined) map.tools = c.tools;
   if (c.deliveryMethod !== undefined) map.delivery_method = c.deliveryMethod;
   if (c.clientReceipt !== undefined) map.client_receipt = c.clientReceipt;
   if (c.customGuidelinesUrl !== undefined) map.custom_guidelines_url = c.customGuidelinesUrl;

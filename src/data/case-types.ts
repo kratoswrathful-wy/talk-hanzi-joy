@@ -1,3 +1,9 @@
+export interface ToolEntry {
+  id: string;
+  tool: string;
+  fieldValues: Record<string, string>;
+}
+
 export interface CaseRecord {
   id: string;
   title: string;
@@ -14,6 +20,7 @@ export interface CaseRecord {
   taskStatus: string;
   executionTool: string;
   toolFieldValues: Record<string, string>;
+  tools: ToolEntry[];
   deliveryMethod: string;
   clientReceipt: string;
   customGuidelinesUrl: string;
