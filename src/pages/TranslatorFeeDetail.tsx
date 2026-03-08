@@ -1466,7 +1466,7 @@ export default function TranslatorFeeDetail() {
                 <ColorSelect
                   fieldKey="client"
                   value={clientInfo.client}
-                  disabled={!canEdit || clientInfo.reconciled}
+                  disabled={!isManager || clientInfo.reconciled}
                   onValueChange={(clientName) => {
                     trackChange("客戶", clientInfo.client, clientName);
                     const updatedInfo = { ...clientInfo, client: clientName };
