@@ -139,6 +139,26 @@ function initDefaults() {
       customColors: [],
       manualOrder: true,
     },
+    noteStatus: {
+      options: [
+        { id: "opt-ns1", label: "待處理", color: PRESET_COLORS[1] },
+        { id: "opt-ns2", label: "處理中", color: PRESET_COLORS[6] },
+        { id: "opt-ns3", label: "已回覆", color: PRESET_COLORS[4] },
+        { id: "opt-ns4", label: "已關閉", color: PRESET_COLORS[10] },
+      ],
+      customColors: [],
+      manualOrder: true,
+    },
+    noteNature: {
+      options: [
+        { id: "opt-nn1", label: "交件備註", color: PRESET_COLORS[8] },
+        { id: "opt-nn2", label: "內容提問", color: PRESET_COLORS[9] },
+        { id: "opt-nn3", label: "客戶提問", color: PRESET_COLORS[1] },
+        { id: "opt-nn4", label: "內部備註", color: PRESET_COLORS[11] },
+      ],
+      customColors: [],
+      manualOrder: true,
+    },
   };
 }
 
