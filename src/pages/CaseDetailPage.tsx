@@ -15,7 +15,7 @@ import DateTimePicker from "@/components/DateTimePicker";
 import FileField from "@/components/FileField";
 import { CommentInput } from "@/components/comments/CommentInput";
 import { CommentContent } from "@/components/comments/CommentContent";
-import { useCommonLinks } from "@/stores/common-links-store";
+
 import {
   AlertDialog,
   AlertDialogContent,
@@ -33,7 +33,7 @@ import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-store";
 import { useAuth } from "@/hooks/use-auth";
-import { Checkbox } from "@/components/ui/checkbox";
+
 
 const caseStatusLabels: Record<CaseStatus, string> = {
   draft: "草稿",
@@ -85,70 +85,6 @@ function CopyButton({ value }: { value: string }) {
     >
       {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
     </button>
-  );
-}
-
-/* ── Common Links Multi-Select ── */
-function CommonLinksSelect({ values, onValuesChange }: { values: string[]; onValuesChange: (v: string[]) => void }) {
-  const allLinks = useCommonLinks();
-  const [open, setOpen] = useState(false);
-  const selected = new Set(values);
-
-  const toggle = (id: string) => {
-    const next = new Set(selected);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    onValuesChange(Array.from(next));
-  };
-
-  const selectedLinks = allLinks.filter((l) => selected.has(l.id));
-
-  return (
-    <div className="space-y-1.5">
-      <div className="flex flex-wrap gap-1.5">
-        {selectedLinks.map((link) => (
-          <span key={link.id} className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs">
-            <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-              {link.name}
-            </a>
-            <button
-              className="h-3.5 w-3.5 rounded-full flex items-center justify-center hover:bg-muted-foreground/20 text-muted-foreground"
-              onClick={() => toggle(link.id)}
-            >
-              <X className="h-2.5 w-2.5" />
-            </button>
-          </span>
-        ))}
-      </div>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
-            <Plus className="h-3 w-3" />
-            選擇常用連結
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-64 p-2" align="start">
-          {allLinks.length === 0 ? (
-            <p className="text-xs text-muted-foreground px-2 py-1">尚無常用連結，請至「工具管理」新增</p>
-          ) : (
-            <div className="space-y-0.5 max-h-48 overflow-y-auto">
-              {allLinks.map((link) => (
-                <label
-                  key={link.id}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-secondary/30 cursor-pointer"
-                >
-                  <Checkbox
-                    checked={selected.has(link.id)}
-                    onCheckedChange={() => toggle(link.id)}
-                  />
-                  <span className="text-sm truncate flex-1">{link.name}</span>
-                </label>
-              ))}
-            </div>
-          )}
-        </PopoverContent>
-      </Popover>
-    </div>
   );
 }
 
@@ -759,9 +695,6 @@ export default function CaseDetailPage() {
       <Separator />
 
       <h2 className="text-base font-semibold">準則與檔案</h2>
-      <Field label="常用連結">
-        <CommonLinksSelect values={caseData.commonLinks || []} onValuesChange={(v) => save({ commonLinks: v })} />
-      </Field>
       <Field label="交件方式">
         <Input value={caseData.deliveryMethod} onChange={(e) => save({ deliveryMethod: e.target.value })} className="max-w-md" />
       </Field>

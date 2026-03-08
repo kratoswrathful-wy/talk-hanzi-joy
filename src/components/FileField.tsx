@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback } from "react";
-import { Upload, Link as LinkIcon, X, FileText } from "lucide-react";
+import { Upload, Link as LinkIcon, X, FileText, BookmarkPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -11,7 +12,9 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
+import { useCommonLinks } from "@/stores/common-links-store";
 
 export interface FileItem {
   name: string;
@@ -30,6 +33,8 @@ export default function FileField({ value, onChange }: FileFieldProps) {
   const [urlDialogOpen, setUrlDialogOpen] = useState(false);
   const [urlDraft, setUrlDraft] = useState("");
   const [urlNameDraft, setUrlNameDraft] = useState("");
+  const [linksOpen, setLinksOpen] = useState(false);
+  const commonLinks = useCommonLinks();
 
   const uploadFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
@@ -75,6 +80,17 @@ export default function FileField({ value, onChange }: FileFieldProps) {
     setUrlDraft("");
     setUrlNameDraft("");
     setUrlDialogOpen(false);
+  };
+
+  // Check which common links are already added (by url match)
+  const existingUrls = new Set(value.map((v) => v.url));
+
+  const toggleCommonLink = (link: { id: string; name: string; url: string }) => {
+    if (existingUrls.has(link.url)) {
+      onChange(value.filter((v) => v.url !== link.url));
+    } else {
+      onChange([...value, { name: link.name, url: link.url }]);
+    }
   };
 
   return (
@@ -141,6 +157,39 @@ export default function FileField({ value, onChange }: FileFieldProps) {
           <LinkIcon className="h-3.5 w-3.5" />
           貼上網址
         </Button>
+        <Popover open={linksOpen} onOpenChange={setLinksOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs gap-1"
+            >
+              <BookmarkPlus className="h-3.5 w-3.5" />
+              常用連結
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 p-2" align="start">
+            {commonLinks.length === 0 ? (
+              <p className="text-xs text-muted-foreground px-2 py-1">尚無常用連結，請至「工具管理」新增</p>
+            ) : (
+              <div className="space-y-0.5 max-h-48 overflow-y-auto">
+                {commonLinks.map((link) => (
+                  <label
+                    key={link.id}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-secondary/30 cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={existingUrls.has(link.url)}
+                      onCheckedChange={() => toggleCommonLink(link)}
+                    />
+                    <span className="text-sm truncate flex-1">{link.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
         {value.length === 0 && !uploading && (
           <span className="text-xs text-muted-foreground ml-1">拖曳檔案至此或點擊上傳</span>
         )}
