@@ -605,14 +605,26 @@ export default function CaseDetailPage() {
           >
             新增案件頁面
           </Button>
-          <Button
-            size="sm"
-            className="text-xs min-w-[88px] text-white hover:opacity-80"
-            style={{ backgroundColor: '#6B7280' }}
-            onClick={() => setDeleteOpen(true)}
-          >
-            刪除
-          </Button>
+          {isInquiry ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] text-white hover:opacity-80"
+              style={{ backgroundColor: '#6B7280' }}
+              onClick={handleRevertToDraft}
+            >
+              收回為草稿
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] text-white hover:opacity-80"
+              style={{ backgroundColor: '#6B7280' }}
+              disabled={isFinalized}
+              onClick={() => setDeleteOpen(true)}
+            >
+              刪除
+            </Button>
+          )}
           {isDraft ? (
             <Button
               size="sm"
@@ -621,14 +633,13 @@ export default function CaseDetailPage() {
             >
               公布
             </Button>
-          ) : caseData.status === "inquiry" ? (
+          ) : isInquiry ? (
             <Button
-              variant="outline"
               size="sm"
-              className="text-xs min-w-[88px]"
-              onClick={handleRevertToDraft}
+              className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleFinalize}
             >
-              收回為草稿
+              確定指派
             </Button>
           ) : null}
         </div>
