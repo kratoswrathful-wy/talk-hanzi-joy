@@ -537,11 +537,11 @@ function RolePermissionPanel({
               </CollapsibleTrigger>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1">
-                  <Label className="text-xs text-muted-foreground">所有權限</Label>
+                  <Label className="text-xs text-foreground">所有權限</Label>
                   <Switch checked={allEnabled} onCheckedChange={(v) => { if (v && !isVisible) onToggleModuleVisible(roleKey, mod.key, true); onToggleAllPerms(roleKey, mod.key, v); }} className="scale-75" />
                 </div>
                 <div className="flex items-center gap-1">
-                  <Label className="text-xs text-muted-foreground">可見</Label>
+                  <Label className="text-xs text-foreground">可見</Label>
                   <Switch checked={isVisible} onCheckedChange={(v) => onToggleModuleVisible(roleKey, mod.key, v)} className="scale-75" />
                 </div>
               </div>
@@ -641,17 +641,17 @@ function SectionBulkButtons({
     <div className="flex items-center gap-4">
       {onToggleVisible && (
         <div className="flex items-center gap-1">
-          <Label className="text-xs text-muted-foreground">本區塊可見</Label>
+          <Label className="text-xs text-foreground/70">本區塊可見</Label>
           <Switch checked={anyVisible} onCheckedChange={(v) => onToggleVisible(v)} className="scale-75" />
         </div>
       )}
       <div className="flex items-center gap-1">
-        <Label className="text-xs text-muted-foreground">全部可見</Label>
+        <Label className="text-xs text-foreground/70">全部可見</Label>
         <Switch checked={allView} onCheckedChange={(v) => onToggle("view", v)} className="scale-75" />
       </div>
       {hasEditableItems && (
         <div className="flex items-center gap-1">
-          <Label className="text-xs text-muted-foreground">全可編輯</Label>
+          <Label className="text-xs text-foreground/70">全可編輯</Label>
           <Switch checked={allEdit} onCheckedChange={(v) => onToggle("edit", v)} className="scale-75" />
         </div>
       )}
