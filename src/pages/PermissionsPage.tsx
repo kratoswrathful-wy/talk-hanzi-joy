@@ -559,12 +559,13 @@ function RolePermissionPanel({
                           modulePerms={modulePerms}
                           items={mod.listItems}
                           onToggle={(permType, value) => onToggleSectionPerms(roleKey, mod.key, mod.listItems, permType, value)}
+                          onToggleVisible={(v) => onToggleSectionPerms(roleKey, mod.key, mod.listItems, "view", v)}
                         />
                       </div>
                       <div>
                         {mod.listItems.map((item, i) => (
                           <div key={item.key}>
-                            {i > 0 && <Separator className="my-0" />}
+                            {i > 0 && <div className="border-t border-dashed border-border/50" />}
                             <PermissionItemRow item={item} modulePerms={modulePerms} onToggle={(permType, value) => onToggleItemPerm(roleKey, mod.key, item.key, permType, value)} />
                           </div>
                         ))}
@@ -574,10 +575,11 @@ function RolePermissionPanel({
 
                   {/* Detail sections */}
                   {mod.detailSections.length > 0 && (
-                    <div className="space-y-3">
+                    <div>
                       <p className="text-xs font-medium text-muted-foreground mb-1.5">詳情頁操作</p>
-                      {mod.detailSections.map((section) => (
+                      {mod.detailSections.map((section, sIdx) => (
                         <div key={section.label}>
+                          {sIdx > 0 && <Separator className="my-3" />}
                           <div className="flex items-center justify-between mb-1 ml-1">
                             <p className="text-xs font-semibold text-foreground/70">{section.label}</p>
                             <SectionBulkButtons
@@ -585,12 +587,13 @@ function RolePermissionPanel({
                               modulePerms={modulePerms}
                               items={section.items}
                               onToggle={(permType, value) => onToggleSectionPerms(roleKey, mod.key, section.items, permType, value)}
+                              onToggleVisible={(v) => onToggleSectionPerms(roleKey, mod.key, section.items, "view", v)}
                             />
                           </div>
                           <div>
                             {section.items.map((item, i) => (
                               <div key={item.key}>
-                                {i > 0 && <Separator className="my-0" />}
+                                {i > 0 && <div className="border-t border-dashed border-border/50" />}
                                 <PermissionItemRow item={item} modulePerms={modulePerms} onToggle={(permType, value) => onToggleItemPerm(roleKey, mod.key, item.key, permType, value)} />
                               </div>
                             ))}
@@ -620,52 +623,37 @@ function SectionBulkButtons({
   modulePerms,
   items,
   onToggle,
+  onToggleVisible,
 }: {
   level: "list" | "detail";
   modulePerms: ModulePerms;
   items: PermissionItem[];
   onToggle: (permType: "view" | "edit", value: boolean) => void;
+  onToggleVisible?: (visible: boolean) => void;
 }) {
   const allView = isSectionAllView(modulePerms, items);
   const allEdit = isSectionAllEdit(modulePerms, items);
   const hasEditableItems = items.some((item) => item.type !== "view");
-
-  // Different color tiers: list-level uses accent tones, detail-level uses muted tones
-  const viewClass = level === "list"
-    ? allView
-      ? "bg-primary/15 hover:bg-primary/25 border-primary/30 text-primary"
-      : "bg-accent/30 hover:bg-accent/50 border-accent/40 text-accent-foreground"
-    : allView
-      ? "bg-secondary/80 hover:bg-secondary border-secondary text-secondary-foreground"
-      : "bg-muted/50 hover:bg-muted/80 border-muted-foreground/20 text-muted-foreground";
-
-  const editClass = level === "list"
-    ? allEdit
-      ? "bg-primary/15 hover:bg-primary/25 border-primary/30 text-primary"
-      : "bg-accent/30 hover:bg-accent/50 border-accent/40 text-accent-foreground"
-    : allEdit
-      ? "bg-secondary/80 hover:bg-secondary border-secondary text-secondary-foreground"
-      : "bg-muted/50 hover:bg-muted/80 border-muted-foreground/20 text-muted-foreground";
+  // "可見" = at least one item is viewable
+  const anyVisible = items.some((item) => getItemPerm(modulePerms, item.key, "view"));
 
   return (
-    <div className="flex items-center gap-1.5">
-      <Button
-        variant="outline"
-        size="sm"
-        className={`h-5 px-2 text-[10px] ${viewClass}`}
-        onClick={() => onToggle("view", !allView)}
-      >
-        全部可見
-      </Button>
+    <div className="flex items-center gap-4">
+      {onToggleVisible && (
+        <div className="flex items-center gap-1">
+          <Label className="text-xs text-muted-foreground">可見</Label>
+          <Switch checked={anyVisible} onCheckedChange={(v) => onToggleVisible(v)} className="scale-75" />
+        </div>
+      )}
+      <div className="flex items-center gap-1">
+        <Label className="text-xs text-muted-foreground">全部可見</Label>
+        <Switch checked={allView} onCheckedChange={(v) => onToggle("view", v)} className="scale-75" />
+      </div>
       {hasEditableItems && (
-        <Button
-          variant="outline"
-          size="sm"
-          className={`h-5 px-2 text-[10px] ${editClass}`}
-          onClick={() => onToggle("edit", !allEdit)}
-        >
-          全可編輯
-        </Button>
+        <div className="flex items-center gap-1">
+          <Label className="text-xs text-muted-foreground">全可編輯</Label>
+          <Switch checked={allEdit} onCheckedChange={(v) => onToggle("edit", v)} className="scale-75" />
+        </div>
       )}
     </div>
   );
