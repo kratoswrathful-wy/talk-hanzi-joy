@@ -165,8 +165,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "客戶",
     minWidth: 70,
     managerOnly: true,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={f.clientInfo?.client || ""} type="colorSelect" fieldKey="client" editable={editable} onCommit={(v) => onCommit("client", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={f.clientInfo?.client || ""} type="colorSelect" fieldKey="client" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("client", v)}>
         <ClientLabel value={f.clientInfo?.client || ""} />
       </InlineEditCell>
     ),
