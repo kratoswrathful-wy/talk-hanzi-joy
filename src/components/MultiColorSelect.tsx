@@ -4,6 +4,7 @@
  */
 import { useState, useRef, useEffect } from "react";
 import { Plus, Trash2, Palette, Check, Pencil, X, Search, MoreHorizontal } from "lucide-react";
+import AssigneeTag from "@/components/AssigneeTag";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
