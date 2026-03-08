@@ -64,6 +64,7 @@ export default function ClientInfoSection({
   onClientPriceEntered,
   isInClientInvoice = false,
 }: ClientInfoSectionProps) {
+  const navigate = useNavigate();
   const [showUncheckWarning, setShowUncheckWarning] = useState(false);
   const clientPriceOnFocusRef = useRef<Record<string, number>>({});
   const storeSnapshot = useSyncExternalStore(selectOptionsStore.subscribe, selectOptionsStore.getSnapshot);
