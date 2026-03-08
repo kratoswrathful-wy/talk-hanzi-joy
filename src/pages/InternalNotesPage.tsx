@@ -353,7 +353,7 @@ function NewNoteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
       creator: profile?.display_name || "",
       status: "",
       noteType: "",
-      internalAssignee: reviewer,
+      internalAssignee: reviewer ? [reviewer] : [],
       fileName: "",
       idRowCount: "",
       sourceText: "",
