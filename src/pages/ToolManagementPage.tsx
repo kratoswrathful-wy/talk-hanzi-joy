@@ -49,7 +49,7 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
     const ids = fields.map((f) => f.id);
     const [moved] = ids.splice(dragIndex, 1);
     ids.splice(idx, 0, moved);
-    selectOptionsStore.reorderToolFields(optionId, ids);
+    selectOptionsStore.reorderToolFields(optionId, ids, fieldKey);
     setDragIndex(null);
     setDragOverIndex(null);
   };
