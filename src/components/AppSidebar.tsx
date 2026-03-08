@@ -32,16 +32,16 @@ export function AppSidebar() {
 
   const navItems = [
     ...(canViewCases ? [{ title: "案件管理", url: "/cases", icon: Briefcase }] : []),
+    ...(canViewInternalNotes ? [{ title: "內部註記", url: "/internal-notes", icon: MessageSquareText }] : []),
     { title: "費用管理", url: "/fees", icon: Receipt },
     { title: "稿費請款", url: "/invoices", icon: FileText },
     ...(canViewClientInvoices ? [{ title: "客戶請款", url: "/client-invoices", icon: FileText }] : []),
-    ...(canViewInternalNotes ? [{ title: "內部提問及備註", url: "/internal-notes", icon: MessageSquareText }] : []),
     ...(canViewTools ? [{ title: "工具管理", url: "/tools", icon: Wrench }] : []),
-    ...(canViewFieldRef ? [{ title: "欄位對照表", url: "/field-reference", icon: Table2 }] : []),
     ...(canViewMembers ? [{ title: "團隊成員", url: "/members", icon: Users }] : []),
     ...(isExecutive ? [{ title: "權限管理", url: "/permissions", icon: Shield }] : []),
     { title: "個人檔案", url: "/profile", icon: User },
     { title: "設定", url: "/settings", icon: Settings },
+    ...(canViewFieldRef ? [{ title: "內部資料", url: "/field-reference", icon: Table2 }] : []),
   ];
 
   const initials = (profile?.display_name || profile?.email || "?").slice(0, 2).toUpperCase();
