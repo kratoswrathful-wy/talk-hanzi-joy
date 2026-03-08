@@ -1,4 +1,4 @@
-import { Receipt, FileText, Settings, Users, User, Shield, Briefcase } from "lucide-react";
+import { Receipt, FileText, Settings, Users, User, Shield, Briefcase, Wrench } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -32,6 +32,7 @@ export function AppSidebar() {
     { title: "費用管理", url: "/fees", icon: Receipt },
     { title: "稿費請款", url: "/invoices", icon: FileText },
     ...(canViewClientInvoices ? [{ title: "客戶請款", url: "/client-invoices", icon: FileText }] : []),
+    { title: "工具管理", url: "/tools", icon: Wrench },
     ...(canViewMembers ? [{ title: "團隊成員", url: "/members", icon: Users }] : []),
     ...(isExecutive ? [{ title: "權限管理", url: "/permissions", icon: Shield }] : []),
     { title: "個人檔案", url: "/profile", icon: User },
