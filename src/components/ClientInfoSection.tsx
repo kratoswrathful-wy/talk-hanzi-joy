@@ -340,29 +340,19 @@ export default function ClientInfoSection({
           {/* Client invoice navigation prompt */}
           {showInvoiceNavPrompt && (
             <div ref={invoiceNavPromptContainerRef} className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
-              <span className="text-xs text-foreground">是否前往客戶請款單？</span>
-              <div className="flex items-center gap-1.5">
-                <Button
-                  ref={invoiceNavPromptRef}
-                  size="sm"
-                  className="h-7 text-xs px-3"
-                  onClick={() => {
-                    const invId = showInvoiceNavPrompt.invoiceId;
-                    setShowInvoiceNavPrompt(null);
-                    navigate(`/client-invoices/${invId}`);
-                  }}
-                >
-                  前往請款單
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs px-3"
-                  onClick={() => setShowInvoiceNavPrompt(null)}
-                >
-                  稍後再說
-                </Button>
-              </div>
+              <span className="text-xs text-foreground">是否前往客戶請款單？（按空白鍵或點選按鈕前往，或點選畫面任意處取消）</span>
+              <Button
+                ref={invoiceNavPromptRef}
+                size="sm"
+                className="h-7 text-xs px-3"
+                onClick={() => {
+                  const invId = showInvoiceNavPrompt.invoiceId;
+                  setShowInvoiceNavPrompt(null);
+                  navigate(`/client-invoices/${invId}`);
+                }}
+              >
+                前往請款單
+              </Button>
             </div>
           )}
           {/* Row 2: sameCase (left) + dispatch route (right) */}

@@ -1783,62 +1783,42 @@ export default function TranslatorFeeDetail() {
           {/* Finalize prompt after rate confirmation */}
           {showFinalizePrompt && isDraft && isManager && (
             <div ref={finalizePromptContainerRef} className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
-              <span className="text-xs text-foreground">是否直接向譯者開立稿費條？（按空白鍵或揀選按鈕確認）</span>
-              <div className="flex items-center gap-1.5">
-                <Button
-                  ref={finalizePromptRef}
-                  size="sm"
-                  className="h-7 text-xs px-3"
-                  onClick={() => {
-                    if (!assignee) {
-                      toast.error("請先選擇譯者，才能開立稿費條。");
-                      setShowFinalizePrompt(false);
-                      return;
-                    }
+              <span className="text-xs text-foreground">是否直接向譯者開立稿費條？（按空白鍵或點選按鈕開立，或點選畫面任意處取消）</span>
+              <Button
+                ref={finalizePromptRef}
+                size="sm"
+                className="h-7 text-xs px-3"
+                onClick={() => {
+                  if (!assignee) {
+                    toast.error("請先選擇譯者，才能開立稿費條。");
                     setShowFinalizePrompt(false);
-                    handleSubmit();
-                  }}
-                >
-                  開立稿費條
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs px-3"
-                  onClick={() => setShowFinalizePrompt(false)}
-                >
-                  稍後再說
-                </Button>
-              </div>
+                    return;
+                  }
+                  setShowFinalizePrompt(false);
+                  handleSubmit();
+                }}
+              >
+                開立稿費條
+              </Button>
             </div>
           )}
 
           {/* Invoice navigation prompt after adding to invoice */}
           {showInvoiceNavPrompt && showInvoiceNavPrompt.type === 'translator' && (
             <div ref={invoiceNavPromptContainerRef} className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
-              <span className="text-xs text-foreground">是否前往稿費請款單？</span>
-              <div className="flex items-center gap-1.5">
-                <Button
-                  ref={invoiceNavPromptRef}
-                  size="sm"
-                  className="h-7 text-xs px-3"
-                  onClick={() => {
-                    const invId = showInvoiceNavPrompt.invoiceId;
-                    setShowInvoiceNavPrompt(null);
-                    navigate(`/invoices/${invId}`);
-                  }}
-                >
-                  前往請款單
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs px-3"
-                  onClick={() => setShowInvoiceNavPrompt(null)}
-                >
-                  稍後再說
-                </Button>
-              </div>
+              <span className="text-xs text-foreground">是否前往稿費請款單？（按空白鍵或點選按鈕前往，或點選畫面任意處取消）</span>
+              <Button
+                ref={invoiceNavPromptRef}
+                size="sm"
+                className="h-7 text-xs px-3"
+                onClick={() => {
+                  const invId = showInvoiceNavPrompt.invoiceId;
+                  setShowInvoiceNavPrompt(null);
+                  navigate(`/invoices/${invId}`);
+                }}
+              >
+                前往請款單
+              </Button>
             </div>
           )}
 
