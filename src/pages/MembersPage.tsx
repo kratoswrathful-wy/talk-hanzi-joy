@@ -420,7 +420,7 @@ export default function MembersPage() {
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 min-w-0">
                         {canSort && <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-                        <Avatar className="h-8 w-8 shrink-0">
+                        <Avatar className="h-8 w-8 shrink-0 cursor-pointer hover:opacity-80" onClick={() => setProfileViewerEmail(member.email)}>
                           <AvatarImage src={member.avatar_url || undefined} />
                           <AvatarFallback className="text-xs">{initials}</AvatarFallback>
                         </Avatar>
