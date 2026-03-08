@@ -231,7 +231,7 @@ const allColumnDefs: ColumnDef[] = [
       return (
         <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
           <span className="text-sm tabular-nums cursor-default">{formatCurrency(rev)}</span>
-        </TooltipTrigger><TooltipContent className="text-xs">自動計算/填入</TooltipContent></Tooltip></TooltipProvider>
+        </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
       );
     },
   },
