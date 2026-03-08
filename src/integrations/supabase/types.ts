@@ -39,13 +39,13 @@ export type Database = {
         Row: {
           billing_unit: string
           category: string
-          client_guidelines: string
+          client_guidelines: Json
           client_question_form: boolean
           client_receipt: string
           common_info: Json
           created_at: string
           created_by: string | null
-          custom_guidelines_url: string
+          custom_guidelines_url: Json
           delivery_method: string
           env: string
           execution_tool: string
@@ -71,7 +71,7 @@ export type Database = {
           title: string
           tool_field_values: Json
           tools: Json
-          track_changes: string
+          track_changes: Json
           translation_deadline: string | null
           translator: Json
           translator_final: Json
@@ -83,13 +83,13 @@ export type Database = {
         Insert: {
           billing_unit?: string
           category?: string
-          client_guidelines?: string
+          client_guidelines?: Json
           client_question_form?: boolean
           client_receipt?: string
           common_info?: Json
           created_at?: string
           created_by?: string | null
-          custom_guidelines_url?: string
+          custom_guidelines_url?: Json
           delivery_method?: string
           env?: string
           execution_tool?: string
@@ -115,7 +115,7 @@ export type Database = {
           title?: string
           tool_field_values?: Json
           tools?: Json
-          track_changes?: string
+          track_changes?: Json
           translation_deadline?: string | null
           translator?: Json
           translator_final?: Json
@@ -127,13 +127,13 @@ export type Database = {
         Update: {
           billing_unit?: string
           category?: string
-          client_guidelines?: string
+          client_guidelines?: Json
           client_question_form?: boolean
           client_receipt?: string
           common_info?: Json
           created_at?: string
           created_by?: string | null
-          custom_guidelines_url?: string
+          custom_guidelines_url?: Json
           delivery_method?: string
           env?: string
           execution_tool?: string
@@ -159,7 +159,7 @@ export type Database = {
           title?: string
           tool_field_values?: Json
           tools?: Json
-          track_changes?: string
+          track_changes?: Json
           translation_deadline?: string | null
           translator?: Json
           translator_final?: Json

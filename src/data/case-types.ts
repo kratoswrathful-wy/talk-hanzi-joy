@@ -32,8 +32,8 @@ export interface CaseRecord {
   tools: ToolEntry[];
   deliveryMethod: string;
   clientReceipt: string;
-  customGuidelinesUrl: string;
-  clientGuidelines: string;
+  customGuidelinesUrl: { name: string; url: string }[];
+  clientGuidelines: { name: string; url: string }[];
   commonInfo: { label: string; url: string }[];
   internalNoteForm: boolean;
   clientQuestionForm: boolean;
@@ -48,7 +48,7 @@ export interface CaseRecord {
   questionForm: string;
   translatorFinal: { name: string; url: string }[];
   internalReviewFinal: { name: string; url: string }[];
-  trackChanges: string;
+  trackChanges: { name: string; url: string }[];
   feeEntry: string;
   internalRecords: { id: string; author: string; text: string; createdAt: string }[];
   createdBy: string | null;
