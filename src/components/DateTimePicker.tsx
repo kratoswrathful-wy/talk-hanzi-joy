@@ -162,6 +162,7 @@ export default function DateTimePicker({
     }
     setTimeError(false);
     setDateError(false);
+    setValidationMsg(null);
   }, [value]);
 
   const buildIso = (year: string, mmdd: string, hhmm: string): string | null => {
