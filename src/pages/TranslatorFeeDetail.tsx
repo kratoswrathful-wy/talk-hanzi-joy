@@ -18,6 +18,8 @@ const feeStatusLabels: Record<FeeStatus, string> = {
 };
 import ClientInfoSection from "@/components/ClientInfoSection";
 import { useFee, useFees, feeStore } from "@/hooks/use-fee-store";
+import { useInvoices } from "@/hooks/use-invoice-store";
+import { useClientInvoices } from "@/hooks/use-client-invoice-store";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
