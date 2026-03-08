@@ -102,6 +102,22 @@ export function InlineEditCell({ value, type, options, fieldKey, editable, locke
     );
   }
 
+  // Locked state with tooltip
+  if (!editable && lockedTooltip) {
+    return (
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className={cn("cursor-not-allowed", className)}>
+              {children}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs text-xs">{lockedTooltip}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
   return (
     <div
       onClick={handleClick}
