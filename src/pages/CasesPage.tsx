@@ -46,7 +46,9 @@ const formatDateTime = (iso: string | null) => {
 
 function CaseStatusBadge({ status }: { status: CaseStatus }) {
   const labelStyles = useLabelStyles();
-  const style = status === "finalized" ? labelStyles.statusFinalized : labelStyles.statusDraft;
+  const style = status === "finalized" ? labelStyles.statusFinalized
+    : status === "inquiry" ? { bgColor: "#2563EB", textColor: "#FFFFFF" }
+    : labelStyles.statusDraft;
   return (
     <Badge
       variant="default"
