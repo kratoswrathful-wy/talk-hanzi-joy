@@ -1126,7 +1126,7 @@ function FeeRow({
                 isManager,
                 editable,
                 lockedTooltip,
-                onCommit: (field, value) => onCellCommit(fee.id, field, value),
+                onCommit: (field, value) => onCellCommit(fee.id, field, value as string | boolean),
               })}
             </td>
           );
