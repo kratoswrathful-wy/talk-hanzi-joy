@@ -189,12 +189,16 @@ export default function MultiColorSelect({
                       )}>
                         {isChecked && <Check className="h-3 w-3 text-primary-foreground" />}
                       </div>
-                      <span
-                        className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
-                        style={{ backgroundColor: opt.color, color: labelTextColor, borderColor: opt.color }}
-                      >
-                        {opt.label}
-                      </span>
+                      {fieldKey === "assignee" ? (
+                        <AssigneeTag label={opt.label} avatarUrl={opt.avatarUrl} />
+                      ) : (
+                        <span
+                          className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
+                          style={{ backgroundColor: opt.color, color: labelTextColor, borderColor: opt.color }}
+                        >
+                          {opt.label}
+                        </span>
+                      )}
                     </button>
                     {/* Menu */}
                     <Popover
