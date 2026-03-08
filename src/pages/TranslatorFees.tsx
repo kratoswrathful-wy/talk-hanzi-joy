@@ -244,8 +244,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "對帳完成",
     minWidth: 50,
     managerOnly: true,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={!!f.clientInfo?.reconciled} type="checkbox" editable={editable} onCommit={(v) => onCommit("reconciled", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={!!f.clientInfo?.reconciled} type="checkbox" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("reconciled", v)}>
         <div className="flex justify-center">
           <Checkbox checked={!!f.clientInfo?.reconciled} disabled className="pointer-events-none" />
         </div>
