@@ -145,9 +145,15 @@ function FixInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const display = `${rolling.padded.slice(0, 2)}${separator}${rolling.padded.slice(2, 4)}`;
   const [error, setError] = useState(false);
+  const [focused, setFocused] = useState(false);
 
+  // Auto-focus on mount with multiple retries to beat AlertDialog focus trap
   useEffect(() => {
-    setTimeout(() => inputRef.current?.focus(), 100);
+    const attempts = [50, 150, 300, 500];
+    const timers = attempts.map((ms) =>
+      setTimeout(() => inputRef.current?.focus(), ms)
+    );
+    return () => timers.forEach(clearTimeout);
   }, []);
 
   const tryConfirm = () => {
@@ -163,22 +169,33 @@ function FixInput({
       <input
         ref={inputRef}
         type="text"
+        inputMode="numeric"
+        autoFocus
         value={display}
-        readOnly
+        onChange={() => {}} // controlled, actual input via onKeyDown
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onClick={() => inputRef.current?.focus()}
         onKeyDown={(e) => {
-          e.preventDefault();
           if (e.key === "Enter") {
+            e.preventDefault();
             tryConfirm();
             return;
           }
           if (e.key === "Backspace" || /^\d$/.test(e.key)) {
+            e.preventDefault();
             setError(false);
             rolling.handleKey(e.key);
           }
+          // Allow Tab but prevent other defaults
+          if (e.key !== "Tab") {
+            e.preventDefault();
+          }
         }}
         className={cn(
-          "flex h-9 w-[70px] rounded-md border bg-background px-2 py-1 text-sm text-center ring-offset-background focus-visible:outline-none focus-visible:ring-1 cursor-text caret-transparent",
-          error ? "border-destructive focus-visible:ring-destructive" : "border-input focus-visible:ring-ring"
+          "flex h-9 w-[70px] rounded-md border bg-background px-2 py-1 text-sm text-center ring-offset-background focus-visible:outline-none focus-visible:ring-2 cursor-text caret-transparent select-none",
+          error ? "border-destructive focus-visible:ring-destructive" : "border-input focus-visible:ring-ring",
+          focused && "ring-2 ring-ring"
         )}
       />
       <Button size="sm" onClick={tryConfirm}>確認</Button>
