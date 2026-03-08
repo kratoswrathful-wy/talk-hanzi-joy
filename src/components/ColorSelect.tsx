@@ -129,6 +129,13 @@ export default function ColorSelect({
     setMenuOpenId(null);
   };
 
+  // For disabled assignee: click name/avatar to open profile viewer
+  const handleDisabledAssigneeClick = () => {
+    if (disabled && fieldKey === "assignee" && selectedOption?.email) {
+      setProfileViewerEmail(selectedOption.email);
+    }
+  };
+
   return (
     <>
       <Popover open={open} onOpenChange={(v) => { if (!disabled) setOpen(v); }}>
@@ -137,15 +144,17 @@ export default function ColorSelect({
             role="button"
             tabIndex={disabled ? -1 : 0}
             aria-disabled={disabled}
+            onClick={disabled && fieldKey === "assignee" ? handleDisabledAssigneeClick : undefined}
             className={cn(
               "flex items-center gap-1.5 h-10 px-3 rounded-md border border-input bg-secondary/50 text-sm transition-colors hover:bg-secondary/70 text-left w-full",
-              disabled && "opacity-50 cursor-not-allowed",
+              disabled && fieldKey !== "assignee" && "opacity-50 cursor-not-allowed",
+              disabled && fieldKey === "assignee" && "opacity-50 cursor-pointer",
               triggerClassName
             )}
           >
             {selectedOption ? (
               fieldKey === "assignee" ? (
-                <AssigneeTag label={selectedOption.label} avatarUrl={selectedOption.avatarUrl} />
+                <AssigneeTag label={selectedOption.label} avatarUrl={selectedOption.avatarUrl} timezone={selectedOption.timezone} />
               ) : (
               <span
                 className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
