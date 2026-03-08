@@ -607,6 +607,7 @@ export default function CaseDetailPage() {
     navigate(`/internal-notes?noteId=${newNote.id}`);
   };
 
+  const handleDelete = async () => {
     if (!caseData) return;
     await caseStore.remove(caseData.id);
     toast({ title: "已刪除案件" });
