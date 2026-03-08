@@ -229,7 +229,7 @@ export const selectOptionsStore = {
   /** Load assignee options from profiles + invitations in DB, respecting sort_order and frozen */
   loadAssignees: async () => {
     const [{ data: profiles }, { data: invitations }, { data: settings }] = await Promise.all([
-      supabase.from("profiles").select("email, display_name, avatar_url, timezone"),
+      supabase.from("profiles").select("email, display_name, avatar_url, timezone, status_message"),
       supabase.from("invitations").select("email, role").is("accepted_at", null),
       supabase.from("member_translator_settings").select("email, note, no_fee, sort_order, frozen"),
     ]);
