@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { type TranslatorFee } from "@/data/fee-mock-data";
 import {
   type TableFilter, type TableSort, type TableView, type FilterGroup,
