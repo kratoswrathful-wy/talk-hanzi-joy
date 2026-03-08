@@ -1638,7 +1638,8 @@ export default function TranslatorFeeDetail() {
                       <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">費率無誤</Label>
                     </div>
                   </TooltipTrigger>
-                  {linkedTranslatorInvoices.length > 0 && !isFinalized && <TooltipContent>此費用已列入稿費請款單，無法取消費率確認</TooltipContent>}
+                  {isFinalized && <TooltipContent>已向譯者開立稿費條，不得修改稿費費率確認狀態</TooltipContent>}
+                  {linkedTranslatorInvoices.length > 0 && !isFinalized && <TooltipContent>已向譯者開立稿費條，無法修改費率確認狀態</TooltipContent>}
                 </Tooltip>
               )}
             </div>
