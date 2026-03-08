@@ -817,7 +817,7 @@ export default function CaseDetailPage() {
             >
               退回處理
             </Button>
-          ) : isDraft ? (
+          ) : isDraft && isPmOrAbove ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] text-white hover:opacity-80"

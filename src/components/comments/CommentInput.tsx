@@ -9,7 +9,17 @@ import { getEnvironment } from "@/lib/environment";
 interface MentionPage {
   id: string;
   title: string;
+  type: "case" | "fee" | "invoice" | "client_invoice" | "internal_note";
+  route: string;
 }
+
+const typeLabels: Record<MentionPage["type"], string> = {
+  case: "案件",
+  fee: "費用",
+  invoice: "稿費請款",
+  client_invoice: "客戶請款",
+  internal_note: "內部註記",
+};
 
 export function CommentInput({
   draft,
@@ -34,21 +44,43 @@ export function CommentInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const attachInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch case pages for @ mentions
+  // Fetch all mentionable pages
   useEffect(() => {
     const env = getEnvironment();
-    (supabase.from("cases").select("id, title") as any)
-      .eq("env", env)
-      .order("created_at", { ascending: false })
-      .then(({ data }: any) => {
-        if (data) {
-          setMentionPages(
-            data
-              .filter((p: any) => p.title)
-              .map((p: any) => ({ id: p.id, title: p.title }))
+    const pages: MentionPage[] = [];
+
+    Promise.all([
+      (supabase.from("cases").select("id, title") as any)
+        .eq("env", env).order("created_at", { ascending: false })
+        .then(({ data }: any) => {
+          if (data) data.filter((p: any) => p.title).forEach((p: any) =>
+            pages.push({ id: p.id, title: p.title, type: "case", route: `/cases/${p.id}` })
           );
-        }
-      });
+        }),
+      (supabase.from("fees").select("id, title") as any)
+        .eq("env", env).order("created_at", { ascending: false })
+        .then(({ data }: any) => {
+          if (data) data.filter((p: any) => p.title).forEach((p: any) =>
+            pages.push({ id: p.id, title: p.title, type: "fee", route: `/fees/${p.id}` })
+          );
+        }),
+      (supabase.from("invoices").select("id, title") as any)
+        .eq("env", env).order("created_at", { ascending: false })
+        .then(({ data }: any) => {
+          if (data) data.filter((p: any) => p.title).forEach((p: any) =>
+            pages.push({ id: p.id, title: p.title, type: "invoice", route: `/invoices/${p.id}` })
+          );
+        }),
+      (supabase.from("client_invoices").select("id, title") as any)
+        .eq("env", env).order("created_at", { ascending: false })
+        .then(({ data }: any) => {
+          if (data) data.filter((p: any) => p.title).forEach((p: any) =>
+            pages.push({ id: p.id, title: p.title, type: "client_invoice", route: `/client-invoices/${p.id}` })
+          );
+        }),
+    ]).then(() => {
+      setMentionPages(pages);
+    });
   }, []);
 
   const filteredPages = mentionFilter
@@ -60,7 +92,6 @@ export function CommentInput({
     if (el) {
       const start = el.selectionStart;
       const end = el.selectionEnd;
-      // Remove any trailing @ trigger text
       let before = draft.slice(0, start);
       const atIdx = before.lastIndexOf("@");
       if (atIdx >= 0) {
@@ -81,15 +112,12 @@ export function CommentInput({
     const val = e.target.value;
     setDraft(val);
 
-    // Detect "@" trigger
     const cursorPos = e.target.selectionStart;
     const textBefore = val.slice(0, cursorPos);
     const atIdx = textBefore.lastIndexOf("@");
     if (atIdx >= 0) {
       const afterAt = textBefore.slice(atIdx + 1);
-      // Only trigger if @ is at start or preceded by whitespace
       if (atIdx === 0 || /\s/.test(textBefore[atIdx - 1])) {
-        // No newline in the filter text
         if (!afterAt.includes("\n")) {
           setShowMentionPicker(true);
           setMentionFilter(afterAt);
@@ -146,6 +174,14 @@ export function CommentInput({
     setFileAttachments([]);
   };
 
+  // Group filtered pages by type
+  const groupedPages = filteredPages.reduce<Record<string, MentionPage[]>>((acc, p) => {
+    if (!acc[p.type]) acc[p.type] = [];
+    acc[p.type].push(p);
+    return acc;
+  }, {});
+  const typeOrder: MentionPage["type"][] = ["case", "internal_note", "fee", "invoice", "client_invoice"];
+
   return (
     <div className="space-y-2">
       <div className="relative">
@@ -158,23 +194,30 @@ export function CommentInput({
           className="min-h-[60px] text-xs pr-2"
         />
         {showMentionPicker && (
-          <div className="absolute bottom-full left-0 mb-1 z-10 rounded-md border border-border bg-popover p-1 shadow-md max-h-48 overflow-y-auto min-w-[200px]">
+          <div className="absolute bottom-full left-0 mb-1 z-10 rounded-md border border-border bg-popover p-1 shadow-md max-h-48 overflow-y-auto min-w-[240px]">
             {filteredPages.length === 0 ? (
               <p className="px-3 py-1.5 text-xs text-muted-foreground">無符合的頁面</p>
             ) : (
-              filteredPages.slice(0, 20).map((page) => (
-                <button
-                  key={page.id}
-                  className="block w-full text-left px-3 py-1.5 text-xs rounded hover:bg-accent hover:text-accent-foreground transition-colors truncate"
-                  onClick={() => {
-                    const link = `[@${page.title}](/cases/${page.id})`;
-                    insertAtCursor(link + " ");
-                    setShowMentionPicker(false);
-                    setMentionFilter("");
-                  }}
-                >
-                  {page.title}
-                </button>
+              typeOrder.filter((t) => groupedPages[t]?.length).map((type) => (
+                <div key={type}>
+                  <p className="px-3 py-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                    {typeLabels[type]}
+                  </p>
+                  {groupedPages[type].slice(0, 10).map((page) => (
+                    <button
+                      key={page.id}
+                      className="block w-full text-left px-3 py-1.5 text-xs rounded hover:bg-accent hover:text-accent-foreground transition-colors truncate"
+                      onClick={() => {
+                        const link = `[@${page.title}](${page.route})`;
+                        insertAtCursor(link + " ");
+                        setShowMentionPicker(false);
+                        setMentionFilter("");
+                      }}
+                    >
+                      {page.title}
+                    </button>
+                  ))}
+                </div>
               ))
             )}
           </div>
@@ -224,9 +267,7 @@ export function CommentInput({
         className="hidden"
         onChange={(e) => {
           const files = e.target.files;
-          if (files) {
-            Array.from(files).forEach((file) => handleFileSelect(file));
-          }
+          if (files) Array.from(files).forEach((file) => handleFileSelect(file));
           e.target.value = "";
         }}
       />
@@ -238,31 +279,17 @@ export function CommentInput({
         className="hidden"
         onChange={(e) => {
           const files = e.target.files;
-          if (files) {
-            Array.from(files).forEach((file) => handleAttachFile(file));
-          }
+          if (files) Array.from(files).forEach((file) => handleAttachFile(file));
           e.target.value = "";
         }}
       />
 
       {showLinkDialog && (
         <div className="flex flex-col gap-2 rounded-md border border-border bg-secondary/30 p-3">
-          <Input
-            value={linkText}
-            onChange={(e) => setLinkText(e.target.value)}
-            placeholder="連結文字"
-            className="text-xs h-8"
-          />
-          <Input
-            value={linkUrl}
-            onChange={(e) => setLinkUrl(e.target.value)}
-            placeholder="https://..."
-            className="text-xs h-8"
-          />
+          <Input value={linkText} onChange={(e) => setLinkText(e.target.value)} placeholder="連結文字" className="text-xs h-8" />
+          <Input value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://..." className="text-xs h-8" />
           <div className="flex gap-2 justify-end">
-            <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => setShowLinkDialog(false)}>
-              取消
-            </Button>
+            <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => setShowLinkDialog(false)}>取消</Button>
             <Button
               size="sm"
               className="text-xs h-7"
@@ -288,12 +315,8 @@ export function CommentInput({
       <div className="flex items-center justify-between">
         <div className="flex gap-1">
           <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            title="@提及頁面"
+            variant="ghost" size="icon" className="h-7 w-7" title="@提及頁面"
             onClick={() => {
-              // Insert @ at cursor to trigger picker
               const el = textareaRef.current;
               if (el) {
                 const start = el.selectionStart;
@@ -301,50 +324,27 @@ export function CommentInput({
                 setDraft(newVal);
                 setShowMentionPicker(true);
                 setMentionFilter("");
-                setTimeout(() => {
-                  el.selectionStart = el.selectionEnd = start + 1;
-                  el.focus();
-                }, 0);
+                setTimeout(() => { el.selectionStart = el.selectionEnd = start + 1; el.focus(); }, 0);
               }
             }}
           >
             <AtSign className="h-3.5 w-3.5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            title="上傳圖片"
-            onClick={() => fileInputRef.current?.click()}
-          >
+          <Button variant="ghost" size="icon" className="h-7 w-7" title="上傳圖片" onClick={() => fileInputRef.current?.click()}>
             <Image className="h-3.5 w-3.5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            title="上傳檔案"
-            onClick={() => attachInputRef.current?.click()}
-          >
+          <Button variant="ghost" size="icon" className="h-7 w-7" title="上傳檔案" onClick={() => attachInputRef.current?.click()}>
             <Paperclip className="h-3.5 w-3.5" />
           </Button>
           <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            title="插入超連結"
-            onClick={() => {
-              setShowLinkDialog(!showLinkDialog);
-              setLinkText("");
-              setLinkUrl("");
-            }}
+            variant="ghost" size="icon" className="h-7 w-7" title="插入超連結"
+            onClick={() => { setShowLinkDialog(!showLinkDialog); setLinkText(""); setLinkUrl(""); }}
           >
             <Link2 className="h-3.5 w-3.5" />
           </Button>
         </div>
         <Button
-          size="sm"
-          className="gap-1 text-xs"
+          size="sm" className="gap-1 text-xs"
           disabled={!draft.trim() && imagePreviews.length === 0 && fileAttachments.length === 0}
           onClick={handleSubmit}
         >
