@@ -383,7 +383,7 @@ export default function MembersPage() {
       </Dialog>
 
       {/* Remove Confirmation - Step 1 */}
-      <AlertDialog open={!!removeTarget && removeStep === 1} onOpenChange={(open) => { if (!open) { setRemoveTarget(null); setRemoveStep(1); } }}>
+      <AlertDialog open={!!removeTarget && removeStep === 1} onOpenChange={(open) => { if (!open && removeStep === 1) { setRemoveTarget(null); setRemoveStep(1); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>確認移除</AlertDialogTitle>
@@ -393,7 +393,7 @@ export default function MembersPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRemoveStep1}>確認</AlertDialogAction>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); handleRemoveStep1(); }}>確認</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
