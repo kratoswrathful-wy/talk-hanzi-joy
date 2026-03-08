@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { useRowSelection } from "@/hooks/use-row-selection";
 import ColorSelect from "@/components/ColorSelect";
+import MultiColorSelect from "@/components/MultiColorSelect";
 import FileField from "@/components/FileField";
 import { CommentInput } from "@/components/comments/CommentInput";
 import { CommentContent } from "@/components/comments/CommentContent";
