@@ -127,8 +127,66 @@ function DateTimeCalendar({
     />
   );
 }
+/* ── Inline fix input for AlertDialog ── */
+function FixInput({
+  maxDigits,
+  separator,
+  initial,
+  validate,
+  onConfirm,
+}: {
+  maxDigits: number;
+  separator: string;
+  initial: string;
+  validate: (padded: string) => boolean;
+  onConfirm: (padded: string) => void;
+}) {
+  const rolling = useRollingInput(maxDigits, initial);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const display = `${rolling.padded.slice(0, 2)}${separator}${rolling.padded.slice(2, 4)}`;
+  const [error, setError] = useState(false);
 
-export default function DateTimePicker({
+  useEffect(() => {
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }, []);
+
+  const tryConfirm = () => {
+    if (validate(rolling.padded)) {
+      onConfirm(rolling.padded);
+    } else {
+      setError(true);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        ref={inputRef}
+        type="text"
+        value={display}
+        readOnly
+        onKeyDown={(e) => {
+          e.preventDefault();
+          if (e.key === "Enter") {
+            tryConfirm();
+            return;
+          }
+          if (e.key === "Backspace" || /^\d$/.test(e.key)) {
+            setError(false);
+            rolling.handleKey(e.key);
+          }
+        }}
+        className={cn(
+          "flex h-9 w-[70px] rounded-md border bg-background px-2 py-1 text-sm text-center ring-offset-background focus-visible:outline-none focus-visible:ring-1 cursor-text caret-transparent",
+          error ? "border-destructive focus-visible:ring-destructive" : "border-input focus-visible:ring-ring"
+        )}
+      />
+      <Button size="sm" onClick={tryConfirm}>確認</Button>
+    </div>
+  );
+}
+
+
   value,
   onChange,
   disabled = false,
