@@ -675,8 +675,11 @@ function SectionBulkButtons({
         <div className="flex items-center gap-1">
           <Label className="text-xs text-foreground/70 whitespace-nowrap">全部可見但不可編輯</Label>
           <Switch
-            checked={allView && !allEdit}
+            checked={allView && noEdit}
             onCheckedChange={() => onSetViewOnly?.()}
+            className="scale-75 data-[state=checked]:bg-primary/70"
+          />
+        </div>
             className="scale-75 data-[state=checked]:bg-primary/70"
           />
         </div>
