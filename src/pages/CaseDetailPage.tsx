@@ -932,6 +932,44 @@ export default function CaseDetailPage() {
 
       <Separator />
 
+      <h2 className="text-base font-semibold">提問</h2>
+
+      {/* 客戶提問表單 */}
+      <div className="space-y-3">
+        <Label className="text-sm font-medium text-muted-foreground">客戶提問表單</Label>
+        {questionTools.map((entry, idx) => (
+          <ToolInstance
+            key={entry.id}
+            entry={entry}
+            index={idx}
+            onUpdate={(u) => updateQuestionTool(idx, u)}
+            onRemove={() => removeQuestionTool(idx)}
+            showRemove={questionTools.length > 1}
+            toolFieldKey="questionTool"
+          />
+        ))}
+        <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={addQuestionTool}>
+          <Plus className="h-4 w-4" />
+          新增提問工具
+        </Button>
+      </div>
+
+      {/* 內部提問或註記 */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Label className="text-sm font-medium text-muted-foreground">內部提問或註記</Label>
+          <Button variant="outline" size="sm" className="gap-1 text-xs h-7" onClick={handleCreateInternalNote}>
+            <Plus className="h-3.5 w-3.5" />
+            新增
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          點擊「新增」將在內部註記模組建立一筆新紀錄，標題自動依序編號。
+        </p>
+      </div>
+
+      <Separator />
+
       <h2 className="text-base font-semibold">準則與檔案</h2>
       <Field label="交件方式">
         <Input value={caseData.deliveryMethod} onChange={(e) => save({ deliveryMethod: e.target.value })} className="max-w-md" />
