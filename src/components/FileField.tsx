@@ -38,6 +38,8 @@ export default function FileField({ value, onChange }: FileFieldProps) {
   const [linksOpen, setLinksOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadTotal, setUploadTotal] = useState(0);
+  const [uploadedBytes, setUploadedBytes] = useState(0);
+  const [totalBytes, setTotalBytes] = useState(0);
   const commonLinks = useCommonLinks();
 
   const uploadFiles = useCallback(async (files: File[]) => {
