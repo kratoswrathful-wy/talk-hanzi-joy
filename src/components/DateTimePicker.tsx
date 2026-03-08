@@ -1,12 +1,21 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { format, addDays, startOfDay, isSameMonth, isSameDay, getDaysInMonth } from "date-fns";
-import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarIcon, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { DayPicker } from "react-day-picker";
 import { buttonVariants } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 
 interface DateTimePickerProps {
   value: string | null;
@@ -319,6 +328,7 @@ export default function DateTimePicker({
     : null;
 
   return (
+    <>
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
@@ -334,28 +344,7 @@ export default function DateTimePicker({
           {displayText || placeholder}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0 relative" align="start" sideOffset={4}>
-        {/* Validation overlay */}
-        {validationMsg && (
-          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/95 rounded-md p-6 gap-3">
-            <p className="text-sm text-destructive font-medium text-center">{validationMsg}</p>
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-destructive text-destructive hover:bg-destructive/10"
-              onClick={() => {
-                setValidationMsg(null);
-                // Focus the errored field
-                setTimeout(() => {
-                  if (dateError) dateRef.current?.focus();
-                  else if (timeError) timeRef.current?.focus();
-                }, 50);
-              }}
-            >
-              返回修正
-            </Button>
-          </div>
-        )}
+      <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
         <div className="p-3 space-y-3">
           {/* Year + MM/DD + HH:mm inputs */}
           <div className="flex items-center gap-1.5">
@@ -431,5 +420,31 @@ export default function DateTimePicker({
         </div>
       </PopoverContent>
     </Popover>
+
+    <AlertDialog open={!!validationMsg} onOpenChange={() => {}}>
+      <AlertDialogContent className="max-w-sm">
+        <AlertDialogHeader>
+          <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="h-5 w-5" />
+            輸入格式錯誤
+          </AlertDialogTitle>
+          <AlertDialogDescription>{validationMsg}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogAction
+            onClick={() => {
+              setValidationMsg(null);
+              setTimeout(() => {
+                if (dateError) dateRef.current?.focus();
+                else if (timeError) timeRef.current?.focus();
+              }, 50);
+            }}
+          >
+            返回修正
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
