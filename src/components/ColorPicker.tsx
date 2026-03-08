@@ -133,6 +133,16 @@ export default function ColorPicker({
 
   const currentHex = hsvToHex(hsv[0], hsv[1], hsv[2]);
 
+  const presetSet = new Set(PRESET_COLORS.map((c) => c.toUpperCase()));
+  // Derive in-use non-preset colors from colorUsageMap
+  const inUseCustomColors = Object.keys(colorUsageMap).filter(
+    (c) => !presetSet.has(c.toUpperCase()) && (colorUsageMap[c]?.length ?? 0) > 0
+  );
+  // Merge explicit customColors + in-use colors, deduplicate
+  const allCustomColors = Array.from(
+    new Set([...customColors.map((c) => c.toUpperCase()), ...inUseCustomColors.map((c) => c.toUpperCase())])
+  );
+
   const getLabels = (c: string) => colorUsageMap[c.toUpperCase()] || [];
 
   // Draw color wheel
