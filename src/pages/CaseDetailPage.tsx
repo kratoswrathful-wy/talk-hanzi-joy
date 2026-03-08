@@ -762,9 +762,10 @@ export default function CaseDetailPage() {
             variant="outline"
             size="sm"
             className="text-xs min-w-[88px]"
-            disabled={!isDraft}
             onClick={handleDuplicate}
           >
+            複製本頁
+          </Button>
             複製本頁
           </Button>
           <Button
