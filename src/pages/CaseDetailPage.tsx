@@ -762,6 +762,14 @@ export default function CaseDetailPage() {
             variant="outline"
             size="sm"
             className="text-xs min-w-[88px]"
+            onClick={handleDuplicate}
+          >
+            複製本頁
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs min-w-[88px]"
             onClick={handleNewCase}
           >
             新增案件頁面
