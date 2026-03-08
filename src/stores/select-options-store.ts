@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getTimezoneOffsetLabel } from "@/data/timezone-options";
+import { loadSetting, saveSetting, markDirty } from "./settings-persistence";
 import { loadSetting, saveSetting, markDirty } from "./settings-persistence";
 
 export interface SelectOption {
