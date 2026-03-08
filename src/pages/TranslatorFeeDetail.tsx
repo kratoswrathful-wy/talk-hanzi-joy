@@ -1361,17 +1361,25 @@ export default function TranslatorFeeDetail() {
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label className="text-xs text-muted-foreground">譯者</Label>
-              <ColorSelect
-                fieldKey="assignee"
-                value={assignee}
-                disabled={!canEdit}
-                onValueChange={(v) => {
-                  trackChange("譯者", assignee, v);
-                  setAssignee(v);
-                  if (id) feeStore.updateFee(id, { assignee: v });
-                }}
-                placeholder="選擇譯者"
-              />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div>
+                    <ColorSelect
+                      fieldKey="assignee"
+                      value={assignee}
+                      disabled={!canEdit || clientInfo.rateConfirmed}
+                      onValueChange={(v) => {
+                        trackChange("譯者", assignee, v);
+                        setAssignee(v);
+                        if (id) feeStore.updateFee(id, { assignee: v });
+                      }}
+                      placeholder="選擇譯者"
+                    />
+                  </div>
+                </TooltipTrigger>
+                {clientInfo.rateConfirmed && canEdit && <TooltipContent>已勾選費率無誤，譯者欄位已鎖定</TooltipContent>}
+                {!canEdit && isFinalized && <TooltipContent>已開立稿費條，譯者欄位已鎖定</TooltipContent>}
+              </Tooltip>
             </div>
             <div className="grid gap-1.5">
               <Label className="text-xs text-muted-foreground">稿費開立狀態</Label>
