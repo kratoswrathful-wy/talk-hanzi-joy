@@ -1152,26 +1152,72 @@ export default function CaseDetailPage() {
           <div className="space-y-3">
             <Label className="text-sm font-medium">案件內部備註</Label>
             <div className="space-y-2">
-              {internalComments.map((c) => (
-                <div key={c.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium">{c.author}</span>
-                    <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString("zh-TW")}</span>
+              {(() => {
+                const topLevel = internalComments.filter((c) => !c.replyTo);
+                const replies = (parentId: string) => internalComments.filter((c) => c.replyTo === parentId);
+                return topLevel.map((c) => (
+                  <div key={c.id} className="space-y-1">
+                    <div className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{c.author}</span>
+                          <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString("zh-TW")}</span>
+                        </div>
+                        <button
+                          className="text-muted-foreground hover:text-foreground text-[10px] px-1.5 py-0.5 rounded hover:bg-accent transition-colors"
+                          onClick={() => setInternalReplyingTo(internalReplyingTo === c.id ? null : c.id)}
+                        >
+                          回覆
+                        </button>
+                      </div>
+                      <CommentContent content={c.content} imageUrls={c.imageUrls} fileUrls={c.fileUrls} />
+                    </div>
+                    {replies(c.id).map((r) => (
+                      <div key={r.id} className="ml-6 rounded-md border border-border/60 bg-secondary/15 px-3 py-2 text-xs">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium">{r.author}</span>
+                          <span className="text-muted-foreground">{new Date(r.createdAt).toLocaleString("zh-TW")}</span>
+                        </div>
+                        <CommentContent content={r.content} imageUrls={r.imageUrls} fileUrls={r.fileUrls} />
+                      </div>
+                    ))}
+                    {internalReplyingTo === c.id && (
+                      <div className="ml-6">
+                        <CommentInput
+                          draft={internalCommentDraft}
+                          setDraft={setInternalCommentDraft}
+                          placeholder={`回覆 ${c.author}...`}
+                          onSubmit={(content, imageUrls, fileUrls) => {
+                            const newComment: CaseComment = {
+                              id: `icomment-${Date.now()}`,
+                              author: profile?.display_name || "專案經理",
+                              content,
+                              imageUrls,
+                              fileUrls,
+                              replyTo: c.id,
+                              createdAt: new Date().toISOString(),
+                            };
+                            save({ internalComments: [...internalComments, newComment] });
+                            setInternalReplyingTo(null);
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
-                  <CommentContent content={c.content} imageUrls={c.imageUrls} />
-                </div>
-              ))}
+                ));
+              })()}
             </div>
             <CommentInput
-              draft={internalCommentDraft}
-              setDraft={setInternalCommentDraft}
+              draft={internalReplyingTo ? "" : internalCommentDraft}
+              setDraft={(v) => { if (!internalReplyingTo) setInternalCommentDraft(v); }}
               placeholder="輸入案件內部備註..."
-              onSubmit={(content, imageUrls) => {
+              onSubmit={(content, imageUrls, fileUrls) => {
                 const newComment: CaseComment = {
                   id: `icomment-${Date.now()}`,
-                  author: roleLabels[currentRole] || "專案經理",
+                  author: profile?.display_name || "專案經理",
                   content,
                   imageUrls,
+                  fileUrls,
                   createdAt: new Date().toISOString(),
                 };
                 save({ internalComments: [...internalComments, newComment] });
