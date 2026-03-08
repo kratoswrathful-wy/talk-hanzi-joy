@@ -736,7 +736,7 @@ export default function CaseDetailPage() {
                 </TooltipProvider>
               ) : btn;
             })()
-          ) : isDispatched && (isCurrentUserTranslator || isPmOrAbove) ? (
+          ) : (isDispatched || isFeedback) && (isCurrentUserTranslator || isPmOrAbove) ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
