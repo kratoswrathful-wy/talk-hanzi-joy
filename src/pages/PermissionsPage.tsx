@@ -391,10 +391,14 @@ export default function PermissionsPage() {
     const mod = PERMISSION_MODULES.find((m) => m.key === moduleKey);
     if (!mod) return;
     const modulePerms = getModulePerms(config, roleKey, moduleKey);
-    const allItems = [...mod.listItems, ...mod.detailItems];
+    const allItems = [...mod.listItems, ...getAllDetailItems(mod)];
     const newItems: Record<string, { view: boolean; edit: boolean }> = { ...modulePerms.items };
     for (const item of allItems) {
-      newItems[item.key] = { view: value, edit: value };
+      if (item.type === "view") {
+        newItems[item.key] = { view: value, edit: false };
+      } else {
+        newItems[item.key] = { view: value, edit: value };
+      }
     }
     const newModulePerms = {
       ...(config as any).module_permissions,
