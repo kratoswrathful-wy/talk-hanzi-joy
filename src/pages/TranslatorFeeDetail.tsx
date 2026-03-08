@@ -1710,50 +1710,78 @@ export default function TranslatorFeeDetail() {
                   taskItems.map((item, index) => (
                     <TableRow key={item.id} className={isNoFeeTranslator ? "opacity-50" : ""}>
                       <TableCell className="text-center">
-                        <ColorSelect
-                          fieldKey="taskType"
-                          value={item.taskType}
-                          disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
-                          onValueChange={(v) => handleUpdateItem(item.id, "taskType", v)}
-                          triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
-                        />
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <ColorSelect
+                                fieldKey="taskType"
+                                value={item.taskType}
+                                disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
+                                onValueChange={(v) => handleUpdateItem(item.id, "taskType", v)}
+                                triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
+                              />
+                            </div>
+                          </TooltipTrigger>
+                          {clientInfo.rateConfirmed && canEdit && <TooltipContent>已確認項目及費率，不得修改稿費內容</TooltipContent>}
+                        </Tooltip>
                       </TableCell>
                       <TableCell className="text-center">
-                        <ColorSelect
-                          fieldKey="billingUnit"
-                          value={item.billingUnit}
-                          disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
-                          onValueChange={(v) => handleUpdateItem(item.id, "billingUnit", v)}
-                          triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
-                        />
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <ColorSelect
+                                fieldKey="billingUnit"
+                                value={item.billingUnit}
+                                disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
+                                onValueChange={(v) => handleUpdateItem(item.id, "billingUnit", v)}
+                                triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
+                              />
+                            </div>
+                          </TooltipTrigger>
+                          {clientInfo.rateConfirmed && canEdit && <TooltipContent>已確認項目及費率，不得修改稿費內容</TooltipContent>}
+                        </Tooltip>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Input
-                          type="text"
-                          inputMode="decimal"
-                          value={isNoFeeTranslator ? "N/A" : item.unitPrice}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitPrice", v as any);
-                          }}
-                          onBlur={(e) => handleNumberBlur(item.id, "unitPrice", e.target.value)}
-                          disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
-                          className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
-                        />
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <Input
+                                type="text"
+                                inputMode="decimal"
+                                value={isNoFeeTranslator ? "N/A" : item.unitPrice}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitPrice", v as any);
+                                }}
+                                onBlur={(e) => handleNumberBlur(item.id, "unitPrice", e.target.value)}
+                                disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
+                                className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
+                              />
+                            </div>
+                          </TooltipTrigger>
+                          {clientInfo.rateConfirmed && canEdit && <TooltipContent>已確認項目及費率，不得修改稿費內容</TooltipContent>}
+                        </Tooltip>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Input
-                          type="text"
-                          inputMode="decimal"
-                          value={item.unitCount}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitCount", v as any);
-                          }}
-                          onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
-                          disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
-                          className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
-                        />
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div>
+                              <Input
+                                type="text"
+                                inputMode="decimal"
+                                value={item.unitCount}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  if (/^[0-9]*\.?[0-9]*$/.test(v)) handleUpdateItem(item.id, "unitCount", v as any);
+                                }}
+                                onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
+                                disabled={!canEdit || isNoFeeTranslator || clientInfo.rateConfirmed}
+                                className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
+                              />
+                            </div>
+                          </TooltipTrigger>
+                          {clientInfo.rateConfirmed && canEdit && <TooltipContent>已確認項目及費率，不得修改稿費內容</TooltipContent>}
+                        </Tooltip>
                       </TableCell>
                       <TableCell className="text-right text-xs font-medium">
                         {isNoFeeTranslator ? 0 : (Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}
