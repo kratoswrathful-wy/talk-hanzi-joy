@@ -31,13 +31,25 @@ interface PermissionItem {
   key: string;
   label: string;
   type: "view" | "edit" | "both"; // "both" = separate view & edit toggles
+  attribute?: string; // e.g., "文字", "單選", "按鈕"
+}
+
+interface DetailSection {
+  label: string;
+  isHeaderOnly?: boolean; // true = section label only, no control item for the section itself
+  items: PermissionItem[];
 }
 
 interface PermissionModule {
   key: string;
   label: string;
-  listItems: PermissionItem[];   // List page operations
-  detailItems: PermissionItem[]; // Detail page operations
+  listItems: PermissionItem[];
+  detailSections: DetailSection[];
+}
+
+/** Flatten all detail items from sections */
+function getAllDetailItems(mod: PermissionModule): PermissionItem[] {
+  return mod.detailSections.flatMap((s) => s.items);
 }
 
 const PERMISSION_MODULES: PermissionModule[] = [
@@ -45,85 +57,135 @@ const PERMISSION_MODULES: PermissionModule[] = [
     key: "fee_management",
     label: "費用管理",
     listItems: [
-      { key: "fee_list_create", label: "新增費用", type: "both" },
-      { key: "fee_list_delete", label: "刪除費用", type: "both" },
+      { key: "fee_list_create", label: "新增費用", type: "both", attribute: "按鈕" },
+      { key: "fee_list_delete", label: "刪除費用", type: "both", attribute: "按鈕" },
     ],
-    detailItems: [
-      { key: "fee_detail_title", label: "標題", type: "both" },
-      { key: "fee_detail_assignee", label: "譯者", type: "both" },
-      { key: "fee_detail_status", label: "狀態", type: "both" },
-      { key: "fee_detail_internalNote", label: "相關案件", type: "both" },
-      { key: "fee_detail_client", label: "客戶", type: "both" },
-      { key: "fee_detail_contact", label: "聯絡人", type: "both" },
-      { key: "fee_detail_taskItems", label: "稿費內容", type: "both" },
-      { key: "fee_detail_addItem", label: "新增項目", type: "both" },
-      { key: "fee_detail_deleteItem", label: "刪除項目", type: "both" },
-      { key: "fee_detail_taskType", label: "譯者任務類型", type: "both" },
-      { key: "fee_detail_billingUnit", label: "計費單位", type: "both" },
-      { key: "fee_detail_unitPrice", label: "稿費單價", type: "both" },
-      { key: "fee_detail_unitCount", label: "計費單位數", type: "both" },
-      { key: "fee_detail_rateConfirmed", label: "費率無誤", type: "both" },
-      { key: "fee_detail_finalize", label: "開立稿費條", type: "both" },
-      { key: "fee_detail_recall", label: "收回為草稿", type: "both" },
-      { key: "fee_detail_delete", label: "刪除", type: "both" },
-      { key: "fee_detail_createNew", label: "建立新費用頁面", type: "both" },
-      { key: "fee_detail_clientInfo", label: "客戶端資訊區塊", type: "both" },
-      { key: "fee_detail_clientCaseId", label: "關鍵字", type: "both" },
-      { key: "fee_detail_clientPoNumber", label: "客戶 PO#", type: "both" },
-      { key: "fee_detail_dispatchRoute", label: "派案途徑", type: "both" },
-      { key: "fee_detail_clientRevenue", label: "營收總額", type: "both" },
-      { key: "fee_detail_profit", label: "利潤", type: "both" },
-      { key: "fee_detail_reconciled", label: "對帳完成", type: "both" },
-      { key: "fee_detail_invoiced", label: "請款完成", type: "both" },
-      { key: "fee_detail_sameCase", label: "費用群組", type: "both" },
-      { key: "fee_detail_invoice", label: "請款單", type: "both" },
-      { key: "fee_detail_comments", label: "費用相關備註", type: "both" },
-      { key: "fee_detail_internalComments", label: "費用內部備註", type: "both" },
-      { key: "fee_detail_editLog", label: "變更紀錄", type: "both" },
-      { key: "fee_detail_creatorInfo", label: "建立者 / 建立時間", type: "both" },
+    detailSections: [
+      {
+        label: "頁面一般操作",
+        items: [
+          { key: "fee_detail_delete", label: "刪除", type: "both", attribute: "按鈕" },
+          { key: "fee_detail_copy", label: "複製頁面", type: "both", attribute: "按鈕" },
+          { key: "fee_detail_createNew", label: "建立新費用頁面", type: "both", attribute: "按鈕" },
+          { key: "fee_detail_finalize", label: "開立稿費條", type: "both", attribute: "按鈕" },
+          { key: "fee_detail_recall", label: "收回為草稿", type: "both", attribute: "按鈕" },
+        ],
+      },
+      {
+        label: "費用單基本資料",
+        items: [
+          { key: "fee_detail_title", label: "標題", type: "both", attribute: "文字" },
+          { key: "fee_detail_assignee", label: "譯者", type: "both", attribute: "單選" },
+          { key: "fee_detail_status", label: "狀態", type: "view", attribute: "自動填入（無法編輯）" },
+          { key: "fee_detail_internalNote", label: "相關案件", type: "both", attribute: "文字" },
+        ],
+      },
+      {
+        label: "稿費內容",
+        isHeaderOnly: true,
+        items: [
+          { key: "fee_detail_taskType", label: "譯者任務類型", type: "both", attribute: "單選" },
+          { key: "fee_detail_billingUnit", label: "計費單位", type: "both", attribute: "單選" },
+          { key: "fee_detail_unitPrice", label: "稿費單價", type: "both", attribute: "數字" },
+          { key: "fee_detail_unitCount", label: "計費單位數", type: "both", attribute: "數字" },
+          { key: "fee_detail_addItem", label: "新增項目", type: "both", attribute: "按鈕" },
+          { key: "fee_detail_deleteItem", label: "刪除項目", type: "both", attribute: "按鈕" },
+          { key: "fee_detail_rateConfirmed", label: "費率無誤", type: "both", attribute: "核取方塊" },
+        ],
+      },
+      {
+        label: "營收內容",
+        isHeaderOnly: true,
+        items: [
+          { key: "fee_detail_client", label: "客戶", type: "both", attribute: "單選" },
+          { key: "fee_detail_contact", label: "聯絡人", type: "both", attribute: "單選" },
+          { key: "fee_detail_clientCaseId", label: "關鍵字", type: "both", attribute: "文字" },
+          { key: "fee_detail_clientPoNumber", label: "客戶 PO#", type: "both", attribute: "文字" },
+          { key: "fee_detail_dispatchRoute", label: "派案途徑", type: "both", attribute: "單選" },
+          { key: "fee_detail_clientRevenue", label: "營收總額", type: "view", attribute: "自動計算（無法編輯）" },
+          { key: "fee_detail_profit", label: "利潤", type: "view", attribute: "自動計算（無法編輯）" },
+          { key: "fee_detail_reconciled", label: "對帳完成", type: "both", attribute: "核取方塊" },
+          { key: "fee_detail_invoiced", label: "請款完成", type: "both", attribute: "核取方塊" },
+          { key: "fee_detail_sameCase", label: "費用群組", type: "both", attribute: "核取方塊" },
+          { key: "fee_detail_invoice", label: "請款單", type: "view", attribute: "自動填入（無法編輯）" },
+        ],
+      },
+      {
+        label: "備註",
+        items: [
+          { key: "fee_detail_comments", label: "備註", type: "both", attribute: "文字" },
+          { key: "fee_detail_internalComments", label: "內部備註", type: "both", attribute: "文字" },
+        ],
+      },
     ],
   },
   {
     key: "translator_invoice",
     label: "稿費請款",
     listItems: [
-      { key: "inv_list_create", label: "新增稿費請款單", type: "both" },
-      { key: "inv_list_delete", label: "刪除", type: "both" },
+      { key: "inv_list_create", label: "新增稿費請款單", type: "both", attribute: "按鈕" },
+      { key: "inv_list_delete", label: "刪除", type: "both", attribute: "按鈕" },
     ],
-    detailItems: [
-      { key: "inv_detail_title", label: "標題", type: "both" },
-      { key: "inv_detail_translator", label: "請款人", type: "both" },
-      { key: "inv_detail_status", label: "狀態", type: "both" },
-      { key: "inv_detail_addFee", label: "加入費用", type: "both" },
-      { key: "inv_detail_removeFee", label: "移除費用", type: "both" },
-      { key: "inv_detail_payFull", label: "全額付款", type: "both" },
-      { key: "inv_detail_payPartial", label: "部份付款", type: "both" },
-      { key: "inv_detail_delete", label: "刪除", type: "both" },
-      { key: "inv_detail_comments", label: "稿費請款備註", type: "both" },
-      { key: "inv_detail_internalComments", label: "稿費請款內部備註", type: "both" },
-      { key: "inv_detail_editLog", label: "變更紀錄", type: "both" },
-      { key: "inv_detail_creatorInfo", label: "建立者 / 建立時間", type: "both" },
+    detailSections: [
+      {
+        label: "頁面一般操作",
+        items: [
+          { key: "inv_detail_delete", label: "刪除", type: "both", attribute: "按鈕" },
+          { key: "inv_detail_payFull", label: "全額付款", type: "both", attribute: "按鈕" },
+          { key: "inv_detail_payPartial", label: "部份付款", type: "both", attribute: "按鈕" },
+        ],
+      },
+      {
+        label: "請款單基本資料",
+        items: [
+          { key: "inv_detail_title", label: "標題", type: "both", attribute: "文字" },
+          { key: "inv_detail_translator", label: "請款人", type: "both", attribute: "單選" },
+          { key: "inv_detail_status", label: "狀態", type: "view", attribute: "自動填入（無法編輯）" },
+          { key: "inv_detail_addFee", label: "加入費用", type: "both", attribute: "按鈕" },
+          { key: "inv_detail_removeFee", label: "移除費用", type: "both", attribute: "按鈕" },
+        ],
+      },
+      {
+        label: "備註",
+        items: [
+          { key: "inv_detail_comments", label: "備註", type: "both", attribute: "文字" },
+          { key: "inv_detail_internalComments", label: "內部備註", type: "both", attribute: "文字" },
+        ],
+      },
     ],
   },
   {
     key: "client_invoice",
     label: "客戶請款",
     listItems: [
-      { key: "cinv_list_create", label: "新增客戶請款單", type: "both" },
-      { key: "cinv_list_delete", label: "刪除", type: "both" },
+      { key: "cinv_list_create", label: "新增客戶請款單", type: "both", attribute: "按鈕" },
+      { key: "cinv_list_delete", label: "刪除", type: "both", attribute: "按鈕" },
     ],
-    detailItems: [
-      { key: "cinv_detail_title", label: "標題", type: "both" },
-      { key: "cinv_detail_client", label: "客戶", type: "both" },
-      { key: "cinv_detail_status", label: "狀態", type: "both" },
-      { key: "cinv_detail_addFee", label: "加入費用", type: "both" },
-      { key: "cinv_detail_removeFee", label: "移除費用", type: "both" },
-      { key: "cinv_detail_payFull", label: "全額收齊", type: "both" },
-      { key: "cinv_detail_payPartial", label: "部份到帳", type: "both" },
-      { key: "cinv_detail_delete", label: "刪除", type: "both" },
-      { key: "cinv_detail_comments", label: "客戶請款備註", type: "both" },
-      { key: "cinv_detail_editLog", label: "變更紀錄", type: "both" },
-      { key: "cinv_detail_creatorInfo", label: "建立者 / 建立時間", type: "both" },
+    detailSections: [
+      {
+        label: "頁面一般操作",
+        items: [
+          { key: "cinv_detail_delete", label: "刪除", type: "both", attribute: "按鈕" },
+          { key: "cinv_detail_payFull", label: "全額收齊", type: "both", attribute: "按鈕" },
+          { key: "cinv_detail_payPartial", label: "部份到帳", type: "both", attribute: "按鈕" },
+        ],
+      },
+      {
+        label: "請款單基本資料",
+        items: [
+          { key: "cinv_detail_title", label: "標題", type: "both", attribute: "文字" },
+          { key: "cinv_detail_client", label: "客戶", type: "both", attribute: "單選" },
+          { key: "cinv_detail_status", label: "狀態", type: "view", attribute: "自動填入（無法編輯）" },
+          { key: "cinv_detail_addFee", label: "加入費用", type: "both", attribute: "按鈕" },
+          { key: "cinv_detail_removeFee", label: "移除費用", type: "both", attribute: "按鈕" },
+        ],
+      },
+      {
+        label: "備註",
+        items: [
+          { key: "cinv_detail_comments", label: "備註", type: "both", attribute: "文字" },
+        ],
+      },
     ],
   },
   {
@@ -131,25 +193,24 @@ const PERMISSION_MODULES: PermissionModule[] = [
     label: "成員管理",
     listItems: [
       { key: "members_view", label: "檢視成員清單", type: "both" },
-      { key: "members_invite", label: "邀請成員", type: "both" },
-      { key: "members_changeRole", label: "變更角色", type: "both" },
-      { key: "members_remove", label: "移除成員", type: "both" },
+      { key: "members_invite", label: "邀請成員", type: "both", attribute: "按鈕" },
+      { key: "members_changeRole", label: "變更角色", type: "both", attribute: "單選" },
+      { key: "members_remove", label: "移除成員", type: "both", attribute: "按鈕" },
     ],
-    detailItems: [],
+    detailSections: [],
   },
   {
     key: "permissions",
     label: "身分管理",
     listItems: [
       { key: "perm_view", label: "檢視權限設定", type: "both" },
-      { key: "perm_addRole", label: "新增身分", type: "both" },
-      { key: "perm_deleteRole", label: "刪除身分", type: "both" },
+      { key: "perm_addRole", label: "新增身分", type: "both", attribute: "按鈕" },
+      { key: "perm_deleteRole", label: "刪除身分", type: "both", attribute: "按鈕" },
       { key: "perm_editPerms", label: "修改權限設定", type: "both" },
     ],
-    detailItems: [],
+    detailSections: [],
   },
 ];
-
 // ─── Helpers to read/write permission values from config ───
 
 interface ModulePerms {
