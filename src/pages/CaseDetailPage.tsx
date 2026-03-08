@@ -546,6 +546,8 @@ export default function CaseDetailPage() {
   }
 
   const isDraft = caseData.status === "draft";
+  const isInquiry = caseData.status === "inquiry";
+  const isFinalized = caseData.status === "finalized";
 
   const handleDuplicate = async () => {
     const dup = await caseStore.duplicate(caseData.id);
@@ -565,6 +567,11 @@ export default function CaseDetailPage() {
   const handleRevertToDraft = () => {
     save({ status: "draft" as CaseStatus });
     toast({ title: "已收回為草稿" });
+  };
+
+  const handleFinalize = () => {
+    save({ status: "finalized" as CaseStatus });
+    toast({ title: "已確定指派" });
   };
 
   const comments = caseData.comments || [];
@@ -598,14 +605,26 @@ export default function CaseDetailPage() {
           >
             新增案件頁面
           </Button>
-          <Button
-            size="sm"
-            className="text-xs min-w-[88px] text-white hover:opacity-80"
-            style={{ backgroundColor: '#6B7280' }}
-            onClick={() => setDeleteOpen(true)}
-          >
-            刪除
-          </Button>
+          {isInquiry ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] text-white hover:opacity-80"
+              style={{ backgroundColor: '#6B7280' }}
+              onClick={handleRevertToDraft}
+            >
+              收回為草稿
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] text-white hover:opacity-80"
+              style={{ backgroundColor: '#6B7280' }}
+              disabled={isFinalized}
+              onClick={() => setDeleteOpen(true)}
+            >
+              刪除
+            </Button>
+          )}
           {isDraft ? (
             <Button
               size="sm"
@@ -614,14 +633,13 @@ export default function CaseDetailPage() {
             >
               公布
             </Button>
-          ) : caseData.status === "inquiry" ? (
+          ) : isInquiry ? (
             <Button
-              variant="outline"
               size="sm"
-              className="text-xs min-w-[88px]"
-              onClick={handleRevertToDraft}
+              className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleFinalize}
             >
-              收回為草稿
+              確定指派
             </Button>
           ) : null}
         </div>
@@ -656,7 +674,17 @@ export default function CaseDetailPage() {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <Field label="譯者">
-            <MultiColorSelect fieldKey="assignee" values={caseData.translator || []} onValuesChange={(v) => save({ translator: v })} />
+            {isFinalized ? (
+              <div className="flex items-center gap-1 flex-wrap min-h-[32px] px-2 py-1 rounded-md bg-muted/50 border border-border">
+                {(caseData.translator || []).length > 0
+                  ? (caseData.translator || []).map((t, i) => (
+                      <Badge key={i} variant="secondary" className="text-xs">{t}</Badge>
+                    ))
+                  : <span className="text-sm text-muted-foreground">—</span>}
+              </div>
+            ) : (
+              <MultiColorSelect fieldKey="assignee" values={caseData.translator || []} onValuesChange={(v) => save({ translator: v })} />
+            )}
           </Field>
           <Field label="翻譯交期">
             <DateTimePicker value={caseData.translationDeadline} onChange={(v) => save({ translationDeadline: v })} className="w-full" />

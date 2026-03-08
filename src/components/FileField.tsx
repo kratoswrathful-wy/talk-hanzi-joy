@@ -38,6 +38,7 @@ export default function FileField({ value, onChange }: FileFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const cancelRef = useRef(false);
   const [urlDialogOpen, setUrlDialogOpen] = useState(false);
   const [urlDraft, setUrlDraft] = useState("");
   const [urlNameDraft, setUrlNameDraft] = useState("");
@@ -50,6 +51,7 @@ export default function FileField({ value, onChange }: FileFieldProps) {
 
   const uploadFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
+    cancelRef.current = false;
     setUploading(true);
     setUploadProgress(0);
     setUploadTotal(files.length);
@@ -59,10 +61,12 @@ export default function FileField({ value, onChange }: FileFieldProps) {
     let doneBytes = 0;
     const newItems: FileItem[] = [];
     for (let i = 0; i < files.length; i++) {
+      if (cancelRef.current) break;
       const file = files[i];
       setUploadProgress(i);
       const path = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}/${file.name}`;
       const { error } = await supabase.storage.from("case-files").upload(path, file);
+      if (cancelRef.current) break;
       if (!error) {
         const { data: urlData } = supabase.storage.from("case-files").getPublicUrl(path);
         newItems.push({ name: file.name, url: urlData.publicUrl, size: file.size });
@@ -70,7 +74,7 @@ export default function FileField({ value, onChange }: FileFieldProps) {
       doneBytes += file.size;
       setUploadedBytes(doneBytes);
     }
-    if (newItems.length > 0) {
+    if (newItems.length > 0 && !cancelRef.current) {
       onChange([...value, ...newItems]);
     }
     setUploading(false);
@@ -215,9 +219,18 @@ export default function FileField({ value, onChange }: FileFieldProps) {
       {/* Upload progress */}
       {uploading && (
         <div className="space-y-1 px-1">
-          <span className="text-xs text-muted-foreground">
-            正在上傳第 {uploadProgress + 1}/{uploadTotal} 個檔案（{formatBytes(uploadedBytes)}/{formatBytes(totalBytes)}）
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground flex-1">
+              正在上傳第 {uploadProgress + 1}/{uploadTotal} 個檔案（{formatBytes(uploadedBytes)}/{formatBytes(totalBytes)}）
+            </span>
+            <button
+              onClick={() => { cancelRef.current = true; setUploading(false); }}
+              className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0"
+              title="取消上傳"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
           <Progress value={(uploadedBytes / totalBytes) * 100} className="h-2" />
         </div>
       )}
