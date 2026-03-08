@@ -800,19 +800,19 @@ export default function CaseDetailPage() {
 
       <h2 className="text-base font-semibold">基本資訊</h2>
       <div className="grid grid-cols-2 gap-4">
-        <Field label="類型">
+        <Field label="內容性質">
           <ColorSelect fieldKey="caseCategory" value={caseData.category} onValueChange={(v) => save({ category: v })} />
-        </Field>
-        <Field label="計費單位數">
-          <Input type="number" value={caseData.unitCount || ""} onChange={(e) => save({ unitCount: Number(e.target.value) || 0 })} className="max-w-[120px]" />
-        </Field>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="計費單位">
-          <ColorSelect fieldKey="billingUnit" value={caseData.billingUnit} onValueChange={(v) => save({ billingUnit: v })} />
         </Field>
         <Field label="工作類型">
           <MultiColorSelect fieldKey="taskType" values={caseData.workType} onValuesChange={(v) => save({ workType: v })} />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="計費單位數">
+          <Input type="number" value={caseData.unitCount || ""} onChange={(e) => save({ unitCount: Number(e.target.value) || 0 })} className="max-w-[120px]" />
+        </Field>
+        <Field label="計費單位">
+          <ColorSelect fieldKey="billingUnit" value={caseData.billingUnit} onValueChange={(v) => save({ billingUnit: v })} />
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-4">
