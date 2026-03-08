@@ -16,6 +16,7 @@ import { useUndoRedo, type UndoEntry } from "@/hooks/use-undo-redo";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { InvoiceActions } from "@/components/InvoiceActions";
 import { useInvoices } from "@/hooks/use-invoice-store";
+import { useClientInvoices } from "@/hooks/use-client-invoice-store";
 import { useState, useRef, useCallback, useEffect } from "react";
 import {
   AlertDialog,
@@ -289,6 +290,20 @@ const allColumnDefs: ColumnDef[] = [
     ),
   },
   {
+    key: "translatorInvoiceStatus",
+    label: "稿費請款狀態",
+    minWidth: 90,
+    managerOnly: true,
+    render: (f) => <TranslatorInvoiceStatus feeId={f.id} />,
+  },
+  {
+    key: "clientInvoiceStatus",
+    label: "客戶請款狀態",
+    minWidth: 90,
+    managerOnly: true,
+    render: (f) => <ClientInvoiceStatusCell feeId={f.id} />,
+  },
+  {
     key: "invoice",
     label: "請款單",
     minWidth: 80,
@@ -386,6 +401,22 @@ function DispatchRouteLabel({ value }: { value: string }) {
       <span className="truncate">{value}</span>
     </span>
   );
+}
+
+function TranslatorInvoiceStatus({ feeId }: { feeId: string }) {
+  const invoices = useInvoices();
+  const linked = invoices.find((inv) => inv.feeIds.includes(feeId));
+  if (!linked) return <span className="text-sm text-muted-foreground">尚未請款</span>;
+  const labelMap: Record<string, string> = { pending: "待付款", partial: "部份付款", paid: "已付款" };
+  return <Badge variant="outline" className="text-xs whitespace-nowrap">{labelMap[linked.status] || linked.status}</Badge>;
+}
+
+function ClientInvoiceStatusCell({ feeId }: { feeId: string }) {
+  const invoices = useClientInvoices();
+  const linked = invoices.find((inv) => inv.feeIds.includes(feeId));
+  if (!linked) return <span className="text-sm text-muted-foreground">尚未請款</span>;
+  const labelMap: Record<string, string> = { pending: "待收款", partial: "部份到帳", paid: "全額收齊" };
+  return <Badge variant="outline" className="text-xs whitespace-nowrap">{labelMap[linked.status] || linked.status}</Badge>;
 }
 
 function InvoiceLink({ feeId }: { feeId: string }) {

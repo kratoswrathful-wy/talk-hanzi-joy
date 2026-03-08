@@ -239,6 +239,7 @@ export default function ClientInvoiceDetailPage() {
   const availableFees = useMemo(() => {
     if (!invoice) return [];
     return fees.filter((f) => {
+      // Fee must not be linked to any client invoice already
       if (allLinkedFeeIds.has(f.id)) return false;
       const ci = f.clientInfo as any;
       // Must have matching client and reconciled checked

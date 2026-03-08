@@ -283,9 +283,15 @@ export default function InvoiceDetailPage() {
 
   const availableFees = useMemo(() => {
     if (!invoice) return [];
-    return fees.filter(
-      (f) => f.assignee === invoice.translator && !allLinkedFeeIds.has(f.id)
-    );
+    return fees.filter((f) => {
+      // Translator must match
+      if (f.assignee !== invoice.translator) return false;
+      // Fee must not be linked to any invoice already
+      if (allLinkedFeeIds.has(f.id)) return false;
+      // Fee must be finalized (opened)
+      if (f.status !== "finalized") return false;
+      return true;
+    });
   }, [fees, invoice, allLinkedFeeIds]);
 
   if (!invoice) {
