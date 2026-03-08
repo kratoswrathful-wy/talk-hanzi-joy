@@ -608,6 +608,21 @@ export default function CaseDetailPage() {
     toast({ title: "已取消指派" });
   };
 
+  const handleRevertToDispatched = () => {
+    save({ status: "dispatched" as CaseStatus });
+    toast({ title: "已退回修正" });
+  };
+
+  const handleDelivered = () => {
+    save({ status: "delivered" as CaseStatus });
+    toast({ title: "已交件完畢" });
+  };
+
+  const handleFeedback = () => {
+    save({ status: "feedback" as CaseStatus });
+    toast({ title: "處理回饋中" });
+  };
+
   const isCurrentUserTranslator = (() => {
     const displayName = profile?.display_name || "";
     return displayName && (caseData.translator || []).includes(displayName);
