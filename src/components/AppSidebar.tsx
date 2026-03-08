@@ -1,6 +1,7 @@
 import { Receipt, FileText, Settings, Users, User, Shield } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   Sidebar,
   SidebarContent,
@@ -19,14 +20,17 @@ import { LogOut } from "lucide-react";
 
 export function AppSidebar() {
   const { profile, isAdmin, roles, signOut } = useAuth();
+  const { checkPerm } = usePermissions();
 
   const isExecutive = roles.some((r) => r.role === "executive");
+  const canViewMembers = checkPerm("team_members", "members_view", "view");
+  const canViewClientInvoices = checkPerm("client_invoices", "cinv_list_view", "view");
 
   const navItems = [
     { title: "費用管理", url: "/fees", icon: Receipt },
     { title: "稿費請款", url: "/invoices", icon: FileText },
-    ...(isAdmin ? [{ title: "客戶請款", url: "/client-invoices", icon: FileText }] : []),
-    ...(isAdmin ? [{ title: "團隊成員", url: "/members", icon: Users }] : []),
+    ...(canViewClientInvoices ? [{ title: "客戶請款", url: "/client-invoices", icon: FileText }] : []),
+    ...(canViewMembers ? [{ title: "團隊成員", url: "/members", icon: Users }] : []),
     ...(isExecutive ? [{ title: "權限管理", url: "/permissions", icon: Shield }] : []),
     { title: "個人檔案", url: "/profile", icon: User },
     { title: "設定", url: "/settings", icon: Settings },
