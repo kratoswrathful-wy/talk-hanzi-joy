@@ -1616,7 +1616,7 @@ export default function TranslatorFeeDetail() {
           {/* Finalize prompt after rate confirmation */}
           {showFinalizePrompt && isDraft && isManager && (
             <div className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
-              <span className="text-xs text-foreground">是否同時開立稿費條？</span>
+              <span className="text-xs text-foreground">是否直接向譯者開立稿費條？（按空白鍵或揀選按鈕確認）</span>
               <div className="flex items-center gap-1.5">
                 <Button
                   ref={finalizePromptRef}
