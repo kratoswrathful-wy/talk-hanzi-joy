@@ -711,20 +711,31 @@ export default function CaseDetailPage() {
           返回案件清單
         </Link>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-xs min-w-[88px]"
-            onClick={() => {
-              const url = `${window.location.origin}/cases/${id}`;
-              const msg = `請問這件可以做嗎？\n${caseData?.title || ""}（${url}）`;
-              navigator.clipboard.writeText(msg).then(() => {
-                toast({ description: "已複製詢案訊息至剪貼簿" });
-              });
-            }}
-          >
-            產生詢案訊息
-          </Button>
+          {isPmOrAbove && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs min-w-[88px]"
+              onClick={() => {
+                const url = `${window.location.origin}/cases/${id}`;
+                const title = caseData?.title || "";
+                const plainText = `請問這件可以做嗎？\n${title}（${url}）`;
+                const richHtml = `請問這件可以做嗎？<br><a href="${url}">${title}</a>`;
+                try {
+                  navigator.clipboard.write([
+                    new ClipboardItem({
+                      "text/plain": new Blob([plainText], { type: "text/plain" }),
+                      "text/html": new Blob([richHtml], { type: "text/html" }),
+                    }),
+                  ]).then(() => toast({ description: "已複製詢案訊息至剪貼簿" }));
+                } catch {
+                  navigator.clipboard.writeText(plainText).then(() => toast({ description: "已複製詢案訊息至剪貼簿" }));
+                }
+              }}
+            >
+              產生詢案訊息
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
