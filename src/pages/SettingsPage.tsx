@@ -206,7 +206,7 @@ function ClientPricingSection() {
                           customColors={customColors}
                           onAddCustomColor={(c) => selectOptionsStore.addCustomColor("client", c)}
                           onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("client", c)}
-                          colorUsageMap={{}}
+                          colorUsageMap={getColorUsageMap(clientOptions)}
                         />
                       </PopoverContent>
                     </Popover>
