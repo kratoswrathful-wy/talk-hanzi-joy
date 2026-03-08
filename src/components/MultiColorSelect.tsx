@@ -130,15 +130,19 @@ export default function MultiColorSelect({
             )}
           >
             {selectedOptions.length > 0 ? (
-              selectedOptions.map((opt) => (
-                <span
-                  key={opt.id}
-                  className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
-                  style={{ backgroundColor: opt.color, color: labelTextColor, borderColor: opt.color }}
-                >
-                  {opt.label}
-                </span>
-              ))
+              selectedOptions.map((opt) =>
+                fieldKey === "assignee" ? (
+                  <AssigneeTag key={opt.id} label={opt.label} avatarUrl={opt.avatarUrl} />
+                ) : (
+                  <span
+                    key={opt.id}
+                    className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
+                    style={{ backgroundColor: opt.color, color: labelTextColor, borderColor: opt.color }}
+                  >
+                    {opt.label}
+                  </span>
+                )
+              )
             ) : (
               <span className="text-muted-foreground text-sm">{placeholder}</span>
             )}
