@@ -255,7 +255,7 @@ function NoteDetailView({
       </Field>
 
       <Field label="內部指派對象" icon="👥">
-        <MultiColorSelect fieldKey="assignee" values={note.internalAssignee || []} onValuesChange={(v) => onUpdate({ internalAssignee: v })} />
+        <MultiColorSelect fieldKey="assignee" values={Array.isArray(note.internalAssignee) ? note.internalAssignee : note.internalAssignee ? [note.internalAssignee] : []} onValuesChange={(v) => onUpdate({ internalAssignee: v })} />
       </Field>
 
       <Separator />
@@ -488,7 +488,7 @@ export default function InternalNotesPage() {
       render: (n) => <NatureBadge nature={n.noteType} />,
     },
     { key: "creator", label: "建立者", minWidth: 80, render: (n) => <span className="text-sm">{n.creator || "—"}</span> },
-    { key: "internalAssignee", label: "內部指派", minWidth: 80, render: (n) => <span className="text-sm">{(n.internalAssignee || []).join(", ") || "—"}</span> },
+    { key: "internalAssignee", label: "內部指派", minWidth: 80, render: (n) => <span className="text-sm">{(Array.isArray(n.internalAssignee) ? n.internalAssignee : n.internalAssignee ? [n.internalAssignee] : []).join(", ") || "—"}</span> },
     { key: "createdAt", label: "建立時間", minWidth: 100, render: (n) => <span className="text-sm text-muted-foreground tabular-nums">{formatDate(n.createdAt)}</span> },
   ];
 
