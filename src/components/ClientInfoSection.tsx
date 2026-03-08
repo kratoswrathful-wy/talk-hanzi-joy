@@ -245,34 +245,44 @@ export default function ClientInfoSection({
 
           {/* Row 2: sameCase (left) + dispatch route (right) */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="sameCase"
-                checked={clientInfo.sameCase}
-                disabled={!canEdit || clientInfo.reconciled}
-                onCheckedChange={(checked) => {
-                  if (!checked && clientInfo.sameCase) {
-                    setShowUncheckWarning(true);
-                  } else {
-                    update("sameCase", !!checked);
-                  }
-                }}
-              />
-              <Label htmlFor="sameCase" className="text-xs cursor-pointer whitespace-nowrap">
-                費用群組（勾選後系統會自動以「相關案件」相同者判定群組所屬費用）
-              </Label>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Label className="text-xs text-muted-foreground whitespace-nowrap">派案途徑</Label>
-              <ColorSelect
-                fieldKey="dispatchRoute"
-                value={clientInfo.dispatchRoute || ""}
-                onValueChange={(v) => update("dispatchRoute", v)}
-                triggerClassName="h-7 text-xs min-w-[90px]"
-                placeholder="選擇"
-                disabled={clientInfo.reconciled}
-              />
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="sameCase"
+                    checked={clientInfo.sameCase}
+                    disabled={!canEdit || clientInfo.reconciled}
+                    onCheckedChange={(checked) => {
+                      if (!checked && clientInfo.sameCase) {
+                        setShowUncheckWarning(true);
+                      } else {
+                        update("sameCase", !!checked);
+                      }
+                    }}
+                  />
+                  <Label htmlFor="sameCase" className="text-xs cursor-pointer whitespace-nowrap">
+                    費用群組（勾選後系統會自動以「相關案件」相同者判定群組所屬費用）
+                  </Label>
+                </div>
+              </TooltipTrigger>
+              {clientInfo.reconciled && <TooltipContent>已對帳完成，不得修改營收內容</TooltipContent>}
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs text-muted-foreground whitespace-nowrap">派案途徑</Label>
+                  <ColorSelect
+                    fieldKey="dispatchRoute"
+                    value={clientInfo.dispatchRoute || ""}
+                    onValueChange={(v) => update("dispatchRoute", v)}
+                    triggerClassName="h-7 text-xs min-w-[90px]"
+                    placeholder="選擇"
+                    disabled={clientInfo.reconciled}
+                  />
+                </div>
+              </TooltipTrigger>
+              {clientInfo.reconciled && <TooltipContent>已對帳完成，不得修改營收內容</TooltipContent>}
+            </Tooltip>
           </div>
 
           {/* Sub-options for sameCase - immediately below parent */}
@@ -388,51 +398,79 @@ export default function ClientInfoSection({
               {displayClientTaskItems.map((item, index) => (
                 <TableRow key={item.id} className={clientItemsLocked ? "opacity-50" : ""}>
                   <TableCell className="text-center">
-                    <ColorSelect
-                      fieldKey="taskType"
-                      value={item.taskType}
-                      onValueChange={(v) => updateItem(item.id, "taskType", v as TaskType)}
-                      triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
-                      disabled={clientItemsLocked || clientInfo.reconciled}
-                    />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <ColorSelect
+                            fieldKey="taskType"
+                            value={item.taskType}
+                            onValueChange={(v) => updateItem(item.id, "taskType", v as TaskType)}
+                            triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
+                            disabled={clientItemsLocked || clientInfo.reconciled}
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      {clientInfo.reconciled && !clientItemsLocked && <TooltipContent>已對帳完成，不得修改營收內容</TooltipContent>}
+                    </Tooltip>
                   </TableCell>
                   <TableCell className="text-center">
-                    <ColorSelect
-                      fieldKey="billingUnit"
-                      value={item.billingUnit}
-                      onValueChange={(v) => updateItem(item.id, "billingUnit", v as BillingUnit)}
-                      triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
-                      disabled={clientItemsLocked || clientInfo.reconciled}
-                    />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <ColorSelect
+                            fieldKey="billingUnit"
+                            value={item.billingUnit}
+                            onValueChange={(v) => updateItem(item.id, "billingUnit", v as BillingUnit)}
+                            triggerClassName="h-8 text-xs bg-transparent border-0 shadow-none px-0 justify-center"
+                            disabled={clientItemsLocked || clientInfo.reconciled}
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      {clientInfo.reconciled && !clientItemsLocked && <TooltipContent>已對帳完成，不得修改營收內容</TooltipContent>}
+                    </Tooltip>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      value={item.clientPrice}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "clientPrice", v as any);
-                      }}
-                      onFocus={() => handleClientPriceFocus(item.id)}
-                      onBlur={(e) => handleNumberBlur(item.id, "clientPrice", e.target.value)}
-                      className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
-                      disabled={clientItemsLocked || clientInfo.reconciled}
-                    />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <Input
+                            type="text"
+                            inputMode="decimal"
+                            value={item.clientPrice}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "clientPrice", v as any);
+                            }}
+                            onFocus={() => handleClientPriceFocus(item.id)}
+                            onBlur={(e) => handleNumberBlur(item.id, "clientPrice", e.target.value)}
+                            className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
+                            disabled={clientItemsLocked || clientInfo.reconciled}
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      {clientInfo.reconciled && !clientItemsLocked && <TooltipContent>已對帳完成，不得修改營收內容</TooltipContent>}
+                    </Tooltip>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      value={item.unitCount}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "unitCount", v as any);
-                      }}
-                      onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
-                      className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
-                      disabled={clientItemsLocked || clientInfo.reconciled}
-                    />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <Input
+                            type="text"
+                            inputMode="decimal"
+                            value={item.unitCount}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (/^[0-9]*\.?[0-9]*$/.test(v)) updateItem(item.id, "unitCount", v as any);
+                            }}
+                            onBlur={(e) => handleNumberBlur(item.id, "unitCount", e.target.value)}
+                            className="h-8 text-xs bg-transparent border-0 shadow-none px-0 w-full text-right"
+                            disabled={clientItemsLocked || clientInfo.reconciled}
+                          />
+                        </div>
+                      </TooltipTrigger>
+                      {clientInfo.reconciled && !clientItemsLocked && <TooltipContent>已對帳完成，不得修改營收內容</TooltipContent>}
+                    </Tooltip>
                   </TableCell>
                   <TableCell className="text-right text-xs font-medium">
                     {clientInfo.notFirstFee ? <span className="text-muted-foreground">N/A</span> : (Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}
@@ -461,16 +499,21 @@ export default function ClientInfoSection({
             <TableFooter>
               <TableRow>
                 <TableCell colSpan={3} className="px-[18px]">
-                  <div className="flex items-center gap-2">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap min-w-[3rem]">關鍵字</Label>
-                    <Input
-                      value={clientInfo.clientCaseId}
-                      onChange={(e) => update("clientCaseId", e.target.value)}
-                      placeholder="客戶端案號或關鍵字"
-                      disabled={!canEdit || clientInfo.reconciled}
-                      className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
-                    />
-                  </div>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-muted-foreground whitespace-nowrap min-w-[3rem]">關鍵字</Label>
+                        <Input
+                          value={clientInfo.clientCaseId}
+                          onChange={(e) => update("clientCaseId", e.target.value)}
+                          placeholder="客戶端案號或關鍵字"
+                          disabled={!canEdit || clientInfo.reconciled}
+                          className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
+                        />
+                      </div>
+                    </TooltipTrigger>
+                    {clientInfo.reconciled && <TooltipContent>已對帳完成，不得修改營收內容</TooltipContent>}
+                  </Tooltip>
                 </TableCell>
                 <TableCell className="text-sm font-medium text-right">
                   營收總額
@@ -482,16 +525,21 @@ export default function ClientInfoSection({
               </TableRow>
               <TableRow>
                 <TableCell colSpan={3} className="px-[18px]">
-                  <div className="flex items-center gap-2">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap min-w-[3rem]">PO #</Label>
-                    <Input
-                      value={clientInfo.clientPoNumber}
-                      onChange={(e) => update("clientPoNumber", e.target.value)}
-                      placeholder="客戶PO編號"
-                      disabled={!canEdit || clientInfo.reconciled}
-                      className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
-                    />
-                  </div>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-muted-foreground whitespace-nowrap min-w-[3rem]">PO #</Label>
+                        <Input
+                          value={clientInfo.clientPoNumber}
+                          onChange={(e) => update("clientPoNumber", e.target.value)}
+                          placeholder="客戶PO編號"
+                          disabled={!canEdit || clientInfo.reconciled}
+                          className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
+                        />
+                      </div>
+                    </TooltipTrigger>
+                    {clientInfo.reconciled && <TooltipContent>已對帳完成，不得修改營收內容</TooltipContent>}
+                  </Tooltip>
                 </TableCell>
                 <TableCell className="text-sm font-medium text-right">
                   {clientInfo.sameCase && profitFeeCount > 0
