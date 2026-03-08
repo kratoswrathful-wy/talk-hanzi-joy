@@ -93,9 +93,54 @@ function createDefaultView(): TableView {
   };
 }
 
+const STORAGE_KEY = "invoice-table-views";
+const ACTIVE_VIEW_KEY = "invoice-table-active-view";
+
+function loadViewsFromStorage(): TableView[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as TableView[];
+      if (!parsed.some((v) => v.id === "default")) {
+        return [createDefaultView(), ...parsed];
+      }
+      return parsed;
+    }
+  } catch (e) {
+    console.warn("Failed to load views from storage:", e);
+  }
+  return [createDefaultView()];
+}
+
+function loadActiveViewFromStorage(): string {
+  try {
+    return localStorage.getItem(ACTIVE_VIEW_KEY) || "default";
+  } catch {
+    return "default";
+  }
+}
+
 export function useInvoiceTableViews(currentRole?: string) {
-  const [views, setViews] = useState<TableView[]>(() => [createDefaultView()]);
-  const [activeViewId, setActiveViewId] = useState("default");
+  const [views, setViews] = useState<TableView[]>(loadViewsFromStorage);
+  const [activeViewId, setActiveViewId] = useState(loadActiveViewFromStorage);
+
+  // Persist views to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(views));
+    } catch (e) {
+      console.warn("Failed to save views to storage:", e);
+    }
+  }, [views]);
+
+  // Persist active view ID
+  useEffect(() => {
+    try {
+      localStorage.setItem(ACTIVE_VIEW_KEY, activeViewId);
+    } catch (e) {
+      console.warn("Failed to save active view to storage:", e);
+    }
+  }, [activeViewId]);
 
   const visibleViews = useMemo(() =>
     views.filter((v) => v.isDefault || v.createdByRole === currentRole),
