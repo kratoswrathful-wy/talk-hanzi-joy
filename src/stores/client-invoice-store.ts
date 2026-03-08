@@ -57,6 +57,8 @@ async function getUserId() {
 }
 supabase.auth.onAuthStateChange((_event, session) => {
   _cachedUserId = session?.user?.id ?? null;
+  loaded = false;
+  notify();
 });
 
 export const clientInvoiceStore = {

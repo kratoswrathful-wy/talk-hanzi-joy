@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, X } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, X, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import AssigneeTag from "@/components/AssigneeTag";
@@ -17,7 +17,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useInvoice, invoiceStore } from "@/hooks/use-invoice-store";
+import { useInvoice, invoiceStore, useInvoicesLoaded } from "@/hooks/use-invoice-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
@@ -299,7 +299,16 @@ export default function InvoiceDetailPage() {
     });
   }, [fees, invoice, allLinkedFeeIds]);
 
+  const invoicesLoaded = useInvoicesLoaded();
+
   if (!invoice) {
+    if (!invoicesLoaded) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
     return (
       <div className="mx-auto max-w-4xl py-12 text-center">
         <p className="text-muted-foreground">找不到此請款單</p>

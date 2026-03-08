@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Plus, X } from "lucide-react";
+import { ArrowLeft, Plus, X, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { motion } from "framer-motion";
@@ -15,7 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useClientInvoice, clientInvoiceStore } from "@/hooks/use-client-invoice-store";
+import { useClientInvoice, clientInvoiceStore, useClientInvoicesLoaded } from "@/hooks/use-client-invoice-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { type ClientInvoiceStatus, type ClientPaymentRecord, clientInvoiceStatusLabels } from "@/data/client-invoice-types";
@@ -254,7 +254,16 @@ export default function ClientInvoiceDetailPage() {
     });
   }, [fees, invoice, allLinkedFeeIds]);
 
+  const clientInvoicesLoaded = useClientInvoicesLoaded();
+
   if (!invoice) {
+    if (!clientInvoicesLoaded) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
     return (
       <div className="mx-auto max-w-4xl py-12 text-center">
         <p className="text-muted-foreground">找不到此客戶請款單</p>

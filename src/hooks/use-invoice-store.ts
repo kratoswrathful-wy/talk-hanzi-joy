@@ -20,6 +20,10 @@ export function useInvoices() {
   return useSyncExternalStore(invoiceStore.subscribe, invoiceStore.getInvoices);
 }
 
+export function useInvoicesLoaded() {
+  return useSyncExternalStore(invoiceStore.subscribe, invoiceStore.isLoaded);
+}
+
 export function useInvoice(id: string | undefined) {
   const invoices = useInvoices();
   return id ? invoices.find((i) => i.id === id) : undefined;
