@@ -1570,6 +1570,7 @@ export default function TranslatorFeeDetail() {
                   }
                 }}
                 linkedClientInvoices={linkedClientInvoices}
+                isInClientInvoice={linkedClientInvoices.length > 0}
               />
             </div>
           </>
