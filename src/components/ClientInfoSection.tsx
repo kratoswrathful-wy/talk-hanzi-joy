@@ -629,7 +629,9 @@ export default function ClientInfoSection({
                   營收總額
                 </TableCell>
                 <TableCell className="text-right text-sm font-bold tabular-nums">
-                  {clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}
+                  <Tooltip><TooltipTrigger asChild>
+                    <span className="cursor-default">{clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}</span>
+                  </TooltipTrigger><TooltipContent className="text-xs">自動計算/填入</TooltipContent></Tooltip>
                 </TableCell>
                 <TableCell />
               </TableRow>
