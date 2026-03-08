@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, KeyboardEvent } from "react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -442,16 +443,20 @@ export default function MembersPage() {
                                 不開單
                               </Label>
                             </div>
-                            <Button
-                              variant={member.frozen ? "secondary" : "ghost"}
-                              size="sm"
-                              className={cn("h-7 text-xs gap-1", member.frozen && "text-blue-400")}
-                              onClick={() => handleToggleFrozen(member.email, !member.frozen)}
-                              title={member.frozen ? "解除凍結" : "暫時凍結"}
-                            >
-                              <Snowflake className="h-3 w-3" />
-                              {member.frozen ? "解凍" : "凍結"}
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant={member.frozen ? "secondary" : "ghost"}
+                                  size="sm"
+                                  className={cn("h-7 text-xs gap-1", member.frozen && "text-blue-400")}
+                                  onClick={() => handleToggleFrozen(member.email, !member.frozen)}
+                                >
+                                  <Snowflake className="h-3 w-3" />
+                                  {member.frozen ? "解凍" : "凍結"}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>凍結人員會從所有人員下拉式選單隱藏</TooltipContent>
+                            </Tooltip>
                           </>
                         )}
                         {member.isInvitation ? (
@@ -479,14 +484,19 @@ export default function MembersPage() {
                         )}
                         {isExecutive && (
                           <>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-muted-foreground"
-                              onClick={() => { setEditingEmail(member.email); setEditValue(member.note); }}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-muted-foreground"
+                                  onClick={() => { setEditingEmail(member.email); setEditValue(member.note); }}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>編輯人員備註</TooltipContent>
+                            </Tooltip>
                             <Button
                               variant="ghost"
                               size="icon"
