@@ -492,6 +492,7 @@ export default function CaseDetailPage() {
   const [creatorName, setCreatorName] = useState("");
   const { primaryRole: currentRole, profile } = useAuth();
   const isManager = currentRole === "pm" || currentRole === "executive";
+  const allInternalNotes = useInternalNotes(); // reactive
 
   // Comment drafts
   const [commentDraft, setCommentDraft] = useState("");
