@@ -725,6 +725,14 @@ export default function CaseDetailPage() {
 
       <Separator />
 
+      {/* Meta info */}
+      <div className="flex gap-6 text-xs text-muted-foreground">
+        <span>建立者：{creatorName || "—"}</span>
+        <span>建立時間：{new Date(caseData.createdAt).toLocaleString("zh-TW")}</span>
+      </div>
+
+      <Separator />
+
       {/* 案件相關備註 */}
       <div className="space-y-3">
         <Label className="text-sm font-medium">案件相關備註</Label>
@@ -791,14 +799,6 @@ export default function CaseDetailPage() {
           </div>
         </>
       )}
-
-      <Separator />
-
-      {/* Meta info */}
-      <div className="flex gap-6 text-xs text-muted-foreground">
-        <span>建立者：{creatorName || "—"}</span>
-        <span>建立時間：{new Date(caseData.createdAt).toLocaleString("zh-TW")}</span>
-      </div>
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
