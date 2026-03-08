@@ -186,15 +186,15 @@ export default function ClientInfoSection({
       <div className="space-y-3">
         <div className="space-y-1">
           {/* Row 1: Title + checkboxes + Add button */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex items-baseline justify-between">
+            <div className="flex items-baseline gap-3">
               <Label className="text-sm font-medium leading-none">營收內容</Label>
               {linkedClientInvoices.length > 0 && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-muted-foreground">客戶請款單</span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-xs text-muted-foreground leading-none">客戶請款單</span>
                   {linkedClientInvoices.map((inv, idx) => (
                     <span key={inv.id}>
-                      <Link to={`/client-invoices/${inv.id}`} className="text-xs text-primary hover:underline">{inv.title || "未命名"}</Link>
+                      <Link to={`/client-invoices/${inv.id}`} className="text-xs text-primary hover:underline leading-none">{inv.title || "未命名"}</Link>
                       {idx < linkedClientInvoices.length - 1 && <span className="text-xs text-muted-foreground">、</span>}
                     </span>
                   ))}
@@ -212,14 +212,20 @@ export default function ClientInfoSection({
                 <Plus className="h-3.5 w-3.5" />
                 新增項目
               </Button>
-              <div className="flex items-center gap-1.5">
-                <Checkbox
-                  id="reconciled"
-                  checked={clientInfo.reconciled}
-                  onCheckedChange={(checked) => update("reconciled", !!checked)}
-                />
-                <Label htmlFor="reconciled" className="text-xs cursor-pointer whitespace-nowrap">對帳完成</Label>
-              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1.5">
+                    <Checkbox
+                      id="reconciled"
+                      checked={clientInfo.reconciled}
+                      disabled={isInClientInvoice}
+                      onCheckedChange={(checked) => update("reconciled", !!checked)}
+                    />
+                    <Label htmlFor="reconciled" className={`text-xs cursor-pointer whitespace-nowrap ${isInClientInvoice ? 'text-muted-foreground/50' : ''}`}>對帳完成</Label>
+                  </div>
+                </TooltipTrigger>
+                {isInClientInvoice && <TooltipContent>此費用已列入客戶請款單，無法修改對帳狀態</TooltipContent>}
+              </Tooltip>
               <div className="flex items-center gap-1.5">
                 <Checkbox
                   id="invoiced"
