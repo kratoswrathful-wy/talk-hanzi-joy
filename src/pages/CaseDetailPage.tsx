@@ -746,7 +746,7 @@ export default function CaseDetailPage() {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <Field label="譯者">
-            {(isDispatched || isFinalized) ? (
+            {(isDispatched || isTaskCompleted || isFinalized) ? (
               <div className="flex items-center gap-1 flex-wrap min-h-[32px] px-2 py-1 rounded-md bg-muted/50 border border-border">
                 {(caseData.translator || []).length > 0
                   ? (caseData.translator || []).map((t, i) => (
