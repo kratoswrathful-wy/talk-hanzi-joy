@@ -1374,7 +1374,7 @@ export default function TranslatorFeeDetail() {
               />
             </div>
             <div className="grid gap-1.5">
-              <Label className="text-xs text-muted-foreground">狀態</Label>
+              <Label className="text-xs text-muted-foreground">稿費開立狀態</Label>
               <div className="flex items-center h-10">
                 <DetailStatusBadge status={status} />
               </div>

@@ -76,7 +76,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
         items: [
           { key: "fee_detail_title", label: "標題", type: "both", attribute: "文字" },
           { key: "fee_detail_assignee", label: "譯者", type: "both", attribute: "單選" },
-          { key: "fee_detail_status", label: "狀態", type: "view", attribute: "自動填入（無法編輯）" },
+          { key: "fee_detail_status", label: "稿費開立狀態", type: "view", attribute: "自動填入（無法編輯）" },
           { key: "fee_detail_internalNote", label: "相關案件", type: "both", attribute: "文字" },
         ],
       },
