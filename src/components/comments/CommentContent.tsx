@@ -1,18 +1,27 @@
 import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Paperclip, ExternalLink, Lock } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useFees } from "@/hooks/use-fee-store";
 
 /** Check if a route is accessible based on user role */
 function useRouteAccessChecker() {
   const { primaryRole } = useAuth();
   const isMember = primaryRole === "member";
   const isPm = primaryRole === "pm";
+  // Members can only see fees assigned to them (RLS already filters the list)
+  const myFees = useFees();
 
   return (route: string): boolean => {
-    // Members cannot access fees, client invoices, or internal notes
     if (isMember) {
-      if (route.startsWith("/fees/") || route.startsWith("/fees?")) return false;
-      if (route.startsWith("/client-invoices/") || route.startsWith("/client-invoices?")) return false;
+      // For fee routes, check if the fee ID is in the member's own fee list
+      const feeMatch = route.match(/^\/fees\/([0-9a-f-]+)/);
+      if (feeMatch) {
+        const feeId = feeMatch[1];
+        return myFees.some((f) => f.id === feeId);
+      }
+      // Block all other fee list routes, client invoices, internal notes
+      if (route.startsWith("/fees")) return false;
+      if (route.startsWith("/client-invoices")) return false;
       if (route.startsWith("/internal-notes")) return false;
     }
     // PMs cannot access permissions page
