@@ -629,6 +629,7 @@ export default function CaseDetailPage() {
           >
             新增案件頁面
           </Button>
+          {/* Secondary action (left of primary) */}
           {isInquiry && isPmOrAbove ? (
             <Button
               size="sm"
@@ -638,17 +639,27 @@ export default function CaseDetailPage() {
             >
               收回為草稿
             </Button>
-          ) : !isInquiry ? (
+          ) : isDispatched && isPmOrAbove ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] text-white hover:opacity-80"
               style={{ backgroundColor: '#6B7280' }}
-              disabled={isDispatched || isFinalized}
+              onClick={handleCancelDispatch}
+            >
+              取消指派
+            </Button>
+          ) : !isInquiry && !isDispatched ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] text-white hover:opacity-80"
+              style={{ backgroundColor: '#6B7280' }}
+              disabled={isCompleted || isFinalized}
               onClick={() => setDeleteOpen(true)}
             >
               刪除
             </Button>
           ) : null}
+          {/* Primary action (rightmost) */}
           {isDraft && isPmOrAbove ? (
             <Button
               size="sm"
@@ -665,28 +676,14 @@ export default function CaseDetailPage() {
             >
               承接本案
             </Button>
-          ) : isInquiry && isPmOrAbove ? (
-            (() => {
-              const translatorEmpty = !caseData.translator || caseData.translator.length === 0;
-              const btn = (
-                <Button
-                  size="sm"
-                  className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
-                  disabled={translatorEmpty}
-                  onClick={handleFinalize}
-                >
-                  確定指派
-                </Button>
-              );
-              return translatorEmpty ? (
-                <TooltipProvider delayDuration={200}>
-                  <Tooltip>
-                    <TooltipTrigger asChild><span>{btn}</span></TooltipTrigger>
-                    <TooltipContent>譯者欄不得空白</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ) : btn;
-            })()
+          ) : isDispatched && isCurrentUserTranslator ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleCompleteTask}
+            >
+              任務完成
+            </Button>
           ) : null}
         </div>
       </div>
