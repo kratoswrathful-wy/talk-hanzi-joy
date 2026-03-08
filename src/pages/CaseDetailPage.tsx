@@ -38,6 +38,7 @@ import { useAuth } from "@/hooks/use-auth";
 const caseStatusLabels: Record<CaseStatus, string> = {
   draft: "草稿",
   inquiry: "詢案中",
+  dispatched: "已派出",
   finalized: "開立完成",
 };
 
