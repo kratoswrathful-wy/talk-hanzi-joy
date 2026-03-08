@@ -141,6 +141,7 @@ export default function DateTimePicker({
 
   const [timeError, setTimeError] = useState(false);
   const [dateError, setDateError] = useState(false);
+  const [validationMsg, setValidationMsg] = useState<string | null>(null);
   const [displayMonth, setDisplayMonth] = useState<Date>(parsedDate || new Date());
 
   const dateDisplay = `${dateRolling.padded.slice(0, 2)}/${dateRolling.padded.slice(2, 4)}`;
