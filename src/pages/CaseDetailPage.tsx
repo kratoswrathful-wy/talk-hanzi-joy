@@ -622,66 +622,26 @@ export default function CaseDetailPage() {
       <Separator />
 
       <h2 className="text-base font-semibold">狀態與交件</h2>
-      <Field label="任務狀態">
-        <Input value={caseData.taskStatus} onChange={(e) => save({ taskStatus: e.target.value })} className="max-w-xs" />
-      </Field>
       <Field label="交件方式">
         <Input value={caseData.deliveryMethod} onChange={(e) => save({ deliveryMethod: e.target.value })} className="max-w-md" />
       </Field>
       <Field label="客戶收件">
-        <Input value={caseData.clientReceipt} onChange={(e) => save({ clientReceipt: e.target.value })} className="max-w-xs" />
+        <Input value={caseData.clientReceipt} onChange={(e) => save({ clientReceipt: e.target.value })} className="max-w-md" />
       </Field>
-
-      <Separator />
-
-      <h2 className="text-base font-semibold">準則與資源</h2>
       <Field label="自製準則頁面">
-        <Input value={caseData.customGuidelinesUrl} onChange={(e) => save({ customGuidelinesUrl: e.target.value })} className="max-w-md" placeholder="URL" />
+        <FileField value={Array.isArray(caseData.customGuidelinesUrl) ? caseData.customGuidelinesUrl : []} onChange={(v) => save({ customGuidelinesUrl: v })} />
       </Field>
       <Field label="客戶指定準則">
-        <Input value={caseData.clientGuidelines} onChange={(e) => save({ clientGuidelines: e.target.value })} className="max-w-md" />
+        <FileField value={Array.isArray(caseData.clientGuidelines) ? caseData.clientGuidelines : []} onChange={(v) => save({ clientGuidelines: v })} />
       </Field>
-      <Field label="提問表單">
-        <Input value={caseData.questionForm} onChange={(e) => save({ questionForm: e.target.value })} className="max-w-md" />
+      <Field label="譯者完稿">
+        <FileField value={Array.isArray(caseData.translatorFinal) ? caseData.translatorFinal : []} onChange={(v) => save({ translatorFinal: v })} />
       </Field>
-
-      <Separator />
-
-      <h2 className="text-base font-semibold">核取項目</h2>
-      <Field label="填寫內部註記表單">
-        <Checkbox checked={caseData.internalNoteForm} onCheckedChange={(v) => save({ internalNoteForm: !!v })} />
+      <Field label="內審完稿">
+        <FileField value={Array.isArray(caseData.internalReviewFinal) ? caseData.internalReviewFinal : []} onChange={(v) => save({ internalReviewFinal: v })} />
       </Field>
-      <Field label="填寫客戶提問表單">
-        <Checkbox checked={caseData.clientQuestionForm} onCheckedChange={(v) => save({ clientQuestionForm: !!v })} />
-      </Field>
-
-      <Separator />
-
-      <h2 className="text-base font-semibold">登入資訊</h2>
-      <Field label="其他登入資訊">
-        <Input value={caseData.otherLoginInfo} onChange={(e) => save({ otherLoginInfo: e.target.value })} className="max-w-md" />
-      </Field>
-      <Field label="登入帳號">
-        <Input value={caseData.loginAccount} onChange={(e) => save({ loginAccount: e.target.value })} className="max-w-xs" />
-      </Field>
-      <Field label="登入密碼">
-        <Input value={caseData.loginPassword} onChange={(e) => save({ loginPassword: e.target.value })} className="max-w-xs" />
-      </Field>
-      <Field label="線上工具專案">
-        <Input value={caseData.onlineToolProject} onChange={(e) => save({ onlineToolProject: e.target.value })} className="max-w-md" />
-      </Field>
-      <Field label="線上工具檔名">
-        <Input value={caseData.onlineToolFilename} onChange={(e) => save({ onlineToolFilename: e.target.value })} className="max-w-md" />
-      </Field>
-
-      <Separator />
-
-      <h2 className="text-base font-semibold">追蹤與費用</h2>
       <Field label="追蹤修訂">
-        <Input value={caseData.trackChanges} onChange={(e) => save({ trackChanges: e.target.value })} className="max-w-md" />
-      </Field>
-      <Field label="稿費條">
-        <Input value={caseData.feeEntry} onChange={(e) => save({ feeEntry: e.target.value })} className="max-w-md" />
+        <FileField value={Array.isArray(caseData.trackChanges) ? caseData.trackChanges : []} onChange={(v) => save({ trackChanges: v })} />
       </Field>
 
       <Separator />
