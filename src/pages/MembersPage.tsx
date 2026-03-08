@@ -24,6 +24,7 @@ import {
 import { toast } from "sonner";
 import { Loader2, Trash2, UserPlus, X, GripVertical, Pencil, Snowflake } from "lucide-react";
 import { selectOptionsStore } from "@/stores/select-options-store";
+import ProfileViewerDialog from "@/components/ProfileViewerDialog";
 import { cn } from "@/lib/utils";
 
 type AppRole = string;
