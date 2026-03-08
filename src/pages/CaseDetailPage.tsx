@@ -1,19 +1,21 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Trash2, Plus, X } from "lucide-react";
+import { ArrowLeft, Trash2, Plus, X, Copy, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { caseStore } from "@/hooks/use-case-store";
-import type { CaseRecord, ToolEntry, ToolEntryField, CaseStatus } from "@/data/case-types";
+import type { CaseRecord, ToolEntry, ToolEntryField, CaseStatus, CaseComment } from "@/data/case-types";
 import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
 import DateTimePicker from "@/components/DateTimePicker";
 import FileField from "@/components/FileField";
+import { CommentInput } from "@/components/comments/CommentInput";
+import { CommentContent } from "@/components/comments/CommentContent";
+import { useCommonLinks } from "@/stores/common-links-store";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -30,6 +32,8 @@ import { toast } from "@/hooks/use-toast";
 import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-store";
+import { useAuth } from "@/hooks/use-auth";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const caseStatusLabels: Record<CaseStatus, string> = {
   draft: "草稿",
@@ -63,6 +67,90 @@ function Field({ label, children, className }: { label: string; children: React.
   );
 }
 
+/* ── Copy button for text fields ── */
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!value) return;
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <button
+      className="h-7 w-7 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0"
+      onClick={handleCopy}
+      title="複製到剪貼簿"
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  );
+}
+
+/* ── Common Links Multi-Select ── */
+function CommonLinksSelect({ values, onValuesChange }: { values: string[]; onValuesChange: (v: string[]) => void }) {
+  const allLinks = useCommonLinks();
+  const [open, setOpen] = useState(false);
+  const selected = new Set(values);
+
+  const toggle = (id: string) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onValuesChange(Array.from(next));
+  };
+
+  const selectedLinks = allLinks.filter((l) => selected.has(l.id));
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap gap-1.5">
+        {selectedLinks.map((link) => (
+          <span key={link.id} className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs">
+            <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+              {link.name}
+            </a>
+            <button
+              className="h-3.5 w-3.5 rounded-full flex items-center justify-center hover:bg-muted-foreground/20 text-muted-foreground"
+              onClick={() => toggle(link.id)}
+            >
+              <X className="h-2.5 w-2.5" />
+            </button>
+          </span>
+        ))}
+      </div>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+            <Plus className="h-3 w-3" />
+            選擇常用連結
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-2" align="start">
+          {allLinks.length === 0 ? (
+            <p className="text-xs text-muted-foreground px-2 py-1">尚無常用連結，請至「工具管理」新增</p>
+          ) : (
+            <div className="space-y-0.5 max-h-48 overflow-y-auto">
+              {allLinks.map((link) => (
+                <label
+                  key={link.id}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-secondary/30 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={selected.has(link.id)}
+                    onCheckedChange={() => toggle(link.id)}
+                  />
+                  <span className="text-sm truncate flex-1">{link.name}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
 
 /* ── Single Tool Instance ── */
 function ToolInstance({
@@ -88,12 +176,13 @@ function ToolInstance({
   } | null>(null);
   const [deleteFieldId, setDeleteFieldId] = useState<string | null>(null);
   const [addingField, setAddingField] = useState(false);
+  const [addingFieldType, setAddingFieldType] = useState<"text" | "file" | null>(null);
   const [newFieldLabel, setNewFieldLabel] = useState("");
 
   const selectedTool = toolOptions.find((o) => o.label === entry.tool);
-  // Use entry's custom fields if present, otherwise fall back to tool defaults
-  const fields: ToolEntryField[] = entry.fields || selectedTool?.toolFields || [];
+  const fields: ToolEntryField[] = entry.fields || selectedTool?.toolFields?.map(f => ({ ...f, type: "text" as const })) || [];
   const values = entry.fieldValues || {};
+  const fileValues = entry.fileValues || {};
   const hasToolSelected = !!entry.tool;
 
   const matchingTemplates = allTemplates.filter((t) => t.tool === entry.tool);
@@ -103,10 +192,8 @@ function ToolInstance({
     const currentFieldIds = fields.map((f) => f.id);
     const tplFieldIds = tplFields.map((f) => f.id);
 
-    // Detect field arrangement changes
     const addedFields = tplFields.filter((f) => !currentFieldIds.includes(f.id)).map((f) => f.label);
     const removedFields = fields.filter((f) => !tplFieldIds.includes(f.id)).map((f) => f.label);
-    // Also check for renamed fields (same position different label)
     const renamedFields: string[] = [];
     for (const tf of tplFields) {
       const current = fields.find((f) => f.id === tf.id);
@@ -115,9 +202,8 @@ function ToolInstance({
       }
     }
     const hasFieldChanges = addedFields.length > 0 || removedFields.length > 0 || renamedFields.length > 0
-      || tplFieldIds.join(",") !== currentFieldIds.join(","); // order change
+      || tplFieldIds.join(",") !== currentFieldIds.join(",");
 
-    // Detect content conflicts
     const conflicts: { id: string; label: string; current: string; incoming: string }[] = [];
     for (const [key, val] of Object.entries(tpl.fieldValues)) {
       if (!val) continue;
@@ -130,10 +216,7 @@ function ToolInstance({
 
     if (hasFieldChanges || conflicts.length > 0) {
       setPendingTpl(tpl);
-      setWarningDetails({
-        fieldChanges: { added: addedFields, removed: removedFields },
-        conflicts,
-      });
+      setWarningDetails({ fieldChanges: { added: addedFields, removed: removedFields }, conflicts });
       setTplOpen(false);
     } else {
       applyTemplate(tpl);
@@ -141,14 +224,11 @@ function ToolInstance({
   };
 
   const applyTemplate = (tpl: ToolTemplate) => {
-    // Replace fields entirely with template's fields
     const tplFields = tpl.fields || [];
     const newValues: Record<string, string> = {};
-    // Only keep values for fields that exist in the template
     for (const f of tplFields) {
       const tplVal = tpl.fieldValues[f.id];
       const currentVal = values[f.id];
-      // Use template value if non-empty, otherwise keep current if field exists
       newValues[f.id] = tplVal || currentVal || "";
     }
     onUpdate({ tool: tpl.tool, fields: tplFields, fieldValues: newValues });
@@ -163,20 +243,32 @@ function ToolInstance({
   };
 
   const handleFieldsChange = (newFields: ToolEntryField[]) => {
-    // Clean up fieldValues for removed fields
     const newFieldIds = new Set(newFields.map((f) => f.id));
     const newValues: Record<string, string> = {};
     for (const [k, v] of Object.entries(values)) {
       if (newFieldIds.has(k)) newValues[k] = v;
     }
-    onUpdate({ fields: newFields, fieldValues: newValues });
+    const newFileValues: Record<string, { name: string; url: string }[]> = {};
+    for (const [k, v] of Object.entries(fileValues)) {
+      if (newFieldIds.has(k)) newFileValues[k] = v;
+    }
+    onUpdate({ fields: newFields, fieldValues: newValues, fileValues: newFileValues });
   };
 
-  // When tool changes, reset to tool's default fields
   const handleToolChange = (newTool: string) => {
     const newToolOpt = toolOptions.find((o) => o.label === newTool);
-    const defaultFields = (newToolOpt?.toolFields || []).map((f) => ({ id: f.id, label: f.label }));
-    onUpdate({ tool: newTool, fields: defaultFields, fieldValues: {} });
+    const defaultFields = (newToolOpt?.toolFields || []).map((f) => ({ id: f.id, label: f.label, type: "text" as const }));
+    onUpdate({ tool: newTool, fields: defaultFields, fieldValues: {}, fileValues: {} });
+  };
+
+  const handleAddField = () => {
+    if (!newFieldLabel.trim() || !addingFieldType) return;
+    const id = `cf-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
+    const newFields = [...fields, { id, label: newFieldLabel.trim(), type: addingFieldType }];
+    handleFieldsChange(newFields);
+    setNewFieldLabel("");
+    setAddingField(false);
+    setAddingFieldType(null);
   };
 
   return (
@@ -251,64 +343,94 @@ function ToolInstance({
             </Tooltip>
           </TooltipProvider>
         </div>
-        {fields.map((f) => (
-          <Field key={f.id} label={f.label}>
-            <div className="flex items-center gap-1.5">
-              <Input
-                value={values[f.id] || ""}
-                onChange={(e) =>
-                  onUpdate({ fieldValues: { ...values, [f.id]: e.target.value } })
-                }
-                className="max-w-xs"
-              />
-              <button
-                className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0"
-                onClick={() => setDeleteFieldId(f.id)}
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </Field>
-        ))}
+        {fields.map((f) => {
+          const fieldType = f.type || "text";
+          if (fieldType === "file") {
+            return (
+              <Field key={f.id} label={f.label}>
+                <div className="flex items-start gap-1.5">
+                  <div className="flex-1">
+                    <FileField
+                      value={fileValues[f.id] || []}
+                      onChange={(v) => onUpdate({ fileValues: { ...fileValues, [f.id]: v } })}
+                    />
+                  </div>
+                  <button
+                    className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0 mt-1"
+                    onClick={() => setDeleteFieldId(f.id)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </Field>
+            );
+          }
+          return (
+            <Field key={f.id} label={f.label}>
+              <div className="flex items-center gap-1.5">
+                <Input
+                  value={values[f.id] || ""}
+                  onChange={(e) =>
+                    onUpdate({ fieldValues: { ...values, [f.id]: e.target.value } })
+                  }
+                  className="max-w-xs"
+                />
+                <CopyButton value={values[f.id] || ""} />
+                <button
+                  className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0"
+                  onClick={() => setDeleteFieldId(f.id)}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </Field>
+          );
+        })}
         {/* Add field */}
         {hasToolSelected && (
           addingField ? (
-            <div className="flex items-center gap-1.5 py-1 ml-[132px]">
-              <Input
-                value={newFieldLabel}
-                onChange={(e) => setNewFieldLabel(e.target.value)}
-                placeholder="欄位名稱"
-                className="h-7 text-sm w-40"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && newFieldLabel.trim()) {
-                    const id = `cf-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
-                    const newFields = [...fields, { id, label: newFieldLabel.trim() }];
-                    handleFieldsChange(newFields);
-                    setNewFieldLabel("");
-                    setAddingField(false);
-                  }
-                  if (e.key === "Escape") { setAddingField(false); setNewFieldLabel(""); }
-                }}
-              />
-              <Button
-                size="sm"
-                className="h-7 text-xs px-2"
-                disabled={!newFieldLabel.trim()}
-                onClick={() => {
-                  const id = `cf-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
-                  const newFields = [...fields, { id, label: newFieldLabel.trim() }];
-                  handleFieldsChange(newFields);
-                  setNewFieldLabel("");
-                  setAddingField(false);
-                }}
-              >
-                確定
-              </Button>
-              <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => { setAddingField(false); setNewFieldLabel(""); }}>
-                取消
-              </Button>
-            </div>
+            addingFieldType ? (
+              <div className="flex items-center gap-1.5 py-1 ml-[132px]">
+                <Input
+                  value={newFieldLabel}
+                  onChange={(e) => setNewFieldLabel(e.target.value)}
+                  placeholder="欄位名稱"
+                  className="h-7 text-sm w-40"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newFieldLabel.trim()) handleAddField();
+                    if (e.key === "Escape") { setAddingField(false); setAddingFieldType(null); setNewFieldLabel(""); }
+                  }}
+                />
+                <Badge variant="secondary" className="text-[10px] shrink-0">
+                  {addingFieldType === "text" ? "文字" : "檔案"}
+                </Badge>
+                <Button
+                  size="sm"
+                  className="h-7 text-xs px-2"
+                  disabled={!newFieldLabel.trim()}
+                  onClick={handleAddField}
+                >
+                  確定
+                </Button>
+                <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => { setAddingField(false); setAddingFieldType(null); setNewFieldLabel(""); }}>
+                  取消
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 py-1 ml-[132px]">
+                <span className="text-xs text-muted-foreground">選擇欄位類型：</span>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAddingFieldType("text")}>
+                  文字
+                </Button>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAddingFieldType("file")}>
+                  檔案
+                </Button>
+                <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => setAddingField(false)}>
+                  取消
+                </Button>
+              </div>
+            )
           ) : (
             <Button
               variant="ghost"
@@ -336,11 +458,12 @@ function ToolInstance({
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={() => {
               if (deleteFieldId) {
-                handleFieldsChange(fields.filter((f) => f.id !== deleteFieldId));
-                // Also clean up fieldValues
+                const newFields = fields.filter((f) => f.id !== deleteFieldId);
                 const newValues = { ...values };
                 delete newValues[deleteFieldId];
-                onUpdate({ fields: fields.filter((f) => f.id !== deleteFieldId), fieldValues: newValues });
+                const newFileValues = { ...fileValues };
+                delete newFileValues[deleteFieldId];
+                onUpdate({ fields: newFields, fieldValues: newValues, fileValues: newFileValues });
               }
               setDeleteFieldId(null);
             }}>
@@ -406,6 +529,10 @@ function ToolInstance({
   );
 }
 
+function formatTimestamp(d: Date) {
+  return d.toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
 export default function CaseDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -413,6 +540,14 @@ export default function CaseDetailPage() {
   const [loading, setLoading] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [creatorName, setCreatorName] = useState("");
+  const { primaryRole: currentRole } = useAuth();
+  const isManager = currentRole === "pm" || currentRole === "executive";
+
+  // Comment drafts
+  const [commentDraft, setCommentDraft] = useState("");
+  const [internalCommentDraft, setInternalCommentDraft] = useState("");
+
+  const roleLabels: Record<string, string> = { member: "成員", pm: "專案經理", executive: "執行官" };
 
   useEffect(() => {
     caseStore.load().then(() => {
@@ -422,7 +557,6 @@ export default function CaseDetailPage() {
     });
   }, [id]);
 
-  // Resolve creator UUID to display name
   useEffect(() => {
     const uid = caseData?.createdBy;
     if (!uid || uid.length !== 36) return;
@@ -496,6 +630,9 @@ export default function CaseDetailPage() {
     save({ status: "draft" as CaseStatus });
     toast({ title: "已收回為草稿" });
   };
+
+  const comments = caseData.comments || [];
+  const internalComments = caseData.internalComments || [];
 
   return (
     <div className="space-y-4 max-w-3xl">
@@ -621,7 +758,10 @@ export default function CaseDetailPage() {
 
       <Separator />
 
-      <h2 className="text-base font-semibold">狀態與交件</h2>
+      <h2 className="text-base font-semibold">準則與檔案</h2>
+      <Field label="常用連結">
+        <CommonLinksSelect values={caseData.commonLinks || []} onValuesChange={(v) => save({ commonLinks: v })} />
+      </Field>
       <Field label="交件方式">
         <Input value={caseData.deliveryMethod} onChange={(e) => save({ deliveryMethod: e.target.value })} className="max-w-md" />
       </Field>
@@ -633,6 +773,12 @@ export default function CaseDetailPage() {
       </Field>
       <Field label="客戶指定準則">
         <FileField value={Array.isArray(caseData.clientGuidelines) ? caseData.clientGuidelines : []} onChange={(v) => save({ clientGuidelines: v })} />
+      </Field>
+      <Field label="本系列參考資料">
+        <FileField value={Array.isArray(caseData.seriesReferenceMaterials) ? caseData.seriesReferenceMaterials : []} onChange={(v) => save({ seriesReferenceMaterials: v })} />
+      </Field>
+      <Field label="本案參考資料">
+        <FileField value={Array.isArray(caseData.caseReferenceMaterials) ? caseData.caseReferenceMaterials : []} onChange={(v) => save({ caseReferenceMaterials: v })} />
       </Field>
       <Field label="譯者完稿">
         <FileField value={Array.isArray(caseData.translatorFinal) ? caseData.translatorFinal : []} onChange={(v) => save({ translatorFinal: v })} />
@@ -646,7 +792,76 @@ export default function CaseDetailPage() {
 
       <Separator />
 
-      {/* Meta info - same format as fee detail */}
+      {/* 案件相關備註 */}
+      <div className="space-y-3">
+        <Label className="text-sm font-medium">案件相關備註</Label>
+        <div className="space-y-2">
+          {comments.map((c) => (
+            <div key={c.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="font-medium">{c.author}</span>
+                <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString("zh-TW")}</span>
+              </div>
+              <CommentContent content={c.content} imageUrls={c.imageUrls} />
+            </div>
+          ))}
+        </div>
+        <CommentInput
+          draft={commentDraft}
+          setDraft={setCommentDraft}
+          placeholder="輸入留言..."
+          onSubmit={(content, imageUrls) => {
+            const newComment: CaseComment = {
+              id: `comment-${Date.now()}`,
+              author: roleLabels[currentRole] || "成員",
+              content,
+              imageUrls,
+              createdAt: new Date().toISOString(),
+            };
+            save({ comments: [...comments, newComment] });
+          }}
+        />
+      </div>
+
+      {/* 案件內部備註 — PM+ only */}
+      {isManager && (
+        <>
+          <Separator />
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">案件內部備註</Label>
+            <div className="space-y-2">
+              {internalComments.map((c) => (
+                <div key={c.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-medium">{c.author}</span>
+                    <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString("zh-TW")}</span>
+                  </div>
+                  <CommentContent content={c.content} imageUrls={c.imageUrls} />
+                </div>
+              ))}
+            </div>
+            <CommentInput
+              draft={internalCommentDraft}
+              setDraft={setInternalCommentDraft}
+              placeholder="輸入案件內部備註..."
+              onSubmit={(content, imageUrls) => {
+                const newComment: CaseComment = {
+                  id: `icomment-${Date.now()}`,
+                  author: roleLabels[currentRole] || "專案經理",
+                  content,
+                  imageUrls,
+                  createdAt: new Date().toISOString(),
+                };
+                save({ internalComments: [...internalComments, newComment] });
+              }}
+            />
+          </div>
+        </>
+      )}
+
+      <Separator />
+
+      {/* Meta info */}
       <div className="flex gap-6 text-xs text-muted-foreground">
         <span>建立者：{creatorName || "—"}</span>
         <span>建立時間：{new Date(caseData.createdAt).toLocaleString("zh-TW")}</span>

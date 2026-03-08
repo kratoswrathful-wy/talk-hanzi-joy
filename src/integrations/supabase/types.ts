@@ -38,11 +38,14 @@ export type Database = {
       cases: {
         Row: {
           billing_unit: string
+          case_reference_materials: Json | null
           category: string
           client_guidelines: Json
           client_question_form: boolean
           client_receipt: string
+          comments: Json | null
           common_info: Json
+          common_links: Json | null
           created_at: string
           created_by: string | null
           custom_guidelines_url: Json
@@ -52,6 +55,7 @@ export type Database = {
           fee_entry: string
           id: string
           inquiry_note: string
+          internal_comments: Json | null
           internal_note_form: boolean
           internal_records: Json
           internal_review_final: Json
@@ -65,6 +69,7 @@ export type Database = {
           reference_materials: Json
           review_deadline: string | null
           reviewer: string
+          series_reference_materials: Json | null
           source_files: Json
           status: string
           task_status: string
@@ -82,11 +87,14 @@ export type Database = {
         }
         Insert: {
           billing_unit?: string
+          case_reference_materials?: Json | null
           category?: string
           client_guidelines?: Json
           client_question_form?: boolean
           client_receipt?: string
+          comments?: Json | null
           common_info?: Json
+          common_links?: Json | null
           created_at?: string
           created_by?: string | null
           custom_guidelines_url?: Json
@@ -96,6 +104,7 @@ export type Database = {
           fee_entry?: string
           id?: string
           inquiry_note?: string
+          internal_comments?: Json | null
           internal_note_form?: boolean
           internal_records?: Json
           internal_review_final?: Json
@@ -109,6 +118,7 @@ export type Database = {
           reference_materials?: Json
           review_deadline?: string | null
           reviewer?: string
+          series_reference_materials?: Json | null
           source_files?: Json
           status?: string
           task_status?: string
@@ -126,11 +136,14 @@ export type Database = {
         }
         Update: {
           billing_unit?: string
+          case_reference_materials?: Json | null
           category?: string
           client_guidelines?: Json
           client_question_form?: boolean
           client_receipt?: string
+          comments?: Json | null
           common_info?: Json
+          common_links?: Json | null
           created_at?: string
           created_by?: string | null
           custom_guidelines_url?: Json
@@ -140,6 +153,7 @@ export type Database = {
           fee_entry?: string
           id?: string
           inquiry_note?: string
+          internal_comments?: Json | null
           internal_note_form?: boolean
           internal_records?: Json
           internal_review_final?: Json
@@ -153,6 +167,7 @@ export type Database = {
           reference_materials?: Json
           review_deadline?: string | null
           reviewer?: string
+          series_reference_materials?: Json | null
           source_files?: Json
           status?: string
           task_status?: string

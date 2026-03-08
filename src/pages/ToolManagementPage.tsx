@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Trash2, GripVertical, Palette, ChevronDown, ChevronRight, Pencil, Save } from "lucide-react";
+import { Plus, Trash2, GripVertical, Palette, ChevronDown, ChevronRight, Pencil, Save, Link as LinkIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import ColorPicker from "@/components/ColorPicker";
 import { useSelectOptions, selectOptionsStore, PRESET_COLORS } from "@/stores/select-options-store";
 import { useLabelStyles, labelStyleStore } from "@/stores/label-style-store";
 import { useToolTemplates, toolTemplateStore, type ToolTemplate, type TemplateField } from "@/stores/tool-template-store";
+import { useCommonLinks, commonLinksStore } from "@/stores/common-links-store";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
@@ -466,6 +467,145 @@ function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; l
   );
 }
 
+/* ── Common Links Manager ── */
+function CommonLinksSection() {
+  const links = useCommonLinks();
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newUrl, setNewUrl] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editUrl, setEditUrl] = useState("");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const handleAdd = () => {
+    if (!newName.trim() || !newUrl.trim()) return;
+    commonLinksStore.add(newName.trim(), newUrl.trim());
+    setNewName("");
+    setNewUrl("");
+    setAdding(false);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingId || !editName.trim() || !editUrl.trim()) return;
+    commonLinksStore.update(editingId, { name: editName.trim(), url: editUrl.trim() });
+    setEditingId(null);
+  };
+
+  const handleDrop = (idx: number) => {
+    if (dragIndex === null || dragIndex === idx) return;
+    const ids = links.map((l) => l.id);
+    const [moved] = ids.splice(dragIndex, 1);
+    ids.splice(idx, 0, moved);
+    commonLinksStore.reorder(ids);
+    setDragIndex(null);
+    setDragOverIndex(null);
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+      <div className="flex items-center gap-2">
+        <LinkIcon className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-base font-semibold">常用連結</h2>
+      </div>
+      <div className="space-y-1">
+        {links.map((link, idx) => (
+          <div
+            key={link.id}
+            draggable
+            onDragStart={() => setDragIndex(idx)}
+            onDragOver={(e) => { e.preventDefault(); if (dragIndex !== null && dragIndex !== idx) setDragOverIndex(idx); }}
+            onDrop={() => handleDrop(idx)}
+            onDragEnd={() => { setDragIndex(null); setDragOverIndex(null); }}
+            className={cn(
+              "flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors cursor-grab active:cursor-grabbing group",
+              dragOverIndex === idx && "bg-primary/10 border border-dashed border-primary/30",
+              dragIndex === idx && "opacity-50",
+              dragOverIndex !== idx && "hover:bg-secondary/30"
+            )}
+          >
+            <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            {editingId === link.id ? (
+              <div className="flex items-center gap-1.5 flex-1">
+                <Input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="h-7 text-sm flex-1"
+                  placeholder="顯示名稱"
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === "Enter") handleSaveEdit(); if (e.key === "Escape") setEditingId(null); }}
+                />
+                <Input
+                  value={editUrl}
+                  onChange={(e) => setEditUrl(e.target.value)}
+                  className="h-7 text-sm flex-1"
+                  placeholder="https://..."
+                  onKeyDown={(e) => { if (e.key === "Enter") handleSaveEdit(); if (e.key === "Escape") setEditingId(null); }}
+                />
+                <Button size="sm" className="h-7 text-xs px-2" onClick={handleSaveEdit}>儲存</Button>
+                <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => setEditingId(null)}>取消</Button>
+              </div>
+            ) : (
+              <>
+                <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline truncate flex-1">
+                  {link.name}
+                </a>
+                <span className="text-xs text-muted-foreground truncate max-w-[200px]">{link.url}</span>
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted transition-colors"
+                    onClick={() => { setEditingId(link.id); setEditName(link.name); setEditUrl(link.url); }}
+                  >
+                    <Pencil className="h-3 w-3 text-muted-foreground" />
+                  </button>
+                  <button
+                    className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
+                    onClick={() => commonLinksStore.remove(link.id)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+      {adding ? (
+        <div className="space-y-2 px-2">
+          <Input
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="顯示名稱"
+            className="h-8 text-sm"
+            autoFocus
+            onKeyDown={(e) => { if (e.key === "Escape") setAdding(false); }}
+          />
+          <Input
+            value={newUrl}
+            onChange={(e) => setNewUrl(e.target.value)}
+            placeholder="https://..."
+            className="h-8 text-sm"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleAdd();
+              if (e.key === "Escape") setAdding(false);
+            }}
+          />
+          <div className="flex gap-1.5 justify-end">
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAdding(false)}>取消</Button>
+            <Button size="sm" className="h-7 text-xs" disabled={!newName.trim() || !newUrl.trim()} onClick={handleAdd}>新增</Button>
+          </div>
+        </div>
+      ) : (
+        <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={() => setAdding(true)}>
+          <Plus className="h-3.5 w-3.5" />
+          新增連結
+        </Button>
+      )}
+    </div>
+  );
+}
+
 /* ── Main Page ── */
 export default function ToolManagementPage() {
   const { options: toolOptions, customColors } = useSelectOptions("executionTool");
@@ -708,6 +848,8 @@ export default function ToolManagementPage() {
           ))}
         </div>
       </div>
+      {/* ── 常用連結區塊 ── */}
+      <CommonLinksSection />
     </div>
   );
 }

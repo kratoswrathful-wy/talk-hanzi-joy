@@ -39,6 +39,7 @@ function fromDb(row: any): CaseRecord {
     customGuidelinesUrl: Array.isArray(row.custom_guidelines_url) ? row.custom_guidelines_url : [],
     clientGuidelines: Array.isArray(row.client_guidelines) ? row.client_guidelines : [],
     commonInfo: Array.isArray(row.common_info) ? row.common_info : [],
+    commonLinks: Array.isArray(row.common_links) ? row.common_links : [],
     internalNoteForm: row.internal_note_form ?? false,
     clientQuestionForm: row.client_question_form ?? false,
     workingFiles: Array.isArray(row.working_files) ? row.working_files : [],
@@ -48,6 +49,8 @@ function fromDb(row: any): CaseRecord {
     onlineToolProject: row.online_tool_project ?? "",
     onlineToolFilename: row.online_tool_filename ?? "",
     sourceFiles: Array.isArray(row.source_files) ? row.source_files : [],
+    seriesReferenceMaterials: Array.isArray(row.series_reference_materials) ? row.series_reference_materials : [],
+    caseReferenceMaterials: Array.isArray(row.case_reference_materials) ? row.case_reference_materials : [],
     referenceMaterials: Array.isArray(row.reference_materials) ? row.reference_materials : [],
     questionForm: row.question_form ?? "",
     translatorFinal: Array.isArray(row.translator_final) ? row.translator_final : [],
@@ -55,6 +58,8 @@ function fromDb(row: any): CaseRecord {
     trackChanges: Array.isArray(row.track_changes) ? row.track_changes : [],
     feeEntry: row.fee_entry ?? "",
     internalRecords: Array.isArray(row.internal_records) ? row.internal_records : [],
+    comments: Array.isArray(row.comments) ? row.comments : [],
+    internalComments: Array.isArray(row.internal_comments) ? row.internal_comments : [],
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -84,6 +89,7 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.customGuidelinesUrl !== undefined) map.custom_guidelines_url = c.customGuidelinesUrl;
   if (c.clientGuidelines !== undefined) map.client_guidelines = c.clientGuidelines;
   if (c.commonInfo !== undefined) map.common_info = c.commonInfo;
+  if (c.commonLinks !== undefined) map.common_links = c.commonLinks;
   if (c.internalNoteForm !== undefined) map.internal_note_form = c.internalNoteForm;
   if (c.clientQuestionForm !== undefined) map.client_question_form = c.clientQuestionForm;
   if (c.workingFiles !== undefined) map.working_files = c.workingFiles;
@@ -93,6 +99,8 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.onlineToolProject !== undefined) map.online_tool_project = c.onlineToolProject;
   if (c.onlineToolFilename !== undefined) map.online_tool_filename = c.onlineToolFilename;
   if (c.sourceFiles !== undefined) map.source_files = c.sourceFiles;
+  if (c.seriesReferenceMaterials !== undefined) map.series_reference_materials = c.seriesReferenceMaterials;
+  if (c.caseReferenceMaterials !== undefined) map.case_reference_materials = c.caseReferenceMaterials;
   if (c.referenceMaterials !== undefined) map.reference_materials = c.referenceMaterials;
   if (c.questionForm !== undefined) map.question_form = c.questionForm;
   if (c.translatorFinal !== undefined) map.translator_final = c.translatorFinal;
@@ -100,6 +108,8 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.trackChanges !== undefined) map.track_changes = c.trackChanges;
   if (c.feeEntry !== undefined) map.fee_entry = c.feeEntry;
   if (c.internalRecords !== undefined) map.internal_records = c.internalRecords;
+  if (c.comments !== undefined) map.comments = c.comments;
+  if (c.internalComments !== undefined) map.internal_comments = c.internalComments;
   return map;
 }
 
