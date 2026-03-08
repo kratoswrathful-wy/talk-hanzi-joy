@@ -1,0 +1,1 @@
+ALTER TABLE public.member_translator_settings ADD COLUMN frozen boolean NOT NULL DEFAULT false;

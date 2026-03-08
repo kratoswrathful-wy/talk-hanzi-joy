@@ -296,6 +296,7 @@ export type Database = {
       member_translator_settings: {
         Row: {
           email: string
+          frozen: boolean
           id: string
           no_fee: boolean
           note: string
@@ -304,6 +305,7 @@ export type Database = {
         }
         Insert: {
           email: string
+          frozen?: boolean
           id?: string
           no_fee?: boolean
           note?: string
@@ -312,6 +314,7 @@ export type Database = {
         }
         Update: {
           email?: string
+          frozen?: boolean
           id?: string
           no_fee?: boolean
           note?: string
