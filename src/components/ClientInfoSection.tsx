@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Plus, X, FileText } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -78,7 +78,20 @@ export default function ClientInfoSection({
   const [showUncheckWarning, setShowUncheckWarning] = useState(false);
   const [showInvoiceNavPrompt, setShowInvoiceNavPrompt] = useState<{ invoiceId: string } | null>(null);
   const invoiceNavPromptRef = useRef<HTMLButtonElement>(null);
+  const invoiceNavPromptContainerRef = useRef<HTMLDivElement>(null);
   const clientPriceOnFocusRef = useRef<Record<string, number>>({});
+
+  // Click-outside to dismiss prompt
+  useEffect(() => {
+    if (!showInvoiceNavPrompt) return;
+    const handleClick = (e: MouseEvent) => {
+      if (invoiceNavPromptContainerRef.current && !invoiceNavPromptContainerRef.current.contains(e.target as Node)) {
+        setShowInvoiceNavPrompt(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showInvoiceNavPrompt]);
   const storeSnapshot = useSyncExternalStore(selectOptionsStore.subscribe, selectOptionsStore.getSnapshot);
   const assigneeOptions = storeSnapshot.assignee.options;
 
@@ -326,7 +339,7 @@ export default function ClientInfoSection({
 
           {/* Client invoice navigation prompt */}
           {showInvoiceNavPrompt && (
-            <div className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+            <div ref={invoiceNavPromptContainerRef} className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
               <span className="text-xs text-foreground">是否前往客戶請款單？</span>
               <div className="flex items-center gap-1.5">
                 <Button
