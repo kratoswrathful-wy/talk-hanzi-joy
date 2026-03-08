@@ -7,6 +7,7 @@ type Listener = () => void;
 let cases: CaseRecord[] = [];
 let loaded = false;
 let loadPromise: Promise<void> | null = null;
+let loadVersion = 0; // version counter to discard stale loads
 const listeners = new Set<Listener>();
 
 function notify() {
@@ -119,9 +120,12 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
 
 async function load() {
   if (loadPromise) return loadPromise;
+  const version = ++loadVersion;
   loadPromise = (async () => {
     const env = getEnvironment();
     const { data } = await (supabase.from("cases").select("*") as any).eq("env", env).order("created_at", { ascending: false });
+    // Discard result if a newer load was started (race condition from auth changes)
+    if (version !== loadVersion) return;
     cases = (data || []).map(fromDb);
     loaded = true;
     notify();
@@ -180,10 +184,13 @@ function reset() {
   cases = [];
 }
 
-// Listen for auth changes to reset cache and reload
-supabase.auth.onAuthStateChange(() => {
+// Listen for auth changes — only reload on sign-in to avoid race conditions
+supabase.auth.onAuthStateChange((event) => {
   reset();
-  load();
+  // Only reload when a new session is available
+  if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
+    load();
+  }
 });
 
 async function duplicate(id: string): Promise<CaseRecord | null> {

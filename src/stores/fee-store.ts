@@ -91,9 +91,12 @@ async function getUserId() {
   _cachedUserId = data?.session?.user?.id ?? null;
   return _cachedUserId;
 }
-// Listen for auth changes
-supabase.auth.onAuthStateChange((_event, session) => {
+// Listen for auth changes — only reload on sign-in
+supabase.auth.onAuthStateChange((event, session) => {
   _cachedUserId = session?.user?.id ?? null;
+  if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
+    // Will be triggered by use-fee-store's listener
+  }
 });
 
 export const feeStore = {
