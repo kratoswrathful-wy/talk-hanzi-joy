@@ -14,6 +14,8 @@ export interface NoteComment {
   author: string;
   content: string;
   imageUrls?: string[];
+  fileUrls?: { name: string; url: string }[];
+  replyTo?: string;
   createdAt: string;
 }
 

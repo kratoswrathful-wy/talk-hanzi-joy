@@ -94,6 +94,8 @@ interface CommentEntry {
   author: string;
   content: string;
   imageUrls?: string[];
+  fileUrls?: { name: string; url: string }[];
+  replyTo?: string;
   timestamp: string;
 }
 
@@ -146,6 +148,8 @@ export default function InvoiceDetailPage() {
   const [internalComments, setInternalComments] = useState<CommentEntry[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
   const [internalCommentDraft, setInternalCommentDraft] = useState("");
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [internalReplyingTo, setInternalReplyingTo] = useState<string | null>(null);
 
   // Edit history
   const [editLog, setEditLog] = useState<EditLogEntry[]>([]);
@@ -180,6 +184,8 @@ export default function InvoiceDetailPage() {
         author: c.author,
         content: c.content,
         imageUrls: c.imageUrls,
+        fileUrls: c.fileUrls,
+        replyTo: c.replyTo,
         timestamp: c.timestamp,
       })));
     }
@@ -191,6 +197,8 @@ export default function InvoiceDetailPage() {
         author: c.author,
         content: c.content,
         imageUrls: c.imageUrls,
+        fileUrls: c.fileUrls,
+        replyTo: c.replyTo,
         timestamp: c.timestamp,
       })));
     }
@@ -438,13 +446,15 @@ export default function InvoiceDetailPage() {
     trackChange("note", oldNote || "(空)", newNote || "(空)");
   };
 
-  const handleAddComment = (content: string, imageUrls?: string[]) => {
+  const handleAddComment = (content: string, imageUrls?: string[], fileUrls?: { name: string; url: string }[], replyTo?: string) => {
     const authorName = profile?.display_name || profile?.email || "使用者";
     const newComment: CommentEntry = {
       id: `comment-${Date.now()}`,
       author: authorName,
       content,
       imageUrls,
+      fileUrls,
+      replyTo,
       timestamp: formatTimestamp(new Date()),
     };
     const updated = [...comments, newComment];
@@ -454,21 +464,21 @@ export default function InvoiceDetailPage() {
     }
   };
 
-  const handleAddInternalComment = (content: string, imageUrls?: string[]) => {
+  const handleAddInternalComment = (content: string, imageUrls?: string[], fileUrls?: { name: string; url: string }[], replyTo?: string) => {
     const authorName = profile?.display_name || profile?.email || "使用者";
     const newComment: CommentEntry = {
       id: `icomment-${Date.now()}`,
       author: authorName,
       content,
       imageUrls,
+      fileUrls,
+      replyTo,
       timestamp: formatTimestamp(new Date()),
     };
     const updated = [...internalComments, newComment];
     setInternalComments(updated);
     if (id) {
-      // Store internal comments separately in the comments jsonb
-      const allComments = [...comments];
-      invoiceStore.updateInvoice(id, { comments: allComments, internalComments: updated } as any);
+      invoiceStore.updateInvoice(id, { comments: [...comments], internalComments: updated } as any);
     }
   };
 
@@ -745,22 +755,40 @@ export default function InvoiceDetailPage() {
         <div className="space-y-3">
           <Label className="text-sm font-medium">稿費請款備註</Label>
           <div className="space-y-2">
-            {comments.map((c) => (
-              <div key={c.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium">{c.author}</span>
-                  <span className="text-muted-foreground">{c.timestamp}</span>
+            {(() => {
+              const topLevel = comments.filter((c) => !c.replyTo);
+              const getReplies = (parentId: string) => comments.filter((c) => c.replyTo === parentId);
+              return topLevel.map((c) => (
+                <div key={c.id} className="space-y-1">
+                  <div className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{c.author}</span>
+                        <span className="text-muted-foreground">{c.timestamp}</span>
+                      </div>
+                      <button className="text-muted-foreground hover:text-foreground text-[10px] px-1.5 py-0.5 rounded hover:bg-accent transition-colors" onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)}>回覆</button>
+                    </div>
+                    <CommentContent content={c.content} imageUrls={c.imageUrls} fileUrls={c.fileUrls} />
+                  </div>
+                  {getReplies(c.id).map((r) => (
+                    <div key={r.id} className="ml-6 rounded-md border border-border/60 bg-secondary/15 px-3 py-2 text-xs">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium">{r.author}</span>
+                        <span className="text-muted-foreground">{r.timestamp}</span>
+                      </div>
+                      <CommentContent content={r.content} imageUrls={r.imageUrls} fileUrls={r.fileUrls} />
+                    </div>
+                  ))}
+                  {replyingTo === c.id && (
+                    <div className="ml-6">
+                      <CommentInput draft={commentDraft} setDraft={setCommentDraft} placeholder={`回覆 ${c.author}...`} onSubmit={(content, imageUrls, fileUrls) => { handleAddComment(content, imageUrls, fileUrls, c.id); setReplyingTo(null); }} />
+                    </div>
+                  )}
                 </div>
-                <CommentContent content={c.content} imageUrls={c.imageUrls} />
-              </div>
-            ))}
+              ));
+            })()}
           </div>
-          <CommentInput
-            draft={commentDraft}
-            setDraft={setCommentDraft}
-            placeholder="輸入留言..."
-            onSubmit={handleAddComment}
-          />
+          <CommentInput draft={replyingTo ? "" : commentDraft} setDraft={(v) => { if (!replyingTo) setCommentDraft(v); }} placeholder="輸入留言..." onSubmit={handleAddComment} />
         </div>
 
         {/* 稿費請款內部備註 — PM+ only */}
@@ -770,22 +798,40 @@ export default function InvoiceDetailPage() {
             <div className="space-y-3">
               <Label className="text-sm font-medium">稿費請款內部備註</Label>
               <div className="space-y-2">
-                {internalComments.map((c) => (
-                  <div key={c.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium">{c.author}</span>
-                      <span className="text-muted-foreground">{c.timestamp}</span>
+                {(() => {
+                  const topLevel = internalComments.filter((c) => !c.replyTo);
+                  const getReplies = (parentId: string) => internalComments.filter((c) => c.replyTo === parentId);
+                  return topLevel.map((c) => (
+                    <div key={c.id} className="space-y-1">
+                      <div className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{c.author}</span>
+                            <span className="text-muted-foreground">{c.timestamp}</span>
+                          </div>
+                          <button className="text-muted-foreground hover:text-foreground text-[10px] px-1.5 py-0.5 rounded hover:bg-accent transition-colors" onClick={() => setInternalReplyingTo(internalReplyingTo === c.id ? null : c.id)}>回覆</button>
+                        </div>
+                        <CommentContent content={c.content} imageUrls={c.imageUrls} fileUrls={c.fileUrls} />
+                      </div>
+                      {getReplies(c.id).map((r) => (
+                        <div key={r.id} className="ml-6 rounded-md border border-border/60 bg-secondary/15 px-3 py-2 text-xs">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium">{r.author}</span>
+                            <span className="text-muted-foreground">{r.timestamp}</span>
+                          </div>
+                          <CommentContent content={r.content} imageUrls={r.imageUrls} fileUrls={r.fileUrls} />
+                        </div>
+                      ))}
+                      {internalReplyingTo === c.id && (
+                        <div className="ml-6">
+                          <CommentInput draft={internalCommentDraft} setDraft={setInternalCommentDraft} placeholder={`回覆 ${c.author}...`} onSubmit={(content, imageUrls, fileUrls) => { handleAddInternalComment(content, imageUrls, fileUrls, c.id); setInternalReplyingTo(null); }} />
+                        </div>
+                      )}
                     </div>
-                    <CommentContent content={c.content} imageUrls={c.imageUrls} />
-                  </div>
-                ))}
+                  ));
+                })()}
               </div>
-              <CommentInput
-                draft={internalCommentDraft}
-                setDraft={setInternalCommentDraft}
-                placeholder="輸入稿費請款內部備註..."
-                onSubmit={handleAddInternalComment}
-              />
+              <CommentInput draft={internalReplyingTo ? "" : internalCommentDraft} setDraft={(v) => { if (!internalReplyingTo) setInternalCommentDraft(v); }} placeholder="輸入稿費請款內部備註..." onSubmit={handleAddInternalComment} />
             </div>
           </>
         )}
