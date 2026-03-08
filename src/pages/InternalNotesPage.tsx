@@ -202,6 +202,15 @@ function NoteDetailView({
               本註記已失效
             </Button>
           )}
+          <Button
+            variant="destructive"
+            size="sm"
+            className="text-xs"
+            onClick={() => setDeleteOpen(true)}
+          >
+            <Trash2 className="h-3.5 w-3.5 mr-1" />
+            刪除
+          </Button>
         </div>
       </div>
 
