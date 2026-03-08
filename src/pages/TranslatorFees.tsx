@@ -568,6 +568,9 @@ export default function TranslatorFees() {
 
   // Delete selected fees
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeleteValidation, setShowDeleteValidation] = useState(false);
+  const [deleteValidationIssues, setDeleteValidationIssues] = useState<{ feeId: string; title: string; reason: string }[]>([]);
+
   const handleDeleteSelected = useCallback(() => {
     const ids = Array.from(rowSelection.selectedIds);
     for (const id of ids) {
@@ -575,6 +578,41 @@ export default function TranslatorFees() {
     }
     rowSelection.deselectAll();
     setShowDeleteConfirm(false);
+  }, [rowSelection]);
+
+  // Compute single-select disabled reasons for delete button
+  const getDeleteDisabledReason = useCallback((): string | undefined => {
+    if (rowSelection.selectedCount === 0) return "請先選取項目";
+    if (rowSelection.selectedCount === 1) {
+      const feeId = Array.from(rowSelection.selectedIds)[0];
+      const fee = feeStore.getFeeById(feeId);
+      if (!fee) return undefined;
+      if (fee.status === "finalized") return "已向譯者開立稿費條，不得刪除";
+    }
+    return undefined;
+  }, [rowSelection.selectedCount, rowSelection.selectedIds]);
+
+  // Multi-select delete validation
+  const handleDeleteClick = useCallback(() => {
+    if (rowSelection.selectedCount <= 1) {
+      setShowDeleteConfirm(true);
+      return;
+    }
+    // Multi-select: check for issues
+    const issues: { feeId: string; title: string; reason: string }[] = [];
+    for (const id of rowSelection.selectedIds) {
+      const fee = feeStore.getFeeById(id);
+      if (!fee) continue;
+      if (fee.status === "finalized") {
+        issues.push({ feeId: fee.id, title: fee.title || "未命名稿費單", reason: "已向譯者開立稿費條，不得刪除" });
+      }
+    }
+    if (issues.length > 0) {
+      setDeleteValidationIssues(issues);
+      setShowDeleteValidation(true);
+    } else {
+      setShowDeleteConfirm(true);
+    }
   }, [rowSelection]);
 
   // Apply column order from the view, excluding hidden columns
