@@ -46,7 +46,7 @@ export default function FileField({ value, onChange }: FileFieldProps) {
       const { error } = await supabase.storage.from("case-files").upload(path, file);
       if (!error) {
         const { data: urlData } = supabase.storage.from("case-files").getPublicUrl(path);
-        newItems.push({ name: file.name, url: urlData.publicUrl });
+        newItems.push({ name: file.name, url: urlData.publicUrl, size: file.size });
       }
     }
     if (newItems.length > 0) {
