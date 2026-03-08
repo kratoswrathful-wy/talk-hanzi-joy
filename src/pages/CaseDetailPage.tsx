@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { caseStore } from "@/hooks/use-case-store";
-import type { CaseRecord, ToolEntry, ToolEntryField } from "@/data/case-types";
+import type { CaseRecord, ToolEntry, ToolEntryField, CaseStatus } from "@/data/case-types";
 import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
 import DateTimePicker from "@/components/DateTimePicker";
