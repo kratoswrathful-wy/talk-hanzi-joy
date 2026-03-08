@@ -695,6 +695,15 @@ export default function CaseDetailPage() {
             >
               退回修正
             </Button>
+          ) : isFeedbackCompleted && isPmOrAbove ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] text-white hover:opacity-80"
+              style={{ backgroundColor: '#6B7280' }}
+              onClick={handleRevertToDispatched}
+            >
+              退回處理
+            </Button>
           ) : isDraft ? (
             <Button
               size="sm"
@@ -744,7 +753,7 @@ export default function CaseDetailPage() {
                 </TooltipProvider>
               ) : btn;
             })()
-          ) : (isDispatched || isFeedback) && (isCurrentUserTranslator || isPmOrAbove) ? (
+          ) : isDispatched && (isCurrentUserTranslator || isPmOrAbove) ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
@@ -752,7 +761,15 @@ export default function CaseDetailPage() {
             >
               任務完成
             </Button>
-          ) : isTaskCompleted && isPmOrAbove ? (
+          ) : isFeedback && (isCurrentUserTranslator || isPmOrAbove) ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleFeedbackComplete}
+            >
+              處理完畢
+            </Button>
+          ) : (isTaskCompleted || isFeedbackCompleted) && isPmOrAbove ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
