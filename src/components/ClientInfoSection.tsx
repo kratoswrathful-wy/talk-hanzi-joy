@@ -55,6 +55,7 @@ export default function ClientInfoSection({
   currentFeeId,
   currentInternalNote,
   onFirstFeeConflict,
+  linkedClientInvoices = [],
   onClientPriceEntered,
 }: ClientInfoSectionProps) {
   const [showUncheckWarning, setShowUncheckWarning] = useState(false);
