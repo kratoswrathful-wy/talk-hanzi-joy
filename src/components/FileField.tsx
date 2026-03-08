@@ -69,11 +69,6 @@ export default function FileField({ value, onChange }: FileFieldProps) {
     }
     setUploading(false);
   }, [value, onChange]);
-    if (newItems.length > 0) {
-      onChange([...value, ...newItems]);
-    }
-    setUploading(false);
-  }, [value, onChange]);
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
