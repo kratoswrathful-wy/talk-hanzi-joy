@@ -1,4 +1,4 @@
-import { Receipt, FileText, Settings, Users, User, Shield, Briefcase } from "lucide-react";
+import { Receipt, FileText, Settings, Users, User, Shield, Briefcase, Wrench } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
