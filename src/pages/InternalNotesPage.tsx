@@ -1,5 +1,5 @@
 /**
- * 內部提問及備註 — prototype based on Notion "通用提問/備註表單" structure.
+ * 內部註記 — prototype based on Notion "通用提問/備註表單" structure.
  * Executive-only by default.
  */
 import { useState } from "react";
