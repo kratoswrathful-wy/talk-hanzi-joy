@@ -367,7 +367,7 @@ export default function MembersPage() {
           <h1 className="text-2xl font-semibold tracking-tight">團隊成員</h1>
           <p className="mt-1 text-sm text-muted-foreground">管理團隊成員、排序、備註與權限</p>
         </div>
-        {isExecutive && (
+        {canInvite && (
           <Button onClick={() => setInviteOpen(true)}>
             <UserPlus className="mr-2 h-4 w-4" />
             邀請成員
@@ -378,7 +378,7 @@ export default function MembersPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">成員清單</CardTitle>
-          <p className="text-xs text-muted-foreground">拖曳調整成員順序，變更會套用到所有人員下拉選單</p>
+          {canSort && <p className="text-xs text-muted-foreground">拖曳調整成員順序，變更會套用到所有人員下拉選單</p>}
         </CardHeader>
         <CardContent>
           {loading ? (
