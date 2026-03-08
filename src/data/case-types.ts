@@ -19,7 +19,7 @@ export interface CaseRecord {
   billingUnit: string;
   unitCount: number;
   inquiryNote: string;
-  translator: string;
+  translator: string[];
   translationDeadline: string | null;
   reviewer: string;
   reviewDeadline: string | null;
