@@ -2232,7 +2232,7 @@ export default function SettingsPage() {
       {canViewSection("task_type_order") && <BillingUnitOrderSection />}
       {canViewSection("client_pricing") && <ClientPricingSection />}
       <DispatchRouteSection />
-      {canViewSection("translator_notes") && <TranslatorNotesSection />}
+      {/* TranslatorNotesSection removed - now in 團隊成員 page */}
       {canViewSection("translator_tiers") && <TranslatorTierSection />}
       <StatusStyleSection />
     </div>
