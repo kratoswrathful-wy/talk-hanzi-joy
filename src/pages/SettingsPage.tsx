@@ -2403,8 +2403,6 @@ export default function SettingsPage() {
         <p className="mt-1 text-sm text-muted-foreground">管理應用程式偏好設定</p>
       </div>
 
-      {/* Permission management - executive only */}
-      {isExecutive && <PermissionManagementSection />}
 
       {/* Admin sections - based on permission config */}
       {canViewSection("task_type_order") && <TaskTypeOrderSection />}
