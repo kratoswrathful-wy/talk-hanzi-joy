@@ -646,12 +646,21 @@ export default function CaseDetailPage() {
             >
               收回為草稿
             </Button>
-          ) : !isInquiry ? (
+          ) : isDispatched && isPmOrAbove ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] text-white hover:opacity-80"
               style={{ backgroundColor: '#6B7280' }}
-              disabled={isDispatched || isFinalized}
+              onClick={handleCancelDispatch}
+            >
+              取消指派
+            </Button>
+          ) : !isInquiry && !isDispatched ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] text-white hover:opacity-80"
+              style={{ backgroundColor: '#6B7280' }}
+              disabled={isFinalized || caseData.status === "task_completed"}
               onClick={() => setDeleteOpen(true)}
             >
               刪除
@@ -695,6 +704,14 @@ export default function CaseDetailPage() {
                 </TooltipProvider>
               ) : btn;
             })()
+          ) : isDispatched && isCurrentUserTranslator ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleTaskComplete}
+            >
+              任務完成
+            </Button>
           ) : null}
         </div>
       </div>
