@@ -189,7 +189,7 @@ function NoteDetailView({
           <span>←</span> 返回列表
         </button>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="text-xs" onClick={handleNewSameCaseNote}>
+          <Button variant="outline" size="sm" className="text-xs min-w-[88px]" onClick={handleNewSameCaseNote}>
             新增同案件註記
           </Button>
           {!note.invalidated && (
@@ -203,12 +203,11 @@ function NoteDetailView({
             </Button>
           )}
           <Button
-            variant="destructive"
             size="sm"
-            className="text-xs"
+            className="text-xs min-w-[88px] text-white hover:opacity-80"
+            style={{ backgroundColor: "#6B7280" }}
             onClick={() => setDeleteOpen(true)}
           >
-            <Trash2 className="h-3.5 w-3.5 mr-1" />
             刪除
           </Button>
         </div>
