@@ -2,7 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { MoreHorizontal, Plus, Trash2, Palette, Check, Pencil, X, Search, MessageSquareText } from "lucide-react";
 import ProfileViewerDialog from "@/components/ProfileViewerDialog";
 import AssigneeTag from "@/components/AssigneeTag";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { getTimezoneOffsetLabel } from "@/data/timezone-options";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -154,7 +156,7 @@ export default function ColorSelect({
           >
             {selectedOption ? (
               fieldKey === "assignee" ? (
-                <AssigneeTag label={selectedOption.label} avatarUrl={selectedOption.avatarUrl} timezone={selectedOption.timezone} />
+                <AssigneeTag label={selectedOption.label} avatarUrl={selectedOption.avatarUrl} />
               ) : (
               <span
                 className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
@@ -173,7 +175,7 @@ export default function ColorSelect({
           </div>
         </PopoverTrigger>
         <PopoverContent
-          className={cn("p-0 w-[220px]", className)}
+          className={cn("p-0", fieldKey === "assignee" ? "w-[380px]" : "w-[220px]", className)}
           align="start"
           sideOffset={4}
         >
@@ -212,10 +214,40 @@ export default function ColorSelect({
                     )}
                     onClick={() => handleSelect(opt)}
                   >
+                    {fieldKey === "assignee" ? (
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <AssigneeTag label={opt.label} avatarUrl={opt.avatarUrl} />
+                        {(() => {
+                          const tzLabel = getTimezoneOffsetLabel(opt.timezone);
+                          const statusText = opt.statusMessage;
+                          const infoText = [tzLabel, statusText].filter(Boolean).join(" ");
+                          if (!infoText) return null;
+                          return (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-xs text-muted-foreground truncate min-w-0 flex-1">
+                                  {infoText}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="max-w-xs">
+                                <p className="whitespace-pre-wrap break-words">{infoText}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          );
+                        })()}
+                        {value === opt.label && (
+                          <span
+                            role="button"
+                            className="inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-destructive/20 transition-colors shrink-0"
+                            onClick={(e) => { e.stopPropagation(); onValueChange(""); setOpen(false); }}
+                            title="取消選取"
+                          >
+                            <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                          </span>
+                        )}
+                      </div>
+                    ) : (
                     <span className="inline-flex items-center gap-1">
-                      {fieldKey === "assignee" ? (
-                        <AssigneeTag label={opt.label} avatarUrl={opt.avatarUrl} timezone={opt.timezone} />
-                      ) : (
                       <span
                         className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
                         style={{
@@ -226,7 +258,6 @@ export default function ColorSelect({
                       >
                         <span className="truncate">{opt.label}</span>
                       </span>
-                      )}
                       {value === opt.label && (
                         <span
                           role="button"
@@ -238,6 +269,7 @@ export default function ColorSelect({
                         </span>
                       )}
                     </span>
+                    )}
                   </button>
                   {/* "..." menu - hidden for assignee/person field */}
                   {fieldKey !== "assignee" && (
