@@ -204,17 +204,6 @@ const PERMISSION_MODULES: PermissionModule[] = [
     ],
     detailSections: [],
   },
-  {
-    key: "permissions",
-    label: "身分管理",
-    listItems: [
-      { key: "perm_view", label: "檢視權限設定", type: "both" },
-      { key: "perm_addRole", label: "新增身分", type: "both", attribute: "按鈕" },
-      { key: "perm_deleteRole", label: "刪除身分", type: "both", attribute: "按鈕" },
-      { key: "perm_editPerms", label: "修改權限設定", type: "both" },
-    ],
-    detailSections: [],
-  },
 ];
 
 // ─── Helpers ───
