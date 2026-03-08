@@ -657,13 +657,25 @@ export default function CaseDetailPage() {
               承接本案
             </Button>
           ) : isInquiry && isPmOrAbove ? (
-            <Button
-              size="sm"
-              className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={handleFinalize}
-            >
-              確定指派
-            </Button>
+            (() => {
+              const translatorEmpty = !caseData.translator || caseData.translator.length === 0;
+              const btn = (
+                <Button
+                  size="sm"
+                  className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
+                  disabled={translatorEmpty}
+                  onClick={handleFinalize}
+                >
+                  確定指派
+                </Button>
+              );
+              return translatorEmpty ? (
+                <Tooltip>
+                  <TooltipTrigger asChild><span>{btn}</span></TooltipTrigger>
+                  <TooltipContent>譯者欄不得空白</TooltipContent>
+                </Tooltip>
+              ) : btn;
+            })()
           ) : null}
         </div>
       </div>
