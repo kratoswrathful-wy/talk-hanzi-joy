@@ -145,8 +145,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "關聯案件",
     minWidth: 100,
     managerOnly: true,
-    render: (f, { editable, onCommit }) => (
-      <InlineEditCell value={f.internalNote} type="text" editable={editable} onCommit={(v) => onCommit("internalNote", v)}>
+    render: (f, { editable, lockedTooltip, onCommit }) => (
+      <InlineEditCell value={f.internalNote} type="text" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("internalNote", v)}>
         <span className="truncate text-sm text-muted-foreground">{f.internalNote || "—"}</span>
       </InlineEditCell>
     ),
