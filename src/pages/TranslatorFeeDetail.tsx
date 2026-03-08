@@ -1,9 +1,10 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
-import { ArrowLeft, Plus, X, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, X, Loader2, FileText } from "lucide-react";
 import { CommentContent } from "@/components/comments/CommentContent";
 import { CommentInput } from "@/components/comments/CommentInput";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { invoiceStore } from "@/stores/invoice-store";
 
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
@@ -1635,16 +1636,48 @@ export default function TranslatorFeeDetail() {
               })()}
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className={`gap-1 text-xs ${canEdit && !isNoFeeTranslator && !clientInfo.rateConfirmed ? '' : 'invisible'}`}
-                onClick={handleAddItem}
-                disabled={!(canEdit && !isNoFeeTranslator && !clientInfo.rateConfirmed)}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                新增項目
-              </Button>
+              {/* Show "收錄至稿費請款單" when fee can be added to invoice, otherwise "新增項目" when editing */}
+              {(() => {
+                const canAddToTranslatorInvoice = isFinalized && assignee && !isNoFeeTranslator && linkedTranslatorInvoices.length === 0;
+                const canAddItem = canEdit && !isNoFeeTranslator && !clientInfo.rateConfirmed;
+                
+                if (canAddToTranslatorInvoice) {
+                  return (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1 text-xs"
+                      onClick={async () => {
+                        if (!id) return;
+                        const inv = await invoiceStore.createInvoice(assignee, [id]);
+                        if (inv) {
+                          toast.success("已建立稿費請款單");
+                          navigate(`/invoices/${inv.id}`);
+                        }
+                      }}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      收錄至稿費請款單
+                    </Button>
+                  );
+                }
+                
+                if (canAddItem) {
+                  return (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1 text-xs"
+                      onClick={handleAddItem}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      新增項目
+                    </Button>
+                  );
+                }
+                
+                return null;
+              })()}
               {isManager && (
                 <Tooltip>
                   <TooltipTrigger asChild>

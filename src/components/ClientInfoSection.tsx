@@ -1,7 +1,9 @@
 import { useState, useRef } from "react";
-import { Plus, X } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Plus, X, FileText } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { clientInvoiceStore } from "@/stores/client-invoice-store";
+import { toast } from "sonner";
 import { selectOptionsStore } from "@/stores/select-options-store";
 import { useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
@@ -62,6 +64,7 @@ export default function ClientInfoSection({
   onClientPriceEntered,
   isInClientInvoice = false,
 }: ClientInfoSectionProps) {
+  const navigate = useNavigate();
   const [showUncheckWarning, setShowUncheckWarning] = useState(false);
   const clientPriceOnFocusRef = useRef<Record<string, number>>({});
   const storeSnapshot = useSyncExternalStore(selectOptionsStore.subscribe, selectOptionsStore.getSnapshot);
@@ -202,16 +205,47 @@ export default function ClientInfoSection({
               )}
             </div>
             <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                className={`gap-1 text-xs ${canEdit && !clientItemsLocked && !clientInfo.reconciled ? '' : 'invisible'}`}
-                onClick={addItem}
-                disabled={!(canEdit && !clientItemsLocked && !clientInfo.reconciled)}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                新增項目
-              </Button>
+              {/* Show "收錄至客戶請款單" when fee can be added to client invoice, otherwise "新增項目" when editing */}
+              {(() => {
+                const canAddToClientInvoice = clientInfo.client && clientInfo.reconciled && !isInClientInvoice;
+                const canAddItem = canEdit && !clientItemsLocked && !clientInfo.reconciled;
+                
+                if (canAddToClientInvoice) {
+                  return (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1 text-xs"
+                      onClick={async () => {
+                        const inv = await clientInvoiceStore.createInvoice(clientInfo.client, [currentFeeId]);
+                        if (inv) {
+                          toast.success("已建立客戶請款單");
+                          navigate(`/client-invoices/${inv.id}`);
+                        }
+                      }}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      收錄至客戶請款單
+                    </Button>
+                  );
+                }
+                
+                if (canAddItem) {
+                  return (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1 text-xs"
+                      onClick={addItem}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      新增項目
+                    </Button>
+                  );
+                }
+                
+                return null;
+              })()}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div className="flex items-center gap-1.5">
