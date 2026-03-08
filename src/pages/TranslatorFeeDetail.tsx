@@ -1446,7 +1446,7 @@ export default function TranslatorFeeDetail() {
               <div className="flex items-center h-10">
                 {(() => {
                   const inv = linkedTranslatorInvoices.length > 0 ? allInvoices.find((i) => i.id === linkedTranslatorInvoices[0].id) : null;
-                  if (!inv) return <span className="text-sm text-muted-foreground">尚未請款</span>;
+                  if (!inv) return <Tooltip><TooltipTrigger asChild><span className="text-sm text-muted-foreground cursor-default">尚未請款</span></TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip>;
                   const labelMap: Record<string, string> = { pending: "待付款", partial: "部份付款", paid: "已付款" };
                   return (
                     <Tooltip><TooltipTrigger asChild>
