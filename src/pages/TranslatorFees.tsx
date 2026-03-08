@@ -904,7 +904,7 @@ export default function TranslatorFees() {
 
 function FeeRow({
   fee, orderedCols, columnWidths, expanded, onToggleExpand, currentRole, isManager,
-  isSelected, onSelect, onCellCommit, registerRowRef,
+  isSelected, onSelect, onCellCommit, registerRowRef, getLockContext, getMultiLockTooltip, isMultiSelected,
 }: {
   fee: TranslatorFee;
   orderedCols: ColumnDef[];
@@ -917,8 +917,27 @@ function FeeRow({
   onSelect: (id: string, e: React.MouseEvent) => void;
   onCellCommit: (feeId: string, field: string, value: string | boolean) => void;
   registerRowRef: (id: string, el: HTMLTableRowElement | null) => void;
+  getLockContext: (fee: TranslatorFee) => FeeFieldLockContext;
+  getMultiLockTooltip: (field: string) => string | undefined;
+  isMultiSelected: boolean;
 }) {
-  const canEdit = isManager; // Only PM+ can edit in table
+  const lockCtx = useMemo(() => getLockContext(fee), [fee, getLockContext]);
+
+  const getEditable = useCallback((colKey: string): { editable: boolean; lockedTooltip?: string } => {
+    if (!isManager || !editableFields.has(colKey)) return { editable: false };
+
+    // Multi-select: if any selected item locks this field, block editing for all
+    if (isMultiSelected) {
+      const multiTooltip = getMultiLockTooltip(colKey);
+      if (multiTooltip) return { editable: false, lockedTooltip: multiTooltip };
+    }
+
+    // Single-item lock
+    const lock = getFieldLock(fee, colKey, lockCtx);
+    if (lock.locked) return { editable: false, lockedTooltip: lock.reason };
+
+    return { editable: true };
+  }, [isManager, fee, lockCtx, isMultiSelected, getMultiLockTooltip]);
 
   return (
     <>
@@ -937,18 +956,23 @@ function FeeRow({
             className="mx-auto"
           />
         </td>
-        {orderedCols.map((col) => (
-          <td
-            key={col.key}
-            style={{ width: columnWidths[col.key] ?? 100, maxWidth: columnWidths[col.key] ?? 100 }}
-            className={cn("px-3 py-3 overflow-hidden border-r border-border/40 last:border-r-0", col.key !== "title" && col.key !== "clientCaseId" && col.key !== "clientPoNumber" && "text-center")}
-          >
-            {col.render(fee, {
-              isManager,
-              editable: canEdit && editableFields.has(col.key),
-              onCommit: (field, value) => onCellCommit(fee.id, field, value),
-            })}
-          </td>
+        {orderedCols.map((col) => {
+          const { editable, lockedTooltip } = getEditable(col.key);
+          return (
+            <td
+              key={col.key}
+              style={{ width: columnWidths[col.key] ?? 100, maxWidth: columnWidths[col.key] ?? 100 }}
+              className={cn("px-3 py-3 overflow-hidden border-r border-border/40 last:border-r-0", col.key !== "title" && col.key !== "clientCaseId" && col.key !== "clientPoNumber" && "text-center")}
+            >
+              {col.render(fee, {
+                isManager,
+                editable,
+                lockedTooltip,
+                onCommit: (field, value) => onCellCommit(fee.id, field, value),
+              })}
+            </td>
+          );
+        })}
         ))}
         <td className="px-2 py-3 text-center">
           {fee.notes.length > 0 && (
