@@ -59,6 +59,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
     listItems: [
       { key: "fee_list_create", label: "新增費用", type: "both", attribute: "按鈕" },
       { key: "fee_list_delete", label: "刪除費用", type: "both", attribute: "按鈕" },
+      { key: "fee_list_viewDraft", label: "檢視草稿", type: "view" },
     ],
     detailSections: [
       {
