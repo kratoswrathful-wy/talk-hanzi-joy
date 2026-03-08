@@ -1390,8 +1390,8 @@ export default function TranslatorFeeDetail() {
                     />
                   </div>
                 </TooltipTrigger>
-                {clientInfo.rateConfirmed && canEdit && <TooltipContent>已勾選費率無誤，譯者欄位已鎖定</TooltipContent>}
-                {!canEdit && isFinalized && <TooltipContent>已開立稿費條，譯者欄位已鎖定</TooltipContent>}
+                {clientInfo.rateConfirmed && canEdit && <TooltipContent>已勾選費率無誤，不得修改譯者</TooltipContent>}
+                {!canEdit && isFinalized && <TooltipContent>已向譯者開立稿費條，不得修改譯者</TooltipContent>}
               </Tooltip>
             </div>
             <div className="grid gap-1.5">
