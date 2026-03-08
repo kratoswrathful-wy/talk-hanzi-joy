@@ -818,6 +818,8 @@ function TranslatorNotesSection() {
   const [loading, setLoading] = useState(true);
   const [editingEmail, setEditingEmail] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -828,13 +830,13 @@ function TranslatorNotesSection() {
       supabase.from("member_translator_settings").select("*"),
     ]);
 
-    const settingsMap = new Map<string, { note: string; no_fee: boolean }>();
-    (settings || []).forEach((s: any) => settingsMap.set(s.email, { note: s.note || "", no_fee: s.no_fee || false }));
+    const settingsMap = new Map<string, { note: string; no_fee: boolean; sort_order: number }>();
+    (settings || []).forEach((s: any) => settingsMap.set(s.email, { note: s.note || "", no_fee: s.no_fee || false, sort_order: s.sort_order ?? 0 }));
 
     const result: MemberWithSettings[] = [];
 
     (profiles || []).forEach((p: any) => {
-      const s = settingsMap.get(p.email) || { note: "", no_fee: false };
+      const s = settingsMap.get(p.email) || { note: "", no_fee: false, sort_order: 0 };
       result.push({
         email: p.email,
         display_name: p.display_name,
@@ -848,7 +850,7 @@ function TranslatorNotesSection() {
     const registeredEmails = new Set((profiles || []).map((p: any) => p.email));
     (invitations || []).forEach((inv: any) => {
       if (!registeredEmails.has(inv.email)) {
-        const s = settingsMap.get(inv.email) || { note: "", no_fee: false };
+        const s = settingsMap.get(inv.email) || { note: "", no_fee: false, sort_order: 0 };
         result.push({
           email: inv.email,
           display_name: null,
@@ -858,6 +860,13 @@ function TranslatorNotesSection() {
           no_fee: s.no_fee,
         });
       }
+    });
+
+    // Sort by sort_order
+    result.sort((a, b) => {
+      const orderA = settingsMap.get(a.email)?.sort_order ?? 0;
+      const orderB = settingsMap.get(b.email)?.sort_order ?? 0;
+      return orderA - orderB;
     });
 
     setMembers(result);
@@ -902,22 +911,45 @@ function TranslatorNotesSection() {
     upsertSetting(email, { no_fee: checked });
   };
 
+  const handleDrop = async (targetIdx: number) => {
+    if (dragIndex === null || dragIndex === targetIdx) return;
+    const reordered = [...members];
+    const [moved] = reordered.splice(dragIndex, 1);
+    reordered.splice(targetIdx, 0, moved);
+    setMembers(reordered);
+    setDragIndex(null);
+    setDragOverIndex(null);
+
+    // Persist sort_order to DB
+    const updates = reordered.map((m, i) => ({
+      email: m.email,
+      sort_order: i + 1,
+      note: m.note || "",
+      no_fee: m.no_fee || false,
+    }));
+    for (const u of updates) {
+      await supabase.from("member_translator_settings").upsert(u, { onConflict: "email" });
+    }
+    // Reload assignee options in store to sync order everywhere
+    selectOptionsStore.loadAssignees();
+  };
+
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
       <div>
-        <h2 className="text-base font-semibold">譯者稿費備註</h2>
+        <h2 className="text-base font-semibold">譯者備註</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          為每位譯者設定稿費相關備註，例如「正職譯者，稿費基準為翻譯每字 +0.1」
+          拖曳調整譯者順序，變更會套用到所有譯者下拉選單
         </p>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1">
         {loading ? (
           <p className="text-sm text-muted-foreground text-center py-4">載入中…</p>
         ) : members.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">尚無團隊成員</p>
         ) : (
-          members.map((member) => {
+          members.map((member, idx) => {
             const displayLabel = member.display_name || member.email;
             const initials = displayLabel.slice(0, 2).toUpperCase();
             const isEditing = editingEmail === member.email;
@@ -925,10 +957,21 @@ function TranslatorNotesSection() {
             return (
               <div
                 key={member.email}
-                className="px-2 py-2 rounded-md hover:bg-secondary/30 transition-colors space-y-1.5"
+                draggable
+                onDragStart={() => setDragIndex(idx)}
+                onDragOver={(e) => { e.preventDefault(); if (dragIndex !== null && dragIndex !== idx) setDragOverIndex(idx); }}
+                onDrop={() => handleDrop(idx)}
+                onDragEnd={() => { setDragIndex(null); setDragOverIndex(null); }}
+                className={cn(
+                  "px-2 py-2 rounded-md transition-colors space-y-1.5 cursor-grab active:cursor-grabbing",
+                  dragOverIndex === idx && "bg-primary/10 border border-dashed border-primary/30",
+                  dragIndex === idx && "opacity-50",
+                  dragOverIndex !== idx && "hover:bg-secondary/30"
+                )}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
+                    <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <Avatar className="h-6 w-6">
                       <AvatarImage src={member.avatar_url || undefined} />
                       <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
@@ -968,7 +1011,7 @@ function TranslatorNotesSection() {
                     <Textarea
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
-                      placeholder="輸入稿費備註..."
+                      placeholder="輸入備註..."
                       className="text-xs min-h-[60px]"
                       autoFocus
                       onKeyDown={(e) => {
