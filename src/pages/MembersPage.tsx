@@ -4,9 +4,12 @@ import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -18,7 +21,9 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, Trash2, UserPlus, X } from "lucide-react";
+import { Loader2, Trash2, UserPlus, X, GripVertical, Pencil, Snowflake } from "lucide-react";
+import { selectOptionsStore } from "@/stores/select-options-store";
+import { cn } from "@/lib/utils";
 
 type AppRole = string;
 const DEFAULT_ROLE_LABELS: Record<string, string> = { member: "譯者", pm: "PM", executive: "執行官" };
@@ -31,6 +36,11 @@ interface Member {
   role: AppRole;
   isInvitation?: boolean;
   invitationId?: string;
+  // translator settings
+  note: string;
+  no_fee: boolean;
+  frozen: boolean;
+  sort_order: number;
 }
 
 // ─── Multi-email Tag Input ───
@@ -47,7 +57,6 @@ function EmailTagInput({
   const addEmail = (raw: string) => {
     const email = raw.trim().toLowerCase();
     if (!email) return;
-    // Basic email validation
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       toast.error(`無效的電子信箱：${email}`);
       return;
@@ -136,7 +145,7 @@ function EmailTagInput({
 
 export default function MembersPage() {
   const { isAdmin, user, roles } = useAuth();
-  const { allRoles: permRoles } = usePermissions();
+  const { allRoles: permRoles, checkPerm } = usePermissions();
   const isExecutive = roles.some((r) => r.role === "executive");
   const getRoleLabel = (key: string) => {
     const found = permRoles.find((r) => r.key === key);
@@ -149,35 +158,71 @@ export default function MembersPage() {
   const [inviting, setInviting] = useState(false);
   const [removeTarget, setRemoveTarget] = useState<Member | null>(null);
   const [removeStep, setRemoveStep] = useState<1 | 2>(1);
+  // Note editing
+  const [editingEmail, setEditingEmail] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  // Drag reorder
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const canViewFrozen = checkPerm("team_members", "members_showFrozen", "view");
 
   const fetchMembers = useCallback(async () => {
     setLoading(true);
-    const { data: profiles } = await supabase.from("profiles").select("id, display_name, email, avatar_url");
-    const { data: roles } = await supabase.from("user_roles").select("user_id, role");
-    const { data: invitations } = await supabase.from("invitations").select("*").is("accepted_at", null);
+    const [{ data: profiles }, { data: rolesData }, { data: invitations }, { data: settings }] = await Promise.all([
+      supabase.from("profiles").select("id, display_name, email, avatar_url"),
+      supabase.from("user_roles").select("user_id, role"),
+      supabase.from("invitations").select("*").is("accepted_at", null),
+      supabase.from("member_translator_settings").select("*"),
+    ]);
 
     const roleMap = new Map<string, AppRole>();
-    (roles || []).forEach((r: any) => roleMap.set(r.user_id, r.role));
+    (rolesData || []).forEach((r: any) => roleMap.set(r.user_id, r.role));
 
-    const registeredMembers: Member[] = (profiles || []).map((p: any) => ({
-      id: p.id,
-      display_name: p.display_name,
-      email: p.email,
-      avatar_url: p.avatar_url,
-      role: roleMap.get(p.id) || "member",
+    const settingsMap = new Map<string, { note: string; no_fee: boolean; frozen: boolean; sort_order: number }>();
+    (settings || []).forEach((s: any) => settingsMap.set(s.email, {
+      note: s.note || "",
+      no_fee: s.no_fee || false,
+      frozen: s.frozen || false,
+      sort_order: s.sort_order ?? 0,
     }));
 
-    const pendingMembers: Member[] = (invitations || []).map((inv: any) => ({
-      id: inv.id,
-      display_name: null,
-      email: inv.email,
-      avatar_url: null,
-      role: inv.role,
-      isInvitation: true,
-      invitationId: inv.id,
-    }));
+    const registeredMembers: Member[] = (profiles || []).map((p: any) => {
+      const s = settingsMap.get(p.email) || { note: "", no_fee: false, frozen: false, sort_order: 0 };
+      return {
+        id: p.id,
+        display_name: p.display_name,
+        email: p.email,
+        avatar_url: p.avatar_url,
+        role: roleMap.get(p.id) || "member",
+        note: s.note,
+        no_fee: s.no_fee,
+        frozen: s.frozen,
+        sort_order: s.sort_order,
+      };
+    });
 
-    setMembers([...registeredMembers, ...pendingMembers]);
+    const registeredEmails = new Set((profiles || []).map((p: any) => p.email));
+    const pendingMembers: Member[] = (invitations || []).filter((inv: any) => !registeredEmails.has(inv.email)).map((inv: any) => {
+      const s = settingsMap.get(inv.email) || { note: "", no_fee: false, frozen: false, sort_order: 0 };
+      return {
+        id: inv.id,
+        display_name: null,
+        email: inv.email,
+        avatar_url: null,
+        role: inv.role,
+        isInvitation: true,
+        invitationId: inv.id,
+        note: s.note,
+        no_fee: s.no_fee,
+        frozen: s.frozen,
+        sort_order: s.sort_order,
+      };
+    });
+
+    const allMembers = [...registeredMembers, ...pendingMembers];
+    allMembers.sort((a, b) => a.sort_order - b.sort_order);
+    setMembers(allMembers);
     setLoading(false);
   }, []);
 
@@ -186,29 +231,20 @@ export default function MembersPage() {
   const handleInvite = async () => {
     if (inviteEmails.length === 0) return;
     setInviting(true);
-
     let successCount = 0;
-    let errorCount = 0;
-
     for (const email of inviteEmails) {
       const { error } = await supabase.from("invitations").insert({
         email,
         role: "member" as "member" | "pm" | "executive",
         invited_by: user?.id,
       });
-
       if (error) {
-        if (error.code === "23505") {
-          toast.error(`${email} 已被邀請`);
-        } else {
-          toast.error(`${email}: ${error.message}`);
-        }
-        errorCount++;
+        if (error.code === "23505") toast.error(`${email} 已被邀請`);
+        else toast.error(`${email}: ${error.message}`);
       } else {
         successCount++;
       }
     }
-
     if (successCount > 0) {
       toast.success(`已成功邀請 ${successCount} 人`);
       setInviteEmails([]);
@@ -219,27 +255,20 @@ export default function MembersPage() {
   };
 
   const handleRoleChange = async (member: Member, newRole: AppRole) => {
-    // Only allow role change for registered members (not invitations)
     if (member.isInvitation) return;
     await supabase.from("user_roles").update({ role: newRole as "member" | "pm" | "executive" }).eq("user_id", member.id);
     fetchMembers();
     toast.success("角色已更新");
   };
 
-  const handleRemoveStep1 = () => {
-    setRemoveStep(2);
-  };
-
+  const handleRemoveStep1 = () => setRemoveStep(2);
   const handleRemove = async () => {
     if (!removeTarget) return;
     if (removeTarget.isInvitation) {
       await supabase.from("invitations").delete().eq("id", removeTarget.invitationId!);
       toast.success("邀請已移除");
     } else {
-      // Call edge function to fully delete user (roles + profile + auth)
-      const { error } = await supabase.functions.invoke("delete-user", {
-        body: { user_id: removeTarget.id },
-      });
+      const { error } = await supabase.functions.invoke("delete-user", { body: { user_id: removeTarget.id } });
       if (error) {
         toast.error("移除失敗：" + error.message);
         setRemoveTarget(null);
@@ -251,6 +280,68 @@ export default function MembersPage() {
     setRemoveTarget(null);
     setRemoveStep(1);
     fetchMembers();
+  };
+
+  // ─── Translator settings helpers ───
+  const upsertSetting = async (email: string, updates: { note?: string; no_fee?: boolean; frozen?: boolean }) => {
+    const existing = members.find((m) => m.email === email);
+    const { error } = await supabase.from("member_translator_settings").upsert(
+      {
+        email,
+        note: updates.note ?? existing?.note ?? "",
+        no_fee: updates.no_fee ?? existing?.no_fee ?? false,
+        frozen: updates.frozen ?? existing?.frozen ?? false,
+      },
+      { onConflict: "email" }
+    );
+    if (error) {
+      toast.error("儲存失敗：" + error.message);
+    } else {
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.email === email
+            ? { ...m, ...updates }
+            : m
+        )
+      );
+      // Reload assignee options in store to sync everywhere
+      selectOptionsStore.loadAssignees();
+    }
+  };
+
+  const handleSaveNote = (email: string) => {
+    upsertSetting(email, { note: editValue.trim() });
+    setEditingEmail(null);
+  };
+
+  const handleToggleNoFee = (email: string, checked: boolean) => {
+    upsertSetting(email, { no_fee: checked });
+  };
+
+  const handleToggleFrozen = (email: string, frozen: boolean) => {
+    upsertSetting(email, { frozen });
+  };
+
+  const handleDrop = async (targetIdx: number) => {
+    if (dragIndex === null || dragIndex === targetIdx) return;
+    const reordered = [...members];
+    const [moved] = reordered.splice(dragIndex, 1);
+    reordered.splice(targetIdx, 0, moved);
+    setMembers(reordered);
+    setDragIndex(null);
+    setDragOverIndex(null);
+
+    const updates = reordered.map((m, i) => ({
+      email: m.email,
+      sort_order: i + 1,
+      note: m.note || "",
+      no_fee: m.no_fee || false,
+      frozen: m.frozen || false,
+    }));
+    for (const u of updates) {
+      await supabase.from("member_translator_settings").upsert(u, { onConflict: "email" });
+    }
+    selectOptionsStore.loadAssignees();
   };
 
   if (!isAdmin) {
@@ -265,8 +356,8 @@ export default function MembersPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">成員管理</h1>
-          <p className="mt-1 text-sm text-muted-foreground">管理團隊成員與權限</p>
+          <h1 className="text-2xl font-semibold tracking-tight">團隊成員</h1>
+          <p className="mt-1 text-sm text-muted-foreground">管理團隊成員、排序、備註與權限</p>
         </div>
         {isExecutive && (
           <Button onClick={() => setInviteOpen(true)}>
@@ -279,6 +370,7 @@ export default function MembersPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">成員清單</CardTitle>
+          <p className="text-xs text-muted-foreground">拖曳調整成員順序，變更會套用到所有人員下拉選單</p>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -288,65 +380,147 @@ export default function MembersPage() {
           ) : members.length === 0 ? (
             <p className="text-center text-sm text-muted-foreground py-8">尚無成員</p>
           ) : (
-            <div className="divide-y divide-border">
-              {members.map((member) => {
+            <div className="space-y-1">
+              {members.map((member, idx) => {
+                if (member.frozen && !canViewFrozen) return null;
                 const initials = (member.display_name || member.email || "?").slice(0, 2).toUpperCase();
+                const displayLabel = member.display_name || member.email;
+                const isEditing = editingEmail === member.email;
+
                 return (
-                  <div key={member.id} className="flex items-center justify-between py-3 gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <Avatar className="h-9 w-9 shrink-0">
-                        <AvatarImage src={member.avatar_url || undefined} />
-                        <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate text-sm font-medium">
-                            {member.display_name || member.email}
-                          </span>
-                          {member.isInvitation && (
-                            <Badge variant="outline" className="text-xs shrink-0">待接受</Badge>
+                  <div
+                    key={member.id}
+                    draggable={isExecutive}
+                    onDragStart={() => setDragIndex(idx)}
+                    onDragOver={(e) => { e.preventDefault(); if (dragIndex !== null && dragIndex !== idx) setDragOverIndex(idx); }}
+                    onDrop={() => handleDrop(idx)}
+                    onDragEnd={() => { setDragIndex(null); setDragOverIndex(null); }}
+                    className={cn(
+                      "px-2 py-2.5 rounded-md transition-colors space-y-1.5",
+                      isExecutive && "cursor-grab active:cursor-grabbing",
+                      dragOverIndex === idx && "bg-primary/10 border border-dashed border-primary/30",
+                      dragIndex === idx && "opacity-50",
+                      dragOverIndex !== idx && "hover:bg-secondary/30",
+                      member.frozen && "opacity-60"
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {isExecutive && <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                        <Avatar className="h-8 w-8 shrink-0">
+                          <AvatarImage src={member.avatar_url || undefined} />
+                          <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-sm font-medium">{displayLabel}</span>
+                            {member.isInvitation && (
+                              <Badge variant="outline" className="text-xs shrink-0">待接受</Badge>
+                            )}
+                            {member.frozen && (
+                              <Badge variant="secondary" className="text-xs shrink-0 gap-1">
+                                <Snowflake className="h-3 w-3" />
+                                已凍結
+                              </Badge>
+                            )}
+                          </div>
+                          {member.display_name && (
+                            <p className="truncate text-xs text-muted-foreground">{member.email}</p>
                           )}
                         </div>
-                        {member.display_name && (
-                          <p className="truncate text-xs text-muted-foreground">{member.email}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {isExecutive && (
+                          <>
+                            <div className="flex items-center gap-1.5">
+                              <Checkbox
+                                id={`no-fee-${member.email}`}
+                                checked={member.no_fee}
+                                onCheckedChange={(checked) => handleToggleNoFee(member.email, !!checked)}
+                              />
+                              <Label htmlFor={`no-fee-${member.email}`} className="text-xs cursor-pointer text-muted-foreground">
+                                不開單
+                              </Label>
+                            </div>
+                            <Button
+                              variant={member.frozen ? "secondary" : "ghost"}
+                              size="sm"
+                              className={cn("h-7 text-xs gap-1", member.frozen && "text-blue-400")}
+                              onClick={() => handleToggleFrozen(member.email, !member.frozen)}
+                              title={member.frozen ? "解除凍結" : "暫時凍結"}
+                            >
+                              <Snowflake className="h-3 w-3" />
+                              {member.frozen ? "解凍" : "凍結"}
+                            </Button>
+                          </>
+                        )}
+                        {member.isInvitation ? (
+                          <Badge variant="secondary" className="text-xs">
+                            {getRoleLabel(member.role)}
+                          </Badge>
+                        ) : isExecutive ? (
+                          <Select
+                            value={member.role}
+                            onValueChange={(v) => handleRoleChange(member, v as AppRole)}
+                          >
+                            <SelectTrigger className="w-28 h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {permRoles.map((r) => (
+                                <SelectItem key={r.key} value={r.key}>{r.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">
+                            {getRoleLabel(member.role)}
+                          </Badge>
+                        )}
+                        {isExecutive && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground"
+                              onClick={() => { setEditingEmail(member.email); setEditValue(member.note); }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              onClick={() => setRemoveTarget(member)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {member.isInvitation ? (
-                        <Badge variant="secondary" className="text-xs">
-                          {getRoleLabel(member.role)}
-                        </Badge>
-                      ) : isExecutive ? (
-                        <Select
-                          value={member.role}
-                          onValueChange={(v) => handleRoleChange(member, v as AppRole)}
-                        >
-                          <SelectTrigger className="w-28 h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {permRoles.map((r) => (
-                              <SelectItem key={r.key} value={r.key}>{r.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Badge variant="secondary" className="text-xs">
-                          {getRoleLabel(member.role)}
-                        </Badge>
-                      )}
-                      {isExecutive && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={() => setRemoveTarget(member)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
+
+                    {/* Note display / editing */}
+                    {isEditing ? (
+                      <div className="space-y-2 pl-10">
+                        <Textarea
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          placeholder="輸入備註..."
+                          className="text-xs min-h-[60px]"
+                          autoFocus
+                          onKeyDown={(e) => { if (e.key === "Escape") setEditingEmail(null); }}
+                        />
+                        <div className="flex items-center justify-end gap-2">
+                          <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setEditingEmail(null)}>取消</Button>
+                          <Button size="sm" className="h-6 text-xs" onClick={() => handleSaveNote(member.email)}>儲存</Button>
+                        </div>
+                      </div>
+                    ) : member.note ? (
+                      <div className="pl-10">
+                        <p className="text-xs text-muted-foreground px-1">{member.note}</p>
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}

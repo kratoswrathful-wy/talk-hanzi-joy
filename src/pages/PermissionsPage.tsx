@@ -189,13 +189,18 @@ const PERMISSION_MODULES: PermissionModule[] = [
     ],
   },
   {
-    key: "members",
-    label: "成員管理",
+    key: "team_members",
+    label: "團隊成員",
     listItems: [
       { key: "members_view", label: "檢視成員清單", type: "both" },
       { key: "members_invite", label: "邀請成員", type: "both", attribute: "按鈕" },
       { key: "members_changeRole", label: "變更角色", type: "both", attribute: "單選" },
       { key: "members_remove", label: "移除成員", type: "both", attribute: "按鈕" },
+      { key: "members_sort", label: "調整排序", type: "both" },
+      { key: "members_note", label: "編輯備註", type: "both" },
+      { key: "members_noFee", label: "不開單設定", type: "both", attribute: "核取方塊" },
+      { key: "members_freeze", label: "暫時凍結", type: "both", attribute: "按鈕" },
+      { key: "members_showFrozen", label: "顯示暫時凍結人員", type: "view" },
     ],
     detailSections: [],
   },
@@ -716,7 +721,10 @@ function PermissionItemRow({
           <span className="text-muted-foreground">檢視</span>
           <Switch checked={viewEnabled} onCheckedChange={(v) => onToggle("view", v)} className="scale-[0.6] data-[state=checked]:bg-primary/70" />
         </div>
-        {!isViewOnly && (
+        {isViewOnly ? (
+          /* Placeholder to keep layout aligned with other rows that have edit toggle */
+          <div className="w-[62px]" />
+        ) : (
           <div className="flex items-center gap-1">
             <span className="text-muted-foreground">編輯</span>
             <Switch checked={editEnabled} onCheckedChange={(v) => onToggle("edit", v)} className="scale-[0.6] data-[state=checked]:bg-primary/70" disabled={!viewEnabled} />
