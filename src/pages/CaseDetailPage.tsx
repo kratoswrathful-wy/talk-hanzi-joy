@@ -227,22 +227,23 @@ function ToolInstance({
           </TooltipProvider>
         </div>
         {fields.map((f) => (
-          <div key={f.id} className="grid grid-cols-[120px_1fr_auto] items-start gap-3 py-1">
-            <span className="text-sm text-muted-foreground pt-1">{f.label}</span>
-            <Input
-              value={values[f.id] || ""}
-              onChange={(e) =>
-                onUpdate({ fieldValues: { ...values, [f.id]: e.target.value } })
-              }
-              className="max-w-xs"
-            />
-            <button
-              className="mt-1.5 h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0"
-              onClick={() => setDeleteFieldId(f.id)}
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
+          <Field key={f.id} label={f.label}>
+            <div className="flex items-center gap-1.5">
+              <Input
+                value={values[f.id] || ""}
+                onChange={(e) =>
+                  onUpdate({ fieldValues: { ...values, [f.id]: e.target.value } })
+                }
+                className="max-w-xs"
+              />
+              <button
+                className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0"
+                onClick={() => setDeleteFieldId(f.id)}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </Field>
         ))}
         {/* Add field */}
         {hasToolSelected && (
