@@ -39,14 +39,12 @@ const caseStatusLabels: Record<CaseStatus, string> = {
   draft: "草稿",
   inquiry: "詢案中",
   dispatched: "已派出",
-  completed: "任務完成",
   finalized: "開立完成",
 };
 
 function CaseStatusBadge({ status }: { status: CaseStatus }) {
   const labelStyles = useLabelStyles();
   const style = status === "finalized" ? labelStyles.statusFinalized
-    : status === "completed" ? { bgColor: "#7C3AED", textColor: "#FFFFFF" }
     : status === "dispatched" ? { bgColor: "#16A34A", textColor: "#FFFFFF" }
     : status === "inquiry" ? { bgColor: "#2563EB", textColor: "#FFFFFF" }
     : labelStyles.statusDraft;
@@ -552,11 +550,9 @@ export default function CaseDetailPage() {
   const isDraft = caseData.status === "draft";
   const isInquiry = caseData.status === "inquiry";
   const isDispatched = caseData.status === "dispatched";
-  const isCompleted = caseData.status === "completed";
   const isFinalized = caseData.status === "finalized";
   const isMember = currentRole === "member";
   const isPmOrAbove = currentRole === "pm" || currentRole === "executive";
-  const isCurrentUserTranslator = (caseData.translator || []).includes(profile?.display_name || "\0");
 
   const handleDuplicate = async () => {
     const dup = await caseStore.duplicate(caseData.id);
@@ -588,14 +584,9 @@ export default function CaseDetailPage() {
     toast({ title: "已承接本案" });
   };
 
-  const handleCompleteTask = () => {
-    save({ status: "completed" as CaseStatus });
-    toast({ title: "任務完成" });
-  };
-
-  const handleCancelDispatch = () => {
-    save({ status: "inquiry" as CaseStatus });
-    toast({ title: "已取消指派" });
+  const handleFinalize = () => {
+    save({ status: "dispatched" as CaseStatus });
+    toast({ title: "已確定指派" });
   };
 
   const comments = caseData.comments || [];
@@ -629,7 +620,6 @@ export default function CaseDetailPage() {
           >
             新增案件頁面
           </Button>
-          {/* Secondary action (left of primary) */}
           {isInquiry && isPmOrAbove ? (
             <Button
               size="sm"
@@ -639,27 +629,17 @@ export default function CaseDetailPage() {
             >
               收回為草稿
             </Button>
-          ) : isDispatched && isPmOrAbove ? (
+          ) : !isInquiry ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] text-white hover:opacity-80"
               style={{ backgroundColor: '#6B7280' }}
-              onClick={handleCancelDispatch}
-            >
-              取消指派
-            </Button>
-          ) : !isInquiry && !isDispatched ? (
-            <Button
-              size="sm"
-              className="text-xs min-w-[88px] text-white hover:opacity-80"
-              style={{ backgroundColor: '#6B7280' }}
-              disabled={isCompleted || isFinalized}
+              disabled={isDispatched || isFinalized}
               onClick={() => setDeleteOpen(true)}
             >
               刪除
             </Button>
           ) : null}
-          {/* Primary action (rightmost) */}
           {isDraft && isPmOrAbove ? (
             <Button
               size="sm"
@@ -676,14 +656,28 @@ export default function CaseDetailPage() {
             >
               承接本案
             </Button>
-          ) : isDispatched && isCurrentUserTranslator ? (
-            <Button
-              size="sm"
-              className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={handleCompleteTask}
-            >
-              任務完成
-            </Button>
+          ) : isInquiry && isPmOrAbove ? (
+            (() => {
+              const translatorEmpty = !caseData.translator || caseData.translator.length === 0;
+              const btn = (
+                <Button
+                  size="sm"
+                  className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
+                  disabled={translatorEmpty}
+                  onClick={handleFinalize}
+                >
+                  確定指派
+                </Button>
+              );
+              return translatorEmpty ? (
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild><span>{btn}</span></TooltipTrigger>
+                    <TooltipContent>譯者欄不得空白</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : btn;
+            })()
           ) : null}
         </div>
       </div>
@@ -717,7 +711,7 @@ export default function CaseDetailPage() {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <Field label="譯者">
-            {(isDispatched || isCompleted || isFinalized) ? (
+            {(isDispatched || isFinalized) ? (
               <div className="flex items-center gap-1 flex-wrap min-h-[32px] px-2 py-1 rounded-md bg-muted/50 border border-border">
                 {(caseData.translator || []).length > 0
                   ? (caseData.translator || []).map((t, i) => (
