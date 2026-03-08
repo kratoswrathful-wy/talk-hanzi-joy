@@ -1956,7 +1956,7 @@ export default function TranslatorFeeDetail() {
                       <TableCell className="text-right text-sm font-bold">
                         <Tooltip><TooltipTrigger asChild>
                           <span className="cursor-default">{totalAmount.toLocaleString()}</span>
-                        </TooltipTrigger><TooltipContent className="text-xs">自動計算/填入</TooltipContent></Tooltip>
+                        </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip>
                       </TableCell>
                       <TableCell />
                     </TableRow>

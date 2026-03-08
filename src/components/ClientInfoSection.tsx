@@ -661,7 +661,7 @@ export default function ClientInfoSection({
                 <TableCell className={`text-right text-sm font-bold ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
                   <Tooltip><TooltipTrigger asChild>
                     <span className="cursor-default">{clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}</span>
-                  </TooltipTrigger><TooltipContent className="text-xs">自動計算/填入</TooltipContent></Tooltip>
+                  </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip>
                 </TableCell>
                 <TableCell />
               </TableRow>
