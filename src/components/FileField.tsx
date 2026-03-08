@@ -155,14 +155,23 @@ export default function FileField({ value, onChange }: FileFieldProps) {
                   autoFocus
                 />
               ) : (
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-primary hover:underline truncate max-w-[320px]"
-                >
-                  {item.name}
-                </a>
+                <>
+                  <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary hover:underline truncate max-w-[320px]"
+                  >
+                    {item.name}
+                  </a>
+                  {item.size != null && (
+                    <span className="text-[11px] text-muted-foreground shrink-0">
+                      {item.size < 1024 ? `${item.size} B`
+                        : item.size < 1024 * 1024 ? `${(item.size / 1024).toFixed(1)} KB`
+                        : `${(item.size / (1024 * 1024)).toFixed(1)} MB`}
+                    </span>
+                  )}
+                </>
               )}
               <button
                 onClick={() => { setEditingIdx(idx); setEditName(item.name); }}
