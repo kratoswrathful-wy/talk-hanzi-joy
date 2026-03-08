@@ -1613,6 +1613,34 @@ export default function TranslatorFeeDetail() {
             </div>
           </div>
 
+          {/* Finalize prompt after rate confirmation */}
+          {showFinalizePrompt && isDraft && isManager && (
+            <div className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+              <span className="text-xs text-foreground">是否同時開立稿費條？</span>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  ref={finalizePromptRef}
+                  size="sm"
+                  className="h-7 text-xs px-3"
+                  onClick={() => {
+                    setShowFinalizePrompt(false);
+                    handleSubmit();
+                  }}
+                >
+                  開立稿費條
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs px-3"
+                  onClick={() => setShowFinalizePrompt(false)}
+                >
+                  稍後再說
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-lg border border-border overflow-hidden">
             <Table>
               <TableHeader>
