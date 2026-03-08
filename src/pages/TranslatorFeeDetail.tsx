@@ -1320,9 +1320,22 @@ export default function TranslatorFeeDetail() {
             </Tooltip>
           )}
           {canRecall && (
-            <Button variant="outline" size="sm" className="text-xs min-w-[88px]" onClick={handleRecall}>
-              收回為草稿
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs min-w-[88px]"
+                    disabled={linkedTranslatorInvoices.length > 0}
+                    onClick={handleRecall}
+                  >
+                    收回為草稿
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {linkedTranslatorInvoices.length > 0 && <TooltipContent>此費用已列入稿費請款單，無法收回</TooltipContent>}
+            </Tooltip>
           )}
         </div>
         </TooltipProvider>
@@ -1361,17 +1374,25 @@ export default function TranslatorFeeDetail() {
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-1.5">
               <Label className="text-xs text-muted-foreground">譯者</Label>
-              <ColorSelect
-                fieldKey="assignee"
-                value={assignee}
-                disabled={!canEdit}
-                onValueChange={(v) => {
-                  trackChange("譯者", assignee, v);
-                  setAssignee(v);
-                  if (id) feeStore.updateFee(id, { assignee: v });
-                }}
-                placeholder="選擇譯者"
-              />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div>
+                    <ColorSelect
+                      fieldKey="assignee"
+                      value={assignee}
+                      disabled={!canEdit || clientInfo.rateConfirmed}
+                      onValueChange={(v) => {
+                        trackChange("譯者", assignee, v);
+                        setAssignee(v);
+                        if (id) feeStore.updateFee(id, { assignee: v });
+                      }}
+                      placeholder="選擇譯者"
+                    />
+                  </div>
+                </TooltipTrigger>
+                {clientInfo.rateConfirmed && canEdit && <TooltipContent>已勾選費率無誤，譯者欄位已鎖定</TooltipContent>}
+                {!canEdit && isFinalized && <TooltipContent>已開立稿費條，譯者欄位已鎖定</TooltipContent>}
+              </Tooltip>
             </div>
             <div className="grid gap-1.5">
               <Label className="text-xs text-muted-foreground">稿費開立狀態</Label>
@@ -1549,6 +1570,7 @@ export default function TranslatorFeeDetail() {
                   }
                 }}
                 linkedClientInvoices={linkedClientInvoices}
+                isInClientInvoice={linkedClientInvoices.length > 0}
               />
             </div>
           </>
@@ -1558,15 +1580,15 @@ export default function TranslatorFeeDetail() {
 
         {/* Task Items Table */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex items-baseline justify-between">
+            <div className="flex items-baseline gap-3">
               <Label className="text-sm font-medium leading-none">稿費內容</Label>
               {linkedTranslatorInvoices.length > 0 && (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-muted-foreground">稿費請款單</span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-xs text-muted-foreground leading-none">稿費請款單</span>
                   {linkedTranslatorInvoices.map((inv, idx) => (
                     <span key={inv.id}>
-                      <Link to={`/invoices/${inv.id}`} className="text-xs text-primary hover:underline">{inv.title || "未命名"}</Link>
+                      <Link to={`/invoices/${inv.id}`} className="text-xs text-primary hover:underline leading-none">{inv.title || "未命名"}</Link>
                       {idx < linkedTranslatorInvoices.length - 1 && <span className="text-xs text-muted-foreground">、</span>}
                     </span>
                   ))}
@@ -1594,25 +1616,30 @@ export default function TranslatorFeeDetail() {
                 新增項目
               </Button>
               {isManager && (
-                <div className="flex items-center gap-1.5 relative">
-                  <Checkbox
-                    id="rateConfirmed"
-                    checked={isNoFeeTranslator ? true : clientInfo.rateConfirmed}
-                    disabled={isFinalized || isNoFeeTranslator}
-                    onCheckedChange={(checked) => {
-                      const updated = { ...clientInfo, rateConfirmed: !!checked };
-                      setClientInfo(updated);
-                      if (id) feeStore.updateFee(id, { clientInfo: updated });
-                      // When checking rateConfirmed, show finalize prompt
-                      if (checked && !isNoFeeTranslator) {
-                        setShowFinalizePrompt(true);
-                        // Focus the confirm button after render
-                        setTimeout(() => finalizePromptRef.current?.focus(), 100);
-                      }
-                    }}
-                  />
-                  <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">費率無誤</Label>
-                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1.5 relative">
+                      <Checkbox
+                        id="rateConfirmed"
+                        checked={isNoFeeTranslator ? true : clientInfo.rateConfirmed}
+                        disabled={isFinalized || isNoFeeTranslator || linkedTranslatorInvoices.length > 0}
+                        onCheckedChange={(checked) => {
+                          const updated = { ...clientInfo, rateConfirmed: !!checked };
+                          setClientInfo(updated);
+                          if (id) feeStore.updateFee(id, { clientInfo: updated });
+                          // When checking rateConfirmed, show finalize prompt
+                          if (checked && !isNoFeeTranslator) {
+                            setShowFinalizePrompt(true);
+                            // Focus the confirm button after render
+                            setTimeout(() => finalizePromptRef.current?.focus(), 100);
+                          }
+                        }}
+                      />
+                      <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">費率無誤</Label>
+                    </div>
+                  </TooltipTrigger>
+                  {linkedTranslatorInvoices.length > 0 && !isFinalized && <TooltipContent>此費用已列入稿費請款單，無法取消費率確認</TooltipContent>}
+                </Tooltip>
               )}
             </div>
           </div>
