@@ -611,6 +611,13 @@ export default function MembersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Profile Viewer */}
+      <ProfileViewerDialog
+        open={!!profileViewerEmail}
+        onOpenChange={(open) => { if (!open) setProfileViewerEmail(null); }}
+        email={profileViewerEmail}
+      />
     </div>
   );
 }
