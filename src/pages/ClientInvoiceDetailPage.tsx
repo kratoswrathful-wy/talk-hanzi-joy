@@ -497,7 +497,7 @@ export default function ClientInvoiceDetailPage() {
                           {fee.title || <span className="text-muted-foreground italic">未命名</span>}
                         </Link>
                       </TableCell>
-                      <TableCell className="text-center text-sm tabular-nums">{formatCurrency(feeTotal)}</TableCell>
+                      <TableCell className="text-center text-sm tabular-nums"><TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="cursor-default">{formatCurrency(feeTotal)}</span></TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider></TableCell>
                       {editable && (
                         <TableCell className="text-center">
                           <Button
