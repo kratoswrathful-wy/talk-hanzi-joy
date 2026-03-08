@@ -1,5 +1,5 @@
 /**
- * 欄位屬性對照表 — lists all configurable fields across the system with their type.
+ * 內部資料 — lists all configurable fields across the system with their type.
  * PM+ visible.
  */
 
