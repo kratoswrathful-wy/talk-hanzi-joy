@@ -172,6 +172,12 @@ export default function TranslatorFeeDetail() {
   const confirmSwapOriginRef = useRef<"choose" | "assignRole">("choose");
   const [multiTranslatorPages, setMultiTranslatorPages] = useState<{ id: string; title: string; assignee: string }[] | null>(null);
   const [autoCreatedOptions, setAutoCreatedOptions] = useState<{ field: string; label: string }[] | null>(null);
+  const [showFinalizePrompt, setShowFinalizePrompt] = useState(false);
+  const finalizePromptRef = useRef<HTMLButtonElement>(null);
+
+  // Compute linked invoices for this fee
+  const linkedTranslatorInvoices = id ? allInvoices.filter((inv) => inv.feeIds.includes(id)).map((inv) => ({ id: inv.id, title: inv.title })) : [];
+  const linkedClientInvoices = id ? allClientInvoices.filter((inv) => inv.feeIds.includes(id)).map((inv) => ({ id: inv.id, title: inv.title })) : [];
   
 
   // Find the other fee that is firstFee in the same case group
