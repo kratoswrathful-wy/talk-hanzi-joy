@@ -1553,7 +1553,7 @@ export default function TranslatorFeeDetail() {
                 新增項目
               </Button>
               {isManager && (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 relative">
                   <Checkbox
                     id="rateConfirmed"
                     checked={isNoFeeTranslator ? true : clientInfo.rateConfirmed}
@@ -1562,6 +1562,12 @@ export default function TranslatorFeeDetail() {
                       const updated = { ...clientInfo, rateConfirmed: !!checked };
                       setClientInfo(updated);
                       if (id) feeStore.updateFee(id, { clientInfo: updated });
+                      // When checking rateConfirmed, show finalize prompt
+                      if (checked && !isNoFeeTranslator) {
+                        setShowFinalizePrompt(true);
+                        // Focus the confirm button after render
+                        setTimeout(() => finalizePromptRef.current?.focus(), 100);
+                      }
                     }}
                   />
                   <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">費率無誤</Label>
