@@ -70,7 +70,7 @@ function CaseStatusBadge({ status }: { status: CaseStatus }) {
 
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
-    <div className={`grid grid-cols-[120px_1fr] items-start gap-3 py-1 ${className || ""}`}>
+    <div className={`grid grid-cols-[100px_1fr] items-start gap-3 py-1 ${className || ""}`}>
       <span className="text-sm text-muted-foreground pt-1">{label}</span>
       <div>{children}</div>
     </div>
