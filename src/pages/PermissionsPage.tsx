@@ -502,7 +502,7 @@ export default function PermissionsPage() {
       </Card>
 
       {/* Delete Confirmation - Step 1 */}
-      <AlertDialog open={!!deleteTarget && deleteStep === 1} onOpenChange={(open) => { if (!open) handleCancelDelete(); }}>
+      <AlertDialog open={!!deleteTarget && deleteStep === 1} onOpenChange={(open) => { if (!open && deleteStep === 1) handleCancelDelete(); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>確認刪除身分</AlertDialogTitle>
@@ -512,7 +512,7 @@ export default function PermissionsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={handleCancelDelete}>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteStep1} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); handleDeleteStep1(); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               繼續
             </AlertDialogAction>
           </AlertDialogFooter>
