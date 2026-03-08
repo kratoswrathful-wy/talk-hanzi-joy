@@ -328,6 +328,7 @@ export default function DateTimePicker({
     : null;
 
   return (
+    <>
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
