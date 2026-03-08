@@ -1693,14 +1693,14 @@ export default function TranslatorFeeDetail() {
                   <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>稿費單價</TableHead>
                   <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>計費單位數</TableHead>
                   <TableHead className="text-xs text-center" style={{ width: '18.4%' }}>小計</TableHead>
-                  {canEdit && <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>}
+                  <TableHead className="text-xs text-center" style={{ width: '8%' }}>刪除</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {taskItems.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={canEdit ? 6 : 5}
+                      colSpan={6}
                       className="text-center text-sm text-muted-foreground py-6"
                     >
                       尚無任務項目
@@ -1722,7 +1722,7 @@ export default function TranslatorFeeDetail() {
                               />
                             </div>
                           </TooltipTrigger>
-                          {clientInfo.rateConfirmed && canEdit && <TooltipContent>已確認項目及費率，不得修改稿費內容</TooltipContent>}
+                          {clientInfo.rateConfirmed && <TooltipContent>已確認項目及費率，不得修改稿費內容</TooltipContent>}
                         </Tooltip>
                       </TableCell>
                       <TableCell className="text-center">
@@ -1738,7 +1738,7 @@ export default function TranslatorFeeDetail() {
                               />
                             </div>
                           </TooltipTrigger>
-                          {clientInfo.rateConfirmed && canEdit && <TooltipContent>已確認項目及費率，不得修改稿費內容</TooltipContent>}
+                          {clientInfo.rateConfirmed && <TooltipContent>已確認項目及費率，不得修改稿費內容</TooltipContent>}
                         </Tooltip>
                       </TableCell>
                       <TableCell className="text-right">
@@ -1759,7 +1759,7 @@ export default function TranslatorFeeDetail() {
                               />
                             </div>
                           </TooltipTrigger>
-                          {clientInfo.rateConfirmed && canEdit && <TooltipContent>已確認項目及費率，不得修改稿費內容</TooltipContent>}
+                          {clientInfo.rateConfirmed && <TooltipContent>已確認項目及費率，不得修改稿費內容</TooltipContent>}
                         </Tooltip>
                       </TableCell>
                       <TableCell className="text-right">
@@ -1780,30 +1780,28 @@ export default function TranslatorFeeDetail() {
                               />
                             </div>
                           </TooltipTrigger>
-                          {clientInfo.rateConfirmed && canEdit && <TooltipContent>已確認項目及費率，不得修改稿費內容</TooltipContent>}
+                          {clientInfo.rateConfirmed && <TooltipContent>已確認項目及費率，不得修改稿費內容</TooltipContent>}
                         </Tooltip>
                       </TableCell>
                       <TableCell className="text-right text-xs font-medium">
                         {isNoFeeTranslator ? 0 : (Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}
                       </TableCell>
-                      {canEdit && (
-                        <TableCell className="px-2">
-                          <div className="flex justify-center">
-                            {!clientInfo.rateConfirmed && taskItems.length > 1 ? (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                onClick={() => handleRemoveItem(item.id)}
-                              >
-                                <X className="h-3.5 w-3.5" />
-                              </Button>
-                            ) : (
-                              <div className="h-7 w-7" />
-                            )}
-                          </div>
-                        </TableCell>
-                      )}
+                      <TableCell className="px-2">
+                        <div className="flex justify-center">
+                          {canEdit && !clientInfo.rateConfirmed && taskItems.length > 1 ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              onClick={() => handleRemoveItem(item.id)}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          ) : (
+                            <div className="h-7 w-7" />
+                          )}
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -1818,7 +1816,7 @@ export default function TranslatorFeeDetail() {
                       <TableCell className="text-right text-sm font-bold">
                         {totalAmount.toLocaleString()}
                       </TableCell>
-                      {canEdit && <TableCell />}
+                      <TableCell />
                     </TableRow>
                 </TableFooter>
               )}
