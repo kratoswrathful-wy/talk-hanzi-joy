@@ -14,7 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { Check, Plus, X } from "lucide-react";
+import { Check, Pipette, Plus, X } from "lucide-react";
 
 interface ColorPickerProps {
   value: string;
