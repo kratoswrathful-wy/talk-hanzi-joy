@@ -1293,7 +1293,7 @@ export default function TranslatorFeeDetail() {
                   </Button>
                 </span>
               </TooltipTrigger>
-              {isFinalized && <TooltipContent>已開立稿費條，無法刪除</TooltipContent>}
+              {isFinalized && <TooltipContent>已向譯者開立稿費條，不得刪除</TooltipContent>}
             </Tooltip>
           )}
           {isManager && isDraft && (
