@@ -326,18 +326,21 @@ export type Database = {
       permission_settings: {
         Row: {
           config: Json
+          env: string
           id: string
           updated_at: string
           updated_by: string | null
         }
         Insert: {
           config?: Json
+          env?: string
           id?: string
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
           config?: Json
+          env?: string
           id?: string
           updated_at?: string
           updated_by?: string | null

@@ -167,6 +167,13 @@ export default function MembersPage() {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const canViewFrozen = checkPerm("team_members", "members_showFrozen", "view");
+  const canInvite = checkPerm("team_members", "members_invite", "edit");
+  const canChangeRole = checkPerm("team_members", "members_changeRole", "edit");
+  const canRemove = checkPerm("team_members", "members_remove", "edit");
+  const canSort = checkPerm("team_members", "members_sort", "edit");
+  const canEditNote = checkPerm("team_members", "members_note", "edit");
+  const canEditNoFee = checkPerm("team_members", "members_noFee", "edit");
+  const canFreeze = checkPerm("team_members", "members_freeze", "edit");
 
   const fetchMembers = useCallback(async () => {
     setLoading(true);
@@ -360,7 +367,7 @@ export default function MembersPage() {
           <h1 className="text-2xl font-semibold tracking-tight">團隊成員</h1>
           <p className="mt-1 text-sm text-muted-foreground">管理團隊成員、排序、備註與權限</p>
         </div>
-        {isExecutive && (
+        {canInvite && (
           <Button onClick={() => setInviteOpen(true)}>
             <UserPlus className="mr-2 h-4 w-4" />
             邀請成員
@@ -371,7 +378,7 @@ export default function MembersPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">成員清單</CardTitle>
-          <p className="text-xs text-muted-foreground">拖曳調整成員順序，變更會套用到所有人員下拉選單</p>
+          {canSort && <p className="text-xs text-muted-foreground">拖曳調整成員順序，變更會套用到所有人員下拉選單</p>}
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -391,14 +398,14 @@ export default function MembersPage() {
                 return (
                   <div
                     key={member.id}
-                    draggable={isExecutive}
+                    draggable={canSort}
                     onDragStart={() => setDragIndex(idx)}
                     onDragOver={(e) => { e.preventDefault(); if (dragIndex !== null && dragIndex !== idx) setDragOverIndex(idx); }}
                     onDrop={() => handleDrop(idx)}
                     onDragEnd={() => { setDragIndex(null); setDragOverIndex(null); }}
                     className={cn(
                       "px-2 py-2.5 rounded-md transition-colors space-y-1.5",
-                      isExecutive && "cursor-grab active:cursor-grabbing",
+                      canSort && "cursor-grab active:cursor-grabbing",
                       dragOverIndex === idx && "bg-primary/10 border border-dashed border-primary/30",
                       dragIndex === idx && "opacity-50",
                       dragOverIndex !== idx && "hover:bg-secondary/30",
@@ -407,7 +414,7 @@ export default function MembersPage() {
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 min-w-0">
-                        {isExecutive && <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                        {canSort && <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
                         <Avatar className="h-8 w-8 shrink-0">
                           <AvatarImage src={member.avatar_url || undefined} />
                           <AvatarFallback className="text-xs">{initials}</AvatarFallback>
@@ -431,39 +438,39 @@ export default function MembersPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {isExecutive && (
-                          <>
-                            <div className="flex items-center gap-1.5">
-                              <Checkbox
-                                id={`no-fee-${member.email}`}
-                                checked={member.no_fee}
-                                onCheckedChange={(checked) => handleToggleNoFee(member.email, !!checked)}
-                              />
-                              <Label htmlFor={`no-fee-${member.email}`} className="text-xs cursor-pointer text-muted-foreground">
-                                不開單
-                              </Label>
-                            </div>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant={member.frozen ? "secondary" : "ghost"}
-                                  size="sm"
-                                  className={cn("h-7 text-xs gap-1", member.frozen && "text-blue-400")}
-                                  onClick={() => handleToggleFrozen(member.email, !member.frozen)}
-                                >
-                                  <Snowflake className="h-3 w-3" />
-                                  {member.frozen ? "解凍" : "凍結"}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>凍結人員會從所有人員下拉式選單隱藏</TooltipContent>
-                            </Tooltip>
-                          </>
+                        {canEditNoFee && (
+                          <div className="flex items-center gap-1.5">
+                            <Checkbox
+                              id={`no-fee-${member.email}`}
+                              checked={member.no_fee}
+                              onCheckedChange={(checked) => handleToggleNoFee(member.email, !!checked)}
+                            />
+                            <Label htmlFor={`no-fee-${member.email}`} className="text-xs cursor-pointer text-muted-foreground">
+                              不開單
+                            </Label>
+                          </div>
+                        )}
+                        {canFreeze && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant={member.frozen ? "secondary" : "ghost"}
+                                size="sm"
+                                className={cn("h-7 text-xs gap-1", member.frozen && "text-blue-400")}
+                                onClick={() => handleToggleFrozen(member.email, !member.frozen)}
+                              >
+                                <Snowflake className="h-3 w-3" />
+                                {member.frozen ? "解凍" : "凍結"}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>凍結人員會從所有人員下拉式選單隱藏</TooltipContent>
+                          </Tooltip>
                         )}
                         {member.isInvitation ? (
                           <Badge variant="secondary" className="text-xs">
                             {getRoleLabel(member.role)}
                           </Badge>
-                        ) : isExecutive ? (
+                        ) : canChangeRole ? (
                           <Select
                             value={member.role}
                             onValueChange={(v) => handleRoleChange(member, v as AppRole)}
@@ -482,30 +489,30 @@ export default function MembersPage() {
                             {getRoleLabel(member.role)}
                           </Badge>
                         )}
-                        {isExecutive && (
-                          <>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 text-muted-foreground"
-                                  onClick={() => { setEditingEmail(member.email); setEditValue(member.note); }}
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>編輯人員備註</TooltipContent>
-                            </Tooltip>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                              onClick={() => setRemoveTarget(member)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </>
+                        {canEditNote && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground"
+                                onClick={() => { setEditingEmail(member.email); setEditValue(member.note); }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>編輯人員備註</TooltipContent>
+                          </Tooltip>
+                        )}
+                        {canRemove && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            onClick={() => setRemoveTarget(member)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         )}
                       </div>
                     </div>

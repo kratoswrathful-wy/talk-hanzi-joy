@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { getEnvironment } from "@/lib/environment";
 
 export interface FieldPermission {
   view: boolean;
@@ -77,9 +78,11 @@ export function usePermissions() {
   const [loading, setLoading] = useState(true);
 
   const fetchConfig = useCallback(async () => {
-    const { data } = await supabase
+    const env = getEnvironment();
+    const { data } = await (supabase
       .from("permission_settings")
-      .select("config")
+      .select("config") as any)
+      .eq("env", env)
       .limit(1)
       .single();
     if (data?.config) {
@@ -121,9 +124,11 @@ export function usePermissions() {
 
   const updateConfig = useCallback(
     async (newConfig: PermissionConfig) => {
-      const { data: existing } = await supabase
+      const env = getEnvironment();
+      const { data: existing } = await (supabase
         .from("permission_settings")
-        .select("id")
+        .select("id") as any)
+        .eq("env", env)
         .limit(1)
         .single();
 
@@ -136,7 +141,7 @@ export function usePermissions() {
       } else {
         ({ error } = await supabase
           .from("permission_settings")
-          .insert({ config: newConfig as any }));
+          .insert({ config: newConfig as any, env } as any));
       }
 
       if (!error) {

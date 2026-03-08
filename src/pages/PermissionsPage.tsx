@@ -196,7 +196,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
       { key: "members_invite", label: "邀請成員", type: "both", attribute: "按鈕" },
       { key: "members_changeRole", label: "變更角色", type: "both", attribute: "單選" },
       { key: "members_remove", label: "移除成員", type: "both", attribute: "按鈕" },
-      { key: "members_sort", label: "調整排序", type: "both" },
+      { key: "members_sort", label: "調整排序", type: "edit" },
       { key: "members_note", label: "編輯備註", type: "both" },
       { key: "members_noFee", label: "不開單設定", type: "both", attribute: "核取方塊" },
       { key: "members_freeze", label: "暫時凍結", type: "both", attribute: "按鈕" },
