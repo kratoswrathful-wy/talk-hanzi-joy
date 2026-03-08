@@ -1277,7 +1277,6 @@ export default function TranslatorFeeDetail() {
                 </span>
               </TooltipTrigger>
             </Tooltip>
-            </Tooltip>
           )}
           {isManager && isDraft && (
             <Tooltip>
