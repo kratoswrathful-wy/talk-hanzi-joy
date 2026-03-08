@@ -133,6 +133,16 @@ export default function ColorPicker({
 
   const currentHex = hsvToHex(hsv[0], hsv[1], hsv[2]);
 
+  const presetSet = new Set(PRESET_COLORS.map((c) => c.toUpperCase()));
+  // Derive in-use non-preset colors from colorUsageMap
+  const inUseCustomColors = Object.keys(colorUsageMap).filter(
+    (c) => !presetSet.has(c.toUpperCase()) && (colorUsageMap[c]?.length ?? 0) > 0
+  );
+  // Merge explicit customColors + in-use colors, deduplicate
+  const allCustomColors = Array.from(
+    new Set([...customColors.map((c) => c.toUpperCase()), ...inUseCustomColors.map((c) => c.toUpperCase())])
+  );
+
   const getLabels = (c: string) => colorUsageMap[c.toUpperCase()] || [];
 
   // Draw color wheel
@@ -276,22 +286,22 @@ export default function ColorPicker({
         </div>
 
         {/* Custom colors */}
-        {(customColors.length > 0 || onAddCustomColor) && (
+        {(allCustomColors.length > 0 || onAddCustomColor) && (
           <div>
             <p className="text-xs text-muted-foreground mb-1.5">自訂色彩</p>
             <div className="flex flex-wrap gap-1.5 items-center">
-              {customColors.map((c) => (
+              {allCustomColors.map((c) => (
                 <ColorSwatch
                   key={c}
                   color={c}
-                  selected={value === c}
+                  selected={value?.toUpperCase() === c}
                   labels={getLabels(c)}
                   onSelect={() => {
                     onChange(c);
                     setHexInput(c);
                     setHsv(hexToHsv(c));
                   }}
-                  onRemove={onRemoveCustomColor ? () => setDeleteColorConfirm(c) : undefined}
+                  onRemove={onRemoveCustomColor && customColors.map((x) => x.toUpperCase()).includes(c) ? () => setDeleteColorConfirm(c) : undefined}
                 />
               ))}
             </div>
