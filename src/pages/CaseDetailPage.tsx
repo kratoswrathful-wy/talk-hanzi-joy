@@ -56,6 +56,8 @@ function ToolInstance({
   const [tplOpen, setTplOpen] = useState(false);
   const [conflictTpl, setConflictTpl] = useState<ToolTemplate | null>(null);
   const [conflictFields, setConflictFields] = useState<{ id: string; label: string; current: string; incoming: string }[]>([]);
+  // For each conflict field, true = use template value, false = keep current
+  const [conflictChoices, setConflictChoices] = useState<Record<string, boolean>>({});
 
   const selectedTool = toolOptions.find((o) => o.label === entry.tool);
   const fields = selectedTool?.toolFields || [];
