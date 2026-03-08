@@ -33,7 +33,7 @@ function getFieldValue(c: CaseRecord, field: string): string | number | boolean 
     case "workType": return (c.workType || []).join(", ");
     case "billingUnit": return c.billingUnit;
     case "unitCount": return c.unitCount;
-    case "translator": return c.translator;
+    case "translator": return (c.translator || []).join(", ");
     case "translationDeadline": return c.translationDeadline || "";
     case "reviewer": return c.reviewer;
     case "reviewDeadline": return c.reviewDeadline || "";
