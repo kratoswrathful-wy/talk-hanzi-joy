@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { email, password, role } = await req.json();
+    const { email, password, role, display_name } = await req.json();
     if (!email || !password) {
       return new Response(JSON.stringify({ error: "email and password required" }), {
         status: 400,
@@ -49,6 +49,7 @@ Deno.serve(async (req) => {
       email,
       password,
       email_confirm: true,
+      user_metadata: display_name ? { display_name } : undefined,
     });
 
     if (error) {
