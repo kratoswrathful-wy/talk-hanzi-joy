@@ -654,8 +654,21 @@ function SectionBulkButtons({
           <Label className="text-xs text-foreground/70">全可編輯</Label>
           <Switch checked={allEdit} onCheckedChange={(v) => onToggle("edit", v)} className="scale-75 data-[state=checked]:bg-primary/70" />
         </div>
-      )}
-    </div>
+        )}
+        {hasEditableItems && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-6 text-[11px] px-2 ml-1"
+            onClick={() => {
+              onToggle("view", true);
+              onToggle("edit", false);
+            }}
+          >
+            全部可見但不可編輯
+          </Button>
+        )}
+      </div>
   );
 }
 
