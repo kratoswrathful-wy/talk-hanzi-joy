@@ -212,13 +212,13 @@ export const selectOptionsStore = {
     notify();
   },
 
-  // Tool sub-field management
-  addToolField: (optionId: string, label: string) => {
-    const field = selectOptionsStore.getField("executionTool");
+  // Tool sub-field management (generic for any tool-type field)
+  addToolField: (optionId: string, label: string, fieldKey: string = "executionTool") => {
+    const field = selectOptionsStore.getField(fieldKey);
     const fieldId = `tf-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
     store = {
       ...store,
-      executionTool: {
+      [fieldKey]: {
         ...field,
         options: field.options.map((o) =>
           o.id === optionId
@@ -231,11 +231,11 @@ export const selectOptionsStore = {
     return fieldId;
   },
 
-  removeToolField: (optionId: string, fieldId: string) => {
-    const field = selectOptionsStore.getField("executionTool");
+  removeToolField: (optionId: string, fieldId: string, fieldKey: string = "executionTool") => {
+    const field = selectOptionsStore.getField(fieldKey);
     store = {
       ...store,
-      executionTool: {
+      [fieldKey]: {
         ...field,
         options: field.options.map((o) =>
           o.id === optionId
@@ -247,11 +247,11 @@ export const selectOptionsStore = {
     notify();
   },
 
-  renameToolField: (optionId: string, fieldId: string, newLabel: string) => {
-    const field = selectOptionsStore.getField("executionTool");
+  renameToolField: (optionId: string, fieldId: string, newLabel: string, fieldKey: string = "executionTool") => {
+    const field = selectOptionsStore.getField(fieldKey);
     store = {
       ...store,
-      executionTool: {
+      [fieldKey]: {
         ...field,
         options: field.options.map((o) =>
           o.id === optionId
@@ -263,11 +263,11 @@ export const selectOptionsStore = {
     notify();
   },
 
-  reorderToolFields: (optionId: string, orderedIds: string[]) => {
-    const field = selectOptionsStore.getField("executionTool");
+  reorderToolFields: (optionId: string, orderedIds: string[], fieldKey: string = "executionTool") => {
+    const field = selectOptionsStore.getField(fieldKey);
     store = {
       ...store,
-      executionTool: {
+      [fieldKey]: {
         ...field,
         options: field.options.map((o) => {
           if (o.id !== optionId) return o;

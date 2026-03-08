@@ -40,6 +40,7 @@ export interface CaseRecord {
   executionTool: string;
   toolFieldValues: Record<string, string>;
   tools: ToolEntry[];
+  questionTools: ToolEntry[];
   deliveryMethod: string;
   clientReceipt: string;
   customGuidelinesUrl: { name: string; url: string }[];
