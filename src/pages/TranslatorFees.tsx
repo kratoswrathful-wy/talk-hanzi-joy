@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Plus, ChevronDown, MessageSquare, History, GripVertical, ExternalLink, Trash2, FileText } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -30,6 +30,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-store";
 import AssigneeTag from "@/components/AssigneeTag";
 import { supabase } from "@/integrations/supabase/client";
@@ -568,6 +569,9 @@ export default function TranslatorFees() {
 
   // Delete selected fees
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeleteValidation, setShowDeleteValidation] = useState(false);
+  const [deleteValidationIssues, setDeleteValidationIssues] = useState<{ feeId: string; title: string; reason: string }[]>([]);
+
   const handleDeleteSelected = useCallback(() => {
     const ids = Array.from(rowSelection.selectedIds);
     for (const id of ids) {
@@ -575,6 +579,41 @@ export default function TranslatorFees() {
     }
     rowSelection.deselectAll();
     setShowDeleteConfirm(false);
+  }, [rowSelection]);
+
+  // Compute single-select disabled reasons for delete button
+  const getDeleteDisabledReason = useCallback((): string | undefined => {
+    if (rowSelection.selectedCount === 0) return "請先選取項目";
+    if (rowSelection.selectedCount === 1) {
+      const feeId = Array.from(rowSelection.selectedIds)[0];
+      const fee = feeStore.getFeeById(feeId);
+      if (!fee) return undefined;
+      if (fee.status === "finalized") return "已向譯者開立稿費條，不得刪除";
+    }
+    return undefined;
+  }, [rowSelection.selectedCount, rowSelection.selectedIds]);
+
+  // Multi-select delete validation
+  const handleDeleteClick = useCallback(() => {
+    if (rowSelection.selectedCount <= 1) {
+      setShowDeleteConfirm(true);
+      return;
+    }
+    // Multi-select: check for issues
+    const issues: { feeId: string; title: string; reason: string }[] = [];
+    for (const id of rowSelection.selectedIds) {
+      const fee = feeStore.getFeeById(id);
+      if (!fee) continue;
+      if (fee.status === "finalized") {
+        issues.push({ feeId: fee.id, title: fee.title || "未命名稿費單", reason: "已向譯者開立稿費條，不得刪除" });
+      }
+    }
+    if (issues.length > 0) {
+      setDeleteValidationIssues(issues);
+      setShowDeleteValidation(true);
+    } else {
+      setShowDeleteConfirm(true);
+    }
   }, [rowSelection]);
 
   // Apply column order from the view, excluding hidden columns
@@ -732,26 +771,90 @@ export default function TranslatorFees() {
             新增費用
           </Button>
         )}
-        {isManager && rowSelection.selectedCount > 0 && (
-          <>
-            <InvoiceActions
-              selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
-              onDone={() => rowSelection.deselectAll()}
-            />
-            <ClientInvoiceActions
-              selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
-              onDone={() => rowSelection.deselectAll()}
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 text-muted-foreground hover:text-destructive"
-              onClick={() => setShowDeleteConfirm(true)}
-              title="刪除選取項目"
-            >
-              <Trash2 className="h-4.5 w-4.5" />
-            </Button>
-          </>
+        {isManager && (
+          <TooltipProvider delayDuration={200}>
+            {/* Translator Invoice button */}
+            {rowSelection.selectedCount >= 2 ? (
+              <InvoiceActions
+                selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
+                onDone={() => rowSelection.deselectAll()}
+              />
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    {rowSelection.selectedCount === 1 ? (
+                      <InvoiceActions
+                        selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
+                        onDone={() => rowSelection.deselectAll()}
+                      />
+                    ) : (
+                      <Button variant="outline" size="sm" className="gap-1.5 h-9" disabled>
+                        <FileText className="h-4 w-4" />
+                        譯者請款
+                      </Button>
+                    )}
+                  </span>
+                </TooltipTrigger>
+                {rowSelection.selectedCount === 0 && (
+                  <TooltipContent>請先選取項目</TooltipContent>
+                )}
+              </Tooltip>
+            )}
+
+            {/* Client Invoice button */}
+            {rowSelection.selectedCount >= 2 ? (
+              <ClientInvoiceActions
+                selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
+                onDone={() => rowSelection.deselectAll()}
+              />
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    {rowSelection.selectedCount === 1 ? (
+                      <ClientInvoiceActions
+                        selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
+                        onDone={() => rowSelection.deselectAll()}
+                      />
+                    ) : (
+                      <Button variant="outline" size="sm" className="gap-1.5 h-9" disabled>
+                        <FileText className="h-4 w-4" />
+                        客戶請款
+                      </Button>
+                    )}
+                  </span>
+                </TooltipTrigger>
+                {rowSelection.selectedCount === 0 && (
+                  <TooltipContent>請先選取項目</TooltipContent>
+                )}
+              </Tooltip>
+            )}
+
+            {/* Delete button */}
+            {(() => {
+              const deleteReason = getDeleteDisabledReason();
+              const isDisabled = !!deleteReason;
+              return (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                        disabled={isDisabled}
+                        onClick={handleDeleteClick}
+                      >
+                        <Trash2 className="h-4.5 w-4.5" />
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {isDisabled && <TooltipContent>{deleteReason}</TooltipContent>}
+                </Tooltip>
+              );
+            })()}
+          </TooltipProvider>
         )}
         {!activeView.isDefault && (
           <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
@@ -899,6 +1002,37 @@ export default function TranslatorFees() {
             <AlertDialogAction onClick={handleDeleteSelected} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               刪除
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete validation warning for multi-select */}
+      <AlertDialog open={showDeleteValidation} onOpenChange={setShowDeleteValidation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>部分項目無法刪除</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>以下項目不符合刪除條件：</p>
+                <ul className="list-disc pl-5 space-y-1.5 max-h-60 overflow-y-auto">
+                  {deleteValidationIssues.map((issue) => (
+                    <li key={issue.feeId} className="text-sm">
+                      <Link
+                        to={`/fees/${issue.feeId}`}
+                        className="text-primary hover:underline font-medium"
+                        onClick={() => setShowDeleteValidation(false)}
+                      >
+                        {issue.title}
+                      </Link>
+                      <span className="text-muted-foreground ml-1">— {issue.reason}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>關閉</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

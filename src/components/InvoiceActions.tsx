@@ -194,7 +194,7 @@ export function InvoiceActions({ selectedFees, onDone }: InvoiceActionsProps) {
     onDone();
   };
 
-  if (selectedFees.length === 0) return null;
+  if (selectedFees.length === 0) return null; // handled by parent
 
   // Single translator: dropdown with new + existing options
   if (isSingleTranslator) {

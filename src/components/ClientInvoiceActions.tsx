@@ -169,7 +169,7 @@ export function ClientInvoiceActions({ selectedFees, onDone }: ClientInvoiceActi
     onDone();
   };
 
-  if (selectedFees.length === 0) return null;
+  if (selectedFees.length === 0) return null; // handled by parent
 
   // Single client: dropdown with new + existing options
   if (isSingleClient) {
