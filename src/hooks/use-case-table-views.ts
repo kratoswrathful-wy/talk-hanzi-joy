@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { type CaseRecord } from "@/data/case-types";
 import {
   type TableFilter, type TableSort, type TableView, type FilterGroup,
