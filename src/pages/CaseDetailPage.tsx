@@ -543,7 +543,70 @@ export default function CaseDetailPage() {
     saveTools([...tools, { id: `te-${Date.now()}`, tool: "", fieldValues: {} }]);
   };
 
-  const handleDelete = async () => {
+  /* ── Question Tool helpers ── */
+  const questionTools: ToolEntry[] = caseData?.questionTools?.length
+    ? caseData.questionTools
+    : [{ id: `qt-${Date.now()}`, tool: "", fieldValues: {} }];
+
+  const saveQuestionTools = (newTools: ToolEntry[]) => {
+    save({ questionTools: newTools });
+  };
+
+  const updateQuestionTool = (idx: number, updates: Partial<ToolEntry>) => {
+    const next = questionTools.map((t, i) => (i === idx ? { ...t, ...updates } : t));
+    saveQuestionTools(next);
+  };
+
+  const removeQuestionTool = (idx: number) => {
+    const next = questionTools.filter((_, i) => i !== idx);
+    saveQuestionTools(next.length ? next : [{ id: `qt-${Date.now()}`, tool: "", fieldValues: {} }]);
+  };
+
+  const addQuestionTool = () => {
+    saveQuestionTools([...questionTools, { id: `qt-${Date.now()}`, tool: "", fieldValues: {} }]);
+  };
+
+  /* ── Internal Note creation from case ── */
+  const handleCreateInternalNote = () => {
+    // Extract case number without date suffix
+    const caseTitle = caseData?.title || "";
+    // Remove trailing date pattern (e.g., _2026-03-08 or _20260308 etc.)
+    const baseId = caseTitle.replace(/[_\-]?\d{4}[\-\/]?\d{2}[\-\/]?\d{2}$/, "").trim() || caseTitle;
+    const prefix = `${baseId}_Note_`;
+
+    // Find existing notes with this prefix to determine next sequence number
+    const existingNotes = internalNotesStore.findByTitlePrefix(prefix);
+    let maxSeq = 0;
+    for (const note of existingNotes) {
+      const suffix = note.title.slice(prefix.length);
+      const num = parseInt(suffix, 10);
+      if (!isNaN(num) && num > maxSeq) maxSeq = num;
+    }
+    const nextSeq = String(maxSeq + 1).padStart(5, "0");
+
+    const newNote: InternalNote = {
+      id: `note-${Date.now()}`,
+      title: `${prefix}${nextSeq}`,
+      relatedCase: caseTitle,
+      noteId: "",
+      createdAt: new Date().toISOString(),
+      noteType: "",
+      creator: profile?.display_name || "",
+      status: "",
+      internalAssignee: "",
+      fileName: "",
+      idRowCount: "",
+      sourceText: "",
+      translatedText: "",
+      questionOrNote: "",
+      reference: "",
+      internalResolution: "",
+      remarks: "",
+    };
+    internalNotesStore.add(newNote);
+    navigate(`/internal-notes?noteId=${newNote.id}`);
+  };
+
     if (!caseData) return;
     await caseStore.remove(caseData.id);
     toast({ title: "已刪除案件" });
