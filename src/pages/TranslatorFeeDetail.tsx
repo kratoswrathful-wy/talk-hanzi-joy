@@ -1245,7 +1245,7 @@ export default function TranslatorFeeDetail() {
                   </Button>
                 </span>
               </TooltipTrigger>
-              {!isDraft && <TooltipContent>已開立稿費條，無法複製</TooltipContent>}
+              {!isDraft && <TooltipContent>已向譯者開立稿費條，為避免鎖定欄位發生錯亂，不得複製</TooltipContent>}
             </Tooltip>
           )}
           {isManager && (
@@ -1293,7 +1293,7 @@ export default function TranslatorFeeDetail() {
                   </Button>
                 </span>
               </TooltipTrigger>
-              {isFinalized && <TooltipContent>已開立稿費條，無法刪除</TooltipContent>}
+              {isFinalized && <TooltipContent>已向譯者開立稿費條，不得刪除</TooltipContent>}
             </Tooltip>
           )}
           {isManager && isDraft && (
@@ -1334,7 +1334,7 @@ export default function TranslatorFeeDetail() {
                   </Button>
                 </span>
               </TooltipTrigger>
-              {linkedTranslatorInvoices.length > 0 && <TooltipContent>此費用已列入稿費請款單，無法收回</TooltipContent>}
+              {linkedTranslatorInvoices.length > 0 && <TooltipContent>此費用已列入稿費請款單，不得收回</TooltipContent>}
             </Tooltip>
           )}
         </div>
@@ -1390,8 +1390,8 @@ export default function TranslatorFeeDetail() {
                     />
                   </div>
                 </TooltipTrigger>
-                {clientInfo.rateConfirmed && canEdit && <TooltipContent>已勾選費率無誤，譯者欄位已鎖定</TooltipContent>}
-                {!canEdit && isFinalized && <TooltipContent>已開立稿費條，譯者欄位已鎖定</TooltipContent>}
+                {clientInfo.rateConfirmed && canEdit && <TooltipContent>已勾選費率無誤，不得修改譯者</TooltipContent>}
+                {!canEdit && isFinalized && <TooltipContent>已向譯者開立稿費條，不得修改譯者</TooltipContent>}
               </Tooltip>
             </div>
             <div className="grid gap-1.5">
@@ -1406,41 +1406,23 @@ export default function TranslatorFeeDetail() {
           <div className="grid gap-1.5">
             <Label className="text-xs text-muted-foreground">相關案件</Label>
             {(() => {
-              const internalNoteLocked = clientInfo.rateConfirmed || clientInfo.reconciled;
-              const canEditNote = canEdit && !internalNoteLocked;
+              // Locking logic for 相關案件:
+              // 1. If internalNote has value (Notion fetched) → locked, no delete, tooltip "相關案件已擷取完畢，不得修改"
+              // 2. If any field is locked AND internalNote is empty → locked, tooltip "頁面上目前有鎖定欄位，無法擷取並修改資訊"
+              // 3. Otherwise → open
+              const anyFieldLocked = isFinalized || clientInfo.rateConfirmed || clientInfo.reconciled || linkedTranslatorInvoices.length > 0 || linkedClientInvoices.length > 0;
+              const noteFetched = !!internalNote;
+              const noteLocked = noteFetched || (anyFieldLocked && !internalNote);
+              const noteTooltip = noteFetched
+                ? "相關案件已擷取完畢，不得修改"
+                : (anyFieldLocked && !internalNote)
+                  ? "頁面上目前有鎖定欄位，無法擷取並修改資訊"
+                  : "";
+              const canEditNote = canEdit && !noteLocked;
+
               if (canEditNote) {
-                return internalNote ? (
-                  <div className="flex items-center gap-2">
-                    {internalNoteUrl ? (
-                      <a
-                        href={internalNoteUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center h-10 flex-1 rounded-md border border-input bg-secondary/50 px-3 text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors cursor-pointer"
-                      >
-                        {internalNote}
-                      </a>
-                    ) : (
-                      <div className="flex items-center h-10 flex-1 rounded-md border border-input bg-secondary/50 px-3 text-sm">
-                        {internalNote}
-                      </div>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0 h-8 w-8"
-                      onClick={() => {
-                        setInternalNote("");
-                        setInternalNoteUrl("");
-                        setNotionUrlInput("");
-                        if (id) feeStore.updateFee(id, { internalNote: "", internalNoteUrl: "" });
-                      }}
-                      title="清除"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                ) : (
+                // Editable empty state — show URL input
+                return (
                   <div className="flex items-center gap-2">
                     <Input
                       value={notionUrlInput}
@@ -1461,20 +1443,30 @@ export default function TranslatorFeeDetail() {
                   </div>
                 );
               }
-              // Read-only (locked or not canEdit)
-              return internalNoteUrl ? (
-                <a
-                  href={internalNoteUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors cursor-pointer"
-                >
-                  {internalNote || internalNoteUrl}
-                </a>
-              ) : (
-                <div className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-muted-foreground">
-                  {internalNote || "未設定"}
-                </div>
+
+              // Locked or read-only state
+              return (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      {internalNoteUrl ? (
+                        <a
+                          href={internalNoteUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors cursor-pointer opacity-60"
+                        >
+                          {internalNote || internalNoteUrl}
+                        </a>
+                      ) : (
+                        <div className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-muted-foreground opacity-60">
+                          {internalNote || "未設定"}
+                        </div>
+                      )}
+                    </div>
+                  </TooltipTrigger>
+                  {noteTooltip && <TooltipContent>{noteTooltip}</TooltipContent>}
+                </Tooltip>
               );
             })()}
           </div>
@@ -1484,49 +1476,63 @@ export default function TranslatorFeeDetail() {
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-1.5">
                 <Label className="text-xs text-muted-foreground">客戶</Label>
-                <ColorSelect
-                  fieldKey="client"
-                  value={clientInfo.client}
-                  disabled={!isManager || clientInfo.reconciled}
-                  onValueChange={(clientName) => {
-                    trackChange("客戶", clientInfo.client, clientName);
-                    const updatedInfo = { ...clientInfo, client: clientName };
-                    if (clientName) {
-                      // Auto-fill client task item prices (always overwrite on client change)
-                      updatedInfo.clientTaskItems = updatedInfo.clientTaskItems.map(item => {
-                        const price = defaultPricingStore.getClientPrice(clientName, item.taskType, item.billingUnit);
-                        return price !== undefined ? { ...item, clientPrice: price } : item;
-                      });
-                      // Auto-fill translator task item prices via tiers (always overwrite)
-                      const updatedTaskItems = taskItems.map(item => {
-                        const cp = defaultPricingStore.getClientPrice(clientName, item.taskType, item.billingUnit);
-                        if (cp === undefined) return item;
-                        const tp = defaultPricingStore.getTranslatorPrice(cp, item.taskType, item.billingUnit);
-                        return tp !== undefined ? { ...item, unitPrice: tp } : item;
-                      });
-                      setTaskItems(updatedTaskItems);
-                      if (id) feeStore.updateFee(id, { taskItems: updatedTaskItems });
-                    }
-                    setClientInfo(updatedInfo);
-                    if (id) feeStore.updateFee(id, { clientInfo: updatedInfo });
-                  }}
-                  placeholder="選擇客戶"
-                />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <ColorSelect
+                        fieldKey="client"
+                        value={clientInfo.client}
+                        disabled={!isManager || clientInfo.reconciled || linkedClientInvoices.length > 0}
+                        onValueChange={(clientName) => {
+                          trackChange("客戶", clientInfo.client, clientName);
+                          const updatedInfo = { ...clientInfo, client: clientName };
+                          if (clientName) {
+                            updatedInfo.clientTaskItems = updatedInfo.clientTaskItems.map(item => {
+                              const price = defaultPricingStore.getClientPrice(clientName, item.taskType, item.billingUnit);
+                              return price !== undefined ? { ...item, clientPrice: price } : item;
+                            });
+                            const updatedTaskItems = taskItems.map(item => {
+                              const cp = defaultPricingStore.getClientPrice(clientName, item.taskType, item.billingUnit);
+                              if (cp === undefined) return item;
+                              const tp = defaultPricingStore.getTranslatorPrice(cp, item.taskType, item.billingUnit);
+                              return tp !== undefined ? { ...item, unitPrice: tp } : item;
+                            });
+                            setTaskItems(updatedTaskItems);
+                            if (id) feeStore.updateFee(id, { taskItems: updatedTaskItems });
+                          }
+                          setClientInfo(updatedInfo);
+                          if (id) feeStore.updateFee(id, { clientInfo: updatedInfo });
+                        }}
+                        placeholder="選擇客戶"
+                      />
+                    </div>
+                  </TooltipTrigger>
+                  {linkedClientInvoices.length > 0 && <TooltipContent>此費用已列入客戶請款單，不得修改客戶</TooltipContent>}
+                  {!linkedClientInvoices.length && clientInfo.reconciled && <TooltipContent>已勾選對帳完成，不得修改客戶</TooltipContent>}
+                </Tooltip>
               </div>
               <div className="grid gap-1.5">
                 <Label className="text-xs text-muted-foreground">聯絡人</Label>
-                <ColorSelect
-                  fieldKey="contact"
-                  value={clientInfo.contact}
-                  disabled={!isManager || clientInfo.reconciled}
-                  onValueChange={(v) => {
-                    trackChange("聯絡人", clientInfo.contact, v);
-                    const updated = { ...clientInfo, contact: v };
-                    setClientInfo(updated);
-                    if (id) feeStore.updateFee(id, { clientInfo: updated });
-                  }}
-                  placeholder="選擇聯絡人"
-                />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <ColorSelect
+                        fieldKey="contact"
+                        value={clientInfo.contact}
+                        disabled={!isManager || clientInfo.reconciled || linkedClientInvoices.length > 0}
+                        onValueChange={(v) => {
+                          trackChange("聯絡人", clientInfo.contact, v);
+                          const updated = { ...clientInfo, contact: v };
+                          setClientInfo(updated);
+                          if (id) feeStore.updateFee(id, { clientInfo: updated });
+                        }}
+                        placeholder="選擇聯絡人"
+                      />
+                    </div>
+                  </TooltipTrigger>
+                  {linkedClientInvoices.length > 0 && <TooltipContent>此費用已列入客戶請款單，不得修改聯絡人</TooltipContent>}
+                  {!linkedClientInvoices.length && clientInfo.reconciled && <TooltipContent>已勾選對帳完成，不得修改聯絡人</TooltipContent>}
+                </Tooltip>
               </div>
             </div>
           )}
@@ -1638,7 +1644,8 @@ export default function TranslatorFeeDetail() {
                       <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">費率無誤</Label>
                     </div>
                   </TooltipTrigger>
-                  {linkedTranslatorInvoices.length > 0 && !isFinalized && <TooltipContent>此費用已列入稿費請款單，無法取消費率確認</TooltipContent>}
+                  {isFinalized && <TooltipContent>已向譯者開立稿費條，不得修改稿費費率確認狀態</TooltipContent>}
+                  {linkedTranslatorInvoices.length > 0 && !isFinalized && <TooltipContent>已向譯者開立稿費條，無法修改費率確認狀態</TooltipContent>}
                 </Tooltip>
               )}
             </div>
