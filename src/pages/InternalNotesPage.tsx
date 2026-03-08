@@ -2,6 +2,7 @@
  * 內部註記 — full table view with FilterSortToolbar matching fee management pattern.
  */
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { toast } from "sonner";
 import { Plus, ExternalLink, Trash2, GripVertical } from "lucide-react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -56,7 +57,7 @@ const formatDate = (iso: string) => {
 };
 
 function generateNoteTitle(caseTitle: string): string {
-  const baseId = caseTitle.replace(/[_\-]?\d{4}[\-\/]?\d{2}[\-\/]?\d{2}$/, "").trim() || caseTitle;
+  const baseId = caseTitle.replace(/[_\-]?\d{6,8}$/g, "").replace(/[_\-]?\d{4}[\-\/]?\d{2}[\-\/]?\d{2}$/, "").trim() || caseTitle;
   const prefix = `${baseId}_Note_`;
   const maxSeq = internalNotesStore.getMaxSeqForPrefix(prefix);
   const nextSeq = String(maxSeq + 1).padStart(5, "0");
@@ -160,20 +161,22 @@ function NoteDetailView({
       relatedCase: note.relatedCase,
       createdAt: new Date().toISOString(),
       creator: profile?.display_name || "",
-      status: "",
-      noteType: "",
+      status: note.status,
+      noteType: note.noteType,
       internalAssignee: reviewer,
-      fileName: "",
-      idRowCount: "",
-      sourceText: "",
-      translatedText: "",
-      questionOrNote: "",
-      referenceFiles: [],
+      fileName: note.fileName,
+      idRowCount: note.idRowCount,
+      sourceText: note.sourceText,
+      translatedText: note.translatedText,
+      questionOrNote: note.questionOrNote,
+      referenceFiles: note.referenceFiles.map((f) => ({ ...f })),
       comments: [],
       invalidated: false,
     };
     internalNotesStore.add(newNote);
+    toast.success(`已建立新註記頁面「${title}」，現有內容複製自原頁面，請確實妥善編輯更改。`);
     navigate(`/internal-notes?noteId=${newNote.id}`);
+  };
   };
 
   return (

@@ -572,7 +572,7 @@ export default function CaseDetailPage() {
   /* ── Internal Note creation from case ── */
   const handleCreateInternalNote = () => {
     const caseTitle = caseData?.title || "";
-    const baseId = caseTitle.replace(/[_\-]?\d{4}[\-\/]?\d{2}[\-\/]?\d{2}$/, "").trim() || caseTitle;
+    const baseId = caseTitle.replace(/[_\-]?\d{6,8}$/g, "").replace(/[_\-]?\d{4}[\-\/]?\d{2}[\-\/]?\d{2}$/, "").trim() || caseTitle;
     const prefix = `${baseId}_Note_`;
     const maxSeq = internalNotesStore.getMaxSeqForPrefix(prefix);
     const nextSeq = String(maxSeq + 1).padStart(5, "0");
