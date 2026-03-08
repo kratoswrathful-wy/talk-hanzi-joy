@@ -64,7 +64,7 @@ interface ColumnDef {
   key: string;
   label: string;
   minWidth: number;
-  render: (c: CaseRecord, opts: { editable: boolean; onCommit: (field: string, value: string | boolean) => void }) => React.ReactNode;
+  render: (c: CaseRecord, opts: { editable: boolean; onCommit: (field: string, value: string | boolean | string[]) => void }) => React.ReactNode;
 }
 
 function CategoryLabel({ value }: { value: string }) {
