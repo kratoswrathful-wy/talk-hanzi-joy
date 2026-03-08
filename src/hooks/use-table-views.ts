@@ -28,6 +28,8 @@ export const fieldMetas: FieldMeta[] = [
   { key: "rateConfirmed", label: "費率無誤", type: "checkbox" },
   { key: "invoiced", label: "請款完成", type: "checkbox" },
   { key: "sameCase", label: "費用群組", type: "checkbox" },
+  { key: "translatorInvoiceStatus", label: "稿費請款狀態", type: "select" },
+  { key: "clientInvoiceStatus", label: "客戶請款狀態", type: "select" },
   { key: "invoice", label: "請款單", type: "text" },
   { key: "createdBy", label: "建立者", type: "text" },
   { key: "createdAt", label: "建立時間", type: "date" },
