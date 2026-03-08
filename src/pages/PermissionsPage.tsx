@@ -65,6 +65,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
       {
         label: "頁面一般操作",
         items: [
+          { key: "fee_detail_viewDraft", label: "檢視草稿", type: "view" },
           { key: "fee_detail_delete", label: "刪除頁面", type: "both", attribute: "按鈕" },
           { key: "fee_detail_copy", label: "複製頁面", type: "both", attribute: "按鈕" },
           { key: "fee_detail_createNew", label: "新增費用頁面", type: "both", attribute: "按鈕" },

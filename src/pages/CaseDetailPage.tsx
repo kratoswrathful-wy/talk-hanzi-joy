@@ -458,6 +458,9 @@ export default function CaseDetailPage() {
       <Field label="案件編號">
         <Input value={caseData.title} onChange={(e) => save({ title: e.target.value })} className="max-w-md" />
       </Field>
+      <Field label="狀態">
+        <CaseStatusBadge status={caseData.status} />
+      </Field>
 
       <Separator />
 
