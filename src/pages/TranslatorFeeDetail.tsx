@@ -1507,6 +1507,7 @@ export default function TranslatorFeeDetail() {
                     }
                   }
                 }}
+                linkedClientInvoices={linkedClientInvoices}
               />
             </div>
           </>
