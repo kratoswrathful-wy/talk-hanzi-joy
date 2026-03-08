@@ -6,10 +6,11 @@ import { loadSetting, saveSetting, markDirty } from "./settings-persistence";
 export interface SelectOption {
   id: string;
   label: string;
-  email?: string; // for assignee options: the member's email
-  color: string; // hex color
-  note?: string; // optional note (e.g. translator fee note)
-  avatarUrl?: string | null; // for assignee options: profile avatar
+  email?: string;
+  color: string;
+  note?: string;
+  avatarUrl?: string | null;
+  timezone?: string | null;
 }
 
 export const PRESET_COLORS = [
