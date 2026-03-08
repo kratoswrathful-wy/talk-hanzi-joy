@@ -158,7 +158,11 @@ const allColumnDefs: ColumnDef[] = [
     minWidth: 80,
     render: (f) => {
       const total = f.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
-      return <span className="text-sm tabular-nums">{formatCurrency(total)}</span>;
+      return (
+        <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+          <span className="text-sm tabular-nums cursor-default">{formatCurrency(total)}</span>
+        </TooltipTrigger><TooltipContent className="text-xs">自動計算/填入</TooltipContent></Tooltip></TooltipProvider>
+      );
     },
   },
   {
