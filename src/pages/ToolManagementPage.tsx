@@ -21,7 +21,7 @@ function getColorUsageMap(options: { label: string; color: string }[]): Record<s
 }
 
 /* ── Tool Sub-Field Manager ── */
-function ToolFieldManager({ optionId, fields }: { optionId: string; fields: { id: string; label: string }[] }) {
+function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { optionId: string; fields: { id: string; label: string }[]; fieldKey?: string }) {
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
