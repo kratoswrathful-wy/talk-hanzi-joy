@@ -585,7 +585,7 @@ export default function CaseDetailPage() {
       creator: profile?.display_name || "",
       status: "",
       noteType: "",
-      internalAssignee: caseData?.reviewer || "",
+      internalAssignee: caseData?.reviewer ? [caseData.reviewer] : [],
       fileName: "",
       idRowCount: "",
       sourceText: "",

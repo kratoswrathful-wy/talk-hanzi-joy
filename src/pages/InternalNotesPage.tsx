@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { useRowSelection } from "@/hooks/use-row-selection";
 import ColorSelect from "@/components/ColorSelect";
+import MultiColorSelect from "@/components/MultiColorSelect";
 import FileField from "@/components/FileField";
 import { CommentInput } from "@/components/comments/CommentInput";
 import { CommentContent } from "@/components/comments/CommentContent";
@@ -123,15 +124,18 @@ function NoteDetailView({
   note,
   onUpdate,
   onBack,
+  onDelete,
 }: {
   note: InternalNote;
   onUpdate: (updates: Partial<InternalNote>) => void;
   onBack: () => void;
+  onDelete: () => void;
 }) {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const [invalidateOpen, setInvalidateOpen] = useState(false);
   const [invalidateReason, setInvalidateReason] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [commentDraft, setCommentDraft] = useState("");
 
   const comments = note.comments || [];
@@ -163,7 +167,7 @@ function NoteDetailView({
       creator: profile?.display_name || "",
       status: note.status,
       noteType: note.noteType,
-      internalAssignee: reviewer,
+      internalAssignee: reviewer ? [reviewer] : [],
       fileName: note.fileName,
       idRowCount: note.idRowCount,
       sourceText: note.sourceText,
@@ -198,6 +202,15 @@ function NoteDetailView({
               本註記已失效
             </Button>
           )}
+          <Button
+            variant="destructive"
+            size="sm"
+            className="text-xs"
+            onClick={() => setDeleteOpen(true)}
+          >
+            <Trash2 className="h-3.5 w-3.5 mr-1" />
+            刪除
+          </Button>
         </div>
       </div>
 
@@ -242,7 +255,7 @@ function NoteDetailView({
       </Field>
 
       <Field label="內部指派對象" icon="👥">
-        <ColorSelect fieldKey="assignee" value={note.internalAssignee} onValueChange={(v) => onUpdate({ internalAssignee: v })} />
+        <MultiColorSelect fieldKey="assignee" values={note.internalAssignee || []} onValuesChange={(v) => onUpdate({ internalAssignee: v })} />
       </Field>
 
       <Separator />
@@ -322,6 +335,20 @@ function NoteDetailView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>確認刪除</AlertDialogTitle>
+            <AlertDialogDescription>確定要刪除此內部註記嗎？此操作無法復原。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { onDelete(); setDeleteOpen(false); }}>確認刪除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   ); // end NoteDetailView return
 } // end NoteDetailView
@@ -352,7 +379,7 @@ function NewNoteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
       creator: profile?.display_name || "",
       status: "",
       noteType: "",
-      internalAssignee: reviewer,
+      internalAssignee: reviewer ? [reviewer] : [],
       fileName: "",
       idRowCount: "",
       sourceText: "",
@@ -461,7 +488,7 @@ export default function InternalNotesPage() {
       render: (n) => <NatureBadge nature={n.noteType} />,
     },
     { key: "creator", label: "建立者", minWidth: 80, render: (n) => <span className="text-sm">{n.creator || "—"}</span> },
-    { key: "internalAssignee", label: "內部指派", minWidth: 80, render: (n) => <span className="text-sm">{n.internalAssignee || "—"}</span> },
+    { key: "internalAssignee", label: "內部指派", minWidth: 80, render: (n) => <span className="text-sm">{(n.internalAssignee || []).join(", ") || "—"}</span> },
     { key: "createdAt", label: "建立時間", minWidth: 100, render: (n) => <span className="text-sm text-muted-foreground tabular-nums">{formatDate(n.createdAt)}</span> },
   ];
 
@@ -578,6 +605,7 @@ export default function InternalNotesPage() {
         note={selectedNote}
         onUpdate={(updates) => internalNotesStore.update(selectedId!, updates)}
         onBack={() => setSelectedId(null)}
+        onDelete={() => { internalNotesStore.remove(selectedId!); setSelectedId(null); }}
       />
     );
   }

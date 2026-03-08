@@ -25,7 +25,7 @@ export interface InternalNote {
   creator: string;
   status: string;               // single-select via noteStatus
   noteType: string;             // 性質 — single-select via noteNature
-  internalAssignee: string;     // default = case reviewer
+  internalAssignee: string[];    // default = [case reviewer]
   fileName: string;
   idRowCount: string;
   sourceText: string;
@@ -57,7 +57,7 @@ function getFieldValue(note: InternalNote, field: string): string | number | boo
     case "status": return note.invalidated ? "已失效" : note.status;
     case "noteType": return note.noteType;
     case "creator": return note.creator;
-    case "internalAssignee": return note.internalAssignee;
+    case "internalAssignee": return (note.internalAssignee || []).join(", ");
     case "createdAt": return note.createdAt;
     default: return "";
   }
