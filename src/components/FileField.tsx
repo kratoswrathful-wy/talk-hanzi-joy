@@ -93,22 +93,79 @@ export default function FileField({ value, onChange }: FileFieldProps) {
     }
   };
 
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+
+  const handleItemDrop = (targetIdx: number) => {
+    if (dragIdx === null || dragIdx === targetIdx) return;
+    const next = [...value];
+    const [moved] = next.splice(dragIdx, 1);
+    next.splice(targetIdx, 0, moved);
+    onChange(next);
+    setDragIdx(null);
+    setDragOverIdx(null);
+  };
+
+  const commitRename = (idx: number) => {
+    const trimmed = editName.trim();
+    if (trimmed && trimmed !== value[idx]?.name) {
+      const next = [...value];
+      next[idx] = { ...next[idx], name: trimmed };
+      onChange(next);
+    }
+    setEditingIdx(null);
+  };
+
   return (
     <div className="space-y-1.5">
       {/* Existing items */}
       {value.length > 0 && (
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           {value.map((item, idx) => (
-            <div key={idx} className="flex items-center gap-1.5 group">
+            <div
+              key={idx}
+              draggable
+              onDragStart={() => setDragIdx(idx)}
+              onDragOver={(e) => { e.preventDefault(); if (dragIdx !== null && dragIdx !== idx) setDragOverIdx(idx); }}
+              onDrop={() => handleItemDrop(idx)}
+              onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
+              className={`flex items-center gap-1.5 group rounded px-0.5 py-0.5 cursor-grab active:cursor-grabbing transition-colors ${
+                dragOverIdx === idx ? "bg-primary/10 border border-dashed border-primary/30" : ""
+              } ${dragIdx === idx ? "opacity-50" : ""}`}
+            >
+              <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
               <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-primary hover:underline truncate max-w-[320px]"
+              {editingIdx === idx ? (
+                <input
+                  className="text-sm bg-transparent border-b border-primary outline-none flex-1 max-w-[280px]"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onBlur={() => commitRename(idx)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitRename(idx);
+                    if (e.key === "Escape") setEditingIdx(null);
+                  }}
+                  autoFocus
+                />
+              ) : (
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary hover:underline truncate max-w-[320px]"
+                >
+                  {item.name}
+                </a>
+              )}
+              <button
+                onClick={() => { setEditingIdx(idx); setEditName(item.name); }}
+                className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0 opacity-0 group-hover:opacity-100"
+                title="重新命名"
               >
-                {item.name}
-              </a>
+                <Pencil className="h-3 w-3" />
+              </button>
               <button
                 onClick={() => removeItem(idx)}
                 className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0 opacity-0 group-hover:opacity-100"
