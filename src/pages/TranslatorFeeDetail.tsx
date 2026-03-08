@@ -1559,8 +1559,8 @@ export default function TranslatorFeeDetail() {
         {/* Task Items Table */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Label className="text-sm font-medium">稿費內容</Label>
+            <div className="flex items-center gap-3">
+              <Label className="text-sm font-medium leading-none">稿費內容</Label>
               {linkedTranslatorInvoices.length > 0 && (
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-muted-foreground">稿費請款單</span>
