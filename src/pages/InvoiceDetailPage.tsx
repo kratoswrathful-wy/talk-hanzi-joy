@@ -17,7 +17,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useInvoice, invoiceStore } from "@/hooks/use-invoice-store";
+import { useInvoice, invoiceStore, useInvoicesLoaded } from "@/hooks/use-invoice-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
