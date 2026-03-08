@@ -18,6 +18,8 @@ import InvoicesPage from "@/pages/InvoicesPage";
 import InvoiceDetailPage from "@/pages/InvoiceDetailPage";
 import ClientInvoicesPage from "@/pages/ClientInvoicesPage";
 import ClientInvoiceDetailPage from "@/pages/ClientInvoiceDetailPage";
+import CasesPage from "@/pages/CasesPage";
+import CaseDetailPage from "@/pages/CaseDetailPage";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 import { initSettings } from "@/stores/settings-init";
