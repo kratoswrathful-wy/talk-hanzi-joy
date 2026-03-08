@@ -156,7 +156,12 @@ export function usePermissions() {
 
   const checkPerm = useCallback((moduleKey: string, itemKey: string, permType: "view" | "edit"): boolean => {
     const modulePerms = (config as any)?.module_permissions?.[primaryRole]?.[moduleKey];
-    if (!modulePerms) return true;
+    if (!modulePerms) {
+      // Default restrictions for new modules when no explicit config exists
+      if (moduleKey === "field_reference" && primaryRole === "member") return false;
+      if (moduleKey === "internal_notes" && primaryRole !== "executive") return false;
+      return true;
+    }
     if (!modulePerms.visible) return false;
     const itemPerm = modulePerms.items?.[itemKey];
     if (!itemPerm) return true;

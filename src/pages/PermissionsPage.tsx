@@ -77,7 +77,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
         label: "費用單基本資料",
         items: [
           { key: "fee_detail_title", label: "標題", type: "both", attribute: "文字" },
-          { key: "fee_detail_assignee", label: "譯者", type: "both", attribute: "單選" },
+          { key: "fee_detail_assignee", label: "譯者", type: "both", attribute: "人員（單選）" },
           { key: "fee_detail_status", label: "稿費開立狀態", type: "view", attribute: "自動填入（無法編輯）" },
           { key: "fee_detail_internalNote", label: "相關案件", type: "both", attribute: "文字" },
         ],
@@ -141,7 +141,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
         label: "請款單基本資料",
         items: [
           { key: "inv_detail_title", label: "標題", type: "both", attribute: "文字" },
-          { key: "inv_detail_translator", label: "請款人", type: "both", attribute: "單選" },
+          { key: "inv_detail_translator", label: "請款人", type: "both", attribute: "人員（單選）" },
           { key: "inv_detail_status", label: "狀態", type: "view", attribute: "自動填入（無法編輯）" },
           { key: "inv_detail_addFee", label: "加入費用", type: "both", attribute: "按鈕" },
           { key: "inv_detail_removeFee", label: "移除費用", type: "both", attribute: "按鈕" },
@@ -213,8 +213,8 @@ const PERMISSION_MODULES: PermissionModule[] = [
           { key: "case_detail_category", label: "類型", type: "both", attribute: "單選" },
           { key: "case_detail_workType", label: "工作類型", type: "both", attribute: "單選" },
           { key: "case_detail_taskStatus", label: "任務狀態", type: "both", attribute: "單選" },
-          { key: "case_detail_translator", label: "譯者", type: "both", attribute: "人員" },
-          { key: "case_detail_reviewer", label: "審稿人員", type: "both", attribute: "人員" },
+          { key: "case_detail_translator", label: "譯者", type: "both", attribute: "人員（多選）" },
+          { key: "case_detail_reviewer", label: "審稿人員", type: "both", attribute: "人員（單選）" },
         ],
       },
     ],
@@ -243,6 +243,38 @@ const PERMISSION_MODULES: PermissionModule[] = [
       { key: "members_showFrozen", label: "顯示暫時凍結人員", type: "view" },
     ],
     detailSections: [],
+  },
+  {
+    key: "field_reference",
+    label: "欄位對照表",
+    listItems: [
+      { key: "field_ref_view", label: "檢視欄位對照表", type: "view" },
+    ],
+    detailSections: [],
+  },
+  {
+    key: "internal_notes",
+    label: "內部提問及備註",
+    listItems: [
+      { key: "inotes_list_view", label: "檢視列表", type: "both" },
+      { key: "inotes_list_create", label: "新增紀錄", type: "both", attribute: "按鈕" },
+      { key: "inotes_list_delete", label: "刪除紀錄", type: "both", attribute: "按鈕" },
+    ],
+    detailSections: [
+      {
+        label: "紀錄詳情",
+        items: [
+          { key: "inotes_detail_title", label: "標題", type: "both", attribute: "文字" },
+          { key: "inotes_detail_relatedCase", label: "關聯案件", type: "both", attribute: "關聯" },
+          { key: "inotes_detail_noteType", label: "性質", type: "both", attribute: "單選" },
+          { key: "inotes_detail_status", label: "狀態", type: "both", attribute: "單選" },
+          { key: "inotes_detail_assignee", label: "內部指派對象", type: "both", attribute: "人員（單選）" },
+          { key: "inotes_detail_content", label: "問題或註記內容", type: "both", attribute: "長文字" },
+          { key: "inotes_detail_resolution", label: "內部處理結論", type: "both", attribute: "長文字" },
+          { key: "inotes_detail_remarks", label: "備註", type: "both", attribute: "長文字" },
+        ],
+      },
+    ],
   },
 ];
 

@@ -1,4 +1,4 @@
-import { Receipt, FileText, Settings, Users, User, Shield, Briefcase, Wrench } from "lucide-react";
+import { Receipt, FileText, Settings, Users, User, Shield, Briefcase, Wrench, Table2, MessageSquareText } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -27,13 +27,17 @@ export function AppSidebar() {
   const canViewClientInvoices = checkPerm("client_invoices", "cinv_list_view", "view");
   const canViewCases = checkPerm("case_management", "case_list_view", "view");
   const canViewTools = checkPerm("tool_management", "tool_list_view", "view");
+  const canViewFieldRef = checkPerm("field_reference", "field_ref_view", "view");
+  const canViewInternalNotes = checkPerm("internal_notes", "inotes_list_view", "view");
 
   const navItems = [
     ...(canViewCases ? [{ title: "案件管理", url: "/cases", icon: Briefcase }] : []),
     { title: "費用管理", url: "/fees", icon: Receipt },
     { title: "稿費請款", url: "/invoices", icon: FileText },
     ...(canViewClientInvoices ? [{ title: "客戶請款", url: "/client-invoices", icon: FileText }] : []),
+    ...(canViewInternalNotes ? [{ title: "內部提問及備註", url: "/internal-notes", icon: MessageSquareText }] : []),
     ...(canViewTools ? [{ title: "工具管理", url: "/tools", icon: Wrench }] : []),
+    ...(canViewFieldRef ? [{ title: "欄位對照表", url: "/field-reference", icon: Table2 }] : []),
     ...(canViewMembers ? [{ title: "團隊成員", url: "/members", icon: Users }] : []),
     ...(isExecutive ? [{ title: "權限管理", url: "/permissions", icon: Shield }] : []),
     { title: "個人檔案", url: "/profile", icon: User },

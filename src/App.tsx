@@ -21,6 +21,8 @@ import ClientInvoiceDetailPage from "@/pages/ClientInvoiceDetailPage";
 import CasesPage from "@/pages/CasesPage";
 import CaseDetailPage from "@/pages/CaseDetailPage";
 import ToolManagementPage from "@/pages/ToolManagementPage";
+import FieldReferencePage from "@/pages/FieldReferencePage";
+import InternalNotesPage from "@/pages/InternalNotesPage";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 import { initSettings } from "@/stores/settings-init";
@@ -64,6 +66,8 @@ function AuthenticatedRoutes() {
         <Route path="/client-invoices" element={<ClientInvoicesPage />} />
         <Route path="/client-invoices/:id" element={<ClientInvoiceDetailPage />} />
         <Route path="/tools" element={<ToolManagementPage />} />
+        <Route path="/field-reference" element={<FieldReferencePage />} />
+        <Route path="/internal-notes" element={<InternalNotesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/members" element={<MembersPage />} />

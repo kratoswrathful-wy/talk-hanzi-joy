@@ -1,6 +1,7 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Trash2, Plus, X } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -410,6 +411,7 @@ export default function CaseDetailPage() {
   const [caseData, setCaseData] = useState<CaseRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [creatorName, setCreatorName] = useState("");
 
   useEffect(() => {
     caseStore.load().then(() => {
@@ -418,6 +420,16 @@ export default function CaseDetailPage() {
       setLoading(false);
     });
   }, [id]);
+
+  // Resolve creator UUID to display name
+  useEffect(() => {
+    const uid = caseData?.createdBy;
+    if (!uid || uid.length !== 36) return;
+    supabase.from("profiles").select("display_name, email").eq("id", uid).maybeSingle()
+      .then(({ data }) => {
+        if (data) setCreatorName(data.display_name || data.email);
+      });
+  }, [caseData?.createdBy]);
 
   const save = (partial: Partial<CaseRecord>) => {
     if (!caseData) return;
@@ -659,10 +671,11 @@ export default function CaseDetailPage() {
 
       <Separator />
 
-      <h2 className="text-base font-semibold">建立資訊</h2>
-      <Field label="建立時間">
-        <span className="text-sm">{new Date(caseData.createdAt).toLocaleString("zh-TW")}</span>
-      </Field>
+      {/* Meta info - same format as fee detail */}
+      <div className="flex gap-6 text-xs text-muted-foreground">
+        <span>建立者：{creatorName || "—"}</span>
+        <span>建立時間：{new Date(caseData.createdAt).toLocaleString("zh-TW")}</span>
+      </div>
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
