@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { format, addDays, startOfDay } from "date-fns";
-import { CalendarIcon } from "lucide-react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { format, addDays, startOfDay, isSameMonth, isSameDay, getDaysInMonth } from "date-fns";
+import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
+import { DayPicker } from "react-day-picker";
+import { buttonVariants } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
@@ -16,56 +17,107 @@ interface DateTimePickerProps {
   className?: string;
 }
 
-/**
- * Rolling 4-digit time input.
- * Typing digits pushes from right to left, like a calculator display.
- * e.g. type "1" → 00:01, "12" → 00:12, "123" → 01:23, "1230" → 12:30
- */
-function useRollingTimeInput(initial: string) {
-  // Store raw digit buffer (up to 4 digits)
-  const [digits, setDigits] = useState<string>("");
+/* ── Generic rolling N-digit input hook ── */
+function useRollingInput(maxDigits: number, initial: string) {
+  const [digits, setDigits] = useState<string>(initial.padStart(maxDigits, "0"));
 
-  const formatDigits = useCallback((d: string): string => {
-    const padded = d.padStart(4, "0");
-    return `${padded.slice(0, 2)}:${padded.slice(2, 4)}`;
-  }, []);
+  const reset = useCallback((raw: string) => {
+    setDigits(raw.replace(/\D/g, "").padStart(maxDigits, "0").slice(-maxDigits));
+  }, [maxDigits]);
 
-  const display = formatDigits(digits);
-
-  const reset = useCallback((timeStr: string) => {
-    // Parse "HH:mm" back to raw digits, stripping leading zeros for buffer
-    const clean = timeStr.replace(":", "");
-    // Keep full 4 digits
-    setDigits(clean.padStart(4, "0"));
-  }, []);
-
-  const handleKey = useCallback((key: string): string | null => {
+  const handleKey = useCallback((key: string) => {
     if (key === "Backspace") {
       setDigits((prev) => {
         const next = prev.length > 1 ? prev.slice(0, -1) : "0";
-        return next;
+        return next.padStart(maxDigits, "0").slice(-maxDigits);
       });
-      return null; // return updated display after state settles
+      return;
     }
-    if (!/^\d$/.test(key)) return null;
+    if (!/^\d$/.test(key)) return;
     setDigits((prev) => {
-      // Append digit, keep max 4
       let next = prev + key;
-      // Remove leading zeros beyond 4 chars
-      if (next.length > 4) next = next.slice(next.length - 4);
+      if (next.length > maxDigits) next = next.slice(next.length - maxDigits);
       return next;
     });
-    return null;
-  }, []);
+  }, [maxDigits]);
 
-  const validate = useCallback((): { valid: boolean; hours: number; minutes: number } => {
-    const padded = digits.padStart(4, "0");
-    const h = parseInt(padded.slice(0, 2));
-    const m = parseInt(padded.slice(2, 4));
-    return { valid: h >= 0 && h <= 23 && m >= 0 && m <= 59, hours: h, minutes: m };
-  }, [digits]);
+  const padded = digits.padStart(maxDigits, "0").slice(-maxDigits);
 
-  return { display, reset, handleKey, validate, formatDigits, digits };
+  return { padded, reset, handleKey };
+}
+
+/* ── Custom calendar with today indicator logic ── */
+function DateTimeCalendar({
+  selected,
+  onSelect,
+  displayMonth,
+  onMonthChange,
+}: {
+  selected: Date | undefined;
+  onSelect: (d: Date | undefined) => void;
+  displayMonth: Date;
+  onMonthChange: (m: Date) => void;
+}) {
+  const today = useMemo(() => new Date(), []);
+  const todayInDisplayMonth = isSameMonth(today, displayMonth);
+  const todayIsSelected = selected ? isSameDay(today, selected) : false;
+
+  // Determine if today is before or after the displayed month
+  const todayBefore = today < displayMonth && !todayInDisplayMonth;
+  const todayAfter = !todayBefore && !todayInDisplayMonth;
+
+  return (
+    <DayPicker
+      mode="single"
+      selected={selected}
+      onSelect={onSelect}
+      month={displayMonth}
+      onMonthChange={onMonthChange}
+      showOutsideDays
+      weekStartsOn={1}
+      className="p-0 pointer-events-auto"
+      classNames={{
+        months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
+        month: "space-y-4",
+        caption: "flex justify-center pt-1 relative items-center",
+        caption_label: "text-sm font-medium",
+        nav: "space-x-1 flex items-center",
+        nav_button: cn(
+          buttonVariants({ variant: "outline" }),
+          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
+        ),
+        nav_button_previous: cn(
+          "absolute left-1",
+          todayBefore && "opacity-100 border-destructive text-destructive hover:text-destructive hover:border-destructive"
+        ),
+        nav_button_next: cn(
+          "absolute right-1",
+          todayAfter && "opacity-100 border-destructive text-destructive hover:text-destructive hover:border-destructive"
+        ),
+        table: "w-full border-collapse space-y-1",
+        head_row: "flex",
+        head_cell: "text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]",
+        row: "flex w-full mt-2",
+        cell: "h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
+        day: cn(buttonVariants({ variant: "ghost" }), "h-9 w-9 p-0 font-normal aria-selected:opacity-100"),
+        day_range_end: "day-range-end",
+        day_selected:
+          "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+        day_today: todayIsSelected
+          ? "bg-primary text-primary-foreground"
+          : "bg-transparent ring-1 ring-inset ring-muted-foreground text-foreground",
+        day_outside:
+          "day-outside text-muted-foreground opacity-50 aria-selected:bg-accent/50 aria-selected:text-muted-foreground aria-selected:opacity-30",
+        day_disabled: "text-muted-foreground opacity-50",
+        day_range_middle: "aria-selected:bg-accent aria-selected:text-accent-foreground",
+        day_hidden: "invisible",
+      }}
+      components={{
+        IconLeft: ({ ..._props }) => <ChevronLeft className="h-4 w-4" />,
+        IconRight: ({ ..._props }) => <ChevronRight className="h-4 w-4" />,
+      }}
+    />
+  );
 }
 
 export default function DateTimePicker({
@@ -76,133 +128,175 @@ export default function DateTimePicker({
   className,
 }: DateTimePickerProps) {
   const [open, setOpen] = useState(false);
+  const dateRef = useRef<HTMLInputElement>(null);
   const timeRef = useRef<HTMLInputElement>(null);
 
-  const date = value ? new Date(value) : null;
+  const parsedDate = value ? new Date(value) : null;
 
-  const [dateInput, setDateInput] = useState(date ? format(date, "yyyy/MM/dd") : "");
-  const rolling = useRollingTimeInput(date ? format(date, "HH:mm") : "00:00");
+  // Year is a regular text input
+  const [yearInput, setYearInput] = useState(parsedDate ? format(parsedDate, "yyyy") : "");
+  // MMDD rolling input
+  const dateRolling = useRollingInput(4, parsedDate ? format(parsedDate, "MMdd") : "0101");
+  // HHmm rolling input
+  const timeRolling = useRollingInput(4, parsedDate ? format(parsedDate, "HHmm") : "0000");
+
   const [timeError, setTimeError] = useState(false);
+  const [dateError, setDateError] = useState(false);
+  const [displayMonth, setDisplayMonth] = useState<Date>(parsedDate || new Date());
+
+  const dateDisplay = `${dateRolling.padded.slice(0, 2)}/${dateRolling.padded.slice(2, 4)}`;
+  const timeDisplay = `${timeRolling.padded.slice(0, 2)}:${timeRolling.padded.slice(2, 4)}`;
 
   // Sync from outside
   useEffect(() => {
     if (value) {
       const d = new Date(value);
-      setDateInput(format(d, "yyyy/MM/dd"));
-      rolling.reset(format(d, "HH:mm"));
+      setYearInput(format(d, "yyyy"));
+      dateRolling.reset(format(d, "MMdd"));
+      timeRolling.reset(format(d, "HHmm"));
+      setDisplayMonth(d);
     } else {
-      setDateInput("");
-      rolling.reset("00:00");
+      setYearInput("");
+      dateRolling.reset("0101");
+      timeRolling.reset("0000");
     }
     setTimeError(false);
+    setDateError(false);
   }, [value]);
 
-  const buildIso = (dateStr: string, timeStr: string): string | null => {
-    if (!dateStr) return null;
-    const match = dateStr.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
-    if (!match) return null;
-    const y = parseInt(match[1]);
-    const m = parseInt(match[2]) - 1;
-    const d = parseInt(match[3]);
-    const dt = new Date(y, m, d);
+  const buildIso = (year: string, mmdd: string, hhmm: string): string | null => {
+    const y = parseInt(year);
+    if (!year || isNaN(y) || y < 1900 || y > 2100) return null;
+    const mm = parseInt(mmdd.slice(0, 2));
+    const dd = parseInt(mmdd.slice(2, 4));
+    if (mm < 1 || mm > 12 || dd < 1) return null;
+    const maxDay = getDaysInMonth(new Date(y, mm - 1));
+    if (dd > maxDay) return null;
+    const hh = parseInt(hhmm.slice(0, 2));
+    const mi = parseInt(hhmm.slice(2, 4));
+    if (hh > 23 || mi > 59) return null;
+    const dt = new Date(y, mm - 1, dd, hh, mi, 0, 0);
     if (isNaN(dt.getTime())) return null;
-
-    const timeParts = timeStr.match(/^(\d{1,2}):(\d{2})$/);
-    if (timeParts) {
-      dt.setHours(parseInt(timeParts[1]), parseInt(timeParts[2]), 0, 0);
-    }
     return dt.toISOString();
   };
 
-  const commitChange = (dateStr: string, timeStr: string) => {
-    const iso = buildIso(dateStr, timeStr);
+  const commitAll = () => {
+    const iso = buildIso(yearInput, dateRolling.padded, timeRolling.padded);
     onChange(iso);
   };
 
-  const validateAndCommitTime = (): boolean => {
-    const { valid } = rolling.validate();
-    if (!valid) {
+  const validateDate = (): boolean => {
+    const mm = parseInt(dateRolling.padded.slice(0, 2));
+    const dd = parseInt(dateRolling.padded.slice(2, 4));
+    const y = parseInt(yearInput) || new Date().getFullYear();
+    if (mm < 1 || mm > 12 || dd < 1 || dd > getDaysInMonth(new Date(y, mm - 1))) {
+      setDateError(true);
+      toast.error("日期格式不正確，月份須為 01-12，日期須為有效日");
+      return false;
+    }
+    setDateError(false);
+    return true;
+  };
+
+  const validateTime = (): boolean => {
+    const hh = parseInt(timeRolling.padded.slice(0, 2));
+    const mi = parseInt(timeRolling.padded.slice(2, 4));
+    if (hh > 23 || mi > 59) {
       setTimeError(true);
       toast.error("時間格式不正確，小時須為 0-23，分鐘須為 0-59");
       return false;
     }
     setTimeError(false);
-    if (dateInput) commitChange(dateInput, rolling.display);
     return true;
   };
 
   const handleCalendarSelect = (selected: Date | undefined) => {
     if (!selected) return;
-    const ds = format(selected, "yyyy/MM/dd");
-    setDateInput(ds);
-    commitChange(ds, rolling.display || "00:00");
-    setTimeout(() => {
-      timeRef.current?.focus();
-    }, 50);
+    setYearInput(format(selected, "yyyy"));
+    dateRolling.reset(format(selected, "MMdd"));
+    setDateError(false);
+    // Commit immediately
+    const iso = buildIso(format(selected, "yyyy"), format(selected, "MMdd"), timeRolling.padded);
+    onChange(iso);
+    setTimeout(() => timeRef.current?.focus(), 50);
   };
 
   const handleQuickDate = (daysFromNow: number) => {
     const target = startOfDay(addDays(new Date(), daysFromNow));
-    const ds = format(target, "yyyy/MM/dd");
-    setDateInput(ds);
-    commitChange(ds, rolling.display || "00:00");
-    setTimeout(() => {
-      timeRef.current?.focus();
-    }, 50);
+    setYearInput(format(target, "yyyy"));
+    dateRolling.reset(format(target, "MMdd"));
+    setDateError(false);
+    setDisplayMonth(target);
+    const iso = buildIso(format(target, "yyyy"), format(target, "MMdd"), timeRolling.padded);
+    onChange(iso);
+    setTimeout(() => timeRef.current?.focus(), 50);
   };
 
   const handleClear = () => {
-    setDateInput("");
-    rolling.reset("00:00");
+    setYearInput("");
+    dateRolling.reset("0101");
+    timeRolling.reset("0000");
     setTimeError(false);
+    setDateError(false);
     onChange(null);
     setOpen(false);
   };
 
-  const handleDateInputBlur = () => {
-    if (dateInput) commitChange(dateInput, rolling.display);
+  const handleYearBlur = () => {
+    if (yearInput) commitAll();
   };
 
-  const handleTimeKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const makeRollingKeyHandler = (
+    rolling: { handleKey: (k: string) => void },
+    errorSetter: (v: boolean) => void,
+    validateFn: () => boolean,
+    nextRef?: React.RefObject<HTMLInputElement | null>,
+  ) => (e: React.KeyboardEvent<HTMLInputElement>) => {
     e.preventDefault();
     if (e.key === "Enter") {
-      if (validateAndCommitTime()) {
+      if (validateFn()) {
+        commitAll();
         setOpen(false);
       }
       return;
     }
     if (e.key === "Tab") {
-      validateAndCommitTime();
+      if (validateFn()) {
+        commitAll();
+        if (!e.shiftKey && nextRef?.current) {
+          setTimeout(() => nextRef.current?.focus(), 0);
+        }
+      }
       return;
     }
     if (e.key === "Backspace" || /^\d$/.test(e.key)) {
-      setTimeError(false);
+      errorSetter(false);
       rolling.handleKey(e.key);
     }
   };
 
+  const handleDateKeyDown = makeRollingKeyHandler(dateRolling, setDateError, validateDate, timeRef);
+  const handleTimeKeyDown = makeRollingKeyHandler(timeRolling, setTimeError, validateTime);
+
+  const handleDateBlur = () => {
+    if (validateDate() && yearInput) commitAll();
+  };
+
   const handleTimeBlur = () => {
-    validateAndCommitTime();
+    if (validateTime() && yearInput) commitAll();
   };
 
   const handleOpenChange = (v: boolean) => {
     if (disabled) return;
     if (!v) {
-      // Closing - validate time
-      const { valid } = rolling.validate();
-      if (!valid) {
-        setTimeError(true);
-        toast.error("時間格式不正確，小時須為 0-23，分鐘須為 0-59");
-        return; // prevent closing
-      }
-      setTimeError(false);
-      if (dateInput) commitChange(dateInput, rolling.display);
+      if (!validateDate() || !validateTime()) return;
+      commitAll();
     }
     setOpen(v);
   };
 
-  const displayText = date
-    ? `${format(date, "yyyy/MM/dd")} ${format(date, "HH:mm")}`
+  const displayText = parsedDate
+    ? `${format(parsedDate, "yyyy/MM/dd")} ${format(parsedDate, "HH:mm")}`
     : null;
 
   return (
@@ -223,25 +317,43 @@ export default function DateTimePicker({
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
         <div className="p-3 space-y-3">
-          {/* Date + Time inputs */}
-          <div className="flex items-center gap-2">
+          {/* Year + MM/DD + HH:mm inputs */}
+          <div className="flex items-center gap-1.5">
             <input
               type="text"
-              value={dateInput}
-              onChange={(e) => setDateInput(e.target.value)}
-              onBlur={handleDateInputBlur}
-              placeholder="yyyy/mm/dd"
-              className="flex h-8 w-[110px] rounded-md border border-input bg-background px-2 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              value={yearInput}
+              onChange={(e) => {
+                const v = e.target.value.replace(/\D/g, "").slice(0, 4);
+                setYearInput(v);
+              }}
+              onBlur={handleYearBlur}
+              placeholder="yyyy"
+              className="flex h-8 w-[52px] rounded-md border border-input bg-background px-1.5 py-1 text-sm text-center ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+            <span className="text-muted-foreground text-sm">/</span>
+            <input
+              ref={dateRef}
+              type="text"
+              value={dateDisplay}
+              onKeyDown={handleDateKeyDown}
+              onBlur={handleDateBlur}
+              readOnly
+              className={cn(
+                "flex h-8 w-[58px] rounded-md border bg-background px-1.5 py-1 text-sm text-center ring-offset-background focus-visible:outline-none focus-visible:ring-1 cursor-text caret-transparent",
+                dateError
+                  ? "border-destructive focus-visible:ring-destructive"
+                  : "border-input focus-visible:ring-ring"
+              )}
             />
             <input
               ref={timeRef}
               type="text"
-              value={rolling.display}
+              value={timeDisplay}
               onKeyDown={handleTimeKeyDown}
               onBlur={handleTimeBlur}
               readOnly
               className={cn(
-                "flex h-8 w-[70px] rounded-md border bg-background px-2 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-1 cursor-text caret-transparent",
+                "flex h-8 w-[58px] rounded-md border bg-background px-1.5 py-1 text-sm text-center ring-offset-background focus-visible:outline-none focus-visible:ring-1 cursor-text caret-transparent",
                 timeError
                   ? "border-destructive focus-visible:ring-destructive"
                   : "border-input focus-visible:ring-ring"
@@ -250,12 +362,11 @@ export default function DateTimePicker({
           </div>
 
           {/* Calendar */}
-          <Calendar
-            mode="single"
-            selected={date || undefined}
+          <DateTimeCalendar
+            selected={parsedDate || undefined}
             onSelect={handleCalendarSelect}
-            className={cn("p-0 pointer-events-auto")}
-            weekStartsOn={1}
+            displayMonth={displayMonth}
+            onMonthChange={setDisplayMonth}
           />
 
           <Separator />
