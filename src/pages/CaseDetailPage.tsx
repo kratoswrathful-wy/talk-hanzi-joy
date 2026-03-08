@@ -411,6 +411,7 @@ export default function CaseDetailPage() {
   const [caseData, setCaseData] = useState<CaseRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [creatorName, setCreatorName] = useState("");
 
   useEffect(() => {
     caseStore.load().then(() => {
