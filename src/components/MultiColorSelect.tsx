@@ -174,6 +174,7 @@ export default function MultiColorSelect({
             <div className="max-h-[330px] overflow-y-auto p-1">
               {filteredOptions.map((opt) => {
                 const isChecked = values.includes(opt.label);
+                const isAssignee = fieldKey === "assignee";
                 return (
                   <div key={opt.id} className="relative group">
                     <button
@@ -189,7 +190,7 @@ export default function MultiColorSelect({
                       )}>
                         {isChecked && <Check className="h-3 w-3 text-primary-foreground" />}
                       </div>
-                      {fieldKey === "assignee" ? (
+                      {isAssignee ? (
                         <AssigneeTag label={opt.label} avatarUrl={opt.avatarUrl} />
                       ) : (
                         <span
@@ -200,77 +201,79 @@ export default function MultiColorSelect({
                         </span>
                       )}
                     </button>
-                    {/* Menu */}
-                    <Popover
-                      open={menuOpenId === opt.id}
-                      onOpenChange={(v) => { setMenuOpenId(v ? opt.id : null); setColorPickerOptionId(null); setRenamingOptionId(null); }}
-                    >
-                      <PopoverTrigger asChild>
-                        <button
-                          className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreHorizontal className="h-3.5 w-3.5" />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-[240px] p-0" side="right" align="start" sideOffset={4}>
-                        {colorPickerOptionId === opt.id ? (
-                          <div className="p-3">
-                            <ColorPicker
-                              value={opt.color}
-                              onChange={(color) => selectOptionsStore.updateOptionColor(fieldKey, opt.id, color)}
-                              customColors={customColors}
-                              onAddCustomColor={(c) => selectOptionsStore.addCustomColor(fieldKey, c)}
-                              onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor(fieldKey, c)}
-                              colorUsageMap={getColorUsageMap(options)}
-                            />
-                          </div>
-                        ) : renamingOptionId === opt.id ? (
-                          <div className="p-3 space-y-2">
-                            <p className="text-xs text-muted-foreground">重新命名</p>
-                            <Input
-                              ref={renameInputRef}
-                              value={renameValue}
-                              onChange={(e) => setRenameValue(e.target.value)}
-                              className="h-8 text-sm"
-                              placeholder="輸入新名稱"
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") handleRename(opt.id);
-                                if (e.key === "Escape") setRenamingOptionId(null);
-                              }}
-                            />
-                            <div className="flex gap-1.5 justify-end">
-                              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setRenamingOptionId(null)}>取消</Button>
-                              <Button size="sm" className="h-7 text-xs" disabled={!renameValue.trim()} onClick={() => handleRename(opt.id)}>確認</Button>
+                    {/* Menu - hidden for assignee fields */}
+                    {!isAssignee && (
+                      <Popover
+                        open={menuOpenId === opt.id}
+                        onOpenChange={(v) => { setMenuOpenId(v ? opt.id : null); setColorPickerOptionId(null); setRenamingOptionId(null); }}
+                      >
+                        <PopoverTrigger asChild>
+                          <button
+                            className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted transition-opacity"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreHorizontal className="h-3.5 w-3.5" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[240px] p-0" side="right" align="start" sideOffset={4}>
+                          {colorPickerOptionId === opt.id ? (
+                            <div className="p-3">
+                              <ColorPicker
+                                value={opt.color}
+                                onChange={(color) => selectOptionsStore.updateOptionColor(fieldKey, opt.id, color)}
+                                customColors={customColors}
+                                onAddCustomColor={(c) => selectOptionsStore.addCustomColor(fieldKey, c)}
+                                onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor(fieldKey, c)}
+                                colorUsageMap={getColorUsageMap(options)}
+                              />
                             </div>
-                          </div>
-                        ) : (
-                          <div className="p-1">
-                            <button
-                              className="flex items-center gap-2 w-full px-3 py-2 rounded text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-                              onClick={(e) => { e.stopPropagation(); setRenamingOptionId(opt.id); setRenameValue(opt.label); }}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                              重新命名
-                            </button>
-                            <button
-                              className="flex items-center gap-2 w-full px-3 py-2 rounded text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-                              onClick={(e) => { e.stopPropagation(); setColorPickerOptionId(opt.id); }}
-                            >
-                              <Palette className="h-3.5 w-3.5" />
-                              變更顏色
-                            </button>
-                            <button
-                              className="flex items-center gap-2 w-full px-3 py-2 rounded text-sm hover:bg-accent hover:text-accent-foreground text-destructive transition-colors"
-                              onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ id: opt.id, label: opt.label }); }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              刪除
-                            </button>
-                          </div>
-                        )}
-                      </PopoverContent>
-                    </Popover>
+                          ) : renamingOptionId === opt.id ? (
+                            <div className="p-3 space-y-2">
+                              <p className="text-xs text-muted-foreground">重新命名</p>
+                              <Input
+                                ref={renameInputRef}
+                                value={renameValue}
+                                onChange={(e) => setRenameValue(e.target.value)}
+                                className="h-8 text-sm"
+                                placeholder="輸入新名稱"
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") handleRename(opt.id);
+                                  if (e.key === "Escape") setRenamingOptionId(null);
+                                }}
+                              />
+                              <div className="flex gap-1.5 justify-end">
+                                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setRenamingOptionId(null)}>取消</Button>
+                                <Button size="sm" className="h-7 text-xs" disabled={!renameValue.trim()} onClick={() => handleRename(opt.id)}>確認</Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="p-1">
+                              <button
+                                className="flex items-center gap-2 w-full px-3 py-2 rounded text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                                onClick={(e) => { e.stopPropagation(); setRenamingOptionId(opt.id); setRenameValue(opt.label); }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                                重新命名
+                              </button>
+                              <button
+                                className="flex items-center gap-2 w-full px-3 py-2 rounded text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                                onClick={(e) => { e.stopPropagation(); setColorPickerOptionId(opt.id); }}
+                              >
+                                <Palette className="h-3.5 w-3.5" />
+                                變更顏色
+                              </button>
+                              <button
+                                className="flex items-center gap-2 w-full px-3 py-2 rounded text-sm hover:bg-accent hover:text-accent-foreground text-destructive transition-colors"
+                                onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ id: opt.id, label: opt.label }); }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                刪除
+                              </button>
+                            </div>
+                          )}
+                        </PopoverContent>
+                      </Popover>
+                    )}
                   </div>
                 );
               })}
