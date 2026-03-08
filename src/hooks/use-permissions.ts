@@ -158,9 +158,12 @@ export function usePermissions() {
     const modulePerms = (config as any)?.module_permissions?.[primaryRole]?.[moduleKey];
     if (!modulePerms) {
       // Default restrictions for new modules when no explicit config exists
-      // 案件管理 & 內部註記: everyone can view & edit
+      // 客戶請款 & 團隊成員: PM+ only (member cannot view)
+      if ((moduleKey === "client_invoices" || moduleKey === "team_members") && primaryRole === "member") return false;
       // 工具管理 & 內部資料: PM+ only
       if ((moduleKey === "tool_management" || moduleKey === "field_reference") && primaryRole === "member") return false;
+      // 內部註記: executive only by default
+      if (moduleKey === "internal_notes" && primaryRole !== "executive") return false;
       // 權限管理: executive only
       if (moduleKey === "permissions" && primaryRole !== "executive") return false;
       return true;
