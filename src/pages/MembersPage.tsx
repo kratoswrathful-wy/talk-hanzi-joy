@@ -536,7 +536,7 @@ export default function MembersPage() {
                           <Button size="sm" className="h-6 text-xs" onClick={() => handleSaveNote(member.email)}>儲存</Button>
                         </div>
                       </div>
-                    ) : member.note ? (
+                    ) : (canViewNote && member.note) ? (
                       <div className="pl-10">
                         <p className="text-xs text-muted-foreground px-1">{member.note}</p>
                       </div>
