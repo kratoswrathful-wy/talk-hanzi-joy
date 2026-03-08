@@ -119,6 +119,15 @@ function initDefaults() {
       customColors: [],
       manualOrder: true,
     },
+    executionTool: {
+      options: [
+        { id: "opt-et1", label: "memoQ", color: PRESET_COLORS[6] },
+        { id: "opt-et2", label: "Phrase", color: PRESET_COLORS[8] },
+        { id: "opt-et3", label: "XTM", color: PRESET_COLORS[4] },
+      ],
+      customColors: [],
+      manualOrder: true,
+    },
   };
 }
 

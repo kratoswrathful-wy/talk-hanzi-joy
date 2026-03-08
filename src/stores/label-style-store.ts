@@ -79,6 +79,11 @@ export const labelStyleStore = {
     notify();
   },
 
+  setExecutionToolTextColor: (color: string) => {
+    state = { ...state, executionTool: { ...state.executionTool, textColor: color } };
+    notify();
+  },
+
   setStatusDraftStyle: (updates: Partial<StatusStyle>) => {
     state = { ...state, statusDraft: { ...state.statusDraft, ...updates } };
     notify();
