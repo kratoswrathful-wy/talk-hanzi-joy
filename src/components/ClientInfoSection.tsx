@@ -226,14 +226,20 @@ export default function ClientInfoSection({
                 </TooltipTrigger>
                 {isInClientInvoice && <TooltipContent>此費用已列入客戶請款單，無法修改對帳狀態</TooltipContent>}
               </Tooltip>
-              <div className="flex items-center gap-1.5">
-                <Checkbox
-                  id="invoiced"
-                  checked={clientInfo.invoiced}
-                  onCheckedChange={(checked) => update("invoiced", !!checked)}
-                />
-                <Label htmlFor="invoiced" className="text-xs cursor-pointer whitespace-nowrap">請款完成</Label>
-              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1.5">
+                    <Checkbox
+                      id="invoiced"
+                      checked={clientInfo.invoiced || isInClientInvoice}
+                      disabled={isInClientInvoice}
+                      onCheckedChange={(checked) => update("invoiced", !!checked)}
+                    />
+                    <Label htmlFor="invoiced" className={`text-xs cursor-pointer whitespace-nowrap ${isInClientInvoice ? 'text-muted-foreground/50' : ''}`}>請款完成</Label>
+                  </div>
+                </TooltipTrigger>
+                {isInClientInvoice && <TooltipContent>此費用已列入客戶請款單，不得修改請款狀態</TooltipContent>}
+              </Tooltip>
             </div>
           </div>
 
