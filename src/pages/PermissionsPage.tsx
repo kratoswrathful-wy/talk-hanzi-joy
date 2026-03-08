@@ -620,52 +620,37 @@ function SectionBulkButtons({
   modulePerms,
   items,
   onToggle,
+  onToggleVisible,
 }: {
   level: "list" | "detail";
   modulePerms: ModulePerms;
   items: PermissionItem[];
   onToggle: (permType: "view" | "edit", value: boolean) => void;
+  onToggleVisible?: (visible: boolean) => void;
 }) {
   const allView = isSectionAllView(modulePerms, items);
   const allEdit = isSectionAllEdit(modulePerms, items);
   const hasEditableItems = items.some((item) => item.type !== "view");
-
-  // Different color tiers: list-level uses accent tones, detail-level uses muted tones
-  const viewClass = level === "list"
-    ? allView
-      ? "bg-primary/15 hover:bg-primary/25 border-primary/30 text-primary"
-      : "bg-accent/30 hover:bg-accent/50 border-accent/40 text-accent-foreground"
-    : allView
-      ? "bg-secondary/80 hover:bg-secondary border-secondary text-secondary-foreground"
-      : "bg-muted/50 hover:bg-muted/80 border-muted-foreground/20 text-muted-foreground";
-
-  const editClass = level === "list"
-    ? allEdit
-      ? "bg-primary/15 hover:bg-primary/25 border-primary/30 text-primary"
-      : "bg-accent/30 hover:bg-accent/50 border-accent/40 text-accent-foreground"
-    : allEdit
-      ? "bg-secondary/80 hover:bg-secondary border-secondary text-secondary-foreground"
-      : "bg-muted/50 hover:bg-muted/80 border-muted-foreground/20 text-muted-foreground";
+  // "可見" = at least one item is viewable
+  const anyVisible = items.some((item) => getItemPerm(modulePerms, item.key, "view"));
 
   return (
-    <div className="flex items-center gap-1.5">
-      <Button
-        variant="outline"
-        size="sm"
-        className={`h-5 px-2 text-[10px] ${viewClass}`}
-        onClick={() => onToggle("view", !allView)}
-      >
-        全部可見
-      </Button>
+    <div className="flex items-center gap-4">
+      {onToggleVisible && (
+        <div className="flex items-center gap-1">
+          <Label className="text-xs text-muted-foreground">可見</Label>
+          <Switch checked={anyVisible} onCheckedChange={(v) => onToggleVisible(v)} className="scale-75" />
+        </div>
+      )}
+      <div className="flex items-center gap-1">
+        <Label className="text-xs text-muted-foreground">全部可見</Label>
+        <Switch checked={allView} onCheckedChange={(v) => onToggle("view", v)} className="scale-75" />
+      </div>
       {hasEditableItems && (
-        <Button
-          variant="outline"
-          size="sm"
-          className={`h-5 px-2 text-[10px] ${editClass}`}
-          onClick={() => onToggle("edit", !allEdit)}
-        >
-          全可編輯
-        </Button>
+        <div className="flex items-center gap-1">
+          <Label className="text-xs text-muted-foreground">全可編輯</Label>
+          <Switch checked={allEdit} onCheckedChange={(v) => onToggle("edit", v)} className="scale-75" />
+        </div>
       )}
     </div>
   );
