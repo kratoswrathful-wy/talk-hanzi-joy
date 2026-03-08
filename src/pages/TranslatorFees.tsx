@@ -715,6 +715,10 @@ export default function TranslatorFees() {
               selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
               onDone={() => rowSelection.deselectAll()}
             />
+            <ClientInvoiceActions
+              selectedFees={visibleFees.filter((f) => rowSelection.selectedIds.has(f.id))}
+              onDone={() => rowSelection.deselectAll()}
+            />
             <Button
               variant="ghost"
               size="icon"
