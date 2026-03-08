@@ -228,7 +228,11 @@ const allColumnDefs: ColumnDef[] = [
     render: (f) => {
       if (!f.clientInfo || f.clientInfo.notFirstFee) return <span className="text-sm text-muted-foreground">N/A</span>;
       const rev = f.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
-      return <span className="text-sm tabular-nums">{formatCurrency(rev)}</span>;
+      return (
+        <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+          <span className="text-sm tabular-nums cursor-default">{formatCurrency(rev)}</span>
+        </TooltipTrigger><TooltipContent className="text-xs">自動計算/填入</TooltipContent></Tooltip></TooltipProvider>
+      );
     },
   },
   {
