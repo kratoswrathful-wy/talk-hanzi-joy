@@ -473,6 +473,7 @@ export default function PermissionsPage() {
                             onToggleItemPerm={handleToggleItemPerm}
                             onToggleAllPerms={handleToggleAllPerms}
                             onToggleSectionPerms={handleToggleSectionPerms}
+                            onSetSectionViewOnly={handleSetSectionViewOnly}
                           />
                         </div>
                       )}
