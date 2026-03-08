@@ -480,7 +480,7 @@ export default function CaseDetailPage() {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <Field label="譯者">
-            <ColorSelect fieldKey="assignee" value={caseData.translator} onValueChange={(v) => save({ translator: v })} />
+            <MultiColorSelect fieldKey="assignee" values={caseData.translator || []} onValuesChange={(v) => save({ translator: v })} />
           </Field>
           <Field label="翻譯交期">
             <DateTimePicker value={caseData.translationDeadline} onChange={(v) => save({ translationDeadline: v })} className="w-full" />

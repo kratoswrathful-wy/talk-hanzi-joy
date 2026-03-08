@@ -171,8 +171,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "譯者",
     minWidth: 90,
     render: (c, { editable, onCommit }) => (
-      <InlineEditCell value={c.translator} type="colorSelect" fieldKey="assignee" editable={editable} onCommit={(v) => onCommit("translator", v)}>
-        <AssigneeLabel value={c.translator} />
+      <InlineEditCell value={(c.translator || []).join(", ")} type="colorSelect" fieldKey="assignee" editable={editable} onCommit={(v) => onCommit("translator", v)}>
+        <AssigneeLabel value={(c.translator || []).join(", ")} />
       </InlineEditCell>
     ),
   },
