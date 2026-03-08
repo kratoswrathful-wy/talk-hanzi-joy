@@ -197,6 +197,16 @@ export default function FileField({ value, onChange }: FileFieldProps) {
         </div>
       )}
 
+      {/* Upload progress */}
+      {uploading && (
+        <div className="flex items-center gap-2 px-1">
+          <Progress value={(uploadProgress / uploadTotal) * 100} className="h-2 flex-1" />
+          <span className="text-[11px] text-muted-foreground shrink-0">
+            {uploadProgress}/{uploadTotal}
+          </span>
+        </div>
+      )}
+
       {/* Drop zone + actions */}
       <div
         onDrop={handleDrop}
