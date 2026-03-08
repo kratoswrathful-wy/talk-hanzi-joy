@@ -95,7 +95,7 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
           )}
           <button
             className="h-5 w-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted text-muted-foreground hover:text-destructive transition-all"
-            onClick={() => selectOptionsStore.removeToolField(optionId, f.id)}
+            onClick={() => selectOptionsStore.removeToolField(optionId, f.id, fieldKey)}
           >
             <Trash2 className="h-3 w-3" />
           </button>
