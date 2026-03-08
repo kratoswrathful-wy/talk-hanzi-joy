@@ -13,6 +13,19 @@ import type { CaseRecord, ToolEntry, ToolEntryField, CaseStatus } from "@/data/c
 import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
 import DateTimePicker from "@/components/DateTimePicker";
+import FileField from "@/components/FileField";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+import { caseStore } from "@/hooks/use-case-store";
+import type { CaseRecord, ToolEntry, ToolEntryField, CaseStatus } from "@/data/case-types";
+import ColorSelect from "@/components/ColorSelect";
+import MultiColorSelect from "@/components/MultiColorSelect";
+import DateTimePicker from "@/components/DateTimePicker";
 import {
   AlertDialog,
   AlertDialogContent,
