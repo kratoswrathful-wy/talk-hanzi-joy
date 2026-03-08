@@ -39,6 +39,7 @@ const caseStatusLabels: Record<CaseStatus, string> = {
   draft: "草稿",
   inquiry: "詢案中",
   dispatched: "已派出",
+  completed: "任務完成",
   finalized: "開立完成",
 };
 
