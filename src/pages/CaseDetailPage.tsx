@@ -33,6 +33,8 @@ import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-store";
 import { useAuth } from "@/hooks/use-auth";
+import { internalNotesStore } from "@/stores/internal-notes-store";
+import type { InternalNote } from "@/hooks/use-internal-notes-table-views";
 
 
 const caseStatusLabels: Record<CaseStatus, string> = {
