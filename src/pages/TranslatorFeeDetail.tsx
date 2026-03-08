@@ -1374,7 +1374,7 @@ export default function TranslatorFeeDetail() {
               />
             </div>
             <div className="grid gap-1.5">
-              <Label className="text-xs text-muted-foreground">狀態</Label>
+              <Label className="text-xs text-muted-foreground">稿費開立狀態</Label>
               <div className="flex items-center h-10">
                 <DetailStatusBadge status={status} />
               </div>
@@ -1466,7 +1466,7 @@ export default function TranslatorFeeDetail() {
                 <ColorSelect
                   fieldKey="client"
                   value={clientInfo.client}
-                  disabled={!canEdit || clientInfo.reconciled}
+                  disabled={!isManager || clientInfo.reconciled}
                   onValueChange={(clientName) => {
                     trackChange("客戶", clientInfo.client, clientName);
                     const updatedInfo = { ...clientInfo, client: clientName };
@@ -1497,7 +1497,7 @@ export default function TranslatorFeeDetail() {
                 <ColorSelect
                   fieldKey="contact"
                   value={clientInfo.contact}
-                  disabled={!canEdit || clientInfo.reconciled}
+                  disabled={!isManager || clientInfo.reconciled}
                   onValueChange={(v) => {
                     trackChange("聯絡人", clientInfo.contact, v);
                     const updated = { ...clientInfo, contact: v };
