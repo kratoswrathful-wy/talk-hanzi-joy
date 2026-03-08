@@ -670,20 +670,25 @@ function RolePermissionPanel({
                     </div>
                   )}
 
-                  {/* Detail items */}
-                  {mod.detailItems.length > 0 && (
-                    <div>
+                  {/* Detail sections */}
+                  {mod.detailSections.length > 0 && (
+                    <div className="space-y-3">
                       <p className="text-xs font-medium text-muted-foreground mb-1.5">詳情頁操作</p>
-                      <div className="space-y-1">
-                        {mod.detailItems.map((item) => (
-                          <PermissionItemRow
-                            key={item.key}
-                            item={item}
-                            modulePerms={modulePerms}
-                            onToggle={(permType, value) => onToggleItemPerm(roleKey, mod.key, item.key, permType, value)}
-                          />
-                        ))}
-                      </div>
+                      {mod.detailSections.map((section) => (
+                        <div key={section.label}>
+                          <p className="text-xs font-semibold text-foreground/70 mb-1 ml-1">{section.label}</p>
+                          <div className="space-y-1">
+                            {section.items.map((item) => (
+                              <PermissionItemRow
+                                key={item.key}
+                                item={item}
+                                modulePerms={modulePerms}
+                                onToggle={(permType, value) => onToggleItemPerm(roleKey, mod.key, item.key, permType, value)}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -711,10 +716,16 @@ function PermissionItemRow({
 }) {
   const viewEnabled = getItemPerm(modulePerms, item.key, "view");
   const editEnabled = getItemPerm(modulePerms, item.key, "edit");
+  const isViewOnly = item.type === "view";
 
   return (
     <div className="flex items-center justify-between px-2 py-1 rounded hover:bg-muted/30 text-xs">
-      <span className="text-foreground/80">{item.label}</span>
+      <div className="flex items-center gap-1.5">
+        <span className="text-foreground/80">{item.label}</span>
+        {item.attribute && (
+          <span className="text-muted-foreground/60 text-[10px]">({item.attribute})</span>
+        )}
+      </div>
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1">
           <span className="text-muted-foreground">檢視</span>
@@ -724,15 +735,17 @@ function PermissionItemRow({
             className="scale-[0.6]"
           />
         </div>
-        <div className="flex items-center gap-1">
-          <span className="text-muted-foreground">編輯</span>
-          <Switch
-            checked={editEnabled}
-            onCheckedChange={(v) => onToggle("edit", v)}
-            className="scale-[0.6]"
-            disabled={!viewEnabled}
-          />
-        </div>
+        {!isViewOnly && (
+          <div className="flex items-center gap-1">
+            <span className="text-muted-foreground">編輯</span>
+            <Switch
+              checked={editEnabled}
+              onCheckedChange={(v) => onToggle("edit", v)}
+              className="scale-[0.6]"
+              disabled={!viewEnabled}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
