@@ -570,44 +570,31 @@ export default function CaseDetailPage() {
 
   /* ── Internal Note creation from case ── */
   const handleCreateInternalNote = () => {
-    // Extract case number without date suffix
     const caseTitle = caseData?.title || "";
-    // Remove trailing date pattern (e.g., _2026-03-08 or _20260308 etc.)
     const baseId = caseTitle.replace(/[_\-]?\d{4}[\-\/]?\d{2}[\-\/]?\d{2}$/, "").trim() || caseTitle;
     const prefix = `${baseId}_Note_`;
-
-    // Find existing notes with this prefix to determine next sequence number
-    const existingNotes = internalNotesStore.findByTitlePrefix(prefix);
-    let maxSeq = 0;
-    for (const note of existingNotes) {
-      const suffix = note.title.slice(prefix.length);
-      const num = parseInt(suffix, 10);
-      if (!isNaN(num) && num > maxSeq) maxSeq = num;
-    }
+    const maxSeq = internalNotesStore.getMaxSeqForPrefix(prefix);
     const nextSeq = String(maxSeq + 1).padStart(5, "0");
 
     const newNote: InternalNote = {
       id: `note-${Date.now()}`,
       title: `${prefix}${nextSeq}`,
       relatedCase: caseTitle,
-      noteId: "",
       createdAt: new Date().toISOString(),
-      noteType: "",
       creator: profile?.display_name || "",
       status: "",
-      internalAssignee: "",
-      fileName: "",
-      idRowCount: "",
-      sourceText: "",
-      translatedText: "",
-      questionOrNote: "",
-      reference: "",
-      internalResolution: "",
-      remarks: "",
+      noteType: "",
+      internalAssignee: caseData?.reviewer || "",
+      referenceFiles: [],
+      comments: [],
+      invalidated: false,
     };
     internalNotesStore.add(newNote);
     navigate(`/internal-notes?noteId=${newNote.id}`);
   };
+
+  // Get linked notes for this case
+  const linkedNotes = caseData ? internalNotesStore.findByCase(caseData.title) : [];
 
   const handleDelete = async () => {
     if (!caseData) return;
