@@ -214,7 +214,7 @@ export default function ColorSelect({
                   >
                     <span className="inline-flex items-center gap-1">
                       {fieldKey === "assignee" ? (
-                        <AssigneeTag label={opt.label} avatarUrl={opt.avatarUrl} />
+                        <AssigneeTag label={opt.label} avatarUrl={opt.avatarUrl} timezone={opt.timezone} />
                       ) : (
                       <span
                         className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium"
