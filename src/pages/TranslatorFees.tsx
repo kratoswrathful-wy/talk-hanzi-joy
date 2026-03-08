@@ -845,6 +845,9 @@ export default function TranslatorFees() {
                   onSelect={rowSelection.handleClick}
                   onCellCommit={handleCellCommit}
                   registerRowRef={registerRowRef}
+                  getLockContext={getLockContext}
+                  getMultiLockTooltip={getMultiLockTooltip}
+                  isMultiSelected={rowSelection.selectedCount > 1 && isSelected}
                 />
               );
             })}
