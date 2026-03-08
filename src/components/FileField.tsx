@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { Upload, Link as LinkIcon, X, FileText, BookmarkPlus, GripVertical, Pencil, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -35,19 +36,25 @@ export default function FileField({ value, onChange }: FileFieldProps) {
   const [urlDraft, setUrlDraft] = useState("");
   const [urlNameDraft, setUrlNameDraft] = useState("");
   const [linksOpen, setLinksOpen] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadTotal, setUploadTotal] = useState(0);
   const commonLinks = useCommonLinks();
 
   const uploadFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
     setUploading(true);
+    setUploadProgress(0);
+    setUploadTotal(files.length);
     const newItems: FileItem[] = [];
-    for (const file of files) {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
       const path = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}/${file.name}`;
       const { error } = await supabase.storage.from("case-files").upload(path, file);
       if (!error) {
         const { data: urlData } = supabase.storage.from("case-files").getPublicUrl(path);
         newItems.push({ name: file.name, url: urlData.publicUrl, size: file.size });
       }
+      setUploadProgress(i + 1);
     }
     if (newItems.length > 0) {
       onChange([...value, ...newItems]);
@@ -188,6 +195,16 @@ export default function FileField({ value, onChange }: FileFieldProps) {
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Upload progress */}
+      {uploading && (
+        <div className="flex items-center gap-2 px-1">
+          <Progress value={(uploadProgress / uploadTotal) * 100} className="h-2 flex-1" />
+          <span className="text-[11px] text-muted-foreground shrink-0">
+            {uploadProgress}/{uploadTotal}
+          </span>
         </div>
       )}
 
