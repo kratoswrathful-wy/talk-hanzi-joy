@@ -246,6 +246,11 @@ function isSectionAllEdit(modulePerms: ModulePerms, items: PermissionItem[]): bo
   return editableItems.length > 0 && editableItems.every((item) => getItemPerm(modulePerms, item.key, "edit"));
 }
 
+function isSectionNoEdit(modulePerms: ModulePerms, items: PermissionItem[]): boolean {
+  const editableItems = items.filter((item) => item.type !== "view");
+  return editableItems.length === 0 || editableItems.every((item) => !getItemPerm(modulePerms, item.key, "edit"));
+}
+
 // ─── Main Component ───
 
 export default function PermissionsPage() {
