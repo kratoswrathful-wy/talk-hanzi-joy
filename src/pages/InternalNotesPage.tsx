@@ -605,6 +605,7 @@ export default function InternalNotesPage() {
         note={selectedNote}
         onUpdate={(updates) => internalNotesStore.update(selectedId!, updates)}
         onBack={() => setSelectedId(null)}
+        onDelete={() => { internalNotesStore.remove(selectedId!); setSelectedId(null); }}
       />
     );
   }
