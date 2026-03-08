@@ -208,11 +208,11 @@ export default function FileField({ value, onChange }: FileFieldProps) {
 
       {/* Upload progress */}
       {uploading && (
-        <div className="flex items-center gap-2 px-1">
-          <Progress value={(uploadProgress / uploadTotal) * 100} className="h-2 flex-1" />
-          <span className="text-[11px] text-muted-foreground shrink-0">
-            {uploadProgress}/{uploadTotal}
+        <div className="space-y-1 px-1">
+          <span className="text-xs text-muted-foreground">
+            正在上傳第 {uploadProgress + 1}/{uploadTotal} 個檔案（{formatBytes(uploadedBytes)}/{formatBytes(totalBytes)}）
           </span>
+          <Progress value={(uploadedBytes / totalBytes) * 100} className="h-2" />
         </div>
       )}
 
