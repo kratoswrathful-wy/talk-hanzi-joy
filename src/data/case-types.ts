@@ -13,6 +13,7 @@ export interface CaseRecord {
   reviewDeadline: string | null;
   taskStatus: string;
   executionTool: string;
+  toolFieldValues: Record<string, string>;
   deliveryMethod: string;
   clientReceipt: string;
   customGuidelinesUrl: string;

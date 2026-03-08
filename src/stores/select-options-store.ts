@@ -2,6 +2,11 @@ import { useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { loadSetting, saveSetting, markDirty } from "./settings-persistence";
 
+export interface ToolFieldDef {
+  id: string;
+  label: string;
+}
+
 export interface SelectOption {
   id: string;
   label: string;
@@ -11,6 +16,7 @@ export interface SelectOption {
   avatarUrl?: string | null;
   timezone?: string | null;
   statusMessage?: string | null;
+  toolFields?: ToolFieldDef[];
 }
 
 export const PRESET_COLORS = [
