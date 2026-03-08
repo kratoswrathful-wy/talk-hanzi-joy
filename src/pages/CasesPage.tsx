@@ -25,7 +25,12 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import type { CaseRecord } from "@/data/case-types";
+import type { CaseRecord, CaseStatus } from "@/data/case-types";
+
+const caseStatusLabels: Record<CaseStatus, string> = {
+  draft: "草稿",
+  finalized: "開立完成",
+};
 
 const formatDate = (iso: string) => {
   const d = new Date(iso);
@@ -37,6 +42,20 @@ const formatDateTime = (iso: string | null) => {
   const d = new Date(iso);
   return d.toLocaleString("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
 };
+
+function CaseStatusBadge({ status }: { status: CaseStatus }) {
+  const labelStyles = useLabelStyles();
+  const style = status === "finalized" ? labelStyles.statusFinalized : labelStyles.statusDraft;
+  return (
+    <Badge
+      variant="default"
+      className="text-xs whitespace-nowrap border"
+      style={{ backgroundColor: style.bgColor, color: style.textColor, borderColor: style.bgColor }}
+    >
+      {caseStatusLabels[status]}
+    </Badge>
+  );
+}
 
 interface ColumnDef {
   key: string;
@@ -133,6 +152,12 @@ const allColumnDefs: ColumnDef[] = [
         <OpenButton caseId={c.id} />
       </div>
     ),
+  },
+  {
+    key: "status",
+    label: "狀態",
+    minWidth: 70,
+    render: (c) => <CaseStatusBadge status={c.status} />,
   },
   {
     key: "category",

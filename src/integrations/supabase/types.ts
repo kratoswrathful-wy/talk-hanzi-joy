@@ -66,6 +66,7 @@ export type Database = {
           review_deadline: string | null
           reviewer: string
           source_files: Json
+          status: string
           task_status: string
           title: string
           tool_field_values: Json
@@ -109,6 +110,7 @@ export type Database = {
           review_deadline?: string | null
           reviewer?: string
           source_files?: Json
+          status?: string
           task_status?: string
           title?: string
           tool_field_values?: Json
@@ -152,6 +154,7 @@ export type Database = {
           review_deadline?: string | null
           reviewer?: string
           source_files?: Json
+          status?: string
           task_status?: string
           title?: string
           tool_field_values?: Json

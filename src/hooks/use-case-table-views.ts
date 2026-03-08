@@ -12,6 +12,7 @@ export { countConditions };
 
 export const caseFieldMetas: FieldMeta[] = [
   { key: "title", label: "案件編號", type: "text" },
+  { key: "status", label: "狀態", type: "select" },
   { key: "category", label: "類型", type: "select" },
   { key: "workType", label: "工作類型", type: "select" },
   { key: "billingUnit", label: "計費單位", type: "select" },
@@ -29,6 +30,7 @@ export const caseFieldMetas: FieldMeta[] = [
 function getFieldValue(c: CaseRecord, field: string): string | number | boolean {
   switch (field) {
     case "title": return c.title;
+    case "status": return c.status;
     case "category": return c.category;
     case "workType": return (c.workType || []).join(", ");
     case "billingUnit": return c.billingUnit;

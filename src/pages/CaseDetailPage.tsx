@@ -3,11 +3,12 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Trash2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { caseStore } from "@/hooks/use-case-store";
-import type { CaseRecord, ToolEntry, ToolEntryField } from "@/data/case-types";
+import type { CaseRecord, ToolEntry, ToolEntryField, CaseStatus } from "@/data/case-types";
 import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
 import DateTimePicker from "@/components/DateTimePicker";
@@ -27,6 +28,25 @@ import { toast } from "@/hooks/use-toast";
 import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-store";
+
+const caseStatusLabels: Record<CaseStatus, string> = {
+  draft: "草稿",
+  finalized: "開立完成",
+};
+
+function CaseStatusBadge({ status }: { status: CaseStatus }) {
+  const labelStyles = useLabelStyles();
+  const style = status === "finalized" ? labelStyles.statusFinalized : labelStyles.statusDraft;
+  return (
+    <Badge
+      variant="default"
+      className="text-xs whitespace-nowrap border"
+      style={{ backgroundColor: style.bgColor, color: style.textColor, borderColor: style.bgColor }}
+    >
+      {caseStatusLabels[status]}
+    </Badge>
+  );
+}
 
 
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
@@ -456,6 +476,9 @@ export default function CaseDetailPage() {
 
       <Field label="案件編號">
         <Input value={caseData.title} onChange={(e) => save({ title: e.target.value })} className="max-w-md" />
+      </Field>
+      <Field label="狀態">
+        <CaseStatusBadge status={caseData.status} />
       </Field>
 
       <Separator />

@@ -10,9 +10,12 @@ export interface ToolEntry {
   fieldValues: Record<string, string>;
 }
 
+export type CaseStatus = "draft" | "finalized";
+
 export interface CaseRecord {
   id: string;
   title: string;
+  status: CaseStatus;
   category: string;
   workType: string[];
   processNote: string;
