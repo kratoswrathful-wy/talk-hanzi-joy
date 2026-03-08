@@ -183,6 +183,10 @@ export default function TranslatorFeeDetail() {
   const [autoCreatedOptions, setAutoCreatedOptions] = useState<{ field: string; label: string }[] | null>(null);
   const [showFinalizePrompt, setShowFinalizePrompt] = useState(false);
   const finalizePromptRef = useRef<HTMLButtonElement>(null);
+  
+  // Invoice navigation prompt state
+  const [showInvoiceNavPrompt, setShowInvoiceNavPrompt] = useState<{ type: 'translator' | 'client'; invoiceId: string } | null>(null);
+  const invoiceNavPromptRef = useRef<HTMLButtonElement>(null);
 
   // Compute linked invoices for this fee
   const linkedTranslatorInvoices = id ? allInvoices.filter((inv) => inv.feeIds.includes(id)).map((inv) => ({ id: inv.id, title: inv.title })) : [];
