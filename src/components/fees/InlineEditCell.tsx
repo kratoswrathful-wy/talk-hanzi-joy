@@ -4,18 +4,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import ColorSelect from "@/components/ColorSelect";
+import MultiColorSelect from "@/components/MultiColorSelect";
 import { cn } from "@/lib/utils";
 
 interface Props {
-  value: string | boolean;
-  type: "text" | "select" | "checkbox" | "colorSelect";
+  value: string | boolean | string[];
+  type: "text" | "select" | "checkbox" | "colorSelect" | "multiColorSelect";
   options?: { value: string; label: string }[];
-  /** For colorSelect type: the field key in selectOptionsStore */
+  /** For colorSelect/multiColorSelect type: the field key in selectOptionsStore */
   fieldKey?: string;
   editable: boolean;
   /** When set, field is visually locked with this tooltip on hover */
   lockedTooltip?: string;
-  onCommit: (newValue: string | boolean) => void;
+  onCommit: (newValue: string | boolean | string[]) => void;
   className?: string;
   children: React.ReactNode;
 }
@@ -97,6 +98,18 @@ export function InlineEditCell({ value, type, options, fieldKey, editable, locke
           onValueChange={(v) => { onCommit(v); setEditing(false); }}
           triggerClassName="h-7 text-xs"
           defaultOpen
+        />
+      </div>
+    );
+  }
+
+  if (editing && type === "multiColorSelect" && fieldKey) {
+    return (
+      <div onClick={(e) => e.stopPropagation()}>
+        <MultiColorSelect
+          fieldKey={fieldKey}
+          values={Array.isArray(value) ? value : []}
+          onValuesChange={(v) => { onCommit(v); }}
         />
       </div>
     );
