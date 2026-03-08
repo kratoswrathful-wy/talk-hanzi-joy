@@ -299,6 +299,7 @@ export type Database = {
           id: string
           no_fee: boolean
           note: string
+          sort_order: number
           updated_at: string
         }
         Insert: {
@@ -306,6 +307,7 @@ export type Database = {
           id?: string
           no_fee?: boolean
           note?: string
+          sort_order?: number
           updated_at?: string
         }
         Update: {
@@ -313,6 +315,7 @@ export type Database = {
           id?: string
           no_fee?: boolean
           note?: string
+          sort_order?: number
           updated_at?: string
         }
         Relationships: []

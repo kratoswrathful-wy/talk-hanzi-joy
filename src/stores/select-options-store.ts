@@ -223,16 +223,16 @@ export const selectOptionsStore = {
 
   getSnapshot: () => store,
 
-  /** Load assignee options from profiles + invitations in DB */
+  /** Load assignee options from profiles + invitations in DB, respecting sort_order */
   loadAssignees: async () => {
     const [{ data: profiles }, { data: invitations }, { data: settings }] = await Promise.all([
       supabase.from("profiles").select("email, display_name, avatar_url"),
       supabase.from("invitations").select("email, role").is("accepted_at", null),
-      supabase.from("member_translator_settings").select("email, note, no_fee"),
+      supabase.from("member_translator_settings").select("email, note, no_fee, sort_order"),
     ]);
 
-    const settingsMap = new Map<string, { note: string; no_fee: boolean }>();
-    (settings || []).forEach((s: any) => settingsMap.set(s.email, { note: s.note || "", no_fee: s.no_fee || false }));
+    const settingsMap = new Map<string, { note: string; no_fee: boolean; sort_order: number }>();
+    (settings || []).forEach((s: any) => settingsMap.set(s.email, { note: s.note || "", no_fee: s.no_fee || false, sort_order: s.sort_order ?? 0 }));
 
     const options: SelectOption[] = [];
     const registeredEmails = new Set<string>();
@@ -265,9 +265,16 @@ export const selectOptionsStore = {
       }
     });
 
+    // Sort by sort_order from settings (0 = unsorted, keep original order among those)
+    options.sort((a, b) => {
+      const orderA = settingsMap.get(a.email || "")?.sort_order ?? 0;
+      const orderB = settingsMap.get(b.email || "")?.sort_order ?? 0;
+      return orderA - orderB;
+    });
+
     store = {
       ...store,
-      assignee: { ...store.assignee, options },
+      assignee: { ...store.assignee, options, manualOrder: true },
     };
     // Don't persist assignee to settings – just notify
     listeners.forEach((l) => l());

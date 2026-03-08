@@ -1,0 +1,1 @@
+ALTER TABLE public.member_translator_settings ADD COLUMN IF NOT EXISTS sort_order integer NOT NULL DEFAULT 0;
