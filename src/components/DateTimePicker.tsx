@@ -422,7 +422,7 @@ export default function DateTimePicker({
     </Popover>
 
     <AlertDialog open={!!validationMsg} onOpenChange={() => {}}>
-      <AlertDialogContent className="max-w-sm">
+      <AlertDialogContent className="max-w-sm" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2 text-destructive">
             <AlertTriangle className="h-5 w-5" />
@@ -430,19 +430,43 @@ export default function DateTimePicker({
           </AlertDialogTitle>
           <AlertDialogDescription>{validationMsg}</AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogAction
-            onClick={() => {
-              setValidationMsg(null);
-              setTimeout(() => {
-                if (dateError) dateRef.current?.focus();
-                else if (timeError) timeRef.current?.focus();
-              }, 50);
+        <div className="flex items-center justify-center gap-2 py-2">
+          <span className="text-sm text-muted-foreground">
+            {dateError ? "請輸入正確日期 (MM/DD)：" : "請輸入正確時間 (HH:MM)："}
+          </span>
+          <FixInput
+            maxDigits={4}
+            separator={dateError ? "/" : ":"}
+            initial={dateError ? dateRolling.padded : timeRolling.padded}
+            validate={(padded) => {
+              if (dateError) {
+                const mm = parseInt(padded.slice(0, 2));
+                const dd = parseInt(padded.slice(2, 4));
+                const y = parseInt(yearInput) || new Date().getFullYear();
+                return mm >= 1 && mm <= 12 && dd >= 1 && dd <= getDaysInMonth(new Date(y, mm - 1));
+              } else {
+                const hh = parseInt(padded.slice(0, 2));
+                const mi = parseInt(padded.slice(2, 4));
+                return hh <= 23 && mi <= 59;
+              }
             }}
-          >
-            返回修正
-          </AlertDialogAction>
-        </AlertDialogFooter>
+            onConfirm={(padded) => {
+              if (dateError) {
+                dateRolling.reset(padded);
+                setDateError(false);
+              } else {
+                timeRolling.reset(padded);
+                setTimeError(false);
+              }
+              setValidationMsg(null);
+              // Commit with corrected value
+              const newDatePadded = dateError ? padded : dateRolling.padded;
+              const newTimePadded = dateError ? timeRolling.padded : padded;
+              const iso = buildIso(yearInput, newDatePadded, newTimePadded);
+              onChange(iso);
+            }}
+          />
+        </div>
       </AlertDialogContent>
     </AlertDialog>
     </>
