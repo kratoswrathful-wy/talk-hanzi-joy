@@ -57,7 +57,7 @@ function getFieldValue(note: InternalNote, field: string): string | number | boo
     case "status": return note.invalidated ? "已失效" : note.status;
     case "noteType": return note.noteType;
     case "creator": return note.creator;
-    case "internalAssignee": return note.internalAssignee;
+    case "internalAssignee": return (note.internalAssignee || []).join(", ");
     case "createdAt": return note.createdAt;
     default: return "";
   }
