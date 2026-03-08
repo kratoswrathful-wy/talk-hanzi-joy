@@ -638,12 +638,14 @@ function SectionBulkButtons({
   items,
   onToggle,
   onToggleVisible,
+  onSetViewOnly,
 }: {
   level: "list" | "detail";
   modulePerms: ModulePerms;
   items: PermissionItem[];
   onToggle: (permType: "view" | "edit", value: boolean) => void;
   onToggleVisible?: (visible: boolean) => void;
+  onSetViewOnly?: () => void;
 }) {
   const allView = isSectionAllView(modulePerms, items);
   const allEdit = isSectionAllEdit(modulePerms, items);
