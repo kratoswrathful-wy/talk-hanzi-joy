@@ -1400,6 +1400,30 @@ export default function TranslatorFeeDetail() {
                 <DetailStatusBadge status={status} />
               </div>
             </div>
+            {/* 稿費請款狀態 */}
+            <div className="grid gap-1.5">
+              <Label className="text-xs text-muted-foreground">稿費請款狀態</Label>
+              <div className="flex items-center h-10">
+                {(() => {
+                  const inv = linkedTranslatorInvoices.length > 0 ? allInvoices.find((i) => i.id === linkedTranslatorInvoices[0].id) : null;
+                  if (!inv) return <span className="text-sm text-muted-foreground">尚未請款</span>;
+                  const labelMap: Record<string, string> = { pending: "待付款", partial: "部份付款", paid: "已付款" };
+                  return <Badge variant="outline" className="text-xs">{labelMap[inv.status] || inv.status}</Badge>;
+                })()}
+              </div>
+            </div>
+            {/* 客戶請款狀態 */}
+            <div className="grid gap-1.5">
+              <Label className="text-xs text-muted-foreground">客戶請款狀態</Label>
+              <div className="flex items-center h-10">
+                {(() => {
+                  const inv = linkedClientInvoices.length > 0 ? allClientInvoices.find((i) => i.id === linkedClientInvoices[0].id) : null;
+                  if (!inv) return <span className="text-sm text-muted-foreground">尚未請款</span>;
+                  const labelMap: Record<string, string> = { pending: "待收款", partial: "部份到帳", paid: "全額收齊" };
+                  return <Badge variant="outline" className="text-xs">{labelMap[inv.status] || inv.status}</Badge>;
+                })()}
+              </div>
+            </div>
           </div>
 
           {/* 相關案件 */}
