@@ -591,6 +591,21 @@ export default function CaseDetailPage() {
     toast({ title: "已確定指派" });
   };
 
+  const handleTaskComplete = () => {
+    save({ status: "task_completed" as CaseStatus });
+    toast({ title: "任務已完成" });
+  };
+
+  const handleCancelDispatch = () => {
+    save({ status: "inquiry" as CaseStatus });
+    toast({ title: "已取消指派" });
+  };
+
+  const isCurrentUserTranslator = (() => {
+    const displayName = profile?.display_name || "";
+    return displayName && (caseData.translator || []).includes(displayName);
+  })();
+
   const comments = caseData.comments || [];
   const internalComments = caseData.internalComments || [];
 
