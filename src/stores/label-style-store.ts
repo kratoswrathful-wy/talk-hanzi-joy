@@ -17,6 +17,7 @@ interface LabelStyleState {
   billingUnit: LabelStyle;
   client: LabelStyle;
   dispatchRoute: LabelStyle;
+  caseCategory: LabelStyle;
   statusDraft: StatusStyle;
   statusFinalized: StatusStyle;
   invoicePending: StatusStyle;
