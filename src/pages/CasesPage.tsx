@@ -34,6 +34,7 @@ const caseStatusLabels: Record<CaseStatus, string> = {
   task_completed: "任務完成",
   delivered: "已交件",
   feedback: "處理回饋",
+  feedback_completed: "回饋處理完畢",
   finalized: "開立完成",
 };
 
