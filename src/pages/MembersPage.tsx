@@ -484,14 +484,19 @@ export default function MembersPage() {
                         )}
                         {isExecutive && (
                           <>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-muted-foreground"
-                              onClick={() => { setEditingEmail(member.email); setEditValue(member.note); }}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-muted-foreground"
+                                  onClick={() => { setEditingEmail(member.email); setEditValue(member.note); }}
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>編輯人員備註</TooltipContent>
+                            </Tooltip>
                             <Button
                               variant="ghost"
                               size="icon"
