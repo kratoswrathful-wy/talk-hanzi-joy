@@ -45,6 +45,8 @@ interface ClientInfoSectionProps {
   onClientPriceEntered?: (itemIndex: number, clientPrice: number, taskType: string, billingUnit: string) => void;
   /** Linked client invoices for this fee */
   linkedClientInvoices?: { id: string; title: string }[];
+  /** Whether this fee is listed in any client invoice (locks reconciled) */
+  isInClientInvoice?: boolean;
 }
 
 export default function ClientInfoSection({
