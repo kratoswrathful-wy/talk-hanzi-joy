@@ -552,6 +552,7 @@ export default function CaseDetailPage() {
   const isDraft = caseData.status === "draft";
   const isInquiry = caseData.status === "inquiry";
   const isDispatched = caseData.status === "dispatched";
+  const isTaskCompleted = caseData.status === "task_completed";
   const isFinalized = caseData.status === "finalized";
   const isMember = currentRole === "member";
   const isPmOrAbove = currentRole === "pm" || currentRole === "executive";
