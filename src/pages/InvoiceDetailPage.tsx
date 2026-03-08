@@ -299,7 +299,16 @@ export default function InvoiceDetailPage() {
     });
   }, [fees, invoice, allLinkedFeeIds]);
 
+  const invoicesLoaded = useInvoicesLoaded();
+
   if (!invoice) {
+    if (!invoicesLoaded) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
     return (
       <div className="mx-auto max-w-4xl py-12 text-center">
         <p className="text-muted-foreground">找不到此請款單</p>
