@@ -332,9 +332,9 @@ export default function InternalNotesPage() {
     return (
       <NoteDetailView
         note={selectedNote}
-        onUpdate={(updates) => setNotes(notes.map((n) => n.id === selectedId ? { ...n, ...updates } : n))}
+        onUpdate={(updates) => internalNotesStore.update(selectedId!, updates)}
         onBack={() => setSelectedId(null)}
-        onDelete={() => { setNotes(notes.filter((n) => n.id !== selectedId)); setSelectedId(null); }}
+        onDelete={() => { internalNotesStore.remove(selectedId!); setSelectedId(null); }}
       />
     );
   }
