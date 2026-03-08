@@ -1932,7 +1932,7 @@ function DispatchRouteSection() {
                     customColors={customColors}
                     onAddCustomColor={(c) => selectOptionsStore.addCustomColor("dispatchRoute", c)}
                     onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("dispatchRoute", c)}
-                    colorUsageMap={{}}
+                    colorUsageMap={getColorUsageMap(routeOptions)}
                   />
                 </PopoverContent>
               </Popover>
