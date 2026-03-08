@@ -61,7 +61,9 @@ function ToolInstance({
     fieldChanges: { added: string[]; removed: string[] };
     conflicts: { id: string; label: string; current: string; incoming: string }[];
   } | null>(null);
-  const [fieldMgmtOpen, setFieldMgmtOpen] = useState(false);
+  const [deleteFieldId, setDeleteFieldId] = useState<string | null>(null);
+  const [addingField, setAddingField] = useState(false);
+  const [newFieldLabel, setNewFieldLabel] = useState("");
 
   const selectedTool = toolOptions.find((o) => o.label === entry.tool);
   // Use entry's custom fields if present, otherwise fall back to tool defaults
