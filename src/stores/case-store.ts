@@ -76,6 +76,7 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.taskStatus !== undefined) map.task_status = c.taskStatus;
   if (c.executionTool !== undefined) map.execution_tool = c.executionTool;
   if (c.toolFieldValues !== undefined) map.tool_field_values = c.toolFieldValues;
+  if (c.tools !== undefined) map.tools = c.tools;
   if (c.deliveryMethod !== undefined) map.delivery_method = c.deliveryMethod;
   if (c.clientReceipt !== undefined) map.client_receipt = c.clientReceipt;
   if (c.customGuidelinesUrl !== undefined) map.custom_guidelines_url = c.customGuidelinesUrl;
