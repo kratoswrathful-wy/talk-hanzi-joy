@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { type ClientInvoice } from "@/data/client-invoice-types";
 import {
   type TableFilter, type TableSort, type TableView, type FilterGroup,
