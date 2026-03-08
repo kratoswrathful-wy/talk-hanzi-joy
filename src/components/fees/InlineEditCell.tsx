@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import ColorSelect from "@/components/ColorSelect";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +13,8 @@ interface Props {
   /** For colorSelect type: the field key in selectOptionsStore */
   fieldKey?: string;
   editable: boolean;
+  /** When set, field is visually locked with this tooltip on hover */
+  lockedTooltip?: string;
   onCommit: (newValue: string | boolean) => void;
   className?: string;
   children: React.ReactNode;
