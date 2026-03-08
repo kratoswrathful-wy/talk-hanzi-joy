@@ -184,7 +184,7 @@ export default function ClientInfoSection({
           {/* Row 1: Title + checkboxes + Add button */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Label className="text-sm font-medium">營收內容</Label>
+              <Label className="text-sm font-medium leading-none">營收內容</Label>
               {linkedClientInvoices.length > 0 && (
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-muted-foreground">客戶請款單</span>
