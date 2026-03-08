@@ -167,6 +167,13 @@ export default function MembersPage() {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const canViewFrozen = checkPerm("team_members", "members_showFrozen", "view");
+  const canInvite = checkPerm("team_members", "members_invite", "edit");
+  const canChangeRole = checkPerm("team_members", "members_changeRole", "edit");
+  const canRemove = checkPerm("team_members", "members_remove", "edit");
+  const canSort = checkPerm("team_members", "members_sort", "edit");
+  const canEditNote = checkPerm("team_members", "members_note", "edit");
+  const canEditNoFee = checkPerm("team_members", "members_noFee", "edit");
+  const canFreeze = checkPerm("team_members", "members_freeze", "edit");
 
   const fetchMembers = useCallback(async () => {
     setLoading(true);
