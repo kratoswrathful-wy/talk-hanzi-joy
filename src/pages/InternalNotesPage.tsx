@@ -220,6 +220,10 @@ function NoteDetailView({
         <span className="text-sm">{new Date(note.createdAt).toLocaleString("zh-TW")}</span>
       </Field>
 
+      <Field label="性質" icon="◎">
+        <ColorSelect fieldKey="noteNature" value={note.noteType} onValueChange={(v) => onUpdate({ noteType: v })} />
+      </Field>
+
       <Field label="狀態" icon="☆">
         {note.invalidated ? (
           <div className="space-y-1">
@@ -233,10 +237,6 @@ function NoteDetailView({
         ) : (
           <ColorSelect fieldKey="noteStatus" value={note.status} onValueChange={(v) => onUpdate({ status: v })} />
         )}
-      </Field>
-
-      <Field label="性質" icon="◎">
-        <ColorSelect fieldKey="noteNature" value={note.noteType} onValueChange={(v) => onUpdate({ noteType: v })} />
       </Field>
 
       <Field label="內部指派對象" icon="👥">
