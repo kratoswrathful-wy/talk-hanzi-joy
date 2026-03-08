@@ -47,17 +47,28 @@ export default function FileField({ value, onChange }: FileFieldProps) {
     setUploading(true);
     setUploadProgress(0);
     setUploadTotal(files.length);
+    const total = files.reduce((sum, f) => sum + f.size, 0);
+    setTotalBytes(total);
+    setUploadedBytes(0);
+    let doneBytes = 0;
     const newItems: FileItem[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+      setUploadProgress(i);
       const path = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}/${file.name}`;
       const { error } = await supabase.storage.from("case-files").upload(path, file);
       if (!error) {
         const { data: urlData } = supabase.storage.from("case-files").getPublicUrl(path);
         newItems.push({ name: file.name, url: urlData.publicUrl, size: file.size });
       }
-      setUploadProgress(i + 1);
+      doneBytes += file.size;
+      setUploadedBytes(doneBytes);
     }
+    if (newItems.length > 0) {
+      onChange([...value, ...newItems]);
+    }
+    setUploading(false);
+  }, [value, onChange]);
     if (newItems.length > 0) {
       onChange([...value, ...newItems]);
     }
