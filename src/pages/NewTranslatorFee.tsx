@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import ColorSelect from "@/components/ColorSelect";
 import { selectOptionsStore } from "@/stores/select-options-store";
 import {
@@ -339,7 +340,9 @@ export default function NewTranslatorFee() {
                       />
                     </TableCell>
                     <TableCell className="text-right text-xs font-medium tabular-nums">
-                      {(item.unitCount * item.unitPrice).toLocaleString()}
+                      <Tooltip><TooltipTrigger asChild>
+                        <span className="cursor-default">{(item.unitCount * item.unitPrice).toLocaleString()}</span>
+                      </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip>
                     </TableCell>
                     <TableCell>
                       <Button
@@ -361,7 +364,9 @@ export default function NewTranslatorFee() {
                     合計
                   </TableCell>
                   <TableCell className="text-right text-sm font-semibold tabular-nums">
-                    {total.toLocaleString()}
+                    <Tooltip><TooltipTrigger asChild>
+                      <span className="cursor-default">{total.toLocaleString()}</span>
+                    </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip>
                   </TableCell>
                   <TableCell />
                 </TableRow>

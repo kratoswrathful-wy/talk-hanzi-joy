@@ -1932,7 +1932,9 @@ export default function TranslatorFeeDetail() {
                         </Tooltip>
                       </TableCell>
                       <TableCell className="text-right text-xs font-medium">
-                        {isNoFeeTranslator ? 0 : (Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}
+                        <Tooltip><TooltipTrigger asChild>
+                          <span className="cursor-default">{isNoFeeTranslator ? 0 : (Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}</span>
+                        </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip>
                       </TableCell>
                       <TableCell className="px-2">
                         <div className="flex justify-center">
