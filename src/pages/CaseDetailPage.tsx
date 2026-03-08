@@ -1,13 +1,13 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { caseStore } from "@/hooks/use-case-store";
-import type { CaseRecord } from "@/data/case-types";
+import type { CaseRecord, ToolEntry } from "@/data/case-types";
 import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
 import DateTimePicker from "@/components/DateTimePicker";
@@ -33,27 +33,58 @@ function Field({ label, children, className }: { label: string; children: React.
     </div>
   );
 }
-function ToolSubFields({ caseData, save }: { caseData: CaseRecord; save: (updates: Partial<CaseRecord>) => void }) {
+
+/* ── Single Tool Instance ── */
+function ToolInstance({
+  entry,
+  index,
+  onUpdate,
+  onRemove,
+  showRemove,
+}: {
+  entry: ToolEntry;
+  index: number;
+  onUpdate: (updates: Partial<ToolEntry>) => void;
+  onRemove: () => void;
+  showRemove: boolean;
+}) {
   const { options: toolOptions } = useSelectOptions("executionTool");
-  const selectedTool = toolOptions.find((o) => o.label === caseData.executionTool);
+  const selectedTool = toolOptions.find((o) => o.label === entry.tool);
   const fields = selectedTool?.toolFields || [];
-
-  if (fields.length === 0) return null;
-
-  const values = caseData.toolFieldValues || {};
+  const values = entry.fieldValues || {};
 
   return (
-    <>
+    <div className="relative border border-border rounded-lg p-3 space-y-1">
+      {showRemove && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:text-destructive"
+          onClick={onRemove}
+        >
+          <X className="h-3.5 w-3.5" />
+        </Button>
+      )}
+      <Field label="執行工具">
+        <ColorSelect
+          fieldKey="executionTool"
+          value={entry.tool}
+          onValueChange={(v) => onUpdate({ tool: v })}
+          className="max-w-xs"
+        />
+      </Field>
       {fields.map((f) => (
         <Field key={f.id} label={f.label}>
           <Input
             value={values[f.id] || ""}
-            onChange={(e) => save({ toolFieldValues: { ...values, [f.id]: e.target.value } })}
+            onChange={(e) =>
+              onUpdate({ fieldValues: { ...values, [f.id]: e.target.value } })
+            }
             className="max-w-xs"
           />
         </Field>
       ))}
-    </>
+    </div>
   );
 }
 
@@ -76,6 +107,29 @@ export default function CaseDetailPage() {
     if (!caseData) return;
     setCaseData({ ...caseData, ...partial });
     caseStore.update(caseData.id, partial);
+  };
+
+  /* ── Tool helpers ── */
+  const tools: ToolEntry[] = caseData?.tools?.length
+    ? caseData.tools
+    : [{ id: `te-${Date.now()}`, tool: caseData?.executionTool || "", fieldValues: caseData?.toolFieldValues || {} }];
+
+  const saveTools = (newTools: ToolEntry[]) => {
+    save({ tools: newTools });
+  };
+
+  const updateTool = (idx: number, updates: Partial<ToolEntry>) => {
+    const next = tools.map((t, i) => (i === idx ? { ...t, ...updates } : t));
+    saveTools(next);
+  };
+
+  const removeTool = (idx: number) => {
+    const next = tools.filter((_, i) => i !== idx);
+    saveTools(next.length ? next : [{ id: `te-${Date.now()}`, tool: "", fieldValues: {} }]);
+  };
+
+  const addTool = () => {
+    saveTools([...tools, { id: `te-${Date.now()}`, tool: "", fieldValues: {} }]);
   };
 
   const handleDelete = async () => {
@@ -122,40 +176,21 @@ export default function CaseDetailPage() {
       {/* 基本資訊 */}
       <h2 className="text-base font-semibold">基本資訊</h2>
 
-      {/* Category + WorkType side by side */}
       <div className="grid grid-cols-2 gap-4">
         <Field label="類型">
-          <ColorSelect
-            fieldKey="caseCategory"
-            value={caseData.category}
-            onValueChange={(v) => save({ category: v })}
-          />
+          <ColorSelect fieldKey="caseCategory" value={caseData.category} onValueChange={(v) => save({ category: v })} />
         </Field>
         <Field label="工作類型">
-          <MultiColorSelect
-            fieldKey="taskType"
-            values={caseData.workType}
-            onValuesChange={(v) => save({ workType: v })}
-          />
+          <MultiColorSelect fieldKey="taskType" values={caseData.workType} onValuesChange={(v) => save({ workType: v })} />
         </Field>
       </div>
 
-      {/* BillingUnit + UnitCount side by side */}
       <div className="grid grid-cols-2 gap-4">
         <Field label="計費單位">
-          <ColorSelect
-            fieldKey="billingUnit"
-            value={caseData.billingUnit}
-            onValueChange={(v) => save({ billingUnit: v })}
-          />
+          <ColorSelect fieldKey="billingUnit" value={caseData.billingUnit} onValueChange={(v) => save({ billingUnit: v })} />
         </Field>
         <Field label="計費單位數">
-          <Input
-            type="number"
-            value={caseData.unitCount || ""}
-            onChange={(e) => save({ unitCount: Number(e.target.value) || 0 })}
-            className="max-w-[120px]"
-          />
+          <Input type="number" value={caseData.unitCount || ""} onChange={(e) => save({ unitCount: Number(e.target.value) || 0 })} className="max-w-[120px]" />
         </Field>
       </div>
 
@@ -163,53 +198,53 @@ export default function CaseDetailPage() {
         <Textarea value={caseData.inquiryNote} onChange={(e) => save({ inquiryNote: e.target.value })} className="max-w-md" rows={2} />
       </Field>
 
-      {/* Translator + Reviewer side by side */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <Field label="譯者">
-            <ColorSelect
-              fieldKey="assignee"
-              value={caseData.translator}
-              onValueChange={(v) => save({ translator: v })}
-            />
+            <ColorSelect fieldKey="assignee" value={caseData.translator} onValueChange={(v) => save({ translator: v })} />
           </Field>
           <Field label="翻譯交期">
-            <DateTimePicker
-              value={caseData.translationDeadline}
-              onChange={(v) => save({ translationDeadline: v })}
-              className="w-full"
-            />
+            <DateTimePicker value={caseData.translationDeadline} onChange={(v) => save({ translationDeadline: v })} className="w-full" />
           </Field>
         </div>
         <div className="space-y-1">
           <Field label="審稿人員">
-            <ColorSelect
-              fieldKey="assignee"
-              value={caseData.reviewer}
-              onValueChange={(v) => save({ reviewer: v })}
-            />
+            <ColorSelect fieldKey="assignee" value={caseData.reviewer} onValueChange={(v) => save({ reviewer: v })} />
           </Field>
           <Field label="審稿交期">
-            <DateTimePicker
-              value={caseData.reviewDeadline}
-              onChange={(v) => save({ reviewDeadline: v })}
-              className="w-full"
-            />
+            <DateTimePicker value={caseData.reviewDeadline} onChange={(v) => save({ reviewDeadline: v })} className="w-full" />
           </Field>
         </div>
       </div>
 
       <Separator />
 
-      {/* Status & Tools */}
-      <h2 className="text-base font-semibold">狀態與工具</h2>
+      {/* ── 工具區塊 ── */}
+      <h2 className="text-base font-semibold">工具</h2>
+      <div className="space-y-3">
+        {tools.map((entry, idx) => (
+          <ToolInstance
+            key={entry.id}
+            entry={entry}
+            index={idx}
+            onUpdate={(u) => updateTool(idx, u)}
+            onRemove={() => removeTool(idx)}
+            showRemove={tools.length > 1}
+          />
+        ))}
+        <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={addTool}>
+          <Plus className="h-4 w-4" />
+          新增工具
+        </Button>
+      </div>
+
+      <Separator />
+
+      {/* Status & Delivery */}
+      <h2 className="text-base font-semibold">狀態與交件</h2>
       <Field label="任務狀態">
         <Input value={caseData.taskStatus} onChange={(e) => save({ taskStatus: e.target.value })} className="max-w-xs" />
       </Field>
-      <Field label="執行工具">
-        <ColorSelect fieldKey="executionTool" value={caseData.executionTool} onValueChange={(v) => save({ executionTool: v })} className="max-w-xs" />
-      </Field>
-      <ToolSubFields caseData={caseData} save={save} />
       <Field label="交件方式">
         <Input value={caseData.deliveryMethod} onChange={(e) => save({ deliveryMethod: e.target.value })} className="max-w-md" />
       </Field>
