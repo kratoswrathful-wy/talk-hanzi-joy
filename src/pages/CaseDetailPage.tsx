@@ -1167,13 +1167,12 @@ export default function CaseDetailPage() {
           <CollaborationTable
             rows={caseData.collabRows}
             onChange={(newRows) => {
-              // Check auto-status transitions
               const allAccepted = newRows.length > 0 && newRows.every((r) => r.accepted);
               const allTaskCompleted = newRows.length > 0 && newRows.every((r) => r.taskCompleted);
+              const allDelivered = newRows.length > 0 && newRows.every((r) => r.delivered);
               
               const updates: Partial<CaseRecord> = { collabRows: newRows };
               
-              // Derive translator list from collab rows (unique, non-empty)
               const collabTranslators = [...new Set(newRows.map(r => r.translator).filter(Boolean))];
               updates.translator = collabTranslators;
 
@@ -1187,6 +1186,12 @@ export default function CaseDetailPage() {
                 updates.status = "task_completed" as CaseStatus;
                 save(updates);
                 toast({ title: "所有任務已完成" });
+                return;
+              }
+              if ((caseData.status === "dispatched" || caseData.status === "task_completed") && allDelivered) {
+                updates.status = "delivered" as CaseStatus;
+                save(updates);
+                toast({ title: "所有交件已完畢，狀態已更新為「交件完畢」" });
                 return;
               }
               save(updates);
