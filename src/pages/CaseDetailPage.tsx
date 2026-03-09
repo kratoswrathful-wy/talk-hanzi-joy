@@ -1094,7 +1094,7 @@ export default function CaseDetailPage() {
                 </div>
               )}
               {/* Button to generate fees */}
-              {isPmOrAbove && canSeeButton && showButton && (
+              {canSeeButton && showButton && (
               <Button
                 type="button"
                 variant="outline"
