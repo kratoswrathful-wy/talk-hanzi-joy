@@ -1031,6 +1031,7 @@ export default function CaseDetailPage() {
               譯者完成任務後，請直接勾選「任務完成」。
             </span>
           )}
+          
         </div>
       </Field>
 
@@ -1156,19 +1157,6 @@ export default function CaseDetailPage() {
         <div className="space-y-2">
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">多人協作（{caseData.collabCount} 人次）</span>
-            {isPmOrAbove && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  setCollabEditInput(String(caseData.collabCount));
-                  setCollabEditOpen(true);
-                }}
-              >
-                <Settings className="h-3.5 w-3.5" />
-              </Button>
-            )}
           </div>
           <CollaborationTable
             rows={caseData.collabRows}
@@ -1217,6 +1205,19 @@ export default function CaseDetailPage() {
             }}
           />
           <Label htmlFor="multiCollab" className="text-sm cursor-pointer">多人協作/分批交件</Label>
+          {caseData.multiCollab && isPmOrAbove && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs text-muted-foreground"
+              onClick={() => {
+                setCollabEditInput(String(caseData.collabCount));
+                setCollabEditOpen(true);
+              }}
+            >
+              變更人次
+            </Button>
+          )}
           {caseData.multiCollab && isPmOrAbove && (
             <Button
               variant="ghost"
