@@ -11,7 +11,7 @@ import { useRowSelection } from "@/hooks/use-row-selection";
 import { useCaseTableViews, caseFieldMetas } from "@/hooks/use-case-table-views";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { InlineEditCell } from "@/components/fees/InlineEditCell";
-import { useSelectOptions } from "@/stores/select-options-store";
+import { useSelectOptions, getStatusLabelStyle } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import AssigneeTag from "@/components/AssigneeTag";
 import { useState, useRef, useCallback, useEffect } from "react";
