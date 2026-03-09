@@ -1041,147 +1041,10 @@ export default function ToolManagementPage() {
         </div>
       </div>
 
-      {/* ── 提問工具區塊 ── */}
-      <div className="rounded-xl border border-border bg-card p-6 space-y-4">
-        <h2 className="text-base font-semibold">提問工具</h2>
-        <div className="space-y-1">
-          {qToolOptions.map((opt, idx) => (
-            <div key={opt.id}>
-              <div
-                draggable
-                onDragStart={() => setQDragIndex(idx)}
-                onDragOver={(e) => { e.preventDefault(); if (qDragIndex !== null && qDragIndex !== idx) setQDragOverIndex(idx); }}
-                onDrop={() => {
-                  if (qDragIndex === null || qDragIndex === idx) return;
-                  const ids = qToolOptions.map((o) => o.id);
-                  const [moved] = ids.splice(qDragIndex, 1);
-                  ids.splice(idx, 0, moved);
-                  selectOptionsStore.reorderOptions("questionTool", ids);
-                  setQDragIndex(null); setQDragOverIndex(null);
-                }}
-                onDragEnd={() => { setQDragIndex(null); setQDragOverIndex(null); }}
-                className={cn(
-                  "flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors cursor-grab active:cursor-grabbing group",
-                  qDragOverIndex === idx && "bg-primary/10 border border-dashed border-primary/30",
-                  qDragIndex === idx && "opacity-50",
-                  qDragOverIndex !== idx && "hover:bg-secondary/30"
-                )}
-              >
-                <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                <span
-                  className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
-                  style={{ backgroundColor: opt.color, color: "#fff", borderColor: opt.color }}
-                >
-                  {opt.label}
-                </span>
-                <button
-                  className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted transition-colors"
-                  onClick={() => setQExpandedTools((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(opt.id)) next.delete(opt.id);
-                    else next.add(opt.id);
-                    return next;
-                  })}
-                >
-                  {qExpandedTools.has(opt.id) ? (
-                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                  ) : (
-                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                  )}
-                </button>
-                <span className="text-xs text-muted-foreground">
-                  {(opt.toolFields || []).length > 0 && `${(opt.toolFields || []).length} 個欄位`}
-                </span>
-                <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Popover
-                    open={qColorPickerOptionId === opt.id}
-                    onOpenChange={(v) => setQColorPickerOptionId(v ? opt.id : null)}
-                  >
-                    <PopoverTrigger asChild>
-                      <button className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted transition-colors" onClick={(e) => e.stopPropagation()}>
-                        <Palette className="h-3.5 w-3.5 text-muted-foreground" />
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[240px] p-3" side="right" align="start" sideOffset={4}>
-                      <ColorPicker
-                        value={opt.color}
-                        onChange={(color) => selectOptionsStore.updateOptionColor("questionTool", opt.id, color)}
-                        customColors={qCustomColors}
-                        onAddCustomColor={(c) => selectOptionsStore.addCustomColor("questionTool", c)}
-                        onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("questionTool", c)}
-                        colorUsageMap={getColorUsageMap(qToolOptions)}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <button
-                    className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
-                    onClick={(e) => { e.stopPropagation(); selectOptionsStore.deleteOption("questionTool", opt.id); }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-              {qExpandedTools.has(opt.id) && (
-                <ToolFieldManager optionId={opt.id} fields={opt.toolFields || []} fieldKey="questionTool" />
-              )}
-            </div>
-          ))}
-        </div>
-
-        {qAdding ? (
-          <div className="space-y-2 px-2">
-            <Input
-              value={qNewLabel}
-              onChange={(e) => setQNewLabel(e.target.value)}
-              placeholder="輸入提問工具名稱"
-              className="h-8 text-sm"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  const label = qNewLabel.trim();
-                  if (!label || qToolOptions.some((o) => o.label === label)) return;
-                  selectOptionsStore.addOption("questionTool", label, qNewColor);
-                  setQNewLabel(""); setQNewColor(PRESET_COLORS[0]); setQAdding(false);
-                }
-                if (e.key === "Escape") setQAdding(false);
-              }}
-            />
-            <ColorPicker
-              value={qNewColor}
-              onChange={(color) => setQNewColor(color)}
-              customColors={qCustomColors}
-              onAddCustomColor={(c) => selectOptionsStore.addCustomColor("questionTool", c)}
-              onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("questionTool", c)}
-              colorUsageMap={getColorUsageMap(qToolOptions)}
-            />
-            <div className="flex gap-1.5 justify-end">
-              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setQAdding(false)}>取消</Button>
-              <Button size="sm" className="h-7 text-xs" disabled={!qNewLabel.trim()} onClick={() => {
-                const label = qNewLabel.trim();
-                if (!label || qToolOptions.some((o) => o.label === label)) return;
-                selectOptionsStore.addOption("questionTool", label, qNewColor);
-                setQNewLabel(""); setQNewColor(PRESET_COLORS[0]); setQAdding(false);
-              }}>新增</Button>
-            </div>
-          </div>
-        ) : (
-          <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={() => setQAdding(true)}>
-            <Plus className="h-3.5 w-3.5" />
-            新增提問工具
-          </Button>
-        )}
-      </div>
-
-      {/* ── 內部註記狀態 ── */}
-      <SimpleSelectSection fieldKey="noteStatus" title="內部註記狀態" addLabel="新增狀態" />
-
-      {/* ── 內部註記性質 ── */}
-      <SimpleSelectSection fieldKey="noteNature" title="內部註記性質" addLabel="新增性質" />
-
-      {/* ── 範本區塊 ── */}
+      {/* ── 工具資訊範本 ── */}
       <div className="rounded-xl border border-border bg-card p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">範本</h2>
+          <h2 className="text-base font-semibold">工具資訊範本</h2>
           {!addingTemplate && (
             <Button
               variant="outline"
@@ -1212,6 +1075,13 @@ export default function ToolManagementPage() {
           ))}
         </div>
       </div>
+
+      {/* ── 內部註記狀態 ── */}
+      <SimpleSelectSection fieldKey="noteStatus" title="內部註記狀態" addLabel="新增狀態" />
+
+      {/* ── 內部註記性質 ── */}
+      <SimpleSelectSection fieldKey="noteNature" title="內部註記性質" addLabel="新增性質" />
+
       {/* ── 常用連結區塊 ── */}
       <CommonLinksSection />
     </div>
