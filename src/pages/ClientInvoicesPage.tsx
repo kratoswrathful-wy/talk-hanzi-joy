@@ -486,9 +486,9 @@ export default function ClientInvoicesPage() {
         onToggleColumn={tableViews.toggleColumnVisibility}
         fieldMetasList={clientInvoiceFieldMetas}
         statusOptionsList={[
-          { value: "pending", label: "待付款" },
-          { value: "partial", label: "部份付款" },
-          { value: "paid", label: "已付款" },
+          { value: "pending", label: "待收款" },
+          { value: "partial_collected", label: "部份收款" },
+          { value: "collected", label: "收款完畢" },
         ]}
         selectedIds={[...rowSelection.selectedIds]}
         onPinTop={tableViews.pinTop}
