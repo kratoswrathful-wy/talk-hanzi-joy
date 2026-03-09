@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { Upload, Link as LinkIcon, X, FileText, BookmarkPlus, GripVertical, Pencil, Check } from "lucide-react";
+import { Upload, Link as LinkIcon, X, FileText, BookmarkPlus, GripVertical, Pencil, Check, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
