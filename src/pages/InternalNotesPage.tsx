@@ -50,7 +50,7 @@ import { cn } from "@/lib/utils";
 import { useInternalNotes, internalNotesStore } from "@/stores/internal-notes-store";
 import { useAuth } from "@/hooks/use-auth";
 import { caseStore } from "@/hooks/use-case-store";
-import { useSelectOptions } from "@/stores/select-options-store";
+import { useSelectOptions, getStatusLabelStyle } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));

@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useClientInvoices, clientInvoiceStore } from "@/hooks/use-client-invoice-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useRowSelection } from "@/hooks/use-row-selection";
-import { useSelectOptions } from "@/stores/select-options-store";
+import { useSelectOptions, getStatusLabelStyle } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { type ClientInvoiceStatus, clientInvoiceStatusLabels } from "@/data/client-invoice-types";
 import { type ClientInvoice } from "@/data/client-invoice-types";
