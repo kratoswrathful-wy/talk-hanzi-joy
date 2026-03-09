@@ -1006,30 +1006,40 @@ export default function CaseDetailPage() {
       </div>
 
       {/* 本案費用 + 產生本案費用單 */}
-      {isPmOrAbove && (
-        <div className="flex items-start justify-between gap-4">
-          <Field label={`本案費用（${(() => { const caseUrl = `${window.location.origin}/cases/${caseData.id}`; return allFees.filter((f) => f.internalNoteUrl === caseUrl).length; })()} 筆）`}>
-            {(() => {
-              const caseUrl = `${window.location.origin}/cases/${caseData.id}`;
-              const linkedFees = allFees.filter((f) => f.internalNoteUrl === caseUrl);
-              if (linkedFees.length === 0) return <span className="text-sm text-muted-foreground">尚無費用單</span>;
-              // Sort: primary first, then non-primary, then others
-              const sorted = [...linkedFees].sort((a, b) => {
-                const aP = a.clientInfo?.isFirstFee ? 0 : a.clientInfo?.notFirstFee ? 2 : 1;
-                const bP = b.clientInfo?.isFirstFee ? 0 : b.clientInfo?.notFirstFee ? 2 : 1;
-                return aP - bP;
-              });
-              return (
+      {isPmOrAbove && (() => {
+        const caseUrl = `${window.location.origin}/cases/${caseData.id}`;
+        const linkedFees = allFees.filter((f) => f.internalNoteUrl === caseUrl);
+        const translators: string[] = Array.isArray(caseData.translator) ? caseData.translator : [];
+        const feeCount = linkedFees.length;
+        const translatorCount = Math.max(translators.length, 1);
+        const showButton = feeCount < translatorCount;
+        const showWarning = feeCount > translatorCount;
+
+        const sorted = [...linkedFees].sort((a, b) => {
+          const aP = a.clientInfo?.isFirstFee ? 0 : a.clientInfo?.notFirstFee ? 2 : 1;
+          const bP = b.clientInfo?.isFirstFee ? 0 : b.clientInfo?.notFirstFee ? 2 : 1;
+          return aP - bP;
+        });
+
+        return (
+          <div className="flex items-start justify-between gap-4">
+            <div className="grid gap-1.5 flex-1">
+              <Label className="text-xs text-muted-foreground">
+                本案費用<br />（{feeCount} 筆）
+              </Label>
+              {feeCount === 0 ? (
+                <span className="text-sm text-muted-foreground">尚無費用單</span>
+              ) : (
                 <div className="space-y-1">
                   {sorted.map((f) => (
-                    <div key={f.id} className="grid items-center gap-2 rounded px-1 py-0.5" style={{ gridTemplateColumns: "1fr auto auto" }}>
+                    <div key={f.id} className="grid items-center gap-2 rounded px-1 py-0.5" style={{ gridTemplateColumns: "minmax(200px, 1fr) 140px 50px" }}>
                       <Link to={`/fees/${f.id}`} className="text-sm text-primary hover:underline underline-offset-2 truncate text-left">
                         {f.title || "未命名費用"}
                       </Link>
-                      <div className="flex items-center justify-start min-w-[100px]">
+                      <div className="flex items-center">
                         {f.assignee ? <AssigneeTag label={f.assignee} size="sm" /> : <span />}
                       </div>
-                      <div className="flex items-center justify-end min-w-[40px]">
+                      <div className="flex items-center justify-end">
                         {f.clientInfo?.isFirstFee && (
                           <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">主要</Badge>
                         )}
@@ -1040,142 +1050,143 @@ export default function CaseDetailPage() {
                     </div>
                   ))}
                 </div>
-              );
-            })()}
-          </Field>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5 shrink-0 mt-5"
-            onClick={() => {
-              if (!caseData) return;
-              const caseUrl = `${window.location.origin}/cases/${caseData.id}`;
-              const workTypes: string[] = Array.isArray(caseData.workType) ? caseData.workType : [];
-              const translators: string[] = Array.isArray(caseData.translator) ? caseData.translator : [];
-              const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
-              const billingUnit: BillingUnit = billingUnitMap[caseData.billingUnit] || "字";
-              const unitCount = caseData.unitCount || 0;
-              const caseTitle = caseData.title || "";
+              )}
+            </div>
+            {showButton ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 shrink-0 mt-5"
+                onClick={() => {
+                  if (!caseData) return;
+                  const workTypes: string[] = Array.isArray(caseData.workType) ? caseData.workType : [];
+                  const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
+                  const billingUnit: BillingUnit = billingUnitMap[caseData.billingUnit] || "字";
+                  const unitCount = caseData.unitCount || 0;
+                  const caseTitle = caseData.title || "";
 
-              const knownTaskTypes: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
-              const taskTypeAliases: Record<string, TaskType> = { "審稿": "校對", "Review": "校對", "Translation": "翻譯", "Proofreading": "校對" };
-              const matchTaskType = (wt: string): string => {
-                const direct = knownTaskTypes.find((t) => wt.includes(t));
-                if (direct) return direct;
-                for (const [alias, mapped] of Object.entries(taskTypeAliases)) {
-                  if (wt.includes(alias)) return mapped;
-                }
-                return wt;
-              };
-              const ensureTaskTypeOption = (taskType: string) => {
-                const existingOptions = selectOptionsStore.getSortedOptions("taskType");
-                if (!existingOptions.find((o) => o.label === taskType)) {
-                  const color = PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
-                  selectOptionsStore.addOption("taskType", taskType, color);
-                }
-              };
-              const getAutoPrice = (taskType: string, bu: string = "字") => {
-                return 0;
-              };
+                  const knownTaskTypes: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
+                  const taskTypeAliases: Record<string, TaskType> = { "審稿": "校對", "Review": "校對", "Translation": "翻譯", "Proofreading": "校對" };
+                  const matchTaskType = (wt: string): string => {
+                    const direct = knownTaskTypes.find((t) => wt.includes(t));
+                    if (direct) return direct;
+                    for (const [alias, mapped] of Object.entries(taskTypeAliases)) {
+                      if (wt.includes(alias)) return mapped;
+                    }
+                    return wt;
+                  };
+                  const ensureTaskTypeOption = (taskType: string) => {
+                    const existingOptions = selectOptionsStore.getSortedOptions("taskType");
+                    if (!existingOptions.find((o) => o.label === taskType)) {
+                      const color = PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
+                      selectOptionsStore.addOption("taskType", taskType, color);
+                    }
+                  };
 
-              const mapped: FeeTaskItem[] = workTypes.length > 0
-                ? workTypes.map((wt, idx) => {
-                    const matchedType = matchTaskType(wt);
-                    ensureTaskTypeOption(matchedType);
-                    return {
-                      id: `item-case-${Date.now()}-${idx}`,
-                      taskType: matchedType as TaskType,
-                      billingUnit,
-                      unitCount: idx === 0 && unitCount ? unitCount : 0,
-                      unitPrice: getAutoPrice(matchedType, billingUnit),
-                    };
-                  })
-                : [{ id: `item-${Date.now()}`, taskType: "翻譯" as TaskType, billingUnit, unitCount: 0, unitPrice: 0 }];
+                  const mapped: FeeTaskItem[] = workTypes.length > 0
+                    ? workTypes.map((wt, idx) => {
+                        const matchedType = matchTaskType(wt);
+                        ensureTaskTypeOption(matchedType);
+                        return {
+                          id: `item-case-${Date.now()}-${idx}`,
+                          taskType: matchedType as TaskType,
+                          billingUnit,
+                          unitCount: idx === 0 && unitCount ? unitCount : 0,
+                          unitPrice: 0,
+                        };
+                      })
+                    : [{ id: `item-${Date.now()}`, taskType: "翻譯" as TaskType, billingUnit, unitCount: 0, unitPrice: 0 }];
 
-              const resolveAssignee = (name: string): string => {
-                const assigneeOptions = selectOptionsStore.getSortedOptions("assignee");
-                const m = assigneeOptions.find((o) => o.label === name || o.email === name);
-                return m ? m.label : name;
-              };
+                  const resolveAssignee = (name: string): string => {
+                    const assigneeOptions = selectOptionsStore.getSortedOptions("assignee");
+                    const m = assigneeOptions.find((o) => o.label === name || o.email === name);
+                    return m ? m.label : name;
+                  };
 
-              const firstAssignee = translators.length > 0 ? resolveAssignee(translators[0]) : "";
-              const isMulti = translators.length > 1;
-              const baseTitle = caseTitle ? `PO_${caseTitle}` : "";
-              const firstTitle = isMulti ? `${baseTitle}_01` : baseTitle;
+                  const firstAssignee = translators.length > 0 ? resolveAssignee(translators[0]) : "";
+                  const isMulti = translators.length > 1;
+                  const baseTitle = caseTitle ? `PO_${caseTitle}` : "";
+                  const firstTitle = isMulti ? `${baseTitle}_01` : baseTitle;
 
-              const firstFeeId = crypto.randomUUID();
-              const firstFee: TranslatorFee = {
-                id: firstFeeId,
-                title: firstTitle,
-                assignee: firstAssignee,
-                status: "draft",
-                internalNote: caseTitle,
-                internalNoteUrl: caseUrl,
-                taskItems: mapped,
-                clientInfo: {
-                  ...defaultClientInfo,
-                  clientTaskItems: mapped.map((m, idx) => ({
-                    id: `ci-case-${Date.now()}-${idx}`,
-                    taskType: m.taskType,
-                    billingUnit: m.billingUnit,
-                    unitCount: m.unitCount,
-                    clientPrice: 0,
-                  })),
-                  ...(isMulti ? { sameCase: true, isFirstFee: true, notFirstFee: false } : {}),
-                },
-                notes: [],
-                editLogs: [],
-                createdBy: profile?.id || "",
-                createdAt: new Date().toISOString(),
-              };
-              feeStore.addFee(firstFee);
-
-              if (isMulti) {
-                for (let i = 1; i < translators.length; i++) {
-                  const personAssignee = resolveAssignee(translators[i]);
-                  const pageTitle = `${baseTitle}_${String(i + 1).padStart(2, "0")}`;
-                  const newFee: TranslatorFee = {
-                    id: crypto.randomUUID(),
-                    title: pageTitle,
-                    assignee: personAssignee,
+                  const firstFeeId = crypto.randomUUID();
+                  const firstFee: TranslatorFee = {
+                    id: firstFeeId,
+                    title: firstTitle,
+                    assignee: firstAssignee,
                     status: "draft",
                     internalNote: caseTitle,
                     internalNoteUrl: caseUrl,
-                    taskItems: mapped.map((item, idx) => ({ ...item, id: `item-clone-${Date.now()}-${idx}-${i}` })),
+                    taskItems: mapped,
                     clientInfo: {
                       ...defaultClientInfo,
                       clientTaskItems: mapped.map((m, idx) => ({
-                        id: `ci-clone-${Date.now()}-${idx}-${i}`,
+                        id: `ci-case-${Date.now()}-${idx}`,
                         taskType: m.taskType,
                         billingUnit: m.billingUnit,
                         unitCount: m.unitCount,
                         clientPrice: 0,
                       })),
-                      sameCase: true,
-                      isFirstFee: false,
-                      notFirstFee: true,
+                      ...(isMulti ? { sameCase: true, isFirstFee: true, notFirstFee: false } : {}),
                     },
                     notes: [],
                     editLogs: [],
                     createdBy: profile?.id || "",
                     createdAt: new Date().toISOString(),
                   };
-                  feeStore.addFee(newFee);
-                }
-                toast({ title: `已產生 ${translators.length} 筆費用單` });
-              } else {
-                toast({ title: "已產生費用單" });
-              }
+                  feeStore.addFee(firstFee);
 
-              navigate(`/fees/${firstFeeId}`);
-            }}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            產生本案費用單
-          </Button>
-        </div>
-      )}
+                  if (isMulti) {
+                    for (let i = 1; i < translators.length; i++) {
+                      const personAssignee = resolveAssignee(translators[i]);
+                      const pageTitle = `${baseTitle}_${String(i + 1).padStart(2, "0")}`;
+                      const newFee: TranslatorFee = {
+                        id: crypto.randomUUID(),
+                        title: pageTitle,
+                        assignee: personAssignee,
+                        status: "draft",
+                        internalNote: caseTitle,
+                        internalNoteUrl: caseUrl,
+                        taskItems: mapped.map((item, idx) => ({ ...item, id: `item-clone-${Date.now()}-${idx}-${i}` })),
+                        clientInfo: {
+                          ...defaultClientInfo,
+                          clientTaskItems: mapped.map((m, idx) => ({
+                            id: `ci-clone-${Date.now()}-${idx}-${i}`,
+                            taskType: m.taskType,
+                            billingUnit: m.billingUnit,
+                            unitCount: m.unitCount,
+                            clientPrice: 0,
+                          })),
+                          sameCase: true,
+                          isFirstFee: false,
+                          notFirstFee: true,
+                        },
+                        notes: [],
+                        editLogs: [],
+                        createdBy: profile?.id || "",
+                        createdAt: new Date().toISOString(),
+                      };
+                      feeStore.addFee(newFee);
+                    }
+                    toast({ title: `已產生 ${translators.length} 筆費用單` });
+                  } else {
+                    toast({ title: "已產生費用單" });
+                  }
+
+                  navigate(`/fees/${firstFeeId}`);
+                }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                產生本案費用單
+              </Button>
+            ) : showWarning ? (
+              <span className="text-xs text-destructive shrink-0 mt-5 max-w-[160px] text-right">
+                費用單數目多於譯者人數，請確認無誤
+              </span>
+            ) : null}
+          </div>
+        );
+      })()}
 
       <Separator />
 
