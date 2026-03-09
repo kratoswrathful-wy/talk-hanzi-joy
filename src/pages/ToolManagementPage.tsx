@@ -509,7 +509,7 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
 }
 
 /* ── New Template Form (inline) ── */
-function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; label: string; toolFields?: { id: string; label: string }[] }[]; onDone: () => void }) {
+function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; label: string; toolFields?: { id: string; label: string; type?: "text" | "file" }[] }[]; onDone: () => void }) {
   const [name, setName] = useState("");
   const [tool, setTool] = useState("");
   const [fields, setFields] = useState<TemplateField[]>([]);
