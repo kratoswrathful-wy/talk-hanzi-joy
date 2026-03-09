@@ -551,16 +551,19 @@ export default function CaseDetailPage() {
 
   const roleLabels: Record<string, string> = { member: "成員", pm: "專案經理", executive: "執行官" };
 
-  // Block navigation when leaving a draft case (PM+ only) to prompt publishing
-  const shouldBlockNav = canSeePublishPrompt && !!caseData && caseData.status === "draft";
-  const blocker = useBlocker(shouldBlockNav);
+   // Block navigation when leaving a draft case (PM+ only) to prompt publishing
+   const shouldBlockNav = canSeePublishPrompt && !!caseData && caseData.status === "draft";
 
-  useEffect(() => {
-    if (blocker.state === "blocked" && shouldBlockNav) {
-      pendingNavigateRef.current = () => blocker.proceed();
-      setPublishPromptOpen(true);
-    }
-  }, [blocker.state, shouldBlockNav]);
+   // Intercept back button / browser navigation via beforeunload
+   useEffect(() => {
+     if (!shouldBlockNav) return;
+     const handler = (e: BeforeUnloadEvent) => {
+       e.preventDefault();
+       e.returnValue = "";
+     };
+     window.addEventListener("beforeunload", handler);
+     return () => window.removeEventListener("beforeunload", handler);
+   }, [shouldBlockNav]);
 
   useEffect(() => {
     let mounted = true;
