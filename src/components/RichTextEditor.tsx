@@ -130,7 +130,6 @@ export default function RichTextEditor({
       const filtered = defaultItems.filter((item) => {
         const t = item.title;
         if (excludedTitles.has(t)) return false;
-        // Also filter collapsible headings > 3
         if (/可折疊標題\s*[4-6]/.test(t) || /Collapsible Heading [4-6]/i.test(t)) return false;
         return true;
       });
@@ -140,13 +139,20 @@ export default function RichTextEditor({
         if (mapping) {
           return { ...item, title: mapping.title, ...(mapping.subtext ? { subtext: mapping.subtext } : {}) };
         }
-        // Generic rename: any remaining "列表" → "清單"
         if (item.title.includes("列表")) {
           return { ...item, title: item.title.replace(/列表/g, "清單") };
         }
         return item;
       });
-      return filterSuggestionItems(renamed, query);
+      // Simple query filtering
+      if (!query) return renamed;
+      const q = query.toLowerCase();
+      return renamed.filter(
+        (item) =>
+          item.title.toLowerCase().includes(q) ||
+          (item.subtext && item.subtext.toLowerCase().includes(q)) ||
+          (item.aliases && item.aliases.some((a: string) => a.toLowerCase().includes(q)))
+      );
     },
     [editor]
   );
