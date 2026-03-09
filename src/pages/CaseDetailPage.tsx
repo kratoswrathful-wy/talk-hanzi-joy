@@ -901,7 +901,7 @@ export default function CaseDetailPage() {
               size="sm"
               className="text-xs min-w-[88px] text-white hover:opacity-80"
               style={{ backgroundColor: '#6B7280' }}
-              onClick={handleRevertToDispatched}
+              onClick={handleRevertToFeedback}
             >
               退回修正
             </Button>
