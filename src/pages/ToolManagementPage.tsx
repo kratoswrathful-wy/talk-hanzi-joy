@@ -117,6 +117,11 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
               placeholder="欄位名稱"
               className="h-6 text-xs flex-1"
               autoFocus
+              onBlur={() => {
+                if (newLabel.trim() && addButtonRef.current) {
+                  setTimeout(() => addButtonRef.current?.focus(), 100);
+                }
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleAdd();
                 if (e.key === "Escape") { setAdding(false); setNewFieldType(null); }
@@ -125,7 +130,19 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
             <Badge variant="secondary" className="text-[10px] h-5 px-1.5 shrink-0">
               {newFieldType === "file" ? "檔案" : "文字"}
             </Badge>
-            <Button size="sm" className="h-6 text-xs px-2" disabled={!newLabel.trim()} onClick={handleAdd}>
+            <Button 
+              ref={addButtonRef}
+              size="sm" 
+              className="h-6 text-xs px-2" 
+              disabled={!newLabel.trim()} 
+              onClick={handleAdd}
+              onKeyDown={(e) => {
+                if (e.key === " ") {
+                  e.preventDefault();
+                  handleAdd();
+                }
+              }}
+            >
               新增
             </Button>
             <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => { setAdding(false); setNewFieldType(null); setNewLabel(""); }}>
