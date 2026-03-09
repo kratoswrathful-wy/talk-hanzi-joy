@@ -867,7 +867,7 @@ export default function InvoiceDetailPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>刪除已付款請款單</AlertDialogTitle>
-            <AlertDialogDescription>此請款單已付款完畢，請輸入您的密碼以確認刪除。</AlertDialogDescription>
+            <AlertDialogDescription>此請款單已付款完畢，請輸入您的密碼以確定刪除。</AlertDialogDescription>
           </AlertDialogHeader>
           <div className="px-6 pb-2">
             <Input
