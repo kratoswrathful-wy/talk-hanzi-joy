@@ -45,7 +45,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 function StatusBadge({ status }: { status: ClientInvoiceStatus }) {
   useSelectOptions("statusLabel");
-  const labelMap: Record<string, string> = { pending: "待付款", partial: "部份付款", paid: "已付款" };
+  const labelMap: Record<string, string> = { pending: "待收款", partial_collected: "部份收款", collected: "收款完畢" };
   const label = labelMap[status] || status;
   const colors = getStatusLabelStyle(label);
   return (
