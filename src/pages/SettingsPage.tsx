@@ -314,6 +314,7 @@ function ClientPricingSection() {
         </div>
       )}
 
+      <div className="mt-auto space-y-4">
       {adding ? (
         <div className="space-y-2 px-2">
           <Input
