@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { caseStore } from "@/hooks/use-case-store";
 import { feeStore, useFees } from "@/hooks/use-fee-store";
 import { type TranslatorFee, type FeeTaskItem, type TaskType, type BillingUnit, defaultClientInfo } from "@/data/fee-mock-data";
-import { selectOptionsStore, PRESET_COLORS, useSelectOptions } from "@/stores/select-options-store";
+import { selectOptionsStore, PRESET_COLORS, CONTACT_DEFAULT_COLOR, useSelectOptions } from "@/stores/select-options-store";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
 import type { CaseRecord, ToolEntry, ToolEntryField, CaseStatus, CaseComment } from "@/data/case-types";
 import ColorSelect from "@/components/ColorSelect";
@@ -1127,6 +1127,23 @@ export default function CaseDetailPage() {
                     }
                   };
 
+                  // Auto-create client/contact options if they don't exist
+                  const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+                  const caseClient = caseData.client || "";
+                  const caseContact = caseData.contact || "";
+                  if (caseClient) {
+                    const existingClients = selectOptionsStore.getSortedOptions("client");
+                    if (!existingClients.find((o) => normalize(o.label) === normalize(caseClient))) {
+                      selectOptionsStore.addOption("client", caseClient, PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]);
+                    }
+                  }
+                  if (caseContact) {
+                    const existingContacts = selectOptionsStore.getSortedOptions("contact");
+                    if (!existingContacts.find((o) => normalize(o.label) === normalize(caseContact))) {
+                      selectOptionsStore.addOption("contact", caseContact, CONTACT_DEFAULT_COLOR);
+                    }
+                  }
+
                   const mapped: FeeTaskItem[] = workTypes.length > 0
                     ? workTypes.map((wt, idx) => {
                         const matchedType = matchTaskType(wt);
@@ -1171,6 +1188,8 @@ export default function CaseDetailPage() {
                         clientPrice: 0,
                       })),
                       ...(isMulti ? { sameCase: true, isFirstFee: true, notFirstFee: false } : {}),
+                      ...(caseClient ? { client: caseClient } : {}),
+                      ...(caseContact ? { contact: caseContact } : {}),
                     },
                     notes: [],
                     editLogs: [],
@@ -1203,6 +1222,8 @@ export default function CaseDetailPage() {
                           sameCase: true,
                           isFirstFee: false,
                           notFirstFee: true,
+                          ...(caseClient ? { client: caseClient } : {}),
+                          ...(caseContact ? { contact: caseContact } : {}),
                         },
                         notes: [],
                         editLogs: [],
