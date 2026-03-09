@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Plus, X, FileText } from "lucide-react";
+import { Plus, X, FileText, Copy, Check } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { clientInvoiceStore } from "@/stores/client-invoice-store";

@@ -82,6 +82,27 @@ function DetailStatusBadge({ status }: { status: FeeStatus }) {
   );
 }
 
+/* ── Copy button for fee page ── */
+function FeeCopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!value) return;
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <button
+      className="h-7 w-7 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0"
+      onClick={handleCopy}
+      title="複製到剪貼簿"
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  );
+}
+
 /** Inline link input for 客戶案件單連結 on fee page */
 function FeeCaseLinkInput({ onSave, defaultLabel }: { onSave: (v: { url: string; label: string }) => void; defaultLabel: string }) {
   const [urlInput, setUrlInput] = useState("");
