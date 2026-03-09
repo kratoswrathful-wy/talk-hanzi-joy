@@ -342,17 +342,22 @@ function ToolInstance({
           addingField ? (
             addingFieldType ? (
               <div className="flex items-center gap-1.5 py-1 ml-[132px]">
-                <Input
-                  value={newFieldLabel}
-                  onChange={(e) => setNewFieldLabel(e.target.value)}
-                  placeholder="欄位名稱"
-                  className="h-7 text-sm w-40"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && newFieldLabel.trim()) handleAddField();
-                    if (e.key === "Escape") { setAddingField(false); setAddingFieldType(null); setNewFieldLabel(""); }
-                  }}
-                />
+            <MultilineInput
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              placeholder="欄位名稱"
+              className="h-7 text-sm w-40"
+              minRows={1}
+              maxRows={3}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && newLabel.trim()) {
+                  e.preventDefault();
+                  handleAddField();
+                }
+                if (e.key === "Escape") { setAddingField(false); setAddingFieldType(null); setNewFieldLabel(""); }
+              }}
+            />
                 <Badge variant="secondary" className="text-[10px] shrink-0">
                   {addingFieldType === "text" ? "文字" : "檔案"}
                 </Badge>
