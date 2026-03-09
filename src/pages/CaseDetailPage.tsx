@@ -43,6 +43,8 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { internalNotesStore, useInternalNotes } from "@/stores/internal-notes-store";
 import type { InternalNote } from "@/hooks/use-internal-notes-table-views";
 
+const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
+
 
 const caseStatusLabels: Record<CaseStatus, string> = {
   draft: "草稿",
