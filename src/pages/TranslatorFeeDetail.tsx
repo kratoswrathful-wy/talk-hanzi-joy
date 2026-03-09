@@ -5,6 +5,7 @@ import { CommentContent } from "@/components/comments/CommentContent";
 import { CommentInput } from "@/components/comments/CommentInput";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { invoiceStore } from "@/stores/invoice-store";
+import { ApplyTemplateButton } from "@/components/ApplyTemplateButton";
 
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
