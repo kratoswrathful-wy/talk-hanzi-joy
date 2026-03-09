@@ -101,4 +101,17 @@
     padding: 0.75rem 1rem;
     min-height: 120px;
   }
+
+  /* Ordered list 6-level numbering: 1. → (1) → A. → (A) → a. → (a) */
+  .rich-text-editor ol { list-style-type: decimal; }
+  .rich-text-editor ol ol { list-style: none; }
+  .rich-text-editor ol ol > li::before { content: "(" counter(list-item) ") "; }
+  .rich-text-editor ol ol ol { list-style-type: upper-alpha; }
+  .rich-text-editor ol ol ol > li::before { content: none; }
+  .rich-text-editor ol ol ol ol { list-style: none; }
+  .rich-text-editor ol ol ol ol > li::before { content: "(" counter(list-item, upper-alpha) ") "; }
+  .rich-text-editor ol ol ol ol ol { list-style-type: lower-alpha; }
+  .rich-text-editor ol ol ol ol ol > li::before { content: none; }
+  .rich-text-editor ol ol ol ol ol ol { list-style: none; }
+  .rich-text-editor ol ol ol ol ol ol > li::before { content: "(" counter(list-item, lower-alpha) ") "; }
 }
