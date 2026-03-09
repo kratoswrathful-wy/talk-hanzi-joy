@@ -1493,9 +1493,9 @@ export default function CaseDetailPage() {
 
       <Separator />
 
-      {/* 長文 */}
+      {/* 案件說明 */}
       <div className="space-y-2">
-        <h2 className="text-base font-semibold">長文</h2>
+        <h2 className="text-base font-semibold">案件說明</h2>
         <Suspense fallback={<div className="h-32 rounded-md border border-input bg-background animate-pulse" />}>
           <RichTextEditor
             initialContent={caseData.bodyContent || []}
