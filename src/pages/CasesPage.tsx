@@ -533,7 +533,6 @@ export default function CasesPage() {
         statusOptionsList={[
           { value: "draft", label: "草稿" },
           { value: "inquiry", label: "詢案中" },
-          { value: "finalized", label: "開立完成" },
         ]}
         selectedIds={[...rowSelection.selectedIds]}
         onPinTop={tableViews.pinTop}

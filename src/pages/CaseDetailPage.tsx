@@ -765,14 +765,19 @@ export default function CaseDetailPage() {
   };
 
   const handleRevertToDispatched = () => {
-    // Uncheck all taskCompleted in collab rows when reverting
+    // Uncheck all taskCompleted and delivered in collab rows when reverting
     if (caseData?.multiCollab && caseData.collabRows.length > 0) {
-      const updatedRows = caseData.collabRows.map(r => ({ ...r, taskCompleted: false }));
+      const updatedRows = caseData.collabRows.map(r => ({ ...r, taskCompleted: false, delivered: false }));
       save({ status: "dispatched" as CaseStatus, collabRows: updatedRows });
     } else {
       save({ status: "dispatched" as CaseStatus });
     }
     toast({ title: "已退回修正" });
+  };
+
+  const handleRevertToFeedback = () => {
+    save({ status: "feedback" as CaseStatus });
+    toast({ title: "已退回處理" });
   };
 
   const handleDelivered = () => {
