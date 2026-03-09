@@ -3,6 +3,7 @@ import { selectOptionsStore } from "@/stores/select-options-store";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
 import { labelStyleStore } from "@/stores/label-style-store";
 import { toolTemplateStore } from "@/stores/tool-template-store";
+import { pageTemplateStore } from "@/stores/page-template-store";
 import { commonLinksStore } from "@/stores/common-links-store";
 import { resetLoadedKeys } from "@/stores/settings-persistence";
 
