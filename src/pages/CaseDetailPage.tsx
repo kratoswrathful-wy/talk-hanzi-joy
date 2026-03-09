@@ -761,7 +761,13 @@ export default function CaseDetailPage() {
   };
 
   const handleRevertToDispatched = () => {
-    save({ status: "dispatched" as CaseStatus });
+    // Uncheck all taskCompleted in collab rows when reverting
+    if (caseData?.multiCollab && caseData.collabRows.length > 0) {
+      const updatedRows = caseData.collabRows.map(r => ({ ...r, taskCompleted: false }));
+      save({ status: "dispatched" as CaseStatus, collabRows: updatedRows });
+    } else {
+      save({ status: "dispatched" as CaseStatus });
+    }
     toast({ title: "已退回修正" });
   };
 
