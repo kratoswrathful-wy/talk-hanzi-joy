@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ArrowLeft, Trash2, Plus, X, Copy, Check, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -573,11 +573,13 @@ export default function CaseDetailPage() {
       });
   }, [caseData?.createdBy]);
 
-  const save = (partial: Partial<CaseRecord>) => {
-    if (!caseData) return;
-    setCaseData({ ...caseData, ...partial });
-    caseStore.update(caseData.id, partial);
-  };
+  const save = useCallback((partial: Partial<CaseRecord>) => {
+    setCaseData((prev) => {
+      if (!prev) return prev;
+      caseStore.update(prev.id, partial);
+      return { ...prev, ...partial };
+    });
+  }, []);
 
   /* ── Tool helpers ── */
   const tools: ToolEntry[] = caseData?.tools?.length
