@@ -298,7 +298,13 @@ function NoteDetailView({
         />
       </Field>
       <Field label="問題或註記內容" icon="≡">
-        <Textarea value={note.questionOrNote} onChange={(e) => onUpdate({ questionOrNote: e.target.value })} className="min-h-[80px]" />
+        <MultilineInput 
+          value={note.questionOrNote} 
+          onChange={(e) => onUpdate({ questionOrNote: e.target.value })} 
+          className="min-h-[80px]"
+          minRows={4}
+          maxRows={10}
+        />
       </Field>
 
       <Field label="參考資料或截圖" icon="📎">

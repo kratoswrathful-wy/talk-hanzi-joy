@@ -305,7 +305,15 @@ export default function ProfilePage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="bio">自我介紹</Label>
-            <Textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value)} placeholder="簡單介紹自己..." className="min-h-[80px]" />
+            <MultilineInput 
+              id="bio" 
+              value={bio} 
+              onChange={(e) => setBio(e.target.value)} 
+              placeholder="簡單介紹自己..." 
+              className="min-h-[80px]"
+              minRows={4}
+              maxRows={8}
+            />
           </div>
           <Button onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
