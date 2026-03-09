@@ -458,7 +458,7 @@ function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; l
 
   const handleToolChange = (newTool: string) => {
     const selectedTool = toolOptions.find((o) => o.label === newTool);
-    const defaultFields = (selectedTool?.toolFields || []).map((f) => ({ id: f.id, label: f.label, type: f.type || "text" as const }));
+    const defaultFields = (selectedTool?.toolFields || []).map((f) => ({ id: f.id, label: f.label, type: "text" as const }));
     setTool(newTool);
     setFields(defaultFields);
     setFieldValues({});
