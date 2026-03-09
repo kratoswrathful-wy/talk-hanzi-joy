@@ -735,7 +735,7 @@ export default function CasesPage() {
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>確認刪除</AlertDialogTitle>
+            <AlertDialogTitle>確定刪除</AlertDialogTitle>
             <AlertDialogDescription>
               確定要刪除已選取的 {rowSelection.selectedCount} 個案件嗎？此操作無法復原。
             </AlertDialogDescription>
