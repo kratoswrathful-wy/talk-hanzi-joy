@@ -278,7 +278,16 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
         })}
       </div>
 
-      {/* Segment overlay dialog */}
+      {/* Scroll arrows + action slot */}
+      <div className="flex items-center gap-1 justify-end mt-1">
+        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => scrollToEnd("left")}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => scrollToEnd("right")}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+
       <AlertDialog open={!!segmentOverlay} onOpenChange={(open) => { if (!open) setSegmentOverlay(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
