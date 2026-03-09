@@ -131,7 +131,7 @@ function ToolInstance({
   const [newFieldLabel, setNewFieldLabel] = useState("");
 
   const selectedTool = toolOptions.find((o) => o.label === entry.tool);
-  const fields: ToolEntryField[] = entry.fields || selectedTool?.toolFields?.map(f => ({ ...f, type: "text" as const })) || [];
+  const fields: ToolEntryField[] = entry.fields || selectedTool?.toolFields?.map(f => ({ ...f, type: (f.type || "text") as "text" | "file" })) || [];
   const values = entry.fieldValues || {};
   const fileValues = entry.fileValues || {};
   const hasToolSelected = !!entry.tool;
