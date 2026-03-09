@@ -1393,6 +1393,21 @@ export default function CaseDetailPage() {
 
       <h2 className="text-base font-semibold">提問</h2>
 
+      {/* 有填寫客戶提問表單 checkbox — everyone can see/use, translators only if assigned */}
+      {(() => {
+        const canUseClientQForm = isPmOrAbove || isCurrentUserTranslator;
+        return canUseClientQForm ? (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="clientQuestionForm"
+              checked={caseData.clientQuestionForm ?? false}
+              onCheckedChange={(v) => save({ clientQuestionForm: !!v })}
+            />
+            <Label htmlFor="clientQuestionForm" className="text-sm cursor-pointer">有填寫客戶提問表單</Label>
+          </div>
+        ) : null;
+      })()}
+
       {/* 客戶提問表單 */}
       <div className="space-y-3">
         <Label className="text-sm font-medium text-muted-foreground">客戶提問表單</Label>
