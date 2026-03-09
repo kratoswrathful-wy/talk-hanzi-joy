@@ -21,9 +21,10 @@ function getColorUsageMap(options: { label: string; color: string }[]): Record<s
 }
 
 /* ── Tool Sub-Field Manager ── */
-function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { optionId: string; fields: { id: string; label: string }[]; fieldKey?: string }) {
+function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { optionId: string; fields: { id: string; label: string; type?: "text" | "file" }[]; fieldKey?: string }) {
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
+  const [newFieldType, setNewFieldType] = useState<"text" | "file" | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -31,10 +32,11 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
 
   const handleAdd = () => {
     const label = newLabel.trim();
-    if (!label) return;
-    selectOptionsStore.addToolField(optionId, label, fieldKey);
+    if (!label || !newFieldType) return;
+    selectOptionsStore.addToolField(optionId, label, newFieldType, fieldKey);
     setNewLabel("");
     setAdding(false);
+    setNewFieldType(null);
   };
 
   const handleRename = (fieldId: string) => {
