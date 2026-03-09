@@ -117,7 +117,7 @@ export function TableFooterStats({
               <td
                 key={col.key}
                 style={{ width, maxWidth: width }}
-                className="px-3 py-2 text-center"
+                className="px-3 py-2 text-right"
               >
                 <Popover>
                   <PopoverTrigger asChild>

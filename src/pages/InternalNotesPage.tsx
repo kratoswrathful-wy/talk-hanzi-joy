@@ -782,7 +782,7 @@ export default function InternalNotesPage() {
                     <Checkbox checked={isSelected} onCheckedChange={() => rowSelection.handleClick(note.id, { ctrlKey: true } as any)} className="mx-auto" />
                   </td>
                   {orderedCols.map((col) => (
-                    <td key={col.key} style={{ width: activeView.columnWidths[col.key] ?? 100, maxWidth: activeView.columnWidths[col.key] ?? 100 }} className="px-3 py-1.5 overflow-hidden">
+                    <td key={col.key} style={{ width: activeView.columnWidths[col.key] ?? 100, maxWidth: activeView.columnWidths[col.key] ?? 100 }} className={cn("px-3 py-1.5 overflow-hidden", col.key !== "title" && col.key !== "note" && "text-center")}>
                       {col.render(note)}
                     </td>
                   ))}

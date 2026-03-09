@@ -586,7 +586,7 @@ export default function CasesPage() {
                     <td
                       key={col.key}
                       style={{ width: activeView.columnWidths[col.key] ?? 100, maxWidth: activeView.columnWidths[col.key] ?? 100 }}
-                      className="px-3 py-1.5 overflow-hidden"
+                      className={cn("px-3 py-1.5 overflow-hidden", col.key === "unitCount" && "text-center")}
                     >
                       {col.render(c, {
                         editable: editableFields.has(col.key),
