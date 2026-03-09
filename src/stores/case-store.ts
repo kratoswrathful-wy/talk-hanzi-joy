@@ -17,6 +17,22 @@ function notify() {
 // ── DB ↔ App mapping ──
 
 function fromDb(row: any): CaseRecord {
+  // Build workGroups from DB or migrate from legacy fields
+  const workGroupsRaw = Array.isArray(row.work_groups) ? row.work_groups : [];
+  const workGroups = workGroupsRaw.length > 0 ? workGroupsRaw : (() => {
+    // Migrate from legacy: one group per workType entry
+    const legacyWorkTypes = Array.isArray(row.work_type) ? row.work_type : [];
+    if (legacyWorkTypes.length > 0) {
+      return legacyWorkTypes.map((wt: string, i: number) => ({
+        id: `wg-migrate-${i}`,
+        workType: wt,
+        billingUnit: row.billing_unit ?? "",
+        unitCount: i === 0 ? (Number(row.unit_count) || 0) : 0,
+      }));
+    }
+    return [{ id: `wg-default`, workType: "", billingUnit: "", unitCount: 0 }];
+  })();
+
   return {
     id: row.id,
     title: row.title ?? "",
@@ -25,6 +41,7 @@ function fromDb(row: any): CaseRecord {
     contact: row.contact ?? "",
     category: row.category ?? "",
     workType: Array.isArray(row.work_type) ? row.work_type : [],
+    workGroups,
     processNote: row.process_note ?? "",
     billingUnit: row.billing_unit ?? "",
     unitCount: Number(row.unit_count) || 0,
