@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
+import { getStatusSortIndex } from "@/stores/select-options-store";
 import {
   type TableFilter, type TableSort, type TableView, type FilterGroup,
   type FilterOperator, type FieldMeta, type LogicOperator,
