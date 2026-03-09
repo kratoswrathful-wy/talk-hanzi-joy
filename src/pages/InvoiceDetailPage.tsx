@@ -503,6 +503,15 @@ export default function InvoiceDetailPage() {
           返回請款單清單
         </Link>
         <div className="flex items-center gap-2 shrink-0">
+          <ApplyTemplateButton
+            module="invoices"
+            onApply={(values) => {
+              if (id) {
+                invoiceStore.update(id, values);
+              }
+              toast.success("已套用範本");
+            }}
+          />
           {((!isPaid && (isAdmin || isOwnInvoice)) || (isPaid && isExecutive)) && checkPerm("translator_invoice", "inv_detail_delete", "edit") && (
             <Button size="sm" className="text-xs min-w-[88px] text-white hover:opacity-80" style={{ backgroundColor: '#6B7280' }} onClick={() => {
               if (isPaid) {
