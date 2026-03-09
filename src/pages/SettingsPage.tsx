@@ -380,15 +380,8 @@ function ClientPricingSection() {
               onAddCustomColor={() => {}}
               onRemoveCustomColor={() => {}}
               colorUsageMap={{}}
+              onResetDefault={() => labelStyleStore.setClientTextColor("#FFFFFF")}
             />
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs shrink-0"
-              onClick={() => labelStyleStore.setClientTextColor("#FFFFFF")}
-            >
-              預設（白）
-            </Button>
           </div>
         )}
       </div>
@@ -601,15 +594,8 @@ function TaskTypeOrderSection() {
               onAddCustomColor={() => {}}
               onRemoveCustomColor={() => {}}
               colorUsageMap={{}}
+              onResetDefault={() => labelStyleStore.setTaskTypeTextColor("#FFFFFF")}
             />
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs shrink-0"
-              onClick={() => labelStyleStore.setTaskTypeTextColor("#FFFFFF")}
-            >
-              預設（白）
-            </Button>
           </div>
         )}
       </div>
@@ -795,15 +781,8 @@ function BillingUnitOrderSection() {
               onAddCustomColor={() => {}}
               onRemoveCustomColor={() => {}}
               colorUsageMap={{}}
+              onResetDefault={() => labelStyleStore.setBillingUnitTextColor("#FFFFFF")}
             />
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs shrink-0"
-              onClick={() => labelStyleStore.setBillingUnitTextColor("#FFFFFF")}
-            >
-              預設（白）
-            </Button>
           </div>
         )}
       </div>
@@ -1888,15 +1867,8 @@ function DispatchRouteSection() {
               onAddCustomColor={() => {}}
               onRemoveCustomColor={() => {}}
               colorUsageMap={{}}
+              onResetDefault={() => labelStyleStore.setDispatchRouteTextColor("#FFFFFF")}
             />
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs shrink-0"
-              onClick={() => labelStyleStore.setDispatchRouteTextColor("#FFFFFF")}
-            >
-              預設（白）
-            </Button>
           </div>
         )}
       </div>
@@ -2075,15 +2047,8 @@ function CaseCategorySection() {
               onAddCustomColor={() => {}}
               onRemoveCustomColor={() => {}}
               colorUsageMap={{}}
+              onResetDefault={() => labelStyleStore.setCaseCategoryTextColor("#FFFFFF")}
             />
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs shrink-0"
-              onClick={() => labelStyleStore.setCaseCategoryTextColor("#FFFFFF")}
-            >
-              預設（白）
-            </Button>
           </div>
         )}
       </div>

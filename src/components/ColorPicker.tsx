@@ -24,6 +24,8 @@ interface ColorPickerProps {
   onRemoveCustomColor?: (color: string) => void;
   /** Map of uppercase hex color → list of option labels using it */
   colorUsageMap?: Record<string, string[]>;
+  /** When provided, show a "預設值（白）" button that calls this callback */
+  onResetDefault?: () => void;
 }
 
 function hsvToHex(h: number, s: number, v: number): string {
@@ -121,6 +123,7 @@ export default function ColorPicker({
   onAddCustomColor,
   onRemoveCustomColor,
   colorUsageMap = {},
+  onResetDefault,
 }: ColorPickerProps) {
   const [hsv, setHsv] = useState<[number, number, number]>(() => hexToHsv(value || "#FF0000"));
   const [hexInput, setHexInput] = useState(value || "#FF0000");
@@ -308,15 +311,27 @@ export default function ColorPicker({
           </div>
         )}
 
-        {/* Toggle color wheel */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-xs w-full"
-          onClick={() => setShowWheel(!showWheel)}
-        >
-          {showWheel ? "收起調色盤" : "自訂顏色"}
-        </Button>
+        {/* Toggle color wheel + reset default */}
+        <div className="flex gap-2">
+          {onResetDefault && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs flex-1"
+              onClick={onResetDefault}
+            >
+              預設值（白）
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs flex-1"
+            onClick={() => setShowWheel(!showWheel)}
+          >
+            {showWheel ? "收起調色盤" : "自訂顏色"}
+          </Button>
+        </div>
 
         {showWheel && (
           <div className="space-y-2">
