@@ -41,6 +41,9 @@ function fromDb(row: any): CaseRecord {
     contact: row.contact ?? "",
     keyword: row.keyword ?? "",
     clientPoNumber: row.client_po_number ?? "",
+    clientCaseLink: (row.client_case_link && typeof row.client_case_link === "object" && !Array.isArray(row.client_case_link))
+      ? row.client_case_link as { url: string; label: string }
+      : { url: "", label: "" },
     category: row.category ?? "",
     workType: Array.isArray(row.work_type) ? row.work_type : [],
     workGroups,
