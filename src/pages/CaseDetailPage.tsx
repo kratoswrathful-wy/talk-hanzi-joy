@@ -517,7 +517,7 @@ export default function CaseDetailPage() {
   const [collabCountInput, setCollabCountInput] = useState("");
   const [collabEditOpen, setCollabEditOpen] = useState(false);
   const [collabEditInput, setCollabEditInput] = useState("");
-  const [collabCancelOpen, setCollabCancelOpen] = useState(false);
+  const [collabCancelOpen, setCollabCancelOpen] = useState(false); // kept for potential future use
   const [creatorName, setCreatorName] = useState("");
   const { primaryRole: currentRole, profile } = useAuth();
   const { checkPerm } = usePermissions();
@@ -766,7 +766,13 @@ export default function CaseDetailPage() {
   };
 
   const handleDelivered = () => {
-    save({ status: "delivered" as CaseStatus });
+    // If multi-collab, also check all delivered boxes
+    if (caseData?.multiCollab && caseData.collabRows.length > 0) {
+      const updatedRows = caseData.collabRows.map(r => ({ ...r, delivered: true }));
+      save({ status: "delivered" as CaseStatus, collabRows: updatedRows });
+    } else {
+      save({ status: "delivered" as CaseStatus });
+    }
     toast({ title: "已交件完畢" });
   };
 
@@ -1161,13 +1167,12 @@ export default function CaseDetailPage() {
           <CollaborationTable
             rows={caseData.collabRows}
             onChange={(newRows) => {
-              // Check auto-status transitions
               const allAccepted = newRows.length > 0 && newRows.every((r) => r.accepted);
               const allTaskCompleted = newRows.length > 0 && newRows.every((r) => r.taskCompleted);
+              const allDelivered = newRows.length > 0 && newRows.every((r) => r.delivered);
               
               const updates: Partial<CaseRecord> = { collabRows: newRows };
               
-              // Derive translator list from collab rows (unique, non-empty)
               const collabTranslators = [...new Set(newRows.map(r => r.translator).filter(Boolean))];
               updates.translator = collabTranslators;
 
@@ -1181,6 +1186,12 @@ export default function CaseDetailPage() {
                 updates.status = "task_completed" as CaseStatus;
                 save(updates);
                 toast({ title: "所有任務已完成" });
+                return;
+              }
+              if ((caseData.status === "dispatched" || caseData.status === "task_completed") && allDelivered) {
+                updates.status = "delivered" as CaseStatus;
+                save(updates);
+                toast({ title: "所有交件已完畢，狀態已更新為「交件完畢」" });
                 return;
               }
               save(updates);
@@ -1224,15 +1235,17 @@ export default function CaseDetailPage() {
               size="sm"
               className="h-6 text-xs text-muted-foreground"
               onClick={() => {
-                // Check if more than 1 person has accepted
-                const acceptedTranslators = new Set(
-                  caseData.collabRows.filter(r => r.accepted).map(r => r.translator).filter(Boolean)
+                // Count unique non-empty translators
+                const uniqueTranslators = new Set(
+                  caseData.collabRows.map(r => r.translator).filter(Boolean)
                 );
-                if (acceptedTranslators.size > 1) {
-                  toast({ title: "無法取消多人協作", description: "已有多位譯者承接，請先調整各列內容。", variant: "destructive" });
+                if (uniqueTranslators.size >= 2) {
+                  toast({ title: "無法取消多人協作", description: "目前指派人數多於 1 人，請考慮改為調整各列內容。", variant: "destructive" });
                   return;
                 }
-                setCollabCancelOpen(true);
+                // ≤1 unique translator: execute directly
+                save({ multiCollab: false, collabCount: 0, collabRows: [] });
+                toast({ title: "已取消多人協作" });
               }}
             >
               取消多人協作
@@ -1943,9 +1956,12 @@ export default function CaseDetailPage() {
               onClick={() => {
                 const newCount = Number(collabEditInput);
                 const currentRows = caseData?.collabRows || [];
-                const acceptedCount = currentRows.filter(r => r.accepted).length;
-                if (newCount < acceptedCount) {
-                  toast({ title: "無法減少列數", description: `目前已有 ${acceptedCount} 位譯者承接，不可將列數減少至低於此數目。請先調整各列內容。`, variant: "destructive" });
+                // Count unique non-empty translators
+                const uniqueTranslators = new Set(
+                  currentRows.map(r => r.translator).filter(Boolean)
+                );
+                if (uniqueTranslators.size > newCount) {
+                  toast({ title: "無法變更人次", description: `目前指派人數多於 ${newCount} 人，請考慮改為調整各列內容。`, variant: "destructive" });
                   return;
                 }
                 let newRows: CollabRow[];
@@ -1976,23 +1992,6 @@ export default function CaseDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Multi-collab: cancel confirmation */}
-      <AlertDialog open={collabCancelOpen} onOpenChange={(v) => { if (!v) setCollabCancelOpen(false); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>取消多人協作</AlertDialogTitle>
-            <AlertDialogDescription>確定要取消多人協作嗎？協作表格資料將被清除，恢復為單一譯者模式。</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={() => {
-              save({ multiCollab: false, collabCount: 0, collabRows: [] });
-              setCollabCancelOpen(false);
-              toast({ title: "已取消多人協作" });
-            }}>確認取消</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
