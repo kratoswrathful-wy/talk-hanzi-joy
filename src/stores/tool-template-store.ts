@@ -4,6 +4,7 @@ import { loadSetting, saveSetting, markDirty } from "./settings-persistence";
 export interface TemplateField {
   id: string;
   label: string;
+  type?: "text" | "file";
 }
 
 export interface ToolTemplate {

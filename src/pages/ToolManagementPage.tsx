@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, GripVertical, Palette, ChevronDown, ChevronRight, Pencil, Save, Link as LinkIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import ColorPicker from "@/components/ColorPicker";
@@ -21,9 +22,10 @@ function getColorUsageMap(options: { label: string; color: string }[]): Record<s
 }
 
 /* ── Tool Sub-Field Manager ── */
-function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { optionId: string; fields: { id: string; label: string }[]; fieldKey?: string }) {
+function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { optionId: string; fields: { id: string; label: string; type?: "text" | "file" }[]; fieldKey?: string }) {
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
+  const [newFieldType, setNewFieldType] = useState<"text" | "file" | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -31,10 +33,11 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
 
   const handleAdd = () => {
     const label = newLabel.trim();
-    if (!label) return;
-    selectOptionsStore.addToolField(optionId, label, fieldKey);
+    if (!label || !newFieldType) return;
+    selectOptionsStore.addToolField(optionId, label, newFieldType, fieldKey);
     setNewLabel("");
     setAdding(false);
+    setNewFieldType(null);
   };
 
   const handleRename = (fieldId: string) => {
@@ -86,12 +89,15 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
               autoFocus
             />
           ) : (
-            <span
-              className="text-sm cursor-pointer hover:underline flex-1"
+            <div
+              className="flex items-center gap-1.5 flex-1 cursor-pointer"
               onClick={() => { setEditingId(f.id); setEditLabel(f.label); }}
             >
-              {f.label}
-            </span>
+              <span className="text-sm hover:underline">{f.label}</span>
+              <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                {(f.type || "text") === "file" ? "檔案" : "文字"}
+              </Badge>
+            </div>
           )}
           <button
             className="h-5 w-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted text-muted-foreground hover:text-destructive transition-all"
@@ -102,25 +108,43 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
         </div>
       ))}
       {adding ? (
-        <div className="flex items-center gap-1.5 px-2">
-          <Input
-            value={newLabel}
-            onChange={(e) => setNewLabel(e.target.value)}
-            placeholder="欄位名稱"
-            className="h-6 text-xs flex-1"
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleAdd();
-              if (e.key === "Escape") setAdding(false);
-            }}
-          />
-          <Button size="sm" className="h-6 text-xs px-2" disabled={!newLabel.trim()} onClick={handleAdd}>
-            新增
-          </Button>
-          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => setAdding(false)}>
-            取消
-          </Button>
-        </div>
+        newFieldType ? (
+          <div className="flex items-center gap-1.5 px-2">
+            <Input
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              placeholder="欄位名稱"
+              className="h-6 text-xs flex-1"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAdd();
+                if (e.key === "Escape") { setAdding(false); setNewFieldType(null); }
+              }}
+            />
+            <Badge variant="secondary" className="text-[10px] h-5 px-1.5 shrink-0">
+              {newFieldType === "file" ? "檔案" : "文字"}
+            </Badge>
+            <Button size="sm" className="h-6 text-xs px-2" disabled={!newLabel.trim()} onClick={handleAdd}>
+              新增
+            </Button>
+            <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => { setAdding(false); setNewFieldType(null); setNewLabel(""); }}>
+              取消
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 px-2">
+            <span className="text-xs text-muted-foreground">選擇欄位類型：</span>
+            <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => setNewFieldType("text")}>
+              文字
+            </Button>
+            <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => setNewFieldType("file")}>
+              檔案
+            </Button>
+            <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setAdding(false)}>
+              取消
+            </Button>
+          </div>
+        )
       ) : (
         <Button
           variant="ghost"
@@ -150,6 +174,7 @@ function TemplateFieldManager({
 }) {
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
+  const [newFieldType, setNewFieldType] = useState<"text" | "file" | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -157,11 +182,12 @@ function TemplateFieldManager({
 
   const handleAdd = () => {
     const label = newLabel.trim();
-    if (!label) return;
+    if (!label || !newFieldType) return;
     const id = `tf-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
-    onFieldsChange([...fields, { id, label }]);
+    onFieldsChange([...fields, { id, label, type: newFieldType }]);
     setNewLabel("");
     setAdding(false);
+    setNewFieldType(null);
   };
 
   const handleRename = (fieldId: string) => {
@@ -207,33 +233,38 @@ function TemplateFieldManager({
           )}
         >
           <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
-          <div className="grid grid-cols-[80px_1fr] items-center gap-2 flex-1">
-            {editingId === f.id ? (
-              <Input
-                value={editLabel}
-                onChange={(e) => setEditLabel(e.target.value)}
-                onBlur={() => handleRename(f.id)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleRename(f.id);
-                  if (e.key === "Escape") setEditingId(null);
-                }}
-                className="h-6 text-xs"
-                autoFocus
-              />
-            ) : (
-              <span
-                className="text-xs text-muted-foreground cursor-pointer hover:underline"
-                onClick={() => { setEditingId(f.id); setEditLabel(f.label); }}
-              >
-                {f.label}
-              </span>
-            )}
-            <Input
-              value={fieldValues[f.id] || ""}
-              onChange={(e) => onFieldValuesChange({ ...fieldValues, [f.id]: e.target.value })}
-              className="h-7 text-sm"
-            />
-          </div>
+           <div className="grid grid-cols-[80px_1fr] items-center gap-2 flex-1">
+             {editingId === f.id ? (
+               <Input
+                 value={editLabel}
+                 onChange={(e) => setEditLabel(e.target.value)}
+                 onBlur={() => handleRename(f.id)}
+                 onKeyDown={(e) => {
+                   if (e.key === "Enter") handleRename(f.id);
+                   if (e.key === "Escape") setEditingId(null);
+                 }}
+                 className="h-6 text-xs"
+                 autoFocus
+               />
+             ) : (
+               <div className="flex items-center gap-1.5">
+                 <span
+                   className="text-xs text-muted-foreground cursor-pointer hover:underline"
+                   onClick={() => { setEditingId(f.id); setEditLabel(f.label); }}
+                 >
+                   {f.label}
+                 </span>
+                 <Badge variant="secondary" className="text-[9px] h-3.5 px-1 shrink-0">
+                   {(f.type || "text") === "file" ? "檔案" : "文字"}
+                 </Badge>
+               </div>
+             )}
+             <Input
+               value={fieldValues[f.id] || ""}
+               onChange={(e) => onFieldValuesChange({ ...fieldValues, [f.id]: e.target.value })}
+               className="h-7 text-sm"
+             />
+           </div>
           <button
             className="h-5 w-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted text-muted-foreground hover:text-destructive transition-all shrink-0"
             onClick={() => handleRemove(f.id)}
@@ -243,25 +274,43 @@ function TemplateFieldManager({
         </div>
       ))}
       {adding ? (
-        <div className="flex items-center gap-1.5">
-          <Input
-            value={newLabel}
-            onChange={(e) => setNewLabel(e.target.value)}
-            placeholder="欄位名稱"
-            className="h-6 text-xs flex-1"
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleAdd();
-              if (e.key === "Escape") setAdding(false);
-            }}
-          />
-          <Button size="sm" className="h-6 text-xs px-2" disabled={!newLabel.trim()} onClick={handleAdd}>
-            新增
-          </Button>
-          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => setAdding(false)}>
-            取消
-          </Button>
-        </div>
+        newFieldType ? (
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              placeholder="欄位名稱"
+              className="h-6 text-xs flex-1"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAdd();
+                if (e.key === "Escape") { setAdding(false); setNewFieldType(null); setNewLabel(""); }
+              }}
+            />
+            <Badge variant="secondary" className="text-[10px] h-5 px-1.5 shrink-0">
+              {newFieldType === "file" ? "檔案" : "文字"}
+            </Badge>
+            <Button size="sm" className="h-6 text-xs px-2" disabled={!newLabel.trim()} onClick={handleAdd}>
+              新增
+            </Button>
+            <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => { setAdding(false); setNewFieldType(null); setNewLabel(""); }}>
+              取消
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">選擇欄位類型：</span>
+            <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => setNewFieldType("text")}>
+              文字
+            </Button>
+            <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => setNewFieldType("file")}>
+              檔案
+            </Button>
+            <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setAdding(false)}>
+              取消
+            </Button>
+          </div>
+        )
       ) : (
         <Button
           variant="ghost"
@@ -302,7 +351,7 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
   const handleToolChange = (newTool: string) => {
     // When changing tool, initialize fields from tool's default fields
     const selectedTool = toolOptions.find((o) => o.label === newTool);
-    const defaultFields = (selectedTool?.toolFields || []).map((f) => ({ id: f.id, label: f.label }));
+    const defaultFields = (selectedTool?.toolFields || []).map((f) => ({ id: f.id, label: f.label, type: "text" as const }));
     setDraft({ ...draft, tool: newTool, fields: defaultFields, fieldValues: {} });
   };
 
@@ -409,7 +458,7 @@ function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; l
 
   const handleToolChange = (newTool: string) => {
     const selectedTool = toolOptions.find((o) => o.label === newTool);
-    const defaultFields = (selectedTool?.toolFields || []).map((f) => ({ id: f.id, label: f.label }));
+    const defaultFields = (selectedTool?.toolFields || []).map((f) => ({ id: f.id, label: f.label, type: "text" as const }));
     setTool(newTool);
     setFields(defaultFields);
     setFieldValues({});
