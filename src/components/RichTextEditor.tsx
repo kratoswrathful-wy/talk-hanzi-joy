@@ -48,13 +48,15 @@ const excludedTitles = new Set([
 
 // Rename map for list items
 const renameMap: Record<string, { title: string; subtext?: string }> = {
-  "項目符號列表": { title: "項目符號清單", subtext: "用於顯示無序清單" },
+  "項目符號列表": { title: "項目符號清單", subtext: "用於顯示項目符號清單" },
   "編號列表": { title: "編號清單", subtext: "用於顯示編號清單" },
+  "無序清單": { title: "項目符號清單", subtext: "用於顯示項目符號清單" },
+  "有序清單": { title: "編號清單", subtext: "用於顯示編號清單" },
   "可折疊標題1": { title: "可折疊標題 1" },
   "可折疊標題2": { title: "可折疊標題 2" },
   "可折疊標題3": { title: "可折疊標題 3" },
-  "Bullet List": { title: "項目符號清單", subtext: "Used to display an unordered list" },
-  "Numbered List": { title: "編號清單", subtext: "Used to display a numbered list" },
+  "Bullet List": { title: "項目符號清單", subtext: "用於顯示項目符號清單" },
+  "Numbered List": { title: "編號清單", subtext: "用於顯示編號清單" },
 };
 
 /** Copy/Paste Format button for the formatting toolbar */

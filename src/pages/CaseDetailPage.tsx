@@ -1466,6 +1466,19 @@ export default function CaseDetailPage() {
         />
       )}
 
+      {/* 派案來源 — PM+ only, same perm as keyword */}
+      {checkPerm("case_management", "case_detail_keyword", "view") && (
+        <Field label="派案來源">
+          <ColorSelect
+            fieldKey="dispatchRoute"
+            value={caseData.dispatchRoute}
+            disabled={!checkPerm("case_management", "case_detail_keyword", "edit")}
+            onValueChange={(v) => save({ dispatchRoute: v })}
+            placeholder="選擇..."
+          />
+        </Field>
+      )}
+
       {/* 本案費用 + 產生本案費用單 */}
       {(() => {
         const caseUrl = `${window.location.origin}/cases/${caseData.id}`;
@@ -1652,6 +1665,7 @@ export default function CaseDetailPage() {
                       ...(caseData.keyword ? { clientCaseId: caseData.keyword } : {}),
                       ...(caseData.clientPoNumber ? { clientPoNumber: caseData.clientPoNumber } : {}),
                       ...(caseData.clientCaseLink?.url ? { clientCaseLink: caseData.clientCaseLink } : {}),
+                      ...(caseData.dispatchRoute ? { dispatchRoute: caseData.dispatchRoute } : {}),
                     },
                     notes: [],
                     editLogs: [],
@@ -1691,6 +1705,7 @@ export default function CaseDetailPage() {
                           ...(caseData.keyword ? { clientCaseId: caseData.keyword } : {}),
                           ...(caseData.clientPoNumber ? { clientPoNumber: caseData.clientPoNumber } : {}),
                           ...(caseData.clientCaseLink?.url ? { clientCaseLink: caseData.clientCaseLink } : {}),
+                          ...(caseData.dispatchRoute ? { dispatchRoute: caseData.dispatchRoute } : {}),
                         },
                         notes: [],
                         editLogs: [],
