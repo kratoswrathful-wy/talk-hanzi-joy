@@ -1022,42 +1022,50 @@ export default function CaseDetailPage() {
         });
 
         return (
-          <div className="flex items-start justify-between gap-4">
-            <div className="grid gap-1.5 flex-1">
-              <Label className="text-xs text-muted-foreground">
+          <div className="flex flex-col gap-1.5">
+            {/* Label row: label + warning side by side, vertically centered */}
+            <div className="flex items-center gap-3">
+              <Label className="text-xs text-muted-foreground leading-tight">
                 本案費用<br />（{feeCount} 筆）
               </Label>
-              {feeCount === 0 ? (
-                <span className="text-sm text-muted-foreground">尚無費用單</span>
-              ) : (
-                <div className="space-y-1">
-                  {sorted.map((f) => (
-                    <div key={f.id} className="grid items-center gap-2 rounded px-1 py-0.5" style={{ gridTemplateColumns: "minmax(200px, 1fr) 140px 50px" }}>
-                      <Link to={`/fees/${f.id}`} className="text-sm text-primary hover:underline underline-offset-2 truncate text-left">
-                        {f.title || "未命名費用"}
-                      </Link>
-                      <div className="flex items-center">
-                        {f.assignee ? <AssigneeTag label={f.assignee} size="sm" /> : <span />}
-                      </div>
-                      <div className="flex items-center justify-end">
-                        {f.clientInfo?.isFirstFee && (
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">主要</Badge>
-                        )}
-                        {f.clientInfo?.notFirstFee && (
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 text-muted-foreground">非主要</Badge>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              {showWarning && (
+                <span className="text-xs text-destructive">
+                  費用單數目多於譯者人數，請確認無誤
+                </span>
               )}
             </div>
-            {showButton ? (
+            {/* Fee list */}
+            {feeCount === 0 ? (
+              <span className="text-sm text-muted-foreground">尚無費用單</span>
+            ) : (
+              <div className="space-y-1">
+                {sorted.map((f) => (
+                  <div key={f.id} className="grid items-center gap-2 rounded px-1 py-0.5" style={{ gridTemplateColumns: "minmax(240px, 1fr) 160px 50px" }}>
+                    <Link to={`/fees/${f.id}`} className="text-sm text-primary hover:underline underline-offset-2 truncate text-left">
+                      {f.title || "未命名費用"}
+                    </Link>
+                    <div className="flex items-center justify-start">
+                      {f.assignee ? <AssigneeTag label={f.assignee} size="sm" /> : <span />}
+                    </div>
+                    <div className="flex items-center justify-end">
+                      {f.clientInfo?.isFirstFee && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">主要</Badge>
+                      )}
+                      {f.clientInfo?.notFirstFee && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 text-muted-foreground">非主要</Badge>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Button to generate fees */}
+            {showButton && (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="gap-1.5 shrink-0 mt-5"
+                className="gap-1.5 w-fit mt-1"
                 onClick={() => {
                   if (!caseData) return;
                   const workTypes: string[] = Array.isArray(caseData.workType) ? caseData.workType : [];
@@ -1179,11 +1187,7 @@ export default function CaseDetailPage() {
                 <Plus className="h-3.5 w-3.5" />
                 產生本案費用單
               </Button>
-            ) : showWarning ? (
-              <span className="text-xs text-destructive shrink-0 mt-5 max-w-[160px] text-right">
-                費用單數目多於譯者人數，請確認無誤
-              </span>
-            ) : null}
+            )}
           </div>
         );
       })()}
