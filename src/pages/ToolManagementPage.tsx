@@ -294,10 +294,12 @@ function TemplateFieldManager({
                  </Badge>
                </div>
              )}
-             <Input
+             <MultilineInput
                value={fieldValues[f.id] || ""}
                onChange={(e) => onFieldValuesChange({ ...fieldValues, [f.id]: e.target.value })}
                className="h-7 text-sm"
+               minRows={1}
+               maxRows={5}
              />
            </div>
           <button
