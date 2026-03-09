@@ -4,6 +4,7 @@ import { ArrowLeft, Trash2, Plus, X, Copy, Check, ExternalLink, Settings } from 
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { CreateWithTemplateButton } from "@/components/CreateWithTemplateButton";
+import { ApplyTemplateButton } from "@/components/ApplyTemplateButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MultilineInput } from "@/components/ui/multiline-input";
