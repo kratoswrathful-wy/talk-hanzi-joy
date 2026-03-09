@@ -530,10 +530,11 @@ export default function CasesPage() {
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">案件管理</h1>
         {isAdmin && (
-          <Button size="sm" className="gap-1.5" onClick={handleCreate}>
-            <Plus className="h-4 w-4" />
-            新增案件
-          </Button>
+          <CreateWithTemplateButton
+            module="cases"
+            onCreate={handleCreate}
+            label="新增案件"
+          />
         )}
         {activeView.isDefault ? (
           <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
