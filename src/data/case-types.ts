@@ -97,6 +97,9 @@ export interface CaseRecord {
   comments: CaseComment[];
   internalComments: CaseComment[];
   bodyContent: any[];
+  multiCollab: boolean;
+  collabCount: number;
+  collabRows: CollabRow[];
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
