@@ -1,5 +1,5 @@
-import { useParams, useNavigate, Link } from "react-router-dom";
-import { useEffect, useState, useCallback, lazy, Suspense } from "react";
+import { useParams, useNavigate, Link, useBlocker } from "react-router-dom";
+import { useEffect, useState, useCallback, lazy, Suspense, useRef } from "react";
 import { ArrowLeft, Trash2, Plus, X, Copy, Check, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -513,7 +513,7 @@ function ToolInstance({
 }
 
 function formatTimestamp(d: Date) {
-  return d.toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
 export default function CaseDetailPage() {
@@ -522,10 +522,15 @@ export default function CaseDetailPage() {
   const [caseData, setCaseData] = useState<CaseRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [publishPromptOpen, setPublishPromptOpen] = useState(false);
   const [creatorName, setCreatorName] = useState("");
   const { primaryRole: currentRole, profile } = useAuth();
   const { checkPerm } = usePermissions();
   const isManager = currentRole === "pm" || currentRole === "executive";
+  const pendingNavigateRef = useRef<(() => void) | null>(null);
+
+  // Permission for publish prompt on leave
+  const canSeePublishPrompt = checkPerm("case_management", "case_draft_publish_prompt", "view");
 
   // Tool permissions
   const canEditToolSelect = checkPerm("case_management", "case_detail_toolSelect", "edit");
@@ -545,6 +550,17 @@ export default function CaseDetailPage() {
   const [internalReplyingTo, setInternalReplyingTo] = useState<string | null>(null);
 
   const roleLabels: Record<string, string> = { member: "成員", pm: "專案經理", executive: "執行官" };
+
+  // Block navigation when leaving a draft case (PM+ only) to prompt publishing
+  const shouldBlockNav = canSeePublishPrompt && !!caseData && caseData.status === "draft";
+  const blocker = useBlocker(shouldBlockNav);
+
+  useEffect(() => {
+    if (blocker.state === "blocked" && shouldBlockNav) {
+      pendingNavigateRef.current = () => blocker.proceed();
+      setPublishPromptOpen(true);
+    }
+  }, [blocker.state, shouldBlockNav]);
 
   useEffect(() => {
     let mounted = true;
@@ -651,6 +667,7 @@ export default function CaseDetailPage() {
       sourceText: "",
       translatedText: "",
       questionOrNote: "",
+      questionOrNoteBlocks: [],
       referenceFiles: [],
       comments: [],
       invalidated: false,
@@ -1423,43 +1440,42 @@ export default function CaseDetailPage() {
 
       <Separator />
 
-      <h2 className="text-base font-semibold">準則與檔案</h2>
-      <Field label="交件方式">
-        <MultilineInput 
-          value={caseData.deliveryMethod} 
-          onChange={(e) => save({ deliveryMethod: e.target.value })} 
-          className="max-w-md"
-          minRows={1}
-          maxRows={3}
-        />
-      </Field>
-      <Field label="客戶收件">
-        <MultilineInput 
-          value={caseData.clientReceipt} 
-          onChange={(e) => save({ clientReceipt: e.target.value })} 
-          className="max-w-md"
-          minRows={1}
-          maxRows={3}
-        />
-      </Field>
-      <Field label="自製準則頁面">
-        <FileField value={Array.isArray(caseData.customGuidelinesUrl) ? caseData.customGuidelinesUrl : []} onChange={(v) => save({ customGuidelinesUrl: v })} />
-      </Field>
-      <Field label="客戶指定準則">
-        <FileField value={Array.isArray(caseData.clientGuidelines) ? caseData.clientGuidelines : []} onChange={(v) => save({ clientGuidelines: v })} />
-      </Field>
-      <Field label="本系列參考資料">
-        <FileField value={Array.isArray(caseData.seriesReferenceMaterials) ? caseData.seriesReferenceMaterials : []} onChange={(v) => save({ seriesReferenceMaterials: v })} />
-      </Field>
-      <Field label="本案參考資料">
-        <FileField value={Array.isArray(caseData.caseReferenceMaterials) ? caseData.caseReferenceMaterials : []} onChange={(v) => save({ caseReferenceMaterials: v })} />
-      </Field>
-      <Field label="譯者完稿">
-        <FileField value={Array.isArray(caseData.translatorFinal) ? caseData.translatorFinal : []} onChange={(v) => save({ translatorFinal: v })} />
-      </Field>
-      <Field label="內審完稿">
-        <FileField value={Array.isArray(caseData.internalReviewFinal) ? caseData.internalReviewFinal : []} onChange={(v) => save({ internalReviewFinal: v })} />
-      </Field>
+      <div className="flex items-baseline gap-2">
+        <h2 className="text-base font-semibold">準則與檔案</h2>
+        <span className="text-xs text-muted-foreground">檔案如上傳不成功，請改以拖曳方式上傳</span>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="交件方式">
+          <FileField value={Array.isArray(caseData.deliveryMethodFiles) ? caseData.deliveryMethodFiles : []} onChange={(v) => save({ deliveryMethodFiles: v })} />
+        </Field>
+        <Field label="客戶收件">
+          <FileField value={Array.isArray(caseData.clientReceiptFiles) ? caseData.clientReceiptFiles : []} onChange={(v) => save({ clientReceiptFiles: v })} />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="自製準則頁面">
+          <FileField value={Array.isArray(caseData.customGuidelinesUrl) ? caseData.customGuidelinesUrl : []} onChange={(v) => save({ customGuidelinesUrl: v })} />
+        </Field>
+        <Field label="客戶指定準則">
+          <FileField value={Array.isArray(caseData.clientGuidelines) ? caseData.clientGuidelines : []} onChange={(v) => save({ clientGuidelines: v })} />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="本系列參考資料">
+          <FileField value={Array.isArray(caseData.seriesReferenceMaterials) ? caseData.seriesReferenceMaterials : []} onChange={(v) => save({ seriesReferenceMaterials: v })} />
+        </Field>
+        <Field label="本案參考資料">
+          <FileField value={Array.isArray(caseData.caseReferenceMaterials) ? caseData.caseReferenceMaterials : []} onChange={(v) => save({ caseReferenceMaterials: v })} />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="譯者完稿">
+          <FileField value={Array.isArray(caseData.translatorFinal) ? caseData.translatorFinal : []} onChange={(v) => save({ translatorFinal: v })} />
+        </Field>
+        <Field label="內審完稿">
+          <FileField value={Array.isArray(caseData.internalReviewFinal) ? caseData.internalReviewFinal : []} onChange={(v) => save({ internalReviewFinal: v })} />
+        </Field>
+      </div>
       <Field label="追蹤修訂">
         <FileField value={Array.isArray(caseData.trackChanges) ? caseData.trackChanges : []} onChange={(v) => save({ trackChanges: v })} />
       </Field>
@@ -1482,7 +1498,7 @@ export default function CaseDetailPage() {
       {/* Meta info */}
       <div className="flex gap-6 text-xs text-muted-foreground">
         <span>建立者：{creatorName || "—"}</span>
-        <span>建立時間：{new Date(caseData.createdAt).toLocaleString("zh-TW")}</span>
+        <span>建立時間：{new Date(caseData.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
       </div>
 
       <Separator />
@@ -1500,7 +1516,7 @@ export default function CaseDetailPage() {
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{c.author}</span>
-                      <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString("zh-TW")}</span>
+                      <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
                     </div>
                     <button
                       className="text-muted-foreground hover:text-foreground text-[10px] px-1.5 py-0.5 rounded hover:bg-accent transition-colors"
@@ -1516,7 +1532,7 @@ export default function CaseDetailPage() {
                   <div key={r.id} className="ml-6 rounded-md border border-border/60 bg-secondary/15 px-3 py-2 text-xs">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium">{r.author}</span>
-                      <span className="text-muted-foreground">{new Date(r.createdAt).toLocaleString("zh-TW")}</span>
+                      <span className="text-muted-foreground">{new Date(r.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
                     </div>
                     <CommentContent content={r.content} imageUrls={r.imageUrls} fileUrls={r.fileUrls} />
                   </div>
@@ -1582,7 +1598,7 @@ export default function CaseDetailPage() {
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{c.author}</span>
-                          <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString("zh-TW")}</span>
+                          <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
                         </div>
                         <button
                           className="text-muted-foreground hover:text-foreground text-[10px] px-1.5 py-0.5 rounded hover:bg-accent transition-colors"
@@ -1597,7 +1613,7 @@ export default function CaseDetailPage() {
                       <div key={r.id} className="ml-6 rounded-md border border-border/60 bg-secondary/15 px-3 py-2 text-xs">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="font-medium">{r.author}</span>
-                          <span className="text-muted-foreground">{new Date(r.createdAt).toLocaleString("zh-TW")}</span>
+     <span className="text-muted-foreground">{new Date(r.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
                         </div>
                         <CommentContent content={r.content} imageUrls={r.imageUrls} fileUrls={r.fileUrls} />
                       </div>
@@ -1657,6 +1673,34 @@ export default function CaseDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete}>確認刪除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Publish prompt dialog when leaving draft case */}
+      <AlertDialog open={publishPromptOpen} onOpenChange={(v) => {
+        if (!v) {
+          setPublishPromptOpen(false);
+          // If user closes without choosing, stay on page
+          if (blocker.state === "blocked") blocker.reset();
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>公布案件？</AlertDialogTitle>
+            <AlertDialogDescription>此案件目前仍為草稿狀態，是否要公布為「詢案中」？</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setPublishPromptOpen(false);
+              if (blocker.state === "blocked") blocker.proceed();
+            }}>不公布，直接離開</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              save({ status: "inquiry" as CaseStatus });
+              toast({ title: "案件已公布" });
+              setPublishPromptOpen(false);
+              if (blocker.state === "blocked") blocker.proceed();
+            }}>公布</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -33,6 +33,7 @@ export interface InternalNote {
   sourceText: string;
   translatedText: string;
   questionOrNote: string;
+  questionOrNoteBlocks: any[]; // BlockNote JSON blocks for rich text
   referenceFiles: { name: string; url: string }[];
   comments: NoteComment[];
   // Invalidation

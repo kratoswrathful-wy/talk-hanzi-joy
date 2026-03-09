@@ -45,6 +45,7 @@ export type Database = {
           client_guidelines: Json
           client_question_form: boolean
           client_receipt: string
+          client_receipt_files: Json | null
           comments: Json | null
           common_info: Json
           common_links: Json | null
@@ -53,6 +54,7 @@ export type Database = {
           created_by: string | null
           custom_guidelines_url: Json
           delivery_method: string
+          delivery_method_files: Json | null
           env: string
           execution_tool: string
           fee_entry: string
@@ -99,6 +101,7 @@ export type Database = {
           client_guidelines?: Json
           client_question_form?: boolean
           client_receipt?: string
+          client_receipt_files?: Json | null
           comments?: Json | null
           common_info?: Json
           common_links?: Json | null
@@ -107,6 +110,7 @@ export type Database = {
           created_by?: string | null
           custom_guidelines_url?: Json
           delivery_method?: string
+          delivery_method_files?: Json | null
           env?: string
           execution_tool?: string
           fee_entry?: string
@@ -153,6 +157,7 @@ export type Database = {
           client_guidelines?: Json
           client_question_form?: boolean
           client_receipt?: string
+          client_receipt_files?: Json | null
           comments?: Json | null
           common_info?: Json
           common_links?: Json | null
@@ -161,6 +166,7 @@ export type Database = {
           created_by?: string | null
           custom_guidelines_url?: Json
           delivery_method?: string
+          delivery_method_files?: Json | null
           env?: string
           execution_tool?: string
           fee_entry?: string

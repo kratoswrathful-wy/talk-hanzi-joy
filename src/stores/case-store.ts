@@ -56,7 +56,9 @@ function fromDb(row: any): CaseRecord {
     tools: Array.isArray(row.tools) ? (row.tools as ToolEntry[]) : [],
     questionTools: Array.isArray(row.question_tools) ? (row.question_tools as ToolEntry[]) : [],
     deliveryMethod: row.delivery_method ?? "",
+    deliveryMethodFiles: Array.isArray(row.delivery_method_files) ? row.delivery_method_files : [],
     clientReceipt: row.client_receipt ?? "",
+    clientReceiptFiles: Array.isArray(row.client_receipt_files) ? row.client_receipt_files : [],
     customGuidelinesUrl: Array.isArray(row.custom_guidelines_url) ? row.custom_guidelines_url : [],
     clientGuidelines: Array.isArray(row.client_guidelines) ? row.client_guidelines : [],
     commonInfo: Array.isArray(row.common_info) ? row.common_info : [],
@@ -119,7 +121,9 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.tools !== undefined) map.tools = c.tools;
   if (c.questionTools !== undefined) map.question_tools = c.questionTools;
   if (c.deliveryMethod !== undefined) map.delivery_method = c.deliveryMethod;
+  if (c.deliveryMethodFiles !== undefined) map.delivery_method_files = c.deliveryMethodFiles;
   if (c.clientReceipt !== undefined) map.client_receipt = c.clientReceipt;
+  if (c.clientReceiptFiles !== undefined) map.client_receipt_files = c.clientReceiptFiles;
   if (c.customGuidelinesUrl !== undefined) map.custom_guidelines_url = c.customGuidelinesUrl;
   if (c.clientGuidelines !== undefined) map.client_guidelines = c.clientGuidelines;
   if (c.commonInfo !== undefined) map.common_info = c.commonInfo;

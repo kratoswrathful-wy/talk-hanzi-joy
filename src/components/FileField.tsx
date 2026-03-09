@@ -265,7 +265,6 @@ export default function FileField({ value, onChange }: FileFieldProps) {
           onClick={() => setActionsExpanded(true)}
         >
           <Plus className="h-3.5 w-3.5" />
-          新增檔案
         </Button>
       ) : (
         <div

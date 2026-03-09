@@ -1,7 +1,7 @@
 /**
  * 內部註記 — full table view with FilterSortToolbar matching fee management pattern.
  */
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from "react";
 import { TableFooterStats } from "@/components/TableFooterStats";
 import { toast } from "sonner";
 import { Plus, ExternalLink, Trash2, GripVertical } from "lucide-react";
@@ -52,6 +52,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { caseStore } from "@/hooks/use-case-store";
 import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
+
+const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
 /* ── Helpers ── */
 const formatDate = (iso: string) => {
@@ -110,13 +112,10 @@ interface ColumnDef {
 }
 
 /* ── Detail view ── */
-function Field({ label, icon, children }: { label: string; icon?: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[160px_1fr] items-start gap-3 py-1.5">
-      <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-        {icon && <span className="text-xs">{icon}</span>}
-        {label}
-      </span>
+    <div className="grid grid-cols-[100px_1fr] items-start gap-3 py-1">
+      <span className="text-sm text-muted-foreground pt-1">{label}</span>
       <div>{children}</div>
     </div>
   );
@@ -176,6 +175,7 @@ function NoteDetailView({
       sourceText: note.sourceText,
       translatedText: note.translatedText,
       questionOrNote: note.questionOrNote,
+      questionOrNoteBlocks: note.questionOrNoteBlocks ? [...note.questionOrNoteBlocks] : [],
       referenceFiles: note.referenceFiles.map((f) => ({ ...f })),
       comments: [],
       invalidated: false,
@@ -222,7 +222,7 @@ function NoteDetailView({
       </div>
       <Separator />
 
-      <Field label="關聯案件" icon="↗">
+      <Field label="關聯案件">
         {note.relatedCase ? (
           <Link to={`/cases/${caseStore.getAll().find((c) => c.title === note.relatedCase)?.id || ""}`} className="text-sm text-primary hover:underline">
             {note.relatedCase}
@@ -230,24 +230,24 @@ function NoteDetailView({
         ) : <span className="text-sm text-muted-foreground">—</span>}
       </Field>
 
-      <Field label="建立者" icon="👤">
+      <Field label="建立者">
         <span className="text-sm">{note.creator || "—"}</span>
       </Field>
-      <Field label="建立時間" icon="🕐">
-        <span className="text-sm">{new Date(note.createdAt).toLocaleString("zh-TW")}</span>
+      <Field label="建立時間">
+        <span className="text-sm">{new Date(note.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
       </Field>
 
-      <Field label="性質" icon="◎">
+      <Field label="性質">
         <ColorSelect fieldKey="noteNature" value={note.noteType} onValueChange={(v) => onUpdate({ noteType: v })} />
       </Field>
 
-      <Field label="狀態" icon="☆">
+      <Field label="狀態">
         {note.invalidated ? (
           <div className="space-y-1">
             <Badge variant="destructive" className="text-xs">已失效</Badge>
             <div className="text-xs text-muted-foreground space-y-0.5 mt-1">
               <div>變更者：{note.invalidatedBy || "—"}</div>
-              <div>失效時間：{note.invalidatedAt ? new Date(note.invalidatedAt).toLocaleString("zh-TW") : "—"}</div>
+              <div>失效時間：{note.invalidatedAt ? new Date(note.invalidatedAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) : "—"}</div>
               <div>理由：{note.invalidationReason || "—"}</div>
             </div>
           </div>
@@ -256,13 +256,13 @@ function NoteDetailView({
         )}
       </Field>
 
-      <Field label="內部指派對象" icon="👥">
+      <Field label="內部指派對象">
         <MultiColorSelect fieldKey="assignee" values={Array.isArray(note.internalAssignee) ? note.internalAssignee : note.internalAssignee ? [note.internalAssignee] : []} onValuesChange={(v) => onUpdate({ internalAssignee: v })} />
       </Field>
 
       <Separator />
 
-      <Field label="檔案名稱" icon="≡">
+      <Field label="檔案名稱">
         <MultilineInput 
           value={note.fileName} 
           onChange={(e) => onUpdate({ fileName: e.target.value })} 
@@ -271,7 +271,7 @@ function NoteDetailView({
           maxRows={3}
         />
       </Field>
-      <Field label="ID / 行數" icon="≡">
+      <Field label="ID / 行數">
         <MultilineInput 
           value={note.idRowCount} 
           onChange={(e) => onUpdate({ idRowCount: e.target.value })} 
@@ -280,7 +280,7 @@ function NoteDetailView({
           maxRows={2}
         />
       </Field>
-      <Field label="原文" icon="≡">
+      <Field label="原文">
         <MultilineInput 
           value={note.sourceText} 
           onChange={(e) => onUpdate({ sourceText: e.target.value })} 
@@ -289,7 +289,7 @@ function NoteDetailView({
           maxRows={8}
         />
       </Field>
-      <Field label="譯文" icon="≡">
+      <Field label="譯文">
         <MultilineInput 
           value={note.translatedText} 
           onChange={(e) => onUpdate({ translatedText: e.target.value })} 
@@ -298,17 +298,22 @@ function NoteDetailView({
           maxRows={8}
         />
       </Field>
-      <Field label="問題或註記內容" icon="≡">
-        <MultilineInput 
-          value={note.questionOrNote} 
-          onChange={(e) => onUpdate({ questionOrNote: e.target.value })} 
-          className="min-h-[80px]"
-          minRows={4}
-          maxRows={10}
-        />
+      <Field label="問題或註記內容">
+        <Suspense fallback={<div className="h-32 rounded-md border border-input bg-background animate-pulse" />}>
+          <RichTextEditor
+            initialContent={(() => {
+              // Try parsing as JSON blocks; fall back to plain text paragraph
+              if (Array.isArray((note as any).questionOrNoteBlocks) && (note as any).questionOrNoteBlocks.length > 0) {
+                return (note as any).questionOrNoteBlocks;
+              }
+              return undefined;
+            })()}
+            onChange={(blocks) => onUpdate({ questionOrNoteBlocks: blocks } as any)}
+          />
+        </Suspense>
       </Field>
 
-      <Field label="參考資料或截圖" icon="📎">
+      <Field label="參考資料或截圖">
         <FileField
           value={note.referenceFiles || []}
           onChange={(v) => onUpdate({ referenceFiles: v })}
@@ -330,7 +335,7 @@ function NoteDetailView({
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{c.author}</span>
-                      <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString("zh-TW")}</span>
+                      <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
                     </div>
                     <button className="text-muted-foreground hover:text-foreground text-[10px] px-1.5 py-0.5 rounded hover:bg-accent transition-colors" onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)}>回覆</button>
                   </div>
@@ -340,7 +345,7 @@ function NoteDetailView({
                   <div key={r.id} className="ml-6 rounded-md border border-border/60 bg-secondary/15 px-3 py-2 text-xs">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium">{r.author}</span>
-                      <span className="text-muted-foreground">{new Date(r.createdAt).toLocaleString("zh-TW")}</span>
+ <span className="text-muted-foreground">{new Date(r.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
                     </div>
                     <CommentContent content={r.content} imageUrls={r.imageUrls} fileUrls={r.fileUrls} />
                   </div>
@@ -458,6 +463,7 @@ function NewNoteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
       sourceText: "",
       translatedText: "",
       questionOrNote: "",
+      questionOrNoteBlocks: [],
       referenceFiles: [],
       comments: [],
       invalidated: false,
