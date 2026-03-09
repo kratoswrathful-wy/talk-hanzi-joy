@@ -102,13 +102,13 @@ const MultilineInput = React.forwardRef<HTMLTextAreaElement, MultilineInputProps
             : "border border-input",
           className,
         )}
+        {...props}
         value={value}
         onKeyDown={handleKeyDown}
         onInput={autoResize}
         style={{
           overflow: 'hidden',
         }}
-        {...props}
       />
     );
   }
