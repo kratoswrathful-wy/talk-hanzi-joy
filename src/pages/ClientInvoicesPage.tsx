@@ -113,7 +113,7 @@ export default function ClientInvoicesPage() {
     }, 0);
   }, [fees]);
 
-  const tableViews = useClientInvoiceTableViews(isAdmin ? "pm" : "assignee");
+  const tableViews = useClientInvoiceTableViews(user?.id);
   const { activeView } = tableViews;
   const visibleFieldKeys = clientInvoiceFieldMetas.map((f) => f.key);
 

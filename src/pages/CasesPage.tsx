@@ -376,7 +376,8 @@ export default function CasesPage() {
   const navigate = useNavigate();
   const cases = useCases();
   const { isAdmin } = useAuth();
-  const tableViews = useCaseTableViews(isAdmin ? "pm" : "assignee");
+  const { user } = useAuth();
+  const tableViews = useCaseTableViews(user?.id);
   const { activeView } = tableViews;
 
   const visibleFees = tableViews.applyFiltersAndSorts(cases);

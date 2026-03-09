@@ -529,7 +529,7 @@ export default function InternalNotesPage() {
     }
   }, [searchParams, notes]);
 
-  const tableViews = useInternalNotesTableViews("executive");
+  const tableViews = useInternalNotesTableViews(user?.id);
   const { activeView } = tableViews;
   const visibleFieldKeys = internalNotesFieldMetas.map((f) => f.key);
 
