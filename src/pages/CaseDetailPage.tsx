@@ -1677,7 +1677,10 @@ export default function CaseDetailPage() {
           <FileField value={Array.isArray(caseData.trackChanges) ? caseData.trackChanges : []} onChange={(v) => save({ trackChanges: v })} />
         </Field>
         <Field label="常用資訊">
-          <FileField value={Array.isArray((caseData as any).commonInfoFiles) ? (caseData as any).commonInfoFiles : []} onChange={(v) => save({ commonInfo: v } as any)} />
+          <FileField
+            value={(Array.isArray(caseData.commonInfo) ? caseData.commonInfo : []).map(item => ({ name: (item as any).name || (item as any).label || "", url: item.url }))}
+            onChange={(v) => save({ commonInfo: v.map(f => ({ label: f.name, url: f.url })) })}
+          />
         </Field>
       </div>
 
