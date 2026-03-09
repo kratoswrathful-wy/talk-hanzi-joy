@@ -551,6 +551,17 @@ export default function CaseDetailPage() {
 
   const roleLabels: Record<string, string> = { member: "成員", pm: "專案經理", executive: "執行官" };
 
+  // Block navigation when leaving a draft case (PM+ only) to prompt publishing
+  const shouldBlockNav = canSeePublishPrompt && !!caseData && caseData.status === "draft";
+  const blocker = useBlocker(shouldBlockNav);
+
+  useEffect(() => {
+    if (blocker.state === "blocked" && shouldBlockNav) {
+      pendingNavigateRef.current = () => blocker.proceed();
+      setPublishPromptOpen(true);
+    }
+  }, [blocker.state, shouldBlockNav]);
+
   useEffect(() => {
     let mounted = true;
     const doLoad = () => {
