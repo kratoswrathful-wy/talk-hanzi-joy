@@ -38,6 +38,7 @@ export type Database = {
       cases: {
         Row: {
           billing_unit: string
+          body_content: Json | null
           case_reference_materials: Json | null
           category: string
           client: string
@@ -91,6 +92,7 @@ export type Database = {
         }
         Insert: {
           billing_unit?: string
+          body_content?: Json | null
           case_reference_materials?: Json | null
           category?: string
           client?: string
@@ -144,6 +146,7 @@ export type Database = {
         }
         Update: {
           billing_unit?: string
+          body_content?: Json | null
           case_reference_materials?: Json | null
           category?: string
           client?: string
