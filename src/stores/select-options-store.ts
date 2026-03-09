@@ -13,6 +13,7 @@ export interface SelectOption {
   label: string;
   email?: string;
   color: string;
+  textColor?: string;
   note?: string;
   avatarUrl?: string | null;
   timezone?: string | null;
