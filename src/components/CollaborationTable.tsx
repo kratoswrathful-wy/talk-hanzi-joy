@@ -143,7 +143,8 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
             !row.taskCompleted &&
             (isPmOrAbove || row.translator === displayName);
 
-          const canCheckDelivered = isPmOrAbove && !row.delivered;
+          const deliveredLocked = caseStatus === "delivered" || caseStatus === "feedback" || caseStatus === "feedback_completed";
+          const canCheckDelivered = isPmOrAbove && !row.delivered && !deliveredLocked;
 
           return (
             <div
