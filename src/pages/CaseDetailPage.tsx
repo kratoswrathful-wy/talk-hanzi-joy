@@ -4,6 +4,7 @@ import { ArrowLeft, Trash2, Plus, X, Copy, Check, ExternalLink } from "lucide-re
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MultilineInput } from "@/components/ui/multiline-input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
