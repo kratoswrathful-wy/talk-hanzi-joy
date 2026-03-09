@@ -196,16 +196,29 @@ function IMESafeInput({ value, onSave, disabled, placeholder, className, minRows
   );
 }
 
-/** IME-safe title input */
+/** IME-safe title input — single line */
 function TitleInput({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [local, setLocal] = useState(value);
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setLocal(value);
+  }, [value, focused]);
+
   return (
-    <IMESafeInput
-      value={value}
-      onSave={onSave}
-      className="max-w-md text-2xl font-semibold tracking-tight"
-      minRows={1}
-      maxRows={3}
-      borderless
+    <input
+      type="text"
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => {
+        setFocused(false);
+        if (local !== value) onSave(local);
+      }}
+      onFocus={(e) => {
+        setFocused(true);
+        e.target.select();
+      }}
+      className="w-full max-w-md bg-background text-2xl font-semibold tracking-tight border border-transparent hover:border-input focus:border-input rounded-md px-3 py-1.5 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     />
   );
 }
@@ -1206,7 +1219,7 @@ export default function CaseDetailPage() {
       </div>
 
       {/* Title + Status badge on the same row, status aligned with right-column fields */}
-      <div className="grid grid-cols-2 gap-4 items-center px-0">
+      <div className="grid grid-cols-2 gap-4 items-end px-0">
         <div className="min-w-0">
           <TitleInput value={caseData.title} onSave={(v) => save({ title: v })} />
         </div>
