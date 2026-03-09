@@ -1913,9 +1913,9 @@ function CaseCategorySection() {
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
       <div>
-        <h2 className="text-base font-semibold">案件類型設定</h2>
+        <h2 className="text-base font-semibold">內容性質設定</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          管理案件類型選項的顯示順序與顏色
+          管理內容性質選項的顯示順序與顏色
         </p>
       </div>
 
