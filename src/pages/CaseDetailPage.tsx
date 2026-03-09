@@ -596,7 +596,7 @@ function ToolInstance({
               }
               setDeleteFieldId(null);
             }}>
-              確認刪除
+              確定刪除
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
