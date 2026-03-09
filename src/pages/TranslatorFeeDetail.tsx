@@ -681,6 +681,7 @@ export default function TranslatorFeeDetail() {
         const caseCaseLink = (caseRow as any).client_case_link && typeof (caseRow as any).client_case_link === "object"
           ? (caseRow as any).client_case_link as { url: string; label: string }
           : { url: "", label: "" };
+        const caseDispatchRoute = ((caseRow as any).dispatch_route || "").trim();
 
         // Auto-create client/contact options if they don't exist
         if (caseClient) {
