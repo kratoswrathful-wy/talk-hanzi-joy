@@ -486,7 +486,7 @@ type ExpandType = "notes" | "editLog";
 export default function TranslatorFees() {
   const navigate = useNavigate();
   const fees = useFees();
-  const { primaryRole, isAdmin, profile } = useAuth();
+  const { primaryRole, isAdmin, profile, user } = useAuth();
   const { canViewSection } = usePermissions();
   const [currentRole, setCurrentRole] = useState<UserRole>(isAdmin ? "pm" : "assignee");
   const isManager = isAdmin;
