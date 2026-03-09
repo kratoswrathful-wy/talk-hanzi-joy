@@ -1185,10 +1185,10 @@ export default function CaseDetailPage() {
                 disabled={!canUseButton}
                 onClick={() => {
                   if (!caseData) return;
-                  const workTypes: string[] = Array.isArray(caseData.workType) ? caseData.workType : [];
-                  const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
-                  const billingUnit: BillingUnit = billingUnitMap[caseData.billingUnit] || "字";
-                  const unitCount = caseData.unitCount || 0;
+                  const rawGroups = Array.isArray(caseData.workGroups) ? caseData.workGroups : [];
+                  const workGroups = rawGroups.length > 0
+                    ? rawGroups
+                    : [{ id: `wg-fallback`, workType: "", billingUnit: caseData.billingUnit || "字", unitCount: caseData.unitCount || 0 }];
                   const caseTitle = caseData.title || "";
 
                   const knownTaskTypes: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
@@ -1201,6 +1201,7 @@ export default function CaseDetailPage() {
                     }
                     return wt;
                   };
+                  const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
                   const ensureTaskTypeOption = (taskType: string) => {
                     const existingOptions = selectOptionsStore.getSortedOptions("taskType");
                     if (!existingOptions.find((o) => o.label === taskType)) {
@@ -1226,19 +1227,18 @@ export default function CaseDetailPage() {
                     }
                   }
 
-                  const mapped: FeeTaskItem[] = workTypes.length > 0
-                    ? workTypes.map((wt, idx) => {
-                        const matchedType = matchTaskType(wt);
-                        ensureTaskTypeOption(matchedType);
-                        return {
-                          id: `item-case-${Date.now()}-${idx}`,
-                          taskType: matchedType as TaskType,
-                          billingUnit,
-                          unitCount: idx === 0 && unitCount ? unitCount : 0,
-                          unitPrice: 0,
-                        };
-                      })
-                    : [{ id: `item-${Date.now()}`, taskType: "翻譯" as TaskType, billingUnit, unitCount: 0, unitPrice: 0 }];
+                  const mapped: FeeTaskItem[] = workGroups
+                    .map((g, idx) => {
+                      const matchedType = matchTaskType((g.workType || "").trim() || "翻譯");
+                      ensureTaskTypeOption(matchedType);
+                      return {
+                        id: `item-case-${Date.now()}-${idx}`,
+                        taskType: matchedType as TaskType,
+                        billingUnit: billingUnitMap[g.billingUnit] || "字",
+                        unitCount: Number(g.unitCount) || 0,
+                        unitPrice: 0,
+                      };
+                    });
 
                   const resolveAssignee = (name: string): string => {
                     const assigneeOptions = selectOptionsStore.getSortedOptions("assignee");
