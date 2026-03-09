@@ -78,7 +78,7 @@ export function TableFooterStats({
     const total = values.reduce((s, v) => s + v, 0);
     const result = mode === "avg" ? total / values.length : total;
     
-    const prefix = mode === "sum" ? "總額 " : "平均 ";
+    const prefix = mode === "sum" ? "總計 " : "平均 ";
     if (config.isCurrency !== false) {
       return `${prefix}${formatCurrency(Math.round(result))}`;
     }
