@@ -61,6 +61,12 @@ function makeInvoiceMatcher(feeTotal?: (ids: string[]) => number) {
 function compareInvoices(
   a: Invoice, b: Invoice, sort: TableSort, feeTotal?: (ids: string[]) => number
 ): number {
+  if (sort.field === "status") {
+    const aLabel = INVOICE_STATUS_LABEL_MAP[a.status] || a.status;
+    const bLabel = INVOICE_STATUS_LABEL_MAP[b.status] || b.status;
+    const cmp = getStatusSortIndex(aLabel) - getStatusSortIndex(bLabel);
+    return sort.direction === "desc" ? -cmp : cmp;
+  }
   const av = getFieldValue(a, sort.field, feeTotal);
   const bv = getFieldValue(b, sort.field, feeTotal);
   let cmp = 0;
