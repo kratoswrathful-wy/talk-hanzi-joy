@@ -326,6 +326,7 @@ function ToolInstance({
                   }
                   className="flex-1 min-h-0 h-auto py-1"
                   minRows={1}
+                  borderless
                 />
                 <CopyButton value={values[f.id] || ""} />
                 <button
@@ -916,6 +917,7 @@ export default function CaseDetailPage() {
           className="max-w-md" 
           minRows={1}
           maxRows={3}
+          borderless
         />
       </Field>
       <Field label="狀態">
