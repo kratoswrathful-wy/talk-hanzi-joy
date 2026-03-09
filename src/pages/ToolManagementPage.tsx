@@ -737,6 +737,7 @@ function CommonLinksSection() {
 
 /* ── Page Template Section ── */
 function PageTemplateSection() {
+  const navigate = useNavigate();
   const allTemplates = usePageTemplates();
   const [addingModule, setAddingModule] = useState<PageModule | null>(null);
   const [newName, setNewName] = useState("");
