@@ -121,7 +121,9 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.tools !== undefined) map.tools = c.tools;
   if (c.questionTools !== undefined) map.question_tools = c.questionTools;
   if (c.deliveryMethod !== undefined) map.delivery_method = c.deliveryMethod;
+  if (c.deliveryMethodFiles !== undefined) map.delivery_method_files = c.deliveryMethodFiles;
   if (c.clientReceipt !== undefined) map.client_receipt = c.clientReceipt;
+  if (c.clientReceiptFiles !== undefined) map.client_receipt_files = c.clientReceiptFiles;
   if (c.customGuidelinesUrl !== undefined) map.custom_guidelines_url = c.customGuidelinesUrl;
   if (c.clientGuidelines !== undefined) map.client_guidelines = c.clientGuidelines;
   if (c.commonInfo !== undefined) map.common_info = c.commonInfo;
