@@ -435,6 +435,15 @@ export default function ClientInvoiceDetailPage() {
           返回客戶請款單清單
         </Link>
         <div className="flex items-center gap-2 shrink-0">
+          <ApplyTemplateButton
+            module="clientInvoices"
+            onApply={(values) => {
+              if (id) {
+                clientInvoiceStore.update(id, values);
+              }
+              toast.success("已套用範本");
+            }}
+          />
           {((!isPaid && isAdmin) || (isPaid && isExecutive)) && checkPerm("client_invoice", "cinv_detail_delete", "edit") && (
             <Button size="sm" className="text-xs min-w-[88px] text-white hover:opacity-80" style={{ backgroundColor: '#6B7280' }} onClick={() => {
               if (isPaid) {
