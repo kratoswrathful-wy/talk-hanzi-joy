@@ -517,7 +517,16 @@ export default function CaseDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [creatorName, setCreatorName] = useState("");
   const { primaryRole: currentRole, profile } = useAuth();
+  const { checkPerm } = usePermissions();
   const isManager = currentRole === "pm" || currentRole === "executive";
+
+  // Tool permissions
+  const canEditToolSelect = checkPerm("case_management", "case_detail_toolSelect", "edit");
+  const canAddTool = checkPerm("case_management", "case_detail_toolAdd", "edit");
+  const canRemoveTool = checkPerm("case_management", "case_detail_toolRemove", "edit");
+  const canAddToolField = checkPerm("case_management", "case_detail_toolFieldAdd", "edit");
+  const canRemoveToolField = checkPerm("case_management", "case_detail_toolFieldRemove", "edit");
+  const canUseToolTemplate = checkPerm("case_management", "case_detail_toolTemplate", "edit");
   const allInternalNotes = useInternalNotes(); // reactive
 
   // Comment drafts
