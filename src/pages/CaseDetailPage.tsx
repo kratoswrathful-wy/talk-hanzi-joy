@@ -1056,7 +1056,13 @@ export default function CaseDetailPage() {
         />
       </Field>
       <Field label="客戶收件">
-        <Input value={caseData.clientReceipt} onChange={(e) => save({ clientReceipt: e.target.value })} className="max-w-md" />
+        <MultilineInput 
+          value={caseData.clientReceipt} 
+          onChange={(e) => save({ clientReceipt: e.target.value })} 
+          className="max-w-md"
+          minRows={1}
+          maxRows={3}
+        />
       </Field>
       <Field label="自製準則頁面">
         <FileField value={Array.isArray(caseData.customGuidelinesUrl) ? caseData.customGuidelinesUrl : []} onChange={(v) => save({ customGuidelinesUrl: v })} />
