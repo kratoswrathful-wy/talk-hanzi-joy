@@ -834,6 +834,98 @@ function SimpleSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; 
   );
 }
 
+/* ── Page Template Section ── */
+function PageTemplateSection() {
+  const allTemplates = usePageTemplates();
+  const [addingModule, setAddingModule] = useState<PageModule | null>(null);
+  const [newName, setNewName] = useState("");
+
+  const handleAdd = (mod: PageModule) => {
+    const name = newName.trim();
+    if (!name) return;
+    pageTemplateStore.add(mod, name);
+    setNewName("");
+    setAddingModule(null);
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+      <h2 className="text-base font-semibold">頁面範本管理</h2>
+      <p className="text-xs text-muted-foreground -mt-2">
+        管理各模組新增頁面時的預設與自訂範本
+      </p>
+
+      {/* Compact grid: module columns */}
+      <div className="grid grid-cols-5 gap-3">
+        {PAGE_MODULES.map((mod) => {
+          const modTemplates = allTemplates.filter((t) => t.module === mod);
+          return (
+            <div key={mod} className="space-y-1.5">
+              {/* Module header */}
+              <div className="text-xs font-medium text-center text-muted-foreground pb-1 border-b border-border">
+                {PAGE_MODULE_LABELS[mod]}
+              </div>
+              {/* Template chips */}
+              {modTemplates.map((tpl) => (
+                <div key={tpl.id} className="flex items-center gap-0.5 group">
+                  <button
+                    className="flex-1 flex items-center gap-1 px-2 py-1 rounded-md text-xs hover:bg-secondary/30 transition-colors text-left min-w-0"
+                    title={`編輯「${tpl.name}」範本`}
+                  >
+                    <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
+                    <span className="truncate">{tpl.name}</span>
+                  </button>
+                  {!tpl.isDefault && (
+                    <button
+                      className="h-4 w-4 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0"
+                      onClick={() => pageTemplateStore.remove(tpl.id)}
+                      title="刪除範本"
+                    >
+                      <Trash2 className="h-2.5 w-2.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {/* Add button */}
+              {addingModule === mod ? (
+                <div className="space-y-1">
+                  <Input
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="範本名稱"
+                    className="h-6 text-xs"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleAdd(mod);
+                      if (e.key === "Escape") { setAddingModule(null); setNewName(""); }
+                    }}
+                  />
+                  <div className="flex gap-1 justify-end">
+                    <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={() => { setAddingModule(null); setNewName(""); }}>
+                      取消
+                    </Button>
+                    <Button size="sm" className="h-5 text-[10px] px-1.5" disabled={!newName.trim()} onClick={() => handleAdd(mod)}>
+                      新增
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  className="flex items-center gap-0.5 px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors w-full"
+                  onClick={() => { setAddingModule(mod); setNewName(""); }}
+                >
+                  <Plus className="h-2.5 w-2.5" />
+                  新增
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ── Main Page ── */
 export default function ToolManagementPage() {
   const { options: toolOptions, customColors } = useSelectOptions("executionTool");
