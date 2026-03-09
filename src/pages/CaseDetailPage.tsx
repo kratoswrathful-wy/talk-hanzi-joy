@@ -1675,6 +1675,34 @@ export default function CaseDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Publish prompt dialog when leaving draft case */}
+      <AlertDialog open={publishPromptOpen} onOpenChange={(v) => {
+        if (!v) {
+          setPublishPromptOpen(false);
+          // If user closes without choosing, stay on page
+          if (blocker.state === "blocked") blocker.reset();
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>公布案件？</AlertDialogTitle>
+            <AlertDialogDescription>此案件目前仍為草稿狀態，是否要公布為「詢案中」？</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setPublishPromptOpen(false);
+              if (blocker.state === "blocked") blocker.proceed();
+            }}>不公布，直接離開</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              save({ status: "inquiry" as CaseStatus });
+              toast({ title: "案件已公布" });
+              setPublishPromptOpen(false);
+              if (blocker.state === "blocked") blocker.proceed();
+            }}>公布</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
