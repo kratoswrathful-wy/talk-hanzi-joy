@@ -85,7 +85,7 @@ function CollabReviewDeadlineCell({ collabRows, status }: { collabRows: CollabRo
   const isDraftOrInquiry = status === "draft" || status === "inquiry";
 
   if (isDraftOrInquiry) {
-    return <DeadlineText value={pickNearestDeadline(collabRows, "reviewDeadline")} />;
+    return <DeadlineText value={pickEarliestDeadline(collabRows, "reviewDeadline")} />;
   }
 
   const isReviewer = collabRows.some(r => r.reviewer === displayName);
