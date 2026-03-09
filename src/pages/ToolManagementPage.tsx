@@ -293,14 +293,20 @@ function TemplateFieldManager({
                    {(f.type || "text") === "file" ? "檔案" : "文字"}
                  </Badge>
                </div>
-             )}
-             <MultilineInput
-               value={fieldValues[f.id] || ""}
-               onChange={(e) => onFieldValuesChange({ ...fieldValues, [f.id]: e.target.value })}
-               className="h-7 text-sm"
-               minRows={1}
-               maxRows={5}
-             />
+              )}
+              {(f.type || "text") === "file" ? (
+                <div className="h-7 flex items-center px-3 rounded-md border border-input bg-muted/30 text-xs text-muted-foreground">
+                  檔案欄位（套用範本時可上傳）
+                </div>
+              ) : (
+                <MultilineInput
+                  value={fieldValues[f.id] || ""}
+                  onChange={(e) => onFieldValuesChange({ ...fieldValues, [f.id]: e.target.value })}
+                  className="h-7 text-sm"
+                  minRows={1}
+                  maxRows={5}
+                />
+              )}
            </div>
           <button
             className="h-5 w-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted text-muted-foreground hover:text-destructive transition-all shrink-0"
