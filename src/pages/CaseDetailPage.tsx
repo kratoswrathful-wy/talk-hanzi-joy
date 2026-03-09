@@ -8,6 +8,7 @@ import { MultilineInput } from "@/components/ui/multiline-input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { caseStore } from "@/hooks/use-case-store";
 import { feeStore, useFees } from "@/hooks/use-fee-store";
 import { type TranslatorFee, type FeeTaskItem, type TaskType, type BillingUnit, defaultClientInfo } from "@/data/fee-mock-data";
