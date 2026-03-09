@@ -472,10 +472,10 @@ function ToolInstance({
           return (
             <Field key={f.id} label={f.label}>
               <div className="flex items-start gap-1.5">
-                <MultilineInput
+                <IMESafeInput
                   value={values[f.id] || ""}
-                  onChange={(e) =>
-                    onUpdate({ fieldValues: { ...values, [f.id]: e.target.value } })
+                  onSave={(v) =>
+                    onUpdate({ fieldValues: { ...values, [f.id]: v } })
                   }
                   className="flex-1 min-h-0 h-auto py-1"
                   minRows={1}
