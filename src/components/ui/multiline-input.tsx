@@ -11,10 +11,14 @@ export interface MultilineInputProps extends Omit<React.TextareaHTMLAttributes<H
    * Maximum height in rows (default: 10)
    */
   maxRows?: number;
+  /**
+   * Borderless mode - only show border on focus
+   */
+  borderless?: boolean;
 }
 
 const MultilineInput = React.forwardRef<HTMLTextAreaElement, MultilineInputProps>(
-  ({ className, minRows = 1, maxRows = 10, value, ...props }, ref) => {
+  ({ className, minRows = 1, maxRows = 10, borderless = false, value, ...props }, ref) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     // Auto-resize function
@@ -92,15 +96,17 @@ const MultilineInput = React.forwardRef<HTMLTextAreaElement, MultilineInputProps
       <textarea
         ref={mergedRef}
         className={cn(
-          "flex w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none overflow-hidden leading-normal",
+          "flex w-full rounded-md bg-background px-3 py-1.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none leading-normal",
+          borderless 
+            ? "border border-transparent hover:border-input focus:border-input" 
+            : "border border-input",
           className,
         )}
         value={value}
         onKeyDown={handleKeyDown}
         onInput={autoResize}
         style={{
-          overflowX: 'hidden',
-          overflowY: !maxRows ? 'hidden' : (textareaRef.current?.scrollHeight > textareaRef.current?.clientHeight ? 'auto' : 'hidden'),
+          overflow: 'hidden',
         }}
         {...props}
       />
