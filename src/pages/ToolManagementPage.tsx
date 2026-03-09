@@ -836,7 +836,6 @@ function SimpleSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; 
 /* ── Main Page ── */
 export default function ToolManagementPage() {
   const { options: toolOptions, customColors } = useSelectOptions("executionTool");
-  const { options: qToolOptions, customColors: qCustomColors } = useSelectOptions("questionTool");
   const labelStyles = useLabelStyles();
   const templates = useToolTemplates();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -848,16 +847,6 @@ export default function ToolManagementPage() {
   const [textColorOpen, setTextColorOpen] = useState(false);
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
   const [addingTemplate, setAddingTemplate] = useState(false);
-
-  // Question tool state
-  const [qDragIndex, setQDragIndex] = useState<number | null>(null);
-  const [qDragOverIndex, setQDragOverIndex] = useState<number | null>(null);
-  const [qAdding, setQAdding] = useState(false);
-  const [qNewLabel, setQNewLabel] = useState("");
-  const [qNewColor, setQNewColor] = useState(PRESET_COLORS[0]);
-  const [qColorPickerOptionId, setQColorPickerOptionId] = useState<string | null>(null);
-  const [qTextColorOpen, setQTextColorOpen] = useState(false);
-  const [qExpandedTools, setQExpandedTools] = useState<Set<string>>(new Set());
 
   const toggleExpand = (id: string) => {
     setExpandedTools((prev) => {
