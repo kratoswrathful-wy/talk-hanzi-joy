@@ -2083,7 +2083,7 @@ function StatusStyleSection() {
   const handleDragEnd = () => { setDragIndex(null); setDragOverIndex(null); };
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+    <div className="rounded-xl border border-border bg-card p-6 gap-4 flex flex-col">
       <button
         className="flex items-center gap-2 w-full text-left"
         onClick={() => setExpanded((v) => !v)}
