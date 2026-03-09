@@ -73,7 +73,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
   const showTaskCompleted = !showAccepted;
 
   const columns = [
-    { key: "segment", label: "檔案或分段", width: "minmax(210px, 1.75fr)" },
+    { key: "segment", label: "檔案或分段", width: "200px" },
     { key: "translator", label: "譯者", width: "140px" },
     { key: "unitCount", label: "計費單位數", width: "90px" },
     { key: "translationDeadline", label: "翻譯交期", width: "180px", bulk: true },
