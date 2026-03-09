@@ -781,15 +781,8 @@ function BillingUnitOrderSection() {
               onAddCustomColor={() => {}}
               onRemoveCustomColor={() => {}}
               colorUsageMap={{}}
+              onResetDefault={() => labelStyleStore.setBillingUnitTextColor("#FFFFFF")}
             />
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs shrink-0"
-              onClick={() => labelStyleStore.setBillingUnitTextColor("#FFFFFF")}
-            >
-              預設（白）
-            </Button>
           </div>
         )}
       </div>
