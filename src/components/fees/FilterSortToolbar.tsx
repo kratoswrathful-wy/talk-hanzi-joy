@@ -318,6 +318,30 @@ export function FilterSortToolbar({
           </PopoverContent>
         </Popover>
 
+        {/* Pin to top/bottom buttons - show when items are selected */}
+        {onPinTop && onPinBottom && selectedIds && selectedIds.length > 0 && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1.5"
+              onClick={() => onPinTop(selectedIds)}
+            >
+              <Pin className="h-3 w-3" />
+              置頂
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1.5"
+              onClick={() => onPinBottom(selectedIds)}
+            >
+              <Pin className="h-3 w-3 rotate-180" />
+              置底
+            </Button>
+          </>
+        )}
+
         {/* Column visibility button */}
         <Popover>
           <PopoverTrigger asChild>
@@ -369,6 +393,30 @@ export function FilterSortToolbar({
             </Badge>
           );
         })}
+
+        {/* Pinned pills */}
+        {totalPinCount > 0 && onUnpinItem && (
+          <>
+            {pinnedTopCount > 0 && (
+              <Badge variant="secondary" className="h-6 gap-1 text-xs font-normal">
+                <Pin className="h-3 w-3" />
+                置頂 {pinnedTopCount} 項
+                <button onClick={() => (pinnedTop || []).forEach((id) => onUnpinItem(id))} className="hover:text-destructive">
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+            {pinnedBottomCount > 0 && (
+              <Badge variant="secondary" className="h-6 gap-1 text-xs font-normal">
+                <Pin className="h-3 w-3 rotate-180" />
+                置底 {pinnedBottomCount} 項
+                <button onClick={() => (pinnedBottom || []).forEach((id) => onUnpinItem(id))} className="hover:text-destructive">
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+          </>
+        )}
 
         {/* Selection indicator */}
         {selectedCount > 0 && (
