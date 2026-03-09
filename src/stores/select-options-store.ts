@@ -5,6 +5,7 @@ import { loadSetting, saveSetting, markDirty } from "./settings-persistence";
 export interface ToolFieldDef {
   id: string;
   label: string;
+  type?: "text" | "file";
 }
 
 export interface SelectOption {
