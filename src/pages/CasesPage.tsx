@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { TableFooterStats, type NumericColumnConfig } from "@/components/TableFooterStats";
 import { Plus, GripVertical, ExternalLink, Trash2, Copy } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { motion } from "framer-motion";
@@ -604,6 +605,15 @@ export default function CasesPage() {
               </tr>
             )}
           </tbody>
+          <TableFooterStats
+            itemCount={visibleFees.length}
+            orderedCols={orderedCols}
+            columnWidths={activeView.columnWidths}
+            numericColumns={[
+              { key: "unitCount", getValue: (c: CaseRecord) => c.unitCount || null, isCurrency: false },
+            ]}
+            data={visibleFees}
+          />
         </table>
       </motion.div>
 

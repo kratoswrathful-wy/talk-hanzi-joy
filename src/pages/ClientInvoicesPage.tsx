@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { TableFooterStats, type NumericColumnConfig } from "@/components/TableFooterStats";
 import { Plus, ExternalLink, Trash2, GripVertical } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { motion } from "framer-motion";
@@ -587,6 +588,16 @@ export default function ClientInvoicesPage() {
               </tr>
             )}
           </tbody>
+          <TableFooterStats
+            itemCount={visibleInvoices.length}
+            orderedCols={orderedCols}
+            columnWidths={activeView.columnWidths}
+            numericColumns={[
+              { key: "feeCount", getValue: (inv: ClientInvoice) => inv.feeIds.length, isCurrency: false },
+              { key: "totalAmount", getValue: (inv: ClientInvoice) => getInvoiceTotal(inv.feeIds) },
+            ]}
+            data={visibleInvoices}
+          />
         </table>
       </motion.div>
 
