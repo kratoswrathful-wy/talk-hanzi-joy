@@ -22,6 +22,20 @@ export interface WorkGroup {
 
 export type CaseStatus = "draft" | "inquiry" | "dispatched" | "task_completed" | "delivered" | "feedback" | "feedback_completed" | "finalized";
 
+/** A single row in the multi-person collaboration table */
+export interface CollabRow {
+  id: string;
+  segment: string;        // 檔案或分段 (text)
+  translator: string;     // 譯者 (person single-select)
+  unitCount: number;      // 計費單位數
+  accepted: boolean;      // 確認承接
+  translationDeadline: string | null; // 翻譯交期
+  reviewer: string;       // 審稿人員
+  reviewDeadline: string | null;      // 審稿交期
+  taskCompleted: boolean; // 任務完成
+  delivered: boolean;     // 交件完畢
+}
+
 export interface CaseComment {
   id: string;
   author: string;
