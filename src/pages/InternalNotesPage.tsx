@@ -416,7 +416,7 @@ function NoteDetailView({
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setInvalidateOpen(false)}>取消</Button>
-            <Button onClick={handleInvalidate} disabled={!invalidateReason.trim()}>確認</Button>
+            <Button onClick={handleInvalidate} disabled={!invalidateReason.trim()}>確定</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
