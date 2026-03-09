@@ -12,6 +12,7 @@ import { caseStore } from "@/hooks/use-case-store";
 import type { CaseRecord, ToolEntry, ToolEntryField, CaseStatus, CaseComment } from "@/data/case-types";
 import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
+import AssigneeTag from "@/components/AssigneeTag";
 import DateTimePicker from "@/components/DateTimePicker";
 import FileField from "@/components/FileField";
 import { CommentInput } from "@/components/comments/CommentInput";
@@ -527,6 +528,7 @@ export default function CaseDetailPage() {
   const canAddToolField = checkPerm("case_management", "case_detail_toolFieldAdd", "edit");
   const canRemoveToolField = checkPerm("case_management", "case_detail_toolFieldRemove", "edit");
   const canUseToolTemplate = checkPerm("case_management", "case_detail_toolTemplate", "edit");
+  const { options: assigneeOptions } = useSelectOptions("assignee");
   const allInternalNotes = useInternalNotes(); // reactive
 
   // Comment drafts
@@ -975,9 +977,10 @@ export default function CaseDetailPage() {
           {(isDispatched || isTaskCompleted || isDelivered || isFeedback || isFeedbackCompleted || isFinalized) ? (
             <div className="flex items-center gap-1 flex-wrap min-h-[36px] px-2 py-1 rounded-md bg-muted/50 border border-border">
               {(caseData.translator || []).length > 0
-                ? (caseData.translator || []).map((t, i) => (
-                    <Badge key={i} variant="secondary" className="text-xs">{t}</Badge>
-                  ))
+                ? (caseData.translator || []).map((t, i) => {
+                    const opt = assigneeOptions.find((o) => o.label === t);
+                    return <AssigneeTag key={i} label={t} avatarUrl={opt?.avatarUrl} />;
+                  })
                 : <span className="text-sm text-muted-foreground">—</span>}
             </div>
           ) : (
