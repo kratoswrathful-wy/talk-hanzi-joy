@@ -641,7 +641,7 @@ export default function ClientInvoicesPage() {
           </DialogHeader>
           <div className="py-4 space-y-3">
             <p className="text-sm text-muted-foreground">
-              選取的項目中包含已付款的客戶請款單，刪除後無法復原。請輸入您的帳號密碼以確認操作。
+              選取的項目中包含已收款完畢的客戶請款單，刪除後無法復原。請輸入您的帳號密碼以確定操作。
             </p>
             <div className="space-y-2">
               <Label htmlFor="confirm-password">密碼</Label>
