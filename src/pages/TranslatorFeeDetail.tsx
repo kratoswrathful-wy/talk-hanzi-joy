@@ -774,6 +774,7 @@ export default function TranslatorFeeDetail() {
             ...(caseKeyword ? { clientCaseId: caseKeyword } : {}),
             ...(casePo ? { clientPoNumber: casePo } : {}),
             ...(caseCaseLink.url ? { clientCaseLink: caseCaseLink } : {}),
+            ...(caseDispatchRoute ? { dispatchRoute: caseDispatchRoute } : {}),
             clientTaskItems: mappedClientItems,
           };
           setClientInfo(updatedClientInfo);
