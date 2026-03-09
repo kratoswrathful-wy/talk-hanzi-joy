@@ -34,6 +34,7 @@ import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-store";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { internalNotesStore, useInternalNotes } from "@/stores/internal-notes-store";
 import type { InternalNote } from "@/hooks/use-internal-notes-table-views";
 
@@ -109,6 +110,11 @@ function ToolInstance({
   onRemove,
   showRemove,
   toolFieldKey = "executionTool",
+  canEditTool = true,
+  canRemoveTool = true,
+  canAddField = true,
+  canRemoveField = true,
+  canUseTemplate = true,
 }: {
   entry: ToolEntry;
   index: number;
@@ -116,6 +122,11 @@ function ToolInstance({
   onRemove: () => void;
   showRemove: boolean;
   toolFieldKey?: string;
+  canEditTool?: boolean;
+  canRemoveTool?: boolean;
+  canAddField?: boolean;
+  canRemoveField?: boolean;
+  canUseTemplate?: boolean;
 }) {
   const { options: toolOptions } = useSelectOptions(toolFieldKey);
   const allTemplates = useToolTemplates();
@@ -225,7 +236,7 @@ function ToolInstance({
   return (
     <>
       <div className="relative border border-border rounded-lg p-3 space-y-1">
-        {showRemove && (
+        {showRemove && canRemoveTool && (
           <Button
             variant="ghost"
             size="icon"
@@ -243,56 +254,59 @@ function ToolInstance({
                 value={entry.tool}
                 onValueChange={handleToolChange}
                 className="max-w-xs"
+                disabled={!canEditTool}
               />
             </Field>
           </div>
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-block mt-1">
-                  <Popover open={tplOpen} onOpenChange={(v) => hasToolSelected && setTplOpen(v)}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 text-xs shrink-0"
-                        disabled={!hasToolSelected}
-                      >
-                        範本
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-56 p-2" align="end">
-                      {matchingTemplates.length === 0 ? (
-                        <p className="text-xs text-muted-foreground px-2 py-1">無可用範本</p>
-                      ) : (
-                        <div className="space-y-1">
-                          {matchingTemplates.map((tpl) => (
-                            <button
-                              key={tpl.id}
-                              className="w-full text-left px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
-                              onClick={() => tryApplyTemplate(tpl)}
-                            >
-                              <span
-                                className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-                                style={{ backgroundColor: "#383A3F", color: "#fff" }}
+          {canUseTemplate && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-block mt-1">
+                    <Popover open={tplOpen} onOpenChange={(v) => hasToolSelected && setTplOpen(v)}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs shrink-0"
+                          disabled={!hasToolSelected}
+                        >
+                          範本
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56 p-2" align="end">
+                        {matchingTemplates.length === 0 ? (
+                          <p className="text-xs text-muted-foreground px-2 py-1">無可用範本</p>
+                        ) : (
+                          <div className="space-y-1">
+                            {matchingTemplates.map((tpl) => (
+                              <button
+                                key={tpl.id}
+                                className="w-full text-left px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
+                                onClick={() => tryApplyTemplate(tpl)}
                               >
-                                {tpl.name}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </PopoverContent>
-                  </Popover>
-                </span>
-              </TooltipTrigger>
-              {!hasToolSelected && (
-                <TooltipContent side="top">
-                  <p>請先選取工具</p>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+                                <span
+                                  className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                                  style={{ backgroundColor: "#383A3F", color: "#fff" }}
+                                >
+                                  {tpl.name}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
+                  </span>
+                </TooltipTrigger>
+                {!hasToolSelected && (
+                  <TooltipContent side="top">
+                    <p>請先選取工具</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
         {fields.map((f) => {
           const fieldType = f.type || "text";
@@ -306,12 +320,14 @@ function ToolInstance({
                       onChange={(v) => onUpdate({ fileValues: { ...fileValues, [f.id]: v } })}
                     />
                   </div>
-                  <button
-                    className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0 mt-1"
-                    onClick={() => setDeleteFieldId(f.id)}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
+                  {canRemoveField && (
+                    <button
+                      className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0 mt-1"
+                      onClick={() => setDeleteFieldId(f.id)}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               </Field>
             );
@@ -329,18 +345,20 @@ function ToolInstance({
                   borderless
                 />
                 <CopyButton value={values[f.id] || ""} />
-                <button
-                  className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0 mt-1"
-                  onClick={() => setDeleteFieldId(f.id)}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+                {canRemoveField && (
+                  <button
+                    className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0 mt-1"
+                    onClick={() => setDeleteFieldId(f.id)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             </Field>
           );
         })}
         {/* Add field */}
-        {hasToolSelected && (
+        {hasToolSelected && canAddField && (
           addingField ? (
             addingFieldType ? (
               <div className="flex items-center gap-1.5 py-1 ml-[132px]">
@@ -499,7 +517,16 @@ export default function CaseDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [creatorName, setCreatorName] = useState("");
   const { primaryRole: currentRole, profile } = useAuth();
+  const { checkPerm } = usePermissions();
   const isManager = currentRole === "pm" || currentRole === "executive";
+
+  // Tool permissions
+  const canEditToolSelect = checkPerm("case_management", "case_detail_toolSelect", "edit");
+  const canAddTool = checkPerm("case_management", "case_detail_toolAdd", "edit");
+  const canRemoveTool = checkPerm("case_management", "case_detail_toolRemove", "edit");
+  const canAddToolField = checkPerm("case_management", "case_detail_toolFieldAdd", "edit");
+  const canRemoveToolField = checkPerm("case_management", "case_detail_toolFieldRemove", "edit");
+  const canUseToolTemplate = checkPerm("case_management", "case_detail_toolTemplate", "edit");
   const allInternalNotes = useInternalNotes(); // reactive
 
   // Comment drafts
@@ -982,12 +1009,19 @@ export default function CaseDetailPage() {
             onUpdate={(u) => updateTool(idx, u)}
             onRemove={() => removeTool(idx)}
             showRemove={tools.length > 1}
+            canEditTool={canEditToolSelect}
+            canRemoveTool={canRemoveTool}
+            canAddField={canAddToolField}
+            canRemoveField={canRemoveToolField}
+            canUseTemplate={canUseToolTemplate}
           />
         ))}
-        <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={addTool}>
-          <Plus className="h-4 w-4" />
-          新增工具
-        </Button>
+        {canAddTool && (
+          <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={addTool}>
+            <Plus className="h-4 w-4" />
+            新增工具
+          </Button>
+        )}
       </div>
 
       <Separator />
@@ -1006,12 +1040,19 @@ export default function CaseDetailPage() {
             onRemove={() => removeQuestionTool(idx)}
             showRemove={questionTools.length > 1}
             toolFieldKey="questionTool"
+            canEditTool={canEditToolSelect}
+            canRemoveTool={canRemoveTool}
+            canAddField={canAddToolField}
+            canRemoveField={canRemoveToolField}
+            canUseTemplate={canUseToolTemplate}
           />
         ))}
-        <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={addQuestionTool}>
-          <Plus className="h-4 w-4" />
-          新增提問工具
-        </Button>
+        {canAddTool && (
+          <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={addQuestionTool}>
+            <Plus className="h-4 w-4" />
+            新增提問工具
+          </Button>
+        )}
       </div>
 
       {/* 內部提問或註記 */}

@@ -81,6 +81,17 @@ const PERMISSION_MODULES: PermissionModule[] = [
           { key: "case_detail_reviewer", label: "審稿人員", type: "both", attribute: "人員（單選）" },
         ],
       },
+      {
+        label: "工具",
+        items: [
+          { key: "case_detail_toolSelect", label: "執行工具", type: "both", attribute: "單選" },
+          { key: "case_detail_toolAdd", label: "新增工具", type: "both", attribute: "按鈕" },
+          { key: "case_detail_toolRemove", label: "移除工具", type: "both", attribute: "按鈕" },
+          { key: "case_detail_toolFieldAdd", label: "新增工具欄位", type: "both", attribute: "按鈕" },
+          { key: "case_detail_toolFieldRemove", label: "移除工具欄位", type: "both", attribute: "按鈕" },
+          { key: "case_detail_toolTemplate", label: "範本", type: "both", attribute: "按鈕" },
+        ],
+      },
     ],
   },
   // 2. 內部註記
