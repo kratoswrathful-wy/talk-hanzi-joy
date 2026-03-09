@@ -864,8 +864,8 @@ export default function CaseDetailPage() {
     }
   };
 
-  const handleNewCase = async () => {
-    const newCase = await caseStore.create({ title: "" });
+  const handleNewCase = async (templateValues: Record<string, any> = {}) => {
+    const newCase = await caseStore.create({ title: "", ...templateValues });
     if (newCase) navigate(`/cases/${newCase.id}`);
   };
 
