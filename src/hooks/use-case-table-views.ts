@@ -21,7 +21,7 @@ export const caseFieldMetas: FieldMeta[] = [
   { key: "translationDeadline", label: "翻譯交期", type: "date" },
   { key: "reviewer", label: "審稿人員", type: "select" },
   { key: "reviewDeadline", label: "審稿交期", type: "date" },
-  { key: "taskStatus", label: "任務狀態", type: "text" },
+  
   { key: "executionTool", label: "執行工具", type: "text" },
   { key: "deliveryMethod", label: "交件方式", type: "text" },
   { key: "createdAt", label: "建立時間", type: "date" },
@@ -39,7 +39,7 @@ function getFieldValue(c: CaseRecord, field: string): string | number | boolean 
     case "translationDeadline": return c.translationDeadline || "";
     case "reviewer": return c.reviewer;
     case "reviewDeadline": return c.reviewDeadline || "";
-    case "taskStatus": return c.taskStatus;
+    
     case "executionTool": return c.executionTool;
     case "deliveryMethod": return c.deliveryMethod;
     case "createdAt": return c.createdAt;
@@ -73,7 +73,7 @@ const defaultColumnOrder = caseFieldMetas.map((f) => f.key);
 const defaultColumnWidths: Record<string, number> = {
   title: 200, category: 90, workType: 130, billingUnit: 80, unitCount: 90,
   translator: 100, translationDeadline: 140, reviewer: 100, reviewDeadline: 140,
-  taskStatus: 90, executionTool: 100, deliveryMethod: 100, createdAt: 110,
+  executionTool: 100, deliveryMethod: 100, createdAt: 110,
 };
 const defaultHiddenColumns = ["executionTool", "deliveryMethod"];
 
