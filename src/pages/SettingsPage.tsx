@@ -594,6 +594,14 @@ function TaskTypeOrderSection() {
               onRemoveCustomColor={() => {}}
               colorUsageMap={{}}
             />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs shrink-0"
+              onClick={() => labelStyleStore.setTaskTypeTextColor("#FFFFFF")}
+            >
+              預設（白）
+            </Button>
           </div>
         )}
       </div>
