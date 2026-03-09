@@ -2076,6 +2076,14 @@ function CaseCategorySection() {
               onRemoveCustomColor={() => {}}
               colorUsageMap={{}}
             />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs shrink-0"
+              onClick={() => labelStyleStore.setCaseCategoryTextColor("#FFFFFF")}
+            >
+              預設（白）
+            </Button>
           </div>
         )}
       </div>
