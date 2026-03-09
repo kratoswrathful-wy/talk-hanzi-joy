@@ -78,7 +78,7 @@ export function TableFooterStats({
     const total = values.reduce((s, v) => s + v, 0);
     const result = mode === "avg" ? total / values.length : total;
     
-    const prefix = mode === "sum" ? "總額 " : "平均 ";
+    const prefix = mode === "sum" ? "總計 " : "平均 ";
     if (config.isCurrency !== false) {
       return `${prefix}${formatCurrency(Math.round(result))}`;
     }
@@ -103,7 +103,7 @@ export function TableFooterStats({
               <td
                 key={col.key}
                 style={{ width, maxWidth: width }}
-                className="px-3 py-2 text-xs font-medium text-muted-foreground"
+                className="px-3 py-2 text-right text-xs font-medium text-muted-foreground"
               >
                 共 {itemCount} 筆
               </td>
