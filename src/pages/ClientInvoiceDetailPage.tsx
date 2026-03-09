@@ -203,6 +203,9 @@ export default function ClientInvoiceDetailPage() {
   const [showRecordAmountDialog, setShowRecordAmountDialog] = useState(false);
   const [recordAmountInput, setRecordAmountInput] = useState("");
 
+  // Amount too high alert
+  const [amountTooHighMsg, setAmountTooHighMsg] = useState<string | null>(null);
+
   // Comments
   const [comments, setComments] = useState<CommentEntry[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
