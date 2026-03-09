@@ -261,7 +261,13 @@ function NoteDetailView({
       <Separator />
 
       <Field label="檔案名稱" icon="≡">
-        <Input value={note.fileName} onChange={(e) => onUpdate({ fileName: e.target.value })} className="max-w-md" />
+        <MultilineInput 
+          value={note.fileName} 
+          onChange={(e) => onUpdate({ fileName: e.target.value })} 
+          className="max-w-md" 
+          minRows={1}
+          maxRows={3}
+        />
       </Field>
       <Field label="ID / 行數" icon="≡">
         <Input value={note.idRowCount} onChange={(e) => onUpdate({ idRowCount: e.target.value })} className="max-w-xs" />
