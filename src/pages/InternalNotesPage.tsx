@@ -110,13 +110,10 @@ interface ColumnDef {
 }
 
 /* ── Detail view ── */
-function Field({ label, icon, children }: { label: string; icon?: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[160px_1fr] items-start gap-3 py-1.5">
-      <span className="text-sm text-muted-foreground flex items-center gap-1.5">
-        {icon && <span className="text-xs">{icon}</span>}
-        {label}
-      </span>
+    <div className="grid grid-cols-[100px_1fr] items-start gap-3 py-1">
+      <span className="text-sm text-muted-foreground pt-1">{label}</span>
       <div>{children}</div>
     </div>
   );
