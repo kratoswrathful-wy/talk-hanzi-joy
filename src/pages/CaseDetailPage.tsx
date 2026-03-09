@@ -970,8 +970,7 @@ export default function CaseDetailPage() {
           }}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
         >
-          <ArrowLeft className="h-4 w-4" />
-          返回案件清單
+          <span>←</span> 返回列表
         </button>
         <div className="flex items-center gap-2">
           {isPmOrAbove && (
@@ -1206,9 +1205,11 @@ export default function CaseDetailPage() {
         </div>
       </div>
 
-      <Field label="案件編號">
+      {/* Title — standalone like internal notes */}
+      <div className="text-lg font-semibold px-0">
         <TitleInput value={caseData.title} onSave={(v) => save({ title: v })} />
-      </Field>
+      </div>
+      <Separator />
       <Field label="狀態">
         <div className="flex items-center gap-3">
           <CaseStatusBadge status={caseData.status} />

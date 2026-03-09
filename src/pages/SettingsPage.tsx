@@ -381,6 +381,14 @@ function ClientPricingSection() {
               onRemoveCustomColor={() => {}}
               colorUsageMap={{}}
             />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs shrink-0"
+              onClick={() => labelStyleStore.setClientTextColor("#FFFFFF")}
+            >
+              預設（白）
+            </Button>
           </div>
         )}
       </div>
@@ -594,6 +602,14 @@ function TaskTypeOrderSection() {
               onRemoveCustomColor={() => {}}
               colorUsageMap={{}}
             />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs shrink-0"
+              onClick={() => labelStyleStore.setTaskTypeTextColor("#FFFFFF")}
+            >
+              預設（白）
+            </Button>
           </div>
         )}
       </div>
@@ -780,6 +796,14 @@ function BillingUnitOrderSection() {
               onRemoveCustomColor={() => {}}
               colorUsageMap={{}}
             />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs shrink-0"
+              onClick={() => labelStyleStore.setBillingUnitTextColor("#FFFFFF")}
+            >
+              預設（白）
+            </Button>
           </div>
         )}
       </div>
@@ -1865,6 +1889,14 @@ function DispatchRouteSection() {
               onRemoveCustomColor={() => {}}
               colorUsageMap={{}}
             />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs shrink-0"
+              onClick={() => labelStyleStore.setDispatchRouteTextColor("#FFFFFF")}
+            >
+              預設（白）
+            </Button>
           </div>
         )}
       </div>
@@ -1913,9 +1945,9 @@ function CaseCategorySection() {
   return (
     <div className="rounded-xl border border-border bg-card p-6 space-y-4">
       <div>
-        <h2 className="text-base font-semibold">案件類型設定</h2>
+        <h2 className="text-base font-semibold">內容性質設定</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          管理案件類型選項的顯示順序與顏色
+          管理內容性質選項的顯示順序與顏色
         </p>
       </div>
 
@@ -1982,7 +2014,7 @@ function CaseCategorySection() {
           <Input
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
-            placeholder="輸入案件類型名稱"
+            placeholder="輸入內容性質名稱"
             className="h-8 text-sm"
             autoFocus
             onKeyDown={(e) => {
@@ -2015,7 +2047,7 @@ function CaseCategorySection() {
           onClick={() => setAdding(true)}
         >
           <Plus className="h-3.5 w-3.5" />
-          新增案件類型
+          新增內容性質
         </Button>
       )}
 
@@ -2044,6 +2076,14 @@ function CaseCategorySection() {
               onRemoveCustomColor={() => {}}
               colorUsageMap={{}}
             />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs shrink-0"
+              onClick={() => labelStyleStore.setCaseCategoryTextColor("#FFFFFF")}
+            >
+              預設（白）
+            </Button>
           </div>
         )}
       </div>
@@ -2317,24 +2357,38 @@ export default function SettingsPage() {
   const isExecutive = primaryRole === "executive";
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">設定</h1>
         <p className="mt-1 text-sm text-muted-foreground">管理應用程式偏好設定</p>
       </div>
 
+      {/* Row 1: 任務類型 (left) — 內容性質 (right) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {canViewSection("task_type_order") && <TaskTypeOrderSection />}
+        <CaseCategorySection />
+      </div>
 
-      {/* Admin sections - based on permission config */}
-      {canViewSection("task_type_order") && <TaskTypeOrderSection />}
-      {canViewSection("task_type_order") && <BillingUnitOrderSection />}
-      {canViewSection("client_pricing") && <ClientPricingSection />}
-      <DispatchRouteSection />
-      <CaseCategorySection />
-      {/* TranslatorNotesSection removed - now in 團隊成員 page */}
+      {/* Row 2: 計費單位 (left) — 派案來源 (right) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {canViewSection("task_type_order") && <BillingUnitOrderSection />}
+        <DispatchRouteSection />
+      </div>
+
+      {/* Row 3: 客戶設定 (left) — 狀態標籤 (right) — collapsible, default collapsed */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {canViewSection("client_pricing") && <ClientPricingSection />}
+        <StatusStyleSection />
+      </div>
+
+      {/* Row 4: 內部註記狀態 (left) — 內部註記性質 (right) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <NoteSelectSection fieldKey="noteStatus" title="內部註記狀態" addLabel="新增狀態" />
+        <NoteSelectSection fieldKey="noteNature" title="內部註記性質" addLabel="新增性質" />
+      </div>
+
+      {/* Translator tiers - full width */}
       {canViewSection("translator_tiers") && <TranslatorTierSection />}
-      <NoteSelectSection fieldKey="noteStatus" title="內部註記狀態" addLabel="新增狀態" />
-      <NoteSelectSection fieldKey="noteNature" title="內部註記性質" addLabel="新增性質" />
-      <StatusStyleSection />
     </div>
   );
 }
