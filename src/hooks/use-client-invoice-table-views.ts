@@ -91,7 +91,7 @@ function compareItems(
 const defaultColumnOrder = clientInvoiceFieldMetas.map((f) => f.key);
 const defaultColumnWidths: Record<string, number> = {
   title: 220, client: 150, status: 100, feeCount: 80, totalAmount: 120,
-  transferDate: 120, note: 200, createdBy: 100, createdAt: 120,
+  serviceFee: 100, transferDate: 120, note: 200, createdBy: 100, createdAt: 120,
 };
 const defaultHiddenColumns = ["createdBy", "transferDate"];
 
