@@ -92,6 +92,17 @@ const PERMISSION_MODULES: PermissionModule[] = [
           { key: "case_detail_toolTemplate", label: "範本", type: "both", attribute: "按鈕" },
         ],
       },
+      {
+        label: "本案費用",
+        items: [
+          { key: "case_fee_generate_button", label: "新增費用單按鈕", type: "both", attribute: "按鈕" },
+          { key: "case_fee_warning", label: "費用單數目提示訊息", type: "view" },
+          { key: "case_fee_badges", label: "主要／非主要標籤", type: "view" },
+          { key: "case_fee_links", label: "相關費用單連結", type: "view" },
+          { key: "case_detail_client", label: "客戶", type: "both", attribute: "單選" },
+          { key: "case_detail_contact", label: "聯絡人", type: "both", attribute: "單選" },
+        ],
+      },
     ],
   },
   // 2. 內部註記
