@@ -42,9 +42,9 @@ const logicLabels: Record<LogicOperator, string> = {
 function getOperatorsForType(type: string): FilterOperator[] {
   switch (type) {
     case "checkbox": return ["is_checked", "is_not_checked"];
-    case "number": case "computed": return ["equals", "not_equals", "gt", "lt"];
-    case "select": return ["equals", "not_equals"];
-    default: return ["equals", "not_equals", "contains"];
+    case "number": case "computed": return ["equals", "gt", "lt"];
+    case "select": return ["equals", "contains"];
+    default: return ["equals", "contains"];
   }
 }
 
@@ -375,7 +375,7 @@ export function FilterSortToolbar({
           const meta = allFields.find((f) => f.key === filter.field);
           return (
             <Badge key={filter.id} variant="secondary" className="h-6 gap-1 text-xs font-normal">
-              {meta?.label} {operatorLabels[filter.operator]} {needsValueInput(filter.operator) ? `"${filter.value}"` : ""}
+              {meta?.label} {filter.negated ? "不" : ""}{operatorLabels[filter.operator]} {needsValueInput(filter.operator) ? `"${filter.value}"` : ""}
               <button onClick={() => onRemoveFilterNode(filter.id)} className="hover:text-destructive">
                 <X className="h-3 w-3" />
               </button>
@@ -571,6 +571,8 @@ function FilterRow({ filter, meta, ops, visibleFields, onUpdateFilter, onRemoveF
     return null;
   })();
 
+  const isCheckbox = meta?.type === "checkbox";
+
   return (
     <div className="flex items-center gap-1.5">
       <Select value={filter.field} onValueChange={(v) => onUpdateFilter(filter.id, { field: v, value: "" })}>
@@ -581,6 +583,15 @@ function FilterRow({ filter, meta, ops, visibleFields, onUpdateFilter, onRemoveF
           ))}
         </SelectContent>
       </Select>
+      {!isCheckbox && (
+        <Select value={filter.negated ? "not" : "plain"} onValueChange={(v) => onUpdateFilter(filter.id, { negated: v === "not" })}>
+          <SelectTrigger className="h-7 text-xs w-[52px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="plain" className="text-xs">--</SelectItem>
+            <SelectItem value="not" className="text-xs">不</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
       <Select value={filter.operator} onValueChange={(v) => onUpdateFilter(filter.id, { operator: v as FilterOperator })}>
         <SelectTrigger className="h-7 text-xs w-[80px]"><SelectValue /></SelectTrigger>
         <SelectContent>

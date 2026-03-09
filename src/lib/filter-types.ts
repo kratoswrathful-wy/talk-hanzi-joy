@@ -8,6 +8,7 @@ export interface TableFilter {
   field: string;
   operator: FilterOperator;
   value: string;
+  negated?: boolean;
 }
 
 export interface FilterNode {

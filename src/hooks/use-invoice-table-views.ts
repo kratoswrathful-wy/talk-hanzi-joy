@@ -45,16 +45,18 @@ function getFieldValue(
 function makeInvoiceMatcher(feeTotal?: (ids: string[]) => number) {
   return (inv: Invoice, filter: TableFilter): boolean => {
     const val = getFieldValue(inv, filter.field, feeTotal);
+    let result: boolean;
     switch (filter.operator) {
-      case "equals": return String(val) === filter.value;
-      case "not_equals": return String(val) !== filter.value;
-      case "contains": return String(val).toLowerCase().includes(filter.value.toLowerCase());
-      case "is_checked": return val === true;
-      case "is_not_checked": return val === false;
-      case "gt": return Number(val) > Number(filter.value);
-      case "lt": return Number(val) < Number(filter.value);
-      default: return true;
+      case "equals": result = String(val) === filter.value; break;
+      case "not_equals": result = String(val) !== filter.value; break;
+      case "contains": result = String(val).toLowerCase().includes(filter.value.toLowerCase()); break;
+      case "is_checked": result = val === true; break;
+      case "is_not_checked": result = val === false; break;
+      case "gt": result = Number(val) > Number(filter.value); break;
+      case "lt": result = Number(val) < Number(filter.value); break;
+      default: result = true;
     }
+    return filter.negated ? !result : result;
   };
 }
 
