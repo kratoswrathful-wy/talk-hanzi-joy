@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { type TranslatorFee } from "@/data/fee-mock-data";
+import { getStatusSortIndex, FEE_STATUS_LABEL_MAP } from "@/stores/select-options-store";
 import {
   type TableFilter, type TableSort, type TableView, type FilterGroup,
   type FilterOperator, type FieldMeta, type LogicOperator,
