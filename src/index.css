@@ -102,38 +102,54 @@
     min-height: 120px;
   }
 
-  /* Slash menu & side menu: smaller text/icons to match system font size */
-  .rich-text-editor .bn-suggestion-menu {
-    font-size: 0.8125rem; /* 13px */
+  /* Slash menu & side menu: match system 0.75rem / 12px font */
+  .rich-text-editor .bn-suggestion-menu,
+  .rich-text-editor [class*="suggestion"],
+  .rich-text-editor [data-suggestion-menu] {
+    font-size: 0.75rem !important;
   }
-  .rich-text-editor .bn-suggestion-menu [class*="item"] {
-    padding: 4px 8px;
-    gap: 8px;
+  .rich-text-editor .bn-suggestion-menu *,
+  .rich-text-editor [class*="suggestionMenu"] * {
+    font-size: inherit !important;
   }
-  .rich-text-editor .bn-suggestion-menu [class*="icon"],
-  .rich-text-editor .bn-suggestion-menu svg {
-    width: 16px;
-    height: 16px;
+  /* Item rows */
+  .rich-text-editor .bn-suggestion-menu [class*="item"],
+  .rich-text-editor [class*="suggestionMenuItem"] {
+    padding: 2px 8px !important;
+    gap: 6px !important;
+    min-height: unset !important;
   }
-  .rich-text-editor .bn-suggestion-menu [class*="title"] {
-    font-size: 0.8125rem;
+  /* Icons */
+  .rich-text-editor .bn-suggestion-menu svg,
+  .rich-text-editor [class*="suggestionMenu"] svg {
+    width: 14px !important;
+    height: 14px !important;
   }
+  /* Title text */
+  .rich-text-editor .bn-suggestion-menu [class*="title"],
+  .rich-text-editor [class*="suggestionMenuItem"] [class*="title"] {
+    font-size: 0.75rem !important;
+  }
+  /* Subtext */
   .rich-text-editor .bn-suggestion-menu [class*="subtext"],
-  .rich-text-editor .bn-suggestion-menu [class*="badge"] {
-    font-size: 0.6875rem; /* 11px */
+  .rich-text-editor .bn-suggestion-menu [class*="badge"],
+  .rich-text-editor [class*="suggestionMenuItem"] [class*="subtext"] {
+    font-size: 0.625rem !important; /* 10px */
   }
-  .rich-text-editor .bn-suggestion-menu [class*="group"] {
-    font-size: 0.6875rem;
-    padding: 4px 8px 2px;
+  /* Group headers */
+  .rich-text-editor .bn-suggestion-menu [class*="group"],
+  .rich-text-editor [class*="suggestionMenuLabel"] {
+    font-size: 0.625rem !important;
+    padding: 3px 8px 1px !important;
   }
   /* Side menu (+ button & drag handle) */
   .rich-text-editor .bn-side-menu svg {
-    width: 14px;
-    height: 14px;
+    width: 12px !important;
+    height: 12px !important;
   }
   .rich-text-editor .bn-side-menu button {
-    width: 20px;
-    height: 20px;
+    width: 18px !important;
+    height: 18px !important;
   }
   /* Ordered list 6-level numbering: 1. → (1) → A. → (A) → a. → (a) */
   .rich-text-editor ol { list-style-type: decimal; }
