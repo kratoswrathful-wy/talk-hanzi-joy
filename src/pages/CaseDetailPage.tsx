@@ -1031,7 +1031,7 @@ export default function CaseDetailPage() {
               譯者完成任務後，請直接勾選「任務完成」。
             </span>
           )}
-          {caseData.multiCollab && caseData.status === "task_completed" && null}
+          
         </div>
       </Field>
 
