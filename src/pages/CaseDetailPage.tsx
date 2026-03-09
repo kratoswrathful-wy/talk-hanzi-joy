@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, lazy, Suspense } from "react";
 import { ArrowLeft, Trash2, Plus, X, Copy, Check, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { internalNotesStore, useInternalNotes } from "@/stores/internal-notes-store";
 import type { InternalNote } from "@/hooks/use-internal-notes-table-views";
+
+const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
 
 const caseStatusLabels: Record<CaseStatus, string> = {
@@ -1461,6 +1463,19 @@ export default function CaseDetailPage() {
       <Field label="追蹤修訂">
         <FileField value={Array.isArray(caseData.trackChanges) ? caseData.trackChanges : []} onChange={(v) => save({ trackChanges: v })} />
       </Field>
+
+      <Separator />
+
+      {/* 正文 */}
+      <div className="space-y-2">
+        <h2 className="text-base font-semibold">正文</h2>
+        <Suspense fallback={<div className="h-32 rounded-md border border-input bg-background animate-pulse" />}>
+          <RichTextEditor
+            initialContent={caseData.bodyContent || []}
+            onChange={(blocks) => save({ bodyContent: blocks })}
+          />
+        </Suspense>
+      </div>
 
       <Separator />
 
