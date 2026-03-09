@@ -9,17 +9,8 @@ export interface MultilineInputProps extends Omit<React.TextareaHTMLAttributes<H
 }
 
 const MultilineInput = React.forwardRef<HTMLTextAreaElement, MultilineInputProps>(
-  ({ className, minRows = 1, maxRows = 10, borderless = false, value, onChange, ...props }, ref) => {
+  ({ className, minRows = 1, maxRows = 10, borderless = false, value, ...props }, ref) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const composingRef = useRef(false);
-    const localValueRef = useRef(value);
-
-    // Keep localValueRef in sync when not composing
-    useEffect(() => {
-      if (!composingRef.current) {
-        localValueRef.current = value;
-      }
-    }, [value]);
 
     const autoResize = React.useCallback(() => {
       const textarea = textareaRef.current;
@@ -69,35 +60,6 @@ const MultilineInput = React.forwardRef<HTMLTextAreaElement, MultilineInputProps
       props.onFocus?.(e);
     };
 
-    const handleCompositionStart = () => {
-      composingRef.current = true;
-    };
-
-    const handleCompositionEnd = (e: React.CompositionEvent<HTMLTextAreaElement>) => {
-      composingRef.current = false;
-      // Fire onChange with the final composed value
-      if (onChange) {
-        const syntheticEvent = {
-          ...e,
-          target: e.currentTarget,
-          currentTarget: e.currentTarget,
-        } as unknown as React.ChangeEvent<HTMLTextAreaElement>;
-        onChange(syntheticEvent);
-      }
-    };
-
-    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      if (composingRef.current) {
-        // During IME composition, don't propagate to parent (prevents save during typing)
-        // But we need to update the DOM value - React will handle this via defaultValue or uncontrolled behavior
-        // For controlled components, we need to allow the visual update
-        localValueRef.current = e.target.value;
-        // Force re-render to show composing text without triggering save
-        return;
-      }
-      onChange?.(e);
-    };
-
     return (
       <textarea
         ref={mergedRef}
@@ -110,9 +72,6 @@ const MultilineInput = React.forwardRef<HTMLTextAreaElement, MultilineInputProps
         )}
         {...props}
         value={value}
-        onChange={handleChange}
-        onCompositionStart={handleCompositionStart}
-        onCompositionEnd={handleCompositionEnd}
         onKeyDown={handleKeyDown}
         onInput={autoResize}
         onFocus={handleFocus}
