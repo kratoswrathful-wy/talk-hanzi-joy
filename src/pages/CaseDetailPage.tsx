@@ -1062,14 +1062,7 @@ export default function CaseDetailPage() {
       </div>
 
       <Field label="案件編號">
-        <MultilineInput 
-          value={caseData.title} 
-          onChange={(e) => save({ title: e.target.value })} 
-          className="max-w-md" 
-          minRows={1}
-          maxRows={3}
-          borderless
-        />
+        <TitleInput value={caseData.title} onSave={(v) => save({ title: v })} />
       </Field>
       <Field label="狀態">
         <div className="flex items-center gap-3">
