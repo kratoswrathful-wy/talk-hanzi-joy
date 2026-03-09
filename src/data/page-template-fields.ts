@@ -44,6 +44,7 @@ export const CASE_TEMPLATE_FIELDS: TemplateFieldDef[] = [
   { key: "clientGuidelines",          label: "客戶指定準則",   type: "file", group: "準則與檔案" },
   { key: "seriesReferenceMaterials",  label: "本系列參考資料", type: "file", group: "準則與檔案" },
   { key: "caseReferenceMaterials",    label: "本案參考資料",   type: "file", group: "準則與檔案" },
+  { key: "commonLinks",                label: "常用資訊",       type: "file", group: "準則與檔案" },
   { key: "multiCollab",     label: "多人協作",     type: "boolean",                                  group: "其他設定" },
   { key: "otherLoginInfo",  label: "其他登入資訊", type: "text",                                     group: "其他設定" },
   { key: "loginAccount",    label: "登入帳號",     type: "text",                                     group: "其他設定" },
