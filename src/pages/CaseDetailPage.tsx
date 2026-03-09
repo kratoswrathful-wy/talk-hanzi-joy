@@ -2098,7 +2098,7 @@ export default function CaseDetailPage() {
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>確認刪除</AlertDialogTitle>
+            <AlertDialogTitle>確定刪除</AlertDialogTitle>
             <AlertDialogDescription>此操作無法復原，確定要刪除此案件嗎？</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
