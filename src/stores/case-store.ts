@@ -17,6 +17,22 @@ function notify() {
 // ── DB ↔ App mapping ──
 
 function fromDb(row: any): CaseRecord {
+  // Build workGroups from DB or migrate from legacy fields
+  const workGroupsRaw = Array.isArray(row.work_groups) ? row.work_groups : [];
+  const workGroups = workGroupsRaw.length > 0 ? workGroupsRaw : (() => {
+    // Migrate from legacy: one group per workType entry
+    const legacyWorkTypes = Array.isArray(row.work_type) ? row.work_type : [];
+    if (legacyWorkTypes.length > 0) {
+      return legacyWorkTypes.map((wt: string, i: number) => ({
+        id: `wg-migrate-${i}`,
+        workType: wt,
+        billingUnit: row.billing_unit ?? "",
+        unitCount: i === 0 ? (Number(row.unit_count) || 0) : 0,
+      }));
+    }
+    return [{ id: `wg-default`, workType: "", billingUnit: "", unitCount: 0 }];
+  })();
+
   return {
     id: row.id,
     title: row.title ?? "",
@@ -25,6 +41,7 @@ function fromDb(row: any): CaseRecord {
     contact: row.contact ?? "",
     category: row.category ?? "",
     workType: Array.isArray(row.work_type) ? row.work_type : [],
+    workGroups,
     processNote: row.process_note ?? "",
     billingUnit: row.billing_unit ?? "",
     unitCount: Number(row.unit_count) || 0,
@@ -78,6 +95,15 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.contact !== undefined) map.contact = c.contact;
   if (c.category !== undefined) map.category = c.category;
   if (c.workType !== undefined) map.work_type = c.workType;
+  if (c.workGroups !== undefined) {
+    map.work_groups = c.workGroups;
+    // Keep legacy columns in sync for backward compatibility
+    map.work_type = c.workGroups.map((g) => g.workType).filter(Boolean);
+    if (c.workGroups[0]) {
+      map.billing_unit = c.workGroups[0].billingUnit || "";
+      map.unit_count = Number(c.workGroups[0].unitCount) || 0;
+    }
+  }
   if (c.processNote !== undefined) map.process_note = c.processNote;
   if (c.billingUnit !== undefined) map.billing_unit = c.billingUnit;
   if (c.unitCount !== undefined) map.unit_count = c.unitCount;
