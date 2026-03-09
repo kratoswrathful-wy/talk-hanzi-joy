@@ -727,6 +727,9 @@ export default function CaseDetailPage() {
         translationDeadline: null,
         reviewDeadline: null,
         caseReferenceMaterials: [],
+        multiCollab: false,
+        collabCount: 0,
+        collabRows: [],
       });
       navigate(`/cases/${dup.id}`);
     }
