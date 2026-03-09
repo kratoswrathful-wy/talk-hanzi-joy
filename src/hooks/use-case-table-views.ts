@@ -250,8 +250,45 @@ export function useCaseTableViews(currentRole?: string) {
         return 0;
       });
     }
+    // Apply pinning
+    const topIds = new Set(activeView.pinnedTop || []);
+    const bottomIds = new Set(activeView.pinnedBottom || []);
+    if (topIds.size > 0 || bottomIds.size > 0) {
+      const pinned_top: CaseRecord[] = [];
+      const pinned_bottom: CaseRecord[] = [];
+      const middle: CaseRecord[] = [];
+      for (const item of result) {
+        if (topIds.has(item.id)) pinned_top.push(item);
+        else if (bottomIds.has(item.id)) pinned_bottom.push(item);
+        else middle.push(item);
+      }
+      result = [...pinned_top, ...middle, ...pinned_bottom];
+    }
     return result;
   }, [activeView]);
+
+  const pinTop = useCallback((ids: string[]) => {
+    const current = activeView.pinnedTop || [];
+    const bottomSet = new Set(activeView.pinnedBottom || []);
+    const newBottom = [...bottomSet].filter((id) => !ids.includes(id));
+    const merged = [...new Set([...current, ...ids])];
+    updateView(activeViewId, { pinnedTop: merged, pinnedBottom: newBottom });
+  }, [activeViewId, activeView, updateView]);
+
+  const pinBottom = useCallback((ids: string[]) => {
+    const current = activeView.pinnedBottom || [];
+    const topSet = new Set(activeView.pinnedTop || []);
+    const newTop = [...topSet].filter((id) => !ids.includes(id));
+    const merged = [...new Set([...current, ...ids])];
+    updateView(activeViewId, { pinnedBottom: merged, pinnedTop: newTop });
+  }, [activeViewId, activeView, updateView]);
+
+  const unpinItem = useCallback((id: string) => {
+    updateView(activeViewId, {
+      pinnedTop: (activeView.pinnedTop || []).filter((i) => i !== id),
+      pinnedBottom: (activeView.pinnedBottom || []).filter((i) => i !== id),
+    });
+  }, [activeViewId, activeView, updateView]);
 
   const safeActiveViewId = useMemo(() => {
     if (visibleViews.some((v) => v.id === activeViewId)) return activeViewId;
@@ -283,5 +320,8 @@ export function useCaseTableViews(currentRole?: string) {
     setColumnWidth,
     toggleColumnVisibility,
     applyFiltersAndSorts,
+    pinTop,
+    pinBottom,
+    unpinItem,
   };
 }
