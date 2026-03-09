@@ -110,6 +110,11 @@ function ToolInstance({
   onRemove,
   showRemove,
   toolFieldKey = "executionTool",
+  canEditTool = true,
+  canRemoveTool = true,
+  canAddField = true,
+  canRemoveField = true,
+  canUseTemplate = true,
 }: {
   entry: ToolEntry;
   index: number;
@@ -117,6 +122,11 @@ function ToolInstance({
   onRemove: () => void;
   showRemove: boolean;
   toolFieldKey?: string;
+  canEditTool?: boolean;
+  canRemoveTool?: boolean;
+  canAddField?: boolean;
+  canRemoveField?: boolean;
+  canUseTemplate?: boolean;
 }) {
   const { options: toolOptions } = useSelectOptions(toolFieldKey);
   const allTemplates = useToolTemplates();
