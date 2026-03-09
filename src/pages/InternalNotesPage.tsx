@@ -53,6 +53,8 @@ import { caseStore } from "@/hooks/use-case-store";
 import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 
+const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
+
 /* ── Helpers ── */
 const formatDate = (iso: string) => {
   const d = new Date(iso);
