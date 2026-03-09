@@ -1395,32 +1395,15 @@ export default function CaseDetailPage() {
 
       <h2 className="text-base font-semibold">提問</h2>
 
-      {/* 有填寫客戶提問表單 checkbox — everyone can see/use, translators only if assigned */}
-      {(() => {
-        const canUseClientQForm = isPmOrAbove || isCurrentUserTranslator;
-        return canUseClientQForm ? (
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="clientQuestionForm"
-              checked={caseData.clientQuestionForm ?? false}
-              onCheckedChange={(v) => save({ clientQuestionForm: !!v })}
-            />
-            <Label htmlFor="clientQuestionForm" className="text-sm cursor-pointer">有填寫客戶提問表單</Label>
-          </div>
-        ) : null;
-      })()}
-
       {/* 內部註記 (左) + 客戶提問表單 (右) 左右排列 */}
       <div className="grid grid-cols-2 gap-4">
         {/* 內部提問或註記 */}
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Label className="text-sm font-medium text-muted-foreground">內部提問或註記</Label>
-            <Button variant="outline" size="sm" className="gap-1 text-xs h-7" onClick={handleCreateInternalNote}>
-              <Plus className="h-3.5 w-3.5" />
-              新增
-            </Button>
-          </div>
+          <Label className="text-sm font-medium text-muted-foreground">內部提問或註記</Label>
+          <Button variant="outline" size="sm" className="gap-1 text-xs h-7" onClick={handleCreateInternalNote}>
+            <Plus className="h-3.5 w-3.5" />
+            新增
+          </Button>
           {linkedNotes.length > 0 ? (
             <div className="space-y-1">
               {linkedNotes.map((n) => (
@@ -1445,6 +1428,20 @@ export default function CaseDetailPage() {
         {/* 客戶提問表單 */}
         <div className="space-y-3">
           <Label className="text-sm font-medium text-muted-foreground">客戶提問表單</Label>
+          {/* 有填寫客戶提問表單 checkbox */}
+          {(() => {
+            const canUseClientQForm = isPmOrAbove || isCurrentUserTranslator;
+            return canUseClientQForm ? (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="clientQuestionForm"
+                  checked={caseData.clientQuestionForm ?? false}
+                  onCheckedChange={(v) => save({ clientQuestionForm: !!v })}
+                />
+                <Label htmlFor="clientQuestionForm" className="text-sm cursor-pointer">有填寫客戶提問表單</Label>
+              </div>
+            ) : null;
+          })()}
           {questionTools.map((entry, idx) => (
             <ToolInstance
               key={entry.id}
