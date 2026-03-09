@@ -166,11 +166,23 @@ export function usePermissions() {
       if (moduleKey === "internal_notes" && primaryRole !== "executive") return false;
       // 權限管理: executive only
       if (moduleKey === "permissions" && primaryRole !== "executive") return false;
+      // 案件管理 - 本案費用區塊: member 預設限制
+      if (moduleKey === "case_management" && primaryRole === "member") {
+        const memberRestrictedItems = ["case_fee_generate_button", "case_fee_warning", "case_fee_badges", "case_detail_client", "case_detail_contact"];
+        if (memberRestrictedItems.includes(itemKey)) return false;
+      }
       return true;
     }
     if (!modulePerms.visible) return false;
     const itemPerm = modulePerms.items?.[itemKey];
-    if (!itemPerm) return true;
+    if (!itemPerm) {
+      // Same member defaults even when module has partial config
+      if (moduleKey === "case_management" && primaryRole === "member") {
+        const memberRestrictedItems = ["case_fee_generate_button", "case_fee_warning", "case_fee_badges", "case_detail_client", "case_detail_contact"];
+        if (memberRestrictedItems.includes(itemKey)) return false;
+      }
+      return true;
+    }
     return itemPerm[permType] ?? true;
   }, [config, primaryRole]);
 

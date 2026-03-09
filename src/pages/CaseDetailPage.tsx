@@ -1005,12 +1005,16 @@ export default function CaseDetailPage() {
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <Field label="客戶">
-          <ColorSelect fieldKey="client" value={caseData.client} onValueChange={(v) => save({ client: v })} />
-        </Field>
-        <Field label="聯絡人">
-          <ColorSelect fieldKey="contact" value={caseData.contact} onValueChange={(v) => save({ contact: v })} />
-        </Field>
+        {checkPerm("case_management", "case_detail_client", "view") && (
+          <Field label="客戶">
+            <ColorSelect fieldKey="client" value={caseData.client} disabled={!checkPerm("case_management", "case_detail_client", "edit")} onValueChange={(v) => save({ client: v })} />
+          </Field>
+        )}
+        {checkPerm("case_management", "case_detail_contact", "view") && (
+          <Field label="聯絡人">
+            <ColorSelect fieldKey="contact" value={caseData.contact} disabled={!checkPerm("case_management", "case_detail_contact", "edit")} onValueChange={(v) => save({ contact: v })} />
+          </Field>
+        )}
       </div>
 
       {/* 本案費用 + 產生本案費用單 */}
@@ -1026,8 +1030,9 @@ export default function CaseDetailPage() {
         // Permissions
         const canSeeButton = checkPerm("case_management", "case_fee_generate_button", "view");
         const canUseButton = checkPerm("case_management", "case_fee_generate_button", "edit");
-        const canSeeFeeWarning = isPmOrAbove;
-        const canSeeBadges = isPmOrAbove;
+        const canSeeFeeWarning = checkPerm("case_management", "case_fee_warning", "view");
+        const canSeeBadges = checkPerm("case_management", "case_fee_badges", "view");
+        const canSeeFeeLinks = checkPerm("case_management", "case_fee_links", "view");
         // For member: only show fees assigned to them
         const userDisplayName = profile?.display_name || "";
         const visibleFees = isMember
@@ -1060,7 +1065,9 @@ export default function CaseDetailPage() {
             </div>
             {/* Right: fee list + button */}
             <div className="flex flex-col gap-1">
-              {visibleCount === 0 ? (
+              {!canSeeFeeLinks ? (
+                <span className="text-sm text-muted-foreground">—</span>
+              ) : visibleCount === 0 ? (
                 <span className="text-sm text-muted-foreground">尚無費用單</span>
               ) : (
                 <div className="space-y-1">
@@ -1087,7 +1094,7 @@ export default function CaseDetailPage() {
                 </div>
               )}
               {/* Button to generate fees */}
-              {isPmOrAbove && canSeeButton && showButton && (
+              {canSeeButton && showButton && (
               <Button
                 type="button"
                 variant="outline"
