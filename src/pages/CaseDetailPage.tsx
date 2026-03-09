@@ -118,6 +118,7 @@ function ToolInstance({
   onRemove,
   showRemove,
   toolFieldKey = "executionTool",
+  toolLabel,
   canEditTool = true,
   canRemoveTool = true,
   canAddField = true,
@@ -130,6 +131,7 @@ function ToolInstance({
   onRemove: () => void;
   showRemove: boolean;
   toolFieldKey?: string;
+  toolLabel?: string;
   canEditTool?: boolean;
   canRemoveTool?: boolean;
   canAddField?: boolean;
@@ -256,7 +258,7 @@ function ToolInstance({
         )}
         <div className="flex items-center gap-2">
           <div className="flex-1">
-            <Field label={toolFieldKey === "questionTool" ? "提問工具" : "執行工具"}>
+            <Field label={toolLabel || "執行工具"}>
               <ColorSelect
                 fieldKey={toolFieldKey}
                 value={entry.tool}
@@ -1451,7 +1453,8 @@ export default function CaseDetailPage() {
               onUpdate={(u) => updateQuestionTool(idx, u)}
               onRemove={() => removeQuestionTool(idx)}
               showRemove={questionTools.length > 1}
-              toolFieldKey="questionTool"
+              toolFieldKey="executionTool"
+              toolLabel="提問工具"
               canEditTool={canEditToolSelect}
               canRemoveTool={canRemoveTool}
               canAddField={canAddToolField}
