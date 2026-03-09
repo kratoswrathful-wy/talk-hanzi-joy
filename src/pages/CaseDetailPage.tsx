@@ -1651,6 +1651,7 @@ export default function CaseDetailPage() {
                       ...(caseContact ? { contact: caseContact } : {}),
                       ...(caseData.keyword ? { clientCaseId: caseData.keyword } : {}),
                       ...(caseData.clientPoNumber ? { clientPoNumber: caseData.clientPoNumber } : {}),
+                      ...(caseData.clientCaseLink?.url ? { clientCaseLink: caseData.clientCaseLink } : {}),
                     },
                     notes: [],
                     editLogs: [],
