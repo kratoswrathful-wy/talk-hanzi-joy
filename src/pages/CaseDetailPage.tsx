@@ -123,7 +123,7 @@ function ClientCaseLinkField({ value, onSave, disabled, defaultLabel }: {
             onKeyDown={(e) => { if (e.key === "Enter") handleSaveLabel(); }}
             autoFocus
           />
-          <Button variant="outline" size="sm" className="shrink-0 text-xs" onClick={handleSaveLabel}>確認</Button>
+          <Button variant="outline" size="sm" className="shrink-0 text-xs" onClick={handleSaveLabel}>確定</Button>
           <button onClick={() => { setStep("idle"); setUrlInput(""); }} className="text-muted-foreground hover:text-destructive shrink-0">
             <X className="h-3.5 w-3.5" />
           </button>
