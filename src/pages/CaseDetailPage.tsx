@@ -49,34 +49,19 @@ import CollaborationTable from "@/components/CollaborationTable";
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
 
-const caseStatusLabels: Record<CaseStatus, string> = {
-  draft: "草稿",
-  inquiry: "詢案中",
-  dispatched: "已派出",
-  task_completed: "任務完成",
-  delivered: "已交件",
-  feedback: "處理回饋",
-  feedback_completed: "回饋處理完畢",
-  finalized: "開立完成",
-};
+const caseStatusLabels: Record<CaseStatus, string> = CASE_STATUS_LABEL_MAP as Record<CaseStatus, string>;
 
 function CaseStatusBadge({ status }: { status: CaseStatus }) {
-  const labelStyles = useLabelStyles();
-  const style = status === "finalized" ? labelStyles.statusFinalized
-    : status === "feedback_completed" ? { bgColor: "#EA580C", textColor: "#FFFFFF" }
-    : status === "feedback" ? { bgColor: "#D97706", textColor: "#FFFFFF" }
-    : status === "delivered" ? { bgColor: "#0891B2", textColor: "#FFFFFF" }
-    : status === "task_completed" ? { bgColor: "#8B5CF6", textColor: "#FFFFFF" }
-    : status === "dispatched" ? { bgColor: "#16A34A", textColor: "#FFFFFF" }
-    : status === "inquiry" ? { bgColor: "#2563EB", textColor: "#FFFFFF" }
-    : labelStyles.statusDraft;
+  useSelectOptions("statusLabel"); // subscribe to changes
+  const label = caseStatusLabels[status];
+  const style = getStatusLabelStyle(label);
   return (
     <Badge
       variant="default"
       className="text-xs whitespace-nowrap border"
       style={{ backgroundColor: style.bgColor, color: style.textColor, borderColor: style.bgColor }}
     >
-      {caseStatusLabels[status]}
+      {label}
     </Badge>
   );
 }

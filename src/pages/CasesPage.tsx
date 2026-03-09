@@ -70,34 +70,17 @@ const caseStatusLabels: Record<CaseStatus, string> = {
   finalized: "開立完成",
 };
 
-const formatDate = (iso: string) => {
-  const d = new Date(iso);
-  return d.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit" });
-};
-
-const formatDateTime = (iso: string | null) => {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleString("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
-};
-
 function CaseStatusBadge({ status }: { status: CaseStatus }) {
-  const labelStyles = useLabelStyles();
-  const style = status === "finalized" ? labelStyles.statusFinalized
-    : status === "feedback_completed" ? { bgColor: "#EA580C", textColor: "#FFFFFF" }
-    : status === "feedback" ? { bgColor: "#D97706", textColor: "#FFFFFF" }
-    : status === "delivered" ? { bgColor: "#0891B2", textColor: "#FFFFFF" }
-    : status === "task_completed" ? { bgColor: "#8B5CF6", textColor: "#FFFFFF" }
-    : status === "dispatched" ? { bgColor: "#16A34A", textColor: "#FFFFFF" }
-    : status === "inquiry" ? { bgColor: "#2563EB", textColor: "#FFFFFF" }
-    : labelStyles.statusDraft;
+  useSelectOptions("statusLabel");
+  const label = caseStatusLabels[status];
+  const style = getStatusLabelStyle(label);
   return (
     <Badge
       variant="default"
       className="text-xs whitespace-nowrap border"
       style={{ backgroundColor: style.bgColor, color: style.textColor, borderColor: style.bgColor }}
     >
-      {caseStatusLabels[status]}
+      {label}
     </Badge>
   );
 }
