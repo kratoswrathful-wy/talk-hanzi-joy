@@ -1456,27 +1456,25 @@ export default function CaseDetailPage() {
         </div>
       )}
 
-      {/* 客戶案件單連結 — PM+ only, same perm as keyword */}
+      {/* 派案來源 + 客戶案件單連結 — PM+ only */}
       {checkPerm("case_management", "case_detail_keyword", "view") && (
-        <ClientCaseLinkField
-          value={caseData.clientCaseLink}
-          onSave={(v) => save({ clientCaseLink: v })}
-          disabled={!checkPerm("case_management", "case_detail_keyword", "edit")}
-          defaultLabel={caseData.clientPoNumber || caseData.keyword || `${caseData.title}客戶案件連結`}
-        />
-      )}
-
-      {/* 派案來源 — PM+ only, same perm as keyword */}
-      {checkPerm("case_management", "case_detail_keyword", "view") && (
-        <Field label="派案來源">
-          <ColorSelect
-            fieldKey="dispatchRoute"
-            value={caseData.dispatchRoute}
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="派案來源">
+            <ColorSelect
+              fieldKey="dispatchRoute"
+              value={caseData.dispatchRoute}
+              disabled={!checkPerm("case_management", "case_detail_keyword", "edit")}
+              onValueChange={(v) => save({ dispatchRoute: v })}
+              placeholder="選擇..."
+            />
+          </Field>
+          <ClientCaseLinkField
+            value={caseData.clientCaseLink}
+            onSave={(v) => save({ clientCaseLink: v })}
             disabled={!checkPerm("case_management", "case_detail_keyword", "edit")}
-            onValueChange={(v) => save({ dispatchRoute: v })}
-            placeholder="選擇..."
+            defaultLabel={caseData.clientPoNumber || caseData.keyword || `${caseData.title}客戶案件連結`}
           />
-        </Field>
+        </div>
       )}
 
       {/* 本案費用 + 產生本案費用單 */}
