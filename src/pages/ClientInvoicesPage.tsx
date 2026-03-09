@@ -617,7 +617,12 @@ export default function ClientInvoicesPage() {
             columnWidths={activeView.columnWidths}
             numericColumns={[
               { key: "feeCount", getValue: (inv: ClientInvoice) => inv.feeIds.length, isCurrency: false },
-              { key: "totalAmount", getValue: (inv: ClientInvoice) => getInvoiceTotal(inv.feeIds) },
+              { key: "totalAmount", getValue: (inv: ClientInvoice) => inv.isRecordOnly ? (inv.recordAmount || 0) : getInvoiceTotal(inv.feeIds) },
+              { key: "serviceFee", getValue: (inv: ClientInvoice) => {
+                const t = inv.isRecordOnly ? (inv.recordAmount || 0) : getInvoiceTotal(inv.feeIds);
+                const paid = inv.payments.reduce((s: number, p: any) => s + (p.type === "full" ? ((p as any).noFee ? t : (p.amount || 0)) : (p.amount || 0)), 0);
+                return inv.status === "collected" && paid < t ? t - paid : 0;
+              }},
             ]}
             data={visibleInvoices}
           />
