@@ -1022,17 +1022,21 @@ export default function CaseDetailPage() {
               return (
                 <div className="space-y-1">
                   {sorted.map((f) => (
-                    <div key={f.id} className="flex items-center gap-2 rounded px-1 py-0.5">
-                      <Link to={`/fees/${f.id}`} className="text-sm text-primary hover:underline underline-offset-2 truncate flex-1">
+                    <div key={f.id} className="grid items-center gap-2 rounded px-1 py-0.5" style={{ gridTemplateColumns: "1fr auto auto" }}>
+                      <Link to={`/fees/${f.id}`} className="text-sm text-primary hover:underline underline-offset-2 truncate text-left">
                         {f.title || "未命名費用"}
                       </Link>
-                      {f.assignee && <AssigneeTag label={f.assignee} size="sm" />}
-                      {f.clientInfo?.isFirstFee && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">主要</Badge>
-                      )}
-                      {f.clientInfo?.notFirstFee && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 text-muted-foreground">非主要</Badge>
-                      )}
+                      <div className="flex items-center justify-start min-w-[100px]">
+                        {f.assignee ? <AssigneeTag label={f.assignee} size="sm" /> : <span />}
+                      </div>
+                      <div className="flex items-center justify-end min-w-[40px]">
+                        {f.clientInfo?.isFirstFee && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">主要</Badge>
+                        )}
+                        {f.clientInfo?.notFirstFee && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 text-muted-foreground">非主要</Badge>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
