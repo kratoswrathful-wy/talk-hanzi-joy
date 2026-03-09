@@ -1150,7 +1150,7 @@ export default function CaseDetailPage() {
                     : <span className="text-sm text-muted-foreground">—</span>}
                 </div>
               ) : (
-                <MultiColorSelect fieldKey="assignee" values={caseData.translator || []} onValuesChange={(v) => save({ translator: v })} />
+                <ColorSelect fieldKey="assignee" value={(caseData.translator || [])[0] || ""} onValueChange={(v) => save({ translator: v ? [v] : [] })} />
               )}
             </Field>
             <Field label="審稿人員">
