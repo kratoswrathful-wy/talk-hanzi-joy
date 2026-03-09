@@ -91,7 +91,7 @@ export function TableFooterStats({
     <tfoot>
       <tr className="border-t border-border bg-muted/20">
         {/* Checkbox column */}
-        <td className="w-[40px] px-2 py-2 text-center" />
+        <td className="w-[40px] px-2 py-2" />
         {orderedCols.map((col) => {
           const isTitle = col.key === "title";
           const numConfig = numericColumns.find((c) => c.key === col.key);
@@ -103,9 +103,11 @@ export function TableFooterStats({
               <td
                 key={col.key}
                 style={{ width, maxWidth: width }}
-                className="px-3 py-2 text-right text-xs font-medium text-muted-foreground"
+                className="px-3 py-2"
               >
-                共 {itemCount} 筆
+                <div style={{ textAlign: "right" }} className="text-xs font-medium text-muted-foreground">
+                  共 {itemCount} 筆
+                </div>
               </td>
             );
           }
@@ -119,7 +121,7 @@ export function TableFooterStats({
                 style={{ width, maxWidth: width }}
                 className="px-3 py-2"
               >
-                <div className="flex justify-end">
+                <div style={{ textAlign: "right" }}>
                   <Popover>
                     <PopoverTrigger asChild>
                       <button className="inline-flex items-center gap-1 text-xs font-medium tabular-nums text-muted-foreground hover:text-foreground transition-colors group">
