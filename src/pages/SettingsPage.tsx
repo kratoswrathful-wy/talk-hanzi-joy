@@ -2334,7 +2334,7 @@ function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; ti
           </div>
         </div>
       ) : (
-        <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={() => setAdding(true)}>
+        <Button variant="outline" size="sm" className="gap-1 text-xs w-full" onClick={() => setAdding(true)}>
           <Plus className="h-3.5 w-3.5" />
           {addLabel}
         </Button>
