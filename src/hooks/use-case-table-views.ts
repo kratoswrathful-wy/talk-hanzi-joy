@@ -21,7 +21,7 @@ export const caseFieldMetas: FieldMeta[] = [
   { key: "translationDeadline", label: "翻譯交期", type: "date" },
   { key: "reviewer", label: "審稿人員", type: "select" },
   { key: "reviewDeadline", label: "審稿交期", type: "date" },
-  { key: "taskStatus", label: "任務狀態", type: "text" },
+  
   { key: "executionTool", label: "執行工具", type: "text" },
   { key: "deliveryMethod", label: "交件方式", type: "text" },
   { key: "createdAt", label: "建立時間", type: "date" },
