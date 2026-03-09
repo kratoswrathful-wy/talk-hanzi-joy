@@ -28,35 +28,57 @@ import {
 import { cn } from "@/lib/utils";
 import type { CaseRecord, CaseStatus, CollabRow } from "@/data/case-types";
 
+/** Pick the nearest deadline from a set of rows (nearest future first, then nearest past) */
+function pickNearestDeadline(rows: CollabRow[], field: "translationDeadline" | "reviewDeadline"): string | null {
+  const dates = rows.filter(r => r[field]).map(r => new Date(r[field]!));
+  if (dates.length === 0) return null;
+  const now = Date.now();
+  // sort by absolute distance to now
+  dates.sort((a, b) => Math.abs(a.getTime() - now) - Math.abs(b.getTime() - now));
+  return dates[0].toISOString();
+}
+
+/** Pick the latest (max) deadline from rows */
+function pickLatestDeadline(rows: CollabRow[], field: "translationDeadline" | "reviewDeadline"): string | null {
+  const dates = rows.filter(r => r[field]).map(r => new Date(r[field]!));
+  if (dates.length === 0) return null;
+  dates.sort((a, b) => b.getTime() - a.getTime());
+  return dates[0].toISOString();
+}
+
+function DeadlineText({ value }: { value: string | null }) {
+  if (!value) return <span className="text-sm text-muted-foreground">—</span>;
+  return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(value)}</span>;
+}
+
 function CollabTranslationDeadlineCell({ collabRows, status }: { collabRows: CollabRow[]; status: string }) {
   const { profile } = useAuth();
   const displayName = profile?.display_name || "";
   const isDraftOrInquiry = status === "draft" || status === "inquiry";
 
-  let rows: CollabRow[];
   if (isDraftOrInquiry) {
-    // Show nearest deadline across all rows
-    rows = collabRows;
-  } else {
-    // Active case: show translator's own uncompleted rows
-    const myUncompleted = collabRows.filter(r => r.translator === displayName && !r.taskCompleted);
-    if (myUncompleted.length > 0) {
-      rows = myUncompleted;
-    } else {
-      // All done or not a translator: show all rows, pick latest
-      rows = collabRows;
-      const allDates = rows.filter(r => r.translationDeadline).map(r => new Date(r.translationDeadline!)).sort((a, b) => b.getTime() - a.getTime());
-      if (allDates.length === 0) return <span className="text-sm text-muted-foreground">—</span>;
-      return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(allDates[0].toISOString())}</span>;
-    }
+    return <DeadlineText value={pickNearestDeadline(collabRows, "translationDeadline")} />;
   }
 
-  const now = new Date();
-  const upcoming = rows.filter(r => r.translationDeadline).map(r => new Date(r.translationDeadline!)).filter(d => d >= now).sort((a, b) => a.getTime() - b.getTime());
-  if (upcoming.length > 0) return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(upcoming[0].toISOString())}</span>;
-  const all = rows.filter(r => r.translationDeadline).map(r => new Date(r.translationDeadline!)).sort((a, b) => a.getTime() - b.getTime());
-  if (all.length > 0) return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(all[0].toISOString())}</span>;
-  return <span className="text-sm text-muted-foreground">—</span>;
+  // Active case
+  const isTranslator = collabRows.some(r => r.translator === displayName);
+
+  if (isTranslator) {
+    // Show own uncompleted rows' nearest deadline; if all done show own latest
+    const myRows = collabRows.filter(r => r.translator === displayName);
+    const myUncompleted = myRows.filter(r => !r.taskCompleted);
+    if (myUncompleted.length > 0) {
+      return <DeadlineText value={pickNearestDeadline(myUncompleted, "translationDeadline")} />;
+    }
+    return <DeadlineText value={pickLatestDeadline(myRows, "translationDeadline")} />;
+  }
+
+  // Not a translator in this case: show all uncompleted rows' nearest; if all done show latest
+  const uncompleted = collabRows.filter(r => !r.taskCompleted);
+  if (uncompleted.length > 0) {
+    return <DeadlineText value={pickNearestDeadline(uncompleted, "translationDeadline")} />;
+  }
+  return <DeadlineText value={pickLatestDeadline(collabRows, "translationDeadline")} />;
 }
 
 function CollabReviewDeadlineCell({ collabRows, status }: { collabRows: CollabRow[]; status: string }) {
@@ -64,27 +86,27 @@ function CollabReviewDeadlineCell({ collabRows, status }: { collabRows: CollabRo
   const displayName = profile?.display_name || "";
   const isDraftOrInquiry = status === "draft" || status === "inquiry";
 
-  let rows: CollabRow[];
   if (isDraftOrInquiry) {
-    rows = collabRows;
-  } else {
-    const myUncompleted = collabRows.filter(r => r.reviewer === displayName && !r.delivered);
-    if (myUncompleted.length > 0) {
-      rows = myUncompleted;
-    } else {
-      rows = collabRows;
-      const allDates = rows.filter(r => r.reviewDeadline).map(r => new Date(r.reviewDeadline!)).sort((a, b) => b.getTime() - a.getTime());
-      if (allDates.length === 0) return <span className="text-sm text-muted-foreground">—</span>;
-      return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(allDates[0].toISOString())}</span>;
-    }
+    return <DeadlineText value={pickNearestDeadline(collabRows, "reviewDeadline")} />;
   }
 
-  const now = new Date();
-  const upcoming = rows.filter(r => r.reviewDeadline).map(r => new Date(r.reviewDeadline!)).filter(d => d >= now).sort((a, b) => a.getTime() - b.getTime());
-  if (upcoming.length > 0) return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(upcoming[0].toISOString())}</span>;
-  const all = rows.filter(r => r.reviewDeadline).map(r => new Date(r.reviewDeadline!)).sort((a, b) => a.getTime() - b.getTime());
-  if (all.length > 0) return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(all[0].toISOString())}</span>;
-  return <span className="text-sm text-muted-foreground">—</span>;
+  const isReviewer = collabRows.some(r => r.reviewer === displayName);
+
+  if (isReviewer) {
+    const myRows = collabRows.filter(r => r.reviewer === displayName);
+    const myUncompleted = myRows.filter(r => !r.delivered);
+    if (myUncompleted.length > 0) {
+      return <DeadlineText value={pickNearestDeadline(myUncompleted, "reviewDeadline")} />;
+    }
+    return <DeadlineText value={pickLatestDeadline(myRows, "reviewDeadline")} />;
+  }
+
+  // Not a reviewer: show all uncompleted rows' nearest; if all done show latest
+  const uncompleted = collabRows.filter(r => !r.delivered);
+  if (uncompleted.length > 0) {
+    return <DeadlineText value={pickNearestDeadline(uncompleted, "reviewDeadline")} />;
+  }
+  return <DeadlineText value={pickLatestDeadline(collabRows, "reviewDeadline")} />;
 }
 
 const caseStatusLabels: Record<CaseStatus, string> = {
