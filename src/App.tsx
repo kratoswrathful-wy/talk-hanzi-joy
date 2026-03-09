@@ -67,6 +67,7 @@ function AuthenticatedRoutes() {
         <Route path="/client-invoices" element={<ClientInvoicesPage />} />
         <Route path="/client-invoices/:id" element={<ClientInvoiceDetailPage />} />
         <Route path="/tools" element={<ToolManagementPage />} />
+        <Route path="/tools/page-template/:id" element={<PageTemplateEditorPage />} />
         <Route path="/field-reference" element={<FieldReferencePage />} />
         <Route path="/internal-notes" element={<InternalNotesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
