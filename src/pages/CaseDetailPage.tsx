@@ -530,6 +530,14 @@ export default function CaseDetailPage() {
   const isManager = currentRole === "pm" || currentRole === "executive";
   const pendingNavigateRef = useRef<(() => void) | null>(null);
 
+  // Compute user's UTC offset from profile timezone
+  const userUtcOffset = useMemo(() => {
+    const tz = profile?.timezone;
+    if (!tz) return 8; // default UTC+8
+    const found = TIMEZONE_OPTIONS.find((o) => o.value === tz);
+    return found ? found.offsetHours : 8;
+  }, [profile?.timezone]);
+
   // Permission for publish prompt on leave
   const canSeePublishPrompt = checkPerm("case_management", "case_draft_publish_prompt", "view");
 
