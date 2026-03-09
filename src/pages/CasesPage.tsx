@@ -254,16 +254,6 @@ const allColumnDefs: ColumnDef[] = [
     render: (c) => <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(c.reviewDeadline)}</span>,
   },
   {
-    key: "taskStatus",
-    label: "任務狀態",
-    minWidth: 80,
-    render: (c, { editable, onCommit }) => (
-      <InlineEditCell value={c.taskStatus} type="text" editable={editable} onCommit={(v) => onCommit("taskStatus", v)}>
-        <span className="text-sm">{c.taskStatus || "—"}</span>
-      </InlineEditCell>
-    ),
-  },
-  {
     key: "executionTool",
     label: "執行工具",
     minWidth: 90,
