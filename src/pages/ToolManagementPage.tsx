@@ -397,11 +397,16 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ToolTemplate>(tpl);
+  const firstFieldRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
   const startEdit = () => {
     setDraft({ ...tpl, fields: [...(tpl.fields || [])], fieldValues: { ...tpl.fieldValues } });
     setEditing(true);
     setExpanded(true);
+    // Focus first field after render
+    setTimeout(() => {
+      firstFieldRef.current?.focus();
+    }, 50);
   };
 
   const handleSave = () => {
@@ -415,7 +420,6 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
   };
 
   const handleToolChange = (newTool: string) => {
-    // When changing tool, initialize fields from tool's default fields (preserving type)
     const selectedTool = toolOptions.find((o) => o.label === newTool);
     const defaultFields = (selectedTool?.toolFields || []).map((f) => ({ id: f.id, label: f.label, type: (f.type || "text") as "text" | "file" }));
     setDraft({ ...draft, tool: newTool, fields: defaultFields, fieldValues: {} });
@@ -440,6 +444,13 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
           </span>
         )}
         <button
+          className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+          onClick={startEdit}
+          title="編輯範本"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+        <button
           className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
           onClick={() => toolTemplateStore.remove(tpl.id)}
         >
@@ -455,6 +466,7 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
               <div className="grid grid-cols-[80px_1fr] items-center gap-2">
                 <span className="text-xs text-muted-foreground">範本名稱</span>
                 <Input
+                  ref={firstFieldRef as React.Ref<HTMLInputElement>}
                   value={draft.name}
                   onChange={(e) => setDraft({ ...draft, name: e.target.value })}
                   className="h-7 text-sm"
@@ -505,12 +517,6 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
                   </div>
                 );
               })}
-              <div className="flex justify-end pt-1">
-                <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={startEdit}>
-                  <Pencil className="h-3 w-3" />
-                  編輯
-                </Button>
-              </div>
             </>
           )}
         </div>
