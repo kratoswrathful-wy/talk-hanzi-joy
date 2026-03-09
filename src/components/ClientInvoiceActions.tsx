@@ -89,7 +89,7 @@ export function ClientInvoiceActions({ selectedFees, onDone }: ClientInvoiceActi
 
   // Existing invoices for the client (single select)
   const clientInvoicesList = isSingleClient
-    ? clientInvoices.filter((inv) => inv.client === clients[0] && inv.status !== "paid")
+    ? clientInvoices.filter((inv) => inv.client === clients[0] && inv.status !== "collected")
     : [];
 
   const handleActionClick = () => {

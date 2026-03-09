@@ -375,7 +375,7 @@ export default function FileField({ value, onChange }: FileFieldProps) {
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction disabled={!urlDraft.trim()} onClick={addUrl}>確認</AlertDialogAction>
+            <AlertDialogAction disabled={!urlDraft.trim()} onClick={addUrl}>確定</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

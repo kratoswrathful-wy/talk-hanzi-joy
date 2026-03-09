@@ -243,7 +243,7 @@ export default function MultiColorSelect({
                               />
                               <div className="flex gap-1.5 justify-end">
                                 <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setRenamingOptionId(null)}>取消</Button>
-                                <Button size="sm" className="h-7 text-xs" disabled={!renameValue.trim()} onClick={() => handleRename(opt.id)}>確認</Button>
+                                <Button size="sm" className="h-7 text-xs" disabled={!renameValue.trim()} onClick={() => handleRename(opt.id)}>確定</Button>
                               </div>
                             </div>
                           ) : (
@@ -319,12 +319,12 @@ export default function MultiColorSelect({
       <AlertDialog open={!!deleteConfirm} onOpenChange={(v) => !v && setDeleteConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>確認刪除</AlertDialogTitle>
+            <AlertDialogTitle>確定刪除</AlertDialogTitle>
             <AlertDialogDescription>確定要刪除「{deleteConfirm?.label}」嗎？</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteConfirm && handleDelete(deleteConfirm.id)}>確認刪除</AlertDialogAction>
+            <AlertDialogAction onClick={() => deleteConfirm && handleDelete(deleteConfirm.id)}>確定刪除</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -123,7 +123,7 @@ function ClientCaseLinkField({ value, onSave, disabled, defaultLabel }: {
             onKeyDown={(e) => { if (e.key === "Enter") handleSaveLabel(); }}
             autoFocus
           />
-          <Button variant="outline" size="sm" className="shrink-0 text-xs" onClick={handleSaveLabel}>確認</Button>
+          <Button variant="outline" size="sm" className="shrink-0 text-xs" onClick={handleSaveLabel}>確定</Button>
           <button onClick={() => { setStep("idle"); setUrlInput(""); }} className="text-muted-foreground hover:text-destructive shrink-0">
             <X className="h-3.5 w-3.5" />
           </button>
@@ -142,7 +142,7 @@ function ClientCaseLinkField({ value, onSave, disabled, defaultLabel }: {
           className="flex-1"
           onKeyDown={(e) => { if (e.key === "Enter") handleConfirmUrl(); }}
         />
-        <Button variant="outline" size="sm" className="shrink-0 text-xs" disabled={!urlInput.trim()} onClick={handleConfirmUrl}>確認</Button>
+        <Button variant="outline" size="sm" className="shrink-0 text-xs" disabled={!urlInput.trim()} onClick={handleConfirmUrl}>確定</Button>
       </div>
     </Field>
   );
@@ -578,7 +578,7 @@ function ToolInstance({
       <AlertDialog open={!!deleteFieldId} onOpenChange={(v) => { if (!v) setDeleteFieldId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>確認刪除欄位</AlertDialogTitle>
+            <AlertDialogTitle>確定刪除欄位</AlertDialogTitle>
             <AlertDialogDescription>
               確定要刪除欄位「{fields.find((f) => f.id === deleteFieldId)?.label}」嗎？該欄位的內容也會一併移除。
             </AlertDialogDescription>
@@ -596,7 +596,7 @@ function ToolInstance({
               }
               setDeleteFieldId(null);
             }}>
-              確認刪除
+              確定刪除
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -606,7 +606,7 @@ function ToolInstance({
       <AlertDialog open={!!pendingTpl} onOpenChange={(v) => { if (!v) dismissWarning(); }}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>套用範本確認</AlertDialogTitle>
+            <AlertDialogTitle>套用範本確定</AlertDialogTitle>
             <AlertDialogDescription>
               套用範本「{pendingTpl?.name}」可能影響現有內容，請確認是否執行：
             </AlertDialogDescription>
@@ -650,7 +650,7 @@ function ToolInstance({
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={dismissWarning}>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={() => pendingTpl && applyTemplate(pendingTpl)}>確認套用</AlertDialogAction>
+            <AlertDialogAction onClick={() => pendingTpl && applyTemplate(pendingTpl)}>確定套用</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -659,7 +659,8 @@ function ToolInstance({
 }
 
 function formatTimestamp(d: Date) {
-  return d.toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+  const formatted = d.toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei" });
+  return `${formatted} (UTC+8)`;
 }
 
 export default function CaseDetailPage() {
@@ -1219,7 +1220,7 @@ export default function CaseDetailPage() {
       </div>
 
       {/* Title + Status badge on the same row, status aligned with right-column fields */}
-      <div className="grid grid-cols-2 gap-4 items-end px-0">
+      <div className="grid grid-cols-2 gap-4 items-center px-0">
         <div className="min-w-0">
           <TitleInput value={caseData.title} onSave={(v) => save({ title: v })} />
         </div>
@@ -2098,12 +2099,12 @@ export default function CaseDetailPage() {
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>確認刪除</AlertDialogTitle>
+            <AlertDialogTitle>確定刪除</AlertDialogTitle>
             <AlertDialogDescription>此操作無法復原，確定要刪除此案件嗎？</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>確認刪除</AlertDialogAction>
+            <AlertDialogAction onClick={handleDelete}>確定刪除</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -114,7 +114,7 @@ function FeeCaseLinkInput({ onSave, defaultLabel }: { onSave: (v: { url: string;
     return (
       <div className="flex items-center gap-2">
         <Input value={labelInput} onChange={(e) => setLabelInput(e.target.value)} placeholder="輸入顯示名稱" className="flex-1" onKeyDown={(e) => { if (e.key === "Enter") { onSave({ url: urlInput.trim(), label: labelInput.trim() || defaultLabel }); } }} autoFocus />
-        <Button variant="outline" size="sm" className="shrink-0 text-xs" onClick={() => onSave({ url: urlInput.trim(), label: labelInput.trim() || defaultLabel })}>確認</Button>
+        <Button variant="outline" size="sm" className="shrink-0 text-xs" onClick={() => onSave({ url: urlInput.trim(), label: labelInput.trim() || defaultLabel })}>確定</Button>
         <button onClick={() => { setStep("url"); setUrlInput(""); }} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3.5 w-3.5" /></button>
       </div>
     );
@@ -123,7 +123,7 @@ function FeeCaseLinkInput({ onSave, defaultLabel }: { onSave: (v: { url: string;
   return (
     <div className="flex items-center gap-2">
       <Input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="貼上客戶案件單連結" className="flex-1" onKeyDown={(e) => { if (e.key === "Enter" && urlInput.trim()) { setStep("label"); setLabelInput(defaultLabel); } }} />
-      <Button variant="outline" size="sm" className="shrink-0 text-xs" disabled={!urlInput.trim()} onClick={() => { setStep("label"); setLabelInput(defaultLabel); }}>確認</Button>
+      <Button variant="outline" size="sm" className="shrink-0 text-xs" disabled={!urlInput.trim()} onClick={() => { setStep("label"); setLabelInput(defaultLabel); }}>確定</Button>
     </div>
   );
 }
@@ -155,10 +155,12 @@ interface CommentEntry {
 
 const formatTimestamp = (date: Date | string) => {
   const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleString("zh-TW", {
+  const formatted = d.toLocaleString("zh-TW", {
     year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", hour12: false,
+    timeZone: "Asia/Taipei",
   });
+  return `${formatted} (UTC+8)`;
 };
 
 const mentionUsers = ["王小明", "李美玲", "張大偉", "陳雅婷"];
@@ -2612,7 +2614,7 @@ export default function TranslatorFeeDetail() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>是否確認刪除？</AlertDialogTitle>
+            <AlertDialogTitle>是否確定刪除？</AlertDialogTitle>
             <AlertDialogDescription>
               刪除後將無法復原此稿費紀錄。
             </AlertDialogDescription>
@@ -2667,7 +2669,7 @@ export default function TranslatorFeeDetail() {
       <AlertDialog open={duplicateDialogStep === "confirmSwap"} onOpenChange={() => {}}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>確認變更主要營收紀錄？</AlertDialogTitle>
+            <AlertDialogTitle>確定變更主要營收紀錄？</AlertDialogTitle>
             <AlertDialogDescription>
               原本的主要營收紀錄頁面「{otherFirstFee?.title || "（未命名）"}」將會自動變更為非主要營收紀錄，由本頁取代。是否確定？
             </AlertDialogDescription>

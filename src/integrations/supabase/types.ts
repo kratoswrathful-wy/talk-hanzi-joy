@@ -268,45 +268,57 @@ export type Database = {
       }
       client_invoices: {
         Row: {
+          actual_collection_date: string | null
           client: string
           comments: Json
           created_at: string
           created_by: string | null
           edit_logs: Json
           env: string
+          expected_collection_date: string | null
           id: string
+          is_record_only: boolean
           note: string
           payments: Json
+          record_amount: number
           status: string
           title: string
           transfer_date: string | null
           updated_at: string
         }
         Insert: {
+          actual_collection_date?: string | null
           client?: string
           comments?: Json
           created_at?: string
           created_by?: string | null
           edit_logs?: Json
           env?: string
+          expected_collection_date?: string | null
           id?: string
+          is_record_only?: boolean
           note?: string
           payments?: Json
+          record_amount?: number
           status?: string
           title?: string
           transfer_date?: string | null
           updated_at?: string
         }
         Update: {
+          actual_collection_date?: string | null
           client?: string
           comments?: Json
           created_at?: string
           created_by?: string | null
           edit_logs?: Json
           env?: string
+          expected_collection_date?: string | null
           id?: string
+          is_record_only?: boolean
           note?: string
           payments?: Json
+          record_amount?: number
           status?: string
           title?: string
           transfer_date?: string | null

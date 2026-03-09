@@ -45,7 +45,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 function StatusBadge({ status }: { status: ClientInvoiceStatus }) {
   useSelectOptions("statusLabel");
-  const labelMap: Record<string, string> = { pending: "待付款", partial: "部份付款", paid: "已付款" };
+  const labelMap: Record<string, string> = { pending: "待收款", partial_collected: "部份收款", collected: "收款完畢" };
   const label = labelMap[status] || status;
   const colors = getStatusLabelStyle(label);
   return (
@@ -368,7 +368,7 @@ export default function ClientInvoicesPage() {
   }, [newClientName, navigate]);
 
   const selectedInvoices = visibleInvoices.filter((inv) => rowSelection.selectedIds.has(inv.id));
-  const hasPaidInvoices = selectedInvoices.some((inv) => inv.status === "paid");
+  const hasPaidInvoices = selectedInvoices.some((inv) => inv.status === "collected");
 
   const handleDeleteClick = useCallback(() => {
     if (hasPaidInvoices) {
@@ -486,9 +486,9 @@ export default function ClientInvoicesPage() {
         onToggleColumn={tableViews.toggleColumnVisibility}
         fieldMetasList={clientInvoiceFieldMetas}
         statusOptionsList={[
-          { value: "pending", label: "待付款" },
-          { value: "partial", label: "部份付款" },
-          { value: "paid", label: "已付款" },
+          { value: "pending", label: "待收款" },
+          { value: "partial_collected", label: "部份收款" },
+          { value: "collected", label: "收款完畢" },
         ]}
         selectedIds={[...rowSelection.selectedIds]}
         onPinTop={tableViews.pinTop}
@@ -641,7 +641,7 @@ export default function ClientInvoicesPage() {
           </DialogHeader>
           <div className="py-4 space-y-3">
             <p className="text-sm text-muted-foreground">
-              選取的項目中包含已付款的客戶請款單，刪除後無法復原。請輸入您的帳號密碼以確認操作。
+              選取的項目中包含已收款完畢的客戶請款單，刪除後無法復原。請輸入您的帳號密碼以確定操作。
             </p>
             <div className="space-y-2">
               <Label htmlFor="confirm-password">密碼</Label>
@@ -663,7 +663,7 @@ export default function ClientInvoicesPage() {
               disabled={!password || verifying}
               onClick={handlePasswordConfirm}
             >
-              {verifying ? "驗證中…" : "確認刪除"}
+              {verifying ? "驗證中…" : "確定刪除"}
             </Button>
           </DialogFooter>
         </DialogContent>

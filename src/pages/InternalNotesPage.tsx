@@ -416,7 +416,7 @@ function NoteDetailView({
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setInvalidateOpen(false)}>取消</Button>
-            <Button onClick={handleInvalidate} disabled={!invalidateReason.trim()}>確認</Button>
+            <Button onClick={handleInvalidate} disabled={!invalidateReason.trim()}>確定</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -425,12 +425,12 @@ function NoteDetailView({
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>確認刪除</AlertDialogTitle>
+            <AlertDialogTitle>確定刪除</AlertDialogTitle>
             <AlertDialogDescription>確定要刪除此內部註記嗎？此操作無法復原。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { onDelete(); setDeleteOpen(false); }}>確認刪除</AlertDialogAction>
+            <AlertDialogAction onClick={() => { onDelete(); setDeleteOpen(false); }}>確定刪除</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -834,12 +834,12 @@ export default function InternalNotesPage() {
       <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>確認刪除</AlertDialogTitle>
+            <AlertDialogTitle>確定刪除</AlertDialogTitle>
             <AlertDialogDescription>確定要刪除已選取的 {rowSelection.selectedCount} 筆紀錄嗎？此操作無法復原。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteSelected}>確認刪除</AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteSelected}>確定刪除</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

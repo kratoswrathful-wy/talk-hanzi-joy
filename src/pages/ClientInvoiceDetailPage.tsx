@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
   PopoverContent,
@@ -57,8 +58,8 @@ function StatusBadge({ status }: { status: ClientInvoiceStatus }) {
   const labelStyles = useLabelStyles();
   const styleMap: Record<ClientInvoiceStatus, { bgColor: string; textColor: string }> = {
     pending: labelStyles.invoicePending,
-    partial: labelStyles.invoicePartial,
-    paid: labelStyles.invoicePaid,
+    partial_collected: labelStyles.invoicePartial,
+    collected: labelStyles.invoicePaid,
   };
   const colors = styleMap[status];
   return (
@@ -81,10 +82,18 @@ const formatCurrency = (n: number) =>
 
 const formatTimestamp = (date: Date | string) => {
   const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleString("zh-TW", {
+  const formatted = d.toLocaleString("zh-TW", {
     year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", hour12: false,
+    timeZone: "Asia/Taipei",
   });
+  return `${formatted} (UTC+8)`;
+};
+
+const formatDateOnly = (iso: string) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Taipei" });
 };
 
 interface CommentEntry {
@@ -119,6 +128,52 @@ const fieldLabels: Record<string, string> = {
   note: "客戶請款備註",
 };
 
+/** Date-only picker (no time selection) */
+function DateOnlyPicker({ value, onChange, disabled, placeholder }: {
+  value?: string;
+  onChange: (v: string | undefined) => void;
+  disabled?: boolean;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = value ? new Date(value + "T00:00:00") : undefined;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className={cn("w-full justify-start text-left font-normal h-9", !value && "text-muted-foreground")} disabled={disabled}>
+          {value ? formatDateOnly(value) : (placeholder || "選擇日期")}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={selected}
+          onSelect={(day) => {
+            if (day) {
+              const yyyy = day.getFullYear();
+              const mm = String(day.getMonth() + 1).padStart(2, "0");
+              const dd = String(day.getDate()).padStart(2, "0");
+              onChange(`${yyyy}-${mm}-${dd}`);
+            } else {
+              onChange(undefined);
+            }
+            setOpen(false);
+          }}
+          initialFocus
+        />
+        {value && (
+          <div className="px-3 pb-2">
+            <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground" onClick={() => { onChange(undefined); setOpen(false); }}>
+              清除日期
+            </Button>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function ClientInvoiceDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -132,13 +187,21 @@ export default function ClientInvoiceDetailPage() {
   const [deletePassword, setDeletePassword] = useState("");
   const [deletingWithPassword, setDeletingWithPassword] = useState(false);
   const [removeFeeId, setRemoveFeeId] = useState<string | null>(null);
-  const [showPartialInput, setShowPartialInput] = useState(false);
-  const [partialAmount, setPartialAmount] = useState("");
-  const [showOverpayWarning, setShowOverpayWarning] = useState(false);
-  const [overpayRemaining, setOverpayRemaining] = useState(0);
   const [addFeeOpen, setAddFeeOpen] = useState(false);
   const [selectedAddFees, setSelectedAddFees] = useState<string[]>([]);
   const allInvoices = useClientInvoices();
+
+  // Payment dialog states
+  const [showFullPayDialog, setShowFullPayDialog] = useState(false);
+  const [fullPayAmount, setFullPayAmount] = useState("");
+  const [fullPayNoFee, setFullPayNoFee] = useState(false);
+  const [showPartialPayDialog, setShowPartialPayDialog] = useState(false);
+  const [partialPayAmount, setPartialPayAmount] = useState("");
+  const [partialPayClose, setPartialPayClose] = useState(false);
+
+  // Record-only amount dialog
+  const [showRecordAmountDialog, setShowRecordAmountDialog] = useState(false);
+  const [recordAmountInput, setRecordAmountInput] = useState("");
 
   // Comments
   const [comments, setComments] = useState<CommentEntry[]>([]);
@@ -248,10 +311,8 @@ export default function ClientInvoiceDetailPage() {
   const availableFees = useMemo(() => {
     if (!invoice) return [];
     return fees.filter((f) => {
-      // Fee must not be linked to any client invoice already
       if (allLinkedFeeIds.has(f.id)) return false;
       const ci = f.clientInfo as any;
-      // Must have matching client and reconciled checked
       if (!ci?.client || ci.client !== invoice.client) return false;
       if (!ci?.reconciled) return false;
       return true;
@@ -280,15 +341,29 @@ export default function ClientInvoiceDetailPage() {
     .map((fid) => fees.find((f) => f.id === fid))
     .filter(Boolean) as typeof fees;
 
-  // For client invoices, total is from client_info
-  const total = linkedFees.reduce((sum, f) => {
+  // Total receivable from linked fees
+  const feeTotal = linkedFees.reduce((sum, f) => {
     const clientInfo = f.clientInfo as any;
     if (!clientInfo?.items) return sum;
     return sum + clientInfo.items.reduce((s: number, i: any) => s + (i.quantity || 0) * (i.unitPrice || 0), 0);
   }, 0);
 
-  const isPaid = invoice.status === "paid";
-  const editable = isAdmin && !isPaid;
+  // If record-only, the total is the recordAmount
+  const total = invoice.isRecordOnly ? (invoice.recordAmount || 0) : feeTotal;
+
+  const isCollected = invoice.status === "collected";
+  const editable = isAdmin && !isCollected;
+
+  // Calculate paid so far
+  const paidSoFar = invoice.payments.reduce((sum, p) => {
+    if (p.type === "full") {
+      return sum + (p.noFee ? total : (p.amount || 0));
+    }
+    return sum + (p.amount || 0);
+  }, 0);
+  const remaining = Math.max(0, total - paidSoFar);
+  const hasFees = paidSoFar > 0 && paidSoFar < total;
+  const serviceFee = hasFees ? total - paidSoFar : 0;
 
   const handleRemoveFee = () => {
     if (removeFeeId) {
@@ -337,36 +412,49 @@ export default function ClientInvoiceDetailPage() {
     trackChange("title", oldTitle, newTitle);
   };
 
-  const handleFullPayment = () => {
+  // Full payment dialog confirm
+  const handleFullPayConfirm = () => {
+    const noFee = fullPayNoFee;
+    const amount = noFee ? total : parseFloat(fullPayAmount);
+    if (!noFee && (isNaN(amount) || amount <= 0)) {
+      toast.error("請輸入有效金額");
+      return;
+    }
+    if (!noFee && amount > remaining) {
+      toast.error(`輸入金額過高，目前剩餘應收總額為 ${formatCurrency(remaining)}，請調整金額。`);
+      return;
+    }
     const now = new Date().toISOString();
     const payment: ClientPaymentRecord = {
       id: crypto.randomUUID(),
       type: "full",
+      amount: noFee ? undefined : amount,
+      noFee,
       timestamp: now,
     };
     const newPayments = [...invoice.payments, payment];
     clientInvoiceStore.updateInvoice(invoice.id, {
-      status: "paid",
+      status: "collected" as ClientInvoiceStatus,
       payments: newPayments,
       transferDate: now,
     });
-    trackChange("status", clientInvoiceStatusLabels[invoice.status], "全額收齊");
+    trackChange("status", clientInvoiceStatusLabels[invoice.status], "收款完畢");
     forceCommitPending();
-    toast.success("已記錄全額收齊");
+    setShowFullPayDialog(false);
+    setFullPayAmount("");
+    setFullPayNoFee(false);
+    toast.success("已記錄收款完畢");
   };
 
-  const paidSoFar = invoice.payments.reduce((sum, p) => sum + (p.type === "partial" ? (p.amount || 0) : 0), 0);
-  const remaining = total - paidSoFar;
-
-  const handlePartialPayment = () => {
-    const amount = parseFloat(partialAmount);
+  // Partial payment dialog confirm
+  const handlePartialPayConfirm = () => {
+    const amount = parseFloat(partialPayAmount);
     if (isNaN(amount) || amount <= 0) {
       toast.error("請輸入有效金額");
       return;
     }
-    if (amount > remaining) {
-      setOverpayRemaining(remaining);
-      setShowOverpayWarning(true);
+    if (amount + paidSoFar > total) {
+      toast.error(`輸入金額過高，已收金額加上本次收款合計超出應收總額 ${formatCurrency(total)}，請調整金額。`);
       return;
     }
     const now = new Date().toISOString();
@@ -378,17 +466,40 @@ export default function ClientInvoiceDetailPage() {
     };
     const newPayments = [...invoice.payments, payment];
     const newPaidTotal = paidSoFar + amount;
-    const newStatus = newPaidTotal >= total ? "paid" : "partial";
+    const shouldClose = partialPayClose || newPaidTotal >= total;
+    const newStatus: ClientInvoiceStatus = shouldClose ? "collected" : "partial_collected";
     clientInvoiceStore.updateInvoice(invoice.id, {
-      status: newStatus as ClientInvoiceStatus,
+      status: newStatus,
       payments: newPayments,
-      ...(newStatus === "paid" ? { transferDate: now } : {}),
+      ...(shouldClose ? { transferDate: now } : {}),
     });
-    trackChange("status", clientInvoiceStatusLabels[invoice.status], clientInvoiceStatusLabels[newStatus as ClientInvoiceStatus]);
-    if (newStatus === "paid") forceCommitPending();
-    setShowPartialInput(false);
-    setPartialAmount("");
-    toast.success("已記錄部份到帳");
+    trackChange("status", clientInvoiceStatusLabels[invoice.status], clientInvoiceStatusLabels[newStatus]);
+    if (shouldClose) forceCommitPending();
+    setShowPartialPayDialog(false);
+    setPartialPayAmount("");
+    setPartialPayClose(false);
+    toast.success(shouldClose ? "已記錄收款完畢" : "已記錄部份收款");
+  };
+
+  // Record-only checkbox handler
+  const handleRecordOnlyCheck = () => {
+    if (invoice.isRecordOnly) return; // already locked
+    setRecordAmountInput("");
+    setShowRecordAmountDialog(true);
+  };
+
+  const handleRecordAmountConfirm = () => {
+    const amount = parseFloat(recordAmountInput);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("請輸入有效金額");
+      return;
+    }
+    clientInvoiceStore.updateInvoice(invoice.id, {
+      isRecordOnly: true,
+      recordAmount: amount,
+    });
+    setShowRecordAmountDialog(false);
+    toast.success("已設定為純請款紀錄");
   };
 
   const handleNoteChange = (newNote: string) => {
@@ -445,9 +556,9 @@ export default function ClientInvoiceDetailPage() {
               toast.success("已套用範本");
             }}
           />
-          {((!isPaid && isAdmin) || (isPaid && isExecutive)) && checkPerm("client_invoice", "cinv_detail_delete", "edit") && (
+          {((!isCollected && isAdmin) || (isCollected && isExecutive)) && checkPerm("client_invoice", "cinv_detail_delete", "edit") && (
             <Button size="sm" className="text-xs min-w-[88px] text-white hover:opacity-80" style={{ backgroundColor: '#6B7280' }} onClick={() => {
-              if (isPaid) {
+              if (isCollected) {
                 setShowPasswordDelete(true);
               } else {
                 setShowDelete(true);
@@ -461,101 +572,193 @@ export default function ClientInvoiceDetailPage() {
 
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
         <div className="rounded-xl border border-border bg-card p-6 space-y-6">
-          {/* Title */}
-          <div className="flex items-start justify-between gap-4">
-            {isPaid ? (
-              <h1 className="text-2xl font-semibold tracking-tight text-muted-foreground">
-                {invoice.title || "未命名"}
-              </h1>
-            ) : (
-              <Input
-                value={invoice.title}
-                onChange={(e) => handleTitleChange(e.target.value)}
-                placeholder="客戶請款單標題"
-                className="text-2xl font-semibold tracking-tight border-0 shadow-none px-0 h-auto py-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
-              />
-            )}
+          {/* Title row with status */}
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              {isCollected ? (
+                <h1 className="text-2xl font-semibold tracking-tight text-muted-foreground">
+                  {invoice.title || "未命名"}
+                </h1>
+              ) : (
+                <Input
+                  value={invoice.title}
+                  onChange={(e) => handleTitleChange(e.target.value)}
+                  placeholder="客戶請款單標題"
+                  className="text-2xl font-semibold tracking-tight border-0 shadow-none px-0 h-auto py-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
+                />
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-sm text-muted-foreground">狀態</span>
+              <StatusBadge status={invoice.status} />
+            </div>
           </div>
 
           <Separator />
 
-          {/* Fields */}
+          {/* Fields: two columns */}
           <div className="grid gap-5">
             <div className="grid grid-cols-2 gap-4">
+              {/* Left: 純請款紀錄 checkbox */}
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">類型</Label>
+                <div className="flex items-center h-10 gap-2">
+                  <Checkbox
+                    checked={!!invoice.isRecordOnly}
+                    onCheckedChange={() => handleRecordOnlyCheck()}
+                    disabled={!!invoice.isRecordOnly || isCollected}
+                  />
+                  <span className="text-sm">純請款紀錄</span>
+                  {invoice.isRecordOnly && (
+                    <span className="text-xs text-muted-foreground ml-1">（已鎖定）</span>
+                  )}
+                </div>
+              </div>
+              {/* Right: 客戶 */}
               <div className="grid gap-1.5">
                 <Label className="text-xs text-muted-foreground">客戶</Label>
                 <div className="flex items-center h-10">
                   <span className="text-sm font-medium">{invoice.client || "未指定"}</span>
                 </div>
               </div>
-              <div className="grid gap-1.5">
-                <Label className="text-xs text-muted-foreground">狀態</Label>
-                <div className="flex items-center h-10">
-                  <StatusBadge status={invoice.status} />
-                </div>
-              </div>
             </div>
 
+            {/* Date fields row */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">預計收款時間</Label>
+                <DateOnlyPicker
+                  value={invoice.expectedCollectionDate}
+                  onChange={(v) => clientInvoiceStore.updateInvoice(invoice.id, { expectedCollectionDate: v })}
+                  disabled={isCollected}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">實際收款時間</Label>
+                <DateOnlyPicker
+                  value={invoice.actualCollectionDate}
+                  onChange={(v) => clientInvoiceStore.updateInvoice(invoice.id, { actualCollectionDate: v })}
+                  disabled={isCollected}
+                />
+              </div>
+            </div>
           </div>
 
-          {/* Fee list */}
+          {/* Fee list / Record-only item */}
           <div className="space-y-3">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-center">標題</TableHead>
-                  <TableHead className="text-center w-[120px]">營收總額</TableHead>
-                  {editable && <TableHead className="text-center w-[60px]">移除</TableHead>}
+                  <TableHead className="text-center w-[120px]">應收總額</TableHead>
+                  {editable && !invoice.isRecordOnly && <TableHead className="text-center w-[60px]">移除</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {linkedFees.map((fee) => {
-                  const clientInfo = fee.clientInfo as any;
-                  const feeTotal = clientInfo?.items
-                    ? clientInfo.items.reduce((s: number, i: any) => s + (i.quantity || 0) * (i.unitPrice || 0), 0)
-                    : 0;
-                  return (
-                    <TableRow key={fee.id}>
-                      <TableCell>
-                        <Link to={`/fees/${fee.id}`} className="text-sm font-medium hover:underline text-primary">
-                          {fee.title || <span className="text-muted-foreground italic">未命名</span>}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-center text-sm tabular-nums"><TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="cursor-default">{formatCurrency(feeTotal)}</span></TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider></TableCell>
-                      {editable && (
-                        <TableCell className="text-center">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            onClick={() => setRemoveFeeId(fee.id)}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  );
-                })}
-                {linkedFees.length === 0 && (
+                {invoice.isRecordOnly ? (
                   <TableRow>
-                    <TableCell colSpan={editable ? 3 : 2} className="text-center py-8 text-muted-foreground">
-                      尚未收錄任何費用
+                    <TableCell className="text-sm font-medium">請款紀錄</TableCell>
+                    <TableCell className="text-center text-sm tabular-nums">
+                      <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                        <span className="cursor-default">{formatCurrency(invoice.recordAmount || 0)}</span>
+                      </TooltipTrigger><TooltipContent className="text-xs">手動輸入</TooltipContent></Tooltip></TooltipProvider>
                     </TableCell>
                   </TableRow>
+                ) : (
+                  <>
+                    {linkedFees.map((fee) => {
+                      const clientInfo = fee.clientInfo as any;
+                      const ft = clientInfo?.items
+                        ? clientInfo.items.reduce((s: number, i: any) => s + (i.quantity || 0) * (i.unitPrice || 0), 0)
+                        : 0;
+                      return (
+                        <TableRow key={fee.id}>
+                          <TableCell>
+                            <Link to={`/fees/${fee.id}`} className="text-sm font-medium hover:underline text-primary">
+                              {fee.title || <span className="text-muted-foreground italic">未命名</span>}
+                            </Link>
+                          </TableCell>
+                          <TableCell className="text-center text-sm tabular-nums">
+                            <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                              <span className="cursor-default">{formatCurrency(ft)}</span>
+                            </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
+                          </TableCell>
+                          {editable && (
+                            <TableCell className="text-center">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                onClick={() => setRemoveFeeId(fee.id)}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      );
+                    })}
+                    {linkedFees.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={editable ? 3 : 2} className="text-center py-8 text-muted-foreground">
+                          尚未收錄任何費用
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
                 )}
               </TableBody>
-              {linkedFees.length > 0 && (
+              {(linkedFees.length > 0 || invoice.isRecordOnly) && (
                 <TableFooter>
                   <TableRow>
                     <TableCell className="text-left">
-                      <span className="text-muted-foreground text-sm">共 {linkedFees.length} 筆費用</span>
+                      <span className="text-muted-foreground text-sm">
+                        {invoice.isRecordOnly ? "純請款紀錄" : `共 ${linkedFees.length} 筆費用`}
+                      </span>
                     </TableCell>
                     <TableCell className="text-center">
-                      <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="font-semibold tabular-nums cursor-default">{formatCurrency(total)}</span></TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
+                      <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                        <span className="font-semibold tabular-nums cursor-default">{formatCurrency(total)}</span>
+                      </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
                     </TableCell>
-                    {editable && <TableCell />}
+                    {editable && !invoice.isRecordOnly && <TableCell />}
                   </TableRow>
+                  {/* Show remaining / service fee info when partially or fully collected */}
+                  {invoice.status !== "pending" && paidSoFar > 0 && (
+                    <>
+                      <TableRow>
+                        <TableCell className="text-left">
+                          <span className="text-muted-foreground text-sm">收款總額</span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="font-semibold tabular-nums">{formatCurrency(paidSoFar)}</span>
+                        </TableCell>
+                        {editable && !invoice.isRecordOnly && <TableCell />}
+                      </TableRow>
+                      {invoice.status === "partial_collected" && remaining > 0 && (
+                        <TableRow>
+                          <TableCell className="text-left">
+                            <span className="text-muted-foreground text-sm">剩餘應收總額</span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="font-semibold tabular-nums text-amber-500">{formatCurrency(remaining)}</span>
+                          </TableCell>
+                          {editable && !invoice.isRecordOnly && <TableCell />}
+                        </TableRow>
+                      )}
+                      {invoice.status === "collected" && paidSoFar < total && (
+                        <TableRow>
+                          <TableCell className="text-left">
+                            <span className="text-muted-foreground text-sm">手續費</span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="font-semibold tabular-nums text-destructive">{formatCurrency(total - paidSoFar)}</span>
+                          </TableCell>
+                          {editable && !invoice.isRecordOnly && <TableCell />}
+                        </TableRow>
+                      )}
+                    </>
+                  )}
                 </TableFooter>
               )}
             </Table>
@@ -563,7 +766,7 @@ export default function ClientInvoiceDetailPage() {
             {/* Action row: + left, 收款 right */}
             <div className="flex items-center justify-between">
               <div>
-                {editable && availableFees.length > 0 && checkPerm("client_invoice", "cinv_detail_addFee", "edit") && (
+                {editable && !invoice.isRecordOnly && availableFees.length > 0 && checkPerm("client_invoice", "cinv_detail_addFee", "edit") && (
                   <Popover open={addFeeOpen} onOpenChange={(open) => {
                     setAddFeeOpen(open);
                     if (!open) setSelectedAddFees([]);
@@ -609,38 +812,31 @@ export default function ClientInvoiceDetailPage() {
                   </Popover>
                 )}
               </div>
-              {!isPaid && !showPartialInput && isAdmin && checkPerm("client_invoice", "cinv_detail_payFull", "edit") && (
+              {!isCollected && isAdmin && checkPerm("client_invoice", "cinv_detail_payFull", "edit") && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm">收款</Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={handleFullPayment}>全額收齊</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setShowPartialInput(true)}>部份到帳</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => {
+                      setFullPayAmount("");
+                      setFullPayNoFee(false);
+                      setShowFullPayDialog(true);
+                    }}>全額收齊</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => {
+                      setPartialPayAmount("");
+                      setPartialPayClose(false);
+                      setShowPartialPayDialog(true);
+                    }}>部份到帳</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
             </div>
 
-            {showPartialInput && (
-              <div className="flex items-center gap-2 justify-end">
-                <Input
-                  type="number"
-                  value={partialAmount}
-                  onChange={(e) => setPartialAmount(e.target.value)}
-                  placeholder={`剩餘金額：${formatCurrency(remaining)}`}
-                  className="w-48 h-9"
-                  autoFocus
-                />
-                <Button size="sm" onClick={handlePartialPayment}>確認</Button>
-                <Button size="sm" variant="ghost" onClick={() => { setShowPartialInput(false); setPartialAmount(""); }}>取消</Button>
-              </div>
-            )}
-
             {/* Payment records */}
             {invoice.payments.map((p, idx) => {
               const paidUpToHere = invoice.payments.slice(0, idx + 1).reduce(
-                (s, pp) => s + (pp.type === "full" ? total : (pp.amount || 0)), 0
+                (s, pp) => s + (pp.type === "full" ? (pp.noFee ? total : (pp.amount || 0)) : (pp.amount || 0)), 0
               );
               const remainingAfter = total - paidUpToHere;
               return (
@@ -649,7 +845,9 @@ export default function ClientInvoiceDetailPage() {
                   <span>{formatTimestamp(new Date(p.timestamp))}</span>
                   <span className="text-muted-foreground">
                     {p.type === "full"
-                      ? "（全額收齊）"
+                      ? p.noFee
+                        ? "（無手續費全額收齊）"
+                        : `（全額收齊：${formatCurrency(p.amount || 0)}${remainingAfter > 0 ? ` / 手續費：${formatCurrency(remainingAfter)}` : ""}）`
                       : `（部份到帳：${formatCurrency(p.amount || 0)} / 尚餘：${formatCurrency(Math.max(0, remainingAfter))}）`}
                   </span>
                 </div>
@@ -738,6 +936,109 @@ export default function ClientInvoiceDetailPage() {
         </div>
       </motion.div>
 
+      {/* Full payment dialog */}
+      <AlertDialog open={showFullPayDialog} onOpenChange={setShowFullPayDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>全額收齊</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>請輸入實收金額，差額視為手續費：</p>
+                <p className="text-sm">目前剩餘應收總額：<span className="font-semibold">{formatCurrency(remaining)}</span></p>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={fullPayNoFee}
+                    onCheckedChange={(checked) => {
+                      setFullPayNoFee(!!checked);
+                      if (checked) setFullPayAmount("");
+                    }}
+                  />
+                  <span className="text-sm">無手續費全額收齊</span>
+                </div>
+                {!fullPayNoFee && (
+                  <Input
+                    type="number"
+                    value={fullPayAmount}
+                    onChange={(e) => setFullPayAmount(e.target.value)}
+                    placeholder="輸入實收金額"
+                    className="w-full"
+                    autoFocus
+                    onKeyDown={(e) => { if (e.key === "Enter") handleFullPayConfirm(); }}
+                  />
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleFullPayConfirm}>確定</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Partial payment dialog */}
+      <AlertDialog open={showPartialPayDialog} onOpenChange={setShowPartialPayDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>部份到帳</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>請輸入收款金額：</p>
+                <p className="text-sm">目前剩餘應收總額：<span className="font-semibold">{formatCurrency(remaining)}</span></p>
+                <Input
+                  type="number"
+                  value={partialPayAmount}
+                  onChange={(e) => setPartialPayAmount(e.target.value)}
+                  placeholder="輸入收款金額"
+                  className="w-full"
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === "Enter") handlePartialPayConfirm(); }}
+                />
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={partialPayClose}
+                    onCheckedChange={(checked) => setPartialPayClose(!!checked)}
+                  />
+                  <span className="text-sm">收款完畢</span>
+                  <span className="text-xs text-muted-foreground">將請款單結案，差額視為手續費</span>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handlePartialPayConfirm}>確定</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Record-only amount dialog */}
+      <AlertDialog open={showRecordAmountDialog} onOpenChange={setShowRecordAmountDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>設定請款金額</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>勾選「純請款紀錄」後將鎖定，請輸入請款金額：</p>
+                <Input
+                  type="number"
+                  value={recordAmountInput}
+                  onChange={(e) => setRecordAmountInput(e.target.value)}
+                  placeholder="輸入金額"
+                  className="w-full"
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === "Enter") handleRecordAmountConfirm(); }}
+                />
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRecordAmountConfirm}>確定</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Delete dialog */}
       <AlertDialog open={showDelete} onOpenChange={setShowDelete}>
         <AlertDialogContent>
@@ -752,12 +1053,12 @@ export default function ClientInvoiceDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Password delete dialog for paid invoices */}
+      {/* Password delete dialog for collected invoices */}
       <AlertDialog open={showPasswordDelete} onOpenChange={(open) => { if (!open) { setShowPasswordDelete(false); setDeletePassword(""); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>刪除已收款請款單</AlertDialogTitle>
-            <AlertDialogDescription>此請款單已全額收齊，請輸入您的密碼以確認刪除。</AlertDialogDescription>
+            <AlertDialogDescription>此請款單已收款完畢，請輸入您的密碼以確定刪除。</AlertDialogDescription>
           </AlertDialogHeader>
           <div className="px-6 pb-2">
             <Input
@@ -772,7 +1073,7 @@ export default function ClientInvoiceDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => { setShowPasswordDelete(false); setDeletePassword(""); }}>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handlePasswordDelete} disabled={deletingWithPassword} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {deletingWithPassword ? "驗證中…" : "確認刪除"}
+              {deletingWithPassword ? "驗證中…" : "確定刪除"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -788,21 +1089,6 @@ export default function ClientInvoiceDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleRemoveFee}>移除</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Overpay warning */}
-      <AlertDialog open={showOverpayWarning} onOpenChange={setShowOverpayWarning}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>金額超出剩餘款項</AlertDialogTitle>
-            <AlertDialogDescription>
-              目前剩餘未付金額為 {formatCurrency(overpayRemaining)}，請輸入小於或等於此金額的數字。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setShowOverpayWarning(false)}>了解</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

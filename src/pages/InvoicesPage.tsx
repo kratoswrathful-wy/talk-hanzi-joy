@@ -689,7 +689,7 @@ export default function InvoicesPage() {
               disabled={!password || verifying}
               onClick={handlePasswordConfirm}
             >
-              {verifying ? "驗證中…" : "確認刪除"}
+              {verifying ? "驗證中…" : "確定刪除"}
             </Button>
           </DialogFooter>
         </DialogContent>

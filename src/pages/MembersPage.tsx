@@ -582,14 +582,14 @@ export default function MembersPage() {
       <AlertDialog open={!!removeTarget && removeStep === 1} onOpenChange={(open) => { if (!open && removeStep === 1) { setRemoveTarget(null); setRemoveStep(1); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>確認移除</AlertDialogTitle>
+            <AlertDialogTitle>確定移除</AlertDialogTitle>
             <AlertDialogDescription>
               確定要移除 {removeTarget?.display_name || removeTarget?.email} 嗎？
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={(e) => { e.preventDefault(); handleRemoveStep1(); }}>確認</AlertDialogAction>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); handleRemoveStep1(); }}>確定</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -606,7 +606,7 @@ export default function MembersPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleRemove} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              確認移除
+              確定移除
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,15 +1,16 @@
-export type ClientInvoiceStatus = "pending" | "partial" | "paid";
+export type ClientInvoiceStatus = "pending" | "partial_collected" | "collected";
 
 export const clientInvoiceStatusLabels: Record<ClientInvoiceStatus, string> = {
   pending: "待收款",
-  partial: "部份到帳",
-  paid: "全額收齊",
+  partial_collected: "部份收款",
+  collected: "收款完畢",
 };
 
 export interface ClientPaymentRecord {
   id: string;
   type: "full" | "partial";
   amount?: number;
+  noFee?: boolean; // 無手續費全額收齊
   timestamp: string;
 }
 
@@ -25,4 +26,8 @@ export interface ClientInvoice {
   updatedAt: string;
   feeIds: string[];
   payments: ClientPaymentRecord[];
+  isRecordOnly?: boolean;
+  recordAmount?: number;
+  expectedCollectionDate?: string;
+  actualCollectionDate?: string;
 }

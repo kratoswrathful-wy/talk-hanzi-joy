@@ -591,7 +591,7 @@ export default function PermissionsPage() {
       <AlertDialog open={!!deleteTarget && deleteStep === 1} onOpenChange={(open) => { if (!open && deleteStep === 1) handleCancelDelete(); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>確認刪除身分</AlertDialogTitle>
+            <AlertDialogTitle>確定刪除身分</AlertDialogTitle>
             <AlertDialogDescription>確定要刪除「{deleteTarget?.label}」這個身分嗎？此操作無法復原。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -604,12 +604,12 @@ export default function PermissionsPage() {
       <AlertDialog open={!!deleteTarget && deleteStep === 2} onOpenChange={(open) => { if (!open) handleCancelDelete(); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>再次確認刪除</AlertDialogTitle>
+            <AlertDialogTitle>再次確定刪除</AlertDialogTitle>
             <AlertDialogDescription>您即將永久刪除「{deleteTarget?.label}」身分。所有擁有此身分的成員將失去相關權限，且此操作無法復原。是否確定？</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={handleCancelDelete}>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteStep2} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">確認刪除</AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteStep2} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">確定刪除</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

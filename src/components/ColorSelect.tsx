@@ -474,7 +474,7 @@ export default function ColorSelect({
       <AlertDialog open={!!deleteConfirm} onOpenChange={(v) => { if (!v) setDeleteConfirm(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>確認刪除選項</AlertDialogTitle>
+            <AlertDialogTitle>確定刪除選項</AlertDialogTitle>
             <AlertDialogDescription>
               確定要刪除「{deleteConfirm?.label}」嗎？此操作無法復原。
             </AlertDialogDescription>

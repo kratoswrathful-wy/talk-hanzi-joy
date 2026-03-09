@@ -84,10 +84,12 @@ const formatCurrency = (n: number) =>
 
 const formatTimestamp = (date: Date | string) => {
   const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleString("zh-TW", {
+  const formatted = d.toLocaleString("zh-TW", {
     year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", hour12: false,
+    timeZone: "Asia/Taipei",
   });
+  return `${formatted} (UTC+8)`;
 };
 
 interface CommentEntry {
@@ -697,7 +699,7 @@ export default function InvoiceDetailPage() {
                 className="w-48 h-9"
                 autoFocus
               />
-              <Button size="sm" onClick={handlePartialPayment}>確認</Button>
+              <Button size="sm" onClick={handlePartialPayment}>確定</Button>
               <Button size="sm" variant="ghost" onClick={() => { setShowPartialInput(false); setPartialAmount(""); }}>取消</Button>
             </div>
           )}
@@ -867,7 +869,7 @@ export default function InvoiceDetailPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>刪除已付款請款單</AlertDialogTitle>
-            <AlertDialogDescription>此請款單已付款完畢，請輸入您的密碼以確認刪除。</AlertDialogDescription>
+            <AlertDialogDescription>此請款單已付款完畢，請輸入您的密碼以確定刪除。</AlertDialogDescription>
           </AlertDialogHeader>
           <div className="px-6 pb-2">
             <Input
@@ -882,7 +884,7 @@ export default function InvoiceDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => { setShowPasswordDelete(false); setDeletePassword(""); }}>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handlePasswordDelete} disabled={deletingWithPassword} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {deletingWithPassword ? "驗證中…" : "確認刪除"}
+              {deletingWithPassword ? "驗證中…" : "確定刪除"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

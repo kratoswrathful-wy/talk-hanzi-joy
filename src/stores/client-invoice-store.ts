@@ -23,6 +23,10 @@ interface DbClientInvoice {
   created_at: string;
   updated_at: string;
   payments: any;
+  is_record_only: boolean;
+  record_amount: number;
+  expected_collection_date: string | null;
+  actual_collection_date: string | null;
 }
 
 function dbToApp(row: DbClientInvoice, feeIds: string[]): ClientInvoice {
@@ -38,6 +42,10 @@ function dbToApp(row: DbClientInvoice, feeIds: string[]): ClientInvoice {
     updatedAt: row.updated_at,
     feeIds,
     payments: Array.isArray(row.payments) ? row.payments : [],
+    isRecordOnly: row.is_record_only || false,
+    recordAmount: row.record_amount || 0,
+    expectedCollectionDate: row.expected_collection_date || undefined,
+    actualCollectionDate: row.actual_collection_date || undefined,
   };
 }
 
@@ -152,7 +160,7 @@ export const clientInvoiceStore = {
     return newInvoice;
   },
 
-  updateInvoice: (id: string, updates: Partial<Pick<ClientInvoice, "status" | "transferDate" | "note" | "title" | "payments">> & Record<string, any>) => {
+  updateInvoice: (id: string, updates: Partial<Pick<ClientInvoice, "status" | "transferDate" | "note" | "title" | "payments" | "isRecordOnly" | "recordAmount" | "expectedCollectionDate" | "actualCollectionDate">> & Record<string, any>) => {
     invoices = invoices.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv));
     notify();
 
@@ -164,6 +172,10 @@ export const clientInvoiceStore = {
     if (updates.payments !== undefined) dbUpdates.payments = updates.payments;
     if (updates.comments !== undefined) dbUpdates.comments = updates.comments;
     if (updates.edit_logs !== undefined) dbUpdates.edit_logs = updates.edit_logs;
+    if (updates.isRecordOnly !== undefined) dbUpdates.is_record_only = updates.isRecordOnly;
+    if (updates.recordAmount !== undefined) dbUpdates.record_amount = updates.recordAmount;
+    if (updates.expectedCollectionDate !== undefined) dbUpdates.expected_collection_date = updates.expectedCollectionDate || null;
+    if (updates.actualCollectionDate !== undefined) dbUpdates.actual_collection_date = updates.actualCollectionDate || null;
 
     if (Object.keys(dbUpdates).length > 0) {
       supabase
