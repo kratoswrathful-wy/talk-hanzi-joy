@@ -234,7 +234,7 @@ export const selectOptionsStore = {
   },
 
   // Tool sub-field management (generic for any tool-type field)
-  addToolField: (optionId: string, label: string, fieldKey: string = "executionTool") => {
+  addToolField: (optionId: string, label: string, fieldType: "text" | "file" = "text", fieldKey: string = "executionTool") => {
     const field = selectOptionsStore.getField(fieldKey);
     const fieldId = `tf-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
     store = {
@@ -243,7 +243,7 @@ export const selectOptionsStore = {
         ...field,
         options: field.options.map((o) =>
           o.id === optionId
-            ? { ...o, toolFields: [...(o.toolFields || []), { id: fieldId, label }] }
+            ? { ...o, toolFields: [...(o.toolFields || []), { id: fieldId, label, type: fieldType }] }
             : o
         ),
       },
