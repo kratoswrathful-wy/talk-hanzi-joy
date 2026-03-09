@@ -522,10 +522,15 @@ export default function CaseDetailPage() {
   const [caseData, setCaseData] = useState<CaseRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [publishPromptOpen, setPublishPromptOpen] = useState(false);
   const [creatorName, setCreatorName] = useState("");
   const { primaryRole: currentRole, profile } = useAuth();
   const { checkPerm } = usePermissions();
   const isManager = currentRole === "pm" || currentRole === "executive";
+  const pendingNavigateRef = useRef<(() => void) | null>(null);
+
+  // Permission for publish prompt on leave
+  const canSeePublishPrompt = checkPerm("case_management", "case_draft_publish_prompt", "view");
 
   // Tool permissions
   const canEditToolSelect = checkPerm("case_management", "case_detail_toolSelect", "edit");
