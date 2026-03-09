@@ -606,7 +606,7 @@ function ToolInstance({
       <AlertDialog open={!!pendingTpl} onOpenChange={(v) => { if (!v) dismissWarning(); }}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>套用範本確認</AlertDialogTitle>
+            <AlertDialogTitle>套用範本確定</AlertDialogTitle>
             <AlertDialogDescription>
               套用範本「{pendingTpl?.name}」可能影響現有內容，請確認是否執行：
             </AlertDialogDescription>
