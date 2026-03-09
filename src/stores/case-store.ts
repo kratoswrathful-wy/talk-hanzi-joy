@@ -101,6 +101,8 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.status !== undefined) map.status = c.status;
   if (c.client !== undefined) map.client = c.client;
   if (c.contact !== undefined) map.contact = c.contact;
+  if (c.keyword !== undefined) map.keyword = c.keyword;
+  if (c.clientPoNumber !== undefined) map.client_po_number = c.clientPoNumber;
   if (c.category !== undefined) map.category = c.category;
   if (c.workType !== undefined) map.work_type = c.workType;
   if (c.workGroups !== undefined) {

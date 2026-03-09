@@ -1330,6 +1330,18 @@ export default function CaseDetailPage() {
         )}
       </div>
 
+      {/* 關鍵字 & 客戶 PO# — PM+ only */}
+      {checkPerm("case_management", "case_detail_keyword", "view") && (
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="關鍵字">
+            <IMESafeInput value={caseData.keyword} onSave={(v) => save({ keyword: v })} disabled={!checkPerm("case_management", "case_detail_keyword", "edit")} placeholder="客戶端案號或關鍵字" />
+          </Field>
+          <Field label="客戶 PO#">
+            <IMESafeInput value={caseData.clientPoNumber} onSave={(v) => save({ clientPoNumber: v })} disabled={!checkPerm("case_management", "case_detail_keyword", "edit")} placeholder="客戶 PO 編號" />
+          </Field>
+        </div>
+      )}
+
       {/* 本案費用 + 產生本案費用單 */}
       {(() => {
         const caseUrl = `${window.location.origin}/cases/${caseData.id}`;
