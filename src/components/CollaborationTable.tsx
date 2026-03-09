@@ -14,7 +14,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Copy, Check } from "lucide-react";
 import type { CollabRow } from "@/data/case-types";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -24,11 +24,35 @@ interface Props {
   caseStatus: string;
 }
 
+function CopySegmentButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!value) return;
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <button
+      className="h-6 w-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0"
+      onClick={handleCopy}
+      title="複製到剪貼簿"
+      type="button"
+    >
+      {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+    </button>
+  );
+}
+
 export default function CollaborationTable({ rows, onChange, caseStatus }: Props) {
   const { primaryRole, profile } = useAuth();
   const isPmOrAbove = primaryRole === "pm" || primaryRole === "executive";
   const displayName = profile?.display_name || "";
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const isDispatched = caseStatus === "dispatched";
+  const isTaskCompleted = caseStatus === "task_completed";
 
   // Segment overlay state
   const [segmentOverlay, setSegmentOverlay] = useState<{ idx: number; value: string } | null>(null);
@@ -45,15 +69,20 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
     [rows, onChange]
   );
 
+  // When dispatched, the "accepted" column becomes "taskCompleted"
+  const showTaskCompletedInAcceptedCol = isDispatched || isTaskCompleted;
+
   const columns = [
-    { key: "segment", label: "檔案或分段", width: "minmax(120px, 1fr)" },
+    { key: "segment", label: "檔案或分段", width: "minmax(210px, 1.75fr)" },
     { key: "translator", label: "譯者", width: "140px" },
     { key: "unitCount", label: "計費單位數", width: "90px" },
-    { key: "accepted", label: "確認承接", width: "80px" },
+    { key: "accepted", label: showTaskCompletedInAcceptedCol ? "任務完成" : "確認承接", width: "80px" },
     { key: "translationDeadline", label: "翻譯交期", width: "180px", bulk: true },
     { key: "reviewer", label: "審稿人員", width: "140px" },
     { key: "reviewDeadline", label: "審稿交期", width: "180px", bulk: true },
-    { key: "taskCompleted", label: "任務完成", width: "80px" },
+    ...(showTaskCompletedInAcceptedCol
+      ? []
+      : [{ key: "taskCompleted", label: "任務完成", width: "80px" }]),
     { key: "delivered", label: "交件完畢", width: "80px" },
   ];
 
@@ -87,7 +116,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
       <div ref={scrollRef} className="border border-border rounded-lg overflow-x-auto">
         {/* Header */}
         <div
-          className="grid items-center gap-0 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground"
+          className="grid items-center gap-0 bg-muted/50 border-b border-border text-xs font-medium text-muted-foreground min-w-max"
           style={{ gridTemplateColumns: gridTemplate }}
         >
           {columns.map((col) => (
@@ -122,6 +151,12 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
             !row.accepted &&
             (isPmOrAbove || (!row.translator || row.translator === displayName));
 
+          // In dispatched mode, the accepted column shows taskCompleted instead
+          const canCheckTaskCompletedInAcceptedCol =
+            showTaskCompletedInAcceptedCol &&
+            !row.taskCompleted &&
+            (isPmOrAbove || row.translator === displayName);
+
           const canCheckTaskCompleted =
             (caseStatus === "dispatched" || caseStatus === "task_completed") &&
             !row.taskCompleted &&
@@ -132,17 +167,17 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
           return (
             <div
               key={row.id}
-              className="grid items-center gap-0 border-b border-border last:border-b-0 text-sm"
+              className="grid items-center gap-0 border-b border-border last:border-b-0 text-sm min-w-max"
               style={{ gridTemplateColumns: gridTemplate }}
             >
               {/* Segment */}
-              <div className="px-1.5 py-1">
+              <div className="px-1.5 py-1 flex items-center gap-1">
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
                         type="button"
-                        className="w-full text-left h-7 text-xs px-2 py-1 rounded-md border border-border bg-background truncate hover:bg-muted/50"
+                        className="flex-1 text-left h-7 text-xs px-2 py-1 rounded-md border border-border bg-background truncate hover:bg-muted/50 min-w-0"
                         onClick={() => setSegmentOverlay({ idx, value: row.segment })}
                       >
                         {row.segment || <span className="text-muted-foreground">分段名稱</span>}
@@ -153,6 +188,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
                     )}
                   </Tooltip>
                 </TooltipProvider>
+                <CopySegmentButton value={row.segment} />
               </div>
 
               {/* Translator */}
@@ -176,19 +212,27 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
                 />
               </div>
 
-              {/* Accepted */}
+              {/* Accepted / TaskCompleted (merged column when dispatched) */}
               <div className="flex items-center justify-center px-1.5 py-1">
-                <Checkbox
-                  checked={row.accepted}
-                  disabled={!canCheckAccepted && !row.accepted}
-                  onCheckedChange={(v) => {
-                    if (!!v && !row.translator) {
-                      updateRow(idx, { accepted: true, translator: displayName });
-                    } else {
-                      updateRow(idx, { accepted: !!v });
-                    }
-                  }}
-                />
+                {showTaskCompletedInAcceptedCol ? (
+                  <Checkbox
+                    checked={row.taskCompleted}
+                    disabled={!canCheckTaskCompletedInAcceptedCol && !row.taskCompleted}
+                    onCheckedChange={(v) => updateRow(idx, { taskCompleted: !!v })}
+                  />
+                ) : (
+                  <Checkbox
+                    checked={row.accepted}
+                    disabled={!canCheckAccepted && !row.accepted}
+                    onCheckedChange={(v) => {
+                      if (!!v && !row.translator) {
+                        updateRow(idx, { accepted: true, translator: displayName });
+                      } else {
+                        updateRow(idx, { accepted: !!v });
+                      }
+                    }}
+                  />
+                )}
               </div>
 
               {/* Translation deadline */}
@@ -220,14 +264,16 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
                 />
               </div>
 
-              {/* Task completed */}
-              <div className="flex items-center justify-center px-1.5 py-1">
-                <Checkbox
-                  checked={row.taskCompleted}
-                  disabled={!canCheckTaskCompleted && !row.taskCompleted}
-                  onCheckedChange={(v) => updateRow(idx, { taskCompleted: !!v })}
-                />
-              </div>
+              {/* Task completed - only shown when NOT dispatched (otherwise merged into accepted col) */}
+              {!showTaskCompletedInAcceptedCol && (
+                <div className="flex items-center justify-center px-1.5 py-1">
+                  <Checkbox
+                    checked={row.taskCompleted}
+                    disabled={!canCheckTaskCompleted && !row.taskCompleted}
+                    onCheckedChange={(v) => updateRow(idx, { taskCompleted: !!v })}
+                  />
+                </div>
+              )}
 
               {/* Delivered */}
               <div className="flex items-center justify-center px-1.5 py-1">

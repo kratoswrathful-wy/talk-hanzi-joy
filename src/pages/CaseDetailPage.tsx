@@ -1211,6 +1211,19 @@ export default function CaseDetailPage() {
               size="sm"
               className="h-6 text-xs text-muted-foreground"
               onClick={() => {
+                setCollabEditInput(String(caseData.collabCount));
+                setCollabEditOpen(true);
+              }}
+            >
+              變更人次
+            </Button>
+          )}
+          {caseData.multiCollab && isPmOrAbove && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs text-muted-foreground"
+              onClick={() => {
                 // Check if more than 1 person has accepted
                 const acceptedTranslators = new Set(
                   caseData.collabRows.filter(r => r.accepted).map(r => r.translator).filter(Boolean)
