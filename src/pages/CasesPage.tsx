@@ -55,7 +55,7 @@ function CollabTranslationDeadlineCell({ collabRows, status }: { collabRows: Col
   const isDraftOrInquiry = status === "draft" || status === "inquiry";
 
   if (isDraftOrInquiry) {
-    return <DeadlineText value={pickNearestDeadline(collabRows, "translationDeadline")} />;
+    return <DeadlineText value={pickEarliestDeadline(collabRows, "translationDeadline")} />;
   }
 
   // Active case
