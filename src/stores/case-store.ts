@@ -152,6 +152,9 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.comments !== undefined) map.comments = c.comments;
   if (c.internalComments !== undefined) map.internal_comments = c.internalComments;
   if (c.bodyContent !== undefined) map.body_content = c.bodyContent;
+  if (c.multiCollab !== undefined) map.multi_collab = c.multiCollab;
+  if (c.collabCount !== undefined) map.collab_count = c.collabCount;
+  if (c.collabRows !== undefined) map.collab_rows = c.collabRows;
   if (c.createdBy !== undefined) map.created_by = c.createdBy;
   return map;
 }
