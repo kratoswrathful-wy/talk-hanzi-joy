@@ -529,6 +529,12 @@ export default function CasesPage() {
     <div className="mx-auto max-w-7xl space-y-4">
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">案件管理</h1>
+        {isAdmin && (
+          <Button size="sm" className="gap-1.5" onClick={handleCreate}>
+            <Plus className="h-4 w-4" />
+            新增案件
+          </Button>
+        )}
         {activeView.isDefault ? (
           <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
             一切檢視設定僅對本人生效
@@ -537,12 +543,6 @@ export default function CasesPage() {
           <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
             此為自訂視圖，只有新增者本人可見
           </span>
-        )}
-        {isAdmin && (
-          <Button size="sm" className="gap-1.5" onClick={handleCreate}>
-            <Plus className="h-4 w-4" />
-            新增案件
-          </Button>
         )}
         {rowSelection.selectedCount > 0 && isAdmin && (
           <>
