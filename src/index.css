@@ -79,4 +79,26 @@
   ::-webkit-scrollbar-thumb:hover {
     background: hsl(228 10% 30%);
   }
+
+  /* BlockNote editor overrides */
+  .rich-text-editor .bn-container {
+    --bn-colors-editor-background: hsl(var(--background));
+    --bn-colors-editor-text: hsl(var(--foreground));
+    --bn-colors-menu-background: hsl(var(--popover));
+    --bn-colors-menu-text: hsl(var(--popover-foreground));
+    --bn-colors-tooltip-background: hsl(var(--popover));
+    --bn-colors-tooltip-text: hsl(var(--popover-foreground));
+    --bn-colors-hovered-background: hsl(var(--accent) / 0.15);
+    --bn-colors-hovered-text: hsl(var(--foreground));
+    --bn-colors-selected-background: hsl(var(--accent) / 0.25);
+    --bn-colors-selected-text: hsl(var(--foreground));
+    --bn-colors-disabled-background: hsl(var(--muted));
+    --bn-colors-disabled-text: hsl(var(--muted-foreground));
+    --bn-border-radius: var(--radius);
+    --bn-font-size: 0.875rem;
+  }
+  .rich-text-editor .bn-editor {
+    padding: 0.75rem 1rem;
+    min-height: 120px;
+  }
 }

@@ -80,6 +80,7 @@ export interface CaseRecord {
   internalRecords: { id: string; author: string; text: string; createdAt: string }[];
   comments: CaseComment[];
   internalComments: CaseComment[];
+  bodyContent: any[];
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
