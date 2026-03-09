@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { loadSetting, saveSetting, markDirty } from "./settings-persistence";
+import { selectOptionsStore } from "./select-options-store";
 
 export interface TemplateField {
   id: string;
