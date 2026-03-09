@@ -203,6 +203,9 @@ export default function ClientInvoiceDetailPage() {
   const [showRecordAmountDialog, setShowRecordAmountDialog] = useState(false);
   const [recordAmountInput, setRecordAmountInput] = useState("");
 
+  // Amount too high alert
+  const [amountTooHighMsg, setAmountTooHighMsg] = useState<string | null>(null);
+
   // Comments
   const [comments, setComments] = useState<CommentEntry[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
@@ -421,7 +424,7 @@ export default function ClientInvoiceDetailPage() {
       return;
     }
     if (!noFee && amount > remaining) {
-      toast.error(`輸入金額過高，目前剩餘應收總額為 ${formatCurrency(remaining)}，請調整金額。`);
+      setAmountTooHighMsg(`輸入金額過高，目前剩餘應收總額為 ${formatCurrency(remaining)}，請調整金額。`);
       return;
     }
     const now = new Date().toISOString();
@@ -454,7 +457,7 @@ export default function ClientInvoiceDetailPage() {
       return;
     }
     if (amount + paidSoFar > total) {
-      toast.error(`輸入金額過高，已收金額加上本次收款合計超出應收總額 ${formatCurrency(total)}，請調整金額。`);
+      setAmountTooHighMsg(`輸入金額過高，已收金額加上本次收款合計超出應收總額 ${formatCurrency(total)}，請調整金額。`);
       return;
     }
     const now = new Date().toISOString();
@@ -1097,6 +1100,18 @@ export default function ClientInvoiceDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleRemoveFee}>移除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {/* Amount too high alert */}
+      <AlertDialog open={!!amountTooHighMsg} onOpenChange={(open) => { if (!open) setAmountTooHighMsg(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>金額錯誤</AlertDialogTitle>
+            <AlertDialogDescription>{amountTooHighMsg}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setAmountTooHighMsg(null)}>確定</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
