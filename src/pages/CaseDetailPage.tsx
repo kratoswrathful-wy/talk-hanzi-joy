@@ -67,6 +67,31 @@ function CaseStatusBadge({ status }: { status: CaseStatus }) {
   );
 }
 
+/** IME-safe title input: uses local state during editing, saves on blur */
+function TitleInput({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [local, setLocal] = useState(value);
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setLocal(value);
+  }, [value, focused]);
+
+  return (
+    <MultilineInput
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => {
+        setFocused(false);
+        if (local !== value) onSave(local);
+      }}
+      onFocus={() => setFocused(true)}
+      className="max-w-md"
+      minRows={1}
+      maxRows={3}
+      borderless
+    />
+  );
+}
 
 function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
   return (
