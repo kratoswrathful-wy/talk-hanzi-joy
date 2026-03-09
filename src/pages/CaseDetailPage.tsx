@@ -1323,7 +1323,7 @@ export default function CaseDetailPage() {
         <>
           <div className="grid grid-cols-2 gap-4">
             <Field label="譯者">
-              {(isDispatched || isTaskCompleted || isDelivered || isFeedback || isFeedbackCompleted || isFinalized) ? (
+              {(isDispatched || isTaskCompleted || isDelivered || isFeedback || isFeedbackCompleted) ? (
                 <div className="flex items-center gap-1 flex-wrap min-h-[36px] px-2 py-1 rounded-md bg-muted/50 border border-border">
                   {(caseData.translator || []).length > 0
                     ? (caseData.translator || []).map((t, i) => {

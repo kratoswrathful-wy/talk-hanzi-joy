@@ -505,7 +505,6 @@ export const CASE_STATUS_LABEL_MAP: Record<string, string> = {
   delivered: "已交件",
   feedback: "處理回饋",
   feedback_completed: "回饋處理完畢",
-  finalized: "開立完成",
 };
 
 /** Map from internal status key to Chinese label for fee statuses */
