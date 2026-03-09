@@ -793,8 +793,12 @@ export default function CaseDetailPage() {
   };
 
   const isCurrentUserTranslator = (() => {
-    const displayName = profile?.display_name || "";
-    return displayName && (caseData.translator || []).includes(displayName);
+    const dn = profile?.display_name || "";
+    if (!dn) return false;
+    if ((caseData.translator || []).includes(dn)) return true;
+    // Also check collab rows
+    if (caseData.multiCollab && caseData.collabRows?.some(r => r.translator === dn)) return true;
+    return false;
   })();
 
   const comments = caseData.comments || [];
