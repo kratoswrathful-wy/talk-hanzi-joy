@@ -59,6 +59,7 @@ export type Database = {
           custom_guidelines_url: Json
           delivery_method: string
           delivery_method_files: Json | null
+          dispatch_route: string | null
           env: string
           execution_tool: string
           fee_entry: string
@@ -121,6 +122,7 @@ export type Database = {
           custom_guidelines_url?: Json
           delivery_method?: string
           delivery_method_files?: Json | null
+          dispatch_route?: string | null
           env?: string
           execution_tool?: string
           fee_entry?: string
@@ -183,6 +185,7 @@ export type Database = {
           custom_guidelines_url?: Json
           delivery_method?: string
           delivery_method_files?: Json | null
+          dispatch_route?: string | null
           env?: string
           execution_tool?: string
           fee_entry?: string
