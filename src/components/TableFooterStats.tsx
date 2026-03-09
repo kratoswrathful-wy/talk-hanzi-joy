@@ -121,7 +121,7 @@ export function TableFooterStats({
               >
                 <Popover>
                   <PopoverTrigger asChild>
-                    <button className="inline-flex items-center gap-1 text-xs font-medium tabular-nums text-muted-foreground hover:text-foreground transition-colors group ml-auto">
+                    <button className="inline-flex items-center gap-1 text-xs font-medium tabular-nums text-muted-foreground hover:text-foreground transition-colors group">
                       <span>{value}</span>
                       <ChevronDown className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity" />
                     </button>
