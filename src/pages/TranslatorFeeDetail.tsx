@@ -1869,6 +1869,7 @@ export default function TranslatorFeeDetail() {
                         <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline underline-offset-2 hover:text-primary/80 truncate">
                           {link.label || link.url}
                         </a>
+                        <FeeCopyButton value={link.url} />
                         {canEdit && !locked && (
                           <button onClick={() => {
                             const updated = { ...clientInfo, clientCaseLink: { url: "", label: "" } };

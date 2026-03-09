@@ -1449,10 +1449,16 @@ export default function CaseDetailPage() {
       {checkPerm("case_management", "case_detail_keyword", "view") && (
         <div className="grid grid-cols-2 gap-4">
           <Field label="關鍵字">
-            <IMESafeInput value={caseData.keyword} onSave={(v) => save({ keyword: v })} disabled={!checkPerm("case_management", "case_detail_keyword", "edit")} placeholder="客戶端案號或關鍵字" />
+            <div className="flex items-center gap-1">
+              <IMESafeInput value={caseData.keyword} onSave={(v) => save({ keyword: v })} disabled={!checkPerm("case_management", "case_detail_keyword", "edit")} placeholder="客戶端案號或關鍵字" className="flex-1" />
+              <CopyButton value={caseData.keyword} />
+            </div>
           </Field>
           <Field label="客戶 PO#">
-            <IMESafeInput value={caseData.clientPoNumber} onSave={(v) => save({ clientPoNumber: v })} disabled={!checkPerm("case_management", "case_detail_keyword", "edit")} placeholder="客戶 PO 編號" />
+            <div className="flex items-center gap-1">
+              <IMESafeInput value={caseData.clientPoNumber} onSave={(v) => save({ clientPoNumber: v })} disabled={!checkPerm("case_management", "case_detail_keyword", "edit")} placeholder="客戶 PO 編號" className="flex-1" />
+              <CopyButton value={caseData.clientPoNumber} />
+            </div>
           </Field>
         </div>
       )}
