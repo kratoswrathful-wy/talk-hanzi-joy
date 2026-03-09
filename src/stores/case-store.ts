@@ -106,6 +106,7 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.contact !== undefined) map.contact = c.contact;
   if (c.keyword !== undefined) map.keyword = c.keyword;
   if (c.clientPoNumber !== undefined) map.client_po_number = c.clientPoNumber;
+  if (c.clientCaseLink !== undefined) map.client_case_link = c.clientCaseLink;
   if (c.category !== undefined) map.category = c.category;
   if (c.workType !== undefined) map.work_type = c.workType;
   if (c.workGroups !== undefined) {
