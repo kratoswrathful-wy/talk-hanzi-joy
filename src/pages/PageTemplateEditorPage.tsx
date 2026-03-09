@@ -10,6 +10,7 @@ import { toast } from "@/hooks/use-toast";
 import { pageTemplateStore, usePageTemplates, PAGE_MODULE_LABELS } from "@/stores/page-template-store";
 import { getModuleFields, getFieldGroups, type TemplateFieldDef } from "@/data/page-template-fields";
 import ColorSelect from "@/components/ColorSelect";
+import MultiColorSelect from "@/components/MultiColorSelect";
 import DateTimePicker from "@/components/DateTimePicker";
 import FileField from "@/components/FileField";
 import { MultilineInput } from "@/components/ui/multiline-input";
