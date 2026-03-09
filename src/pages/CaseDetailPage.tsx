@@ -766,7 +766,13 @@ export default function CaseDetailPage() {
   };
 
   const handleDelivered = () => {
-    save({ status: "delivered" as CaseStatus });
+    // If multi-collab, also check all delivered boxes
+    if (caseData?.multiCollab && caseData.collabRows.length > 0) {
+      const updatedRows = caseData.collabRows.map(r => ({ ...r, delivered: true }));
+      save({ status: "delivered" as CaseStatus, collabRows: updatedRows });
+    } else {
+      save({ status: "delivered" as CaseStatus });
+    }
     toast({ title: "已交件完畢" });
   };
 
