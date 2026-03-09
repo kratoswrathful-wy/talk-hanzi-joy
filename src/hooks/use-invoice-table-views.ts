@@ -87,6 +87,8 @@ function createDefaultView(): TableView {
     isDefault: true,
     filterTree: createRootGroup(),
     sorts: [],
+    pinnedTop: [],
+    pinnedBottom: [],
     columnOrder: [...defaultColumnOrder],
     columnWidths: { ...defaultColumnWidths },
     hiddenColumns: [...defaultHiddenColumns],
