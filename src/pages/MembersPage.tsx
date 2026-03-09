@@ -606,7 +606,7 @@ export default function MembersPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleRemove} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              確認移除
+              確定移除
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
