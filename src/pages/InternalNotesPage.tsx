@@ -463,6 +463,7 @@ function NewNoteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
       sourceText: "",
       translatedText: "",
       questionOrNote: "",
+      questionOrNoteBlocks: [],
       referenceFiles: [],
       comments: [],
       invalidated: false,

@@ -667,6 +667,7 @@ export default function CaseDetailPage() {
       sourceText: "",
       translatedText: "",
       questionOrNote: "",
+      questionOrNoteBlocks: [],
       referenceFiles: [],
       comments: [],
       invalidated: false,
