@@ -50,6 +50,12 @@ export default function FileField({ value, onChange }: FileFieldProps) {
   const [totalBytes, setTotalBytes] = useState(0);
   const commonLinks = useCommonLinks();
 
+  // Use refs to always access latest value/onChange inside async upload
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
   const uploadFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
     cancelRef.current = false;
@@ -68,7 +74,9 @@ export default function FileField({ value, onChange }: FileFieldProps) {
       const path = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}/${file.name}`;
       const { error } = await supabase.storage.from("case-files").upload(path, file);
       if (cancelRef.current) break;
-      if (!error) {
+      if (error) {
+        console.error("File upload error:", file.name, error);
+      } else {
         const { data: urlData } = supabase.storage.from("case-files").getPublicUrl(path);
         newItems.push({ name: file.name, url: urlData.publicUrl, size: file.size });
       }
@@ -76,10 +84,10 @@ export default function FileField({ value, onChange }: FileFieldProps) {
       setUploadedBytes(doneBytes);
     }
     if (newItems.length > 0 && !cancelRef.current) {
-      onChange([...value, ...newItems]);
+      onChangeRef.current([...valueRef.current, ...newItems]);
     }
     setUploading(false);
-  }, [value, onChange]);
+  }, []);
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
