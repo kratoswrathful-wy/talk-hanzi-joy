@@ -142,7 +142,7 @@ function ClientCaseLinkField({ value, onSave, disabled, defaultLabel }: {
           className="flex-1"
           onKeyDown={(e) => { if (e.key === "Enter") handleConfirmUrl(); }}
         />
-        <Button variant="outline" size="sm" className="shrink-0 text-xs" disabled={!urlInput.trim()} onClick={handleConfirmUrl}>確認</Button>
+        <Button variant="outline" size="sm" className="shrink-0 text-xs" disabled={!urlInput.trim()} onClick={handleConfirmUrl}>確定</Button>
       </div>
     </Field>
   );
