@@ -2248,12 +2248,17 @@ function StatusStyleSection() {
 /* ── Note Select Section (for noteStatus, noteNature) ── */
 function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; title: string; addLabel: string }) {
   const { options, customColors } = useSelectOptions(fieldKey);
+  const labelStyles = useLabelStyles();
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
   const [colorPickerId, setColorPickerId] = useState<string | null>(null);
+  const [textColorOpen, setTextColorOpen] = useState(false);
+
+  const textColorValue = fieldKey === "noteStatus" ? labelStyles.noteStatus.textColor : labelStyles.noteNature.textColor;
+  const setTextColor = fieldKey === "noteStatus" ? labelStyleStore.setNoteStatusTextColor : labelStyleStore.setNoteNatureTextColor;
 
   const handleAdd = () => {
     const label = newLabel.trim();
