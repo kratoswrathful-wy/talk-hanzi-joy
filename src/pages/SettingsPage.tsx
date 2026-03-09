@@ -2317,24 +2317,38 @@ export default function SettingsPage() {
   const isExecutive = primaryRole === "executive";
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">設定</h1>
         <p className="mt-1 text-sm text-muted-foreground">管理應用程式偏好設定</p>
       </div>
 
+      {/* Row 1: 任務類型 (left) — 內容性質 (right) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {canViewSection("task_type_order") && <TaskTypeOrderSection />}
+        <CaseCategorySection />
+      </div>
 
-      {/* Admin sections - based on permission config */}
-      {canViewSection("task_type_order") && <TaskTypeOrderSection />}
-      {canViewSection("task_type_order") && <BillingUnitOrderSection />}
-      {canViewSection("client_pricing") && <ClientPricingSection />}
-      <DispatchRouteSection />
-      <CaseCategorySection />
-      {/* TranslatorNotesSection removed - now in 團隊成員 page */}
+      {/* Row 2: 計費單位 (left) — 派案來源 (right) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {canViewSection("task_type_order") && <BillingUnitOrderSection />}
+        <DispatchRouteSection />
+      </div>
+
+      {/* Row 3: 客戶設定 (left) — 狀態標籤 (right) — collapsible, default collapsed */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {canViewSection("client_pricing") && <ClientPricingSection />}
+        <StatusStyleSection />
+      </div>
+
+      {/* Row 4: 內部註記狀態 (left) — 內部註記性質 (right) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <NoteSelectSection fieldKey="noteStatus" title="內部註記狀態" addLabel="新增狀態" />
+        <NoteSelectSection fieldKey="noteNature" title="內部註記性質" addLabel="新增性質" />
+      </div>
+
+      {/* Translator tiers - full width */}
       {canViewSection("translator_tiers") && <TranslatorTierSection />}
-      <NoteSelectSection fieldKey="noteStatus" title="內部註記狀態" addLabel="新增狀態" />
-      <NoteSelectSection fieldKey="noteNature" title="內部註記性質" addLabel="新增性質" />
-      <StatusStyleSection />
     </div>
   );
 }
