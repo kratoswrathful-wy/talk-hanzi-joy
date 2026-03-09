@@ -1008,14 +1008,13 @@ export default function CaseDetailPage() {
             </Button>
           )}
           {isPmOrAbove && (
-            <Button
-              variant="outline"
+            <CreateWithTemplateButton
+              module="cases"
+              onCreate={handleNewCase}
+              label="新增案件頁面"
               size="sm"
-              className="text-xs min-w-[88px]"
-              onClick={handleNewCase}
-            >
-              新增案件頁面
-            </Button>
+              className="text-xs"
+            />
           )}
           {/* Left-side grey button */}
           {isInquiry && isPmOrAbove ? (
