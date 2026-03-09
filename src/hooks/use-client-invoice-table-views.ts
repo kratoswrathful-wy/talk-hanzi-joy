@@ -35,6 +35,11 @@ function getFieldValue(
     case "status": return inv.status;
     case "feeCount": return inv.feeIds.length;
     case "totalAmount": return feeTotal ? feeTotal(inv.feeIds) : 0;
+    case "serviceFee": {
+      const total = inv.isRecordOnly ? (inv.recordAmount || 0) : (feeTotal ? feeTotal(inv.feeIds) : 0);
+      const paid = inv.payments.reduce((s: number, p: any) => s + (p.type === "full" ? (p.noFee ? total : (p.amount || 0)) : (p.amount || 0)), 0);
+      return inv.status === "collected" && paid < total ? total - paid : 0;
+    }
     case "transferDate": return inv.transferDate || "";
     case "note": return inv.note;
     case "createdBy": return inv.createdBy;
