@@ -1017,6 +1017,10 @@ export default function CaseDetailPage() {
               className="text-xs"
             />
           )}
+          <ApplyTemplateButton
+            module="cases"
+            onApply={(values) => save(values)}
+          />
           {/* Left-side grey button */}
           {isInquiry && isPmOrAbove ? (
             <Button
