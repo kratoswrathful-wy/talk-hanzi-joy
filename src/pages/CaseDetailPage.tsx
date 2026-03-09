@@ -517,7 +517,10 @@ export default function CaseDetailPage() {
   const [collabCountInput, setCollabCountInput] = useState("");
   const [collabEditOpen, setCollabEditOpen] = useState(false);
   const [collabEditInput, setCollabEditInput] = useState("");
-  const [collabCancelOpen, setCollabCancelOpen] = useState(false); // kept for potential future use
+  const [collabCancelOpen, setCollabCancelOpen] = useState(false);
+  const [collabCancelSelectedRows, setCollabCancelSelectedRows] = useState<Set<string>>(new Set());
+  const [collabCancelMode, setCollabCancelMode] = useState<"cancel" | "reduce">("cancel");
+  const [collabReduceTarget, setCollabReduceTarget] = useState(0);
   const [creatorName, setCreatorName] = useState("");
   const { primaryRole: currentRole, profile } = useAuth();
   const { checkPerm } = usePermissions();
