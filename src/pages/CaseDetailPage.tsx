@@ -534,6 +534,7 @@ export default function CaseDetailPage() {
   const canUseToolTemplate = checkPerm("case_management", "case_detail_toolTemplate", "edit");
   const { options: assigneeOptions } = useSelectOptions("assignee");
   const allInternalNotes = useInternalNotes(); // reactive
+  const allFees = useFees(); // reactive - for linked fees
 
   // Comment drafts
   const [commentDraft, setCommentDraft] = useState("");
