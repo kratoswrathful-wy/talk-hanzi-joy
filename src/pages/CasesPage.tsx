@@ -66,7 +66,7 @@ function CollabTranslationDeadlineCell({ collabRows, status }: { collabRows: Col
     const myRows = collabRows.filter(r => r.translator === displayName);
     const myUncompleted = myRows.filter(r => !r.taskCompleted);
     if (myUncompleted.length > 0) {
-      return <DeadlineText value={pickNearestDeadline(myUncompleted, "translationDeadline")} />;
+      return <DeadlineText value={pickEarliestDeadline(myUncompleted, "translationDeadline")} />;
     }
     return <DeadlineText value={pickLatestDeadline(myRows, "translationDeadline")} />;
   }
