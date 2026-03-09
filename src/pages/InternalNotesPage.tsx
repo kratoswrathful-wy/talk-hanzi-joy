@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { MultilineInput } from "@/components/ui/multiline-input";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -261,19 +262,49 @@ function NoteDetailView({
       <Separator />
 
       <Field label="檔案名稱" icon="≡">
-        <Input value={note.fileName} onChange={(e) => onUpdate({ fileName: e.target.value })} className="max-w-md" />
+        <MultilineInput 
+          value={note.fileName} 
+          onChange={(e) => onUpdate({ fileName: e.target.value })} 
+          className="max-w-md" 
+          minRows={1}
+          maxRows={3}
+        />
       </Field>
       <Field label="ID / 行數" icon="≡">
-        <Input value={note.idRowCount} onChange={(e) => onUpdate({ idRowCount: e.target.value })} className="max-w-xs" />
+        <MultilineInput 
+          value={note.idRowCount} 
+          onChange={(e) => onUpdate({ idRowCount: e.target.value })} 
+          className="max-w-xs"
+          minRows={1}
+          maxRows={2}
+        />
       </Field>
       <Field label="原文" icon="≡">
-        <Textarea value={note.sourceText} onChange={(e) => onUpdate({ sourceText: e.target.value })} className="min-h-[60px]" />
+        <MultilineInput 
+          value={note.sourceText} 
+          onChange={(e) => onUpdate({ sourceText: e.target.value })} 
+          className="min-h-[60px]"
+          minRows={3}
+          maxRows={8}
+        />
       </Field>
       <Field label="譯文" icon="≡">
-        <Textarea value={note.translatedText} onChange={(e) => onUpdate({ translatedText: e.target.value })} className="min-h-[60px]" />
+        <MultilineInput 
+          value={note.translatedText} 
+          onChange={(e) => onUpdate({ translatedText: e.target.value })} 
+          className="min-h-[60px]"
+          minRows={3}
+          maxRows={8}
+        />
       </Field>
       <Field label="問題或註記內容" icon="≡">
-        <Textarea value={note.questionOrNote} onChange={(e) => onUpdate({ questionOrNote: e.target.value })} className="min-h-[80px]" />
+        <MultilineInput 
+          value={note.questionOrNote} 
+          onChange={(e) => onUpdate({ questionOrNote: e.target.value })} 
+          className="min-h-[80px]"
+          minRows={4}
+          maxRows={10}
+        />
       </Field>
 
       <Field label="參考資料或截圖" icon="📎">

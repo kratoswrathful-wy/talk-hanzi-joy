@@ -4,6 +4,7 @@ import { ArrowLeft, Trash2, Plus, X, Copy, Check, ExternalLink } from "lucide-re
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MultilineInput } from "@/components/ui/multiline-input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -317,13 +318,15 @@ function ToolInstance({
           }
           return (
             <Field key={f.id} label={f.label}>
-              <div className="flex items-center gap-1.5">
-                <Input
+              <div className="flex items-start gap-1.5">
+                <MultilineInput
                   value={values[f.id] || ""}
                   onChange={(e) =>
                     onUpdate({ fieldValues: { ...values, [f.id]: e.target.value } })
                   }
                   className="max-w-xs"
+                  minRows={1}
+                  maxRows={5}
                 />
                 <CopyButton value={values[f.id] || ""} />
                 <button
@@ -341,17 +344,22 @@ function ToolInstance({
           addingField ? (
             addingFieldType ? (
               <div className="flex items-center gap-1.5 py-1 ml-[132px]">
-                <Input
-                  value={newFieldLabel}
-                  onChange={(e) => setNewFieldLabel(e.target.value)}
-                  placeholder="欄位名稱"
-                  className="h-7 text-sm w-40"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && newFieldLabel.trim()) handleAddField();
-                    if (e.key === "Escape") { setAddingField(false); setAddingFieldType(null); setNewFieldLabel(""); }
-                  }}
-                />
+            <MultilineInput
+              value={newFieldLabel}
+              onChange={(e) => setNewFieldLabel(e.target.value)}
+              placeholder="欄位名稱"
+              className="h-7 text-sm w-40"
+              minRows={1}
+              maxRows={3}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && newFieldLabel.trim()) {
+                  e.preventDefault();
+                  handleAddField();
+                }
+                if (e.key === "Escape") { setAddingField(false); setAddingFieldType(null); setNewFieldLabel(""); }
+              }}
+            />
                 <Badge variant="secondary" className="text-[10px] shrink-0">
                   {addingFieldType === "text" ? "文字" : "檔案"}
                 </Badge>
@@ -903,7 +911,13 @@ export default function CaseDetailPage() {
       </div>
 
       <Field label="案件編號">
-        <Input value={caseData.title} onChange={(e) => save({ title: e.target.value })} className="max-w-md" />
+        <MultilineInput 
+          value={caseData.title} 
+          onChange={(e) => save({ title: e.target.value })} 
+          className="max-w-md" 
+          minRows={1}
+          maxRows={3}
+        />
       </Field>
       <Field label="狀態">
         <CaseStatusBadge status={caseData.status} />
@@ -1033,10 +1047,22 @@ export default function CaseDetailPage() {
 
       <h2 className="text-base font-semibold">準則與檔案</h2>
       <Field label="交件方式">
-        <Input value={caseData.deliveryMethod} onChange={(e) => save({ deliveryMethod: e.target.value })} className="max-w-md" />
+        <MultilineInput 
+          value={caseData.deliveryMethod} 
+          onChange={(e) => save({ deliveryMethod: e.target.value })} 
+          className="max-w-md"
+          minRows={1}
+          maxRows={3}
+        />
       </Field>
       <Field label="客戶收件">
-        <Input value={caseData.clientReceipt} onChange={(e) => save({ clientReceipt: e.target.value })} className="max-w-md" />
+        <MultilineInput 
+          value={caseData.clientReceipt} 
+          onChange={(e) => save({ clientReceipt: e.target.value })} 
+          className="max-w-md"
+          minRows={1}
+          maxRows={3}
+        />
       </Field>
       <Field label="自製準則頁面">
         <FileField value={Array.isArray(caseData.customGuidelinesUrl) ? caseData.customGuidelinesUrl : []} onChange={(v) => save({ customGuidelinesUrl: v })} />

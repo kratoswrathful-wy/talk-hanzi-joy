@@ -10,6 +10,7 @@ import { useLabelStyles, labelStyleStore } from "@/stores/label-style-store";
 import { useToolTemplates, toolTemplateStore, type ToolTemplate, type TemplateField } from "@/stores/tool-template-store";
 import { useCommonLinks, commonLinksStore } from "@/stores/common-links-store";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MultilineInput } from "@/components/ui/multiline-input";
 import { cn } from "@/lib/utils";
 
 function getColorUsageMap(options: { label: string; color: string }[]): Record<string, string[]> {
@@ -78,15 +79,20 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
         >
           <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
           {editingId === f.id ? (
-            <Input
+            <MultilineInput
               value={editLabel}
               onChange={(e) => setEditLabel(e.target.value)}
               onBlur={() => handleRename(f.id)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleRename(f.id);
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleRename(f.id);
+                }
                 if (e.key === "Escape") setEditingId(null);
               }}
               className="h-6 text-xs flex-1"
+              minRows={1}
+              maxRows={3}
               autoFocus
             />
           ) : (
@@ -111,11 +117,13 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
       {adding ? (
         newFieldType ? (
           <div className="flex items-center gap-1.5 px-2">
-            <Input
+            <MultilineInput
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
               placeholder="欄位名稱"
               className="h-6 text-xs flex-1"
+              minRows={1}
+              maxRows={3}
               autoFocus
               onBlur={() => {
                 if (newLabel.trim() && addButtonRef.current) {
@@ -123,7 +131,10 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
                 }
               }}
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleAdd();
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleAdd();
+                }
                 if (e.key === "Escape") { setAdding(false); setNewFieldType(null); }
               }}
             />
@@ -254,15 +265,20 @@ function TemplateFieldManager({
           <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
            <div className="grid grid-cols-[80px_1fr] items-center gap-2 flex-1">
              {editingId === f.id ? (
-               <Input
+               <MultilineInput
                  value={editLabel}
                  onChange={(e) => setEditLabel(e.target.value)}
                  onBlur={() => handleRename(f.id)}
                  onKeyDown={(e) => {
-                   if (e.key === "Enter") handleRename(f.id);
+                   if (e.key === "Enter" && !e.shiftKey) {
+                     e.preventDefault();
+                     handleRename(f.id);
+                   }
                    if (e.key === "Escape") setEditingId(null);
                  }}
                  className="h-6 text-xs"
+                 minRows={1}
+                 maxRows={3}
                  autoFocus
                />
              ) : (
@@ -278,10 +294,12 @@ function TemplateFieldManager({
                  </Badge>
                </div>
              )}
-             <Input
+             <MultilineInput
                value={fieldValues[f.id] || ""}
                onChange={(e) => onFieldValuesChange({ ...fieldValues, [f.id]: e.target.value })}
                className="h-7 text-sm"
+               minRows={1}
+               maxRows={5}
              />
            </div>
           <button
@@ -295,11 +313,13 @@ function TemplateFieldManager({
       {adding ? (
         newFieldType ? (
           <div className="flex items-center gap-1.5">
-            <Input
+            <MultilineInput
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
               placeholder="欄位名稱"
               className="h-6 text-xs flex-1"
+              minRows={1}
+              maxRows={3}
               autoFocus
               onBlur={() => {
                 if (newLabel.trim() && addButtonRef.current) {
@@ -307,7 +327,10 @@ function TemplateFieldManager({
                 }
               }}
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleAdd();
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleAdd();
+                }
                 if (e.key === "Escape") { setAdding(false); setNewFieldType(null); setNewLabel(""); }
               }}
             />
