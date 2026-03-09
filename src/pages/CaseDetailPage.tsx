@@ -1008,17 +1008,32 @@ export default function CaseDetailPage() {
       {/* 本案費用 + 產生本案費用單 */}
       {isPmOrAbove && (
         <div className="flex items-start justify-between gap-4">
-          <Field label="本案費用">
+          <Field label={`本案費用（${(() => { const caseUrl = `${window.location.origin}/cases/${caseData.id}`; return allFees.filter((f) => f.internalNoteUrl === caseUrl).length; })()} 筆）`}>
             {(() => {
               const caseUrl = `${window.location.origin}/cases/${caseData.id}`;
               const linkedFees = allFees.filter((f) => f.internalNoteUrl === caseUrl);
               if (linkedFees.length === 0) return <span className="text-sm text-muted-foreground">尚無費用單</span>;
+              // Sort: primary first, then non-primary, then others
+              const sorted = [...linkedFees].sort((a, b) => {
+                const aP = a.clientInfo?.isFirstFee ? 0 : a.clientInfo?.notFirstFee ? 2 : 1;
+                const bP = b.clientInfo?.isFirstFee ? 0 : b.clientInfo?.notFirstFee ? 2 : 1;
+                return aP - bP;
+              });
               return (
-                <div className="flex flex-wrap gap-1.5">
-                  {linkedFees.map((f) => (
-                    <Link key={f.id} to={`/fees/${f.id}`} className="text-sm text-primary hover:underline underline-offset-2">
-                      {f.title || "未命名費用"}
-                    </Link>
+                <div className="space-y-1">
+                  {sorted.map((f) => (
+                    <div key={f.id} className="flex items-center gap-2 rounded px-1 py-0.5">
+                      <Link to={`/fees/${f.id}`} className="text-sm text-primary hover:underline underline-offset-2 truncate flex-1">
+                        {f.title || "未命名費用"}
+                      </Link>
+                      {f.assignee && <AssigneeTag label={f.assignee} size="sm" />}
+                      {f.clientInfo?.isFirstFee && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">主要</Badge>
+                      )}
+                      {f.clientInfo?.notFirstFee && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 text-muted-foreground">非主要</Badge>
+                      )}
+                    </div>
                   ))}
                 </div>
               );
