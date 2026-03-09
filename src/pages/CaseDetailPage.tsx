@@ -1400,10 +1400,12 @@ export default function CaseDetailPage() {
         {/* 內部提問或註記 */}
         <div className="space-y-2">
           <Label className="text-sm font-medium text-muted-foreground">內部提問或註記</Label>
-          <Button variant="outline" size="sm" className="gap-1 text-xs h-7" onClick={handleCreateInternalNote}>
-            <Plus className="h-3.5 w-3.5" />
-            新增
-          </Button>
+          <div>
+            <Button variant="outline" size="sm" className="gap-1 text-xs h-7" onClick={handleCreateInternalNote}>
+              <Plus className="h-3.5 w-3.5" />
+              新增
+            </Button>
+          </div>
           {linkedNotes.length > 0 ? (
             <div className="space-y-1">
               {linkedNotes.map((n) => (
