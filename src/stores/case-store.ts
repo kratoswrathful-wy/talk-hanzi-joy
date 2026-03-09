@@ -81,6 +81,7 @@ function fromDb(row: any): CaseRecord {
     internalRecords: Array.isArray(row.internal_records) ? row.internal_records : [],
     comments: Array.isArray(row.comments) ? row.comments : [],
     internalComments: Array.isArray(row.internal_comments) ? row.internal_comments : [],
+    bodyContent: Array.isArray(row.body_content) ? row.body_content : [],
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
