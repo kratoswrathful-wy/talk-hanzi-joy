@@ -517,7 +517,7 @@ export default function CaseDetailPage() {
   const [collabCountInput, setCollabCountInput] = useState("");
   const [collabEditOpen, setCollabEditOpen] = useState(false);
   const [collabEditInput, setCollabEditInput] = useState("");
-  const [collabCancelOpen, setCollabCancelOpen] = useState(false);
+  const [collabCancelOpen, setCollabCancelOpen] = useState(false); // kept for potential future use
   const [creatorName, setCreatorName] = useState("");
   const { primaryRole: currentRole, profile } = useAuth();
   const { checkPerm } = usePermissions();
