@@ -123,6 +123,7 @@ export default function ColorPicker({
   onAddCustomColor,
   onRemoveCustomColor,
   colorUsageMap = {},
+  onResetDefault,
 }: ColorPickerProps) {
   const [hsv, setHsv] = useState<[number, number, number]>(() => hexToHsv(value || "#FF0000"));
   const [hexInput, setHexInput] = useState(value || "#FF0000");
