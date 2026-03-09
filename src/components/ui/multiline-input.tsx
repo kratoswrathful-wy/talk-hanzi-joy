@@ -92,6 +92,11 @@ const MultilineInput = React.forwardRef<HTMLTextAreaElement, MultilineInputProps
       }
     }, [ref]);
 
+    const handleFocus = (e: React.FocusEvent<HTMLTextAreaElement>) => {
+      e.target.select();
+      props.onFocus?.(e);
+    };
+
     return (
       <textarea
         ref={mergedRef}
@@ -106,6 +111,7 @@ const MultilineInput = React.forwardRef<HTMLTextAreaElement, MultilineInputProps
         value={value}
         onKeyDown={handleKeyDown}
         onInput={autoResize}
+        onFocus={handleFocus}
         style={{
           overflow: 'hidden',
         }}
