@@ -813,23 +813,31 @@ export default function ClientInvoiceDetailPage() {
                 )}
               </div>
               {!isCollected && isAdmin && checkPerm("client_invoice", "cinv_detail_payFull", "edit") && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">收款</Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => {
-                      setFullPayAmount("");
-                      setFullPayNoFee(false);
-                      setShowFullPayDialog(true);
-                    }}>全額收齊</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => {
-                      setPartialPayAmount("");
-                      setPartialPayClose(false);
-                      setShowPartialPayDialog(true);
-                    }}>部份到帳</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                invoice.status === "partial_collected" ? (
+                  <Button variant="outline" size="sm" onClick={() => {
+                    setPartialPayAmount("");
+                    setPartialPayClose(false);
+                    setShowPartialPayDialog(true);
+                  }}>收款</Button>
+                ) : (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">收款</Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => {
+                        setFullPayAmount("");
+                        setFullPayNoFee(false);
+                        setShowFullPayDialog(true);
+                      }}>全額收齊</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => {
+                        setPartialPayAmount("");
+                        setPartialPayClose(false);
+                        setShowPartialPayDialog(true);
+                      }}>部份到帳</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )
               )}
             </div>
 
