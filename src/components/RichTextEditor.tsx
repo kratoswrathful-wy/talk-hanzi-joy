@@ -4,7 +4,7 @@ import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
 import { Block, BlockNoteEditor, PartialBlock } from "@blocknote/core";
 import { zhTW } from "@blocknote/core/locales";
-import { useRef, useCallback, useState } from "react";
+import { useRef, useCallback, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   FormattingToolbarController,
@@ -16,6 +16,8 @@ import {
   UnnestBlockButton,
   CreateLinkButton,
   ColorStyleButton,
+  SuggestionMenuController,
+  getDefaultReactSlashMenuItems,
 } from "@blocknote/react";
 import { Paintbrush, ClipboardPaste } from "lucide-react";
 
@@ -37,13 +39,30 @@ async function uploadFile(file: File): Promise<string> {
   return data.publicUrl;
 }
 
+// Titles to exclude from slash menu (heading levels 4-6)
+const excludedTitles = new Set([
+  "Heading 4", "Heading 5", "Heading 6",
+  // zhTW equivalents
+  "標題4", "標題 4", "標題5", "標題 5", "標題6", "標題 6",
+]);
+
+// Rename map for list items
+const renameMap: Record<string, { title: string; subtext?: string }> = {
+  "項目符號列表": { title: "項目符號清單", subtext: "用於顯示無序清單" },
+  "編號列表": { title: "編號清單", subtext: "用於顯示編號清單" },
+  "可折疊標題1": { title: "可折疊標題 1" },
+  "可折疊標題2": { title: "可折疊標題 2" },
+  "可折疊標題3": { title: "可折疊標題 3" },
+  "Bullet List": { title: "項目符號清單", subtext: "Used to display an unordered list" },
+  "Numbered List": { title: "編號清單", subtext: "Used to display a numbered list" },
+};
+
 /** Copy/Paste Format button for the formatting toolbar */
 function CopyPasteFormatButton({ editor }: { editor: BlockNoteEditor<any, any, any> }) {
   const [storedStyles, setStoredStyles] = useState<Record<string, any> | null>(null);
 
   const handleClick = () => {
     if (storedStyles) {
-      // Paste format
       const styles = storedStyles;
       if (styles.bold !== undefined) editor.toggleStyles({ bold: styles.bold });
       if (styles.italic !== undefined) editor.toggleStyles({ italic: styles.italic });
@@ -54,7 +73,6 @@ function CopyPasteFormatButton({ editor }: { editor: BlockNoteEditor<any, any, a
       if (styles.backgroundColor) editor.addStyles({ backgroundColor: styles.backgroundColor });
       setStoredStyles(null);
     } else {
-      // Copy format — store current active styles
       const activeStyles = editor.getActiveStyles();
       setStoredStyles({ ...activeStyles });
     }
@@ -104,6 +122,41 @@ export default function RichTextEditor({
     onChangeRef.current?.(editor.document);
   }, [editor]);
 
+  // Build filtered & renamed slash menu items
+  const getFilteredItems = useCallback(
+    async (query: string) => {
+      const defaultItems = getDefaultReactSlashMenuItems(editor);
+      // Filter out heading 4-6 and collapsible heading 4-6
+      const filtered = defaultItems.filter((item) => {
+        const t = item.title;
+        if (excludedTitles.has(t)) return false;
+        if (/可折疊標題\s*[4-6]/.test(t) || /Collapsible Heading [4-6]/i.test(t)) return false;
+        return true;
+      });
+      // Rename items
+      const renamed = filtered.map((item) => {
+        const mapping = renameMap[item.title];
+        if (mapping) {
+          return { ...item, title: mapping.title, ...(mapping.subtext ? { subtext: mapping.subtext } : {}) };
+        }
+        if (item.title.includes("列表")) {
+          return { ...item, title: item.title.replace(/列表/g, "清單") };
+        }
+        return item;
+      });
+      // Simple query filtering
+      if (!query) return renamed;
+      const q = query.toLowerCase();
+      return renamed.filter(
+        (item) =>
+          item.title.toLowerCase().includes(q) ||
+          (item.subtext && item.subtext.toLowerCase().includes(q)) ||
+          (item.aliases && item.aliases.some((a: string) => a.toLowerCase().includes(q)))
+      );
+    },
+    [editor]
+  );
+
   return (
     <div className="rich-text-editor rounded-md border border-input bg-background">
       <BlockNoteView
@@ -113,6 +166,7 @@ export default function RichTextEditor({
         theme="dark"
         data-theming-css-variables-demo
         formattingToolbar={false}
+        slashMenu={false}
       >
         <FormattingToolbarController
           formattingToolbar={() => (
@@ -132,6 +186,10 @@ export default function RichTextEditor({
               <CopyPasteFormatButton editor={editor} key="copyPasteFormat" />
             </FormattingToolbar>
           )}
+        />
+        <SuggestionMenuController
+          triggerCharacter="/"
+          getItems={getFilteredItems}
         />
       </BlockNoteView>
     </div>
