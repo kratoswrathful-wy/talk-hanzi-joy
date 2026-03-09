@@ -125,16 +125,24 @@
     width: 14px !important;
     height: 14px !important;
   }
-  /* Title text */
+  /* Title text – white */
   .rich-text-editor .bn-suggestion-menu [class*="title"],
   .rich-text-editor [class*="suggestionMenuItem"] [class*="title"] {
     font-size: 0.75rem !important;
+    color: hsl(var(--foreground)) !important;
   }
-  /* Subtext */
+  /* Subtext / description – gray */
   .rich-text-editor .bn-suggestion-menu [class*="subtext"],
   .rich-text-editor .bn-suggestion-menu [class*="badge"],
-  .rich-text-editor [class*="suggestionMenuItem"] [class*="subtext"] {
+  .rich-text-editor [class*="suggestionMenuItem"] [class*="subtext"],
+  .rich-text-editor .bn-suggestion-menu [class*="Subtext"],
+  .rich-text-editor .bn-suggestion-menu [class*="Badge"] {
     font-size: 0.625rem !important; /* 10px */
+    color: hsl(var(--muted-foreground)) !important;
+  }
+  /* Also target second line / child spans inside menu items */
+  .rich-text-editor .bn-suggestion-menu [role="option"] > div > :nth-child(2),
+  .rich-text-editor .bn-suggestion-menu [role="option"] > div > span:last-child {
     color: hsl(var(--muted-foreground)) !important;
   }
   /* Group headers */
