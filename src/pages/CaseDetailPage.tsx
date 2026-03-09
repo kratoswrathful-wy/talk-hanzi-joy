@@ -345,15 +345,15 @@ function ToolInstance({
             addingFieldType ? (
               <div className="flex items-center gap-1.5 py-1 ml-[132px]">
             <MultilineInput
-              value={newLabel}
-              onChange={(e) => setNewLabel(e.target.value)}
+              value={newFieldLabel}
+              onChange={(e) => setNewFieldLabel(e.target.value)}
               placeholder="欄位名稱"
               className="h-7 text-sm w-40"
               minRows={1}
               maxRows={3}
               autoFocus
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && newLabel.trim()) {
+                if (e.key === "Enter" && !e.shiftKey && newFieldLabel.trim()) {
                   e.preventDefault();
                   handleAddField();
                 }
