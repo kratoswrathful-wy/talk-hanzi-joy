@@ -51,8 +51,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
   const displayName = profile?.display_name || "";
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const isDispatched = caseStatus === "dispatched";
-  const isTaskCompleted = caseStatus === "task_completed";
+  // removed: isDispatched, isTaskCompleted no longer needed
 
   // Segment overlay state
   const [segmentOverlay, setSegmentOverlay] = useState<{ idx: number; value: string } | null>(null);
