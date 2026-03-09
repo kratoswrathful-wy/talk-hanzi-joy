@@ -43,6 +43,7 @@ export default function FileField({ value, onChange }: FileFieldProps) {
   const [urlDraft, setUrlDraft] = useState("");
   const [urlNameDraft, setUrlNameDraft] = useState("");
   const [linksOpen, setLinksOpen] = useState(false);
+  const [actionsExpanded, setActionsExpanded] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadTotal, setUploadTotal] = useState(0);
   const [uploadedBytes, setUploadedBytes] = useState(0);
