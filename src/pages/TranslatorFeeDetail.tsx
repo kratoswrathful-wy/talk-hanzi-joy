@@ -726,8 +726,8 @@ export default function TranslatorFeeDetail() {
           // 同步工作類型到客戶計費項目
           const mappedClientItems: import("@/data/fee-mock-data").ClientTaskItem[] = workTypes.map((wt: string, idx: number) => {
             const matchedType = matchTaskType(wt);
-            const cp = clientInfo.client
-              ? defaultPricingStore.getClientPrice(clientInfo.client, matchedType, billingUnit) ?? 0
+            const cp = effectiveClient
+              ? defaultPricingStore.getClientPrice(effectiveClient, matchedType, billingUnit) ?? 0
               : 0;
             return {
               id: `ci-case-${Date.now()}-${idx}`,
@@ -737,7 +737,12 @@ export default function TranslatorFeeDetail() {
               clientPrice: cp,
             };
           });
-          const updatedClientInfo = { ...clientInfo, clientTaskItems: mappedClientItems };
+          const updatedClientInfo: ClientInfo = {
+            ...clientInfo,
+            ...(caseClient ? { client: caseClient } : {}),
+            ...(caseContact ? { contact: caseContact } : {}),
+            clientTaskItems: mappedClientItems,
+          };
           setClientInfo(updatedClientInfo);
           if (id) feeStore.updateFee(id, { clientInfo: updatedClientInfo });
         } else if (unitCount) {
