@@ -1466,6 +1466,19 @@ export default function CaseDetailPage() {
 
       <Separator />
 
+      {/* 正文 */}
+      <div className="space-y-2">
+        <h2 className="text-base font-semibold">正文</h2>
+        <Suspense fallback={<div className="h-32 rounded-md border border-input bg-background animate-pulse" />}>
+          <RichTextEditor
+            initialContent={caseData.bodyContent || []}
+            onChange={(blocks) => save({ bodyContent: blocks })}
+          />
+        </Suspense>
+      </div>
+
+      <Separator />
+
       {/* Meta info */}
       <div className="flex gap-6 text-xs text-muted-foreground">
         <span>建立者：{creatorName || "—"}</span>
