@@ -21,6 +21,7 @@ import ClientInvoiceDetailPage from "@/pages/ClientInvoiceDetailPage";
 import CasesPage from "@/pages/CasesPage";
 import CaseDetailPage from "@/pages/CaseDetailPage";
 import ToolManagementPage from "@/pages/ToolManagementPage";
+import PageTemplateEditorPage from "@/pages/PageTemplateEditorPage";
 import FieldReferencePage from "@/pages/FieldReferencePage";
 import InternalNotesPage from "@/pages/InternalNotesPage";
 import NotFound from "./pages/NotFound";
