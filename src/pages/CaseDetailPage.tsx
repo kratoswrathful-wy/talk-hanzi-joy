@@ -911,7 +911,13 @@ export default function CaseDetailPage() {
       </div>
 
       <Field label="案件編號">
-        <Input value={caseData.title} onChange={(e) => save({ title: e.target.value })} className="max-w-md" />
+        <MultilineInput 
+          value={caseData.title} 
+          onChange={(e) => save({ title: e.target.value })} 
+          className="max-w-md" 
+          minRows={1}
+          maxRows={3}
+        />
       </Field>
       <Field label="狀態">
         <CaseStatusBadge status={caseData.status} />
