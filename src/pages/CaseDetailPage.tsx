@@ -896,12 +896,21 @@ export default function CaseDetailPage() {
             >
               取消指派
             </Button>
-          ) : (isTaskCompleted || isDelivered || isFeedback) && isPmOrAbove ? (
+          ) : (isDelivered || isFeedback) && isPmOrAbove ? (
             <Button
               size="sm"
               className="text-xs min-w-[88px] text-white hover:opacity-80"
               style={{ backgroundColor: '#6B7280' }}
-              onClick={handleRevertToFeedback}
+              onClick={handleRevertToDispatched}
+            >
+              退回修正
+            </Button>
+          ) : isTaskCompleted && isPmOrAbove ? (
+            <Button
+              size="sm"
+              className="text-xs min-w-[88px] text-white hover:opacity-80"
+              style={{ backgroundColor: '#6B7280' }}
+              onClick={handleRevertToDispatched}
             >
               退回修正
             </Button>
@@ -910,7 +919,7 @@ export default function CaseDetailPage() {
               size="sm"
               className="text-xs min-w-[88px] text-white hover:opacity-80"
               style={{ backgroundColor: '#6B7280' }}
-              onClick={handleRevertToDispatched}
+              onClick={handleRevertToFeedback}
             >
               退回處理
             </Button>
