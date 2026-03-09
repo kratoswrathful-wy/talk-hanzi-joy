@@ -1107,10 +1107,10 @@ export default function CaseDetailPage() {
       </div>
       <div className="grid grid-cols-2 gap-4">
         <Field label="翻譯交期">
-          <DateTimePicker value={caseData.translationDeadline} onChange={(v) => save({ translationDeadline: v })} className="w-full" />
+          <DateTimePicker value={caseData.translationDeadline} onChange={(v) => save({ translationDeadline: v })} className="w-full" utcOffsetHours={userUtcOffset} />
         </Field>
         <Field label="審稿交期">
-          <DateTimePicker value={caseData.reviewDeadline} onChange={(v) => save({ reviewDeadline: v })} className="w-full" />
+          <DateTimePicker value={caseData.reviewDeadline} onChange={(v) => save({ reviewDeadline: v })} className="w-full" utcOffsetHours={userUtcOffset} />
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-4">
