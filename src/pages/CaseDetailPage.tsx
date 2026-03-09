@@ -1877,6 +1877,129 @@ export default function CaseDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Multi-collab: initial count dialog */}
+      <AlertDialog open={collabCountDialogOpen} onOpenChange={(v) => { if (!v) setCollabCountDialogOpen(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>設定譯者人次需求</AlertDialogTitle>
+            <AlertDialogDescription>請輸入協作表格的列數（譯者人次）。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Input
+              type="number"
+              min={1}
+              value={collabCountInput}
+              onChange={(e) => setCollabCountInput(e.target.value)}
+              placeholder="人次數"
+              className="w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              autoFocus
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!collabCountInput || Number(collabCountInput) < 1}
+              onClick={() => {
+                const count = Number(collabCountInput);
+                const rows: CollabRow[] = Array.from({ length: count }, (_, i) => ({
+                  id: `cr-${Date.now()}-${i}`,
+                  segment: "",
+                  translator: "",
+                  unitCount: 0,
+                  accepted: false,
+                  translationDeadline: null,
+                  reviewer: "",
+                  reviewDeadline: null,
+                  taskCompleted: false,
+                  delivered: false,
+                }));
+                save({ multiCollab: true, collabCount: count, collabRows: rows });
+                setCollabCountDialogOpen(false);
+                toast({ title: `已啟用多人協作（${count} 人次）` });
+              }}
+            >
+              確認
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Multi-collab: edit count dialog */}
+      <AlertDialog open={collabEditOpen} onOpenChange={(v) => { if (!v) setCollabEditOpen(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>修改譯者人次需求</AlertDialogTitle>
+            <AlertDialogDescription>變更列數。已有資料會保留，縮減時不得少於目前已承接人數。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Input
+              type="number"
+              min={1}
+              value={collabEditInput}
+              onChange={(e) => setCollabEditInput(e.target.value)}
+              placeholder="人次數"
+              className="w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              autoFocus
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!collabEditInput || Number(collabEditInput) < 1}
+              onClick={() => {
+                const newCount = Number(collabEditInput);
+                const currentRows = caseData?.collabRows || [];
+                const acceptedCount = currentRows.filter(r => r.accepted).length;
+                if (newCount < acceptedCount) {
+                  toast({ title: "無法減少列數", description: `目前已有 ${acceptedCount} 位譯者承接，不可將列數減少至低於此數目。請先調整各列內容。`, variant: "destructive" });
+                  return;
+                }
+                let newRows: CollabRow[];
+                if (newCount > currentRows.length) {
+                  newRows = [...currentRows, ...Array.from({ length: newCount - currentRows.length }, (_, i) => ({
+                    id: `cr-${Date.now()}-${i}`,
+                    segment: "",
+                    translator: "",
+                    unitCount: 0,
+                    accepted: false,
+                    translationDeadline: null,
+                    reviewer: "",
+                    reviewDeadline: null,
+                    taskCompleted: false,
+                    delivered: false,
+                  }))];
+                } else {
+                  newRows = currentRows.slice(0, newCount);
+                }
+                save({ collabCount: newCount, collabRows: newRows });
+                setCollabEditOpen(false);
+                toast({ title: `人次數已更新為 ${newCount}` });
+              }}
+            >
+              確認
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Multi-collab: cancel confirmation */}
+      <AlertDialog open={collabCancelOpen} onOpenChange={(v) => { if (!v) setCollabCancelOpen(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>取消多人協作</AlertDialogTitle>
+            <AlertDialogDescription>確定要取消多人協作嗎？協作表格資料將被清除，恢復為單一譯者模式。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              save({ multiCollab: false, collabCount: 0, collabRows: [] });
+              setCollabCancelOpen(false);
+              toast({ title: "已取消多人協作" });
+            }}>確認取消</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
