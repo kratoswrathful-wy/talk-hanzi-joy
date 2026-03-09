@@ -75,6 +75,12 @@ interface Props {
   onToggleColumn: (key: string) => void;
   fieldMetasList?: FieldMeta[];
   statusOptionsList?: { value: string; label: string }[];
+  selectedIds?: string[];
+  onPinTop?: (ids: string[]) => void;
+  onPinBottom?: (ids: string[]) => void;
+  onUnpinItem?: (id: string) => void;
+  pinnedTop?: string[];
+  pinnedBottom?: string[];
 }
 
 export function FilterSortToolbar({
