@@ -1009,12 +1009,19 @@ export default function CaseDetailPage() {
             onUpdate={(u) => updateTool(idx, u)}
             onRemove={() => removeTool(idx)}
             showRemove={tools.length > 1}
+            canEditTool={canEditToolSelect}
+            canRemoveTool={canRemoveTool}
+            canAddField={canAddToolField}
+            canRemoveField={canRemoveToolField}
+            canUseTemplate={canUseToolTemplate}
           />
         ))}
-        <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={addTool}>
-          <Plus className="h-4 w-4" />
-          新增工具
-        </Button>
+        {canAddTool && (
+          <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={addTool}>
+            <Plus className="h-4 w-4" />
+            新增工具
+          </Button>
+        )}
       </div>
 
       <Separator />
@@ -1033,12 +1040,19 @@ export default function CaseDetailPage() {
             onRemove={() => removeQuestionTool(idx)}
             showRemove={questionTools.length > 1}
             toolFieldKey="questionTool"
+            canEditTool={canEditToolSelect}
+            canRemoveTool={canRemoveTool}
+            canAddField={canAddToolField}
+            canRemoveField={canRemoveToolField}
+            canUseTemplate={canUseToolTemplate}
           />
         ))}
-        <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={addQuestionTool}>
-          <Plus className="h-4 w-4" />
-          新增提問工具
-        </Button>
+        {canAddTool && (
+          <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={addQuestionTool}>
+            <Plus className="h-4 w-4" />
+            新增提問工具
+          </Button>
+        )}
       </div>
 
       {/* 內部提問或註記 */}
