@@ -67,8 +67,10 @@ function CaseStatusBadge({ status }: { status: CaseStatus }) {
   );
 }
 
-/** IME-safe title input: uses local state during editing, saves on blur */
-function TitleInput({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+/** IME-safe text input: uses local state during editing, saves on blur */
+function IMESafeInput({ value, onSave, disabled, placeholder, className, minRows, maxRows, borderless = true }: {
+  value: string; onSave: (v: string) => void; disabled?: boolean; placeholder?: string; className?: string; minRows?: number; maxRows?: number; borderless?: boolean;
+}) {
   const [local, setLocal] = useState(value);
   const [focused, setFocused] = useState(false);
 
@@ -85,6 +87,22 @@ function TitleInput({ value, onSave }: { value: string; onSave: (v: string) => v
         if (local !== value) onSave(local);
       }}
       onFocus={() => setFocused(true)}
+      className={className || "max-w-md"}
+      minRows={minRows ?? 1}
+      maxRows={maxRows ?? 3}
+      borderless={borderless}
+      disabled={disabled}
+      placeholder={placeholder}
+    />
+  );
+}
+
+/** IME-safe title input */
+function TitleInput({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  return (
+    <IMESafeInput
+      value={value}
+      onSave={onSave}
       className="max-w-md"
       minRows={1}
       maxRows={3}
@@ -1330,6 +1348,18 @@ export default function CaseDetailPage() {
         )}
       </div>
 
+      {/* 關鍵字 & 客戶 PO# — PM+ only */}
+      {checkPerm("case_management", "case_detail_keyword", "view") && (
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="關鍵字">
+            <IMESafeInput value={caseData.keyword} onSave={(v) => save({ keyword: v })} disabled={!checkPerm("case_management", "case_detail_keyword", "edit")} placeholder="客戶端案號或關鍵字" />
+          </Field>
+          <Field label="客戶 PO#">
+            <IMESafeInput value={caseData.clientPoNumber} onSave={(v) => save({ clientPoNumber: v })} disabled={!checkPerm("case_management", "case_detail_keyword", "edit")} placeholder="客戶 PO 編號" />
+          </Field>
+        </div>
+      )}
+
       {/* 本案費用 + 產生本案費用單 */}
       {(() => {
         const caseUrl = `${window.location.origin}/cases/${caseData.id}`;
@@ -1513,6 +1543,8 @@ export default function CaseDetailPage() {
                       ...(isMulti ? { sameCase: true, isFirstFee: true, notFirstFee: false } : {}),
                       ...(caseClient ? { client: caseClient } : {}),
                       ...(caseContact ? { contact: caseContact } : {}),
+                      ...(caseData.keyword ? { clientCaseId: caseData.keyword } : {}),
+                      ...(caseData.clientPoNumber ? { clientPoNumber: caseData.clientPoNumber } : {}),
                     },
                     notes: [],
                     editLogs: [],
@@ -1549,6 +1581,8 @@ export default function CaseDetailPage() {
                           notFirstFee: true,
                           ...(caseClient ? { client: caseClient } : {}),
                           ...(caseContact ? { contact: caseContact } : {}),
+                          ...(caseData.keyword ? { clientCaseId: caseData.keyword } : {}),
+                          ...(caseData.clientPoNumber ? { clientPoNumber: caseData.clientPoNumber } : {}),
                         },
                         notes: [],
                         editLogs: [],

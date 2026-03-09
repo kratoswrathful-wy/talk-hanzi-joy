@@ -652,6 +652,8 @@ export default function TranslatorFeeDetail() {
         const unitCount = caseRow.unit_count || 0;
         const caseClient = (caseRow.client || "").replace(/\s+/g, " ").trim();
         const caseContact = (caseRow.contact || "").replace(/\s+/g, " ").trim();
+        const caseKeyword = ((caseRow as any).keyword || "").trim();
+        const casePo = ((caseRow as any).client_po_number || "").trim();
 
         // Auto-create client/contact options if they don't exist
         if (caseClient) {
@@ -737,10 +739,12 @@ export default function TranslatorFeeDetail() {
               clientPrice: cp,
             };
           });
-          const updatedClientInfo: ClientInfo = {
+           const updatedClientInfo: ClientInfo = {
             ...clientInfo,
             ...(caseClient ? { client: caseClient } : {}),
             ...(caseContact ? { contact: caseContact } : {}),
+            ...(caseKeyword ? { clientCaseId: caseKeyword } : {}),
+            ...(casePo ? { clientPoNumber: casePo } : {}),
             clientTaskItems: mappedClientItems,
           };
           setClientInfo(updatedClientInfo);

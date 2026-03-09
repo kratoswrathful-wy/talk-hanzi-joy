@@ -168,7 +168,7 @@ export function usePermissions() {
       if (moduleKey === "permissions" && primaryRole !== "executive") return false;
       // 案件管理 - 本案費用區塊: member 預設限制
       if (moduleKey === "case_management" && primaryRole === "member") {
-        const memberRestrictedItems = ["case_fee_generate_button", "case_fee_warning", "case_fee_badges", "case_detail_client", "case_detail_contact", "case_draft_publish_prompt"];
+        const memberRestrictedItems = ["case_fee_generate_button", "case_fee_warning", "case_fee_badges", "case_detail_client", "case_detail_contact", "case_detail_keyword", "case_draft_publish_prompt"];
         if (memberRestrictedItems.includes(itemKey)) return false;
       }
       return true;
@@ -178,7 +178,7 @@ export function usePermissions() {
     if (!itemPerm) {
       // Same member defaults even when module has partial config
       if (moduleKey === "case_management" && primaryRole === "member") {
-        const memberRestrictedItems = ["case_fee_generate_button", "case_fee_warning", "case_fee_badges", "case_detail_client", "case_detail_contact", "case_draft_publish_prompt"];
+        const memberRestrictedItems = ["case_fee_generate_button", "case_fee_warning", "case_fee_badges", "case_detail_client", "case_detail_contact", "case_detail_keyword", "case_draft_publish_prompt"];
         if (memberRestrictedItems.includes(itemKey)) return false;
       }
       return true;
