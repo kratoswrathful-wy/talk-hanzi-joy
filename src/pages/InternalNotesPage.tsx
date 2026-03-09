@@ -839,7 +839,7 @@ export default function InternalNotesPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteSelected}>確認刪除</AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteSelected}>確定刪除</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -289,7 +289,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
             />
             <AlertDialogFooter className="mt-4">
               <AlertDialogCancel type="button">取消</AlertDialogCancel>
-              <AlertDialogAction type="submit">確認</AlertDialogAction>
+              <AlertDialogAction type="submit">確定</AlertDialogAction>
             </AlertDialogFooter>
           </form>
         </AlertDialogContent>

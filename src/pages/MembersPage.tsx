@@ -589,7 +589,7 @@ export default function MembersPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={(e) => { e.preventDefault(); handleRemoveStep1(); }}>確認</AlertDialogAction>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); handleRemoveStep1(); }}>確定</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -198,7 +198,7 @@ function FixInput({
           focused && "ring-2 ring-ring"
         )}
       />
-      <Button size="sm" onClick={tryConfirm}>確認</Button>
+      <Button size="sm" onClick={tryConfirm}>確定</Button>
     </div>
   );
 }

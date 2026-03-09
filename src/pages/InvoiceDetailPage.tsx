@@ -697,7 +697,7 @@ export default function InvoiceDetailPage() {
                 className="w-48 h-9"
                 autoFocus
               />
-              <Button size="sm" onClick={handlePartialPayment}>確認</Button>
+              <Button size="sm" onClick={handlePartialPayment}>確定</Button>
               <Button size="sm" variant="ghost" onClick={() => { setShowPartialInput(false); setPartialAmount(""); }}>取消</Button>
             </div>
           )}

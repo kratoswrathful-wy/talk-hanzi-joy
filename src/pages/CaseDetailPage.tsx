@@ -650,7 +650,7 @@ function ToolInstance({
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={dismissWarning}>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={() => pendingTpl && applyTemplate(pendingTpl)}>確認套用</AlertDialogAction>
+            <AlertDialogAction onClick={() => pendingTpl && applyTemplate(pendingTpl)}>確定套用</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

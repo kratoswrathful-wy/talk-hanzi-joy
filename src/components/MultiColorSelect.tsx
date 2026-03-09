@@ -243,7 +243,7 @@ export default function MultiColorSelect({
                               />
                               <div className="flex gap-1.5 justify-end">
                                 <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setRenamingOptionId(null)}>取消</Button>
-                                <Button size="sm" className="h-7 text-xs" disabled={!renameValue.trim()} onClick={() => handleRename(opt.id)}>確認</Button>
+                                <Button size="sm" className="h-7 text-xs" disabled={!renameValue.trim()} onClick={() => handleRename(opt.id)}>確定</Button>
                               </div>
                             </div>
                           ) : (
