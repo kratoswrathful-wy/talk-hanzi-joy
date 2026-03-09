@@ -59,6 +59,17 @@ function FieldValueEditor({
         />
       );
 
+    case "multi-select":
+    case "person-multi":
+      return (
+        <MultiColorSelect
+          fieldKey={field.selectKey || ""}
+          value={Array.isArray(value) ? value : []}
+          onValueChange={(v) => onChange(v)}
+          className="max-w-xs"
+        />
+      );
+
     case "date":
       return (
         <DateTimePicker
