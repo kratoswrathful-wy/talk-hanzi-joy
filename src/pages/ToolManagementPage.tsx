@@ -108,25 +108,43 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
         </div>
       ))}
       {adding ? (
-        <div className="flex items-center gap-1.5 px-2">
-          <Input
-            value={newLabel}
-            onChange={(e) => setNewLabel(e.target.value)}
-            placeholder="欄位名稱"
-            className="h-6 text-xs flex-1"
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleAdd();
-              if (e.key === "Escape") setAdding(false);
-            }}
-          />
-          <Button size="sm" className="h-6 text-xs px-2" disabled={!newLabel.trim()} onClick={handleAdd}>
-            新增
-          </Button>
-          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => setAdding(false)}>
-            取消
-          </Button>
-        </div>
+        newFieldType ? (
+          <div className="flex items-center gap-1.5 px-2">
+            <Input
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              placeholder="欄位名稱"
+              className="h-6 text-xs flex-1"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAdd();
+                if (e.key === "Escape") { setAdding(false); setNewFieldType(null); }
+              }}
+            />
+            <Badge variant="secondary" className="text-[10px] h-5 px-1.5 shrink-0">
+              {newFieldType === "file" ? "檔案" : "文字"}
+            </Badge>
+            <Button size="sm" className="h-6 text-xs px-2" disabled={!newLabel.trim()} onClick={handleAdd}>
+              新增
+            </Button>
+            <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => { setAdding(false); setNewFieldType(null); setNewLabel(""); }}>
+              取消
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 px-2">
+            <span className="text-xs text-muted-foreground">選擇欄位類型：</span>
+            <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => setNewFieldType("text")}>
+              文字
+            </Button>
+            <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => setNewFieldType("file")}>
+              檔案
+            </Button>
+            <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setAdding(false)}>
+              取消
+            </Button>
+          </div>
+        )
       ) : (
         <Button
           variant="ghost"
