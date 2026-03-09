@@ -730,7 +730,7 @@ export default function InternalNotesPage() {
         onToggleColumn={tableViews.toggleColumnVisibility}
         fieldMetasList={internalNotesFieldMetas}
         statusOptionsList={statusOptions}
-        selectedIds={rowSelection.selectedIds}
+        selectedIds={[...rowSelection.selectedIds]}
         onPinTop={tableViews.pinTop}
         onPinBottom={tableViews.pinBottom}
         onUnpinItem={tableViews.unpinItem}

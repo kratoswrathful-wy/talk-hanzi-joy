@@ -906,7 +906,7 @@ export default function TranslatorFees() {
         selectedCount={rowSelection.selectedCount}
         hiddenColumns={activeView.hiddenColumns || []}
         onToggleColumn={tableViews.toggleColumnVisibility}
-        selectedIds={rowSelection.selectedIds}
+        selectedIds={[...rowSelection.selectedIds]}
         onPinTop={tableViews.pinTop}
         onPinBottom={tableViews.pinBottom}
         onUnpinItem={tableViews.unpinItem}

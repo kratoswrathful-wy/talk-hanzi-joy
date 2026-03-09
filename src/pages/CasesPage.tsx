@@ -541,7 +541,7 @@ export default function CasesPage() {
           { value: "inquiry", label: "詢案中" },
           { value: "finalized", label: "開立完成" },
         ]}
-        selectedIds={rowSelection.selectedIds}
+        selectedIds={[...rowSelection.selectedIds]}
         onPinTop={tableViews.pinTop}
         onPinBottom={tableViews.pinBottom}
         onUnpinItem={tableViews.unpinItem}
