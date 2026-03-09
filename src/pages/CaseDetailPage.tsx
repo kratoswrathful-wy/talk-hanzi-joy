@@ -1030,8 +1030,9 @@ export default function CaseDetailPage() {
         // Permissions
         const canSeeButton = checkPerm("case_management", "case_fee_generate_button", "view");
         const canUseButton = checkPerm("case_management", "case_fee_generate_button", "edit");
-        const canSeeFeeWarning = isPmOrAbove;
-        const canSeeBadges = isPmOrAbove;
+        const canSeeFeeWarning = checkPerm("case_management", "case_fee_warning", "view");
+        const canSeeBadges = checkPerm("case_management", "case_fee_badges", "view");
+        const canSeeFeeLinks = checkPerm("case_management", "case_fee_links", "view");
         // For member: only show fees assigned to them
         const userDisplayName = profile?.display_name || "";
         const visibleFees = isMember
