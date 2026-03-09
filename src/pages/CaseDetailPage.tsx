@@ -258,7 +258,7 @@ function ToolInstance({
         )}
         <div className="flex items-center gap-2">
           <div className="flex-1">
-            <Field label={toolFieldKey === "questionTool" ? "提問工具" : "執行工具"}>
+            <Field label={toolLabel || "執行工具"}>
               <ColorSelect
                 fieldKey={toolFieldKey}
                 value={entry.tool}
