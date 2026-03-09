@@ -42,9 +42,9 @@ const logicLabels: Record<LogicOperator, string> = {
 function getOperatorsForType(type: string): FilterOperator[] {
   switch (type) {
     case "checkbox": return ["is_checked", "is_not_checked"];
-    case "number": case "computed": return ["equals", "not_equals", "gt", "lt"];
-    case "select": return ["equals", "not_equals"];
-    default: return ["equals", "not_equals", "contains"];
+    case "number": case "computed": return ["equals", "gt", "lt"];
+    case "select": return ["equals", "contains"];
+    default: return ["equals", "contains"];
   }
 }
 
