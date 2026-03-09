@@ -16,7 +16,7 @@ export const clientInvoiceFieldMetas: FieldMeta[] = [
   { key: "client", label: "客戶", type: "select" },
   { key: "status", label: "狀態", type: "select" },
   { key: "feeCount", label: "費用數", type: "computed" },
-  { key: "totalAmount", label: "總金額", type: "computed" },
+  { key: "totalAmount", label: "應收總額", type: "computed" },
   { key: "transferDate", label: "匯款日期", type: "date" },
   { key: "note", label: "備註", type: "text" },
   { key: "createdBy", label: "建立者", type: "text" },
