@@ -351,7 +351,7 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
   const handleToolChange = (newTool: string) => {
     // When changing tool, initialize fields from tool's default fields
     const selectedTool = toolOptions.find((o) => o.label === newTool);
-    const defaultFields = (selectedTool?.toolFields || []).map((f) => ({ id: f.id, label: f.label }));
+    const defaultFields = (selectedTool?.toolFields || []).map((f) => ({ id: f.id, label: f.label, type: "text" as const }));
     setDraft({ ...draft, tool: newTool, fields: defaultFields, fieldValues: {} });
   };
 
