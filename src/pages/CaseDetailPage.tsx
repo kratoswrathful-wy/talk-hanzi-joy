@@ -12,6 +12,7 @@ import { caseStore } from "@/hooks/use-case-store";
 import type { CaseRecord, ToolEntry, ToolEntryField, CaseStatus, CaseComment } from "@/data/case-types";
 import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
+import AssigneeTag from "@/components/AssigneeTag";
 import DateTimePicker from "@/components/DateTimePicker";
 import FileField from "@/components/FileField";
 import { CommentInput } from "@/components/comments/CommentInput";
