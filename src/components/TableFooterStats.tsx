@@ -64,7 +64,7 @@ export function TableFooterStats({
   };
 
   const computeValue = (config: NumericColumnConfig, mode: AggMode): string => {
-    if (mode === "count") return `${itemCount}`;
+    if (mode === "count") return `共 ${itemCount} 筆`;
     
     const values: number[] = [];
     for (const item of data) {
@@ -78,10 +78,11 @@ export function TableFooterStats({
     const total = values.reduce((s, v) => s + v, 0);
     const result = mode === "avg" ? total / values.length : total;
     
+    const prefix = mode === "sum" ? "總額 " : "平均 ";
     if (config.isCurrency !== false) {
-      return formatCurrency(Math.round(result));
+      return `${prefix}${formatCurrency(Math.round(result))}`;
     }
-    return mode === "avg" ? result.toFixed(1) : result.toLocaleString();
+    return `${prefix}${mode === "avg" ? result.toFixed(1) : result.toLocaleString()}`;
   };
 
   if (itemCount === 0) return null;
@@ -116,11 +117,11 @@ export function TableFooterStats({
               <td
                 key={col.key}
                 style={{ width, maxWidth: width }}
-                className="px-3 py-2 text-center"
+                className="px-3 py-2 text-right"
               >
                 <Popover>
                   <PopoverTrigger asChild>
-                    <button className="inline-flex items-center gap-1 text-xs font-medium tabular-nums text-muted-foreground hover:text-foreground transition-colors group">
+                    <button className="inline-flex items-center gap-1 text-xs font-medium tabular-nums text-muted-foreground hover:text-foreground transition-colors group ml-auto">
                       <span>{value}</span>
                       <ChevronDown className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity" />
                     </button>
