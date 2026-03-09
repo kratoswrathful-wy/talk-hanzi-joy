@@ -28,6 +28,7 @@ export interface ClientInfo {
   clientCaseId: string;     // 客戶端案號或關鍵字
   eciKeywords: string;      // ECI Keywords
   clientPoNumber: string;   // 客戶PO編號
+  clientCaseLink: { url: string; label: string }; // 客戶案件單連結
   dispatchRoute: string;    // 派案途徑
   reconciled: boolean;      // 對帳完成
   rateConfirmed: boolean;   // 費率無誤
@@ -46,6 +47,7 @@ export const defaultClientInfo: ClientInfo = {
   clientCaseId: "",
   eciKeywords: "",
   clientPoNumber: "",
+  clientCaseLink: { url: "", label: "" },
   dispatchRoute: "",
   reconciled: false,
   rateConfirmed: false,

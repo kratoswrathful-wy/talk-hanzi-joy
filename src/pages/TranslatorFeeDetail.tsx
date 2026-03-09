@@ -82,6 +82,30 @@ function DetailStatusBadge({ status }: { status: FeeStatus }) {
   );
 }
 
+/** Inline link input for 客戶案件單連結 on fee page */
+function FeeCaseLinkInput({ onSave, defaultLabel }: { onSave: (v: { url: string; label: string }) => void; defaultLabel: string }) {
+  const [urlInput, setUrlInput] = useState("");
+  const [labelInput, setLabelInput] = useState("");
+  const [step, setStep] = useState<"url" | "label">("url");
+
+  if (step === "label") {
+    return (
+      <div className="flex items-center gap-2">
+        <Input value={labelInput} onChange={(e) => setLabelInput(e.target.value)} placeholder="輸入顯示名稱" className="flex-1" onKeyDown={(e) => { if (e.key === "Enter") { onSave({ url: urlInput.trim(), label: labelInput.trim() || defaultLabel }); } }} autoFocus />
+        <Button variant="outline" size="sm" className="shrink-0 text-xs" onClick={() => onSave({ url: urlInput.trim(), label: labelInput.trim() || defaultLabel })}>確認</Button>
+        <button onClick={() => { setStep("url"); setUrlInput(""); }} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3.5 w-3.5" /></button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <Input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="貼上客戶案件單連結" className="flex-1" onKeyDown={(e) => { if (e.key === "Enter" && urlInput.trim()) { setStep("label"); setLabelInput(defaultLabel); } }} />
+      <Button variant="outline" size="sm" className="shrink-0 text-xs" disabled={!urlInput.trim()} onClick={() => { setStep("label"); setLabelInput(defaultLabel); }}>確認</Button>
+    </div>
+  );
+}
+
 
 interface EditLogEntry {
   id: string;
@@ -654,6 +678,9 @@ export default function TranslatorFeeDetail() {
         const caseContact = (caseRow.contact || "").replace(/\s+/g, " ").trim();
         const caseKeyword = ((caseRow as any).keyword || "").trim();
         const casePo = ((caseRow as any).client_po_number || "").trim();
+        const caseCaseLink = (caseRow as any).client_case_link && typeof (caseRow as any).client_case_link === "object"
+          ? (caseRow as any).client_case_link as { url: string; label: string }
+          : { url: "", label: "" };
 
         // Auto-create client/contact options if they don't exist
         if (caseClient) {
@@ -741,10 +768,11 @@ export default function TranslatorFeeDetail() {
           });
            const updatedClientInfo: ClientInfo = {
             ...clientInfo,
-            ...(caseClient ? { client: caseClient } : {}),
+             ...(caseClient ? { client: caseClient } : {}),
             ...(caseContact ? { contact: caseContact } : {}),
             ...(caseKeyword ? { clientCaseId: caseKeyword } : {}),
             ...(casePo ? { clientPoNumber: casePo } : {}),
+            ...(caseCaseLink.url ? { clientCaseLink: caseCaseLink } : {}),
             clientTaskItems: mappedClientItems,
           };
           setClientInfo(updatedClientInfo);
@@ -1760,73 +1788,110 @@ export default function TranslatorFeeDetail() {
             </div>
           </div>
 
-          {/* 相關案件 */}
-          <div className="grid gap-1.5">
-            <Label className="text-xs text-muted-foreground">相關案件</Label>
-            {(() => {
-              // Locking logic for 相關案件:
-              // 1. If internalNote has value (Notion fetched) → locked, no delete, tooltip "相關案件已擷取完畢，不得修改"
-              // 2. If any field is locked AND internalNote is empty → locked, tooltip "頁面上目前有鎖定欄位，無法擷取並修改資訊"
-              // 3. Otherwise → open
-              const anyFieldLocked = isFinalized || clientInfo.rateConfirmed || clientInfo.reconciled || linkedTranslatorInvoices.length > 0 || linkedClientInvoices.length > 0;
-              const noteFetched = !!internalNote;
-              const noteLocked = noteFetched || (anyFieldLocked && !internalNote);
-              const noteTooltip = noteFetched
-                ? "相關案件已擷取完畢，不得修改"
-                : (anyFieldLocked && !internalNote)
-                  ? "頁面上目前有鎖定欄位，無法擷取並修改資訊"
-                  : "";
-              const canEditNote = canEdit && !noteLocked;
+          {/* 相關案件 + 客戶案件單連結 */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* 相關案件 */}
+            <div className="grid gap-1.5">
+              <Label className="text-xs text-muted-foreground">相關案件</Label>
+              {(() => {
+                const anyFieldLocked = isFinalized || clientInfo.rateConfirmed || clientInfo.reconciled || linkedTranslatorInvoices.length > 0 || linkedClientInvoices.length > 0;
+                const noteFetched = !!internalNote;
+                const noteLocked = noteFetched || (anyFieldLocked && !internalNote);
+                const noteTooltip = noteFetched
+                  ? "相關案件已擷取完畢，不得修改"
+                  : (anyFieldLocked && !internalNote)
+                    ? "頁面上目前有鎖定欄位，無法擷取並修改資訊"
+                    : "";
+                const canEditNote = canEdit && !noteLocked;
 
-              if (canEditNote) {
-                // Editable empty state — show URL input
-                return (
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={notionUrlInput}
-                      onChange={(e) => setNotionUrlInput(e.target.value)}
-                      className="bg-secondary/50 flex-1"
-                      placeholder="貼上 Notion 案件頁面網址或本系統案件連結"
-                      onKeyDown={(e) => { if (e.key === "Enter") handleFetchFromUrl(); }}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0 text-xs"
-                      disabled={!notionUrlInput.trim() || notionLoading}
-                      onClick={handleFetchFromUrl}
-                    >
-                      {notionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "確認"}
-                    </Button>
-                  </div>
-                );
-              }
-
-              // Locked or read-only state
-              return (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div>
-                      {internalNoteUrl ? (
-                        <a
-                          href={internalNoteUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors cursor-pointer opacity-60"
-                        >
-                          {internalNote || internalNoteUrl}
-                        </a>
-                      ) : (
-                        <div className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-muted-foreground opacity-60">
-                          {internalNote || "未設定"}
-                        </div>
-                      )}
+                if (canEditNote) {
+                  return (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={notionUrlInput}
+                        onChange={(e) => setNotionUrlInput(e.target.value)}
+                        className="bg-secondary/50 flex-1"
+                        placeholder="貼上 Notion 案件頁面網址或本系統案件連結"
+                        onKeyDown={(e) => { if (e.key === "Enter") handleFetchFromUrl(); }}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 text-xs"
+                        disabled={!notionUrlInput.trim() || notionLoading}
+                        onClick={handleFetchFromUrl}
+                      >
+                        {notionLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "確認"}
+                      </Button>
                     </div>
-                  </TooltipTrigger>
-                  {noteTooltip && <TooltipContent>{noteTooltip}</TooltipContent>}
-                </Tooltip>
-              );
-            })()}
+                  );
+                }
+
+                return (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        {internalNoteUrl ? (
+                          <a
+                            href={internalNoteUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors cursor-pointer opacity-60"
+                          >
+                            {internalNote || internalNoteUrl}
+                          </a>
+                        ) : (
+                          <div className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-muted-foreground opacity-60">
+                            {internalNote || "未設定"}
+                          </div>
+                        )}
+                      </div>
+                    </TooltipTrigger>
+                    {noteTooltip && <TooltipContent>{noteTooltip}</TooltipContent>}
+                  </Tooltip>
+                );
+              })()}
+            </div>
+
+            {/* 客戶案件單連結 */}
+            {isManager && (
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">客戶案件單連結</Label>
+                {(() => {
+                  const link = clientInfo.clientCaseLink || { url: "", label: "" };
+                  const locked = isFinalized || clientInfo.reconciled || linkedClientInvoices.length > 0;
+
+                  if (link.url) {
+                    return (
+                      <div className="flex items-center gap-2 h-10">
+                        <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline underline-offset-2 hover:text-primary/80 truncate">
+                          {link.label || link.url}
+                        </a>
+                        {canEdit && !locked && (
+                          <button onClick={() => {
+                            const updated = { ...clientInfo, clientCaseLink: { url: "", label: "" } };
+                            setClientInfo(updated);
+                            if (id) feeStore.updateFee(id, { clientInfo: updated });
+                          }} className="text-muted-foreground hover:text-destructive shrink-0">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  if (!canEdit || locked) {
+                    return <div className="flex items-center h-10 text-sm text-muted-foreground">未設定</div>;
+                  }
+
+                  return <FeeCaseLinkInput onSave={(v) => {
+                    const updated = { ...clientInfo, clientCaseLink: v };
+                    setClientInfo(updated);
+                    if (id) feeStore.updateFee(id, { clientInfo: updated });
+                  }} defaultLabel={clientInfo.clientPoNumber || clientInfo.clientCaseId || (title ? `${title}客戶案件連結` : "連結")} />;
+                })()}
+              </div>
+            )}
           </div>
 
           {/* 客戶 + 聯絡人 */}

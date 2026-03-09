@@ -42,6 +42,7 @@ export type Database = {
           case_reference_materials: Json | null
           category: string
           client: string
+          client_case_link: Json | null
           client_guidelines: Json
           client_po_number: string
           client_question_form: boolean
@@ -103,6 +104,7 @@ export type Database = {
           case_reference_materials?: Json | null
           category?: string
           client?: string
+          client_case_link?: Json | null
           client_guidelines?: Json
           client_po_number?: string
           client_question_form?: boolean
@@ -164,6 +166,7 @@ export type Database = {
           case_reference_materials?: Json | null
           category?: string
           client?: string
+          client_case_link?: Json | null
           client_guidelines?: Json
           client_po_number?: string
           client_question_form?: boolean

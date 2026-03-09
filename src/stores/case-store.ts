@@ -41,6 +41,9 @@ function fromDb(row: any): CaseRecord {
     contact: row.contact ?? "",
     keyword: row.keyword ?? "",
     clientPoNumber: row.client_po_number ?? "",
+    clientCaseLink: (row.client_case_link && typeof row.client_case_link === "object" && !Array.isArray(row.client_case_link))
+      ? row.client_case_link as { url: string; label: string }
+      : { url: "", label: "" },
     category: row.category ?? "",
     workType: Array.isArray(row.work_type) ? row.work_type : [],
     workGroups,
@@ -103,6 +106,7 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.contact !== undefined) map.contact = c.contact;
   if (c.keyword !== undefined) map.keyword = c.keyword;
   if (c.clientPoNumber !== undefined) map.client_po_number = c.clientPoNumber;
+  if (c.clientCaseLink !== undefined) map.client_case_link = c.clientCaseLink;
   if (c.category !== undefined) map.category = c.category;
   if (c.workType !== undefined) map.work_type = c.workType;
   if (c.workGroups !== undefined) {
