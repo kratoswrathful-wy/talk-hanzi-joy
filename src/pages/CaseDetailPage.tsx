@@ -1360,6 +1360,16 @@ export default function CaseDetailPage() {
         </div>
       )}
 
+      {/* 客戶案件單連結 — PM+ only, same perm as keyword */}
+      {checkPerm("case_management", "case_detail_keyword", "view") && (
+        <ClientCaseLinkField
+          value={caseData.clientCaseLink}
+          onSave={(v) => save({ clientCaseLink: v })}
+          disabled={!checkPerm("case_management", "case_detail_keyword", "edit")}
+          defaultLabel={caseData.clientPoNumber || caseData.keyword || `${caseData.title}客戶案件連結`}
+        />
+      )}
+
       {/* 本案費用 + 產生本案費用單 */}
       {(() => {
         const caseUrl = `${window.location.origin}/cases/${caseData.id}`;
