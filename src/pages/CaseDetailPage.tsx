@@ -208,7 +208,7 @@ function ToolInstance({
 
   const handleToolChange = (newTool: string) => {
     const newToolOpt = toolOptions.find((o) => o.label === newTool);
-    const defaultFields = (newToolOpt?.toolFields || []).map((f) => ({ id: f.id, label: f.label, type: "text" as const }));
+    const defaultFields = (newToolOpt?.toolFields || []).map((f) => ({ id: f.id, label: f.label, type: (f.type || "text") as "text" | "file" }));
     onUpdate({ tool: newTool, fields: defaultFields, fieldValues: {}, fileValues: {} });
   };
 
