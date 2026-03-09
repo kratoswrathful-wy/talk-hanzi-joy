@@ -224,7 +224,7 @@ function NoteDetailView({
       </div>
 
       {/* Title — read-only */}
-      <div className="text-lg font-semibold px-0">
+      <div className="text-2xl font-semibold tracking-tight px-0">
         {note.title || <span className="text-muted-foreground italic">未命名</span>}
       </div>
       <Separator />
