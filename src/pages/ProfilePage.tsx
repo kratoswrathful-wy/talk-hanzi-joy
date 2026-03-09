@@ -257,7 +257,13 @@ export default function ProfilePage() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="displayName">顯示名稱</Label>
-            <Input id="displayName" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+            <MultilineInput 
+              id="displayName" 
+              value={displayName} 
+              onChange={(e) => setDisplayName(e.target.value)} 
+              minRows={1}
+              maxRows={2}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">電子信箱</Label>
