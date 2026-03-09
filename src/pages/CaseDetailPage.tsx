@@ -1012,9 +1012,9 @@ export default function CaseDetailPage() {
         const translators: string[] = Array.isArray(caseData.translator) ? caseData.translator : [];
         const feeCount = linkedFees.length;
         const translatorCount = translators.length;
-        const showButton = isPmOrAbove && feeCount < translatorCount;
-        const showTooMany = feeCount > translatorCount;
-        const showTooFew = feeCount < translatorCount && feeCount > 0;
+        const showButton = isPmOrAbove && translatorCount > 0 && feeCount < translatorCount;
+        const showTooMany = translatorCount > 0 && feeCount > translatorCount;
+        const showTooFew = translatorCount > 0 && feeCount > 0 && feeCount < translatorCount;
         // Permissions
         const canSeeButton = checkPerm("case_management", "case_fee_generate_button", "view");
         const canUseButton = checkPerm("case_management", "case_fee_generate_button", "edit");
