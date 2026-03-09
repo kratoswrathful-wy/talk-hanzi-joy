@@ -102,7 +102,7 @@ function CollabReviewDeadlineCell({ collabRows, status }: { collabRows: CollabRo
   // Not a reviewer: show all uncompleted rows' nearest; if all done show latest
   const uncompleted = collabRows.filter(r => !r.delivered);
   if (uncompleted.length > 0) {
-    return <DeadlineText value={pickNearestDeadline(uncompleted, "reviewDeadline")} />;
+    return <DeadlineText value={pickEarliestDeadline(uncompleted, "reviewDeadline")} />;
   }
   return <DeadlineText value={pickLatestDeadline(collabRows, "reviewDeadline")} />;
 }
