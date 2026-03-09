@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, lazy, Suspense, useRef } from "react"
 import { ArrowLeft, Trash2, Plus, X, Copy, Check, ExternalLink, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { CreateWithTemplateButton } from "@/components/CreateWithTemplateButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MultilineInput } from "@/components/ui/multiline-input";
@@ -864,8 +865,8 @@ export default function CaseDetailPage() {
     }
   };
 
-  const handleNewCase = async () => {
-    const newCase = await caseStore.create({ title: "" });
+  const handleNewCase = async (templateValues: Record<string, any> = {}) => {
+    const newCase = await caseStore.create({ title: "", ...templateValues });
     if (newCase) navigate(`/cases/${newCase.id}`);
   };
 
@@ -1008,14 +1009,13 @@ export default function CaseDetailPage() {
             </Button>
           )}
           {isPmOrAbove && (
-            <Button
-              variant="outline"
+            <CreateWithTemplateButton
+              module="cases"
+              onCreate={handleNewCase}
+              label="新增案件頁面"
               size="sm"
-              className="text-xs min-w-[88px]"
-              onClick={handleNewCase}
-            >
-              新增案件頁面
-            </Button>
+              className="text-xs"
+            />
           )}
           {/* Left-side grey button */}
           {isInquiry && isPmOrAbove ? (

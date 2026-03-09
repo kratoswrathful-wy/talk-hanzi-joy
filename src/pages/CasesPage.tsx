@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { TableFooterStats, type NumericColumnConfig } from "@/components/TableFooterStats";
 import { Plus, GripVertical, ExternalLink, Trash2, Copy } from "lucide-react";
+import { CreateWithTemplateButton } from "@/components/CreateWithTemplateButton";
 import { useAuth } from "@/hooks/use-auth";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
@@ -436,8 +437,8 @@ export default function CasesPage() {
   };
   const handleDragEnd = () => { dragColRef.current = null; setDragOverCol(null); };
 
-  const handleCreate = async () => {
-    const newCase = await caseStore.create({ title: "新案件" });
+  const handleCreate = async (templateValues: Record<string, any> = {}) => {
+    const newCase = await caseStore.create({ title: "新案件", ...templateValues });
     if (newCase) navigate(`/cases/${newCase.id}`);
   };
 
@@ -530,10 +531,11 @@ export default function CasesPage() {
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">案件管理</h1>
         {isAdmin && (
-          <Button size="sm" className="gap-1.5" onClick={handleCreate}>
-            <Plus className="h-4 w-4" />
-            新增案件
-          </Button>
+          <CreateWithTemplateButton
+            module="cases"
+            onCreate={handleCreate}
+            label="新增案件"
+          />
         )}
         {activeView.isDefault ? (
           <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
