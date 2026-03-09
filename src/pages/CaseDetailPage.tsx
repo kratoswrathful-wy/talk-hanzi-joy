@@ -86,7 +86,7 @@ function ClientCaseLinkField({ value, onSave, disabled, defaultLabel }: {
   if (hasLink) {
     return (
       <Field label="客戶案件單連結">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <a href={value.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline underline-offset-2 hover:text-primary/80 truncate">
             {value.label || value.url}
           </a>

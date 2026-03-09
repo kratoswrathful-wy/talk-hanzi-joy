@@ -1886,7 +1886,7 @@ export default function TranslatorFeeDetail() {
 
                   if (link.url) {
                     return (
-                      <div className="flex items-center gap-2 h-10">
+                      <div className="flex items-center gap-2 h-10 min-w-0">
                         <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline underline-offset-2 hover:text-primary/80 truncate">
                           {link.label || link.url}
                         </a>
