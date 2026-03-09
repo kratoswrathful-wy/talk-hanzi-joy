@@ -3,7 +3,36 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
-  ({ className, type, onFocus, ...props }, ref) => {
+  ({ className, type, onFocus, onChange, onCompositionStart, onCompositionEnd, ...props }, ref) => {
+    const composingRef = React.useRef(false);
+    const pendingEventRef = React.useRef<React.ChangeEvent<HTMLInputElement> | null>(null);
+
+    const handleCompositionStart = (e: React.CompositionEvent<HTMLInputElement>) => {
+      composingRef.current = true;
+      onCompositionStart?.(e);
+    };
+
+    const handleCompositionEnd = (e: React.CompositionEvent<HTMLInputElement>) => {
+      composingRef.current = false;
+      onCompositionEnd?.(e);
+      // Fire the pending change after composition ends
+      if (pendingEventRef.current) {
+        onChange?.(pendingEventRef.current);
+        pendingEventRef.current = null;
+      }
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (composingRef.current) {
+        // During IME composition, store event but still update the DOM value
+        pendingEventRef.current = e;
+        // Still call onChange to keep controlled input in sync visually
+        onChange?.(e);
+        return;
+      }
+      onChange?.(e);
+    };
+
     return (
       <input
         type={type}
@@ -16,6 +45,9 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
           e.target.select();
           onFocus?.(e);
         }}
+        onChange={handleChange}
+        onCompositionStart={handleCompositionStart}
+        onCompositionEnd={handleCompositionEnd}
         {...props}
       />
     );
