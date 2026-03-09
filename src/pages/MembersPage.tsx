@@ -582,7 +582,7 @@ export default function MembersPage() {
       <AlertDialog open={!!removeTarget && removeStep === 1} onOpenChange={(open) => { if (!open && removeStep === 1) { setRemoveTarget(null); setRemoveStep(1); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>確認移除</AlertDialogTitle>
+            <AlertDialogTitle>確定移除</AlertDialogTitle>
             <AlertDialogDescription>
               確定要移除 {removeTarget?.display_name || removeTarget?.email} 嗎？
             </AlertDialogDescription>

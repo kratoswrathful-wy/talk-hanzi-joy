@@ -125,7 +125,7 @@ function AvatarCropper({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-          <Button onClick={handleCrop}>確認裁切</Button>
+          <Button onClick={handleCrop}>確定裁切</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

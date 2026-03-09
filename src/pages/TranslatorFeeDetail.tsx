@@ -2667,7 +2667,7 @@ export default function TranslatorFeeDetail() {
       <AlertDialog open={duplicateDialogStep === "confirmSwap"} onOpenChange={() => {}}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>確認變更主要營收紀錄？</AlertDialogTitle>
+            <AlertDialogTitle>確定變更主要營收紀錄？</AlertDialogTitle>
             <AlertDialogDescription>
               原本的主要營收紀錄頁面「{otherFirstFee?.title || "（未命名）"}」將會自動變更為非主要營收紀錄，由本頁取代。是否確定？
             </AlertDialogDescription>
