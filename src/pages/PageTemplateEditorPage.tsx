@@ -10,6 +10,7 @@ import { toast } from "@/hooks/use-toast";
 import { pageTemplateStore, usePageTemplates, PAGE_MODULE_LABELS } from "@/stores/page-template-store";
 import { getModuleFields, getFieldGroups, type TemplateFieldDef } from "@/data/page-template-fields";
 import ColorSelect from "@/components/ColorSelect";
+import MultiColorSelect from "@/components/MultiColorSelect";
 import DateTimePicker from "@/components/DateTimePicker";
 import FileField from "@/components/FileField";
 import { MultilineInput } from "@/components/ui/multiline-input";
@@ -54,6 +55,17 @@ function FieldValueEditor({
           fieldKey={field.selectKey || ""}
           value={value || ""}
           onValueChange={(v) => onChange(v)}
+          className="max-w-xs"
+        />
+      );
+
+    case "multi-select":
+    case "person-multi":
+      return (
+        <MultiColorSelect
+          fieldKey={field.selectKey || ""}
+          values={Array.isArray(value) ? value : []}
+          onValuesChange={(v) => onChange(v)}
           className="max-w-xs"
         />
       );
