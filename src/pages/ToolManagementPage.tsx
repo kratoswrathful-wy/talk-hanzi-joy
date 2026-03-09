@@ -1172,12 +1172,6 @@ export default function ToolManagementPage() {
       {/* ── 頁面範本管理 ── */}
       <PageTemplateSection />
 
-      {/* ── 內部註記狀態 ── */}
-      <SimpleSelectSection fieldKey="noteStatus" title="內部註記狀態" addLabel="新增狀態" />
-
-      {/* ── 內部註記性質 ── */}
-      <SimpleSelectSection fieldKey="noteNature" title="內部註記性質" addLabel="新增性質" />
-
       {/* ── 常用連結區塊 ── */}
       <CommonLinksSection />
     </div>
