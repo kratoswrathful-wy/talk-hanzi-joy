@@ -69,20 +69,18 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
     [rows, onChange]
   );
 
-  // When dispatched, the "accepted" column becomes "taskCompleted"
-  const showTaskCompletedInAcceptedCol = isDispatched || isTaskCompleted;
+  // 確認承接 only in draft/inquiry; 任務完成 replaces it in the same position for all other statuses
+  const showAccepted = caseStatus === "draft" || caseStatus === "inquiry";
+  const showTaskCompleted = !showAccepted;
 
   const columns = [
     { key: "segment", label: "檔案或分段", width: "minmax(210px, 1.75fr)" },
     { key: "translator", label: "譯者", width: "140px" },
     { key: "unitCount", label: "計費單位數", width: "90px" },
-    { key: "accepted", label: showTaskCompletedInAcceptedCol ? "任務完成" : "確認承接", width: "80px" },
     { key: "translationDeadline", label: "翻譯交期", width: "180px", bulk: true },
+    { key: showAccepted ? "accepted" : "taskCompleted", label: showAccepted ? "確認承接" : "任務完成", width: "80px" },
     { key: "reviewer", label: "審稿人員", width: "140px" },
     { key: "reviewDeadline", label: "審稿交期", width: "180px", bulk: true },
-    ...(showTaskCompletedInAcceptedCol
-      ? []
-      : [{ key: "taskCompleted", label: "任務完成", width: "80px" }]),
     { key: "delivered", label: "交件完畢", width: "80px" },
   ];
 
