@@ -112,7 +112,7 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.translationDeadline !== undefined) map.translation_deadline = c.translationDeadline;
   if (c.reviewer !== undefined) map.reviewer = c.reviewer;
   if (c.reviewDeadline !== undefined) map.review_deadline = c.reviewDeadline;
-  if (c.taskStatus !== undefined) map.task_status = c.taskStatus;
+  
   if (c.executionTool !== undefined) map.execution_tool = c.executionTool;
   if (c.toolFieldValues !== undefined) map.tool_field_values = c.toolFieldValues;
   if (c.tools !== undefined) map.tools = c.tools;

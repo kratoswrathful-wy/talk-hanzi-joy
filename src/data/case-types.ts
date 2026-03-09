@@ -49,7 +49,7 @@ export interface CaseRecord {
   translationDeadline: string | null;
   reviewer: string;
   reviewDeadline: string | null;
-  taskStatus: string;
+  
   executionTool: string;
   toolFieldValues: Record<string, string>;
   tools: ToolEntry[];

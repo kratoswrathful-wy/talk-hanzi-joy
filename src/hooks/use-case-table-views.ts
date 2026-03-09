@@ -73,7 +73,7 @@ const defaultColumnOrder = caseFieldMetas.map((f) => f.key);
 const defaultColumnWidths: Record<string, number> = {
   title: 200, category: 90, workType: 130, billingUnit: 80, unitCount: 90,
   translator: 100, translationDeadline: 140, reviewer: 100, reviewDeadline: 140,
-  taskStatus: 90, executionTool: 100, deliveryMethod: 100, createdAt: 110,
+  executionTool: 100, deliveryMethod: 100, createdAt: 110,
 };
 const defaultHiddenColumns = ["executionTool", "deliveryMethod"];
 

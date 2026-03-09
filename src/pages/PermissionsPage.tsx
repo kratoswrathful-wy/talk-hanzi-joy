@@ -76,7 +76,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
           { key: "case_detail_title", label: "案件編號", type: "both", attribute: "文字" },
           { key: "case_detail_category", label: "類型", type: "both", attribute: "單選" },
           { key: "case_detail_workType", label: "工作類型", type: "both", attribute: "單選" },
-          { key: "case_detail_taskStatus", label: "任務狀態", type: "both", attribute: "單選" },
+          
           { key: "case_detail_translator", label: "譯者", type: "both", attribute: "人員（多選）" },
           { key: "case_detail_reviewer", label: "審稿人員", type: "both", attribute: "人員（單選）" },
         ],
