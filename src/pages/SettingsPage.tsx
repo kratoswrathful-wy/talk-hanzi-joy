@@ -2060,11 +2060,13 @@ function CaseCategorySection() {
 
 function StatusStyleSection() {
   const { options: statusOptions, customColors } = useSelectOptions("statusLabel");
+  const labelStyles = useLabelStyles();
   const [expanded, setExpanded] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [colorPickerOptionId, setColorPickerOptionId] = useState<string | null>(null);
   const [textColorPickerOptionId, setTextColorPickerOptionId] = useState<string | null>(null);
+  const [textColorOpen, setTextColorOpen] = useState(false);
 
   const handleDragStart = (idx: number) => setDragIndex(idx);
   const handleDragOver = (e: React.DragEvent, idx: number) => {
