@@ -2,7 +2,7 @@ import "@blocknote/core/fonts/inter.css";
 import "@blocknote/shadcn/style.css";
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
-import { Block, BlockNoteEditor, PartialBlock, filterSuggestionItems } from "@blocknote/core";
+import { Block, BlockNoteEditor, PartialBlock } from "@blocknote/core";
 import { zhTW } from "@blocknote/core/locales";
 import { useRef, useCallback, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
