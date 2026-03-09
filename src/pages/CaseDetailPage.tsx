@@ -202,7 +202,7 @@ function TitleInput({ value, onSave }: { value: string; onSave: (v: string) => v
     <IMESafeInput
       value={value}
       onSave={onSave}
-      className="max-w-md"
+      className="max-w-md text-2xl font-semibold tracking-tight"
       minRows={1}
       maxRows={3}
       borderless
