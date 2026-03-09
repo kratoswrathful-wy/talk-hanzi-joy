@@ -481,6 +481,13 @@ export const STATUS_TABLE_MAP: Record<string, string[]> = {
 
 export const ALL_STATUS_TABLES = ["案件", "註記", "記帳", "稿費", "請款"] as const;
 
+/** Get the sort index for a status label (based on settings order) */
+export function getStatusSortIndex(label: string): number {
+  const options = selectOptionsStore.getSortedOptions("statusLabel");
+  const idx = options.findIndex((o) => o.label === label);
+  return idx >= 0 ? idx : options.length;
+}
+
 /** Look up status color from statusLabel options by Chinese label */
 export function getStatusLabelStyle(label: string): { bgColor: string; textColor: string } {
   const options = selectOptionsStore.getSortedOptions("statusLabel");

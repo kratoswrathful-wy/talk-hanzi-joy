@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { type CaseRecord } from "@/data/case-types";
+import { getStatusSortIndex, CASE_STATUS_LABEL_MAP } from "@/stores/select-options-store";
 import {
   type TableFilter, type TableSort, type TableView, type FilterGroup,
   type FilterOperator, type FieldMeta, type LogicOperator,
@@ -60,6 +61,13 @@ function matchFilter(c: CaseRecord, filter: TableFilter): boolean {
 }
 
 function compareCases(a: CaseRecord, b: CaseRecord, sort: TableSort): number {
+  // Use status label settings order for status field sorting
+  if (sort.field === "status") {
+    const aLabel = CASE_STATUS_LABEL_MAP[a.status] || a.status;
+    const bLabel = CASE_STATUS_LABEL_MAP[b.status] || b.status;
+    const cmp = getStatusSortIndex(aLabel) - getStatusSortIndex(bLabel);
+    return sort.direction === "desc" ? -cmp : cmp;
+  }
   const av = getFieldValue(a, sort.field);
   const bv = getFieldValue(b, sort.field);
   let cmp = 0;

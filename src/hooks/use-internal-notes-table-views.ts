@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
+import { getStatusSortIndex } from "@/stores/select-options-store";
 import {
   type TableFilter, type TableSort, type TableView, type FilterGroup,
   type FilterOperator, type FieldMeta, type LogicOperator,
@@ -79,6 +80,12 @@ function matchFilter(note: InternalNote, filter: TableFilter): boolean {
 }
 
 function compareNotes(a: InternalNote, b: InternalNote, sort: TableSort): number {
+  if (sort.field === "status") {
+    const aLabel = a.invalidated ? "已失效" : a.status;
+    const bLabel = b.invalidated ? "已失效" : b.status;
+    const cmp = getStatusSortIndex(aLabel) - getStatusSortIndex(bLabel);
+    return sort.direction === "desc" ? -cmp : cmp;
+  }
   const av = getFieldValue(a, sort.field);
   const bv = getFieldValue(b, sort.field);
   let cmp = 0;

@@ -51,8 +51,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
   const displayName = profile?.display_name || "";
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const isDispatched = caseStatus === "dispatched";
-  const isTaskCompleted = caseStatus === "task_completed";
+  // removed: isDispatched, isTaskCompleted no longer needed
 
   // Segment overlay state
   const [segmentOverlay, setSegmentOverlay] = useState<{ idx: number; value: string } | null>(null);
@@ -69,20 +68,18 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
     [rows, onChange]
   );
 
-  // When dispatched, the "accepted" column becomes "taskCompleted"
-  const showTaskCompletedInAcceptedCol = isDispatched || isTaskCompleted;
+  // 確認承接 only in draft/inquiry; 任務完成 replaces it in the same position for all other statuses
+  const showAccepted = caseStatus === "draft" || caseStatus === "inquiry";
+  const showTaskCompleted = !showAccepted;
 
   const columns = [
     { key: "segment", label: "檔案或分段", width: "minmax(210px, 1.75fr)" },
     { key: "translator", label: "譯者", width: "140px" },
     { key: "unitCount", label: "計費單位數", width: "90px" },
-    { key: "accepted", label: showTaskCompletedInAcceptedCol ? "任務完成" : "確認承接", width: "80px" },
     { key: "translationDeadline", label: "翻譯交期", width: "180px", bulk: true },
+    { key: showAccepted ? "accepted" : "taskCompleted", label: showAccepted ? "確認承接" : "任務完成", width: "80px" },
     { key: "reviewer", label: "審稿人員", width: "140px" },
     { key: "reviewDeadline", label: "審稿交期", width: "180px", bulk: true },
-    ...(showTaskCompletedInAcceptedCol
-      ? []
-      : [{ key: "taskCompleted", label: "任務完成", width: "80px" }]),
     { key: "delivered", label: "交件完畢", width: "80px" },
   ];
 
@@ -137,18 +134,12 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
         {/* Rows */}
         {rows.map((row, idx) => {
           const canCheckAccepted =
-            caseStatus === "inquiry" &&
+            showAccepted &&
             !row.accepted &&
             (isPmOrAbove || (!row.translator || row.translator === displayName));
 
-          // In dispatched mode, the accepted column shows taskCompleted instead
-          const canCheckTaskCompletedInAcceptedCol =
-            showTaskCompletedInAcceptedCol &&
-            !row.taskCompleted &&
-            (isPmOrAbove || row.translator === displayName);
-
           const canCheckTaskCompleted =
-            (caseStatus === "dispatched" || caseStatus === "task_completed") &&
+            showTaskCompleted &&
             !row.taskCompleted &&
             (isPmOrAbove || row.translator === displayName);
 
@@ -202,15 +193,18 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
                 />
               </div>
 
-              {/* Accepted / TaskCompleted (merged column when dispatched) */}
+              {/* Translation deadline */}
+              <div className="px-1.5 py-1">
+                <DateTimePicker
+                  value={row.translationDeadline}
+                  onChange={(v) => updateRow(idx, { translationDeadline: v })}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Accepted or TaskCompleted (same position) */}
               <div className="flex items-center justify-center px-1.5 py-1">
-                {showTaskCompletedInAcceptedCol ? (
-                  <Checkbox
-                    checked={row.taskCompleted}
-                    disabled={!canCheckTaskCompletedInAcceptedCol && !row.taskCompleted}
-                    onCheckedChange={(v) => updateRow(idx, { taskCompleted: !!v })}
-                  />
-                ) : (
+                {showAccepted ? (
                   <Checkbox
                     checked={row.accepted}
                     disabled={!canCheckAccepted && !row.accepted}
@@ -222,16 +216,13 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
                       }
                     }}
                   />
+                ) : (
+                  <Checkbox
+                    checked={row.taskCompleted}
+                    disabled={!canCheckTaskCompleted && !row.taskCompleted}
+                    onCheckedChange={(v) => updateRow(idx, { taskCompleted: !!v })}
+                  />
                 )}
-              </div>
-
-              {/* Translation deadline */}
-              <div className="px-1.5 py-1">
-                <DateTimePicker
-                  value={row.translationDeadline}
-                  onChange={(v) => updateRow(idx, { translationDeadline: v })}
-                  className="w-full"
-                />
               </div>
 
               {/* Reviewer */}
@@ -253,17 +244,6 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
                   className="w-full"
                 />
               </div>
-
-              {/* Task completed - only shown when NOT dispatched (otherwise merged into accepted col) */}
-              {!showTaskCompletedInAcceptedCol && (
-                <div className="flex items-center justify-center px-1.5 py-1">
-                  <Checkbox
-                    checked={row.taskCompleted}
-                    disabled={!canCheckTaskCompleted && !row.taskCompleted}
-                    onCheckedChange={(v) => updateRow(idx, { taskCompleted: !!v })}
-                  />
-                </div>
-              )}
 
               {/* Delivered */}
               <div className="flex items-center justify-center px-1.5 py-1">
@@ -293,21 +273,24 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
           <AlertDialogHeader>
             <AlertDialogTitle>編輯分段名稱</AlertDialogTitle>
           </AlertDialogHeader>
-          <Input
-            value={segmentOverlay?.value ?? ""}
-            onChange={(e) => setSegmentOverlay((prev) => prev ? { ...prev, value: e.target.value } : null)}
-            placeholder="分段名稱"
-            autoFocus
-          />
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={() => {
-              if (segmentOverlay) {
-                updateRow(segmentOverlay.idx, { segment: segmentOverlay.value });
-              }
-              setSegmentOverlay(null);
-            }}>確認</AlertDialogAction>
-          </AlertDialogFooter>
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            if (segmentOverlay) {
+              updateRow(segmentOverlay.idx, { segment: segmentOverlay.value });
+            }
+            setSegmentOverlay(null);
+          }}>
+            <Input
+              value={segmentOverlay?.value ?? ""}
+              onChange={(e) => setSegmentOverlay((prev) => prev ? { ...prev, value: e.target.value } : null)}
+              placeholder="分段名稱"
+              autoFocus
+            />
+            <AlertDialogFooter className="mt-4">
+              <AlertDialogCancel type="button">取消</AlertDialogCancel>
+              <AlertDialogAction type="submit">確認</AlertDialogAction>
+            </AlertDialogFooter>
+          </form>
         </AlertDialogContent>
       </AlertDialog>
 
