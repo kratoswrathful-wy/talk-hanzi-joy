@@ -13,6 +13,7 @@ export interface SelectOption {
   label: string;
   email?: string;
   color: string;
+  textColor?: string;
   note?: string;
   avatarUrl?: string | null;
   timezone?: string | null;
@@ -59,7 +60,7 @@ const listeners = new Set<Listener>();
 const SETTINGS_KEY = "select_options";
 
 // Fields to persist (assignee is loaded from profiles, not settings)
-const PERSISTED_FIELDS = ["taskType", "billingUnit", "client", "contact", "dispatchRoute", "caseCategory", "executionTool", "questionTool", "noteStatus", "noteNature"];
+const PERSISTED_FIELDS = ["taskType", "billingUnit", "client", "contact", "dispatchRoute", "caseCategory", "executionTool", "questionTool", "noteStatus", "noteNature", "statusLabel"];
 
 function persistableSnapshot() {
   const snapshot: Record<string, FieldOptions> = {};
@@ -160,6 +161,27 @@ function initDefaults() {
       customColors: [],
       manualOrder: true,
     },
+    statusLabel: {
+      options: [
+        { id: "sl-draft", label: "草稿", color: "#6B7280", textColor: "#FFFFFF" },
+        { id: "sl-inquiry", label: "詢案中", color: "#2563EB", textColor: "#FFFFFF" },
+        { id: "sl-dispatched", label: "已派出", color: "#16A34A", textColor: "#FFFFFF" },
+        { id: "sl-task-completed", label: "任務完成", color: "#8B5CF6", textColor: "#FFFFFF" },
+        { id: "sl-delivered", label: "已交件", color: "#0891B2", textColor: "#FFFFFF" },
+        { id: "sl-feedback", label: "處理回饋", color: "#D97706", textColor: "#FFFFFF" },
+        { id: "sl-feedback-completed", label: "回饋處理完畢", color: "#EA580C", textColor: "#FFFFFF" },
+        { id: "sl-finalized", label: "開立完成", color: "#22C55E", textColor: "#FFFFFF" },
+        { id: "sl-note-pending", label: "待處理", color: "#C2410C", textColor: "#FFFFFF" },
+        { id: "sl-note-processing", label: "處理中", color: "#003CC0", textColor: "#FFFFFF" },
+        { id: "sl-note-replied", label: "已回覆", color: "#4D7C0F", textColor: "#FFFFFF" },
+        { id: "sl-note-closed", label: "已關閉", color: "#6B7280", textColor: "#FFFFFF" },
+        { id: "sl-invoice-pending", label: "待付款", color: "#6B7280", textColor: "#FFFFFF" },
+        { id: "sl-invoice-partial", label: "部份付款", color: "#EAB308", textColor: "#FFFFFF" },
+        { id: "sl-invoice-paid", label: "已付款", color: "#22C55E", textColor: "#FFFFFF" },
+      ],
+      customColors: [],
+      manualOrder: true,
+    },
   };
 }
 
@@ -216,6 +238,18 @@ export const selectOptionsStore = {
       [fieldKey]: {
         ...field,
         options: field.options.map((o) => (o.id === optionId ? { ...o, color } : o)),
+      },
+    };
+    notify();
+  },
+
+  updateOptionTextColor: (fieldKey: string, optionId: string, textColor: string) => {
+    const field = selectOptionsStore.getField(fieldKey);
+    store = {
+      ...store,
+      [fieldKey]: {
+        ...field,
+        options: field.options.map((o) => (o.id === optionId ? { ...o, textColor } : o)),
       },
     };
     notify();
@@ -425,3 +459,57 @@ export function useSelectOptions(fieldKey: string) {
     customColors: selectOptionsStore.getField(fieldKey).customColors,
   };
 }
+
+/** Static mapping: status label → which tables use it */
+export const STATUS_TABLE_MAP: Record<string, string[]> = {
+  "草稿": ["案件", "記帳"],
+  "詢案中": ["案件"],
+  "已派出": ["案件"],
+  "任務完成": ["案件"],
+  "已交件": ["案件"],
+  "處理回饋": ["案件"],
+  "回饋處理完畢": ["案件"],
+  "開立完成": ["案件", "記帳"],
+  "待處理": ["註記"],
+  "處理中": ["註記"],
+  "已回覆": ["註記"],
+  "已關閉": ["註記"],
+  "待付款": ["稿費", "請款"],
+  "部份付款": ["稿費", "請款"],
+  "已付款": ["稿費", "請款"],
+};
+
+export const ALL_STATUS_TABLES = ["案件", "註記", "記帳", "稿費", "請款"] as const;
+
+/** Look up status color from statusLabel options by Chinese label */
+export function getStatusLabelStyle(label: string): { bgColor: string; textColor: string } {
+  const options = selectOptionsStore.getSortedOptions("statusLabel");
+  const opt = options.find((o) => o.label === label);
+  if (opt) return { bgColor: opt.color, textColor: opt.textColor || "#FFFFFF" };
+  return { bgColor: "#6B7280", textColor: "#FFFFFF" };
+}
+
+/** Map from internal status key to Chinese label for case statuses */
+export const CASE_STATUS_LABEL_MAP: Record<string, string> = {
+  draft: "草稿",
+  inquiry: "詢案中",
+  dispatched: "已派出",
+  task_completed: "任務完成",
+  delivered: "已交件",
+  feedback: "處理回饋",
+  feedback_completed: "回饋處理完畢",
+  finalized: "開立完成",
+};
+
+/** Map from internal status key to Chinese label for fee statuses */
+export const FEE_STATUS_LABEL_MAP: Record<string, string> = {
+  draft: "草稿",
+  finalized: "開立完成",
+};
+
+/** Map from internal status key to Chinese label for invoice statuses */
+export const INVOICE_STATUS_LABEL_MAP: Record<string, string> = {
+  pending: "待付款",
+  partial: "部份付款",
+  paid: "已付款",
+};

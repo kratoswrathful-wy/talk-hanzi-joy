@@ -11,7 +11,7 @@ import { useRowSelection } from "@/hooks/use-row-selection";
 import { useCaseTableViews, caseFieldMetas } from "@/hooks/use-case-table-views";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { InlineEditCell } from "@/components/fees/InlineEditCell";
-import { useSelectOptions } from "@/stores/select-options-store";
+import { useSelectOptions, getStatusLabelStyle } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import AssigneeTag from "@/components/AssigneeTag";
 import { useState, useRef, useCallback, useEffect } from "react";
@@ -70,6 +70,21 @@ const caseStatusLabels: Record<CaseStatus, string> = {
   finalized: "開立完成",
 };
 
+function CaseStatusBadge({ status }: { status: CaseStatus }) {
+  useSelectOptions("statusLabel");
+  const label = caseStatusLabels[status];
+  const style = getStatusLabelStyle(label);
+  return (
+    <Badge
+      variant="default"
+      className="text-xs whitespace-nowrap border"
+      style={{ backgroundColor: style.bgColor, color: style.textColor, borderColor: style.bgColor }}
+    >
+      {label}
+    </Badge>
+  );
+}
+
 const formatDate = (iso: string) => {
   const d = new Date(iso);
   return d.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit" });
@@ -80,27 +95,6 @@ const formatDateTime = (iso: string | null) => {
   const d = new Date(iso);
   return d.toLocaleString("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
 };
-
-function CaseStatusBadge({ status }: { status: CaseStatus }) {
-  const labelStyles = useLabelStyles();
-  const style = status === "finalized" ? labelStyles.statusFinalized
-    : status === "feedback_completed" ? { bgColor: "#EA580C", textColor: "#FFFFFF" }
-    : status === "feedback" ? { bgColor: "#D97706", textColor: "#FFFFFF" }
-    : status === "delivered" ? { bgColor: "#0891B2", textColor: "#FFFFFF" }
-    : status === "task_completed" ? { bgColor: "#8B5CF6", textColor: "#FFFFFF" }
-    : status === "dispatched" ? { bgColor: "#16A34A", textColor: "#FFFFFF" }
-    : status === "inquiry" ? { bgColor: "#2563EB", textColor: "#FFFFFF" }
-    : labelStyles.statusDraft;
-  return (
-    <Badge
-      variant="default"
-      className="text-xs whitespace-nowrap border"
-      style={{ backgroundColor: style.bgColor, color: style.textColor, borderColor: style.bgColor }}
-    >
-      {caseStatusLabels[status]}
-    </Badge>
-  );
-}
 
 interface ColumnDef {
   key: string;

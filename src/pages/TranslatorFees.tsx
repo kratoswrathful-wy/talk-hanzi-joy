@@ -15,6 +15,7 @@ import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { InlineEditCell } from "@/components/fees/InlineEditCell";
 import { useUndoRedo, type UndoEntry } from "@/hooks/use-undo-redo";
 import { useLabelStyles } from "@/stores/label-style-store";
+import { getStatusLabelStyle, FEE_STATUS_LABEL_MAP, useSelectOptions as useSelectOpts } from "@/stores/select-options-store";
 import { InvoiceActions } from "@/components/InvoiceActions";
 import { ClientInvoiceActions } from "@/components/ClientInvoiceActions";
 import { useInvoices } from "@/hooks/use-invoice-store";
@@ -366,8 +367,9 @@ function AssigneeLabel({ value }: { value: string }) {
 }
 
 function FeeStatusBadge({ status }: { status: FeeStatus }) {
-  const labelStyles = useLabelStyles();
-  const style = status === "finalized" ? labelStyles.statusFinalized : labelStyles.statusDraft;
+  useSelectOpts("statusLabel");
+  const label = FEE_STATUS_LABEL_MAP[status] || status;
+  const style = getStatusLabelStyle(label);
   return (
     <Badge
       variant="default"
