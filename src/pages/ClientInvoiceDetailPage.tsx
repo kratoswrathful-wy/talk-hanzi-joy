@@ -440,7 +440,7 @@ export default function ClientInvoiceDetailPage() {
             module="clientInvoices"
             onApply={(values) => {
               if (id) {
-                clientInvoiceStore.update(id, values);
+                clientInvoiceStore.updateInvoice(id, values);
               }
               toast.success("已套用範本");
             }}

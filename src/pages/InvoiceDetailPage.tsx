@@ -508,7 +508,7 @@ export default function InvoiceDetailPage() {
             module="invoices"
             onApply={(values) => {
               if (id) {
-                invoiceStore.update(id, values);
+                invoiceStore.updateInvoice(id, values);
               }
               toast.success("已套用範本");
             }}
