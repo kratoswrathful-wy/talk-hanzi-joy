@@ -270,7 +270,13 @@ function NoteDetailView({
         />
       </Field>
       <Field label="ID / 行數" icon="≡">
-        <Input value={note.idRowCount} onChange={(e) => onUpdate({ idRowCount: e.target.value })} className="max-w-xs" />
+        <MultilineInput 
+          value={note.idRowCount} 
+          onChange={(e) => onUpdate({ idRowCount: e.target.value })} 
+          className="max-w-xs"
+          minRows={1}
+          maxRows={2}
+        />
       </Field>
       <Field label="原文" icon="≡">
         <Textarea value={note.sourceText} onChange={(e) => onUpdate({ sourceText: e.target.value })} className="min-h-[60px]" />

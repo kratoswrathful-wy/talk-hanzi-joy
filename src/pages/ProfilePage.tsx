@@ -283,7 +283,14 @@ export default function ProfilePage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="statusMessage">近期狀態</Label>
-            <Input id="statusMessage" value={statusMessage} onChange={(e) => setStatusMessage(e.target.value)} placeholder="例如：出差中、休假至 3/15" />
+            <MultilineInput 
+              id="statusMessage" 
+              value={statusMessage} 
+              onChange={(e) => setStatusMessage(e.target.value)} 
+              placeholder="例如：出差中、休假至 3/15"
+              minRows={1}
+              maxRows={3}
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
