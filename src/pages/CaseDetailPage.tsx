@@ -1454,6 +1454,7 @@ export default function CaseDetailPage() {
               onRemove={() => removeQuestionTool(idx)}
               showRemove={questionTools.length > 1}
               toolFieldKey="executionTool"
+              toolLabel="提問工具"
               canEditTool={canEditToolSelect}
               canRemoveTool={canRemoveTool}
               canAddField={canAddToolField}
