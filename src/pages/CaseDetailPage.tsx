@@ -528,6 +528,7 @@ export default function CaseDetailPage() {
   const canAddToolField = checkPerm("case_management", "case_detail_toolFieldAdd", "edit");
   const canRemoveToolField = checkPerm("case_management", "case_detail_toolFieldRemove", "edit");
   const canUseToolTemplate = checkPerm("case_management", "case_detail_toolTemplate", "edit");
+  const { options: assigneeOptions } = useSelectOptions("assignee");
   const allInternalNotes = useInternalNotes(); // reactive
 
   // Comment drafts
