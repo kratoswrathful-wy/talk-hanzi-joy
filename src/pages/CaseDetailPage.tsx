@@ -997,7 +997,19 @@ export default function CaseDetailPage() {
         />
       </Field>
       <Field label="狀態">
-        <CaseStatusBadge status={caseData.status} />
+        <div className="flex items-center gap-3">
+          <CaseStatusBadge status={caseData.status} />
+          {caseData.multiCollab && isInquiry && (
+            <span className="text-xs text-muted-foreground">
+              譯者若可承接，請直接於表格中可承接的橫列勾選「確認承接」。
+            </span>
+          )}
+          {caseData.multiCollab && isDispatched && (
+            <span className="text-xs text-muted-foreground">
+              譯者完成任務後，請直接勾選「任務完成」。
+            </span>
+          )}
+        </div>
       </Field>
 
       <Separator />
