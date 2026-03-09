@@ -197,6 +197,7 @@ function TemplateFieldManager({
   const [editLabel, setEditLabel] = useState("");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const addButtonRef = useRef<HTMLButtonElement>(null);
 
   const handleAdd = () => {
     const label = newLabel.trim();
