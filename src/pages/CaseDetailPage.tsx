@@ -1244,17 +1244,10 @@ export default function CaseDetailPage() {
               size="sm"
               className="h-6 text-xs text-muted-foreground"
               onClick={() => {
-                // Count unique non-empty translators
-                const uniqueTranslators = new Set(
-                  caseData.collabRows.map(r => r.translator).filter(Boolean)
-                );
-                if (uniqueTranslators.size >= 2) {
-                  toast({ title: "無法取消多人協作", description: "目前指派人數多於 1 人，請考慮改為調整各列內容。", variant: "destructive" });
-                  return;
-                }
-                // ≤1 unique translator: execute directly
-                save({ multiCollab: false, collabCount: 0, collabRows: [] });
-                toast({ title: "已取消多人協作" });
+                // Always show row selection dialog for cancelling
+                setCollabCancelMode("cancel");
+                setCollabCancelSelectedRows(new Set(caseData.collabRows.length === 1 ? [caseData.collabRows[0].id] : []));
+                setCollabCancelOpen(true);
               }}
             >
               取消多人協作
