@@ -258,53 +258,55 @@ function ToolInstance({
               />
             </Field>
           </div>
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-block mt-1">
-                  <Popover open={tplOpen} onOpenChange={(v) => hasToolSelected && setTplOpen(v)}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 text-xs shrink-0"
-                        disabled={!hasToolSelected}
-                      >
-                        範本
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-56 p-2" align="end">
-                      {matchingTemplates.length === 0 ? (
-                        <p className="text-xs text-muted-foreground px-2 py-1">無可用範本</p>
-                      ) : (
-                        <div className="space-y-1">
-                          {matchingTemplates.map((tpl) => (
-                            <button
-                              key={tpl.id}
-                              className="w-full text-left px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
-                              onClick={() => tryApplyTemplate(tpl)}
-                            >
-                              <span
-                                className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-                                style={{ backgroundColor: "#383A3F", color: "#fff" }}
+          {canUseTemplate && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-block mt-1">
+                    <Popover open={tplOpen} onOpenChange={(v) => hasToolSelected && setTplOpen(v)}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs shrink-0"
+                          disabled={!hasToolSelected}
+                        >
+                          範本
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56 p-2" align="end">
+                        {matchingTemplates.length === 0 ? (
+                          <p className="text-xs text-muted-foreground px-2 py-1">無可用範本</p>
+                        ) : (
+                          <div className="space-y-1">
+                            {matchingTemplates.map((tpl) => (
+                              <button
+                                key={tpl.id}
+                                className="w-full text-left px-2 py-1.5 rounded-md hover:bg-secondary/30 transition-colors"
+                                onClick={() => tryApplyTemplate(tpl)}
                               >
-                                {tpl.name}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </PopoverContent>
-                  </Popover>
-                </span>
-              </TooltipTrigger>
-              {!hasToolSelected && (
-                <TooltipContent side="top">
-                  <p>請先選取工具</p>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
+                                <span
+                                  className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                                  style={{ backgroundColor: "#383A3F", color: "#fff" }}
+                                >
+                                  {tpl.name}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </PopoverContent>
+                    </Popover>
+                  </span>
+                </TooltipTrigger>
+                {!hasToolSelected && (
+                  <TooltipContent side="top">
+                    <p>請先選取工具</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
         {fields.map((f) => {
           const fieldType = f.type || "text";
