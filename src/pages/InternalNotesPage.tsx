@@ -793,6 +793,12 @@ export default function InternalNotesPage() {
               <tr><td colSpan={orderedCols.length + 1} className="h-24 text-center text-muted-foreground">尚無任何內部註記紀錄。</td></tr>
             )}
           </tbody>
+          <TableFooterStats
+            itemCount={visibleNotes.length}
+            orderedCols={orderedCols}
+            columnWidths={activeView.columnWidths}
+            data={visibleNotes}
+          />
         </table>
       </motion.div>
 

@@ -1005,6 +1005,26 @@ export default function TranslatorFees() {
               </tr>
             )}
           </tbody>
+          <TableFooterStats
+            itemCount={visibleFees.length}
+            orderedCols={orderedCols}
+            columnWidths={activeView.columnWidths}
+            numericColumns={[
+              { key: "taskSummary", getValue: (f: TranslatorFee) => f.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0) },
+              { key: "clientRevenue", getValue: (f: TranslatorFee) => {
+                if (!f.clientInfo || f.clientInfo.notFirstFee) return null;
+                return f.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
+              }},
+              { key: "profit", getValue: (f: TranslatorFee) => {
+                if (!f.clientInfo || f.clientInfo.notFirstFee) return null;
+                const rev = f.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
+                const cost = f.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
+                return rev - cost;
+              }},
+            ]}
+            data={visibleFees}
+            extraColCount={2}
+          />
         </table>
       </motion.div>
 

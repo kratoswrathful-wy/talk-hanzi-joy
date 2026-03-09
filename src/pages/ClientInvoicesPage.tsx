@@ -588,6 +588,16 @@ export default function ClientInvoicesPage() {
               </tr>
             )}
           </tbody>
+          <TableFooterStats
+            itemCount={visibleInvoices.length}
+            orderedCols={orderedCols}
+            columnWidths={activeView.columnWidths}
+            numericColumns={[
+              { key: "feeCount", getValue: (inv: ClientInvoice) => inv.feeIds.length, isCurrency: false },
+              { key: "totalAmount", getValue: (inv: ClientInvoice) => getInvoiceTotal(inv.feeIds) },
+            ]}
+            data={visibleInvoices}
+          />
         </table>
       </motion.div>
 

@@ -605,6 +605,15 @@ export default function CasesPage() {
               </tr>
             )}
           </tbody>
+          <TableFooterStats
+            itemCount={visibleFees.length}
+            orderedCols={orderedCols}
+            columnWidths={activeView.columnWidths}
+            numericColumns={[
+              { key: "unitCount", getValue: (c: CaseRecord) => c.unitCount || null, isCurrency: false },
+            ]}
+            data={visibleFees}
+          />
         </table>
       </motion.div>
 
