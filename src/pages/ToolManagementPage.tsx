@@ -10,6 +10,7 @@ import { useLabelStyles, labelStyleStore } from "@/stores/label-style-store";
 import { useToolTemplates, toolTemplateStore, type ToolTemplate, type TemplateField } from "@/stores/tool-template-store";
 import { useCommonLinks, commonLinksStore } from "@/stores/common-links-store";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MultilineInput } from "@/components/ui/multiline-input";
 import { cn } from "@/lib/utils";
 
 function getColorUsageMap(options: { label: string; color: string }[]): Record<string, string[]> {
