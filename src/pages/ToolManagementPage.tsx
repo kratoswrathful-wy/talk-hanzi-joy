@@ -887,7 +887,7 @@ export default function ToolManagementPage() {
       <div>
         <h1 className="text-xl font-bold tracking-tight">工具管理</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          管理執行工具選項與範本，變更會套用到所有案件
+          管理工具軟體選項與範本，變更會套用到所有案件
         </p>
       </div>
 
