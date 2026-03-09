@@ -14,6 +14,7 @@ import { type TranslatorFee, type FeeTaskItem, type TaskType, type BillingUnit, 
 import { selectOptionsStore, PRESET_COLORS, CONTACT_DEFAULT_COLOR, useSelectOptions } from "@/stores/select-options-store";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
 import type { CaseRecord, ToolEntry, ToolEntryField, CaseStatus, CaseComment } from "@/data/case-types";
+import { TIMEZONE_OPTIONS } from "@/data/timezone-options";
 import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
 import AssigneeTag from "@/components/AssigneeTag";
