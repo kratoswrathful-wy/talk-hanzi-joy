@@ -491,12 +491,16 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
                 <p className="text-xs text-muted-foreground">尚未設定工具</p>
               )}
               {displayFields.map((f) => {
+                const isFile = (f.type || "text") === "file";
                 const val = tpl.fieldValues[f.id];
-                if (!val) return null;
+                if (!val && !isFile) return null;
                 return (
                   <div key={f.id} className="grid grid-cols-[80px_1fr] items-center gap-2">
-                    <span className="text-xs text-muted-foreground">{f.label}</span>
-                    <span className="text-sm">{val}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground">{f.label}</span>
+                      {isFile && <Badge variant="secondary" className="text-[9px] h-3.5 px-1 shrink-0">檔案</Badge>}
+                    </div>
+                    <span className="text-sm">{isFile ? "（檔案欄位）" : val}</span>
                   </div>
                 );
               })}
