@@ -2015,7 +2015,7 @@ function CaseCategorySection() {
         <Button
           variant="outline"
           size="sm"
-          className="gap-1 text-xs"
+          className="gap-1 text-xs w-full"
           onClick={() => setAdding(true)}
         >
           <Plus className="h-3.5 w-3.5" />
