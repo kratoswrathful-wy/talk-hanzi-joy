@@ -58,6 +58,7 @@ export interface CaseRecord {
   deliveryMethodFiles: { name: string; url: string }[];
   clientReceipt: string;
   clientReceiptFiles: { name: string; url: string }[];
+  customGuidelinesUrl: { name: string; url: string }[];
   clientGuidelines: { name: string; url: string }[];
   commonInfo: { label: string; url: string }[];
   commonLinks: string[]; // IDs referencing common-links-store
