@@ -1065,7 +1065,9 @@ export default function CaseDetailPage() {
             </div>
             {/* Right: fee list + button */}
             <div className="flex flex-col gap-1">
-              {visibleCount === 0 ? (
+              {!canSeeFeeLinks ? (
+                <span className="text-sm text-muted-foreground">—</span>
+              ) : visibleCount === 0 ? (
                 <span className="text-sm text-muted-foreground">尚無費用單</span>
               ) : (
                 <div className="space-y-1">
