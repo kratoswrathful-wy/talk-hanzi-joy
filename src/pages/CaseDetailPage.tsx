@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { caseStore } from "@/hooks/use-case-store";
 import { feeStore } from "@/hooks/use-fee-store";
 import { type TranslatorFee, type FeeTaskItem, type TaskType, type BillingUnit, defaultClientInfo } from "@/data/fee-mock-data";
-import { selectOptionsStore, PRESET_COLORS } from "@/stores/select-options-store";
+import { selectOptionsStore, PRESET_COLORS, useSelectOptions } from "@/stores/select-options-store";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
 import type { CaseRecord, ToolEntry, ToolEntryField, CaseStatus, CaseComment } from "@/data/case-types";
 import ColorSelect from "@/components/ColorSelect";
