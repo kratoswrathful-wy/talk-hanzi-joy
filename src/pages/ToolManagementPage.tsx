@@ -233,33 +233,38 @@ function TemplateFieldManager({
           )}
         >
           <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
-          <div className="grid grid-cols-[80px_1fr] items-center gap-2 flex-1">
-            {editingId === f.id ? (
-              <Input
-                value={editLabel}
-                onChange={(e) => setEditLabel(e.target.value)}
-                onBlur={() => handleRename(f.id)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleRename(f.id);
-                  if (e.key === "Escape") setEditingId(null);
-                }}
-                className="h-6 text-xs"
-                autoFocus
-              />
-            ) : (
-              <span
-                className="text-xs text-muted-foreground cursor-pointer hover:underline"
-                onClick={() => { setEditingId(f.id); setEditLabel(f.label); }}
-              >
-                {f.label}
-              </span>
-            )}
-            <Input
-              value={fieldValues[f.id] || ""}
-              onChange={(e) => onFieldValuesChange({ ...fieldValues, [f.id]: e.target.value })}
-              className="h-7 text-sm"
-            />
-          </div>
+           <div className="grid grid-cols-[80px_1fr] items-center gap-2 flex-1">
+             {editingId === f.id ? (
+               <Input
+                 value={editLabel}
+                 onChange={(e) => setEditLabel(e.target.value)}
+                 onBlur={() => handleRename(f.id)}
+                 onKeyDown={(e) => {
+                   if (e.key === "Enter") handleRename(f.id);
+                   if (e.key === "Escape") setEditingId(null);
+                 }}
+                 className="h-6 text-xs"
+                 autoFocus
+               />
+             ) : (
+               <div className="flex items-center gap-1.5">
+                 <span
+                   className="text-xs text-muted-foreground cursor-pointer hover:underline"
+                   onClick={() => { setEditingId(f.id); setEditLabel(f.label); }}
+                 >
+                   {f.label}
+                 </span>
+                 <Badge variant="secondary" className="text-[9px] h-3.5 px-1 shrink-0">
+                   {(f.type || "text") === "file" ? "檔案" : "文字"}
+                 </Badge>
+               </div>
+             )}
+             <Input
+               value={fieldValues[f.id] || ""}
+               onChange={(e) => onFieldValuesChange({ ...fieldValues, [f.id]: e.target.value })}
+               className="h-7 text-sm"
+             />
+           </div>
           <button
             className="h-5 w-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted text-muted-foreground hover:text-destructive transition-all shrink-0"
             onClick={() => handleRemove(f.id)}
