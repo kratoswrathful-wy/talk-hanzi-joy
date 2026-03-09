@@ -604,7 +604,7 @@ export default function PermissionsPage() {
       <AlertDialog open={!!deleteTarget && deleteStep === 2} onOpenChange={(open) => { if (!open) handleCancelDelete(); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>再次確認刪除</AlertDialogTitle>
+            <AlertDialogTitle>再次確定刪除</AlertDialogTitle>
             <AlertDialogDescription>您即將永久刪除「{deleteTarget?.label}」身分。所有擁有此身分的成員將失去相關權限，且此操作無法復原。是否確定？</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
