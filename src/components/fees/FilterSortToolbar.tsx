@@ -571,6 +571,8 @@ function FilterRow({ filter, meta, ops, visibleFields, onUpdateFilter, onRemoveF
     return null;
   })();
 
+  const isCheckbox = meta?.type === "checkbox";
+
   return (
     <div className="flex items-center gap-1.5">
       <Select value={filter.field} onValueChange={(v) => onUpdateFilter(filter.id, { field: v, value: "" })}>
@@ -581,6 +583,15 @@ function FilterRow({ filter, meta, ops, visibleFields, onUpdateFilter, onRemoveF
           ))}
         </SelectContent>
       </Select>
+      {!isCheckbox && (
+        <Select value={filter.negated ? "not" : "plain"} onValueChange={(v) => onUpdateFilter(filter.id, { negated: v === "not" })}>
+          <SelectTrigger className="h-7 text-xs w-[52px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="plain" className="text-xs">--</SelectItem>
+            <SelectItem value="not" className="text-xs">不</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
       <Select value={filter.operator} onValueChange={(v) => onUpdateFilter(filter.id, { operator: v as FilterOperator })}>
         <SelectTrigger className="h-7 text-xs w-[80px]"><SelectValue /></SelectTrigger>
         <SelectContent>
