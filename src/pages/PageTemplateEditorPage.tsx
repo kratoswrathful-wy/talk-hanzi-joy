@@ -64,8 +64,8 @@ function FieldValueEditor({
       return (
         <MultiColorSelect
           fieldKey={field.selectKey || ""}
-          value={Array.isArray(value) ? value : []}
-          onValueChange={(v) => onChange(v)}
+          values={Array.isArray(value) ? value : []}
+          onValuesChange={(v) => onChange(v)}
           className="max-w-xs"
         />
       );
