@@ -906,6 +906,12 @@ export default function TranslatorFees() {
         selectedCount={rowSelection.selectedCount}
         hiddenColumns={activeView.hiddenColumns || []}
         onToggleColumn={tableViews.toggleColumnVisibility}
+        selectedIds={[...rowSelection.selectedIds]}
+        onPinTop={tableViews.pinTop}
+        onPinBottom={tableViews.pinBottom}
+        onUnpinItem={tableViews.unpinItem}
+        pinnedTop={activeView.pinnedTop || []}
+        pinnedBottom={activeView.pinnedBottom || []}
       />
 
       <motion.div

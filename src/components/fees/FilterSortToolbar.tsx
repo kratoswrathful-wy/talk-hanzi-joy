@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Filter, ArrowUpDown, Plus, X, ChevronDown, Eye, Columns3, FolderPlus } from "lucide-react";
+import { Filter, ArrowUpDown, Plus, X, ChevronDown, Eye, Columns3, FolderPlus, Pin, PinOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -75,6 +75,12 @@ interface Props {
   onToggleColumn: (key: string) => void;
   fieldMetasList?: FieldMeta[];
   statusOptionsList?: { value: string; label: string }[];
+  selectedIds?: string[];
+  onPinTop?: (ids: string[]) => void;
+  onPinBottom?: (ids: string[]) => void;
+  onUnpinItem?: (id: string) => void;
+  pinnedTop?: string[];
+  pinnedBottom?: string[];
 }
 
 export function FilterSortToolbar({
@@ -90,6 +96,12 @@ export function FilterSortToolbar({
   onToggleColumn,
   fieldMetasList,
   statusOptionsList,
+  selectedIds,
+  onPinTop,
+  onPinBottom,
+  onUnpinItem,
+  pinnedTop,
+  pinnedBottom,
 }: Props) {
   const [newViewName, setNewViewName] = useState("");
   const [editingViewId, setEditingViewId] = useState<string | null>(null);
@@ -100,6 +112,9 @@ export function FilterSortToolbar({
   const allFields = fieldMetasList || fieldMetas;
   const visibleFields = allFields.filter((f) => visibleFieldKeys.includes(f.key));
   const hiddenSet = new Set(hiddenColumns);
+  const pinnedTopCount = (pinnedTop || []).length;
+  const pinnedBottomCount = (pinnedBottom || []).length;
+  const totalPinCount = pinnedTopCount + pinnedBottomCount;
 
   const filterCount = countConditions(activeView.filterTree);
   const flatFilters = flattenConditions(activeView.filterTree);
@@ -303,6 +318,30 @@ export function FilterSortToolbar({
           </PopoverContent>
         </Popover>
 
+        {/* Pin to top/bottom buttons - show when items are selected */}
+        {onPinTop && onPinBottom && selectedIds && selectedIds.length > 0 && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1.5"
+              onClick={() => onPinTop(selectedIds)}
+            >
+              <Pin className="h-3 w-3" />
+              置頂
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs gap-1.5"
+              onClick={() => onPinBottom(selectedIds)}
+            >
+              <Pin className="h-3 w-3 rotate-180" />
+              置底
+            </Button>
+          </>
+        )}
+
         {/* Column visibility button */}
         <Popover>
           <PopoverTrigger asChild>
@@ -354,6 +393,30 @@ export function FilterSortToolbar({
             </Badge>
           );
         })}
+
+        {/* Pinned pills */}
+        {totalPinCount > 0 && onUnpinItem && (
+          <>
+            {pinnedTopCount > 0 && (
+              <Badge variant="secondary" className="h-6 gap-1 text-xs font-normal">
+                <Pin className="h-3 w-3" />
+                置頂 {pinnedTopCount} 項
+                <button onClick={() => (pinnedTop || []).forEach((id) => onUnpinItem(id))} className="hover:text-destructive">
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+            {pinnedBottomCount > 0 && (
+              <Badge variant="secondary" className="h-6 gap-1 text-xs font-normal">
+                <Pin className="h-3 w-3 rotate-180" />
+                置底 {pinnedBottomCount} 項
+                <button onClick={() => (pinnedBottom || []).forEach((id) => onUnpinItem(id))} className="hover:text-destructive">
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            )}
+          </>
+        )}
 
         {/* Selection indicator */}
         {selectedCount > 0 && (
