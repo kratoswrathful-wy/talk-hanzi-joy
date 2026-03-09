@@ -424,7 +424,7 @@ export default function ClientInvoiceDetailPage() {
       return;
     }
     if (!noFee && amount > remaining) {
-      toast.error(`輸入金額過高，目前剩餘應收總額為 ${formatCurrency(remaining)}，請調整金額。`);
+      setAmountTooHighMsg(`輸入金額過高，目前剩餘應收總額為 ${formatCurrency(remaining)}，請調整金額。`);
       return;
     }
     const now = new Date().toISOString();
