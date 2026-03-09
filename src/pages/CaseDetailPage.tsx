@@ -1219,7 +1219,7 @@ export default function CaseDetailPage() {
       </div>
 
       {/* Title + Status badge on the same row, status aligned with right-column fields */}
-      <div className="grid grid-cols-2 gap-4 items-center px-0">
+      <div className="grid grid-cols-2 gap-4 items-end px-0">
         <div className="min-w-0">
           <TitleInput value={caseData.title} onSave={(v) => save({ title: v })} />
         </div>
