@@ -1982,7 +1982,7 @@ function CaseCategorySection() {
           <Input
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
-            placeholder="輸入案件類型名稱"
+            placeholder="輸入內容性質名稱"
             className="h-8 text-sm"
             autoFocus
             onKeyDown={(e) => {
