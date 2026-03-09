@@ -694,6 +694,10 @@ export default function InternalNotesPage() {
     <div className="mx-auto max-w-7xl space-y-4">
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">內部註記</h1>
+        <Button size="sm" className="gap-1.5" onClick={() => setNewNoteOpen(true)}>
+          <Plus className="h-4 w-4" />
+          新增
+        </Button>
         {activeView.isDefault ? (
           <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
             一切檢視設定僅對本人生效
@@ -703,10 +707,6 @@ export default function InternalNotesPage() {
             此為自訂視圖，只有新增者本人可見
           </span>
         )}
-        <Button size="sm" className="gap-1.5" onClick={() => setNewNoteOpen(true)}>
-          <Plus className="h-4 w-4" />
-          新增
-        </Button>
         {rowSelection.selectedCount > 0 && (
           <>
             <span className="text-xs text-muted-foreground">已選取 {rowSelection.selectedCount} 個項目</span>
