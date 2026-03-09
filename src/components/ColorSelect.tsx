@@ -176,7 +176,7 @@ export default function ColorSelect({
           </div>
         </PopoverTrigger>
         <PopoverContent
-          className={cn("p-0", fieldKey === "assignee" ? "w-[140px]" : "w-[220px]")}
+          className={cn("p-0", fieldKey === "assignee" ? "w-[280px]" : "w-[220px]")}
           align="start"
           sideOffset={4}
         >
