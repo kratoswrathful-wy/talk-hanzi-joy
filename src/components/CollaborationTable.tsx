@@ -135,18 +135,12 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
         {/* Rows */}
         {rows.map((row, idx) => {
           const canCheckAccepted =
-            caseStatus === "inquiry" &&
+            showAccepted &&
             !row.accepted &&
             (isPmOrAbove || (!row.translator || row.translator === displayName));
 
-          // In dispatched mode, the accepted column shows taskCompleted instead
-          const canCheckTaskCompletedInAcceptedCol =
-            showTaskCompletedInAcceptedCol &&
-            !row.taskCompleted &&
-            (isPmOrAbove || row.translator === displayName);
-
           const canCheckTaskCompleted =
-            (caseStatus === "dispatched" || caseStatus === "task_completed") &&
+            showTaskCompleted &&
             !row.taskCompleted &&
             (isPmOrAbove || row.translator === displayName);
 
@@ -200,15 +194,18 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
                 />
               </div>
 
-              {/* Accepted / TaskCompleted (merged column when dispatched) */}
+              {/* Translation deadline */}
+              <div className="px-1.5 py-1">
+                <DateTimePicker
+                  value={row.translationDeadline}
+                  onChange={(v) => updateRow(idx, { translationDeadline: v })}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Accepted or TaskCompleted (same position) */}
               <div className="flex items-center justify-center px-1.5 py-1">
-                {showTaskCompletedInAcceptedCol ? (
-                  <Checkbox
-                    checked={row.taskCompleted}
-                    disabled={!canCheckTaskCompletedInAcceptedCol && !row.taskCompleted}
-                    onCheckedChange={(v) => updateRow(idx, { taskCompleted: !!v })}
-                  />
-                ) : (
+                {showAccepted ? (
                   <Checkbox
                     checked={row.accepted}
                     disabled={!canCheckAccepted && !row.accepted}
@@ -220,16 +217,13 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
                       }
                     }}
                   />
+                ) : (
+                  <Checkbox
+                    checked={row.taskCompleted}
+                    disabled={!canCheckTaskCompleted && !row.taskCompleted}
+                    onCheckedChange={(v) => updateRow(idx, { taskCompleted: !!v })}
+                  />
                 )}
-              </div>
-
-              {/* Translation deadline */}
-              <div className="px-1.5 py-1">
-                <DateTimePicker
-                  value={row.translationDeadline}
-                  onChange={(v) => updateRow(idx, { translationDeadline: v })}
-                  className="w-full"
-                />
               </div>
 
               {/* Reviewer */}
@@ -251,17 +245,6 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
                   className="w-full"
                 />
               </div>
-
-              {/* Task completed - only shown when NOT dispatched (otherwise merged into accepted col) */}
-              {!showTaskCompletedInAcceptedCol && (
-                <div className="flex items-center justify-center px-1.5 py-1">
-                  <Checkbox
-                    checked={row.taskCompleted}
-                    disabled={!canCheckTaskCompleted && !row.taskCompleted}
-                    onCheckedChange={(v) => updateRow(idx, { taskCompleted: !!v })}
-                  />
-                </div>
-              )}
 
               {/* Delivered */}
               <div className="flex items-center justify-center px-1.5 py-1">
