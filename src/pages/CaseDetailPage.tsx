@@ -1992,23 +1992,6 @@ export default function CaseDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Multi-collab: cancel confirmation */}
-      <AlertDialog open={collabCancelOpen} onOpenChange={(v) => { if (!v) setCollabCancelOpen(false); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>取消多人協作</AlertDialogTitle>
-            <AlertDialogDescription>確定要取消多人協作嗎？協作表格資料將被清除，恢復為單一譯者模式。</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={() => {
-              save({ multiCollab: false, collabCount: 0, collabRows: [] });
-              setCollabCancelOpen(false);
-              toast({ title: "已取消多人協作" });
-            }}>確認取消</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
