@@ -96,6 +96,12 @@ export function FilterSortToolbar({
   onToggleColumn,
   fieldMetasList,
   statusOptionsList,
+  selectedIds,
+  onPinTop,
+  onPinBottom,
+  onUnpinItem,
+  pinnedTop,
+  pinnedBottom,
 }: Props) {
   const [newViewName, setNewViewName] = useState("");
   const [editingViewId, setEditingViewId] = useState<string | null>(null);
@@ -106,6 +112,9 @@ export function FilterSortToolbar({
   const allFields = fieldMetasList || fieldMetas;
   const visibleFields = allFields.filter((f) => visibleFieldKeys.includes(f.key));
   const hiddenSet = new Set(hiddenColumns);
+  const pinnedTopCount = (pinnedTop || []).length;
+  const pinnedBottomCount = (pinnedBottom || []).length;
+  const totalPinCount = pinnedTopCount + pinnedBottomCount;
 
   const filterCount = countConditions(activeView.filterTree);
   const flatFilters = flattenConditions(activeView.filterTree);
