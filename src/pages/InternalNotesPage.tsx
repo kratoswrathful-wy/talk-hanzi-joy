@@ -175,6 +175,7 @@ function NoteDetailView({
       sourceText: note.sourceText,
       translatedText: note.translatedText,
       questionOrNote: note.questionOrNote,
+      questionOrNoteBlocks: note.questionOrNoteBlocks ? [...note.questionOrNoteBlocks] : [],
       referenceFiles: note.referenceFiles.map((f) => ({ ...f })),
       comments: [],
       invalidated: false,
