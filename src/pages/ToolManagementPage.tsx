@@ -293,14 +293,20 @@ function TemplateFieldManager({
                    {(f.type || "text") === "file" ? "檔案" : "文字"}
                  </Badge>
                </div>
-             )}
-             <MultilineInput
-               value={fieldValues[f.id] || ""}
-               onChange={(e) => onFieldValuesChange({ ...fieldValues, [f.id]: e.target.value })}
-               className="h-7 text-sm"
-               minRows={1}
-               maxRows={5}
-             />
+              )}
+              {(f.type || "text") === "file" ? (
+                <div className="h-7 flex items-center px-3 rounded-md border border-input bg-muted/30 text-xs text-muted-foreground">
+                  檔案欄位（套用範本時可上傳）
+                </div>
+              ) : (
+                <MultilineInput
+                  value={fieldValues[f.id] || ""}
+                  onChange={(e) => onFieldValuesChange({ ...fieldValues, [f.id]: e.target.value })}
+                  className="h-7 text-sm"
+                  minRows={1}
+                  maxRows={5}
+                />
+              )}
            </div>
           <button
             className="h-5 w-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted text-muted-foreground hover:text-destructive transition-all shrink-0"
@@ -485,12 +491,16 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
                 <p className="text-xs text-muted-foreground">尚未設定工具</p>
               )}
               {displayFields.map((f) => {
+                const isFile = (f.type || "text") === "file";
                 const val = tpl.fieldValues[f.id];
-                if (!val) return null;
+                if (!val && !isFile) return null;
                 return (
                   <div key={f.id} className="grid grid-cols-[80px_1fr] items-center gap-2">
-                    <span className="text-xs text-muted-foreground">{f.label}</span>
-                    <span className="text-sm">{val}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground">{f.label}</span>
+                      {isFile && <Badge variant="secondary" className="text-[9px] h-3.5 px-1 shrink-0">檔案</Badge>}
+                    </div>
+                    <span className="text-sm">{isFile ? "（檔案欄位）" : val}</span>
                   </div>
                 );
               })}
