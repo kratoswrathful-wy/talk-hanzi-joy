@@ -35,10 +35,14 @@ const MultilineInput = React.forwardRef<HTMLTextAreaElement, MultilineInputProps
       
       // Calculate min and max heights
       const minHeight = (lineHeight * minRows) + paddingTop + paddingBottom + borderTop + borderBottom;
-      const maxHeight = (lineHeight * maxRows) + paddingTop + paddingBottom + borderTop + borderBottom;
+      const maxHeight = maxRows
+        ? (lineHeight * maxRows) + paddingTop + paddingBottom + borderTop + borderBottom
+        : Infinity;
       
       // Set the height based on content, but within min/max bounds
-      const newHeight = Math.min(Math.max(textarea.scrollHeight, minHeight), maxHeight);
+      const newHeight = maxHeight === Infinity
+        ? Math.max(textarea.scrollHeight, minHeight)
+        : Math.min(Math.max(textarea.scrollHeight, minHeight), maxHeight);
       textarea.style.height = `${newHeight}px`;
     }, [minRows, maxRows]);
 
