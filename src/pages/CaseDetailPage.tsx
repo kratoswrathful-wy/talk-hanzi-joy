@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Link, useBlocker } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { useEffect, useState, useCallback, lazy, Suspense, useRef } from "react";
 import { ArrowLeft, Trash2, Plus, X, Copy, Check, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -551,16 +551,19 @@ export default function CaseDetailPage() {
 
   const roleLabels: Record<string, string> = { member: "成員", pm: "專案經理", executive: "執行官" };
 
-  // Block navigation when leaving a draft case (PM+ only) to prompt publishing
-  const shouldBlockNav = canSeePublishPrompt && !!caseData && caseData.status === "draft";
-  const blocker = useBlocker(shouldBlockNav);
+   // Block navigation when leaving a draft case (PM+ only) to prompt publishing
+   const shouldBlockNav = canSeePublishPrompt && !!caseData && caseData.status === "draft";
 
-  useEffect(() => {
-    if (blocker.state === "blocked" && shouldBlockNav) {
-      pendingNavigateRef.current = () => blocker.proceed();
-      setPublishPromptOpen(true);
-    }
-  }, [blocker.state, shouldBlockNav]);
+   // Intercept back button / browser navigation via beforeunload
+   useEffect(() => {
+     if (!shouldBlockNav) return;
+     const handler = (e: BeforeUnloadEvent) => {
+       e.preventDefault();
+       e.returnValue = "";
+     };
+     window.addEventListener("beforeunload", handler);
+     return () => window.removeEventListener("beforeunload", handler);
+   }, [shouldBlockNav]);
 
   useEffect(() => {
     let mounted = true;
@@ -790,13 +793,21 @@ export default function CaseDetailPage() {
   return (
     <div className="space-y-4 max-w-3xl">
       <div className="flex items-center justify-between">
-        <Link
-          to="/cases"
+        <button
+          type="button"
+          onClick={() => {
+            if (shouldBlockNav) {
+              pendingNavigateRef.current = () => navigate("/cases");
+              setPublishPromptOpen(true);
+            } else {
+              navigate("/cases");
+            }
+          }}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
         >
           <ArrowLeft className="h-4 w-4" />
           返回案件清單
-        </Link>
+        </button>
         <div className="flex items-center gap-2">
           {isPmOrAbove && (
             <Button
@@ -1679,11 +1690,7 @@ export default function CaseDetailPage() {
 
       {/* Publish prompt dialog when leaving draft case */}
       <AlertDialog open={publishPromptOpen} onOpenChange={(v) => {
-        if (!v) {
-          setPublishPromptOpen(false);
-          // If user closes without choosing, stay on page
-          if (blocker.state === "blocked") blocker.reset();
-        }
+        if (!v) setPublishPromptOpen(false);
       }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1693,13 +1700,17 @@ export default function CaseDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => {
               setPublishPromptOpen(false);
-              if (blocker.state === "blocked") blocker.proceed();
+              const nav = pendingNavigateRef.current;
+              pendingNavigateRef.current = null;
+              if (nav) nav();
             }}>不公布，直接離開</AlertDialogCancel>
             <AlertDialogAction onClick={() => {
               save({ status: "inquiry" as CaseStatus });
               toast({ title: "案件已公布" });
               setPublishPromptOpen(false);
-              if (blocker.state === "blocked") blocker.proceed();
+              const nav = pendingNavigateRef.current;
+              pendingNavigateRef.current = null;
+              if (nav) nav();
             }}>公布</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
