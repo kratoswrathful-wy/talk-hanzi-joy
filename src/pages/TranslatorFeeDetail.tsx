@@ -650,6 +650,29 @@ export default function TranslatorFeeDetail() {
         const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
         const billingUnit: BillingUnit = billingUnitMap[billingUnitRaw] || "字";
         const unitCount = caseRow.unit_count || 0;
+        const caseClient = (caseRow.client || "").replace(/\s+/g, " ").trim();
+        const caseContact = (caseRow.contact || "").replace(/\s+/g, " ").trim();
+
+        // Auto-create client/contact options if they don't exist
+        if (caseClient) {
+          const existingClients = selectOptionsStore.getSortedOptions("client");
+          const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+          if (!existingClients.find((o) => normalize(o.label) === normalize(caseClient))) {
+            selectOptionsStore.addOption("client", caseClient, PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]);
+            autoCreated.push({ field: "客戶", label: caseClient });
+          }
+        }
+        if (caseContact) {
+          const existingContacts = selectOptionsStore.getSortedOptions("contact");
+          const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+          if (!existingContacts.find((o) => normalize(o.label) === normalize(caseContact))) {
+            selectOptionsStore.addOption("contact", caseContact, CONTACT_DEFAULT_COLOR);
+            autoCreated.push({ field: "聯絡人", label: caseContact });
+          }
+        }
+
+        // Use case client for pricing (prefer case data over stale state)
+        const effectiveClient = caseClient || clientInfo.client;
 
         // 標題 → PO_案件標題
         if (caseTitle) {
@@ -675,8 +698,8 @@ export default function TranslatorFeeDetail() {
 
         // 工作類型 → 任務項目
         const getAutoPrice = (taskType: string, bu: string = "字") => {
-          if (clientInfo.client) {
-            const cp = defaultPricingStore.getClientPrice(clientInfo.client, taskType, bu);
+          if (effectiveClient) {
+            const cp = defaultPricingStore.getClientPrice(effectiveClient, taskType, bu);
             if (cp !== undefined) {
               const tp = defaultPricingStore.getTranslatorPrice(cp, taskType, bu);
               return tp ?? 0;
