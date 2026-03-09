@@ -28,13 +28,11 @@ import {
 import { cn } from "@/lib/utils";
 import type { CaseRecord, CaseStatus, CollabRow } from "@/data/case-types";
 
-/** Pick the nearest deadline from a set of rows (nearest future first, then nearest past) */
-function pickNearestDeadline(rows: CollabRow[], field: "translationDeadline" | "reviewDeadline"): string | null {
+/** Pick the earliest (minimum/soonest) deadline from a set of rows */
+function pickEarliestDeadline(rows: CollabRow[], field: "translationDeadline" | "reviewDeadline"): string | null {
   const dates = rows.filter(r => r[field]).map(r => new Date(r[field]!));
   if (dates.length === 0) return null;
-  const now = Date.now();
-  // sort by absolute distance to now
-  dates.sort((a, b) => Math.abs(a.getTime() - now) - Math.abs(b.getTime() - now));
+  dates.sort((a, b) => a.getTime() - b.getTime());
   return dates[0].toISOString();
 }
 
