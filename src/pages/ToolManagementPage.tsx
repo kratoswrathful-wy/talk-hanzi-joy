@@ -516,8 +516,9 @@ function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; l
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
 
   const handleToolChange = (newTool: string) => {
+    // Preserve the original field type from the tool definition
     const selectedTool = toolOptions.find((o) => o.label === newTool);
-    const defaultFields = (selectedTool?.toolFields || []).map((f) => ({ id: f.id, label: f.label, type: "text" as const }));
+    const defaultFields = (selectedTool?.toolFields || []).map((f) => ({ id: f.id, label: f.label, type: (f.type || "text") as "text" | "file" }));
     setTool(newTool);
     setFields(defaultFields);
     setFieldValues({});
