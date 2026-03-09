@@ -1206,9 +1206,11 @@ export default function CaseDetailPage() {
         </div>
       </div>
 
-      <Field label="案件編號">
+      {/* Title — standalone like internal notes */}
+      <div className="text-lg font-semibold px-0">
         <TitleInput value={caseData.title} onSave={(v) => save({ title: v })} />
-      </Field>
+      </div>
+      <Separator />
       <Field label="狀態">
         <div className="flex items-center gap-3">
           <CaseStatusBadge status={caseData.status} />
