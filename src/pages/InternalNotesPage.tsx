@@ -696,7 +696,7 @@ export default function InternalNotesPage() {
         <h1 className="text-2xl font-semibold tracking-tight">內部註記</h1>
         <Button size="sm" className="gap-1.5" onClick={() => setNewNoteOpen(true)}>
           <Plus className="h-4 w-4" />
-          新增
+          新增內部註記
         </Button>
         {activeView.isDefault ? (
           <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
