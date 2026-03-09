@@ -408,9 +408,9 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
   };
 
   const handleToolChange = (newTool: string) => {
-    // When changing tool, initialize fields from tool's default fields
+    // When changing tool, initialize fields from tool's default fields (preserving type)
     const selectedTool = toolOptions.find((o) => o.label === newTool);
-    const defaultFields = (selectedTool?.toolFields || []).map((f) => ({ id: f.id, label: f.label, type: "text" as const }));
+    const defaultFields = (selectedTool?.toolFields || []).map((f) => ({ id: f.id, label: f.label, type: (f.type || "text") as "text" | "file" }));
     setDraft({ ...draft, tool: newTool, fields: defaultFields, fieldValues: {} });
   };
 
