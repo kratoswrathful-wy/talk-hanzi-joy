@@ -65,9 +65,11 @@ const MultilineInput = React.forwardRef<HTMLTextAreaElement, MultilineInputProps
 
     // Handle keyboard events
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      // Skip during IME composition (e.g. Zhuyin, Pinyin input)
+      if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+      
       // Allow shift+enter for new lines
       if (e.key === 'Enter' && e.shiftKey) {
-        // Default behavior will insert a new line
         return;
       }
       
