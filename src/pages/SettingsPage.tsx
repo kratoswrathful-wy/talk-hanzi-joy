@@ -358,7 +358,7 @@ function ClientPricingSection() {
       )}
 
       {/* Label text color picker - collapsible */}
-      <div className="border-t border-border pt-4 mt-auto">
+      <div className="border-t border-border pt-4">
         <button
           className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left"
           onClick={() => setTextColorOpen((v) => !v)}
