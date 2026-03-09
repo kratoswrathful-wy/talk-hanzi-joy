@@ -1205,28 +1205,31 @@ export default function CaseDetailPage() {
         </div>
       </div>
 
-      {/* Title + Status badge on the same row */}
-      <div className="flex items-center gap-4 px-0">
-        <div className="text-lg font-semibold flex-1 min-w-0">
+      {/* Title + Status badge on the same row, status aligned with right-column fields */}
+      <div className="grid grid-cols-2 gap-4 items-center px-0">
+        <div className="text-2xl font-semibold tracking-tight min-w-0">
           <TitleInput value={caseData.title} onSave={(v) => save({ title: v })} />
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <CaseStatusBadge status={caseData.status} />
-          {isInquiry && !caseData.multiCollab && (
-            <span className="text-xs text-muted-foreground">
-              譯者若可承接，請直接點選右上角的「承接本案」。
-            </span>
-          )}
-          {caseData.multiCollab && isInquiry && (
-            <span className="text-xs text-muted-foreground">
-              譯者若可承接，請直接於表格中可承接的橫列勾選「確認承接」。
-            </span>
-          )}
-          {caseData.multiCollab && isDispatched && (
-            <span className="text-xs text-muted-foreground">
-              譯者完成任務後，請直接勾選「任務完成」。
-            </span>
-          )}
+        <div className="grid grid-cols-[100px_1fr] items-center gap-3">
+          <span className="text-sm text-muted-foreground">狀態</span>
+          <div className="flex items-center gap-2">
+            <CaseStatusBadge status={caseData.status} />
+            {isInquiry && !caseData.multiCollab && (
+              <span className="text-xs text-muted-foreground">
+                譯者若可承接，請直接點選右上角的「承接本案」。
+              </span>
+            )}
+            {caseData.multiCollab && isInquiry && (
+              <span className="text-xs text-muted-foreground">
+                譯者若可承接，請直接於表格中可承接的橫列勾選「確認承接」。
+              </span>
+            )}
+            {caseData.multiCollab && isDispatched && (
+              <span className="text-xs text-muted-foreground">
+                譯者完成任務後，請直接勾選「任務完成」。
+              </span>
+            )}
+          </div>
         </div>
       </div>
       <Separator />
