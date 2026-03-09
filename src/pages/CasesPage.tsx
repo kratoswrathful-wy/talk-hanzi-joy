@@ -28,35 +28,63 @@ import {
 import { cn } from "@/lib/utils";
 import type { CaseRecord, CaseStatus, CollabRow } from "@/data/case-types";
 
-function CollabDeadlineCell({ collabRows }: { collabRows: CollabRow[] }) {
+function CollabTranslationDeadlineCell({ collabRows, status }: { collabRows: CollabRow[]; status: string }) {
   const { profile } = useAuth();
   const displayName = profile?.display_name || "";
-  const now = new Date();
-  
-  // Check if current user is one of the translators in collab
-  const isCollabTranslator = collabRows.some(r => r.translator === displayName);
-  
-  const relevantRows = isCollabTranslator
-    ? collabRows.filter(r => r.translator === displayName)
-    : collabRows;
-  
-  const upcomingDeadlines = relevantRows
-    .filter(r => r.translationDeadline)
-    .map(r => new Date(r.translationDeadline!))
-    .filter(d => d >= now)
-    .sort((a, b) => a.getTime() - b.getTime());
-  
-  if (upcomingDeadlines.length === 0) {
-    // Fallback to any deadline
-    const allDeadlines = relevantRows
-      .filter(r => r.translationDeadline)
-      .map(r => new Date(r.translationDeadline!))
-      .sort((a, b) => a.getTime() - b.getTime());
-    if (allDeadlines.length === 0) return <span className="text-sm text-muted-foreground">—</span>;
-    return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(allDeadlines[0].toISOString())}</span>;
+  const isDraftOrInquiry = status === "draft" || status === "inquiry";
+
+  let rows: CollabRow[];
+  if (isDraftOrInquiry) {
+    // Show nearest deadline across all rows
+    rows = collabRows;
+  } else {
+    // Active case: show translator's own uncompleted rows
+    const myUncompleted = collabRows.filter(r => r.translator === displayName && !r.taskCompleted);
+    if (myUncompleted.length > 0) {
+      rows = myUncompleted;
+    } else {
+      // All done or not a translator: show all rows, pick latest
+      rows = collabRows;
+      const allDates = rows.filter(r => r.translationDeadline).map(r => new Date(r.translationDeadline!)).sort((a, b) => b.getTime() - a.getTime());
+      if (allDates.length === 0) return <span className="text-sm text-muted-foreground">—</span>;
+      return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(allDates[0].toISOString())}</span>;
+    }
   }
-  
-  return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(upcomingDeadlines[0].toISOString())}</span>;
+
+  const now = new Date();
+  const upcoming = rows.filter(r => r.translationDeadline).map(r => new Date(r.translationDeadline!)).filter(d => d >= now).sort((a, b) => a.getTime() - b.getTime());
+  if (upcoming.length > 0) return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(upcoming[0].toISOString())}</span>;
+  const all = rows.filter(r => r.translationDeadline).map(r => new Date(r.translationDeadline!)).sort((a, b) => a.getTime() - b.getTime());
+  if (all.length > 0) return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(all[0].toISOString())}</span>;
+  return <span className="text-sm text-muted-foreground">—</span>;
+}
+
+function CollabReviewDeadlineCell({ collabRows, status }: { collabRows: CollabRow[]; status: string }) {
+  const { profile } = useAuth();
+  const displayName = profile?.display_name || "";
+  const isDraftOrInquiry = status === "draft" || status === "inquiry";
+
+  let rows: CollabRow[];
+  if (isDraftOrInquiry) {
+    rows = collabRows;
+  } else {
+    const myUncompleted = collabRows.filter(r => r.reviewer === displayName && !r.delivered);
+    if (myUncompleted.length > 0) {
+      rows = myUncompleted;
+    } else {
+      rows = collabRows;
+      const allDates = rows.filter(r => r.reviewDeadline).map(r => new Date(r.reviewDeadline!)).sort((a, b) => b.getTime() - a.getTime());
+      if (allDates.length === 0) return <span className="text-sm text-muted-foreground">—</span>;
+      return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(allDates[0].toISOString())}</span>;
+    }
+  }
+
+  const now = new Date();
+  const upcoming = rows.filter(r => r.reviewDeadline).map(r => new Date(r.reviewDeadline!)).filter(d => d >= now).sort((a, b) => a.getTime() - b.getTime());
+  if (upcoming.length > 0) return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(upcoming[0].toISOString())}</span>;
+  const all = rows.filter(r => r.reviewDeadline).map(r => new Date(r.reviewDeadline!)).sort((a, b) => a.getTime() - b.getTime());
+  if (all.length > 0) return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(all[0].toISOString())}</span>;
+  return <span className="text-sm text-muted-foreground">—</span>;
 }
 
 const caseStatusLabels: Record<CaseStatus, string> = {
@@ -267,9 +295,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "翻譯交期",
     minWidth: 110,
     render: (c) => {
-      // For collab cases, show the nearest upcoming deadline
       if (c.multiCollab && c.collabRows?.length > 0) {
-        return <CollabDeadlineCell collabRows={c.collabRows} />;
+        return <CollabTranslationDeadlineCell collabRows={c.collabRows} status={c.status} />;
       }
       return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(c.translationDeadline)}</span>;
     },
@@ -288,7 +315,12 @@ const allColumnDefs: ColumnDef[] = [
     key: "reviewDeadline",
     label: "審稿交期",
     minWidth: 110,
-    render: (c) => <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(c.reviewDeadline)}</span>,
+    render: (c) => {
+      if (c.multiCollab && c.collabRows?.length > 0) {
+        return <CollabReviewDeadlineCell collabRows={c.collabRows} status={c.status} />;
+      }
+      return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(c.reviewDeadline)}</span>;
+    },
   },
   {
     key: "executionTool",
