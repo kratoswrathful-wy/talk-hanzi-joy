@@ -216,33 +216,29 @@ async function duplicate(id: string): Promise<CaseRecord | null> {
   const baseTitle = `${prefix}${todayStr}`;
 
   // Find all existing cases with the same prefix+date pattern
-  const pattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${todayStr}(_[A-Z])?$`);
+  const pattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${todayStr}([A-Z])?$`);
   const matching = cases.filter((c) => pattern.test(c.title));
 
   if (matching.length === 0) {
-    // No collision, just use baseTitle
     return create({ ...rest, title: baseTitle });
   }
 
-  // There are existing matches. Find the exact base (no suffix) and rename it if needed.
   const exactMatch = matching.find((c) => c.title === baseTitle);
   if (exactMatch) {
-    // Rename the existing exact match to _A
-    await update(exactMatch.id, { title: `${baseTitle}_A` });
+    await update(exactMatch.id, { title: `${baseTitle}A` });
   }
 
-  // Find max existing suffix letter
   let maxCode = exactMatch ? "A".charCodeAt(0) : "A".charCodeAt(0) - 1;
   for (const c of matching) {
-    const suffixMatch = c.title.match(/_([A-Z])$/);
-    if (suffixMatch) {
+    const suffixMatch = c.title.match(/([A-Z])$/);
+    if (suffixMatch && c.title === `${baseTitle}${suffixMatch[1]}`) {
       const code = suffixMatch[1].charCodeAt(0);
       if (code > maxCode) maxCode = code;
     }
   }
 
   const nextLetter = String.fromCharCode(maxCode + 1);
-  return create({ ...rest, title: `${baseTitle}_${nextLetter}` });
+  return create({ ...rest, title: `${baseTitle}${nextLetter}` });
 }
 
 export const caseStore = { load, getAll, getById, create, update, remove, duplicate, subscribe, reset };
