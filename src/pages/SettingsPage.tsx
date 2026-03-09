@@ -125,7 +125,7 @@ function ClientPricingSection() {
   const cellKey = (client: string, taskType: string, billingUnit: string) => `${client}::${taskType}::${billingUnit}`;
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+    <div className="rounded-xl border border-border bg-card p-6 space-y-4 flex flex-col">
       <div>
         <h2 className="text-base font-semibold">客戶設定</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
@@ -357,7 +357,7 @@ function ClientPricingSection() {
       )}
 
       {/* Label text color picker - collapsible */}
-      <div className="border-t border-border pt-4">
+      <div className="border-t border-border pt-4 mt-auto">
         <button
           className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left"
           onClick={() => setTextColorOpen((v) => !v)}
@@ -465,7 +465,7 @@ function TaskTypeOrderSection() {
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+    <div className="rounded-xl border border-border bg-card p-6 space-y-4 flex flex-col">
       <div>
         <h2 className="text-base font-semibold">任務類型設定</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
@@ -578,7 +578,7 @@ function TaskTypeOrderSection() {
       )}
 
       {/* Label text color picker - collapsible */}
-      <div className="border-t border-border pt-4">
+      <div className="border-t border-border pt-4 mt-auto">
         <button
           className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left"
           onClick={() => setTextColorOpen((v) => !v)}
@@ -659,7 +659,7 @@ function BillingUnitOrderSection() {
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+    <div className="rounded-xl border border-border bg-card p-6 space-y-4 flex flex-col">
       <div>
         <h2 className="text-base font-semibold">計費單位設定</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
@@ -772,7 +772,7 @@ function BillingUnitOrderSection() {
       )}
 
       {/* Label text color picker - collapsible */}
-      <div className="border-t border-border pt-4">
+      <div className="border-t border-border pt-4 mt-auto">
         <button
           className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left"
           onClick={() => setTextColorOpen((v) => !v)}
@@ -1756,7 +1756,7 @@ function DispatchRouteSection() {
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+    <div className="rounded-xl border border-border bg-card p-6 space-y-4 flex flex-col">
       <div>
         <h2 className="text-base font-semibold">派案來源設定</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
@@ -1865,7 +1865,7 @@ function DispatchRouteSection() {
       )}
 
       {/* Label text color picker - collapsible */}
-      <div className="border-t border-border pt-4">
+      <div className="border-t border-border pt-4 mt-auto">
         <button
           className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left"
           onClick={() => setTextColorOpen((v) => !v)}
@@ -1943,7 +1943,7 @@ function CaseCategorySection() {
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+    <div className="rounded-xl border border-border bg-card p-6 space-y-4 flex flex-col">
       <div>
         <h2 className="text-base font-semibold">內容性質設定</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
@@ -2052,7 +2052,7 @@ function CaseCategorySection() {
       )}
 
       {/* Label text color picker - collapsible */}
-      <div className="border-t border-border pt-4">
+      <div className="border-t border-border pt-4 mt-auto">
         <button
           className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left"
           onClick={() => setTextColorOpen((v) => !v)}
