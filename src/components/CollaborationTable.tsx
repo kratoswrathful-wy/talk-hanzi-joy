@@ -102,17 +102,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
   };
 
   return (
-    <div className="space-y-1">
-      {/* Scroll arrows */}
-      <div className="flex justify-end gap-1">
-        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => scrollToEnd("left")}>
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => scrollToEnd("right")}>
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
-
+    <div className="space-y-0">
       <div ref={scrollRef} className="border border-border rounded-lg overflow-x-auto">
         {/* Header */}
         <div
