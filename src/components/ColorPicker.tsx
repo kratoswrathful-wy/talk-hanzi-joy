@@ -311,15 +311,27 @@ export default function ColorPicker({
           </div>
         )}
 
-        {/* Toggle color wheel */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-xs w-full"
-          onClick={() => setShowWheel(!showWheel)}
-        >
-          {showWheel ? "收起調色盤" : "自訂顏色"}
-        </Button>
+        {/* Toggle color wheel + reset default */}
+        <div className="flex gap-2">
+          {onResetDefault && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs flex-1"
+              onClick={onResetDefault}
+            >
+              預設值（白）
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-xs flex-1"
+            onClick={() => setShowWheel(!showWheel)}
+          >
+            {showWheel ? "收起調色盤" : "自訂顏色"}
+          </Button>
+        </div>
 
         {showWheel && (
           <div className="space-y-2">
