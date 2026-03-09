@@ -74,6 +74,8 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   const map: Record<string, any> = {};
   if (c.title !== undefined) map.title = c.title;
   if (c.status !== undefined) map.status = c.status;
+  if (c.client !== undefined) map.client = c.client;
+  if (c.contact !== undefined) map.contact = c.contact;
   if (c.category !== undefined) map.category = c.category;
   if (c.workType !== undefined) map.work_type = c.workType;
   if (c.processNote !== undefined) map.process_note = c.processNote;

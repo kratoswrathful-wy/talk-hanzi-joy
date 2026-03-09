@@ -1004,6 +1004,14 @@ export default function CaseDetailPage() {
           <DateTimePicker value={caseData.reviewDeadline} onChange={(v) => save({ reviewDeadline: v })} className="w-full" />
         </Field>
       </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="客戶">
+          <ColorSelect fieldKey="client" value={caseData.client} onValueChange={(v) => save({ client: v })} />
+        </Field>
+        <Field label="聯絡人">
+          <ColorSelect fieldKey="contact" value={caseData.contact} onValueChange={(v) => save({ contact: v })} />
+        </Field>
+      </div>
 
       {/* 本案費用 + 產生本案費用單 */}
       {(() => {

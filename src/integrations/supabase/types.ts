@@ -40,12 +40,14 @@ export type Database = {
           billing_unit: string
           case_reference_materials: Json | null
           category: string
+          client: string
           client_guidelines: Json
           client_question_form: boolean
           client_receipt: string
           comments: Json | null
           common_info: Json
           common_links: Json | null
+          contact: string
           created_at: string
           created_by: string | null
           custom_guidelines_url: Json
@@ -90,12 +92,14 @@ export type Database = {
           billing_unit?: string
           case_reference_materials?: Json | null
           category?: string
+          client?: string
           client_guidelines?: Json
           client_question_form?: boolean
           client_receipt?: string
           comments?: Json | null
           common_info?: Json
           common_links?: Json | null
+          contact?: string
           created_at?: string
           created_by?: string | null
           custom_guidelines_url?: Json
@@ -140,12 +144,14 @@ export type Database = {
           billing_unit?: string
           case_reference_materials?: Json | null
           category?: string
+          client?: string
           client_guidelines?: Json
           client_question_form?: boolean
           client_receipt?: string
           comments?: Json | null
           common_info?: Json
           common_links?: Json | null
+          contact?: string
           created_at?: string
           created_by?: string | null
           custom_guidelines_url?: Json
