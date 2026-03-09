@@ -85,6 +85,7 @@ export type Database = {
           translator_final: Json
           unit_count: number
           updated_at: string
+          work_groups: Json
           work_type: Json
           working_files: Json
         }
@@ -137,6 +138,7 @@ export type Database = {
           translator_final?: Json
           unit_count?: number
           updated_at?: string
+          work_groups?: Json
           work_type?: Json
           working_files?: Json
         }
@@ -189,6 +191,7 @@ export type Database = {
           translator_final?: Json
           unit_count?: number
           updated_at?: string
+          work_groups?: Json
           work_type?: Json
           working_files?: Json
         }
