@@ -1188,6 +1188,8 @@ export default function CaseDetailPage() {
                         clientPrice: 0,
                       })),
                       ...(isMulti ? { sameCase: true, isFirstFee: true, notFirstFee: false } : {}),
+                      ...(caseClient ? { client: caseClient } : {}),
+                      ...(caseContact ? { contact: caseContact } : {}),
                     },
                     notes: [],
                     editLogs: [],
