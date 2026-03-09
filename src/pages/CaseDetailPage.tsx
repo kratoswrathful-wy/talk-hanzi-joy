@@ -954,7 +954,7 @@ export default function CaseDetailPage() {
   const internalComments = caseData.internalComments || [];
 
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-4 max-w-3xl overflow-hidden">
       <div className="flex items-center justify-between">
         <button
           type="button"
