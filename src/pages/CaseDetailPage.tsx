@@ -1005,12 +1005,16 @@ export default function CaseDetailPage() {
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <Field label="客戶">
-          <ColorSelect fieldKey="client" value={caseData.client} onValueChange={(v) => save({ client: v })} />
-        </Field>
-        <Field label="聯絡人">
-          <ColorSelect fieldKey="contact" value={caseData.contact} onValueChange={(v) => save({ contact: v })} />
-        </Field>
+        {checkPerm("case_management", "case_detail_client", "view") && (
+          <Field label="客戶">
+            <ColorSelect fieldKey="client" value={caseData.client} disabled={!checkPerm("case_management", "case_detail_client", "edit")} onValueChange={(v) => save({ client: v })} />
+          </Field>
+        )}
+        {checkPerm("case_management", "case_detail_contact", "view") && (
+          <Field label="聯絡人">
+            <ColorSelect fieldKey="contact" value={caseData.contact} disabled={!checkPerm("case_management", "case_detail_contact", "edit")} onValueChange={(v) => save({ contact: v })} />
+          </Field>
+        )}
       </div>
 
       {/* 本案費用 + 產生本案費用單 */}
