@@ -295,9 +295,8 @@ const allColumnDefs: ColumnDef[] = [
     label: "翻譯交期",
     minWidth: 110,
     render: (c) => {
-      // For collab cases, show the nearest upcoming deadline
       if (c.multiCollab && c.collabRows?.length > 0) {
-        return <CollabDeadlineCell collabRows={c.collabRows} />;
+        return <CollabTranslationDeadlineCell collabRows={c.collabRows} status={c.status} />;
       }
       return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(c.translationDeadline)}</span>;
     },
