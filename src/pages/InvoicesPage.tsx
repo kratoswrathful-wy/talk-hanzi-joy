@@ -461,6 +461,15 @@ export default function InvoicesPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">稿費請款</h1>
         </div>
+        {activeView.isDefault ? (
+          <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
+            一切檢視設定僅對本人生效
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
+            此為自訂視圖，只有新增者本人可見
+          </span>
+        )}
         <Button size="sm" className="gap-1.5" onClick={handleCreateInvoice}>
           <Plus className="h-4 w-4" />
           新增請款單

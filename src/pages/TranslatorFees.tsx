@@ -879,7 +879,11 @@ export default function TranslatorFees() {
             })()}
           </TooltipProvider>
         )}
-        {!activeView.isDefault && (
+        {activeView.isDefault ? (
+          <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
+            一切檢視設定僅對本人生效
+          </span>
+        ) : (
           <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
             此為自訂視圖，只有新增者本人可見
           </span>
