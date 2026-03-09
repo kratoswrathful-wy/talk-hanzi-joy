@@ -28,6 +28,8 @@ export interface CaseRecord {
   id: string;
   title: string;
   status: CaseStatus;
+  client: string;
+  contact: string;
   category: string;
   workType: string[];
   processNote: string;
