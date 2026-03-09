@@ -90,6 +90,7 @@ function ClientCaseLinkField({ value, onSave, disabled, defaultLabel }: {
           <a href={value.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline underline-offset-2 hover:text-primary/80 truncate">
             {value.label || value.url}
           </a>
+          <CopyButton value={value.url} />
           {!disabled && (
             <button onClick={handleClear} className="text-muted-foreground hover:text-destructive shrink-0">
               <X className="h-3.5 w-3.5" />
