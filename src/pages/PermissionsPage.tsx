@@ -591,7 +591,7 @@ export default function PermissionsPage() {
       <AlertDialog open={!!deleteTarget && deleteStep === 1} onOpenChange={(open) => { if (!open && deleteStep === 1) handleCancelDelete(); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>確認刪除身分</AlertDialogTitle>
+            <AlertDialogTitle>確定刪除身分</AlertDialogTitle>
             <AlertDialogDescription>確定要刪除「{deleteTarget?.label}」這個身分嗎？此操作無法復原。</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
