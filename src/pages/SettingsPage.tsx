@@ -2231,6 +2231,8 @@ export default function SettingsPage() {
       <CaseCategorySection />
       {/* TranslatorNotesSection removed - now in 團隊成員 page */}
       {canViewSection("translator_tiers") && <TranslatorTierSection />}
+      <NoteSelectSection fieldKey="noteStatus" title="內部註記狀態" addLabel="新增狀態" />
+      <NoteSelectSection fieldKey="noteNature" title="內部註記性質" addLabel="新增性質" />
       <StatusStyleSection />
     </div>
   );
