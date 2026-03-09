@@ -24,6 +24,8 @@ interface ColorPickerProps {
   onRemoveCustomColor?: (color: string) => void;
   /** Map of uppercase hex color → list of option labels using it */
   colorUsageMap?: Record<string, string[]>;
+  /** When provided, show a "預設值（白）" button that calls this callback */
+  onResetDefault?: () => void;
 }
 
 function hsvToHex(h: number, s: number, v: number): string {
