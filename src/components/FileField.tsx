@@ -255,7 +255,7 @@ export default function FileField({ value, onChange }: FileFieldProps) {
         onChange={handleFileInput}
       />
 
-      {/* Collapsed: single add button / Expanded: full toolbar */}
+      {/* Collapsed: single add button / Expanded: overlay toolbar */}
       {!actionsExpanded && !uploading ? (
         <Button
           type="button"
@@ -267,79 +267,77 @@ export default function FileField({ value, onChange }: FileFieldProps) {
           <Plus className="h-3.5 w-3.5" />
         </Button>
       ) : (
-        <div
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          className={`flex items-center gap-2 rounded-md border border-dashed px-3 py-2 transition-colors ${
-            dragOver ? "border-primary bg-primary/5" : "border-border"
-          }`}
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs gap-1"
-            disabled={uploading}
-            onClick={() => inputRef.current?.click()}
+        <>
+          {/* Backdrop overlay — click anywhere to close */}
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setActionsExpanded(false)}
+          />
+          <div
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            className={`relative z-50 flex items-center gap-2 rounded-md border border-dashed px-3 py-2 transition-colors bg-background shadow-lg ${
+              dragOver ? "border-primary bg-primary/5" : "border-border"
+            }`}
           >
-            <Upload className="h-3.5 w-3.5" />
-            {uploading ? "上傳中…" : "上傳檔案"}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs gap-1"
-            onClick={() => setUrlDialogOpen(true)}
-          >
-            <LinkIcon className="h-3.5 w-3.5" />
-            貼上網址
-          </Button>
-          <Popover open={linksOpen} onOpenChange={setLinksOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs gap-1"
-              >
-                <BookmarkPlus className="h-3.5 w-3.5" />
-                常用連結
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-64 p-2" align="start">
-              {commonLinks.length === 0 ? (
-                <p className="text-xs text-muted-foreground px-2 py-1">尚無常用連結，請至「工具管理」新增</p>
-              ) : (
-                <div className="space-y-0.5 max-h-48 overflow-y-auto">
-                  {commonLinks.map((link) => (
-                    <label
-                      key={link.id}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-secondary/30 cursor-pointer"
-                    >
-                      <Checkbox
-                        checked={existingUrls.has(link.url)}
-                        onCheckedChange={() => toggleCommonLink(link)}
-                      />
-                      <span className="text-sm truncate flex-1">{link.name}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </PopoverContent>
-          </Popover>
-          <span className="text-xs text-muted-foreground ml-1">或拖曳檔案至此</span>
-          {!uploading && (
-            <button
-              onClick={() => setActionsExpanded(false)}
-              className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0 ml-auto"
-              title="收合"
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs gap-1"
+              disabled={uploading}
+              onClick={() => inputRef.current?.click()}
             >
-              <X className="h-3 w-3" />
-            </button>
-          )}
-        </div>
+              <Upload className="h-3.5 w-3.5" />
+              {uploading ? "上傳中…" : "上傳檔案"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={() => setUrlDialogOpen(true)}
+            >
+              <LinkIcon className="h-3.5 w-3.5" />
+              貼上網址
+            </Button>
+            <Popover open={linksOpen} onOpenChange={setLinksOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs gap-1"
+                >
+                  <BookmarkPlus className="h-3.5 w-3.5" />
+                  常用連結
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-2" align="start">
+                {commonLinks.length === 0 ? (
+                  <p className="text-xs text-muted-foreground px-2 py-1">尚無常用連結，請至「工具管理」新增</p>
+                ) : (
+                  <div className="space-y-0.5 max-h-48 overflow-y-auto">
+                    {commonLinks.map((link) => (
+                      <label
+                        key={link.id}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-secondary/30 cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={existingUrls.has(link.url)}
+                          onCheckedChange={() => toggleCommonLink(link)}
+                        />
+                        <span className="text-sm truncate flex-1">{link.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
+            <span className="text-xs text-muted-foreground ml-1">或拖曳檔案至此</span>
+          </div>
+        </>
       )}
 
       {/* URL dialog */}
