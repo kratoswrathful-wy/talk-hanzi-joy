@@ -386,7 +386,7 @@ function TemplateFieldManager({
 }
 
 /* ── Template Card (collapsible) ── */
-function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { id: string; label: string; color: string; toolFields?: { id: string; label: string }[] }[] }) {
+function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { id: string; label: string; color: string; toolFields?: { id: string; label: string; type?: "text" | "file" }[] }[] }) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ToolTemplate>(tpl);
@@ -408,9 +408,9 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
   };
 
   const handleToolChange = (newTool: string) => {
-    // When changing tool, initialize fields from tool's default fields
+    // When changing tool, initialize fields from tool's default fields (preserving type)
     const selectedTool = toolOptions.find((o) => o.label === newTool);
-    const defaultFields = (selectedTool?.toolFields || []).map((f) => ({ id: f.id, label: f.label, type: "text" as const }));
+    const defaultFields = (selectedTool?.toolFields || []).map((f) => ({ id: f.id, label: f.label, type: (f.type || "text") as "text" | "file" }));
     setDraft({ ...draft, tool: newTool, fields: defaultFields, fieldValues: {} });
   };
 
@@ -509,15 +509,16 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
 }
 
 /* ── New Template Form (inline) ── */
-function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; label: string; toolFields?: { id: string; label: string }[] }[]; onDone: () => void }) {
+function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; label: string; toolFields?: { id: string; label: string; type?: "text" | "file" }[] }[]; onDone: () => void }) {
   const [name, setName] = useState("");
   const [tool, setTool] = useState("");
   const [fields, setFields] = useState<TemplateField[]>([]);
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
 
   const handleToolChange = (newTool: string) => {
+    // Preserve the original field type from the tool definition
     const selectedTool = toolOptions.find((o) => o.label === newTool);
-    const defaultFields = (selectedTool?.toolFields || []).map((f) => ({ id: f.id, label: f.label, type: "text" as const }));
+    const defaultFields = (selectedTool?.toolFields || []).map((f) => ({ id: f.id, label: f.label, type: (f.type || "text") as "text" | "file" }));
     setTool(newTool);
     setFields(defaultFields);
     setFieldValues({});
