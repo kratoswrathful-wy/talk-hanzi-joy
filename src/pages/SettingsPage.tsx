@@ -2015,7 +2015,7 @@ function CaseCategorySection() {
           onClick={() => setAdding(true)}
         >
           <Plus className="h-3.5 w-3.5" />
-          新增案件類型
+          新增內容性質
         </Button>
       )}
 
