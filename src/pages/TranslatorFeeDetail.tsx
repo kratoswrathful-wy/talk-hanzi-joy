@@ -654,6 +654,9 @@ export default function TranslatorFeeDetail() {
         const caseContact = (caseRow.contact || "").replace(/\s+/g, " ").trim();
         const caseKeyword = ((caseRow as any).keyword || "").trim();
         const casePo = ((caseRow as any).client_po_number || "").trim();
+        const caseCaseLink = (caseRow as any).client_case_link && typeof (caseRow as any).client_case_link === "object"
+          ? (caseRow as any).client_case_link as { url: string; label: string }
+          : { url: "", label: "" };
 
         // Auto-create client/contact options if they don't exist
         if (caseClient) {
