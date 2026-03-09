@@ -327,16 +327,16 @@ export function useTableViews(userId?: string) {
   }, [activeViewId, activeView, updateView]);
 
   const safeActiveViewId = useMemo(() => {
-    if (visibleViews.some((v) => v.id === activeViewId)) return activeViewId;
+    if (views.some((v) => v.id === activeViewId)) return activeViewId;
     return "default";
-  }, [visibleViews, activeViewId]);
+  }, [views, activeViewId]);
 
   if (safeActiveViewId !== activeViewId) {
     setActiveViewId(safeActiveViewId);
   }
 
   return {
-    views: visibleViews,
+    views,
     activeView,
     activeViewId: safeActiveViewId,
     setActiveViewId,

@@ -285,14 +285,14 @@ export function useInternalNotesTableViews(userId?: string) {
   }, [activeViewId, activeView, updateView]);
 
   const safeActiveViewId = useMemo(() => {
-    if (visibleViews.some((v) => v.id === activeViewId)) return activeViewId;
+    if (views.some((v) => v.id === activeViewId)) return activeViewId;
     return "default";
-  }, [visibleViews, activeViewId]);
+  }, [views, activeViewId]);
 
   if (safeActiveViewId !== activeViewId) setActiveViewId(safeActiveViewId);
 
   return {
-    views: visibleViews, activeView, activeViewId: safeActiveViewId,
+    views, activeView, activeViewId: safeActiveViewId,
     setActiveViewId, addView, deleteView, renameView, reorderViews,
     addCondition, removeFilterNode, updateCondition, addFilterGroup, changeGroupLogic,
     addSort, removeSort, updateSort, setColumnOrder, setColumnWidth,
