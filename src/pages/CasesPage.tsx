@@ -315,7 +315,12 @@ const allColumnDefs: ColumnDef[] = [
     key: "reviewDeadline",
     label: "審稿交期",
     minWidth: 110,
-    render: (c) => <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(c.reviewDeadline)}</span>,
+    render: (c) => {
+      if (c.multiCollab && c.collabRows?.length > 0) {
+        return <CollabReviewDeadlineCell collabRows={c.collabRows} status={c.status} />;
+      }
+      return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(c.reviewDeadline)}</span>;
+    },
   },
   {
     key: "executionTool",
