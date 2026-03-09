@@ -15,7 +15,7 @@ import {
   UnnestBlockButton,
   CreateLinkButton,
   ColorStyleButton,
-} from "@blocknote/shadcn";
+} from "@blocknote/react";
 import { Paintbrush, ClipboardPaste } from "lucide-react";
 
 // zh-TW dictionary for BlockNote slash menu & UI
