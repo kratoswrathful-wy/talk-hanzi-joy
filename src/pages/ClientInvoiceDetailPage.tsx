@@ -457,7 +457,7 @@ export default function ClientInvoiceDetailPage() {
       return;
     }
     if (amount + paidSoFar > total) {
-      toast.error(`輸入金額過高，已收金額加上本次收款合計超出應收總額 ${formatCurrency(total)}，請調整金額。`);
+      setAmountTooHighMsg(`輸入金額過高，已收金額加上本次收款合計超出應收總額 ${formatCurrency(total)}，請調整金額。`);
       return;
     }
     const now = new Date().toISOString();
