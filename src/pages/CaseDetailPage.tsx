@@ -1945,9 +1945,12 @@ export default function CaseDetailPage() {
               onClick={() => {
                 const newCount = Number(collabEditInput);
                 const currentRows = caseData?.collabRows || [];
-                const acceptedCount = currentRows.filter(r => r.accepted).length;
-                if (newCount < acceptedCount) {
-                  toast({ title: "無法減少列數", description: `目前已有 ${acceptedCount} 位譯者承接，不可將列數減少至低於此數目。請先調整各列內容。`, variant: "destructive" });
+                // Count unique non-empty translators
+                const uniqueTranslators = new Set(
+                  currentRows.map(r => r.translator).filter(Boolean)
+                );
+                if (uniqueTranslators.size > newCount) {
+                  toast({ title: "無法變更人次", description: `目前指派人數多於 ${newCount} 人，請考慮改為調整各列內容。`, variant: "destructive" });
                   return;
                 }
                 let newRows: CollabRow[];
