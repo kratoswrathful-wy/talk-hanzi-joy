@@ -1103,6 +1103,18 @@ export default function ClientInvoiceDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* Amount too high alert */}
+      <AlertDialog open={!!amountTooHighMsg} onOpenChange={(open) => { if (!open) setAmountTooHighMsg(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>金額錯誤</AlertDialogTitle>
+            <AlertDialogDescription>{amountTooHighMsg}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setAmountTooHighMsg(null)}>確定</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
