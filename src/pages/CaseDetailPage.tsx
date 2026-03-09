@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { caseStore } from "@/hooks/use-case-store";
-import { feeStore } from "@/hooks/use-fee-store";
+import { feeStore, useFees } from "@/hooks/use-fee-store";
 import { type TranslatorFee, type FeeTaskItem, type TaskType, type BillingUnit, defaultClientInfo } from "@/data/fee-mock-data";
 import { selectOptionsStore, PRESET_COLORS, useSelectOptions } from "@/stores/select-options-store";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
