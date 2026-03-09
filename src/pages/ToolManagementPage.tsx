@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, GripVertical, Palette, ChevronDown, ChevronRight, Pencil, Save, Link as LinkIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import ColorPicker from "@/components/ColorPicker";
