@@ -39,7 +39,7 @@ function getFieldValue(c: CaseRecord, field: string): string | number | boolean 
     case "translationDeadline": return c.translationDeadline || "";
     case "reviewer": return c.reviewer;
     case "reviewDeadline": return c.reviewDeadline || "";
-    case "taskStatus": return c.taskStatus;
+    
     case "executionTool": return c.executionTool;
     case "deliveryMethod": return c.deliveryMethod;
     case "createdAt": return c.createdAt;
