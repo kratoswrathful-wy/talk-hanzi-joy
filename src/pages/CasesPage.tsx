@@ -436,8 +436,8 @@ export default function CasesPage() {
   };
   const handleDragEnd = () => { dragColRef.current = null; setDragOverCol(null); };
 
-  const handleCreate = async () => {
-    const newCase = await caseStore.create({ title: "新案件" });
+  const handleCreate = async (templateValues: Record<string, any> = {}) => {
+    const newCase = await caseStore.create({ title: "新案件", ...templateValues });
     if (newCase) navigate(`/cases/${newCase.id}`);
   };
 
