@@ -319,7 +319,7 @@ export default function MultiColorSelect({
       <AlertDialog open={!!deleteConfirm} onOpenChange={(v) => !v && setDeleteConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>確認刪除</AlertDialogTitle>
+            <AlertDialogTitle>確定刪除</AlertDialogTitle>
             <AlertDialogDescription>確定要刪除「{deleteConfirm?.label}」嗎？</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
