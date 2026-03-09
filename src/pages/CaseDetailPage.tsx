@@ -1222,6 +1222,8 @@ export default function CaseDetailPage() {
                           sameCase: true,
                           isFirstFee: false,
                           notFirstFee: true,
+                          ...(caseClient ? { client: caseClient } : {}),
+                          ...(caseContact ? { contact: caseContact } : {}),
                         },
                         notes: [],
                         editLogs: [],
