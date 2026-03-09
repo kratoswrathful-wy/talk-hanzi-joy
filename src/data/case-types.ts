@@ -54,6 +54,7 @@ export interface CaseRecord {
   contact: string;
   keyword: string;
   clientPoNumber: string;
+  clientCaseLink: { url: string; label: string };
   category: string;
   workType: string[];   // legacy – kept for backward compat
   workGroups: WorkGroup[]; // new repeatable groups
