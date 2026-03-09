@@ -102,6 +102,39 @@
     min-height: 120px;
   }
 
+  /* Slash menu & side menu: smaller text/icons to match system font size */
+  .rich-text-editor .bn-suggestion-menu {
+    font-size: 0.8125rem; /* 13px */
+  }
+  .rich-text-editor .bn-suggestion-menu [class*="item"] {
+    padding: 4px 8px;
+    gap: 8px;
+  }
+  .rich-text-editor .bn-suggestion-menu [class*="icon"],
+  .rich-text-editor .bn-suggestion-menu svg {
+    width: 16px;
+    height: 16px;
+  }
+  .rich-text-editor .bn-suggestion-menu [class*="title"] {
+    font-size: 0.8125rem;
+  }
+  .rich-text-editor .bn-suggestion-menu [class*="subtext"],
+  .rich-text-editor .bn-suggestion-menu [class*="badge"] {
+    font-size: 0.6875rem; /* 11px */
+  }
+  .rich-text-editor .bn-suggestion-menu [class*="group"] {
+    font-size: 0.6875rem;
+    padding: 4px 8px 2px;
+  }
+  /* Side menu (+ button & drag handle) */
+  .rich-text-editor .bn-side-menu svg {
+    width: 14px;
+    height: 14px;
+  }
+  .rich-text-editor .bn-side-menu button {
+    width: 20px;
+    height: 20px;
+  }
   /* Ordered list 6-level numbering: 1. → (1) → A. → (A) → a. → (a) */
   .rich-text-editor ol { list-style-type: decimal; }
   .rich-text-editor ol ol { list-style: none; }
