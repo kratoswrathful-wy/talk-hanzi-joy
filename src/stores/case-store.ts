@@ -21,6 +21,8 @@ function fromDb(row: any): CaseRecord {
     id: row.id,
     title: row.title ?? "",
     status: (row.status || "draft") as any,
+    client: row.client ?? "",
+    contact: row.contact ?? "",
     category: row.category ?? "",
     workType: Array.isArray(row.work_type) ? row.work_type : [],
     processNote: row.process_note ?? "",
