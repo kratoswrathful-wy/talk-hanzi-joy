@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { format, addDays, startOfDay, isSameMonth, isSameDay, getDaysInMonth } from "date-fns";
-import { CalendarIcon, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
+import { CalendarIcon, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { DayPicker } from "react-day-picker";
@@ -23,6 +23,42 @@ interface DateTimePickerProps {
   disabled?: boolean;
   placeholder?: string;
   className?: string;
+  /** UTC offset hours from user profile timezone. Default 8 (UTC+8). */
+  utcOffsetHours?: number;
+}
+
+/* ── helpers ── */
+function formatOffsetLabel(offsetHours: number): string {
+  if (offsetHours === 0) return "UTC+0";
+  const sign = offsetHours >= 0 ? "+" : "-";
+  const abs = Math.abs(offsetHours);
+  const h = Math.floor(abs);
+  const m = Math.round((abs - h) * 60);
+  return m ? `UTC${sign}${h}:${String(m).padStart(2, "0")}` : `UTC${sign}${h}`;
+}
+
+/** Convert a UTC Date to a "local" Date shifted by offsetHours (for display only) */
+function utcToLocal(utcDate: Date, offsetHours: number): Date {
+  return new Date(utcDate.getTime() + offsetHours * 60 * 60 * 1000);
+}
+
+/** Build an ISO string from local inputs, converting back to UTC */
+function buildIsoWithOffset(year: string, mmdd: string, hhmm: string, offsetHours: number): string | null {
+  const y = parseInt(year);
+  if (!year || isNaN(y) || y < 1900 || y > 2100) return null;
+  const mm = parseInt(mmdd.slice(0, 2));
+  const dd = parseInt(mmdd.slice(2, 4));
+  if (mm < 1 || mm > 12 || dd < 1) return null;
+  const maxDay = getDaysInMonth(new Date(y, mm - 1));
+  if (dd > maxDay) return null;
+  const hh = parseInt(hhmm.slice(0, 2));
+  const mi = parseInt(hhmm.slice(2, 4));
+  if (hh > 23 || mi > 59) return null;
+  // Build as UTC then subtract offset
+  const utcMs = Date.UTC(y, mm - 1, dd, hh, mi, 0, 0) - offsetHours * 60 * 60 * 1000;
+  const dt = new Date(utcMs);
+  if (isNaN(dt.getTime())) return null;
+  return dt.toISOString();
 }
 
 /* ── Generic rolling N-digit input hook ── */
@@ -70,7 +106,6 @@ function DateTimeCalendar({
   const todayInDisplayMonth = isSameMonth(today, displayMonth);
   const todayIsSelected = selected ? isSameDay(today, selected) : false;
 
-  // Determine if today is before or after the displayed month
   const todayBefore = today < displayMonth && !todayInDisplayMonth;
   const todayAfter = !todayBefore && !todayInDisplayMonth;
 
@@ -127,6 +162,7 @@ function DateTimeCalendar({
     />
   );
 }
+
 /* ── Inline fix input for AlertDialog ── */
 function FixInput({
   maxDigits,
@@ -147,7 +183,6 @@ function FixInput({
   const [error, setError] = useState(false);
   const [focused, setFocused] = useState(false);
 
-  // Auto-focus on mount with multiple retries to beat AlertDialog focus trap
   useEffect(() => {
     const attempts = [50, 150, 300, 500];
     const timers = attempts.map((ms) =>
@@ -172,7 +207,7 @@ function FixInput({
         inputMode="numeric"
         autoFocus
         value={display}
-        onChange={() => {}} // controlled, actual input via onKeyDown
+        onChange={() => {}}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         onClick={() => inputRef.current?.focus()}
@@ -187,7 +222,6 @@ function FixInput({
             setError(false);
             rolling.handleKey(e.key);
           }
-          // Allow Tab but prevent other defaults
           if (e.key !== "Tab") {
             e.preventDefault();
           }
@@ -203,30 +237,93 @@ function FixInput({
   );
 }
 
+/* ── UTC offset spinner ── */
+function UtcOffsetSpinner({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    // Allow typing negative sign, numbers, colon
+    if (raw === "" || raw === "-" || raw === "+") return;
+    const num = parseFloat(raw);
+    if (!isNaN(num) && num >= -12 && num <= 14) {
+      onChange(num);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-0.5">
+      <span className="text-xs text-muted-foreground whitespace-nowrap">UTC</span>
+      <div className="flex flex-col">
+        <button
+          type="button"
+          className="h-3.5 w-5 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => onChange(Math.min(14, value + 1))}
+          tabIndex={-1}
+        >
+          <ChevronUp className="h-3 w-3" />
+        </button>
+        <button
+          type="button"
+          className="h-3.5 w-5 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => onChange(Math.max(-12, value - 1))}
+          tabIndex={-1}
+        >
+          <ChevronDown className="h-3 w-3" />
+        </button>
+      </div>
+      <input
+        ref={inputRef}
+        type="text"
+        value={value >= 0 ? `+${value}` : `${value}`}
+        onChange={handleInputChange}
+        onFocus={() => inputRef.current?.select()}
+        className="flex h-8 w-[38px] rounded-md border border-input bg-background px-1 py-1 text-xs text-center ring-offset-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      />
+    </div>
+  );
+}
+
 export default function DateTimePicker({
   value,
   onChange,
   disabled = false,
   placeholder = "選擇日期與時間",
   className,
+  utcOffsetHours: initialOffset = 8,
 }: DateTimePickerProps) {
   const [open, setOpen] = useState(false);
   const dateRef = useRef<HTMLInputElement>(null);
   const timeRef = useRef<HTMLInputElement>(null);
 
-  const parsedDate = value ? new Date(value) : null;
+  const [currentOffset, setCurrentOffset] = useState(initialOffset);
+
+  // Sync offset if prop changes
+  useEffect(() => {
+    setCurrentOffset(initialOffset);
+  }, [initialOffset]);
+
+  // Parse value (UTC ISO) and convert to local for display
+  const parsedUtc = value ? new Date(value) : null;
+  const parsedLocal = parsedUtc ? utcToLocal(parsedUtc, currentOffset) : null;
 
   // Year is a regular text input
-  const [yearInput, setYearInput] = useState(parsedDate ? format(parsedDate, "yyyy") : "");
+  const [yearInput, setYearInput] = useState(parsedLocal ? format(parsedLocal, "yyyy") : "");
   // MMDD rolling input
-  const dateRolling = useRollingInput(4, parsedDate ? format(parsedDate, "MMdd") : "0101");
+  const dateRolling = useRollingInput(4, parsedLocal ? format(parsedLocal, "MMdd") : "0101");
   // HHmm rolling input
-  const timeRolling = useRollingInput(4, parsedDate ? format(parsedDate, "HHmm") : "0000");
+  const timeRolling = useRollingInput(4, parsedLocal ? format(parsedLocal, "HHmm") : "0000");
 
   const [timeError, setTimeError] = useState(false);
   const [dateError, setDateError] = useState(false);
   const [validationMsg, setValidationMsg] = useState<string | null>(null);
-  const [displayMonth, setDisplayMonth] = useState<Date>(parsedDate || new Date());
+  const [displayMonth, setDisplayMonth] = useState<Date>(parsedLocal || new Date());
 
   const dateDisplay = `${dateRolling.padded.slice(0, 2)}/${dateRolling.padded.slice(2, 4)}`;
   const timeDisplay = `${timeRolling.padded.slice(0, 2)}:${timeRolling.padded.slice(2, 4)}`;
@@ -234,7 +331,7 @@ export default function DateTimePicker({
   // Sync from outside
   useEffect(() => {
     if (value) {
-      const d = new Date(value);
+      const d = utcToLocal(new Date(value), currentOffset);
       setYearInput(format(d, "yyyy"));
       dateRolling.reset(format(d, "MMdd"));
       timeRolling.reset(format(d, "HHmm"));
@@ -247,26 +344,10 @@ export default function DateTimePicker({
     setTimeError(false);
     setDateError(false);
     setValidationMsg(null);
-  }, [value]);
-
-  const buildIso = (year: string, mmdd: string, hhmm: string): string | null => {
-    const y = parseInt(year);
-    if (!year || isNaN(y) || y < 1900 || y > 2100) return null;
-    const mm = parseInt(mmdd.slice(0, 2));
-    const dd = parseInt(mmdd.slice(2, 4));
-    if (mm < 1 || mm > 12 || dd < 1) return null;
-    const maxDay = getDaysInMonth(new Date(y, mm - 1));
-    if (dd > maxDay) return null;
-    const hh = parseInt(hhmm.slice(0, 2));
-    const mi = parseInt(hhmm.slice(2, 4));
-    if (hh > 23 || mi > 59) return null;
-    const dt = new Date(y, mm - 1, dd, hh, mi, 0, 0);
-    if (isNaN(dt.getTime())) return null;
-    return dt.toISOString();
-  };
+  }, [value, currentOffset]);
 
   const commitAll = () => {
-    const iso = buildIso(yearInput, dateRolling.padded, timeRolling.padded);
+    const iso = buildIsoWithOffset(yearInput, dateRolling.padded, timeRolling.padded, currentOffset);
     onChange(iso);
   };
 
@@ -300,8 +381,7 @@ export default function DateTimePicker({
     setYearInput(format(selected, "yyyy"));
     dateRolling.reset(format(selected, "MMdd"));
     setDateError(false);
-    // Commit immediately
-    const iso = buildIso(format(selected, "yyyy"), format(selected, "MMdd"), timeRolling.padded);
+    const iso = buildIsoWithOffset(format(selected, "yyyy"), format(selected, "MMdd"), timeRolling.padded, currentOffset);
     onChange(iso);
     setTimeout(() => timeRef.current?.focus(), 50);
   };
@@ -312,7 +392,7 @@ export default function DateTimePicker({
     dateRolling.reset(format(target, "MMdd"));
     setDateError(false);
     setDisplayMonth(target);
-    const iso = buildIso(format(target, "yyyy"), format(target, "MMdd"), timeRolling.padded);
+    const iso = buildIsoWithOffset(format(target, "yyyy"), format(target, "MMdd"), timeRolling.padded, currentOffset);
     onChange(iso);
     setTimeout(() => timeRef.current?.focus(), 50);
   };
@@ -374,21 +454,22 @@ export default function DateTimePicker({
   const handleOpenChange = (v: boolean) => {
     if (disabled) return;
     if (v && !value) {
-      // Default to next whole hour
+      // Default to next whole hour in the current offset
       const now = new Date();
-      const next = new Date(now);
+      const localNow = utcToLocal(now, currentOffset);
+      const next = new Date(localNow);
       next.setMinutes(0, 0, 0);
-      next.setHours(now.getHours() + 1);
+      next.setHours(localNow.getHours() + 1);
       setYearInput(format(next, "yyyy"));
       dateRolling.reset(format(next, "MMdd"));
       timeRolling.reset(format(next, "HHmm"));
       setDisplayMonth(next);
       setDateError(false);
       setTimeError(false);
-      onChange(next.toISOString());
+      const iso = buildIsoWithOffset(format(next, "yyyy"), format(next, "MMdd"), format(next, "HHmm"), currentOffset);
+      onChange(iso);
     }
     if (v) {
-      // Always focus date input when opening
       setTimeout(() => dateRef.current?.focus(), 50);
     }
     if (!v) {
@@ -398,8 +479,19 @@ export default function DateTimePicker({
     setOpen(v);
   };
 
-  const displayText = parsedDate
-    ? `${format(parsedDate, "yyyy/MM/dd")} ${format(parsedDate, "HH:mm")}`
+  const handleOffsetChange = (newOffset: number) => {
+    setCurrentOffset(newOffset);
+    // Re-commit with new offset if we have a value
+    if (yearInput) {
+      const iso = buildIsoWithOffset(yearInput, dateRolling.padded, timeRolling.padded, newOffset);
+      onChange(iso);
+    }
+  };
+
+  const offsetLabel = formatOffsetLabel(currentOffset);
+
+  const displayText = parsedLocal
+    ? `${format(parsedLocal, "yyyy/MM/dd")} ${format(parsedLocal, "HH:mm")}`
     : null;
 
   return (
@@ -417,11 +509,14 @@ export default function DateTimePicker({
         >
           <CalendarIcon className="mr-2 h-3.5 w-3.5" />
           {displayText || placeholder}
+          {displayText && (
+            <span className="ml-2 text-muted-foreground text-xs">{offsetLabel}</span>
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
         <div className="p-3 space-y-3">
-          {/* Year + MM/DD + HH:mm inputs */}
+          {/* Year + MM/DD + HH:mm + UTC offset inputs */}
           <div className="flex items-center gap-1.5">
             <input
               type="text"
@@ -463,11 +558,12 @@ export default function DateTimePicker({
                   : "border-input focus-visible:ring-ring"
               )}
             />
+            <UtcOffsetSpinner value={currentOffset} onChange={handleOffsetChange} />
           </div>
 
           {/* Calendar */}
           <DateTimeCalendar
-            selected={parsedDate || undefined}
+            selected={parsedLocal || undefined}
             onSelect={handleCalendarSelect}
             displayMonth={displayMonth}
             onMonthChange={setDisplayMonth}
@@ -534,10 +630,9 @@ export default function DateTimePicker({
                 setTimeError(false);
               }
               setValidationMsg(null);
-              // Commit with corrected value
               const newDatePadded = dateError ? padded : dateRolling.padded;
               const newTimePadded = dateError ? timeRolling.padded : padded;
-              const iso = buildIso(yearInput, newDatePadded, newTimePadded);
+              const iso = buildIsoWithOffset(yearInput, newDatePadded, newTimePadded, currentOffset);
               onChange(iso);
             }}
           />
