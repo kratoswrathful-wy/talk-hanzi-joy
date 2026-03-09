@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, GripVertical, Pencil, Shield, ChevronDown, ChevronRight, Palette } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import ColorPicker from "@/components/ColorPicker";
-import { useSelectOptions, selectOptionsStore, PRESET_COLORS } from "@/stores/select-options-store";
+import { useSelectOptions, selectOptionsStore, PRESET_COLORS, STATUS_TABLE_MAP, ALL_STATUS_TABLES } from "@/stores/select-options-store";
 import { useLabelStyles, labelStyleStore } from "@/stores/label-style-store";
 import { useClientPricing, useTranslatorTiers, defaultPricingStore, type TranslatorTier, clientPricingKey, parseClientPricingKey } from "@/stores/default-pricing-store";
 import { useAuth } from "@/hooks/use-auth";
