@@ -88,12 +88,15 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
               autoFocus
             />
           ) : (
-            <span
-              className="text-sm cursor-pointer hover:underline flex-1"
+            <div
+              className="flex items-center gap-1.5 flex-1 cursor-pointer"
               onClick={() => { setEditingId(f.id); setEditLabel(f.label); }}
             >
-              {f.label}
-            </span>
+              <span className="text-sm hover:underline">{f.label}</span>
+              <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                {(f.type || "text") === "file" ? "檔案" : "文字"}
+              </Badge>
+            </div>
           )}
           <button
             className="h-5 w-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted text-muted-foreground hover:text-destructive transition-all"
