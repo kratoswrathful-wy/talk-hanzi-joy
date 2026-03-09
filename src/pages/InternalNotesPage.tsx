@@ -6,6 +6,7 @@ import { TableFooterStats } from "@/components/TableFooterStats";
 import { toast } from "sonner";
 import { Plus, ExternalLink, Trash2, GripVertical } from "lucide-react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
+import { ApplyTemplateButton } from "@/components/ApplyTemplateButton";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
