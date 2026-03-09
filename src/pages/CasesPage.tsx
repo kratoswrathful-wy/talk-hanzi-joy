@@ -2,7 +2,6 @@ import { useNavigate } from "react-router-dom";
 import { TableFooterStats, type NumericColumnConfig } from "@/components/TableFooterStats";
 import { Plus, GripVertical, ExternalLink, Trash2, Copy } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useSelectOptions } from "@/stores/select-options-store";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
