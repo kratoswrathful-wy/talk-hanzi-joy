@@ -375,7 +375,7 @@ export function FilterSortToolbar({
           const meta = allFields.find((f) => f.key === filter.field);
           return (
             <Badge key={filter.id} variant="secondary" className="h-6 gap-1 text-xs font-normal">
-              {meta?.label} {operatorLabels[filter.operator]} {needsValueInput(filter.operator) ? `"${filter.value}"` : ""}
+              {meta?.label} {filter.negated ? "不" : ""}{operatorLabels[filter.operator]} {needsValueInput(filter.operator) ? `"${filter.value}"` : ""}
               <button onClick={() => onRemoveFilterNode(filter.id)} className="hover:text-destructive">
                 <X className="h-3 w-3" />
               </button>
