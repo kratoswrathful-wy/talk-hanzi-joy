@@ -1735,7 +1735,7 @@ function DispatchRouteSection() {
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6 space-y-4 flex flex-col">
+    <div className="rounded-xl border border-border bg-card p-6 gap-4 flex flex-col">
       <div>
         <h2 className="text-base font-semibold">派案來源設定</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
