@@ -975,9 +975,10 @@ export default function CaseDetailPage() {
           {(isDispatched || isTaskCompleted || isDelivered || isFeedback || isFeedbackCompleted || isFinalized) ? (
             <div className="flex items-center gap-1 flex-wrap min-h-[36px] px-2 py-1 rounded-md bg-muted/50 border border-border">
               {(caseData.translator || []).length > 0
-                ? (caseData.translator || []).map((t, i) => (
-                    <Badge key={i} variant="secondary" className="text-xs">{t}</Badge>
-                  ))
+                ? (caseData.translator || []).map((t, i) => {
+                    const opt = assigneeOptions.find((o) => o.label === t);
+                    return <AssigneeTag key={i} label={t} avatarUrl={opt?.avatarUrl} />;
+                  })
                 : <span className="text-sm text-muted-foreground">—</span>}
             </div>
           ) : (
