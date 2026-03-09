@@ -573,8 +573,8 @@ export default function ClientInvoiceDetailPage() {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
         <div className="rounded-xl border border-border bg-card p-6 space-y-6">
           {/* Title row with status */}
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex-1 min-w-0">
+          <div className="grid grid-cols-2 gap-4 items-center">
+            <div className="min-w-0">
               {isCollected ? (
                 <h1 className="text-2xl font-semibold tracking-tight text-muted-foreground">
                   {invoice.title || "未命名"}
@@ -588,7 +588,7 @@ export default function ClientInvoiceDetailPage() {
                 />
               )}
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">狀態</span>
               <StatusBadge status={invoice.status} />
             </div>
@@ -813,23 +813,31 @@ export default function ClientInvoiceDetailPage() {
                 )}
               </div>
               {!isCollected && isAdmin && checkPerm("client_invoice", "cinv_detail_payFull", "edit") && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">收款</Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => {
-                      setFullPayAmount("");
-                      setFullPayNoFee(false);
-                      setShowFullPayDialog(true);
-                    }}>全額收齊</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => {
-                      setPartialPayAmount("");
-                      setPartialPayClose(false);
-                      setShowPartialPayDialog(true);
-                    }}>部份到帳</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                invoice.status === "partial_collected" ? (
+                  <Button variant="outline" size="sm" onClick={() => {
+                    setPartialPayAmount("");
+                    setPartialPayClose(false);
+                    setShowPartialPayDialog(true);
+                  }}>收款</Button>
+                ) : (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">收款</Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => {
+                        setFullPayAmount("");
+                        setFullPayNoFee(false);
+                        setShowFullPayDialog(true);
+                      }}>全額收齊</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => {
+                        setPartialPayAmount("");
+                        setPartialPayClose(false);
+                        setShowPartialPayDialog(true);
+                      }}>部份到帳</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )
               )}
             </div>
 
