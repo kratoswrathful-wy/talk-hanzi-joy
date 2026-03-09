@@ -644,8 +644,8 @@ export default function TranslatorFeeDetail() {
         };
 
         const caseTitle = caseRow.title || "";
-        const workTypes: string[] = Array.isArray(caseRow.work_type) ? caseRow.work_type : [];
-        const translators: string[] = Array.isArray(caseRow.translator) ? caseRow.translator : [];
+        const workTypes: string[] = Array.isArray(caseRow.work_type) ? (caseRow.work_type as any[]).map(String) : [];
+        const translators: string[] = Array.isArray(caseRow.translator) ? (caseRow.translator as any[]).map(String) : [];
         const billingUnitRaw = caseRow.billing_unit || "";
         const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
         const billingUnit: BillingUnit = billingUnitMap[billingUnitRaw] || "字";
