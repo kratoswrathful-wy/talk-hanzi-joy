@@ -43,6 +43,7 @@ export type Database = {
           category: string
           client: string
           client_guidelines: Json
+          client_po_number: string
           client_question_form: boolean
           client_receipt: string
           client_receipt_files: Json | null
@@ -66,6 +67,7 @@ export type Database = {
           internal_note_form: boolean
           internal_records: Json
           internal_review_final: Json
+          keyword: string
           login_account: string
           login_password: string
           multi_collab: boolean
@@ -102,6 +104,7 @@ export type Database = {
           category?: string
           client?: string
           client_guidelines?: Json
+          client_po_number?: string
           client_question_form?: boolean
           client_receipt?: string
           client_receipt_files?: Json | null
@@ -125,6 +128,7 @@ export type Database = {
           internal_note_form?: boolean
           internal_records?: Json
           internal_review_final?: Json
+          keyword?: string
           login_account?: string
           login_password?: string
           multi_collab?: boolean
@@ -161,6 +165,7 @@ export type Database = {
           category?: string
           client?: string
           client_guidelines?: Json
+          client_po_number?: string
           client_question_form?: boolean
           client_receipt?: string
           client_receipt_files?: Json | null
@@ -184,6 +189,7 @@ export type Database = {
           internal_note_form?: boolean
           internal_records?: Json
           internal_review_final?: Json
+          keyword?: string
           login_account?: string
           login_password?: string
           multi_collab?: boolean
