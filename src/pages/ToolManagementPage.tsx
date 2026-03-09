@@ -265,15 +265,20 @@ function TemplateFieldManager({
           <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
            <div className="grid grid-cols-[80px_1fr] items-center gap-2 flex-1">
              {editingId === f.id ? (
-               <Input
+               <MultilineInput
                  value={editLabel}
                  onChange={(e) => setEditLabel(e.target.value)}
                  onBlur={() => handleRename(f.id)}
                  onKeyDown={(e) => {
-                   if (e.key === "Enter") handleRename(f.id);
+                   if (e.key === "Enter" && !e.shiftKey) {
+                     e.preventDefault();
+                     handleRename(f.id);
+                   }
                    if (e.key === "Escape") setEditingId(null);
                  }}
                  className="h-6 text-xs"
+                 minRows={1}
+                 maxRows={3}
                  autoFocus
                />
              ) : (
