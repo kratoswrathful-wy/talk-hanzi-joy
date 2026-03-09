@@ -1047,7 +1047,13 @@ export default function CaseDetailPage() {
 
       <h2 className="text-base font-semibold">準則與檔案</h2>
       <Field label="交件方式">
-        <Input value={caseData.deliveryMethod} onChange={(e) => save({ deliveryMethod: e.target.value })} className="max-w-md" />
+        <MultilineInput 
+          value={caseData.deliveryMethod} 
+          onChange={(e) => save({ deliveryMethod: e.target.value })} 
+          className="max-w-md"
+          minRows={1}
+          maxRows={3}
+        />
       </Field>
       <Field label="客戶收件">
         <Input value={caseData.clientReceipt} onChange={(e) => save({ clientReceipt: e.target.value })} className="max-w-md" />
