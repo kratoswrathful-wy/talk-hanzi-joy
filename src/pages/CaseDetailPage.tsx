@@ -1207,7 +1207,8 @@ export default function CaseDetailPage() {
                 <Plus className="h-3.5 w-3.5" />
                 產生本案費用單
               </Button>
-            )}
+              )}
+            </div>
           </div>
         );
       })()}
