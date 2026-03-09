@@ -19,6 +19,7 @@ async function loadAllSettings() {
     defaultPricingStore.loadSettings(),
     labelStyleStore.loadSettings(),
     toolTemplateStore.loadSettings(),
+    pageTemplateStore.loadSettings(),
     commonLinksStore.loadSettings(),
     selectOptionsStore.loadAssignees(),
   ]);
