@@ -174,6 +174,7 @@ function TemplateFieldManager({
 }) {
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
+  const [newFieldType, setNewFieldType] = useState<"text" | "file" | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -181,11 +182,12 @@ function TemplateFieldManager({
 
   const handleAdd = () => {
     const label = newLabel.trim();
-    if (!label) return;
+    if (!label || !newFieldType) return;
     const id = `tf-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
-    onFieldsChange([...fields, { id, label }]);
+    onFieldsChange([...fields, { id, label, type: newFieldType }]);
     setNewLabel("");
     setAdding(false);
+    setNewFieldType(null);
   };
 
   const handleRename = (fieldId: string) => {
