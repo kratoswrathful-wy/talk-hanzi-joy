@@ -484,6 +484,12 @@ export default function ClientInvoicesPage() {
           { value: "partial", label: "部份付款" },
           { value: "paid", label: "已付款" },
         ]}
+        selectedIds={rowSelection.selectedIds}
+        onPinTop={tableViews.pinTop}
+        onPinBottom={tableViews.pinBottom}
+        onUnpinItem={tableViews.unpinItem}
+        pinnedTop={activeView.pinnedTop || []}
+        pinnedBottom={activeView.pinnedBottom || []}
       />
 
       <motion.div
