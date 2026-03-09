@@ -196,7 +196,7 @@ export default function FileField({ value, onChange }: FileFieldProps) {
                     href={item.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-primary hover:underline truncate max-w-[320px]"
+                    className="text-sm text-primary hover:underline truncate max-w-[200px]"
                   >
                     {item.name}
                   </a>
