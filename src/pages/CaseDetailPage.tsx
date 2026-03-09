@@ -118,6 +118,7 @@ function ToolInstance({
   onRemove,
   showRemove,
   toolFieldKey = "executionTool",
+  toolLabel,
   canEditTool = true,
   canRemoveTool = true,
   canAddField = true,
@@ -130,6 +131,7 @@ function ToolInstance({
   onRemove: () => void;
   showRemove: boolean;
   toolFieldKey?: string;
+  toolLabel?: string;
   canEditTool?: boolean;
   canRemoveTool?: boolean;
   canAddField?: boolean;
