@@ -39,6 +39,8 @@ function fromDb(row: any): CaseRecord {
     status: (row.status || "draft") as any,
     client: row.client ?? "",
     contact: row.contact ?? "",
+    keyword: row.keyword ?? "",
+    clientPoNumber: row.client_po_number ?? "",
     category: row.category ?? "",
     workType: Array.isArray(row.work_type) ? row.work_type : [],
     workGroups,
