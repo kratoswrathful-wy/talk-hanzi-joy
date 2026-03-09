@@ -1127,6 +1127,23 @@ export default function CaseDetailPage() {
                     }
                   };
 
+                  // Auto-create client/contact options if they don't exist
+                  const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+                  const caseClient = caseData.client || "";
+                  const caseContact = caseData.contact || "";
+                  if (caseClient) {
+                    const existingClients = selectOptionsStore.getSortedOptions("client");
+                    if (!existingClients.find((o) => normalize(o.label) === normalize(caseClient))) {
+                      selectOptionsStore.addOption("client", caseClient, PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]);
+                    }
+                  }
+                  if (caseContact) {
+                    const existingContacts = selectOptionsStore.getSortedOptions("contact");
+                    if (!existingContacts.find((o) => normalize(o.label) === normalize(caseContact))) {
+                      selectOptionsStore.addOption("contact", caseContact, CONTACT_DEFAULT_COLOR);
+                    }
+                  }
+
                   const mapped: FeeTaskItem[] = workTypes.length > 0
                     ? workTypes.map((wt, idx) => {
                         const matchedType = matchTaskType(wt);
