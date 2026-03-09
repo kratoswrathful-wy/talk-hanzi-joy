@@ -320,6 +320,7 @@ export default function FileField({ value, onChange }: FileFieldProps) {
               )}
             </PopoverContent>
           </Popover>
+          <span className="text-xs text-muted-foreground ml-1">或拖曳檔案至此</span>
           {!uploading && (
             <button
               onClick={() => setActionsExpanded(false)}
