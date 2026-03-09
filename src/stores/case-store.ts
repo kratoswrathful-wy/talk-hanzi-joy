@@ -143,6 +143,7 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.internalRecords !== undefined) map.internal_records = c.internalRecords;
   if (c.comments !== undefined) map.comments = c.comments;
   if (c.internalComments !== undefined) map.internal_comments = c.internalComments;
+  if (c.createdBy !== undefined) map.created_by = c.createdBy;
   return map;
 }
 
