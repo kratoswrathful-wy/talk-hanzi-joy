@@ -46,6 +46,8 @@ export type Database = {
           client_question_form: boolean
           client_receipt: string
           client_receipt_files: Json | null
+          collab_count: number
+          collab_rows: Json
           comments: Json | null
           common_info: Json
           common_links: Json | null
@@ -66,6 +68,7 @@ export type Database = {
           internal_review_final: Json
           login_account: string
           login_password: string
+          multi_collab: boolean
           online_tool_filename: string
           online_tool_project: string
           other_login_info: string
@@ -102,6 +105,8 @@ export type Database = {
           client_question_form?: boolean
           client_receipt?: string
           client_receipt_files?: Json | null
+          collab_count?: number
+          collab_rows?: Json
           comments?: Json | null
           common_info?: Json
           common_links?: Json | null
@@ -122,6 +127,7 @@ export type Database = {
           internal_review_final?: Json
           login_account?: string
           login_password?: string
+          multi_collab?: boolean
           online_tool_filename?: string
           online_tool_project?: string
           other_login_info?: string
@@ -158,6 +164,8 @@ export type Database = {
           client_question_form?: boolean
           client_receipt?: string
           client_receipt_files?: Json | null
+          collab_count?: number
+          collab_rows?: Json
           comments?: Json | null
           common_info?: Json
           common_links?: Json | null
@@ -178,6 +186,7 @@ export type Database = {
           internal_review_final?: Json
           login_account?: string
           login_password?: string
+          multi_collab?: boolean
           online_tool_filename?: string
           online_tool_project?: string
           other_login_info?: string
