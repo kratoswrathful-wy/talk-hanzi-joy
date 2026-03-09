@@ -162,9 +162,20 @@ export default function ClientInvoicesPage() {
     },
     {
       key: "totalAmount",
-      label: "總金額",
+      label: "應收總額",
       minWidth: 80,
-      render: (_inv, total) => <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-sm tabular-nums cursor-default">{formatCurrency(total)}</span></TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>,
+      render: (inv, total) => <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-sm tabular-nums cursor-default">{formatCurrency(inv.isRecordOnly ? (inv.recordAmount || 0) : total)}</span></TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>,
+    },
+    {
+      key: "serviceFee",
+      label: "手續費",
+      minWidth: 80,
+      render: (inv, total) => {
+        const t = inv.isRecordOnly ? (inv.recordAmount || 0) : total;
+        const paid = inv.payments.reduce((s: number, p: any) => s + (p.type === "full" ? (p.noFee ? t : (p.amount || 0)) : (p.amount || 0)), 0);
+        const fee = inv.status === "collected" && paid < t ? t - paid : 0;
+        return <span className={cn("text-sm tabular-nums", fee > 0 && "text-destructive")}>{fee > 0 ? formatCurrency(fee) : "—"}</span>;
+      },
     },
     {
       key: "transferDate",
@@ -606,7 +617,12 @@ export default function ClientInvoicesPage() {
             columnWidths={activeView.columnWidths}
             numericColumns={[
               { key: "feeCount", getValue: (inv: ClientInvoice) => inv.feeIds.length, isCurrency: false },
-              { key: "totalAmount", getValue: (inv: ClientInvoice) => getInvoiceTotal(inv.feeIds) },
+              { key: "totalAmount", getValue: (inv: ClientInvoice) => inv.isRecordOnly ? (inv.recordAmount || 0) : getInvoiceTotal(inv.feeIds) },
+              { key: "serviceFee", getValue: (inv: ClientInvoice) => {
+                const t = inv.isRecordOnly ? (inv.recordAmount || 0) : getInvoiceTotal(inv.feeIds);
+                const paid = inv.payments.reduce((s: number, p: any) => s + (p.type === "full" ? ((p as any).noFee ? t : (p.amount || 0)) : (p.amount || 0)), 0);
+                return inv.status === "collected" && paid < t ? t - paid : 0;
+              }},
             ]}
             data={visibleInvoices}
           />

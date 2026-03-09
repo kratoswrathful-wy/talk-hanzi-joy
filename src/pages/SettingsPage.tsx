@@ -348,7 +348,7 @@ function ClientPricingSection() {
         <Button
           variant="outline"
           size="sm"
-          className="gap-1 text-xs"
+          className="gap-1 text-xs w-full"
           onClick={() => setAdding(true)}
         >
           <Plus className="h-3.5 w-3.5" />
@@ -562,7 +562,7 @@ function TaskTypeOrderSection() {
         <Button
           variant="outline"
           size="sm"
-          className="gap-1 text-xs"
+          className="gap-1 text-xs w-full"
           onClick={() => setAdding(true)}
         >
           <Plus className="h-3.5 w-3.5" />
@@ -749,7 +749,7 @@ function BillingUnitOrderSection() {
         <Button
           variant="outline"
           size="sm"
-          className="gap-1 text-xs"
+          className="gap-1 text-xs w-full"
           onClick={() => setAdding(true)}
         >
           <Plus className="h-3.5 w-3.5" />
@@ -1835,7 +1835,7 @@ function DispatchRouteSection() {
         <Button
           variant="outline"
           size="sm"
-          className="gap-1 text-xs"
+          className="gap-1 text-xs w-full"
           onClick={() => setAdding(true)}
         >
           <Plus className="h-3.5 w-3.5" />
@@ -2015,7 +2015,7 @@ function CaseCategorySection() {
         <Button
           variant="outline"
           size="sm"
-          className="gap-1 text-xs"
+          className="gap-1 text-xs w-full"
           onClick={() => setAdding(true)}
         >
           <Plus className="h-3.5 w-3.5" />
@@ -2086,21 +2086,14 @@ function StatusStyleSection() {
 
   return (
     <div className="rounded-xl border border-border bg-card p-6 gap-4 flex flex-col">
-      <button
-        className="flex items-center gap-2 w-full text-left"
-        onClick={() => setExpanded((v) => !v)}
-      >
-        {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
-        <div>
-          <h2 className="text-base font-semibold">狀態標籤設定</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            管理各表格狀態標籤的顏色與顯示順序
-          </p>
-        </div>
-      </button>
+      <div>
+        <h2 className="text-base font-semibold">狀態標籤設定</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          管理各表格狀態標籤的顏色與顯示順序
+        </p>
+      </div>
 
-      {expanded && (
-        <div className="space-y-1">
+      <div className="space-y-1">
           {/* Table column header */}
           <div className="flex items-center gap-2 px-2 py-1 text-[10px] text-muted-foreground font-medium">
             <div className="w-[26px] shrink-0" /> {/* grip spacer */}
@@ -2210,7 +2203,6 @@ function StatusStyleSection() {
             );
           })}
         </div>
-      )}
 
       {/* Label text color picker - always visible */}
       <div className="border-t border-border pt-4 mt-auto">
@@ -2342,7 +2334,7 @@ function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; ti
           </div>
         </div>
       ) : (
-        <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={() => setAdding(true)}>
+        <Button variant="outline" size="sm" className="gap-1 text-xs w-full" onClick={() => setAdding(true)}>
           <Plus className="h-3.5 w-3.5" />
           {addLabel}
         </Button>

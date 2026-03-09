@@ -17,6 +17,7 @@ export const clientInvoiceFieldMetas: FieldMeta[] = [
   { key: "status", label: "狀態", type: "select" },
   { key: "feeCount", label: "費用數", type: "computed" },
   { key: "totalAmount", label: "應收總額", type: "computed" },
+  { key: "serviceFee", label: "手續費", type: "computed" },
   { key: "transferDate", label: "匯款日期", type: "date" },
   { key: "note", label: "備註", type: "text" },
   { key: "createdBy", label: "建立者", type: "text" },
@@ -34,6 +35,11 @@ function getFieldValue(
     case "status": return inv.status;
     case "feeCount": return inv.feeIds.length;
     case "totalAmount": return feeTotal ? feeTotal(inv.feeIds) : 0;
+    case "serviceFee": {
+      const total = inv.isRecordOnly ? (inv.recordAmount || 0) : (feeTotal ? feeTotal(inv.feeIds) : 0);
+      const paid = inv.payments.reduce((s: number, p: any) => s + (p.type === "full" ? (p.noFee ? total : (p.amount || 0)) : (p.amount || 0)), 0);
+      return inv.status === "collected" && paid < total ? total - paid : 0;
+    }
     case "transferDate": return inv.transferDate || "";
     case "note": return inv.note;
     case "createdBy": return inv.createdBy;
@@ -85,7 +91,7 @@ function compareItems(
 const defaultColumnOrder = clientInvoiceFieldMetas.map((f) => f.key);
 const defaultColumnWidths: Record<string, number> = {
   title: 220, client: 150, status: 100, feeCount: 80, totalAmount: 120,
-  transferDate: 120, note: 200, createdBy: 100, createdAt: 120,
+  serviceFee: 100, transferDate: 120, note: 200, createdBy: 100, createdAt: 120,
 };
 const defaultHiddenColumns = ["createdBy", "transferDate"];
 
