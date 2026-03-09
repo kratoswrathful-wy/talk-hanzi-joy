@@ -2268,7 +2268,7 @@ function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; ti
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+    <div className="rounded-xl border border-border bg-card p-6 gap-4 flex flex-col">
       <h2 className="text-base font-semibold">{title}</h2>
       <div className="space-y-1">
         {options.map((opt, idx) => (
