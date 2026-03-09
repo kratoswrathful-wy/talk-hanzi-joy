@@ -318,13 +318,15 @@ function ToolInstance({
           }
           return (
             <Field key={f.id} label={f.label}>
-              <div className="flex items-center gap-1.5">
-                <Input
+              <div className="flex items-start gap-1.5">
+                <MultilineInput
                   value={values[f.id] || ""}
                   onChange={(e) =>
                     onUpdate({ fieldValues: { ...values, [f.id]: e.target.value } })
                   }
                   className="max-w-xs"
+                  minRows={1}
+                  maxRows={5}
                 />
                 <CopyButton value={values[f.id] || ""} />
                 <button
