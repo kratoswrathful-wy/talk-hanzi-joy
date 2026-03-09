@@ -1224,15 +1224,17 @@ export default function CaseDetailPage() {
               size="sm"
               className="h-6 text-xs text-muted-foreground"
               onClick={() => {
-                // Check if more than 1 person has accepted
-                const acceptedTranslators = new Set(
-                  caseData.collabRows.filter(r => r.accepted).map(r => r.translator).filter(Boolean)
+                // Count unique non-empty translators
+                const uniqueTranslators = new Set(
+                  caseData.collabRows.map(r => r.translator).filter(Boolean)
                 );
-                if (acceptedTranslators.size > 1) {
-                  toast({ title: "無法取消多人協作", description: "已有多位譯者承接，請先調整各列內容。", variant: "destructive" });
+                if (uniqueTranslators.size >= 2) {
+                  toast({ title: "無法取消多人協作", description: "目前指派人數多於 1 人，請考慮改為調整各列內容。", variant: "destructive" });
                   return;
                 }
-                setCollabCancelOpen(true);
+                // ≤1 unique translator: execute directly
+                save({ multiCollab: false, collabCount: 0, collabRows: [] });
+                toast({ title: "已取消多人協作" });
               }}
             >
               取消多人協作
