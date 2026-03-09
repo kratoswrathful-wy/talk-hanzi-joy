@@ -1,6 +1,6 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
-import { ArrowLeft, Plus, X, Loader2, FileText } from "lucide-react";
+import { ArrowLeft, Plus, X, Loader2, FileText, Copy, Check } from "lucide-react";
 import { CommentContent } from "@/components/comments/CommentContent";
 import { CommentInput } from "@/components/comments/CommentInput";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
@@ -79,6 +79,27 @@ function DetailStatusBadge({ status }: { status: FeeStatus }) {
     >
       {feeStatusLabels[status]}
     </Badge>
+  );
+}
+
+/* ── Copy button for fee page ── */
+function FeeCopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!value) return;
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <button
+      className="h-7 w-7 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0"
+      onClick={handleCopy}
+      title="複製到剪貼簿"
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
   );
 }
 
@@ -1869,6 +1890,7 @@ export default function TranslatorFeeDetail() {
                         <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline underline-offset-2 hover:text-primary/80 truncate">
                           {link.label || link.url}
                         </a>
+                        <FeeCopyButton value={link.url} />
                         {canEdit && !locked && (
                           <button onClick={() => {
                             const updated = { ...clientInfo, clientCaseLink: { url: "", label: "" } };

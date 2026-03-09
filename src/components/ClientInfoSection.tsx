@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Plus, X, FileText } from "lucide-react";
+import { Plus, X, FileText, Copy, Check } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { clientInvoiceStore } from "@/stores/client-invoice-store";
@@ -42,6 +42,27 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
 import { type ClientInfo, type ClientTaskItem, type TaskType, type BillingUnit, type TranslatorFee } from "@/data/fee-mock-data";
+
+/* ── Copy button ── */
+function CICopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!value) return;
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <button
+      className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0"
+      onClick={handleCopy}
+      title="複製到剪貼簿"
+    >
+      {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+    </button>
+  );
+}
 
 interface ClientInfoSectionProps {
   clientInfo: ClientInfo;
@@ -622,6 +643,9 @@ export default function ClientInfoSection({
                           disabled={!canEdit || clientInfo.reconciled}
                           className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
                         />
+                        {clientInfo.clientCaseId && (
+                          <CICopyButton value={clientInfo.clientCaseId} />
+                        )}
                       </div>
                     </TooltipTrigger>
                     {clientInfo.reconciled && <TooltipContent>已對帳完成，不得修改營收內容</TooltipContent>}
@@ -650,6 +674,9 @@ export default function ClientInfoSection({
                           disabled={!canEdit || clientInfo.reconciled}
                           className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
                         />
+                        {clientInfo.clientPoNumber && (
+                          <CICopyButton value={clientInfo.clientPoNumber} />
+                        )}
                       </div>
                     </TooltipTrigger>
                     {clientInfo.reconciled && <TooltipContent>已對帳完成，不得修改營收內容</TooltipContent>}
