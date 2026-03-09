@@ -430,7 +430,7 @@ function NoteDetailView({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { onDelete(); setDeleteOpen(false); }}>確認刪除</AlertDialogAction>
+            <AlertDialogAction onClick={() => { onDelete(); setDeleteOpen(false); }}>確定刪除</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
