@@ -386,7 +386,7 @@ function TemplateFieldManager({
 }
 
 /* ── Template Card (collapsible) ── */
-function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { id: string; label: string; color: string; toolFields?: { id: string; label: string }[] }[] }) {
+function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { id: string; label: string; color: string; toolFields?: { id: string; label: string; type?: "text" | "file" }[] }[] }) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ToolTemplate>(tpl);
