@@ -1012,7 +1012,7 @@ export default function CaseDetailPage() {
         const translators: string[] = Array.isArray(caseData.translator) ? caseData.translator : [];
         const feeCount = linkedFees.length;
         const translatorCount = translators.length;
-        const showButton = isPmOrAbove && translatorCount > 0 && feeCount < translatorCount;
+        const showButton = isPmOrAbove && (translatorCount === 0 || feeCount < translatorCount);
         const showTooMany = translatorCount > 0 && feeCount > translatorCount;
         const showTooFew = translatorCount > 0 && feeCount > 0 && feeCount < translatorCount;
         // Permissions
