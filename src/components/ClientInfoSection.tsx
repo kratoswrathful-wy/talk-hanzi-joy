@@ -258,7 +258,7 @@ export default function ClientInfoSection({
                 
                 // Get existing unpaid invoices for this client
                 const existingInvoices = allClientInvoices.filter(
-                  (inv) => inv.client === clientInfo.client && inv.status !== "paid"
+                  (inv) => inv.client === clientInfo.client && inv.status !== "collected"
                 );
                 
                 if (canAddToClientInvoice) {

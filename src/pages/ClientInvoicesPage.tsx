@@ -368,7 +368,7 @@ export default function ClientInvoicesPage() {
   }, [newClientName, navigate]);
 
   const selectedInvoices = visibleInvoices.filter((inv) => rowSelection.selectedIds.has(inv.id));
-  const hasPaidInvoices = selectedInvoices.some((inv) => inv.status === "paid");
+  const hasPaidInvoices = selectedInvoices.some((inv) => inv.status === "collected");
 
   const handleDeleteClick = useCallback(() => {
     if (hasPaidInvoices) {
