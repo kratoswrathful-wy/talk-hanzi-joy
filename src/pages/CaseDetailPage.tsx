@@ -793,13 +793,21 @@ export default function CaseDetailPage() {
   return (
     <div className="space-y-4 max-w-3xl">
       <div className="flex items-center justify-between">
-        <Link
-          to="/cases"
+        <button
+          type="button"
+          onClick={() => {
+            if (shouldBlockNav) {
+              pendingNavigateRef.current = () => navigate("/cases");
+              setPublishPromptOpen(true);
+            } else {
+              navigate("/cases");
+            }
+          }}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
         >
           <ArrowLeft className="h-4 w-4" />
           返回案件清單
-        </Link>
+        </button>
         <div className="flex items-center gap-2">
           {isPmOrAbove && (
             <Button
