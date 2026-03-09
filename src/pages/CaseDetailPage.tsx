@@ -1026,7 +1026,7 @@ export default function CaseDetailPage() {
                       <Link to={`/fees/${f.id}`} className="text-sm text-primary hover:underline underline-offset-2 truncate flex-1">
                         {f.title || "未命名費用"}
                       </Link>
-                      {f.assignee && <AssigneeTag value={f.assignee} size="sm" />}
+                      {f.assignee && <AssigneeTag label={f.assignee} size="sm" />}
                       {f.clientInfo?.isFirstFee && (
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">主要</Badge>
                       )}
