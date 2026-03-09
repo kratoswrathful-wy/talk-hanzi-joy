@@ -84,6 +84,9 @@ function fromDb(row: any): CaseRecord {
     comments: Array.isArray(row.comments) ? row.comments : [],
     internalComments: Array.isArray(row.internal_comments) ? row.internal_comments : [],
     bodyContent: Array.isArray(row.body_content) ? row.body_content : [],
+    multiCollab: row.multi_collab ?? false,
+    collabCount: Number(row.collab_count) || 0,
+    collabRows: Array.isArray(row.collab_rows) ? row.collab_rows : [],
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -149,6 +152,9 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.comments !== undefined) map.comments = c.comments;
   if (c.internalComments !== undefined) map.internal_comments = c.internalComments;
   if (c.bodyContent !== undefined) map.body_content = c.bodyContent;
+  if (c.multiCollab !== undefined) map.multi_collab = c.multiCollab;
+  if (c.collabCount !== undefined) map.collab_count = c.collabCount;
+  if (c.collabRows !== undefined) map.collab_rows = c.collabRows;
   if (c.createdBy !== undefined) map.created_by = c.createdBy;
   return map;
 }

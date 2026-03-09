@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useEffect, useState, useCallback, lazy, Suspense, useRef } from "react";
-import { ArrowLeft, Trash2, Plus, X, Copy, Check, ExternalLink } from "lucide-react";
+import { ArrowLeft, Trash2, Plus, X, Copy, Check, ExternalLink, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ import { feeStore, useFees } from "@/hooks/use-fee-store";
 import { type TranslatorFee, type FeeTaskItem, type TaskType, type BillingUnit, defaultClientInfo } from "@/data/fee-mock-data";
 import { selectOptionsStore, PRESET_COLORS, CONTACT_DEFAULT_COLOR, useSelectOptions } from "@/stores/select-options-store";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
-import type { CaseRecord, ToolEntry, ToolEntryField, CaseStatus, CaseComment } from "@/data/case-types";
+import type { CaseRecord, ToolEntry, ToolEntryField, CaseStatus, CaseComment, CollabRow } from "@/data/case-types";
 import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
 import AssigneeTag from "@/components/AssigneeTag";
@@ -43,6 +43,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { internalNotesStore, useInternalNotes } from "@/stores/internal-notes-store";
 import type { InternalNote } from "@/hooks/use-internal-notes-table-views";
+
+import CollaborationTable from "@/components/CollaborationTable";
 
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
@@ -526,6 +528,11 @@ export default function CaseDetailPage() {
   const [loading, setLoading] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [publishPromptOpen, setPublishPromptOpen] = useState(false);
+  const [collabCountDialogOpen, setCollabCountDialogOpen] = useState(false);
+  const [collabCountInput, setCollabCountInput] = useState("");
+  const [collabEditOpen, setCollabEditOpen] = useState(false);
+  const [collabEditInput, setCollabEditInput] = useState("");
+  const [collabCancelOpen, setCollabCancelOpen] = useState(false);
   const [creatorName, setCreatorName] = useState("");
   const { primaryRole: currentRole, profile } = useAuth();
   const { checkPerm } = usePermissions();
@@ -720,6 +727,9 @@ export default function CaseDetailPage() {
         translationDeadline: null,
         reviewDeadline: null,
         caseReferenceMaterials: [],
+        multiCollab: false,
+        collabCount: 0,
+        collabRows: [],
       });
       navigate(`/cases/${dup.id}`);
     }
@@ -786,8 +796,12 @@ export default function CaseDetailPage() {
   };
 
   const isCurrentUserTranslator = (() => {
-    const displayName = profile?.display_name || "";
-    return displayName && (caseData.translator || []).includes(displayName);
+    const dn = profile?.display_name || "";
+    if (!dn) return false;
+    if ((caseData.translator || []).includes(dn)) return true;
+    // Also check collab rows
+    if (caseData.multiCollab && caseData.collabRows?.some(r => r.translator === dn)) return true;
+    return false;
   })();
 
   const comments = caseData.comments || [];
@@ -914,13 +928,28 @@ export default function CaseDetailPage() {
               公布
             </Button>
           ) : isInquiry && isMember ? (
-            <Button
-              size="sm"
-              className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={handleAcceptCase}
-            >
-              承接本案
-            </Button>
+            caseData.multiCollab ? (
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button size="sm" className="text-xs min-w-[88px]" disabled>
+                        承接本案
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>請於表格內可承接的橫列勾選「確認承接」</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <Button
+                size="sm"
+                className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={handleAcceptCase}
+              >
+                承接本案
+              </Button>
+            )
           ) : isInquiry && isPmOrAbove ? (
             (() => {
               const translatorEmpty = !caseData.translator || caseData.translator.length === 0;
@@ -944,13 +973,28 @@ export default function CaseDetailPage() {
               ) : btn;
             })()
           ) : isDispatched && (isCurrentUserTranslator || isPmOrAbove) ? (
-            <Button
-              size="sm"
-              className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={handleTaskComplete}
-            >
-              任務完成
-            </Button>
+            caseData.multiCollab ? (
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button size="sm" className="text-xs min-w-[88px]" disabled>
+                        任務完成
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>請直接勾選「任務完成」</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <Button
+                size="sm"
+                className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={handleTaskComplete}
+              >
+                任務完成
+              </Button>
+            )
           ) : isFeedback && (isCurrentUserTranslator || isPmOrAbove) ? (
             <Button
               size="sm"
@@ -990,7 +1034,19 @@ export default function CaseDetailPage() {
         />
       </Field>
       <Field label="狀態">
-        <CaseStatusBadge status={caseData.status} />
+        <div className="flex items-center gap-3">
+          <CaseStatusBadge status={caseData.status} />
+          {caseData.multiCollab && isInquiry && (
+            <span className="text-xs text-muted-foreground">
+              譯者若可承接，請直接於表格中可承接的橫列勾選「確認承接」。
+            </span>
+          )}
+          {caseData.multiCollab && isDispatched && (
+            <span className="text-xs text-muted-foreground">
+              譯者完成任務後，請直接勾選「任務完成」。
+            </span>
+          )}
+        </div>
       </Field>
 
       <Separator />
@@ -1080,33 +1136,125 @@ export default function CaseDetailPage() {
           </div>
         );
       })()}
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="譯者">
-          {(isDispatched || isTaskCompleted || isDelivered || isFeedback || isFeedbackCompleted || isFinalized) ? (
-            <div className="flex items-center gap-1 flex-wrap min-h-[36px] px-2 py-1 rounded-md bg-muted/50 border border-border">
-              {(caseData.translator || []).length > 0
-                ? (caseData.translator || []).map((t, i) => {
-                    const opt = assigneeOptions.find((o) => o.label === t);
-                    return <AssigneeTag key={i} label={t} avatarUrl={opt?.avatarUrl} />;
-                  })
-                : <span className="text-sm text-muted-foreground">—</span>}
-            </div>
-          ) : (
-            <MultiColorSelect fieldKey="assignee" values={caseData.translator || []} onValuesChange={(v) => save({ translator: v })} />
+      {!caseData.multiCollab ? (
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="譯者">
+              {(isDispatched || isTaskCompleted || isDelivered || isFeedback || isFeedbackCompleted || isFinalized) ? (
+                <div className="flex items-center gap-1 flex-wrap min-h-[36px] px-2 py-1 rounded-md bg-muted/50 border border-border">
+                  {(caseData.translator || []).length > 0
+                    ? (caseData.translator || []).map((t, i) => {
+                        const opt = assigneeOptions.find((o) => o.label === t);
+                        return <AssigneeTag key={i} label={t} avatarUrl={opt?.avatarUrl} />;
+                      })
+                    : <span className="text-sm text-muted-foreground">—</span>}
+                </div>
+              ) : (
+                <MultiColorSelect fieldKey="assignee" values={caseData.translator || []} onValuesChange={(v) => save({ translator: v })} />
+              )}
+            </Field>
+            <Field label="審稿人員">
+              <ColorSelect fieldKey="assignee" value={caseData.reviewer} onValueChange={(v) => save({ reviewer: v })} />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="翻譯交期">
+              <DateTimePicker value={caseData.translationDeadline} onChange={(v) => save({ translationDeadline: v })} className="w-full" />
+            </Field>
+            <Field label="審稿交期">
+              <DateTimePicker value={caseData.reviewDeadline} onChange={(v) => save({ reviewDeadline: v })} className="w-full" />
+            </Field>
+          </div>
+        </>
+      ) : (
+        /* Multi-person collaboration table */
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">多人協作（{caseData.collabCount} 人次）</span>
+            {isPmOrAbove && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setCollabEditInput(String(caseData.collabCount));
+                  setCollabEditOpen(true);
+                }}
+              >
+                <Settings className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+          <CollaborationTable
+            rows={caseData.collabRows}
+            onChange={(newRows) => {
+              // Check auto-status transitions
+              const allAccepted = newRows.length > 0 && newRows.every((r) => r.accepted);
+              const allTaskCompleted = newRows.length > 0 && newRows.every((r) => r.taskCompleted);
+              
+              const updates: Partial<CaseRecord> = { collabRows: newRows };
+              
+              // Derive translator list from collab rows (unique, non-empty)
+              const collabTranslators = [...new Set(newRows.map(r => r.translator).filter(Boolean))];
+              updates.translator = collabTranslators;
+
+              if (isInquiry && allAccepted) {
+                updates.status = "dispatched" as CaseStatus;
+                save(updates);
+                toast({ title: "所有譯者已確認承接，狀態已更新為「已派出」" });
+                return;
+              }
+              if (isDispatched && allTaskCompleted) {
+                updates.status = "task_completed" as CaseStatus;
+                save(updates);
+                toast({ title: "所有任務已完成" });
+                return;
+              }
+              save(updates);
+            }}
+            caseStatus={caseData.status}
+          />
+        </div>
+      )}
+
+      {/* Multi-collab checkbox - below deadlines, PM+ only */}
+      {isPmOrAbove && (
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="multiCollab"
+            checked={caseData.multiCollab}
+            disabled={caseData.multiCollab}
+            onCheckedChange={(v) => {
+              if (!!v) {
+                setCollabCountInput("");
+                setCollabCountDialogOpen(true);
+              }
+            }}
+          />
+          <Label htmlFor="multiCollab" className="text-sm cursor-pointer">多人協作/分批交件</Label>
+          {caseData.multiCollab && isPmOrAbove && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs text-muted-foreground"
+              onClick={() => {
+                // Check if more than 1 person has accepted
+                const acceptedTranslators = new Set(
+                  caseData.collabRows.filter(r => r.accepted).map(r => r.translator).filter(Boolean)
+                );
+                if (acceptedTranslators.size > 1) {
+                  toast({ title: "無法取消多人協作", description: "已有多位譯者承接，請先調整各列內容。", variant: "destructive" });
+                  return;
+                }
+                setCollabCancelOpen(true);
+              }}
+            >
+              取消多人協作
+            </Button>
           )}
-        </Field>
-        <Field label="審稿人員">
-          <ColorSelect fieldKey="assignee" value={caseData.reviewer} onValueChange={(v) => save({ reviewer: v })} />
-        </Field>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="翻譯交期">
-          <DateTimePicker value={caseData.translationDeadline} onChange={(v) => save({ translationDeadline: v })} className="w-full" />
-        </Field>
-        <Field label="審稿交期">
-          <DateTimePicker value={caseData.reviewDeadline} onChange={(v) => save({ reviewDeadline: v })} className="w-full" />
-        </Field>
-      </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4">
         {checkPerm("case_management", "case_detail_client", "view") && (
           <Field label="客戶">
@@ -1733,6 +1881,129 @@ export default function CaseDetailPage() {
               pendingNavigateRef.current = null;
               if (nav) nav();
             }}>公布</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Multi-collab: initial count dialog */}
+      <AlertDialog open={collabCountDialogOpen} onOpenChange={(v) => { if (!v) setCollabCountDialogOpen(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>設定譯者人次需求</AlertDialogTitle>
+            <AlertDialogDescription>請輸入協作表格的列數（譯者人次）。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Input
+              type="number"
+              min={1}
+              value={collabCountInput}
+              onChange={(e) => setCollabCountInput(e.target.value)}
+              placeholder="人次數"
+              className="w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              autoFocus
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!collabCountInput || Number(collabCountInput) < 1}
+              onClick={() => {
+                const count = Number(collabCountInput);
+                const rows: CollabRow[] = Array.from({ length: count }, (_, i) => ({
+                  id: `cr-${Date.now()}-${i}`,
+                  segment: "",
+                  translator: "",
+                  unitCount: 0,
+                  accepted: false,
+                  translationDeadline: null,
+                  reviewer: "",
+                  reviewDeadline: null,
+                  taskCompleted: false,
+                  delivered: false,
+                }));
+                save({ multiCollab: true, collabCount: count, collabRows: rows });
+                setCollabCountDialogOpen(false);
+                toast({ title: `已啟用多人協作（${count} 人次）` });
+              }}
+            >
+              確認
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Multi-collab: edit count dialog */}
+      <AlertDialog open={collabEditOpen} onOpenChange={(v) => { if (!v) setCollabEditOpen(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>修改譯者人次需求</AlertDialogTitle>
+            <AlertDialogDescription>變更列數。已有資料會保留，縮減時不得少於目前已承接人數。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Input
+              type="number"
+              min={1}
+              value={collabEditInput}
+              onChange={(e) => setCollabEditInput(e.target.value)}
+              placeholder="人次數"
+              className="w-32 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              autoFocus
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!collabEditInput || Number(collabEditInput) < 1}
+              onClick={() => {
+                const newCount = Number(collabEditInput);
+                const currentRows = caseData?.collabRows || [];
+                const acceptedCount = currentRows.filter(r => r.accepted).length;
+                if (newCount < acceptedCount) {
+                  toast({ title: "無法減少列數", description: `目前已有 ${acceptedCount} 位譯者承接，不可將列數減少至低於此數目。請先調整各列內容。`, variant: "destructive" });
+                  return;
+                }
+                let newRows: CollabRow[];
+                if (newCount > currentRows.length) {
+                  newRows = [...currentRows, ...Array.from({ length: newCount - currentRows.length }, (_, i) => ({
+                    id: `cr-${Date.now()}-${i}`,
+                    segment: "",
+                    translator: "",
+                    unitCount: 0,
+                    accepted: false,
+                    translationDeadline: null,
+                    reviewer: "",
+                    reviewDeadline: null,
+                    taskCompleted: false,
+                    delivered: false,
+                  }))];
+                } else {
+                  newRows = currentRows.slice(0, newCount);
+                }
+                save({ collabCount: newCount, collabRows: newRows });
+                setCollabEditOpen(false);
+                toast({ title: `人次數已更新為 ${newCount}` });
+              }}
+            >
+              確認
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Multi-collab: cancel confirmation */}
+      <AlertDialog open={collabCancelOpen} onOpenChange={(v) => { if (!v) setCollabCancelOpen(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>取消多人協作</AlertDialogTitle>
+            <AlertDialogDescription>確定要取消多人協作嗎？協作表格資料將被清除，恢復為單一譯者模式。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              save({ multiCollab: false, collabCount: 0, collabRows: [] });
+              setCollabCancelOpen(false);
+              toast({ title: "已取消多人協作" });
+            }}>確認取消</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
