@@ -578,7 +578,7 @@ function ToolInstance({
       <AlertDialog open={!!deleteFieldId} onOpenChange={(v) => { if (!v) setDeleteFieldId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>確認刪除欄位</AlertDialogTitle>
+            <AlertDialogTitle>確定刪除欄位</AlertDialogTitle>
             <AlertDialogDescription>
               確定要刪除欄位「{fields.find((f) => f.id === deleteFieldId)?.label}」嗎？該欄位的內容也會一併移除。
             </AlertDialogDescription>
