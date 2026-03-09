@@ -1672,9 +1672,14 @@ export default function CaseDetailPage() {
           <FileField value={Array.isArray(caseData.internalReviewFinal) ? caseData.internalReviewFinal : []} onChange={(v) => save({ internalReviewFinal: v })} />
         </Field>
       </div>
-      <Field label="追蹤修訂">
-        <FileField value={Array.isArray(caseData.trackChanges) ? caseData.trackChanges : []} onChange={(v) => save({ trackChanges: v })} />
-      </Field>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+        <Field label="追蹤修訂">
+          <FileField value={Array.isArray(caseData.trackChanges) ? caseData.trackChanges : []} onChange={(v) => save({ trackChanges: v })} />
+        </Field>
+        <Field label="常用資訊">
+          <FileField value={Array.isArray((caseData as any).commonInfoFiles) ? (caseData as any).commonInfoFiles : []} onChange={(v) => save({ commonInfo: v } as any)} />
+        </Field>
+      </div>
 
       <Separator />
 
