@@ -773,6 +773,7 @@ function PageTemplateSection() {
                   <button
                     className="flex-1 flex items-center gap-1 px-2 py-1 rounded-md text-xs hover:bg-secondary/30 transition-colors text-left min-w-0"
                     title={`編輯「${tpl.name}」範本`}
+                    onClick={() => navigate(`/tools/page-template/${tpl.id}`)}
                   >
                     <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
                     <span className="truncate">{tpl.name}</span>
