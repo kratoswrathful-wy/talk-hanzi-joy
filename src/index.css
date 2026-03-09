@@ -135,6 +135,7 @@
   .rich-text-editor .bn-suggestion-menu [class*="badge"],
   .rich-text-editor [class*="suggestionMenuItem"] [class*="subtext"] {
     font-size: 0.625rem !important; /* 10px */
+    color: hsl(var(--muted-foreground)) !important;
   }
   /* Group headers */
   .rich-text-editor .bn-suggestion-menu [class*="group"],
