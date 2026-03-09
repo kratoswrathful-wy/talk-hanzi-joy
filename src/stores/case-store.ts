@@ -175,7 +175,8 @@ function getById(id: string): CaseRecord | undefined {
 
 async function create(partial: Partial<CaseRecord>): Promise<CaseRecord | null> {
   const env = getEnvironment();
-  const payload = { ...toDb(partial), env };
+  const { data: { user } } = await supabase.auth.getUser();
+  const payload = { ...toDb(partial), env, created_by: user?.id || null };
   const { data, error } = await (supabase.from("cases").insert(payload as any).select().single() as any);
   if (error || !data) return null;
   const record = fromDb(data);

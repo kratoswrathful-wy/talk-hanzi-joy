@@ -71,7 +71,9 @@ export default function FileField({ value, onChange }: FileFieldProps) {
       if (cancelRef.current) break;
       const file = files[i];
       setUploadProgress(i);
-      const path = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}/${file.name}`;
+      // Sanitize file name: replace spaces and special chars to avoid storage "Invalid key" errors
+      const safeName = file.name.replace(/[^a-zA-Z0-9._\-\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]/g, "_");
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}/${safeName}`;
       const { error } = await supabase.storage.from("case-files").upload(path, file);
       if (cancelRef.current) break;
       if (error) {
