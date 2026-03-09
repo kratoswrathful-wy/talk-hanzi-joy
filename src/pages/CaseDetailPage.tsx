@@ -67,8 +67,10 @@ function CaseStatusBadge({ status }: { status: CaseStatus }) {
   );
 }
 
-/** IME-safe title input: uses local state during editing, saves on blur */
-function TitleInput({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+/** IME-safe text input: uses local state during editing, saves on blur */
+function IMESafeInput({ value, onSave, disabled, placeholder, className, minRows, maxRows, borderless = true }: {
+  value: string; onSave: (v: string) => void; disabled?: boolean; placeholder?: string; className?: string; minRows?: number; maxRows?: number; borderless?: boolean;
+}) {
   const [local, setLocal] = useState(value);
   const [focused, setFocused] = useState(false);
 
@@ -85,6 +87,22 @@ function TitleInput({ value, onSave }: { value: string; onSave: (v: string) => v
         if (local !== value) onSave(local);
       }}
       onFocus={() => setFocused(true)}
+      className={className || "max-w-md"}
+      minRows={minRows ?? 1}
+      maxRows={maxRows ?? 3}
+      borderless={borderless}
+      disabled={disabled}
+      placeholder={placeholder}
+    />
+  );
+}
+
+/** IME-safe title input */
+function TitleInput({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  return (
+    <IMESafeInput
+      value={value}
+      onSave={onSave}
       className="max-w-md"
       minRows={1}
       maxRows={3}
