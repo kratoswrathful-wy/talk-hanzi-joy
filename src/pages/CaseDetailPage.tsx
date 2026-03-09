@@ -943,28 +943,51 @@ export default function CaseDetailPage() {
               公布
             </Button>
           ) : isInquiry && isMember ? (
-            caseData.multiCollab ? (
-              <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span>
-                      <Button size="sm" className="text-xs min-w-[88px]" disabled>
-                        承接本案
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>請於表格內可承接的橫列勾選「確認承接」</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ) : (
-              <Button
-                size="sm"
-                className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
-                onClick={handleAcceptCase}
-              >
-                承接本案
-              </Button>
-            )
+            (() => {
+              const currentTranslators = caseData.translator || [];
+              const hasOtherTranslator = currentTranslators.length > 0 && !currentTranslators.includes(profile?.display_name || "");
+              if (caseData.multiCollab) {
+                return (
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <Button size="sm" className="text-xs min-w-[88px]" disabled>
+                            承接本案
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>請於表格內可承接的橫列勾選「確認承接」</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                );
+              }
+              if (hasOtherTranslator) {
+                return (
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <Button size="sm" className="text-xs min-w-[88px]" disabled>
+                            承接本案
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>本案可能正洽詢其他譯者，如欲承接請洽派案人員</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                );
+              }
+              return (
+                <Button
+                  size="sm"
+                  className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
+                  onClick={handleAcceptCase}
+                >
+                  承接本案
+                </Button>
+              );
+            })()
           ) : isInquiry && isPmOrAbove ? (
             (() => {
               const translatorEmpty = !caseData.translator || caseData.translator.length === 0;
