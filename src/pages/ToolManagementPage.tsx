@@ -117,11 +117,13 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
       {adding ? (
         newFieldType ? (
           <div className="flex items-center gap-1.5 px-2">
-            <Input
+            <MultilineInput
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
               placeholder="欄位名稱"
               className="h-6 text-xs flex-1"
+              minRows={1}
+              maxRows={3}
               autoFocus
               onBlur={() => {
                 if (newLabel.trim() && addButtonRef.current) {
@@ -129,7 +131,10 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
                 }
               }}
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleAdd();
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleAdd();
+                }
                 if (e.key === "Escape") { setAdding(false); setNewFieldType(null); }
               }}
             />
