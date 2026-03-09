@@ -966,13 +966,28 @@ export default function CaseDetailPage() {
               ) : btn;
             })()
           ) : isDispatched && (isCurrentUserTranslator || isPmOrAbove) ? (
-            <Button
-              size="sm"
-              className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={handleTaskComplete}
-            >
-              任務完成
-            </Button>
+            caseData.multiCollab ? (
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button size="sm" className="text-xs min-w-[88px]" disabled>
+                        任務完成
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>請直接勾選「任務完成」</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <Button
+                size="sm"
+                className="text-xs min-w-[88px] bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={handleTaskComplete}
+              >
+                任務完成
+              </Button>
+            )
           ) : isFeedback && (isCurrentUserTranslator || isPmOrAbove) ? (
             <Button
               size="sm"
