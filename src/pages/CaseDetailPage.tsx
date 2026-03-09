@@ -212,7 +212,7 @@ function Field({ label, children, className }: { label: string; children: React.
   return (
     <div className={`grid grid-cols-[100px_1fr] items-start gap-3 py-1 ${className || ""}`}>
       <span className="text-sm text-muted-foreground pt-1">{label}</span>
-      <div>{children}</div>
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }
