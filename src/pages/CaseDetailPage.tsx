@@ -320,12 +320,14 @@ function ToolInstance({
                       onChange={(v) => onUpdate({ fileValues: { ...fileValues, [f.id]: v } })}
                     />
                   </div>
-                  <button
-                    className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0 mt-1"
-                    onClick={() => setDeleteFieldId(f.id)}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
+                  {canRemoveField && (
+                    <button
+                      className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0 mt-1"
+                      onClick={() => setDeleteFieldId(f.id)}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               </Field>
             );
@@ -343,18 +345,20 @@ function ToolInstance({
                   borderless
                 />
                 <CopyButton value={values[f.id] || ""} />
-                <button
-                  className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0 mt-1"
-                  onClick={() => setDeleteFieldId(f.id)}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+                {canRemoveField && (
+                  <button
+                    className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0 mt-1"
+                    onClick={() => setDeleteFieldId(f.id)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             </Field>
           );
         })}
         {/* Add field */}
-        {hasToolSelected && (
+        {hasToolSelected && canAddField && (
           addingField ? (
             addingFieldType ? (
               <div className="flex items-center gap-1.5 py-1 ml-[132px]">
