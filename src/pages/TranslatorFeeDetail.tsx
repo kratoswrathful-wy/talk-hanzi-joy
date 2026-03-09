@@ -1726,7 +1726,7 @@ export default function TranslatorFeeDetail() {
                       value={notionUrlInput}
                       onChange={(e) => setNotionUrlInput(e.target.value)}
                       className="bg-secondary/50 flex-1"
-                      placeholder="貼上 Notion 案件頁面網址"
+                      placeholder="貼上 Notion 案件頁面網址或本系統案件連結"
                       onKeyDown={(e) => { if (e.key === "Enter") handleFetchFromUrl(); }}
                     />
                     <Button
