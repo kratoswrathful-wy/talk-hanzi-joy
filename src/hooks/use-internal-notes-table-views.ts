@@ -235,8 +235,38 @@ export function useInternalNotesTableViews(currentRole?: string) {
         return 0;
       });
     }
+    const topIds = new Set(activeView.pinnedTop || []);
+    const bottomIds = new Set(activeView.pinnedBottom || []);
+    if (topIds.size > 0 || bottomIds.size > 0) {
+      const pt: InternalNote[] = [], pb: InternalNote[] = [], mid: InternalNote[] = [];
+      for (const item of result) {
+        if (topIds.has(item.id)) pt.push(item);
+        else if (bottomIds.has(item.id)) pb.push(item);
+        else mid.push(item);
+      }
+      result = [...pt, ...mid, ...pb];
+    }
     return result;
   }, [activeView]);
+
+  const pinTop = useCallback((ids: string[]) => {
+    const current = activeView.pinnedTop || [];
+    const newBottom = (activeView.pinnedBottom || []).filter((id) => !ids.includes(id));
+    updateView(activeViewId, { pinnedTop: [...new Set([...current, ...ids])], pinnedBottom: newBottom });
+  }, [activeViewId, activeView, updateView]);
+
+  const pinBottom = useCallback((ids: string[]) => {
+    const current = activeView.pinnedBottom || [];
+    const newTop = (activeView.pinnedTop || []).filter((id) => !ids.includes(id));
+    updateView(activeViewId, { pinnedBottom: [...new Set([...current, ...ids])], pinnedTop: newTop });
+  }, [activeViewId, activeView, updateView]);
+
+  const unpinItem = useCallback((id: string) => {
+    updateView(activeViewId, {
+      pinnedTop: (activeView.pinnedTop || []).filter((i) => i !== id),
+      pinnedBottom: (activeView.pinnedBottom || []).filter((i) => i !== id),
+    });
+  }, [activeViewId, activeView, updateView]);
 
   const safeActiveViewId = useMemo(() => {
     if (visibleViews.some((v) => v.id === activeViewId)) return activeViewId;
@@ -250,6 +280,6 @@ export function useInternalNotesTableViews(currentRole?: string) {
     setActiveViewId, addView, deleteView, renameView, reorderViews,
     addCondition, removeFilterNode, updateCondition, addFilterGroup, changeGroupLogic,
     addSort, removeSort, updateSort, setColumnOrder, setColumnWidth,
-    toggleColumnVisibility, applyFiltersAndSorts,
+    toggleColumnVisibility, applyFiltersAndSorts, pinTop, pinBottom, unpinItem,
   };
 }
