@@ -79,15 +79,20 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
         >
           <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
           {editingId === f.id ? (
-            <Input
+            <MultilineInput
               value={editLabel}
               onChange={(e) => setEditLabel(e.target.value)}
               onBlur={() => handleRename(f.id)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleRename(f.id);
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleRename(f.id);
+                }
                 if (e.key === "Escape") setEditingId(null);
               }}
               className="h-6 text-xs flex-1"
+              minRows={1}
+              maxRows={3}
               autoFocus
             />
           ) : (
