@@ -961,22 +961,104 @@ export default function CaseDetailPage() {
       <Separator />
 
       <h2 className="text-base font-semibold">基本資訊</h2>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="內容性質">
-          <ColorSelect fieldKey="caseCategory" value={caseData.category} onValueChange={(v) => save({ category: v })} />
-        </Field>
-        <Field label="計費單位">
-          <ColorSelect fieldKey="billingUnit" value={caseData.billingUnit} onValueChange={(v) => save({ billingUnit: v })} />
-        </Field>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="工作類型">
-          <MultiColorSelect fieldKey="taskType" values={caseData.workType} onValuesChange={(v) => save({ workType: v })} />
-        </Field>
-        <Field label="計費單位數">
-          <Input type="number" value={caseData.unitCount || ""} onChange={(e) => save({ unitCount: Number(e.target.value) || 0 })} className="max-w-[120px]" />
-        </Field>
-      </div>
+      {/* Two-column layout: left = A, B groups + add button; right = blank, C, D per group */}
+      {(() => {
+        const workGroups = (caseData.workGroups && caseData.workGroups.length > 0)
+          ? caseData.workGroups
+          : [{ id: `wg-init`, workType: "", billingUnit: "", unitCount: 0 }];
+
+        const saveGroups = (groups: typeof workGroups) => {
+          save({
+            workGroups: groups,
+            // keep legacy fields in sync
+            workType: groups.map((g) => g.workType).filter(Boolean),
+            billingUnit: groups[0]?.billingUnit || "",
+            unitCount: groups[0]?.unitCount || 0,
+          });
+        };
+
+        const updateGroup = (idx: number, patch: Partial<typeof workGroups[0]>) => {
+          const next = workGroups.map((g, i) => i === idx ? { ...g, ...patch } : g);
+          saveGroups(next);
+        };
+
+        const addGroup = () => {
+          saveGroups([...workGroups, { id: `wg-${Date.now()}`, workType: "", billingUnit: "", unitCount: 0 }]);
+        };
+
+        const removeGroup = (idx: number) => {
+          const next = workGroups.filter((_, i) => i !== idx);
+          saveGroups(next.length ? next : [{ id: `wg-${Date.now()}`, workType: "", billingUnit: "", unitCount: 0 }]);
+        };
+
+        return (
+          <div className="grid grid-cols-2 gap-x-4">
+            {/* LEFT column */}
+            <div className="space-y-1">
+              <Field label="內容性質">
+                <ColorSelect fieldKey="caseCategory" value={caseData.category} onValueChange={(v) => save({ category: v })} />
+              </Field>
+              {workGroups.map((g, idx) => (
+                <div key={g.id} className="relative">
+                  <Field label="工作類型">
+                    <div className="flex items-center gap-1">
+                      <ColorSelect
+                        fieldKey="taskType"
+                        value={g.workType}
+                        onValueChange={(v) => updateGroup(idx, { workType: v })}
+                        className="flex-1"
+                      />
+                      {workGroups.length > 1 && (
+                        <button
+                          type="button"
+                          className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-muted/60 transition-colors shrink-0"
+                          onClick={() => removeGroup(idx)}
+                          title="移除此群組"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </Field>
+                </div>
+              ))}
+              <div className="py-1">
+                <Button type="button" variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground h-7 px-2" onClick={addGroup}>
+                  <Plus className="h-3.5 w-3.5" />
+                  新增工作類型
+                </Button>
+              </div>
+            </div>
+            {/* RIGHT column */}
+            <div className="space-y-1">
+              {/* Blank row to align with 內容性質 on left */}
+              <div className="grid grid-cols-[100px_1fr] items-start gap-3 py-1">
+                <span className="text-sm text-muted-foreground pt-1 invisible">佔位</span>
+                <div />
+              </div>
+              {workGroups.map((g, idx) => (
+                <div key={g.id} className="grid grid-cols-[1fr_1fr] gap-2">
+                  <Field label="計費單位">
+                    <ColorSelect
+                      fieldKey="billingUnit"
+                      value={g.billingUnit}
+                      onValueChange={(v) => updateGroup(idx, { billingUnit: v })}
+                    />
+                  </Field>
+                  <Field label="計費單位數">
+                    <Input
+                      type="number"
+                      value={g.unitCount || ""}
+                      onChange={(e) => updateGroup(idx, { unitCount: Number(e.target.value) || 0 })}
+                      className="max-w-[100px]"
+                    />
+                  </Field>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
       <div className="grid grid-cols-2 gap-4">
         <Field label="譯者">
           {(isDispatched || isTaskCompleted || isDelivered || isFeedback || isFeedbackCompleted || isFinalized) ? (
