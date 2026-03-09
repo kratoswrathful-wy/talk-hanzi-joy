@@ -97,10 +97,8 @@ const MultilineInput = React.forwardRef<HTMLTextAreaElement, MultilineInputProps
         onKeyDown={handleKeyDown}
         onInput={autoResize}
         style={{
-          // Prevent horizontal scrollbar
           overflowX: 'hidden',
-          // Allow vertical scrollbar only when content exceeds maxRows
-          overflowY: maxRows && textareaRef.current?.scrollHeight > textareaRef.current?.clientHeight ? 'auto' : 'hidden',
+          overflowY: !maxRows ? 'hidden' : (textareaRef.current?.scrollHeight > textareaRef.current?.clientHeight ? 'auto' : 'hidden'),
         }}
         {...props}
       />
