@@ -992,69 +992,55 @@ export default function CaseDetailPage() {
         };
 
         return (
-          <div className="grid grid-cols-2 gap-x-4">
-            {/* LEFT column */}
-            <div className="space-y-1">
-              <Field label="內容性質">
-                <ColorSelect fieldKey="caseCategory" value={caseData.category} onValueChange={(v) => save({ category: v })} />
-              </Field>
-              {workGroups.map((g, idx) => (
-                <div key={g.id} className="relative">
-                  <Field label="工作類型">
-                    <div className="flex items-center gap-1">
-                      <ColorSelect
-                        fieldKey="taskType"
-                        value={g.workType}
-                        onValueChange={(v) => updateGroup(idx, { workType: v })}
-                        className="flex-1"
-                      />
-                      {workGroups.length > 1 && (
-                        <button
-                          type="button"
-                          className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-muted/60 transition-colors shrink-0"
-                          onClick={() => removeGroup(idx)}
-                          title="移除此群組"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </Field>
+          <div className="space-y-1">
+            <Field label="內容性質">
+              <ColorSelect fieldKey="caseCategory" value={caseData.category} onValueChange={(v) => save({ category: v })} />
+            </Field>
+            {workGroups.map((g, idx) => (
+              <div key={g.id} className="grid grid-cols-[100px_1fr] items-center gap-3 py-1">
+                <span className="text-sm text-muted-foreground">工作類型</span>
+                <div className="flex items-center gap-3">
+                  <ColorSelect
+                    fieldKey="taskType"
+                    value={g.workType}
+                    onValueChange={(v) => updateGroup(idx, { workType: v })}
+                    className="flex-1 min-w-0"
+                  />
+                  <span className="text-sm text-muted-foreground shrink-0">計費單位</span>
+                  <ColorSelect
+                    fieldKey="billingUnit"
+                    value={g.billingUnit}
+                    onValueChange={(v) => updateGroup(idx, { billingUnit: v })}
+                    className="flex-1 min-w-0"
+                  />
+                  <span className="text-sm text-muted-foreground shrink-0">計費單位數</span>
+                  <Input
+                    type="number"
+                    value={g.unitCount || ""}
+                    onChange={(e) => updateGroup(idx, { unitCount: Number(e.target.value) || 0 })}
+                    className="w-[80px] shrink-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  {workGroups.length > 1 ? (
+                    <button
+                      type="button"
+                      className="h-7 w-7 flex items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-muted/60 transition-colors shrink-0"
+                      onClick={() => removeGroup(idx)}
+                      title="移除此群組"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  ) : (
+                    <div className="w-7 shrink-0" />
+                  )}
                 </div>
-              ))}
-              <div className="py-1">
-                <Button type="button" variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground h-7 px-2" onClick={addGroup}>
-                  <Plus className="h-3.5 w-3.5" />
-                  新增工作類型
-                </Button>
               </div>
-            </div>
-            {/* RIGHT column */}
-            <div className="space-y-1">
-              {/* Blank row to align with 內容性質 on left */}
-              <div className="grid grid-cols-[100px_1fr] items-start gap-3 py-1">
-                <span className="text-sm text-muted-foreground pt-1 invisible">佔位</span>
-                <div />
-              </div>
-              {workGroups.map((g, idx) => (
-                <div key={g.id} className="grid grid-cols-[1fr_1fr] gap-2">
-                  <Field label="計費單位">
-                    <ColorSelect
-                      fieldKey="billingUnit"
-                      value={g.billingUnit}
-                      onValueChange={(v) => updateGroup(idx, { billingUnit: v })}
-                    />
-                  </Field>
-                  <Field label="計費單位數">
-                    <Input
-                      type="number"
-                      value={g.unitCount || ""}
-                      onChange={(e) => updateGroup(idx, { unitCount: Number(e.target.value) || 0 })}
-                      className="max-w-[100px]"
-                    />
-                  </Field>
-                </div>
-              ))}
+            ))}
+            <div className="grid grid-cols-[100px_1fr] items-center gap-3 py-0.5">
+              <span />
+              <Button type="button" variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground h-7 px-2 w-fit" onClick={addGroup}>
+                <Plus className="h-3.5 w-3.5" />
+                新增工作類型
+              </Button>
             </div>
           </div>
         );
