@@ -116,7 +116,6 @@ const caseStatusLabels: Record<CaseStatus, string> = {
   delivered: "已交件",
   feedback: "處理回饋",
   feedback_completed: "回饋處理完畢",
-  finalized: "開立完成",
 };
 
 function CaseStatusBadge({ status }: { status: CaseStatus }) {

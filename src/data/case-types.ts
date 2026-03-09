@@ -20,7 +20,7 @@ export interface WorkGroup {
   unitCount: number;
 }
 
-export type CaseStatus = "draft" | "inquiry" | "dispatched" | "task_completed" | "delivered" | "feedback" | "feedback_completed" | "finalized";
+export type CaseStatus = "draft" | "inquiry" | "dispatched" | "task_completed" | "delivered" | "feedback" | "feedback_completed";
 
 /** A single row in the multi-person collaboration table */
 export interface CollabRow {
