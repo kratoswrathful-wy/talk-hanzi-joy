@@ -71,17 +71,17 @@ function generateNoteTitle(caseTitle: string): string {
 
 /* ── Status color helper ── */
 function StatusBadge({ status, invalidated }: { status: string; invalidated?: boolean }) {
-  const { options } = useSelectOptions("noteStatus");
+  useSelectOptions("statusLabel");
   if (invalidated) {
     return <Badge variant="destructive" className="text-xs whitespace-nowrap">已失效</Badge>;
   }
-  const opt = options.find((o) => o.label === status);
   if (!status) return <span className="text-sm text-muted-foreground">—</span>;
+  const style = getStatusLabelStyle(status);
   return (
     <Badge
       variant="outline"
       className="text-xs whitespace-nowrap border"
-      style={opt ? { backgroundColor: opt.color, color: "#fff", borderColor: opt.color } : undefined}
+      style={{ backgroundColor: style.bgColor, color: style.textColor, borderColor: style.bgColor }}
     >
       {status}
     </Badge>

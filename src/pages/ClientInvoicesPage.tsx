@@ -44,13 +44,10 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 function StatusBadge({ status }: { status: ClientInvoiceStatus }) {
-  const labelStyles = useLabelStyles();
-  const styleMap: Record<ClientInvoiceStatus, { bgColor: string; textColor: string }> = {
-    pending: labelStyles.invoicePending,
-    partial: labelStyles.invoicePartial,
-    paid: labelStyles.invoicePaid,
-  };
-  const colors = styleMap[status];
+  useSelectOptions("statusLabel");
+  const labelMap: Record<string, string> = { pending: "待付款", partial: "部份付款", paid: "已付款" };
+  const label = labelMap[status] || status;
+  const colors = getStatusLabelStyle(label);
   return (
     <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
       <span className="cursor-default">

@@ -367,8 +367,9 @@ function AssigneeLabel({ value }: { value: string }) {
 }
 
 function FeeStatusBadge({ status }: { status: FeeStatus }) {
-  const labelStyles = useLabelStyles();
-  const style = status === "finalized" ? labelStyles.statusFinalized : labelStyles.statusDraft;
+  useSelectOpts("statusLabel");
+  const label = FEE_STATUS_LABEL_MAP[status] || status;
+  const style = getStatusLabelStyle(label);
   return (
     <Badge
       variant="default"
