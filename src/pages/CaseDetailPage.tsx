@@ -1006,66 +1006,86 @@ export default function CaseDetailPage() {
       </div>
 
       {/* 本案費用 + 產生本案費用單 */}
-      {isPmOrAbove && (() => {
+      {(() => {
         const caseUrl = `${window.location.origin}/cases/${caseData.id}`;
         const linkedFees = allFees.filter((f) => f.internalNoteUrl === caseUrl);
         const translators: string[] = Array.isArray(caseData.translator) ? caseData.translator : [];
         const feeCount = linkedFees.length;
-        const translatorCount = Math.max(translators.length, 1);
-        const showButton = feeCount < translatorCount;
-        const showWarning = feeCount > translatorCount;
+        const translatorCount = translators.length;
+        const showButton = isPmOrAbove && feeCount < translatorCount;
+        const showTooMany = feeCount > translatorCount;
+        const showTooFew = feeCount < translatorCount && feeCount > 0;
+        // Permissions
+        const canSeeButton = checkPerm("case_management", "case_fee_generate_button", "view");
+        const canUseButton = checkPerm("case_management", "case_fee_generate_button", "edit");
+        const canSeeFeeWarning = isPmOrAbove;
+        const canSeeBadges = isPmOrAbove;
+        // For member: only show fees assigned to them
+        const userDisplayName = profile?.display_name || "";
+        const visibleFees = isMember
+          ? linkedFees.filter((f) => f.assignee === userDisplayName)
+          : linkedFees;
+        const visibleCount = visibleFees.length;
 
-        const sorted = [...linkedFees].sort((a, b) => {
+        // If member has no visible fees, skip rendering this section entirely
+        if (isMember && visibleCount === 0 && feeCount === 0) return null;
+
+        const sorted = [...visibleFees].sort((a, b) => {
           const aP = a.clientInfo?.isFirstFee ? 0 : a.clientInfo?.notFirstFee ? 2 : 1;
           const bP = b.clientInfo?.isFirstFee ? 0 : b.clientInfo?.notFirstFee ? 2 : 1;
           return aP - bP;
         });
 
         return (
-          <div className="flex flex-col gap-1.5">
-            {/* Label row: label + warning side by side, vertically centered */}
-            <div className="flex items-center gap-3">
-              <Label className="text-xs text-muted-foreground leading-tight">
+          <div className="grid grid-cols-[100px_1fr] items-start gap-3 py-1">
+            {/* Left: label + warning stacked, vertically centered */}
+            <div className="flex flex-col justify-center pt-1 gap-0.5">
+              <span className="text-sm text-muted-foreground leading-tight whitespace-nowrap">
                 本案費用<br />（{feeCount} 筆）
-              </Label>
-              {showWarning && (
-                <span className="text-xs text-destructive">
-                  費用單數目多於譯者人數，請確認無誤
-                </span>
+              </span>
+              {canSeeFeeWarning && showTooMany && (
+                <span className="text-[11px] text-destructive leading-tight">費用單數目多於譯者人數，請確認無誤</span>
+              )}
+              {canSeeFeeWarning && showTooFew && (
+                <span className="text-[11px] text-destructive leading-tight">費用單數目少於譯者人數，請確認無誤</span>
               )}
             </div>
-            {/* Fee list */}
-            {feeCount === 0 ? (
-              <span className="text-sm text-muted-foreground">尚無費用單</span>
-            ) : (
-              <div className="space-y-1">
-                {sorted.map((f) => (
-                  <div key={f.id} className="grid items-center gap-2 rounded px-1 py-0.5" style={{ gridTemplateColumns: "minmax(240px, 1fr) 160px 50px" }}>
-                    <Link to={`/fees/${f.id}`} className="text-sm text-primary hover:underline underline-offset-2 truncate text-left">
-                      {f.title || "未命名費用"}
-                    </Link>
-                    <div className="flex items-center justify-start">
-                      {f.assignee ? <AssigneeTag label={f.assignee} size="sm" /> : <span />}
+            {/* Right: fee list + button */}
+            <div className="flex flex-col gap-1">
+              {visibleCount === 0 ? (
+                <span className="text-sm text-muted-foreground">尚無費用單</span>
+              ) : (
+                <div className="space-y-1">
+                  {sorted.map((f) => (
+                    <div key={f.id} className="grid items-center gap-2 rounded px-1 py-0.5" style={{ gridTemplateColumns: "minmax(200px, 1fr) 140px 48px" }}>
+                      <Link to={`/fees/${f.id}`} className="text-sm text-primary hover:underline underline-offset-2 truncate text-left">
+                        {f.title || "未命名費用"}
+                      </Link>
+                      <div className="flex items-center justify-start">
+                        {f.assignee ? <AssigneeTag label={f.assignee} size="sm" /> : <span />}
+                      </div>
+                      {canSeeBadges ? (
+                        <div className="flex items-center justify-end">
+                          {f.clientInfo?.isFirstFee && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">主要</Badge>
+                          )}
+                          {f.clientInfo?.notFirstFee && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 text-muted-foreground">非主要</Badge>
+                          )}
+                        </div>
+                      ) : <div />}
                     </div>
-                    <div className="flex items-center justify-end">
-                      {f.clientInfo?.isFirstFee && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">主要</Badge>
-                      )}
-                      {f.clientInfo?.notFirstFee && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 text-muted-foreground">非主要</Badge>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            {/* Button to generate fees */}
-            {showButton && (
+                  ))}
+                </div>
+              )}
+              {/* Button to generate fees */}
+              {isPmOrAbove && canSeeButton && showButton && (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 className="gap-1.5 w-fit mt-1"
+                disabled={!canUseButton}
                 onClick={() => {
                   if (!caseData) return;
                   const workTypes: string[] = Array.isArray(caseData.workType) ? caseData.workType : [];
