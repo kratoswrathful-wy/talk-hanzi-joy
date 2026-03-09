@@ -95,6 +95,15 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.contact !== undefined) map.contact = c.contact;
   if (c.category !== undefined) map.category = c.category;
   if (c.workType !== undefined) map.work_type = c.workType;
+  if (c.workGroups !== undefined) {
+    map.work_groups = c.workGroups;
+    // Keep legacy columns in sync for backward compatibility
+    map.work_type = c.workGroups.map((g) => g.workType).filter(Boolean);
+    if (c.workGroups[0]) {
+      map.billing_unit = c.workGroups[0].billingUnit || "";
+      map.unit_count = Number(c.workGroups[0].unitCount) || 0;
+    }
+  }
   if (c.processNote !== undefined) map.process_note = c.processNote;
   if (c.billingUnit !== undefined) map.billing_unit = c.billingUnit;
   if (c.unitCount !== undefined) map.unit_count = c.unitCount;
