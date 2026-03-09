@@ -70,16 +70,18 @@ function getFieldValue(fee: TranslatorFee, field: string): string | number | boo
 
 function matchFilter(fee: TranslatorFee, filter: TableFilter): boolean {
   const val = getFieldValue(fee, filter.field);
+  let result: boolean;
   switch (filter.operator) {
-    case "equals": return String(val) === filter.value;
-    case "not_equals": return String(val) !== filter.value;
-    case "contains": return String(val).toLowerCase().includes(filter.value.toLowerCase());
-    case "is_checked": return val === true;
-    case "is_not_checked": return val === false;
-    case "gt": return Number(val) > Number(filter.value);
-    case "lt": return Number(val) < Number(filter.value);
-    default: return true;
+    case "equals": result = String(val) === filter.value; break;
+    case "not_equals": result = String(val) !== filter.value; break;
+    case "contains": result = String(val).toLowerCase().includes(filter.value.toLowerCase()); break;
+    case "is_checked": result = val === true; break;
+    case "is_not_checked": result = val === false; break;
+    case "gt": result = Number(val) > Number(filter.value); break;
+    case "lt": result = Number(val) < Number(filter.value); break;
+    default: result = true;
   }
+  return filter.negated ? !result : result;
 }
 
 function compareFees(a: TranslatorFee, b: TranslatorFee, sort: TableSort): number {
