@@ -243,6 +243,18 @@ export const selectOptionsStore = {
     notify();
   },
 
+  updateOptionTextColor: (fieldKey: string, optionId: string, textColor: string) => {
+    const field = selectOptionsStore.getField(fieldKey);
+    store = {
+      ...store,
+      [fieldKey]: {
+        ...field,
+        options: field.options.map((o) => (o.id === optionId ? { ...o, textColor } : o)),
+      },
+    };
+    notify();
+  },
+
   updateOptionNote: (fieldKey: string, optionId: string, note: string) => {
     const field = selectOptionsStore.getField(fieldKey);
     store = {
