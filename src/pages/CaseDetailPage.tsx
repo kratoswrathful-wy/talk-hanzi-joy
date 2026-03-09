@@ -1099,33 +1099,125 @@ export default function CaseDetailPage() {
           </div>
         );
       })()}
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="譯者">
-          {(isDispatched || isTaskCompleted || isDelivered || isFeedback || isFeedbackCompleted || isFinalized) ? (
-            <div className="flex items-center gap-1 flex-wrap min-h-[36px] px-2 py-1 rounded-md bg-muted/50 border border-border">
-              {(caseData.translator || []).length > 0
-                ? (caseData.translator || []).map((t, i) => {
-                    const opt = assigneeOptions.find((o) => o.label === t);
-                    return <AssigneeTag key={i} label={t} avatarUrl={opt?.avatarUrl} />;
-                  })
-                : <span className="text-sm text-muted-foreground">—</span>}
-            </div>
-          ) : (
-            <MultiColorSelect fieldKey="assignee" values={caseData.translator || []} onValuesChange={(v) => save({ translator: v })} />
+      {!caseData.multiCollab ? (
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="譯者">
+              {(isDispatched || isTaskCompleted || isDelivered || isFeedback || isFeedbackCompleted || isFinalized) ? (
+                <div className="flex items-center gap-1 flex-wrap min-h-[36px] px-2 py-1 rounded-md bg-muted/50 border border-border">
+                  {(caseData.translator || []).length > 0
+                    ? (caseData.translator || []).map((t, i) => {
+                        const opt = assigneeOptions.find((o) => o.label === t);
+                        return <AssigneeTag key={i} label={t} avatarUrl={opt?.avatarUrl} />;
+                      })
+                    : <span className="text-sm text-muted-foreground">—</span>}
+                </div>
+              ) : (
+                <MultiColorSelect fieldKey="assignee" values={caseData.translator || []} onValuesChange={(v) => save({ translator: v })} />
+              )}
+            </Field>
+            <Field label="審稿人員">
+              <ColorSelect fieldKey="assignee" value={caseData.reviewer} onValueChange={(v) => save({ reviewer: v })} />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="翻譯交期">
+              <DateTimePicker value={caseData.translationDeadline} onChange={(v) => save({ translationDeadline: v })} className="w-full" />
+            </Field>
+            <Field label="審稿交期">
+              <DateTimePicker value={caseData.reviewDeadline} onChange={(v) => save({ reviewDeadline: v })} className="w-full" />
+            </Field>
+          </div>
+        </>
+      ) : (
+        /* Multi-person collaboration table */
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">多人協作（{caseData.collabCount} 人次）</span>
+            {isPmOrAbove && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setCollabEditInput(String(caseData.collabCount));
+                  setCollabEditOpen(true);
+                }}
+              >
+                <Settings className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+          <CollaborationTable
+            rows={caseData.collabRows}
+            onChange={(newRows) => {
+              // Check auto-status transitions
+              const allAccepted = newRows.length > 0 && newRows.every((r) => r.accepted);
+              const allTaskCompleted = newRows.length > 0 && newRows.every((r) => r.taskCompleted);
+              
+              const updates: Partial<CaseRecord> = { collabRows: newRows };
+              
+              // Derive translator list from collab rows (unique, non-empty)
+              const collabTranslators = [...new Set(newRows.map(r => r.translator).filter(Boolean))];
+              updates.translator = collabTranslators;
+
+              if (isInquiry && allAccepted) {
+                updates.status = "dispatched" as CaseStatus;
+                save(updates);
+                toast({ title: "所有譯者已確認承接，狀態已更新為「已派出」" });
+                return;
+              }
+              if (isDispatched && allTaskCompleted) {
+                updates.status = "task_completed" as CaseStatus;
+                save(updates);
+                toast({ title: "所有任務已完成" });
+                return;
+              }
+              save(updates);
+            }}
+            caseStatus={caseData.status}
+          />
+        </div>
+      )}
+
+      {/* Multi-collab checkbox - below deadlines, PM+ only */}
+      {isPmOrAbove && (
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="multiCollab"
+            checked={caseData.multiCollab}
+            disabled={caseData.multiCollab}
+            onCheckedChange={(v) => {
+              if (!!v) {
+                setCollabCountInput("");
+                setCollabCountDialogOpen(true);
+              }
+            }}
+          />
+          <Label htmlFor="multiCollab" className="text-sm cursor-pointer">多人協作/分批交件</Label>
+          {caseData.multiCollab && isPmOrAbove && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 text-xs text-muted-foreground"
+              onClick={() => {
+                // Check if more than 1 person has accepted
+                const acceptedTranslators = new Set(
+                  caseData.collabRows.filter(r => r.accepted).map(r => r.translator).filter(Boolean)
+                );
+                if (acceptedTranslators.size > 1) {
+                  toast({ title: "無法取消多人協作", description: "已有多位譯者承接，請先調整各列內容。", variant: "destructive" });
+                  return;
+                }
+                setCollabCancelOpen(true);
+              }}
+            >
+              取消多人協作
+            </Button>
           )}
-        </Field>
-        <Field label="審稿人員">
-          <ColorSelect fieldKey="assignee" value={caseData.reviewer} onValueChange={(v) => save({ reviewer: v })} />
-        </Field>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="翻譯交期">
-          <DateTimePicker value={caseData.translationDeadline} onChange={(v) => save({ translationDeadline: v })} className="w-full" />
-        </Field>
-        <Field label="審稿交期">
-          <DateTimePicker value={caseData.reviewDeadline} onChange={(v) => save({ reviewDeadline: v })} className="w-full" />
-        </Field>
-      </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4">
         {checkPerm("case_management", "case_detail_client", "view") && (
           <Field label="客戶">
