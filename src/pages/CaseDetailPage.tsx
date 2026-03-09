@@ -1581,6 +1581,8 @@ export default function CaseDetailPage() {
                           notFirstFee: true,
                           ...(caseClient ? { client: caseClient } : {}),
                           ...(caseContact ? { contact: caseContact } : {}),
+                          ...(caseData.keyword ? { clientCaseId: caseData.keyword } : {}),
+                          ...(caseData.clientPoNumber ? { clientPoNumber: caseData.clientPoNumber } : {}),
                         },
                         notes: [],
                         editLogs: [],

@@ -739,10 +739,12 @@ export default function TranslatorFeeDetail() {
               clientPrice: cp,
             };
           });
-          const updatedClientInfo: ClientInfo = {
+           const updatedClientInfo: ClientInfo = {
             ...clientInfo,
             ...(caseClient ? { client: caseClient } : {}),
             ...(caseContact ? { contact: caseContact } : {}),
+            ...(caseKeyword ? { clientCaseId: caseKeyword } : {}),
+            ...(casePo ? { clientPoNumber: casePo } : {}),
             clientTaskItems: mappedClientItems,
           };
           setClientInfo(updatedClientInfo);
