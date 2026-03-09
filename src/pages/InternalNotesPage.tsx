@@ -6,6 +6,7 @@ import { TableFooterStats } from "@/components/TableFooterStats";
 import { toast } from "sonner";
 import { Plus, ExternalLink, Trash2, GripVertical } from "lucide-react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
+import { ApplyTemplateButton } from "@/components/ApplyTemplateButton";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -195,6 +196,12 @@ function NoteDetailView({
           <Button variant="outline" size="sm" className="text-xs min-w-[88px]" onClick={handleNewSameCaseNote}>
             新增同案件註記
           </Button>
+          <ApplyTemplateButton
+            module="internalNotes"
+            onApply={(values) => {
+              onUpdate(values);
+            }}
+          />
           <Button
             size="sm"
             className="text-xs min-w-[88px] text-white hover:opacity-80"
@@ -696,7 +703,7 @@ export default function InternalNotesPage() {
         <h1 className="text-2xl font-semibold tracking-tight">內部註記</h1>
         <Button size="sm" className="gap-1.5" onClick={() => setNewNoteOpen(true)}>
           <Plus className="h-4 w-4" />
-          新增
+          新增內部註記
         </Button>
         {activeView.isDefault ? (
           <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">

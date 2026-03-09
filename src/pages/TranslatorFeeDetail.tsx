@@ -5,6 +5,7 @@ import { CommentContent } from "@/components/comments/CommentContent";
 import { CommentInput } from "@/components/comments/CommentInput";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { invoiceStore } from "@/stores/invoice-store";
+import { ApplyTemplateButton } from "@/components/ApplyTemplateButton";
 
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
@@ -1654,6 +1655,39 @@ export default function TranslatorFeeDetail() {
                 </span>
               </TooltipTrigger>
             </Tooltip>
+          )}
+          {isManager && (
+            <ApplyTemplateButton
+              module="fees"
+              onApply={(values) => {
+                // Handle nested clientInfo keys
+                const directUpdates: Record<string, any> = {};
+                const clientUpdates: Record<string, any> = {};
+                for (const [k, v] of Object.entries(values)) {
+                  if (k.startsWith("clientInfo.")) {
+                    clientUpdates[k.replace("clientInfo.", "")] = v;
+                  } else {
+                    directUpdates[k] = v;
+                  }
+                }
+                if (directUpdates.assignee !== undefined) {
+                  setAssignee(directUpdates.assignee);
+                  if (id) feeStore.updateFee(id, { assignee: directUpdates.assignee });
+                }
+                if (directUpdates.internalNote !== undefined) {
+                  setInternalNote(directUpdates.internalNote);
+                  if (id) feeStore.updateFee(id, { internalNote: directUpdates.internalNote });
+                }
+                if (Object.keys(clientUpdates).length > 0) {
+                  setClientInfo((prev) => {
+                    const updated = { ...prev, ...clientUpdates };
+                    if (id) feeStore.updateFee(id, { clientInfo: updated });
+                    return updated;
+                  });
+                }
+                toast.success("已套用範本");
+              }}
+            />
           )}
           {isManager && (
             <Tooltip>
