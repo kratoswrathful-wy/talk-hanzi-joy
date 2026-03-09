@@ -533,6 +533,11 @@ export default function CasesPage() {
         statusOptionsList={[
           { value: "draft", label: "草稿" },
           { value: "inquiry", label: "詢案中" },
+          { value: "dispatched", label: "已派出" },
+          { value: "task_completed", label: "任務完成" },
+          { value: "delivered", label: "已交件" },
+          { value: "feedback", label: "處理回饋" },
+          { value: "feedback_completed", label: "回饋處理完畢" },
         ]}
         selectedIds={[...rowSelection.selectedIds]}
         onPinTop={tableViews.pinTop}
