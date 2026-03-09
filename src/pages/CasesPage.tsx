@@ -656,7 +656,12 @@ export default function CasesPage() {
             orderedCols={orderedCols}
             columnWidths={activeView.columnWidths}
             numericColumns={[
-              { key: "unitCount", getValue: (c: CaseRecord) => c.unitCount || null, isCurrency: false },
+              { key: "unitCount", getValue: (c: CaseRecord) => {
+                const total = c.workGroups && c.workGroups.length > 0
+                  ? c.workGroups.reduce((sum, g) => sum + (g.unitCount || 0), 0)
+                  : c.unitCount || 0;
+                return total || null;
+              }, isCurrency: false },
             ]}
             data={visibleFees}
           />
