@@ -83,6 +83,12 @@ function matchFilter(fee: TranslatorFee, filter: TableFilter): boolean {
 }
 
 function compareFees(a: TranslatorFee, b: TranslatorFee, sort: TableSort): number {
+  if (sort.field === "status") {
+    const aLabel = FEE_STATUS_LABEL_MAP[a.status] || a.status;
+    const bLabel = FEE_STATUS_LABEL_MAP[b.status] || b.status;
+    const cmp = getStatusSortIndex(aLabel) - getStatusSortIndex(bLabel);
+    return sort.direction === "desc" ? -cmp : cmp;
+  }
   const av = getFieldValue(a, sort.field);
   const bv = getFieldValue(b, sort.field);
   let cmp = 0;
