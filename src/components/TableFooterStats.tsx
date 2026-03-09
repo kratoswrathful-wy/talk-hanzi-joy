@@ -117,32 +117,34 @@ export function TableFooterStats({
               <td
                 key={col.key}
                 style={{ width, maxWidth: width }}
-                className="px-3 py-2 text-right"
+                className="px-3 py-2"
               >
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button className="inline-flex items-center gap-1 text-xs font-medium tabular-nums text-muted-foreground hover:text-foreground transition-colors group">
-                      <span>{value}</span>
-                      <ChevronDown className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity" />
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-32 p-1" align="center">
-                    {(["count", "sum", "avg"] as AggMode[]).map((m) => (
-                      <button
-                        key={m}
-                        onClick={() => setAgg(col.key, m)}
-                        className={cn(
-                          "w-full text-left px-3 py-1.5 text-xs rounded transition-colors",
-                          mode === m
-                            ? "bg-primary/10 text-primary font-medium"
-                            : "hover:bg-muted text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {aggLabels[m]}
+                <div className="flex justify-end">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button className="inline-flex items-center gap-1 text-xs font-medium tabular-nums text-muted-foreground hover:text-foreground transition-colors group">
+                        <span>{value}</span>
+                        <ChevronDown className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity" />
                       </button>
-                    ))}
-                  </PopoverContent>
-                </Popover>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-32 p-1" align="end">
+                      {(["count", "sum", "avg"] as AggMode[]).map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => setAgg(col.key, m)}
+                          className={cn(
+                            "w-full text-left px-3 py-1.5 text-xs rounded transition-colors",
+                            mode === m
+                              ? "bg-primary/10 text-primary font-medium"
+                              : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          {aggLabels[m]}
+                        </button>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </td>
             );
           }
