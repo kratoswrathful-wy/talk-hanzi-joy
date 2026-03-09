@@ -101,6 +101,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
           { key: "case_fee_links", label: "相關費用單連結", type: "view" },
           { key: "case_detail_client", label: "客戶", type: "both", attribute: "單選" },
           { key: "case_detail_contact", label: "聯絡人", type: "both", attribute: "單選" },
+          { key: "case_detail_keyword", label: "關鍵字 / 客戶 PO#", type: "both", attribute: "文字" },
         ],
       },
     ],
