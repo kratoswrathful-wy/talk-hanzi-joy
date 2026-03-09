@@ -945,7 +945,7 @@ export default function CaseDetailPage() {
           ) : isInquiry && isMember ? (
             (() => {
               const currentTranslators = caseData.translator || [];
-              const hasOtherTranslator = currentTranslators.length > 0 && !currentTranslators.includes(displayName);
+              const hasOtherTranslator = currentTranslators.length > 0 && !currentTranslators.includes(profile?.display_name || "");
               if (caseData.multiCollab) {
                 return (
                   <TooltipProvider delayDuration={200}>
