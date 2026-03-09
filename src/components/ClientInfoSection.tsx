@@ -653,6 +653,9 @@ export default function ClientInfoSection({
                           disabled={!canEdit || clientInfo.reconciled}
                           className="h-7 text-xs bg-transparent border-0 shadow-none px-0 w-full"
                         />
+                        {clientInfo.clientPoNumber && (
+                          <CICopyButton value={clientInfo.clientPoNumber} />
+                        )}
                       </div>
                     </TooltipTrigger>
                     {clientInfo.reconciled && <TooltipContent>已對帳完成，不得修改營收內容</TooltipContent>}
