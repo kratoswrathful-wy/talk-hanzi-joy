@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Filter, ArrowUpDown, Plus, X, ChevronDown, Eye, Columns3, FolderPlus } from "lucide-react";
+import { Filter, ArrowUpDown, Plus, X, ChevronDown, Eye, Columns3, FolderPlus, Pin, PinOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
