@@ -82,6 +82,30 @@ function DetailStatusBadge({ status }: { status: FeeStatus }) {
   );
 }
 
+/** Inline link input for 客戶案件單連結 on fee page */
+function FeeCaseLinkInput({ onSave, defaultLabel }: { onSave: (v: { url: string; label: string }) => void; defaultLabel: string }) {
+  const [urlInput, setUrlInput] = useState("");
+  const [labelInput, setLabelInput] = useState("");
+  const [step, setStep] = useState<"url" | "label">("url");
+
+  if (step === "label") {
+    return (
+      <div className="flex items-center gap-2">
+        <Input value={labelInput} onChange={(e) => setLabelInput(e.target.value)} placeholder="輸入顯示名稱" className="flex-1" onKeyDown={(e) => { if (e.key === "Enter") { onSave({ url: urlInput.trim(), label: labelInput.trim() || defaultLabel }); } }} autoFocus />
+        <Button variant="outline" size="sm" className="shrink-0 text-xs" onClick={() => onSave({ url: urlInput.trim(), label: labelInput.trim() || defaultLabel })}>確認</Button>
+        <button onClick={() => { setStep("url"); setUrlInput(""); }} className="text-muted-foreground hover:text-destructive shrink-0"><X className="h-3.5 w-3.5" /></button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <Input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="貼上客戶案件單連結" className="flex-1" onKeyDown={(e) => { if (e.key === "Enter" && urlInput.trim()) { setStep("label"); setLabelInput(defaultLabel); } }} />
+      <Button variant="outline" size="sm" className="shrink-0 text-xs" disabled={!urlInput.trim()} onClick={() => { setStep("label"); setLabelInput(defaultLabel); }}>確認</Button>
+    </div>
+  );
+}
+
 
 interface EditLogEntry {
   id: string;
