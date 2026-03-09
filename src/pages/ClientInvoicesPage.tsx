@@ -113,7 +113,7 @@ export default function ClientInvoicesPage() {
     }, 0);
   }, [fees]);
 
-  const tableViews = useClientInvoiceTableViews(isAdmin ? "pm" : "assignee");
+  const tableViews = useClientInvoiceTableViews(user?.id);
   const { activeView } = tableViews;
   const visibleFieldKeys = clientInvoiceFieldMetas.map((f) => f.key);
 
@@ -435,6 +435,15 @@ export default function ClientInvoicesPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">客戶請款</h1>
         </div>
+        {activeView.isDefault ? (
+          <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
+            一切檢視設定僅對本人生效
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
+            此為自訂視圖，只有新增者本人可見
+          </span>
+        )}
         {isAdmin && (
           <Button size="sm" className="gap-1.5" onClick={handleCreateInvoice}>
             <Plus className="h-4 w-4" />

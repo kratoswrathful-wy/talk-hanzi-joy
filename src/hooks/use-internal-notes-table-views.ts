@@ -119,12 +119,12 @@ function createDefaultView(): TableView {
   };
 }
 
-const STORAGE_KEY = "internal-notes-table-views";
-const ACTIVE_VIEW_KEY = "internal-notes-table-active-view";
+const BASE_STORAGE_KEY = "internal-notes-table-views";
+const BASE_ACTIVE_VIEW_KEY = "internal-notes-table-active-view";
 
-function loadViewsFromStorage(): TableView[] {
+function loadViewsFromStorage(key: string): TableView[] {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(key);
     if (stored) {
       const parsed = JSON.parse(stored) as TableView[];
       if (!parsed.some((v) => v.id === "default")) return [createDefaultView(), ...parsed];
@@ -134,19 +134,26 @@ function loadViewsFromStorage(): TableView[] {
   return [createDefaultView()];
 }
 
-function loadActiveViewFromStorage(): string {
-  try { return localStorage.getItem(ACTIVE_VIEW_KEY) || "default"; } catch { return "default"; }
+function loadActiveViewFromStorage(key: string): string {
+  try { return localStorage.getItem(key) || "default"; } catch { return "default"; }
 }
 
-export function useInternalNotesTableViews(currentRole?: string) {
-  const [views, setViews] = useState<TableView[]>(loadViewsFromStorage);
-  const [activeViewId, setActiveViewId] = useState(loadActiveViewFromStorage);
+export function useInternalNotesTableViews(userId?: string) {
+  const storageKey = userId ? `${BASE_STORAGE_KEY}:${userId}` : BASE_STORAGE_KEY;
+  const activeKey = userId ? `${BASE_ACTIVE_VIEW_KEY}:${userId}` : BASE_ACTIVE_VIEW_KEY;
 
-  useEffect(() => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(views)); } catch {} }, [views]);
-  useEffect(() => { try { localStorage.setItem(ACTIVE_VIEW_KEY, activeViewId); } catch {} }, [activeViewId]);
+  const [views, setViews] = useState<TableView[]>(() => loadViewsFromStorage(storageKey));
+  const [activeViewId, setActiveViewId] = useState(() => loadActiveViewFromStorage(activeKey));
 
-  const visibleViews = useMemo(() => views.filter((v) => v.isDefault || v.createdByRole === currentRole), [views, currentRole]);
-  const activeView = useMemo(() => visibleViews.find((v) => v.id === activeViewId) || visibleViews[0], [visibleViews, activeViewId]);
+  useEffect(() => {
+    setViews(loadViewsFromStorage(storageKey));
+    setActiveViewId(loadActiveViewFromStorage(activeKey));
+  }, [storageKey, activeKey]);
+
+  useEffect(() => { try { localStorage.setItem(storageKey, JSON.stringify(views)); } catch {} }, [views, storageKey]);
+  useEffect(() => { try { localStorage.setItem(activeKey, activeViewId); } catch {} }, [activeViewId, activeKey]);
+
+  const activeView = useMemo(() => views.find((v) => v.id === activeViewId) || views[0], [views, activeViewId]);
 
   const updateView = useCallback((viewId: string, updates: Partial<TableView>) => {
     setViews((prev) => prev.map((v) => v.id === viewId ? { ...v, ...updates } : v));
@@ -159,11 +166,11 @@ export function useInternalNotesTableViews(currentRole?: string) {
   }, [activeViewId, activeView, updateView]);
 
   const addView = useCallback((name: string) => {
-    const newView: TableView = { ...createDefaultView(), id: `view-${Date.now()}`, name, isDefault: false, createdByRole: currentRole };
+    const newView: TableView = { ...createDefaultView(), id: `view-${Date.now()}`, name, isDefault: false, createdByUserId: userId };
     setViews((prev) => [...prev, newView]);
     setActiveViewId(newView.id);
     return newView.id;
-  }, [currentRole]);
+  }, [userId]);
 
   const deleteView = useCallback((viewId: string) => {
     if (viewId === "default") return;
@@ -278,14 +285,14 @@ export function useInternalNotesTableViews(currentRole?: string) {
   }, [activeViewId, activeView, updateView]);
 
   const safeActiveViewId = useMemo(() => {
-    if (visibleViews.some((v) => v.id === activeViewId)) return activeViewId;
+    if (views.some((v) => v.id === activeViewId)) return activeViewId;
     return "default";
-  }, [visibleViews, activeViewId]);
+  }, [views, activeViewId]);
 
   if (safeActiveViewId !== activeViewId) setActiveViewId(safeActiveViewId);
 
   return {
-    views: visibleViews, activeView, activeViewId: safeActiveViewId,
+    views, activeView, activeViewId: safeActiveViewId,
     setActiveViewId, addView, deleteView, renameView, reorderViews,
     addCondition, removeFilterNode, updateCondition, addFilterGroup, changeGroupLogic,
     addSort, removeSort, updateSort, setColumnOrder, setColumnWidth,

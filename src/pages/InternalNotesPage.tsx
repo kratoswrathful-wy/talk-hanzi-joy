@@ -516,6 +516,7 @@ function NewNoteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
 /* ── Main page ── */
 export default function InternalNotesPage() {
   const notes = useInternalNotes();
+  const { user } = useAuth();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [newNoteOpen, setNewNoteOpen] = useState(false);
@@ -529,7 +530,7 @@ export default function InternalNotesPage() {
     }
   }, [searchParams, notes]);
 
-  const tableViews = useInternalNotesTableViews("executive");
+  const tableViews = useInternalNotesTableViews(user?.id);
   const { activeView } = tableViews;
   const visibleFieldKeys = internalNotesFieldMetas.map((f) => f.key);
 
@@ -693,6 +694,15 @@ export default function InternalNotesPage() {
     <div className="mx-auto max-w-7xl space-y-4">
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">內部註記</h1>
+        {activeView.isDefault ? (
+          <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
+            一切檢視設定僅對本人生效
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
+            此為自訂視圖，只有新增者本人可見
+          </span>
+        )}
         <Button size="sm" className="gap-1.5" onClick={() => setNewNoteOpen(true)}>
           <Plus className="h-4 w-4" />
           新增

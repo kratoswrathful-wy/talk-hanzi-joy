@@ -104,12 +104,12 @@ function createDefaultView(): TableView {
   };
 }
 
-const STORAGE_KEY = "invoice-table-views";
-const ACTIVE_VIEW_KEY = "invoice-table-active-view";
+const BASE_STORAGE_KEY = "invoice-table-views";
+const BASE_ACTIVE_VIEW_KEY = "invoice-table-active-view";
 
-function loadViewsFromStorage(): TableView[] {
+function loadViewsFromStorage(key: string): TableView[] {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(key);
     if (stored) {
       const parsed = JSON.parse(stored) as TableView[];
       if (!parsed.some((v) => v.id === "default")) {
@@ -123,44 +123,37 @@ function loadViewsFromStorage(): TableView[] {
   return [createDefaultView()];
 }
 
-function loadActiveViewFromStorage(): string {
+function loadActiveViewFromStorage(key: string): string {
   try {
-    return localStorage.getItem(ACTIVE_VIEW_KEY) || "default";
+    return localStorage.getItem(key) || "default";
   } catch {
     return "default";
   }
 }
 
-export function useInvoiceTableViews(currentRole?: string) {
-  const [views, setViews] = useState<TableView[]>(loadViewsFromStorage);
-  const [activeViewId, setActiveViewId] = useState(loadActiveViewFromStorage);
+export function useInvoiceTableViews(userId?: string) {
+  const storageKey = userId ? `${BASE_STORAGE_KEY}:${userId}` : BASE_STORAGE_KEY;
+  const activeKey = userId ? `${BASE_ACTIVE_VIEW_KEY}:${userId}` : BASE_ACTIVE_VIEW_KEY;
 
-  // Persist views to localStorage
+  const [views, setViews] = useState<TableView[]>(() => loadViewsFromStorage(storageKey));
+  const [activeViewId, setActiveViewId] = useState(() => loadActiveViewFromStorage(activeKey));
+
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(views));
-    } catch (e) {
-      console.warn("Failed to save views to storage:", e);
-    }
-  }, [views]);
+    setViews(loadViewsFromStorage(storageKey));
+    setActiveViewId(loadActiveViewFromStorage(activeKey));
+  }, [storageKey, activeKey]);
 
-  // Persist active view ID
   useEffect(() => {
-    try {
-      localStorage.setItem(ACTIVE_VIEW_KEY, activeViewId);
-    } catch (e) {
-      console.warn("Failed to save active view to storage:", e);
-    }
-  }, [activeViewId]);
+    try { localStorage.setItem(storageKey, JSON.stringify(views)); } catch {}
+  }, [views, storageKey]);
 
-  const visibleViews = useMemo(() =>
-    views.filter((v) => v.isDefault || v.createdByRole === currentRole),
-    [views, currentRole]
-  );
+  useEffect(() => {
+    try { localStorage.setItem(activeKey, activeViewId); } catch {}
+  }, [activeViewId, activeKey]);
 
   const activeView = useMemo(() =>
-    visibleViews.find((v) => v.id === activeViewId) || visibleViews[0],
-    [visibleViews, activeViewId]
+    views.find((v) => v.id === activeViewId) || views[0],
+    [views, activeViewId]
   );
 
   const updateView = useCallback((viewId: string, updates: Partial<TableView>) => {
@@ -179,12 +172,12 @@ export function useInvoiceTableViews(currentRole?: string) {
       id: `view-${Date.now()}`,
       name,
       isDefault: false,
-      createdByRole: currentRole,
+      createdByUserId: userId,
     };
     setViews((prev) => [...prev, newView]);
     setActiveViewId(newView.id);
     return newView.id;
-  }, [currentRole]);
+  }, [userId]);
 
   const deleteView = useCallback((viewId: string) => {
     if (viewId === "default") return;
@@ -312,16 +305,16 @@ export function useInvoiceTableViews(currentRole?: string) {
   }, [activeViewId, activeView, updateView]);
 
   const safeActiveViewId = useMemo(() => {
-    if (visibleViews.some((v) => v.id === activeViewId)) return activeViewId;
+    if (views.some((v) => v.id === activeViewId)) return activeViewId;
     return "default";
-  }, [visibleViews, activeViewId]);
+  }, [views, activeViewId]);
 
   if (safeActiveViewId !== activeViewId) {
     setActiveViewId(safeActiveViewId);
   }
 
   return {
-    views: visibleViews, activeView, activeViewId: safeActiveViewId,
+    views, activeView, activeViewId: safeActiveViewId,
     setActiveViewId, addView, deleteView, renameView, reorderViews,
     addCondition, removeFilterNode, updateCondition, addFilterGroup, changeGroupLogic,
     addSort, removeSort, updateSort, setColumnOrder, setColumnWidth,

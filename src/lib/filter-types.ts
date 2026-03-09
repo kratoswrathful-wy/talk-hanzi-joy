@@ -42,7 +42,9 @@ export interface TableView {
   columnOrder: string[];
   columnWidths: Record<string, number>;
   hiddenColumns: string[];
+  /** @deprecated Use createdByUserId */
   createdByRole?: string;
+  createdByUserId?: string;
 }
 
 export interface FieldMeta {

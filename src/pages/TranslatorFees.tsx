@@ -486,7 +486,7 @@ type ExpandType = "notes" | "editLog";
 export default function TranslatorFees() {
   const navigate = useNavigate();
   const fees = useFees();
-  const { primaryRole, isAdmin, profile } = useAuth();
+  const { primaryRole, isAdmin, profile, user } = useAuth();
   const { canViewSection } = usePermissions();
   const [currentRole, setCurrentRole] = useState<UserRole>(isAdmin ? "pm" : "assignee");
   const isManager = isAdmin;
@@ -498,7 +498,7 @@ export default function TranslatorFees() {
 
   const columnDefs = allColumnDefs.filter((c) => !c.managerOnly || isManager);
 
-  const tableViews = useTableViews(isAdmin ? "pm" : "assignee");
+  const tableViews = useTableViews(user?.id);
   const { activeView } = tableViews;
 
   const [expandedRows, setExpandedRows] = useState<Record<string, ExpandType | null>>({});
@@ -879,7 +879,11 @@ export default function TranslatorFees() {
             })()}
           </TooltipProvider>
         )}
-        {!activeView.isDefault && (
+        {activeView.isDefault ? (
+          <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
+            一切檢視設定僅對本人生效
+          </span>
+        ) : (
           <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
             此為自訂視圖，只有新增者本人可見
           </span>
