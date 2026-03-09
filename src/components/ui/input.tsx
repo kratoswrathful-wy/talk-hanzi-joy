@@ -3,9 +3,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
-  ({ className, type, onFocus, onChange, ...props }, ref) => {
-    const composingRef = React.useRef(false);
-
+  ({ className, type, onFocus, ...props }, ref) => {
     return (
       <input
         type={type}
@@ -17,18 +15,6 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
         onFocus={(e) => {
           e.target.select();
           onFocus?.(e);
-        }}
-        onCompositionStart={() => { composingRef.current = true; }}
-        onCompositionEnd={(e) => {
-          composingRef.current = false;
-          // Fire onChange after composition ends so the final value is committed
-          const nativeEvent = new Event('input', { bubbles: true });
-          e.currentTarget.dispatchEvent(nativeEvent);
-        }}
-        onChange={(e) => {
-          if (!composingRef.current) {
-            onChange?.(e);
-          }
         }}
         {...props}
       />
