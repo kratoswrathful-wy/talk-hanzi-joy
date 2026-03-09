@@ -1157,19 +1157,6 @@ export default function CaseDetailPage() {
         <div className="space-y-2">
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">多人協作（{caseData.collabCount} 人次）</span>
-            {isPmOrAbove && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  setCollabEditInput(String(caseData.collabCount));
-                  setCollabEditOpen(true);
-                }}
-              >
-                <Settings className="h-3.5 w-3.5" />
-              </Button>
-            )}
           </div>
           <CollaborationTable
             rows={caseData.collabRows}
