@@ -882,7 +882,7 @@ export default function InvoiceDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => { setShowPasswordDelete(false); setDeletePassword(""); }}>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handlePasswordDelete} disabled={deletingWithPassword} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {deletingWithPassword ? "驗證中…" : "確認刪除"}
+              {deletingWithPassword ? "驗證中…" : "確定刪除"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

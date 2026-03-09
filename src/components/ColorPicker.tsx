@@ -469,7 +469,7 @@ export default function ColorPicker({
       <AlertDialog open={!!deleteColorConfirm} onOpenChange={(v) => { if (!v) setDeleteColorConfirm(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>確認刪除自訂色彩</AlertDialogTitle>
+            <AlertDialogTitle>確定刪除自訂色彩</AlertDialogTitle>
             <AlertDialogDescription>
               確定要刪除自訂色彩 {deleteColorConfirm} 嗎？此操作無法復原。
             </AlertDialogDescription>

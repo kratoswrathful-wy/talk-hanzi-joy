@@ -2612,7 +2612,7 @@ export default function TranslatorFeeDetail() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>是否確認刪除？</AlertDialogTitle>
+            <AlertDialogTitle>是否確定刪除？</AlertDialogTitle>
             <AlertDialogDescription>
               刪除後將無法復原此稿費紀錄。
             </AlertDialogDescription>

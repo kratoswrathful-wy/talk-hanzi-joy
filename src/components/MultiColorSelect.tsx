@@ -324,7 +324,7 @@ export default function MultiColorSelect({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteConfirm && handleDelete(deleteConfirm.id)}>確認刪除</AlertDialogAction>
+            <AlertDialogAction onClick={() => deleteConfirm && handleDelete(deleteConfirm.id)}>確定刪除</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
