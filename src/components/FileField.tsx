@@ -277,7 +277,7 @@ export default function FileField({ value, onChange }: FileFieldProps) {
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
-            className={`relative z-50 rounded-md border border-dashed transition-colors bg-background shadow-lg grid grid-cols-2 grid-rows-2 sm:grid-cols-4 sm:grid-rows-1 ${
+            className={`relative z-50 rounded-md border border-dashed transition-colors bg-background shadow-lg grid grid-cols-2 grid-rows-2 ${
               dragOver ? "border-primary bg-primary/5" : "border-border"
             }`}
           >
