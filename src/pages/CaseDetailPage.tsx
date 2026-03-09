@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useEffect, useState, useCallback, lazy, Suspense, useRef, useMemo } from "react";
+import { useEffect, useState, useCallback, lazy, Suspense, useRef } from "react";
 import { ArrowLeft, Trash2, Plus, X, Copy, Check, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,6 @@ import { type TranslatorFee, type FeeTaskItem, type TaskType, type BillingUnit, 
 import { selectOptionsStore, PRESET_COLORS, CONTACT_DEFAULT_COLOR, useSelectOptions } from "@/stores/select-options-store";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
 import type { CaseRecord, ToolEntry, ToolEntryField, CaseStatus, CaseComment } from "@/data/case-types";
-import { TIMEZONE_OPTIONS } from "@/data/timezone-options";
 import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
 import AssigneeTag from "@/components/AssigneeTag";
@@ -529,14 +528,6 @@ export default function CaseDetailPage() {
   const { checkPerm } = usePermissions();
   const isManager = currentRole === "pm" || currentRole === "executive";
   const pendingNavigateRef = useRef<(() => void) | null>(null);
-
-  // Compute user's UTC offset from profile timezone
-  const userUtcOffset = useMemo(() => {
-    const tz = profile?.timezone;
-    if (!tz) return 8; // default UTC+8
-    const found = TIMEZONE_OPTIONS.find((o) => o.value === tz);
-    return found ? found.offsetHours : 8;
-  }, [profile?.timezone]);
 
   // Permission for publish prompt on leave
   const canSeePublishPrompt = checkPerm("case_management", "case_draft_publish_prompt", "view");
@@ -1107,10 +1098,10 @@ export default function CaseDetailPage() {
       </div>
       <div className="grid grid-cols-2 gap-4">
         <Field label="翻譯交期">
-          <DateTimePicker value={caseData.translationDeadline} onChange={(v) => save({ translationDeadline: v })} className="w-full" utcOffsetHours={userUtcOffset} />
+          <DateTimePicker value={caseData.translationDeadline} onChange={(v) => save({ translationDeadline: v })} className="w-full" />
         </Field>
         <Field label="審稿交期">
-          <DateTimePicker value={caseData.reviewDeadline} onChange={(v) => save({ reviewDeadline: v })} className="w-full" utcOffsetHours={userUtcOffset} />
+          <DateTimePicker value={caseData.reviewDeadline} onChange={(v) => save({ reviewDeadline: v })} className="w-full" />
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -1502,9 +1493,9 @@ export default function CaseDetailPage() {
 
       <Separator />
 
-      {/* 案件詳情 */}
+      {/* 正文 */}
       <div className="space-y-2">
-        <h2 className="text-base font-semibold">案件詳情</h2>
+        <h2 className="text-base font-semibold">正文</h2>
         <Suspense fallback={<div className="h-32 rounded-md border border-input bg-background animate-pulse" />}>
           <RichTextEditor
             initialContent={caseData.bodyContent || []}
