@@ -1295,7 +1295,9 @@ export default function CaseDetailPage() {
                             taskType: m.taskType,
                             billingUnit: m.billingUnit,
                             unitCount: m.unitCount,
-                            clientPrice: 0,
+                            clientPrice: caseClient
+                              ? defaultPricingStore.getClientPrice(caseClient, m.taskType, m.billingUnit) ?? 0
+                              : 0,
                           })),
                           sameCase: true,
                           isFirstFee: false,
