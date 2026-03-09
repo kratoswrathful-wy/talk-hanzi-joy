@@ -36,6 +36,8 @@ export interface TableView {
   filters?: TableFilter[];
   filterTree: FilterGroup;
   sorts: TableSort[];
+  pinnedTop: string[];     // item IDs pinned to top
+  pinnedBottom: string[];  // item IDs pinned to bottom
   columnOrder: string[];
   columnWidths: Record<string, number>;
   hiddenColumns: string[];
