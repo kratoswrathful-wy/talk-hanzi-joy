@@ -103,7 +103,7 @@ export function TableFooterStats({
               <td
                 key={col.key}
                 style={{ width, maxWidth: width }}
-                className="px-3 py-2 text-xs font-medium text-muted-foreground"
+                className="px-3 py-2 text-right text-xs font-medium text-muted-foreground"
               >
                 共 {itemCount} 筆
               </td>
