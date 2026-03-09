@@ -1423,43 +1423,42 @@ export default function CaseDetailPage() {
 
       <Separator />
 
-      <h2 className="text-base font-semibold">準則與檔案</h2>
-      <Field label="交件方式">
-        <MultilineInput 
-          value={caseData.deliveryMethod} 
-          onChange={(e) => save({ deliveryMethod: e.target.value })} 
-          className="max-w-md"
-          minRows={1}
-          maxRows={3}
-        />
-      </Field>
-      <Field label="客戶收件">
-        <MultilineInput 
-          value={caseData.clientReceipt} 
-          onChange={(e) => save({ clientReceipt: e.target.value })} 
-          className="max-w-md"
-          minRows={1}
-          maxRows={3}
-        />
-      </Field>
-      <Field label="自製準則頁面">
-        <FileField value={Array.isArray(caseData.customGuidelinesUrl) ? caseData.customGuidelinesUrl : []} onChange={(v) => save({ customGuidelinesUrl: v })} />
-      </Field>
-      <Field label="客戶指定準則">
-        <FileField value={Array.isArray(caseData.clientGuidelines) ? caseData.clientGuidelines : []} onChange={(v) => save({ clientGuidelines: v })} />
-      </Field>
-      <Field label="本系列參考資料">
-        <FileField value={Array.isArray(caseData.seriesReferenceMaterials) ? caseData.seriesReferenceMaterials : []} onChange={(v) => save({ seriesReferenceMaterials: v })} />
-      </Field>
-      <Field label="本案參考資料">
-        <FileField value={Array.isArray(caseData.caseReferenceMaterials) ? caseData.caseReferenceMaterials : []} onChange={(v) => save({ caseReferenceMaterials: v })} />
-      </Field>
-      <Field label="譯者完稿">
-        <FileField value={Array.isArray(caseData.translatorFinal) ? caseData.translatorFinal : []} onChange={(v) => save({ translatorFinal: v })} />
-      </Field>
-      <Field label="內審完稿">
-        <FileField value={Array.isArray(caseData.internalReviewFinal) ? caseData.internalReviewFinal : []} onChange={(v) => save({ internalReviewFinal: v })} />
-      </Field>
+      <div className="flex items-baseline gap-2">
+        <h2 className="text-base font-semibold">準則與檔案</h2>
+        <span className="text-xs text-muted-foreground">檔案如上傳不成功，請改以拖曳方式上傳</span>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="交件方式">
+          <FileField value={Array.isArray(caseData.deliveryMethodFiles) ? caseData.deliveryMethodFiles : []} onChange={(v) => save({ deliveryMethodFiles: v })} />
+        </Field>
+        <Field label="客戶收件">
+          <FileField value={Array.isArray(caseData.clientReceiptFiles) ? caseData.clientReceiptFiles : []} onChange={(v) => save({ clientReceiptFiles: v })} />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="自製準則頁面">
+          <FileField value={Array.isArray(caseData.customGuidelinesUrl) ? caseData.customGuidelinesUrl : []} onChange={(v) => save({ customGuidelinesUrl: v })} />
+        </Field>
+        <Field label="客戶指定準則">
+          <FileField value={Array.isArray(caseData.clientGuidelines) ? caseData.clientGuidelines : []} onChange={(v) => save({ clientGuidelines: v })} />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="本系列參考資料">
+          <FileField value={Array.isArray(caseData.seriesReferenceMaterials) ? caseData.seriesReferenceMaterials : []} onChange={(v) => save({ seriesReferenceMaterials: v })} />
+        </Field>
+        <Field label="本案參考資料">
+          <FileField value={Array.isArray(caseData.caseReferenceMaterials) ? caseData.caseReferenceMaterials : []} onChange={(v) => save({ caseReferenceMaterials: v })} />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="譯者完稿">
+          <FileField value={Array.isArray(caseData.translatorFinal) ? caseData.translatorFinal : []} onChange={(v) => save({ translatorFinal: v })} />
+        </Field>
+        <Field label="內審完稿">
+          <FileField value={Array.isArray(caseData.internalReviewFinal) ? caseData.internalReviewFinal : []} onChange={(v) => save({ internalReviewFinal: v })} />
+        </Field>
+      </div>
       <Field label="追蹤修訂">
         <FileField value={Array.isArray(caseData.trackChanges) ? caseData.trackChanges : []} onChange={(v) => save({ trackChanges: v })} />
       </Field>
