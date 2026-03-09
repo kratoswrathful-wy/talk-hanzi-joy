@@ -195,6 +195,12 @@ function NoteDetailView({
           <Button variant="outline" size="sm" className="text-xs min-w-[88px]" onClick={handleNewSameCaseNote}>
             新增同案件註記
           </Button>
+          <ApplyTemplateButton
+            module="internalNotes"
+            onApply={(values) => {
+              onUpdate(values);
+            }}
+          />
           <Button
             size="sm"
             className="text-xs min-w-[88px] text-white hover:opacity-80"
