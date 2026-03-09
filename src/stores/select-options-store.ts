@@ -161,6 +161,27 @@ function initDefaults() {
       customColors: [],
       manualOrder: true,
     },
+    statusLabel: {
+      options: [
+        { id: "sl-draft", label: "草稿", color: "#6B7280", textColor: "#FFFFFF" },
+        { id: "sl-inquiry", label: "詢案中", color: "#2563EB", textColor: "#FFFFFF" },
+        { id: "sl-dispatched", label: "已派出", color: "#16A34A", textColor: "#FFFFFF" },
+        { id: "sl-task-completed", label: "任務完成", color: "#8B5CF6", textColor: "#FFFFFF" },
+        { id: "sl-delivered", label: "已交件", color: "#0891B2", textColor: "#FFFFFF" },
+        { id: "sl-feedback", label: "處理回饋", color: "#D97706", textColor: "#FFFFFF" },
+        { id: "sl-feedback-completed", label: "回饋處理完畢", color: "#EA580C", textColor: "#FFFFFF" },
+        { id: "sl-finalized", label: "開立完成", color: "#22C55E", textColor: "#FFFFFF" },
+        { id: "sl-note-pending", label: "待處理", color: "#C2410C", textColor: "#FFFFFF" },
+        { id: "sl-note-processing", label: "處理中", color: "#003CC0", textColor: "#FFFFFF" },
+        { id: "sl-note-replied", label: "已回覆", color: "#4D7C0F", textColor: "#FFFFFF" },
+        { id: "sl-note-closed", label: "已關閉", color: "#6B7280", textColor: "#FFFFFF" },
+        { id: "sl-invoice-pending", label: "待付款", color: "#6B7280", textColor: "#FFFFFF" },
+        { id: "sl-invoice-partial", label: "部份付款", color: "#EAB308", textColor: "#FFFFFF" },
+        { id: "sl-invoice-paid", label: "已付款", color: "#22C55E", textColor: "#FFFFFF" },
+      ],
+      customColors: [],
+      manualOrder: true,
+    },
   };
 }
 
