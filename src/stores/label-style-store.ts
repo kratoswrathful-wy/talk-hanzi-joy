@@ -19,6 +19,9 @@ interface LabelStyleState {
   dispatchRoute: LabelStyle;
   caseCategory: LabelStyle;
   executionTool: LabelStyle;
+  statusLabel: LabelStyle;
+  noteStatus: LabelStyle;
+  noteNature: LabelStyle;
   statusDraft: StatusStyle;
   statusFinalized: StatusStyle;
   invoicePending: StatusStyle;
@@ -33,6 +36,9 @@ const DEFAULT_STATE: LabelStyleState = {
   dispatchRoute: { textColor: "#FFFFFF" },
   caseCategory: { textColor: "#FFFFFF" },
   executionTool: { textColor: "#FFFFFF" },
+  statusLabel: { textColor: "#FFFFFF" },
+  noteStatus: { textColor: "#FFFFFF" },
+  noteNature: { textColor: "#FFFFFF" },
   statusDraft: { bgColor: "#6B7280", textColor: "#FFFFFF" },
   statusFinalized: { bgColor: "#22C55E", textColor: "#FFFFFF" },
   invoicePending: { bgColor: "#6B7280", textColor: "#FFFFFF" },
@@ -81,6 +87,21 @@ export const labelStyleStore = {
 
   setExecutionToolTextColor: (color: string) => {
     state = { ...state, executionTool: { ...state.executionTool, textColor: color } };
+    notify();
+  },
+
+  setStatusLabelTextColor: (color: string) => {
+    state = { ...state, statusLabel: { ...state.statusLabel, textColor: color } };
+    notify();
+  },
+
+  setNoteStatusTextColor: (color: string) => {
+    state = { ...state, noteStatus: { ...state.noteStatus, textColor: color } };
+    notify();
+  },
+
+  setNoteNatureTextColor: (color: string) => {
+    state = { ...state, noteNature: { ...state.noteNature, textColor: color } };
     notify();
   },
 

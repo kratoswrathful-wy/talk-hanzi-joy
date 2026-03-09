@@ -2060,11 +2060,13 @@ function CaseCategorySection() {
 
 function StatusStyleSection() {
   const { options: statusOptions, customColors } = useSelectOptions("statusLabel");
+  const labelStyles = useLabelStyles();
   const [expanded, setExpanded] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [colorPickerOptionId, setColorPickerOptionId] = useState<string | null>(null);
   const [textColorPickerOptionId, setTextColorPickerOptionId] = useState<string | null>(null);
+  const [textColorOpen, setTextColorOpen] = useState(false);
 
   const handleDragStart = (idx: number) => setDragIndex(idx);
   const handleDragOver = (e: React.DragEvent, idx: number) => {
@@ -2083,7 +2085,7 @@ function StatusStyleSection() {
   const handleDragEnd = () => { setDragIndex(null); setDragOverIndex(null); };
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+    <div className="rounded-xl border border-border bg-card p-6 gap-4 flex flex-col">
       <button
         className="flex items-center gap-2 w-full text-left"
         onClick={() => setExpanded((v) => !v)}
@@ -2209,6 +2211,36 @@ function StatusStyleSection() {
           })}
         </div>
       )}
+
+      {/* Label text color picker - always visible */}
+      <div className="border-t border-border pt-4 mt-auto">
+        <button
+          className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left"
+          onClick={() => setTextColorOpen((v) => !v)}
+        >
+          {textColorOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+          標籤字體顏色
+        </button>
+        {textColorOpen && (
+          <div className="mt-2 flex items-center gap-3">
+            <span
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+              style={{ backgroundColor: statusOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.statusLabel.textColor, borderColor: statusOptions[0]?.color || PRESET_COLORS[0] }}
+            >
+              預覽
+            </span>
+            <ColorPicker
+              value={labelStyles.statusLabel.textColor}
+              onChange={(c) => labelStyleStore.setStatusLabelTextColor(c)}
+              customColors={[]}
+              onAddCustomColor={() => {}}
+              onRemoveCustomColor={() => {}}
+              colorUsageMap={{}}
+              onResetDefault={() => labelStyleStore.setStatusLabelTextColor("#FFFFFF")}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -2216,12 +2248,17 @@ function StatusStyleSection() {
 /* ── Note Select Section (for noteStatus, noteNature) ── */
 function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; title: string; addLabel: string }) {
   const { options, customColors } = useSelectOptions(fieldKey);
+  const labelStyles = useLabelStyles();
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
   const [colorPickerId, setColorPickerId] = useState<string | null>(null);
+  const [textColorOpen, setTextColorOpen] = useState(false);
+
+  const textColorValue = fieldKey === "noteStatus" ? labelStyles.noteStatus.textColor : labelStyles.noteNature.textColor;
+  const setTextColor = fieldKey === "noteStatus" ? labelStyleStore.setNoteStatusTextColor : labelStyleStore.setNoteNatureTextColor;
 
   const handleAdd = () => {
     const label = newLabel.trim();
@@ -2231,7 +2268,7 @@ function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; ti
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+    <div className="rounded-xl border border-border bg-card p-6 gap-4 flex flex-col">
       <h2 className="text-base font-semibold">{title}</h2>
       <div className="space-y-1">
         {options.map((opt, idx) => (
@@ -2310,6 +2347,36 @@ function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; ti
           {addLabel}
         </Button>
       )}
+
+      {/* Label text color picker - collapsible */}
+      <div className="border-t border-border pt-4 mt-auto">
+        <button
+          className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left"
+          onClick={() => setTextColorOpen((v) => !v)}
+        >
+          {textColorOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+          標籤字體顏色
+        </button>
+        {textColorOpen && (
+          <div className="mt-2 flex items-center gap-3">
+            <span
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+              style={{ backgroundColor: options[0]?.color || PRESET_COLORS[0], color: textColorValue, borderColor: options[0]?.color || PRESET_COLORS[0] }}
+            >
+              預覽
+            </span>
+            <ColorPicker
+              value={textColorValue}
+              onChange={(c) => setTextColor(c)}
+              customColors={[]}
+              onAddCustomColor={() => {}}
+              onRemoveCustomColor={() => {}}
+              colorUsageMap={{}}
+              onResetDefault={() => setTextColor("#FFFFFF")}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
