@@ -90,6 +90,21 @@ export const labelStyleStore = {
     notify();
   },
 
+  setStatusLabelTextColor: (color: string) => {
+    state = { ...state, statusLabel: { ...state.statusLabel, textColor: color } };
+    notify();
+  },
+
+  setNoteStatusTextColor: (color: string) => {
+    state = { ...state, noteStatus: { ...state.noteStatus, textColor: color } };
+    notify();
+  },
+
+  setNoteNatureTextColor: (color: string) => {
+    state = { ...state, noteNature: { ...state.noteNature, textColor: color } };
+    notify();
+  },
+
   setStatusDraftStyle: (updates: Partial<StatusStyle>) => {
     state = { ...state, statusDraft: { ...state.statusDraft, ...updates } };
     notify();

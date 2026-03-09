@@ -320,7 +320,7 @@ export default function ColorPicker({
               className="text-xs flex-1"
               onClick={onResetDefault}
             >
-              預設值（白）
+              恢復預設值（白）
             </Button>
           )}
           <Button
