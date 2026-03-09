@@ -234,7 +234,12 @@ const allColumnDefs: ColumnDef[] = [
     key: "unitCount",
     label: "計費單位數",
     minWidth: 80,
-    render: (c) => <span className="text-sm tabular-nums">{c.unitCount || "—"}</span>,
+    render: (c) => {
+      const total = c.workGroups && c.workGroups.length > 0
+        ? c.workGroups.reduce((sum, g) => sum + (g.unitCount || 0), 0)
+        : c.unitCount || 0;
+      return <span className="text-sm tabular-nums">{total || "—"}</span>;
+    },
   },
   {
     key: "translator",
