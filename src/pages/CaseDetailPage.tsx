@@ -528,6 +528,11 @@ export default function CaseDetailPage() {
   const [loading, setLoading] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [publishPromptOpen, setPublishPromptOpen] = useState(false);
+  const [collabCountDialogOpen, setCollabCountDialogOpen] = useState(false);
+  const [collabCountInput, setCollabCountInput] = useState("");
+  const [collabEditOpen, setCollabEditOpen] = useState(false);
+  const [collabEditInput, setCollabEditInput] = useState("");
+  const [collabCancelOpen, setCollabCancelOpen] = useState(false);
   const [creatorName, setCreatorName] = useState("");
   const { primaryRole: currentRole, profile } = useAuth();
   const { checkPerm } = usePermissions();
