@@ -598,6 +598,12 @@ export default function TranslatorFeeDetail() {
     return match ? match[1] : null;
   };
 
+  const extractInternalCaseId = (url: string): string | null => {
+    // Match URLs like /cases/<uuid> from the app domain or relative paths
+    const match = url.match(/\/cases\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+    return match ? match[1] : null;
+  };
+
   const handleFetchFromUrl = async () => {
     const url = notionUrlInput.trim();
     if (!url) return;
@@ -605,6 +611,197 @@ export default function TranslatorFeeDetail() {
     setInternalNoteUrl(url);
     if (id) feeStore.updateFee(id, { internalNoteUrl: url });
 
+    // ===== Check for internal case URL first =====
+    const internalCaseId = extractInternalCaseId(url);
+    if (internalCaseId) {
+      setNotionLoading(true);
+      try {
+        const { data: caseRow, error } = await supabase
+          .from("cases")
+          .select("*")
+          .eq("id", internalCaseId)
+          .single();
+        if (error || !caseRow) throw new Error(error?.message || "找不到此案件");
+
+        const knownTaskTypes: TaskType[] = ["翻譯", "校對", "MTPE", "LQA"];
+        const taskTypeAliases: Record<string, TaskType> = { "審稿": "校對", "Review": "校對", "Translation": "翻譯", "Proofreading": "校對" };
+        const autoCreated: { field: string; label: string }[] = [];
+        const matchTaskType = (wt: string): string => {
+          const direct = knownTaskTypes.find((t) => wt.includes(t));
+          if (direct) return direct;
+          for (const [alias, mapped] of Object.entries(taskTypeAliases)) {
+            if (wt.includes(alias)) return mapped;
+          }
+          return wt;
+        };
+        const ensureTaskTypeOption = (taskType: string) => {
+          const existingOptions = selectOptionsStore.getSortedOptions("taskType");
+          if (!existingOptions.find((o) => o.label === taskType)) {
+            const color = PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
+            selectOptionsStore.addOption("taskType", taskType, color);
+            autoCreated.push({ field: "任務類型", label: taskType });
+          }
+        };
+
+        const caseTitle = caseRow.title || "";
+        const workTypes: string[] = Array.isArray(caseRow.work_type) ? caseRow.work_type : [];
+        const translators: string[] = Array.isArray(caseRow.translator) ? caseRow.translator : [];
+        const billingUnitRaw = caseRow.billing_unit || "";
+        const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
+        const billingUnit: BillingUnit = billingUnitMap[billingUnitRaw] || "字";
+        const unitCount = caseRow.unit_count || 0;
+
+        // 標題 → PO_案件標題
+        if (caseTitle) {
+          const newTitle = `PO_${caseTitle}`;
+          setTitle(newTitle);
+          if (id) feeStore.updateFee(id, { title: newTitle });
+        }
+
+        // 相關案件名稱
+        setInternalNote(caseTitle);
+        if (id) feeStore.updateFee(id, { internalNote: caseTitle });
+
+        // 譯者 → 開單對象
+        if (translators.length > 0) {
+          const assigneeOptions = selectOptionsStore.getSortedOptions("assignee");
+          const match = assigneeOptions.find((o) => o.label === translators[0] || o.email === translators[0]);
+          const matchedLabel = match ? match.label : translators[0];
+          if (matchedLabel) {
+            setAssignee(matchedLabel);
+            if (id) feeStore.updateFee(id, { assignee: matchedLabel });
+          }
+        }
+
+        // 工作類型 → 任務項目
+        const getAutoPrice = (taskType: string, bu: string = "字") => {
+          if (clientInfo.client) {
+            const cp = defaultPricingStore.getClientPrice(clientInfo.client, taskType, bu);
+            if (cp !== undefined) {
+              const tp = defaultPricingStore.getTranslatorPrice(cp, taskType, bu);
+              return tp ?? 0;
+            }
+          }
+          return 0;
+        };
+
+        if (workTypes.length > 0) {
+          const mapped: FeeTaskItem[] = workTypes.map((wt: string, idx: number) => {
+            const matchedType = matchTaskType(wt);
+            ensureTaskTypeOption(matchedType);
+            return {
+              id: `item-case-${Date.now()}-${idx}`,
+              taskType: matchedType as TaskType,
+              billingUnit,
+              unitCount: idx === 0 && unitCount ? unitCount : 0,
+              unitPrice: getAutoPrice(matchedType, billingUnit),
+            };
+          });
+          setTaskItems(mapped);
+          if (id) feeStore.updateFee(id, { taskItems: mapped });
+
+          // 同步工作類型到客戶計費項目
+          const mappedClientItems: import("@/data/fee-mock-data").ClientTaskItem[] = workTypes.map((wt: string, idx: number) => {
+            const matchedType = matchTaskType(wt);
+            const cp = clientInfo.client
+              ? defaultPricingStore.getClientPrice(clientInfo.client, matchedType, billingUnit) ?? 0
+              : 0;
+            return {
+              id: `ci-case-${Date.now()}-${idx}`,
+              taskType: matchedType as TaskType,
+              billingUnit,
+              unitCount: idx === 0 && unitCount ? unitCount : 0,
+              clientPrice: cp,
+            };
+          });
+          const updatedClientInfo = { ...clientInfo, clientTaskItems: mappedClientItems };
+          setClientInfo(updatedClientInfo);
+          if (id) feeStore.updateFee(id, { clientInfo: updatedClientInfo });
+        } else if (unitCount) {
+          setTaskItems((prev) => {
+            const updated = prev.map((item, idx) => idx === 0 ? { ...item, unitCount, billingUnit } : item);
+            if (id) feeStore.updateFee(id, { taskItems: updated });
+            return updated;
+          });
+        }
+
+        // Multi-translator: create additional fee pages
+        if (translators.length > 1) {
+          const assigneeOptions = selectOptionsStore.getSortedOptions("assignee");
+          const resolveAssignee = (name: string): string => {
+            const m = assigneeOptions.find((o) => o.label === name || o.email === name);
+            return m ? m.label : name;
+          };
+          const baseTitle = caseTitle ? `PO_${caseTitle}` : title;
+          const currentTitle = `${baseTitle}_01`;
+          setTitle(currentTitle);
+          if (id) feeStore.updateFee(id, { title: currentTitle });
+
+          const currentCaseNote = caseTitle;
+          const latestClientInfo = feeStore.getFeeById(id || "")?.clientInfo ?? clientInfo;
+          const primaryClientInfo: ClientInfo = {
+            ...latestClientInfo,
+            sameCase: true,
+            isFirstFee: true,
+            notFirstFee: false,
+          };
+          setClientInfo(primaryClientInfo);
+          if (id) feeStore.updateFee(id, { clientInfo: primaryClientInfo });
+
+          const createdPages: { id: string; title: string; assignee: string }[] = [
+            { id: id || "", title: currentTitle, assignee: resolveAssignee(translators[0]) },
+          ];
+
+          const cloneTaskItems = workTypes.length > 0
+            ? workTypes.map((wt: string, idx: number) => ({
+                id: `item-case-base-${Date.now()}-${idx}`,
+                taskType: matchTaskType(wt) as TaskType,
+                billingUnit,
+                unitCount: idx === 0 && unitCount ? unitCount : 0,
+                unitPrice: 0,
+              }))
+            : taskItems;
+
+          for (let i = 1; i < translators.length; i++) {
+            const personAssignee = resolveAssignee(translators[i]);
+            const pageTitle = `${baseTitle}_${String(i + 1).padStart(2, "0")}`;
+            const newFee: TranslatorFee = {
+              id: crypto.randomUUID(),
+              title: pageTitle,
+              assignee: personAssignee,
+              status: "draft" as const,
+              internalNote: currentCaseNote,
+              internalNoteUrl: url,
+              taskItems: cloneTaskItems.map((item, idx) => ({ ...item, id: `item-clone-${Date.now()}-${idx}-${i}` })),
+              clientInfo: {
+                ...latestClientInfo,
+                sameCase: true,
+                isFirstFee: false,
+                notFirstFee: true,
+              },
+              notes: [],
+              editLogs: [],
+              createdBy: (id ? feeStore.getFeeById(id)?.createdBy : "") || "",
+              createdAt: new Date().toISOString(),
+            };
+            feeStore.addFee(newFee);
+            createdPages.push({ id: newFee.id, title: pageTitle, assignee: personAssignee });
+          }
+          setMultiTranslatorPages(createdPages);
+        }
+
+        toast.success("已從案件頁面載入資料");
+        if (autoCreated.length > 0) setAutoCreatedOptions(autoCreated);
+      } catch (err: any) {
+        console.error("Failed to fetch internal case:", err);
+        toast.error("案件資料載入失敗：" + (err.message || "未知錯誤"));
+      } finally {
+        setNotionLoading(false);
+      }
+      return;
+    }
+
+    // ===== Notion URL handling =====
     // If it's a database URL (contains ?v=), strip ?v= and everything after, then retry
     let cleanedUrl = url;
     if (url.includes("notion.so") && url.includes("?v=")) {
