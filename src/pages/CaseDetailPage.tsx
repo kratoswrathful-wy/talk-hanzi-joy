@@ -1217,12 +1217,20 @@ export default function CaseDetailPage() {
                     .map((g, idx) => {
                       const matchedType = matchTaskType((g.workType || "").trim() || "翻譯");
                       ensureTaskTypeOption(matchedType);
+                      const bu = billingUnitMap[g.billingUnit] || "字";
+                      // Auto-pricing: look up default client price, then translator tier
+                      const clientPrice = caseClient
+                        ? defaultPricingStore.getClientPrice(caseClient, matchedType, bu) ?? 0
+                        : 0;
+                      const translatorPrice = clientPrice > 0
+                        ? defaultPricingStore.getTranslatorPrice(clientPrice, matchedType, bu) ?? 0
+                        : 0;
                       return {
                         id: `item-case-${Date.now()}-${idx}`,
                         taskType: matchedType as TaskType,
-                        billingUnit: billingUnitMap[g.billingUnit] || "字",
+                        billingUnit: bu,
                         unitCount: Number(g.unitCount) || 0,
-                        unitPrice: 0,
+                        unitPrice: translatorPrice,
                       };
                     });
 
@@ -1253,7 +1261,9 @@ export default function CaseDetailPage() {
                         taskType: m.taskType,
                         billingUnit: m.billingUnit,
                         unitCount: m.unitCount,
-                        clientPrice: 0,
+                        clientPrice: caseClient
+                          ? defaultPricingStore.getClientPrice(caseClient, m.taskType, m.billingUnit) ?? 0
+                          : 0,
                       })),
                       ...(isMulti ? { sameCase: true, isFirstFee: true, notFirstFee: false } : {}),
                       ...(caseClient ? { client: caseClient } : {}),
@@ -1285,7 +1295,9 @@ export default function CaseDetailPage() {
                             taskType: m.taskType,
                             billingUnit: m.billingUnit,
                             unitCount: m.unitCount,
-                            clientPrice: 0,
+                            clientPrice: caseClient
+                              ? defaultPricingStore.getClientPrice(caseClient, m.taskType, m.billingUnit) ?? 0
+                              : 0,
                           })),
                           sameCase: true,
                           isFirstFee: false,

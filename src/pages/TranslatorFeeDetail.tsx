@@ -650,6 +650,29 @@ export default function TranslatorFeeDetail() {
         const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
         const billingUnit: BillingUnit = billingUnitMap[billingUnitRaw] || "字";
         const unitCount = caseRow.unit_count || 0;
+        const caseClient = (caseRow.client || "").replace(/\s+/g, " ").trim();
+        const caseContact = (caseRow.contact || "").replace(/\s+/g, " ").trim();
+
+        // Auto-create client/contact options if they don't exist
+        if (caseClient) {
+          const existingClients = selectOptionsStore.getSortedOptions("client");
+          const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+          if (!existingClients.find((o) => normalize(o.label) === normalize(caseClient))) {
+            selectOptionsStore.addOption("client", caseClient, PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]);
+            autoCreated.push({ field: "客戶", label: caseClient });
+          }
+        }
+        if (caseContact) {
+          const existingContacts = selectOptionsStore.getSortedOptions("contact");
+          const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+          if (!existingContacts.find((o) => normalize(o.label) === normalize(caseContact))) {
+            selectOptionsStore.addOption("contact", caseContact, CONTACT_DEFAULT_COLOR);
+            autoCreated.push({ field: "聯絡人", label: caseContact });
+          }
+        }
+
+        // Use case client for pricing (prefer case data over stale state)
+        const effectiveClient = caseClient || clientInfo.client;
 
         // 標題 → PO_案件標題
         if (caseTitle) {
@@ -675,8 +698,8 @@ export default function TranslatorFeeDetail() {
 
         // 工作類型 → 任務項目
         const getAutoPrice = (taskType: string, bu: string = "字") => {
-          if (clientInfo.client) {
-            const cp = defaultPricingStore.getClientPrice(clientInfo.client, taskType, bu);
+          if (effectiveClient) {
+            const cp = defaultPricingStore.getClientPrice(effectiveClient, taskType, bu);
             if (cp !== undefined) {
               const tp = defaultPricingStore.getTranslatorPrice(cp, taskType, bu);
               return tp ?? 0;
@@ -703,8 +726,8 @@ export default function TranslatorFeeDetail() {
           // 同步工作類型到客戶計費項目
           const mappedClientItems: import("@/data/fee-mock-data").ClientTaskItem[] = workTypes.map((wt: string, idx: number) => {
             const matchedType = matchTaskType(wt);
-            const cp = clientInfo.client
-              ? defaultPricingStore.getClientPrice(clientInfo.client, matchedType, billingUnit) ?? 0
+            const cp = effectiveClient
+              ? defaultPricingStore.getClientPrice(effectiveClient, matchedType, billingUnit) ?? 0
               : 0;
             return {
               id: `ci-case-${Date.now()}-${idx}`,
@@ -714,7 +737,12 @@ export default function TranslatorFeeDetail() {
               clientPrice: cp,
             };
           });
-          const updatedClientInfo = { ...clientInfo, clientTaskItems: mappedClientItems };
+          const updatedClientInfo: ClientInfo = {
+            ...clientInfo,
+            ...(caseClient ? { client: caseClient } : {}),
+            ...(caseContact ? { contact: caseContact } : {}),
+            clientTaskItems: mappedClientItems,
+          };
           setClientInfo(updatedClientInfo);
           if (id) feeStore.updateFee(id, { clientInfo: updatedClientInfo });
         } else if (unitCount) {
@@ -1227,6 +1255,29 @@ export default function TranslatorFeeDetail() {
         const notionUnit = data["計費單位"] || "";
         const billingUnitMap: Record<string, BillingUnit> = { "字": "字", "小時": "小時" };
         const billingUnit: BillingUnit = billingUnitMap[notionUnit] || "字";
+        const notionClient = (data["客戶"] || "").replace(/\s+/g, " ").trim();
+        const notionContact = (data["聯絡人"] || "").replace(/\s+/g, " ").trim();
+
+        // Auto-create client/contact options if they don't exist
+        if (notionClient) {
+          const existingClients = selectOptionsStore.getSortedOptions("client");
+          const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+          if (!existingClients.find((o) => normalize(o.label) === normalize(notionClient))) {
+            selectOptionsStore.addOption("client", notionClient, PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)]);
+            autoCreated.push({ field: "客戶", label: notionClient });
+          }
+        }
+        if (notionContact) {
+          const existingContacts = selectOptionsStore.getSortedOptions("contact");
+          const normalize = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+          if (!existingContacts.find((o) => normalize(o.label) === normalize(notionContact))) {
+            selectOptionsStore.addOption("contact", notionContact, CONTACT_DEFAULT_COLOR);
+            autoCreated.push({ field: "聯絡人", label: notionContact });
+          }
+        }
+
+        // Use extracted client for pricing (prefer Notion data over stale state)
+        const effectiveClient = notionClient || clientInfo.client;
 
         // 案件編號 > 標題（預填為「PO_案件編號」）
         if (caseId) {
@@ -1271,8 +1322,8 @@ export default function TranslatorFeeDetail() {
 
         // 工作類型 > 任務項目 + 計費單位數 > 第一項
         const getAutoPrice = (taskType: string, billingUnit: string = "字") => {
-          if (clientInfo.client) {
-            const cp = defaultPricingStore.getClientPrice(clientInfo.client, taskType, billingUnit);
+          if (effectiveClient) {
+            const cp = defaultPricingStore.getClientPrice(effectiveClient, taskType, billingUnit);
             if (cp !== undefined) {
               const tp = defaultPricingStore.getTranslatorPrice(cp, taskType, billingUnit);
               return tp ?? 0;
@@ -1299,8 +1350,8 @@ export default function TranslatorFeeDetail() {
           // 同步工作類型到客戶計費項目
           const mappedClientItems: import("@/data/fee-mock-data").ClientTaskItem[] = workTypes.map((wt: string, idx: number) => {
             const matchedType = matchTaskType(wt);
-            const cp = clientInfo.client
-              ? defaultPricingStore.getClientPrice(clientInfo.client, matchedType as string, billingUnit) ?? 0
+            const cp = effectiveClient
+              ? defaultPricingStore.getClientPrice(effectiveClient, matchedType as string, billingUnit) ?? 0
               : 0;
             return {
               id: `ci-notion-${Date.now()}-${idx}`,
@@ -1310,7 +1361,12 @@ export default function TranslatorFeeDetail() {
               clientPrice: cp,
             };
           });
-          const updatedClientInfo = { ...clientInfo, clientTaskItems: mappedClientItems };
+          const updatedClientInfo: ClientInfo = {
+            ...clientInfo,
+            ...(notionClient ? { client: notionClient } : {}),
+            ...(notionContact ? { contact: notionContact } : {}),
+            clientTaskItems: mappedClientItems,
+          };
           setClientInfo(updatedClientInfo);
           if (id) feeStore.updateFee(id, { clientInfo: updatedClientInfo });
         } else if (unitCount) {
