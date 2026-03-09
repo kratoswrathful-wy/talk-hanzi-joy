@@ -324,13 +324,13 @@ function ToolInstance({
                   onChange={(e) =>
                     onUpdate({ fieldValues: { ...values, [f.id]: e.target.value } })
                   }
-                  className="max-w-xs"
+                  className="flex-1 min-h-0 h-auto py-1.5"
                   minRows={1}
-                  maxRows={5}
+                  maxRows={20}
                 />
                 <CopyButton value={values[f.id] || ""} />
                 <button
-                  className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0"
+                  className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0 mt-1"
                   onClick={() => setDeleteFieldId(f.id)}
                 >
                   <X className="h-3.5 w-3.5" />

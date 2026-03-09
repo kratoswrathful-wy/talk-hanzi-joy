@@ -86,9 +86,7 @@ const MultilineInput = React.forwardRef<HTMLTextAreaElement, MultilineInputProps
       <textarea
         ref={mergedRef}
         className={cn(
-          "flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none overflow-hidden",
-          // Make it look like an input when single line
-          minRows === 1 && "min-h-[40px]",
+          "flex w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none overflow-hidden leading-normal",
           className,
         )}
         value={value}
