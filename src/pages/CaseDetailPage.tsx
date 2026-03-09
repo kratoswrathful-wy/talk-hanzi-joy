@@ -1682,11 +1682,7 @@ export default function CaseDetailPage() {
 
       {/* Publish prompt dialog when leaving draft case */}
       <AlertDialog open={publishPromptOpen} onOpenChange={(v) => {
-        if (!v) {
-          setPublishPromptOpen(false);
-          // If user closes without choosing, stay on page
-          if (blocker.state === "blocked") blocker.reset();
-        }
+        if (!v) setPublishPromptOpen(false);
       }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1696,13 +1692,17 @@ export default function CaseDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => {
               setPublishPromptOpen(false);
-              if (blocker.state === "blocked") blocker.proceed();
+              const nav = pendingNavigateRef.current;
+              pendingNavigateRef.current = null;
+              if (nav) nav();
             }}>不公布，直接離開</AlertDialogCancel>
             <AlertDialogAction onClick={() => {
               save({ status: "inquiry" as CaseStatus });
               toast({ title: "案件已公布" });
               setPublishPromptOpen(false);
-              if (blocker.state === "blocked") blocker.proceed();
+              const nav = pendingNavigateRef.current;
+              pendingNavigateRef.current = null;
+              if (nav) nav();
             }}>公布</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
