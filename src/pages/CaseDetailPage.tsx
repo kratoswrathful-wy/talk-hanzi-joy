@@ -8,6 +8,7 @@ import { MultilineInput } from "@/components/ui/multiline-input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { caseStore } from "@/hooks/use-case-store";
 import { feeStore, useFees } from "@/hooks/use-fee-store";
 import { type TranslatorFee, type FeeTaskItem, type TaskType, type BillingUnit, defaultClientInfo } from "@/data/fee-mock-data";
@@ -1391,6 +1392,21 @@ export default function CaseDetailPage() {
       <Separator />
 
       <h2 className="text-base font-semibold">提問</h2>
+
+      {/* 有填寫客戶提問表單 checkbox — everyone can see/use, translators only if assigned */}
+      {(() => {
+        const canUseClientQForm = isPmOrAbove || isCurrentUserTranslator;
+        return canUseClientQForm ? (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="clientQuestionForm"
+              checked={caseData.clientQuestionForm ?? false}
+              onCheckedChange={(v) => save({ clientQuestionForm: !!v })}
+            />
+            <Label htmlFor="clientQuestionForm" className="text-sm cursor-pointer">有填寫客戶提問表單</Label>
+          </div>
+        ) : null;
+      })()}
 
       {/* 客戶提問表單 */}
       <div className="space-y-3">
