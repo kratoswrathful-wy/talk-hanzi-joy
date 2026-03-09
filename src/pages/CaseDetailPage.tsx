@@ -236,7 +236,7 @@ function ToolInstance({
   return (
     <>
       <div className="relative border border-border rounded-lg p-3 space-y-1">
-        {showRemove && (
+        {showRemove && canRemoveTool && (
           <Button
             variant="ghost"
             size="icon"
@@ -254,6 +254,7 @@ function ToolInstance({
                 value={entry.tool}
                 onValueChange={handleToolChange}
                 className="max-w-xs"
+                disabled={!canEditTool}
               />
             </Field>
           </div>
