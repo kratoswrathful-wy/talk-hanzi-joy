@@ -12,6 +12,14 @@ export interface ToolEntry {
   fileValues?: Record<string, { name: string; url: string }[]>; // for file-type fields
 }
 
+/** A single repeatable group of work type + billing info */
+export interface WorkGroup {
+  id: string;
+  workType: string;   // single work type label
+  billingUnit: string;
+  unitCount: number;
+}
+
 export type CaseStatus = "draft" | "inquiry" | "dispatched" | "task_completed" | "delivered" | "feedback" | "feedback_completed" | "finalized";
 
 export interface CaseComment {
@@ -31,10 +39,11 @@ export interface CaseRecord {
   client: string;
   contact: string;
   category: string;
-  workType: string[];
+  workType: string[];   // legacy – kept for backward compat
+  workGroups: WorkGroup[]; // new repeatable groups
   processNote: string;
-  billingUnit: string;
-  unitCount: number;
+  billingUnit: string;   // legacy
+  unitCount: number;     // legacy
   inquiryNote: string;
   translator: string[];
   translationDeadline: string | null;
