@@ -1205,13 +1205,12 @@ export default function CaseDetailPage() {
         </div>
       </div>
 
-      {/* Title — standalone like internal notes */}
-      <div className="text-lg font-semibold px-0">
-        <TitleInput value={caseData.title} onSave={(v) => save({ title: v })} />
-      </div>
-      <Separator />
-      <Field label="狀態">
-        <div className="flex items-center gap-3">
+      {/* Title + Status badge on the same row */}
+      <div className="flex items-center gap-4 px-0">
+        <div className="text-lg font-semibold flex-1 min-w-0">
+          <TitleInput value={caseData.title} onSave={(v) => save({ title: v })} />
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
           <CaseStatusBadge status={caseData.status} />
           {isInquiry && !caseData.multiCollab && (
             <span className="text-xs text-muted-foreground">
@@ -1228,10 +1227,8 @@ export default function CaseDetailPage() {
               譯者完成任務後，請直接勾選「任務完成」。
             </span>
           )}
-          
         </div>
-      </Field>
-
+      </div>
       <Separator />
 
       <h2 className="text-base font-semibold">基本資訊</h2>
