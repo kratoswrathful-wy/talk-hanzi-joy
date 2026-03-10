@@ -369,7 +369,7 @@ function ClientPricingSection() {
         {textColorOpen && (
           <div className="mt-2 flex items-center gap-3">
             <span
-              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+              className="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium"
               style={{ backgroundColor: clientOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.client.textColor, borderColor: clientOptions[0]?.color || PRESET_COLORS[0] }}
             >
               預覽
@@ -585,7 +585,7 @@ function TaskTypeOrderSection() {
         {textColorOpen && (
           <div className="mt-2 flex items-center gap-3">
             <span
-              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+              className="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium"
               style={{ backgroundColor: taskTypeOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.taskType.textColor, borderColor: taskTypeOptions[0]?.color || PRESET_COLORS[0] }}
             >
               預覽
@@ -773,7 +773,7 @@ function BillingUnitOrderSection() {
         {textColorOpen && (
           <div className="mt-2 flex items-center gap-3">
             <span
-              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+              className="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium"
               style={{ backgroundColor: billingUnitOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.billingUnit.textColor, borderColor: billingUnitOptions[0]?.color || PRESET_COLORS[0] }}
             >
               預覽
@@ -1860,7 +1860,7 @@ function DispatchRouteSection() {
         {textColorOpen && (
           <div className="mt-2 flex items-center gap-3">
             <span
-              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+              className="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium"
               style={{ backgroundColor: routeOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.dispatchRoute.textColor, borderColor: routeOptions[0]?.color || PRESET_COLORS[0] }}
             >
               預覽
@@ -2041,7 +2041,7 @@ function CaseCategorySection() {
         {textColorOpen && (
           <div className="mt-2 flex items-center gap-3">
             <span
-              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+              className="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium"
               style={{ backgroundColor: categoryOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.caseCategory.textColor, borderColor: categoryOptions[0]?.color || PRESET_COLORS[0] }}
             >
               預覽
@@ -2223,7 +2223,7 @@ function StatusStyleSection() {
         {textColorOpen && (
           <div className="mt-2 flex items-center gap-3">
             <span
-              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+              className="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium"
               style={{ backgroundColor: statusOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.statusLabel.textColor, borderColor: statusOptions[0]?.color || PRESET_COLORS[0] }}
             >
               預覽
@@ -2359,7 +2359,7 @@ function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; ti
         {textColorOpen && (
           <div className="mt-2 flex items-center gap-3">
             <span
-              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+              className="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium"
               style={{ backgroundColor: options[0]?.color || PRESET_COLORS[0], color: textColorValue, borderColor: options[0]?.color || PRESET_COLORS[0] }}
             >
               預覽
