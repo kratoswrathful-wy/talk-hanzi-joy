@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
+import { useClickOutsideCancel } from "@/hooks/use-click-outside";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -400,6 +401,8 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ToolTemplate>(tpl);
   const firstFieldRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const cancelEdit = useCallback(() => { setEditing(false); setDraft(tpl); }, [tpl]);
+  const editRef = useClickOutsideCancel(editing, cancelEdit);
 
   const startEdit = () => {
     setDraft({ ...tpl, fields: [...(tpl.fields || [])], fieldValues: { ...tpl.fieldValues } });
@@ -464,7 +467,7 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
       {expanded && (
         <div className="px-4 py-3 space-y-2 border-t border-border">
           {editing ? (
-            <>
+            <div ref={editRef}>
               <div className="grid grid-cols-[80px_1fr] items-center gap-2">
                 <span className="text-xs text-muted-foreground">範本名稱</span>
                 <Input
@@ -472,6 +475,7 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
                   value={draft.name}
                   onChange={(e) => setDraft({ ...draft, name: e.target.value })}
                   className="h-7 text-sm"
+                  onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") cancelEdit(); }}
                 />
               </div>
               <div className="grid grid-cols-[80px_1fr] items-center gap-2">
@@ -493,13 +497,7 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
                 onFieldsChange={(f) => setDraft((prev) => ({ ...prev, fields: f }))}
                 onFieldValuesChange={(v) => setDraft((prev) => ({ ...prev, fieldValues: v }))}
               />
-              <div className="flex justify-end pt-1">
-                <Button size="sm" className="h-7 text-xs gap-1" onClick={handleSave}>
-                  <Save className="h-3 w-3" />
-                  儲存變更
-                </Button>
-              </div>
-            </>
+            </div>
           ) : (
             <>
               {displayFields.length === 0 && !tpl.tool && (
@@ -533,6 +531,8 @@ function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; l
   const [tool, setTool] = useState("");
   const [fields, setFields] = useState<TemplateField[]>([]);
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const cancelForm = useCallback(() => { onDone(); }, [onDone]);
+  const formRef = useClickOutsideCancel(true, cancelForm);
 
   const handleToolChange = (newTool: string) => {
     // Preserve the original field type from the tool definition
@@ -550,7 +550,7 @@ function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; l
   };
 
   return (
-    <div className="border border-border rounded-lg p-4 space-y-2">
+    <div ref={formRef} className="border border-border rounded-lg p-4 space-y-2">
       <div className="grid grid-cols-[80px_1fr] items-center gap-2">
         <span className="text-xs text-muted-foreground">範本名稱</span>
         <Input
@@ -559,6 +559,7 @@ function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; l
           className="h-7 text-sm"
           placeholder="輸入範本名稱"
           autoFocus
+          onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) handleSave(); if (e.key === "Escape") onDone(); }}
         />
       </div>
       <div className="grid grid-cols-[80px_1fr] items-center gap-2">
@@ -582,15 +583,6 @@ function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; l
           onFieldValuesChange={setFieldValues}
         />
       )}
-      <div className="flex gap-1.5 justify-end pt-1">
-        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onDone}>
-          取消
-        </Button>
-        <Button size="sm" className="h-7 text-xs gap-1" disabled={!name.trim()} onClick={handleSave}>
-          <Save className="h-3 w-3" />
-          儲存變更
-        </Button>
-      </div>
     </div>
   );
 }
@@ -606,6 +598,10 @@ function CommonLinksSection() {
   const [editUrl, setEditUrl] = useState("");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const cancelEditing = useCallback(() => { setEditingId(null); }, []);
+  const editingLinkRef = useClickOutsideCancel(!!editingId, cancelEditing);
+  const cancelAddingLink = useCallback(() => { setAdding(false); setNewName(""); setNewUrl(""); }, []);
+  const addingLinkRef = useClickOutsideCancel(adding, cancelAddingLink);
 
   const handleAdd = () => {
     if (!newName.trim() || !newUrl.trim()) return;
@@ -655,7 +651,7 @@ function CommonLinksSection() {
           >
             <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             {editingId === link.id ? (
-              <div className="flex items-center gap-1.5 flex-1">
+              <div ref={editingLinkRef} className="flex items-center gap-1.5 flex-1">
                 <Input
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
@@ -671,8 +667,6 @@ function CommonLinksSection() {
                   placeholder="https://..."
                   onKeyDown={(e) => { if (e.key === "Enter") handleSaveEdit(); if (e.key === "Escape") setEditingId(null); }}
                 />
-                <Button size="sm" className="h-7 text-xs px-2" onClick={handleSaveEdit}>儲存</Button>
-                <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => setEditingId(null)}>取消</Button>
               </div>
             ) : (
               <>
@@ -700,7 +694,7 @@ function CommonLinksSection() {
         ))}
       </div>
       {adding ? (
-        <div className="space-y-2 px-2">
+        <div ref={addingLinkRef} className="space-y-2 px-2">
           <Input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
@@ -719,10 +713,6 @@ function CommonLinksSection() {
               if (e.key === "Escape") setAdding(false);
             }}
           />
-          <div className="flex gap-1.5 justify-end">
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAdding(false)}>取消</Button>
-            <Button size="sm" className="h-7 text-xs" disabled={!newName.trim() || !newUrl.trim()} onClick={handleAdd}>新增</Button>
-          </div>
         </div>
       ) : (
         <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={() => setAdding(true)}>

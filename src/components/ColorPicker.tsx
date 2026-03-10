@@ -418,6 +418,11 @@ export default function ColorPicker({
                 onChange={(e) => handleHexChange(e.target.value)}
                 className="h-8 text-xs font-mono flex-1"
                 placeholder="#FF0000"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && onAddCustomColor && /^#[0-9a-fA-F]{6}$/.test(hexInput)) {
+                    onAddCustomColor(hexInput.toUpperCase());
+                  }
+                }}
               />
               {"EyeDropper" in window && (
                 <TooltipProvider delayDuration={300}>
@@ -444,21 +449,6 @@ export default function ColorPicker({
                     <TooltipContent side="bottom" className="text-xs">擷取螢幕顏色</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-              )}
-              {onAddCustomColor && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs shrink-0 gap-1"
-                  onClick={() => {
-                    if (/^#[0-9a-fA-F]{6}$/.test(hexInput)) {
-                      onAddCustomColor(hexInput.toUpperCase());
-                    }
-                  }}
-                >
-                  <Plus className="h-3 w-3" />
-                  儲存
-                </Button>
               )}
             </div>
           </div>

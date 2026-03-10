@@ -18,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useClickOutsideCancel } from "@/hooks/use-click-outside";
 
 function getColorUsageMap(options: { color: string; label: string }[]): Record<string, string[]> {
   const map: Record<string, string[]> = {};
@@ -84,6 +85,8 @@ function ClientPricingSection() {
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
   const [textColorOpen, setTextColorOpen] = useState(false);
+  const cancelAdding = useCallback(() => { setAdding(false); setNewLabel(""); setNewColor(PRESET_COLORS[0]); }, []);
+  const addingRef = useClickOutsideCancel(adding, cancelAdding);
 
   const toggleClient = (id: string) => {
     setExpandedClients((prev) => {
@@ -316,7 +319,7 @@ function ClientPricingSection() {
 
       <div className="mt-auto space-y-4">
       {adding ? (
-        <div className="space-y-2 px-2">
+        <div ref={addingRef} className="space-y-2 px-2">
           <Input
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
@@ -336,14 +339,6 @@ function ClientPricingSection() {
             onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("client", c)}
             colorUsageMap={getColorUsageMap(clientOptions)}
           />
-          <div className="flex gap-1.5 justify-end">
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAdding(false)}>
-              取消
-            </Button>
-            <Button size="sm" className="h-7 text-xs" disabled={!newLabel.trim()} onClick={handleAddClient}>
-              新增
-            </Button>
-          </div>
         </div>
       ) : (
         <Button
@@ -369,7 +364,7 @@ function ClientPricingSection() {
         {textColorOpen && (
           <div className="mt-2 flex items-center gap-3">
             <span
-              className="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium"
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap"
               style={{ backgroundColor: clientOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.client.textColor, borderColor: clientOptions[0]?.color || PRESET_COLORS[0] }}
             >
               預覽
@@ -403,6 +398,8 @@ function TaskTypeOrderSection() {
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
   const [colorPickerOptionId, setColorPickerOptionId] = useState<string | null>(null);
   const [textColorOpen, setTextColorOpen] = useState(false);
+  const cancelAdding = useCallback(() => { setAdding(false); setNewLabel(""); setNewColor(PRESET_COLORS[0]); }, []);
+  const addingRef = useClickOutsideCancel(adding, cancelAdding);
 
   const handleDragStart = (idx: number) => {
     setDragIndex(idx);
@@ -532,7 +529,7 @@ function TaskTypeOrderSection() {
 
       <div className="mt-auto space-y-4">
       {adding ? (
-        <div className="space-y-2 px-2">
+        <div ref={addingRef} className="space-y-2 px-2">
           <Input
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
@@ -552,14 +549,6 @@ function TaskTypeOrderSection() {
             onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("taskType", c)}
             colorUsageMap={getColorUsageMap(taskTypeOptions)}
           />
-          <div className="flex gap-1.5 justify-end">
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAdding(false)}>
-              取消
-            </Button>
-            <Button size="sm" className="h-7 text-xs" disabled={!newLabel.trim()} onClick={handleAddTaskType}>
-              新增
-            </Button>
-          </div>
         </div>
       ) : (
         <Button
@@ -585,7 +574,7 @@ function TaskTypeOrderSection() {
         {textColorOpen && (
           <div className="mt-2 flex items-center gap-3">
             <span
-              className="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium"
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap"
               style={{ backgroundColor: taskTypeOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.taskType.textColor, borderColor: taskTypeOptions[0]?.color || PRESET_COLORS[0] }}
             >
               預覽
@@ -619,6 +608,8 @@ function BillingUnitOrderSection() {
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
   const [colorPickerOptionId, setColorPickerOptionId] = useState<string | null>(null);
   const [textColorOpen, setTextColorOpen] = useState(false);
+  const cancelAdding = useCallback(() => { setAdding(false); setNewLabel(""); setNewColor(PRESET_COLORS[0]); }, []);
+  const addingRef = useClickOutsideCancel(adding, cancelAdding);
 
   const handleDragStart = (idx: number) => setDragIndex(idx);
 
@@ -721,7 +712,7 @@ function BillingUnitOrderSection() {
 
       <div className="mt-auto space-y-4">
       {adding ? (
-        <div className="space-y-2 px-2">
+        <div ref={addingRef} className="space-y-2 px-2">
           <Input
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
@@ -741,14 +732,6 @@ function BillingUnitOrderSection() {
             onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("billingUnit", c)}
             colorUsageMap={getColorUsageMap(billingUnitOptions)}
           />
-          <div className="flex gap-1.5 justify-end">
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAdding(false)}>
-              取消
-            </Button>
-            <Button size="sm" className="h-7 text-xs" disabled={!newLabel.trim()} onClick={handleAdd}>
-              新增
-            </Button>
-          </div>
         </div>
       ) : (
         <Button
@@ -773,7 +756,7 @@ function BillingUnitOrderSection() {
         {textColorOpen && (
           <div className="mt-2 flex items-center gap-3">
             <span
-              className="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium"
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap"
               style={{ backgroundColor: billingUnitOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.billingUnit.textColor, borderColor: billingUnitOptions[0]?.color || PRESET_COLORS[0] }}
             >
               預覽
@@ -813,6 +796,8 @@ function TranslatorNotesSection() {
   const [editValue, setEditValue] = useState("");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const cancelEditing = useCallback(() => { setEditingEmail(null); setEditValue(""); }, []);
+  const editingRef = useClickOutsideCancel(!!editingEmail, cancelEditing);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -1000,7 +985,7 @@ function TranslatorNotesSection() {
                 </div>
 
                 {isEditing ? (
-                  <div className="space-y-2 pl-8">
+                  <div ref={editingRef} className="space-y-2 pl-8">
                     <Textarea
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
@@ -1009,16 +994,9 @@ function TranslatorNotesSection() {
                       autoFocus
                       onKeyDown={(e) => {
                         if (e.key === "Escape") setEditingEmail(null);
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSaveNote(member.email);
                       }}
                     />
-                    <div className="flex items-center justify-end gap-2">
-                      <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setEditingEmail(null)}>
-                        取消
-                      </Button>
-                      <Button size="sm" className="h-6 text-xs" onClick={() => handleSaveNote(member.email)}>
-                        儲存
-                      </Button>
-                    </div>
                   </div>
                 ) : (
                   <div className="pl-8">
@@ -1193,8 +1171,8 @@ function TierGroupEditorModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-card border border-border rounded-xl shadow-2xl p-6 max-w-lg w-full mx-4 space-y-4 max-h-[85vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-card border border-border rounded-xl shadow-2xl p-6 max-w-lg w-full mx-4 space-y-4 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="space-y-1">
           <h3 className="text-base font-semibold">新增級距組合</h3>
           <p className="text-xs text-muted-foreground">
@@ -1713,6 +1691,8 @@ function DispatchRouteSection() {
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
   const [colorPickerOptionId, setColorPickerOptionId] = useState<string | null>(null);
   const [textColorOpen, setTextColorOpen] = useState(false);
+  const cancelAdding = useCallback(() => { setAdding(false); setNewLabel(""); setNewColor(PRESET_COLORS[0]); }, []);
+  const addingRef = useClickOutsideCancel(adding, cancelAdding);
 
   const handleDragStart = (idx: number) => setDragIndex(idx);
   const handleDragOver = (e: React.DragEvent, idx: number) => {
@@ -1808,7 +1788,7 @@ function DispatchRouteSection() {
 
       <div className="mt-auto space-y-4">
       {adding ? (
-        <div className="space-y-2 px-2">
+        <div ref={addingRef} className="space-y-2 px-2">
           <Input
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
@@ -1828,14 +1808,6 @@ function DispatchRouteSection() {
             onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("dispatchRoute", c)}
             colorUsageMap={getColorUsageMap(routeOptions)}
           />
-          <div className="flex gap-1.5 justify-end">
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAdding(false)}>
-              取消
-            </Button>
-            <Button size="sm" className="h-7 text-xs" disabled={!newLabel.trim()} onClick={handleAdd}>
-              新增
-            </Button>
-          </div>
         </div>
       ) : (
         <Button
@@ -1860,7 +1832,7 @@ function DispatchRouteSection() {
         {textColorOpen && (
           <div className="mt-2 flex items-center gap-3">
             <span
-              className="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium"
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap"
               style={{ backgroundColor: routeOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.dispatchRoute.textColor, borderColor: routeOptions[0]?.color || PRESET_COLORS[0] }}
             >
               預覽
@@ -1894,6 +1866,8 @@ function CaseCategorySection() {
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
   const [colorPickerOptionId, setColorPickerOptionId] = useState<string | null>(null);
   const [textColorOpen, setTextColorOpen] = useState(false);
+  const cancelAdding = useCallback(() => { setAdding(false); setNewLabel(""); setNewColor(PRESET_COLORS[0]); }, []);
+  const addingRef = useClickOutsideCancel(adding, cancelAdding);
 
   const handleDragStart = (idx: number) => setDragIndex(idx);
   const handleDragOver = (e: React.DragEvent, idx: number) => {
@@ -1989,7 +1963,7 @@ function CaseCategorySection() {
 
       <div className="mt-auto space-y-4">
       {adding ? (
-        <div className="space-y-2 px-2">
+        <div ref={addingRef} className="space-y-2 px-2">
           <Input
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
@@ -2009,14 +1983,6 @@ function CaseCategorySection() {
             onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("caseCategory", c)}
             colorUsageMap={getColorUsageMap(categoryOptions)}
           />
-          <div className="flex gap-1.5 justify-end">
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAdding(false)}>
-              取消
-            </Button>
-            <Button size="sm" className="h-7 text-xs" disabled={!newLabel.trim()} onClick={handleAdd}>
-              新增
-            </Button>
-          </div>
         </div>
       ) : (
         <Button
@@ -2041,7 +2007,7 @@ function CaseCategorySection() {
         {textColorOpen && (
           <div className="mt-2 flex items-center gap-3">
             <span
-              className="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium"
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap"
               style={{ backgroundColor: categoryOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.caseCategory.textColor, borderColor: categoryOptions[0]?.color || PRESET_COLORS[0] }}
             >
               預覽
@@ -2223,7 +2189,7 @@ function StatusStyleSection() {
         {textColorOpen && (
           <div className="mt-2 flex items-center gap-3">
             <span
-              className="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium"
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap"
               style={{ backgroundColor: statusOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.statusLabel.textColor, borderColor: statusOptions[0]?.color || PRESET_COLORS[0] }}
             >
               預覽
@@ -2255,6 +2221,8 @@ function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; ti
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
   const [colorPickerId, setColorPickerId] = useState<string | null>(null);
   const [textColorOpen, setTextColorOpen] = useState(false);
+  const cancelAdding = useCallback(() => { setAdding(false); setNewLabel(""); setNewColor(PRESET_COLORS[0]); }, []);
+  const addingRef = useClickOutsideCancel(adding, cancelAdding);
 
   const textColorValue = fieldKey === "noteStatus" ? labelStyles.noteStatus.textColor : labelStyles.noteNature.textColor;
   const setTextColor = fieldKey === "noteStatus" ? labelStyleStore.setNoteStatusTextColor : labelStyleStore.setNoteNatureTextColor;
@@ -2329,17 +2297,13 @@ function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; ti
       </div>
       <div className="mt-auto space-y-4">
       {adding ? (
-        <div className="space-y-2 px-2">
+        <div ref={addingRef} className="space-y-2 px-2">
           <Input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="輸入名稱" className="h-8 text-sm" autoFocus
             onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); if (e.key === "Escape") setAdding(false); }} />
           <ColorPicker value={newColor} onChange={setNewColor} customColors={customColors}
             onAddCustomColor={(c) => selectOptionsStore.addCustomColor(fieldKey, c)}
             onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor(fieldKey, c)}
             colorUsageMap={getColorUsageMap(options)} />
-          <div className="flex gap-1.5 justify-end">
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAdding(false)}>取消</Button>
-            <Button size="sm" className="h-7 text-xs" disabled={!newLabel.trim()} onClick={handleAdd}>{addLabel}</Button>
-          </div>
         </div>
       ) : (
         <Button variant="outline" size="sm" className="gap-1 text-xs w-full" onClick={() => setAdding(true)}>
@@ -2359,7 +2323,7 @@ function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; ti
         {textColorOpen && (
           <div className="mt-2 flex items-center gap-3">
             <span
-              className="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium"
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap"
               style={{ backgroundColor: options[0]?.color || PRESET_COLORS[0], color: textColorValue, borderColor: options[0]?.color || PRESET_COLORS[0] }}
             >
               預覽
