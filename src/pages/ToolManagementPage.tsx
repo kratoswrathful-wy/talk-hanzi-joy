@@ -559,6 +559,7 @@ function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; l
           className="h-7 text-sm"
           placeholder="輸入範本名稱"
           autoFocus
+          onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) handleSave(); if (e.key === "Escape") onDone(); }}
         />
       </div>
       <div className="grid grid-cols-[80px_1fr] items-center gap-2">
