@@ -1872,7 +1872,22 @@ export default function CaseDetailPage() {
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-4">
-        {/* Left column: 自製準則, 常用資訊, 譯者完稿, 內審完稿, 追蹤修訂 */}
+        {/* Left column: 客戶指定準則, 本系列參考資料, 本案參考資料, 原文檔 */}
+        <div className="space-y-1">
+          <Field label="客戶指定準則">
+            <FileField value={Array.isArray(caseData.clientGuidelines) ? caseData.clientGuidelines : []} onChange={(v) => save({ clientGuidelines: v })} />
+          </Field>
+          <Field label="本系列參考資料">
+            <FileField value={Array.isArray(caseData.seriesReferenceMaterials) ? caseData.seriesReferenceMaterials : []} onChange={(v) => save({ seriesReferenceMaterials: v })} />
+          </Field>
+          <Field label="本案參考資料">
+            <FileField value={Array.isArray(caseData.caseReferenceMaterials) ? caseData.caseReferenceMaterials : []} onChange={(v) => save({ caseReferenceMaterials: v })} />
+          </Field>
+          <Field label="原文檔">
+            <FileField value={Array.isArray(caseData.sourceFiles) ? caseData.sourceFiles : []} onChange={(v) => save({ sourceFiles: v })} />
+          </Field>
+        </div>
+        {/* Right column: 自製準則, 常用資訊, 譯者完稿, 內審完稿, 追蹤修訂 */}
         <div className="space-y-1">
           <Field label="自製準則">
             <FileField value={Array.isArray(caseData.customGuidelinesUrl) ? caseData.customGuidelinesUrl : []} onChange={(v) => save({ customGuidelinesUrl: v })} />
@@ -1891,21 +1906,6 @@ export default function CaseDetailPage() {
           </Field>
           <Field label="追蹤修訂">
             <FileField value={Array.isArray(caseData.trackChanges) ? caseData.trackChanges : []} onChange={(v) => save({ trackChanges: v })} />
-          </Field>
-        </div>
-        {/* Right column: 客戶指定準則, 本系列參考資料, 本案參考資料, 原文檔 */}
-        <div className="space-y-1">
-          <Field label="客戶指定準則">
-            <FileField value={Array.isArray(caseData.clientGuidelines) ? caseData.clientGuidelines : []} onChange={(v) => save({ clientGuidelines: v })} />
-          </Field>
-          <Field label="本系列參考資料">
-            <FileField value={Array.isArray(caseData.seriesReferenceMaterials) ? caseData.seriesReferenceMaterials : []} onChange={(v) => save({ seriesReferenceMaterials: v })} />
-          </Field>
-          <Field label="本案參考資料">
-            <FileField value={Array.isArray(caseData.caseReferenceMaterials) ? caseData.caseReferenceMaterials : []} onChange={(v) => save({ caseReferenceMaterials: v })} />
-          </Field>
-          <Field label="原文檔">
-            <FileField value={Array.isArray(caseData.sourceFiles) ? caseData.sourceFiles : []} onChange={(v) => save({ sourceFiles: v })} />
           </Field>
         </div>
       </div>
