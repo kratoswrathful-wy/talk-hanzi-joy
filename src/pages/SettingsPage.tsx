@@ -985,7 +985,7 @@ function TranslatorNotesSection() {
                 </div>
 
                 {isEditing ? (
-                  <div className="space-y-2 pl-8">
+                  <div ref={editingRef} className="space-y-2 pl-8">
                     <Textarea
                       value={editValue}
                       onChange={(e) => setEditValue(e.target.value)}
