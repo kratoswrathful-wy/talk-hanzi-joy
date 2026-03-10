@@ -201,7 +201,7 @@ function loadActiveViewFromStorage(key: string): string {
   }
 }
 
-export function useCaseTableViews(userId?: string) {
+export function useCaseTableViews(userId?: string, viewerDisplayName?: string) {
   const storageKey = userId ? `${BASE_STORAGE_KEY}:${userId}` : BASE_STORAGE_KEY;
   const activeKey = userId ? `${BASE_ACTIVE_VIEW_KEY}:${userId}` : BASE_ACTIVE_VIEW_KEY;
 
