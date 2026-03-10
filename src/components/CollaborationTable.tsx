@@ -133,10 +133,12 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
 
         {/* Rows */}
         {rows.map((row, idx) => {
-          const canCheckAccepted =
-            showAccepted &&
-            !row.accepted &&
-            (isPmOrAbove || (!row.translator || row.translator === displayName));
+          // Accepted: anyone can check; only translator-in-row or PM+ can uncheck
+          const acceptedDisabled = showAccepted
+            ? (row.accepted
+                ? !(isPmOrAbove || row.translator === displayName) // only these can uncheck
+                : false) // anyone can check
+            : false;
 
           const canCheckTaskCompleted =
             showTaskCompleted &&
@@ -173,7 +175,7 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
                 <CopySegmentButton value={row.segment} />
               </div>
 
-              {/* Translator */}
+              {/* Translator – locked when accepted (except PM+) */}
               <div className="px-1.5 py-1">
                 <ColorSelect
                   fieldKey="assignee"
@@ -208,12 +210,16 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
                 {showAccepted ? (
                   <Checkbox
                     checked={row.accepted}
-                    disabled={!canCheckAccepted && !row.accepted}
+                    disabled={acceptedDisabled}
                     onCheckedChange={(v) => {
                       if (!!v && !row.translator) {
+                        // Auto-fill translator with checker's name
                         updateRow(idx, { accepted: true, translator: displayName });
+                      } else if (!!v) {
+                        updateRow(idx, { accepted: true });
                       } else {
-                        updateRow(idx, { accepted: !!v });
+                        // Unchecking – accepted becomes false (translator field unlocks automatically)
+                        updateRow(idx, { accepted: false });
                       }
                     }}
                   />
