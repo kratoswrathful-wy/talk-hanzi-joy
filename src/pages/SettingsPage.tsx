@@ -2304,10 +2304,6 @@ function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; ti
             onAddCustomColor={(c) => selectOptionsStore.addCustomColor(fieldKey, c)}
             onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor(fieldKey, c)}
             colorUsageMap={getColorUsageMap(options)} />
-          <div className="flex gap-1.5 justify-end">
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAdding(false)}>取消</Button>
-            <Button size="sm" className="h-7 text-xs" disabled={!newLabel.trim()} onClick={handleAdd}>{addLabel}</Button>
-          </div>
         </div>
       ) : (
         <Button variant="outline" size="sm" className="gap-1 text-xs w-full" onClick={() => setAdding(true)}>
