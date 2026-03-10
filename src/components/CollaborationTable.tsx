@@ -61,6 +61,9 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
   const [bulkDeadlineField, setBulkDeadlineField] = useState<"translationDeadline" | "reviewDeadline" | null>(null);
   const [bulkDeadlineValue, setBulkDeadlineValue] = useState<string | null>(null);
 
+  // Last-accept confirmation state
+  const [lastAcceptConfirm, setLastAcceptConfirm] = useState<{ idx: number } | null>(null);
+
   const updateRow = useCallback(
     (idx: number, patch: Partial<CollabRow>) => {
       const next = rows.map((r, i) => (i === idx ? { ...r, ...patch } : r));
@@ -214,7 +217,13 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
                     disabled={acceptedDisabled}
                     onCheckedChange={(v) => {
                       if (!!v) {
-                        // Auto-fill translator with checker's name when translator is empty/blank
+                        // Check if this is the last unchecked row
+                        const uncheckedCount = rows.filter((r, ri) => !r.accepted && ri !== idx).length;
+                        if (uncheckedCount === 0) {
+                          // This is the last one – show confirmation
+                          setLastAcceptConfirm({ idx });
+                          return;
+                        }
                         const translatorEmpty = !row.translator || !row.translator.trim();
                         if (translatorEmpty && displayName) {
                           updateRow(idx, { accepted: true, translator: displayName });
@@ -222,7 +231,6 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
                           updateRow(idx, { accepted: true });
                         }
                       } else {
-                        // Unchecking – always clear translator and unlock
                         updateRow(idx, { accepted: false, translator: "" });
                       }
                     }}
@@ -336,6 +344,33 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={applyBulkDeadline} disabled={!bulkDeadlineValue}>套用到所有列</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Last-accept confirmation dialog */}
+      <AlertDialog open={!!lastAcceptConfirm} onOpenChange={(open) => { if (!open) setLastAcceptConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>確認承接最後一個分段</AlertDialogTitle>
+          </AlertDialogHeader>
+          <p className="text-sm text-muted-foreground">
+            您即將勾選最後一個「確認承接」方塊，此操作會將案件狀態推進至「已派出」。確定要繼續嗎？
+          </p>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (lastAcceptConfirm) {
+                const row = rows[lastAcceptConfirm.idx];
+                const translatorEmpty = !row.translator || !row.translator.trim();
+                if (translatorEmpty && displayName) {
+                  updateRow(lastAcceptConfirm.idx, { accepted: true, translator: displayName });
+                } else {
+                  updateRow(lastAcceptConfirm.idx, { accepted: true });
+                }
+              }
+              setLastAcceptConfirm(null);
+            }}>確定</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
