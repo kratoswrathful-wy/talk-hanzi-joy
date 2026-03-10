@@ -2297,7 +2297,7 @@ function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; ti
       </div>
       <div className="mt-auto space-y-4">
       {adding ? (
-        <div className="space-y-2 px-2">
+        <div ref={addingRef} className="space-y-2 px-2">
           <Input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="輸入名稱" className="h-8 text-sm" autoFocus
             onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); if (e.key === "Escape") setAdding(false); }} />
           <ColorPicker value={newColor} onChange={setNewColor} customColors={customColors}
