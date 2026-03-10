@@ -865,8 +865,6 @@ export default function CaseDetailPage() {
   const isMember = currentRole === "member";
   const isPmOrAbove = currentRole === "pm" || currentRole === "executive";
 
-  const [dupDialogOpen, setDupDialogOpen] = useState(false);
-  const [dupInfo, setDupInfo] = useState<{ newTitle: string; renames: { oldTitle: string; newTitle: string }[] } | null>(null);
 
   const handleDuplicate = async () => {
     const result = await caseStore.duplicate(caseData.id);
