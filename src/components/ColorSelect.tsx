@@ -345,20 +345,13 @@ export default function ColorSelect({
                             autoFocus
                             onKeyDown={(e) => {
                               if (e.key === "Escape") setEditingNoteId(null);
+                              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                                selectOptionsStore.updateOptionNote(fieldKey, opt.id, noteValue.trim());
+                                setEditingNoteId(null);
+                                setMenuOpenId(null);
+                              }
                             }}
                           />
-                          <div className="flex gap-1.5 justify-end">
-                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingNoteId(null)}>
-                              取消
-                            </Button>
-                            <Button size="sm" className="h-7 text-xs" onClick={() => {
-                              selectOptionsStore.updateOptionNote(fieldKey, opt.id, noteValue.trim());
-                              setEditingNoteId(null);
-                              setMenuOpenId(null);
-                            }}>
-                              儲存
-                            </Button>
-                          </div>
                         </div>
                       ) : (
                         <div className="p-1">

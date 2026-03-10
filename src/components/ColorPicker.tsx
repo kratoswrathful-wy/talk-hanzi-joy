@@ -450,21 +450,6 @@ export default function ColorPicker({
                   </Tooltip>
                 </TooltipProvider>
               )}
-              {onAddCustomColor && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs shrink-0 gap-1"
-                  onClick={() => {
-                    if (/^#[0-9a-fA-F]{6}$/.test(hexInput)) {
-                      onAddCustomColor(hexInput.toUpperCase());
-                    }
-                  }}
-                >
-                  <Plus className="h-3 w-3" />
-                  儲存
-                </Button>
-              )}
             </div>
           </div>
         )}

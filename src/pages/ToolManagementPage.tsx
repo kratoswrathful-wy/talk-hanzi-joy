@@ -713,10 +713,6 @@ function CommonLinksSection() {
               if (e.key === "Escape") setAdding(false);
             }}
           />
-          <div className="flex gap-1.5 justify-end">
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAdding(false)}>取消</Button>
-            <Button size="sm" className="h-7 text-xs" disabled={!newName.trim() || !newUrl.trim()} onClick={handleAdd}>新增</Button>
-          </div>
         </div>
       ) : (
         <Button variant="outline" size="sm" className="gap-1 text-xs" onClick={() => setAdding(true)}>
