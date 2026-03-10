@@ -63,19 +63,16 @@ function matchFilter(c: CaseRecord, filter: TableFilter): boolean {
 }
 
 function compareCases(a: CaseRecord, b: CaseRecord, sort: TableSort): number {
-  // Use status label settings order for status field sorting
   if (sort.field === "status") {
     const aLabel = CASE_STATUS_LABEL_MAP[a.status] || a.status;
     const bLabel = CASE_STATUS_LABEL_MAP[b.status] || b.status;
     const cmp = getStatusSortIndex(aLabel) - getStatusSortIndex(bLabel);
     return sort.direction === "desc" ? -cmp : cmp;
   }
+  const meta = caseFieldMetas.find((m) => m.key === sort.field);
   const av = getFieldValue(a, sort.field);
   const bv = getFieldValue(b, sort.field);
-  let cmp = 0;
-  if (typeof av === "string" && typeof bv === "string") cmp = av.localeCompare(bv, "zh-Hant-TW");
-  else if (typeof av === "number" && typeof bv === "number") cmp = av - bv;
-  else cmp = String(av).localeCompare(String(bv));
+  const cmp = smartCompare(av, bv, meta?.type);
   return sort.direction === "desc" ? -cmp : cmp;
 }
 

@@ -69,16 +69,10 @@ function compareInvoices(
     const cmp = getStatusSortIndex(aLabel) - getStatusSortIndex(bLabel);
     return sort.direction === "desc" ? -cmp : cmp;
   }
+  const meta = invoiceFieldMetas.find((m) => m.key === sort.field);
   const av = getFieldValue(a, sort.field, feeTotal);
   const bv = getFieldValue(b, sort.field, feeTotal);
-  let cmp = 0;
-  if (typeof av === "string" && typeof bv === "string") {
-    cmp = av.localeCompare(bv, "zh-Hant-TW");
-  } else if (typeof av === "number" && typeof bv === "number") {
-    cmp = av - bv;
-  } else {
-    cmp = String(av).localeCompare(String(bv));
-  }
+  const cmp = smartCompare(av, bv, meta?.type);
   return sort.direction === "desc" ? -cmp : cmp;
 }
 
