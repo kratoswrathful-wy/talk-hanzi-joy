@@ -680,6 +680,8 @@ export default function CaseDetailPage() {
   const [collabCancelMode, setCollabCancelMode] = useState<"cancel" | "reduce">("cancel");
   const [collabReduceTarget, setCollabReduceTarget] = useState(0);
   const [creatorName, setCreatorName] = useState("");
+  const [dupDialogOpen, setDupDialogOpen] = useState(false);
+  const [dupInfo, setDupInfo] = useState<{ newTitle: string; renames: { oldTitle: string; newTitle: string }[] } | null>(null);
   const { primaryRole: currentRole, profile } = useAuth();
   const { checkPerm } = usePermissions();
   const isManager = currentRole === "pm" || currentRole === "executive";
