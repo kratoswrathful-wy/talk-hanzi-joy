@@ -1788,7 +1788,7 @@ function DispatchRouteSection() {
 
       <div className="mt-auto space-y-4">
       {adding ? (
-        <div className="space-y-2 px-2">
+        <div ref={addingRef} className="space-y-2 px-2">
           <Input
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
