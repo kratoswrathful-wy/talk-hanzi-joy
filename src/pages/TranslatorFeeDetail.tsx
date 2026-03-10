@@ -303,7 +303,7 @@ export default function TranslatorFeeDetail() {
     setInternalNoteUrl(feeData.internalNoteUrl ?? "");
     setNotionUrlInput(feeData.internalNoteUrl ?? "");
     setClientInfo(feeData.clientInfo ?? { ...defaultClientInfo });
-    setCreatorName(feeData.createdBy || "");
+    // creatorName is resolved separately via the UUID→displayName effect below
     setComments((feeData.notes ?? []).map((n) => ({ id: n.id, author: n.author, content: n.text, timestamp: formatTimestamp(n.createdAt) })));
     setEditLog((feeData.editLogs ?? []).map((l) => ({ id: l.id, changedBy: l.author, description: l.field ? `${l.field} ${l.oldValue} → ${l.newValue}` : l.newValue, timestamp: formatTimestamp(l.timestamp) })));
     hasBeenSubmittedRef.current = feeData.status === "finalized";
