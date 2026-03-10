@@ -122,8 +122,8 @@ function getFieldValue(c: CaseRecord, field: string, viewerDisplayName?: string)
   }
 }
 
-function matchFilter(c: CaseRecord, filter: TableFilter): boolean {
-  const val = getFieldValue(c, filter.field);
+function matchFilter(c: CaseRecord, filter: TableFilter, viewerDisplayName?: string): boolean {
+  const val = getFieldValue(c, filter.field, viewerDisplayName);
   let result: boolean;
   switch (filter.operator) {
     case "equals": result = String(val) === filter.value; break;
@@ -131,6 +131,7 @@ function matchFilter(c: CaseRecord, filter: TableFilter): boolean {
     case "contains": result = String(val).toLowerCase().includes(filter.value.toLowerCase()); break;
     case "gt": result = Number(val) > Number(filter.value); break;
     case "lt": result = Number(val) < Number(filter.value); break;
+    case "is_empty": result = String(val ?? "").trim() === ""; break;
     default: result = true;
   }
   return filter.negated ? !result : result;
