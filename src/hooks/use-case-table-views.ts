@@ -137,7 +137,7 @@ function matchFilter(c: CaseRecord, filter: TableFilter, viewerDisplayName?: str
   return filter.negated ? !result : result;
 }
 
-function compareCases(a: CaseRecord, b: CaseRecord, sort: TableSort): number {
+function compareCases(a: CaseRecord, b: CaseRecord, sort: TableSort, viewerDisplayName?: string): number {
   if (sort.field === "status") {
     const aLabel = CASE_STATUS_LABEL_MAP[a.status] || a.status;
     const bLabel = CASE_STATUS_LABEL_MAP[b.status] || b.status;
@@ -145,8 +145,8 @@ function compareCases(a: CaseRecord, b: CaseRecord, sort: TableSort): number {
     return sort.direction === "desc" ? -cmp : cmp;
   }
   const meta = caseFieldMetas.find((m) => m.key === sort.field);
-  const av = getFieldValue(a, sort.field);
-  const bv = getFieldValue(b, sort.field);
+  const av = getFieldValue(a, sort.field, viewerDisplayName);
+  const bv = getFieldValue(b, sort.field, viewerDisplayName);
   const cmp = smartCompare(av, bv, meta?.type);
   return sort.direction === "desc" ? -cmp : cmp;
 }
