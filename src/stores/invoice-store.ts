@@ -1,6 +1,7 @@
 import type { Invoice, InvoiceStatus, PaymentRecord } from "@/data/invoice-types";
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
+import { createPollFallback } from "@/lib/realtime-poll";
 
 type Listener = () => void;
 
@@ -79,13 +80,22 @@ supabase
   )
   .subscribe();
 
+// Polling fallback for invoices
+const invoicePoll = createPollFallback("invoices", () => {
+  if (loaded) invoiceStore.loadInvoices();
+}, 3000);
+
 export const invoiceStore = {
   getInvoices: () => invoices,
   isLoaded: () => loaded,
 
   subscribe: (listener: Listener) => {
     listeners.add(listener);
-    return () => listeners.delete(listener);
+    if (listeners.size === 1) invoicePoll.start();
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) invoicePoll.stop();
+    };
   },
 
   loadInvoices: async () => {

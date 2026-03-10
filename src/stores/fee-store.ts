@@ -1,6 +1,7 @@
 import { type TranslatorFee, type ClientInfo, defaultClientInfo } from "@/data/fee-mock-data";
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
+import { createPollFallback } from "@/lib/realtime-poll";
 
 type Listener = () => void;
 
@@ -135,13 +136,22 @@ supabase
   )
   .subscribe();
 
+// Polling fallback for fees
+const feePoll = createPollFallback("fees", () => {
+  if (loaded) feeStore.loadFees();
+}, 3000);
+
 export const feeStore = {
   getFees: () => fees,
   isLoaded: () => loaded,
 
   subscribe: (listener: Listener) => {
     listeners.add(listener);
-    return () => listeners.delete(listener);
+    if (listeners.size === 1) feePoll.start();
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) feePoll.stop();
+    };
   },
 
   /** Load all fees from DB filtered by current environment. */

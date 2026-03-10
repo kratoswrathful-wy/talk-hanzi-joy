@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import type { CaseRecord, ToolEntry } from "@/data/case-types";
+import { createPollFallback } from "@/lib/realtime-poll";
 
 type Listener = () => void;
 
@@ -328,4 +329,23 @@ async function duplicate(id: string): Promise<CaseRecord | null> {
   return create({ ...rest, title: `${baseTitle}${nextLetter}` });
 }
 
-export const caseStore = { load, getAll, getById, create, update, remove, duplicate, subscribe, reset };
+// Polling fallback – ensures sync within 3s even if Realtime misses events
+const casePoll = createPollFallback("cases", () => {
+  if (loaded) {
+    loadPromise = null;
+    load();
+  }
+}, 3000);
+
+// Start polling when first listener subscribes
+const _origSubscribe = subscribe;
+function subscribePoll(fn: Listener) {
+  const unsub = _origSubscribe(fn);
+  if (listeners.size === 1) casePoll.start();
+  return () => {
+    unsub();
+    if (listeners.size === 0) casePoll.stop();
+  };
+}
+
+export const caseStore = { load, getAll, getById, create, update, remove, duplicate, subscribe: subscribePoll, reset };
