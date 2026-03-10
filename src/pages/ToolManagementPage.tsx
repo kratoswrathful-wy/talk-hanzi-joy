@@ -550,7 +550,7 @@ function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; l
   };
 
   return (
-    <div className="border border-border rounded-lg p-4 space-y-2">
+    <div ref={formRef} className="border border-border rounded-lg p-4 space-y-2">
       <div className="grid grid-cols-[80px_1fr] items-center gap-2">
         <span className="text-xs text-muted-foreground">範本名稱</span>
         <Input
