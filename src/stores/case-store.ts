@@ -356,6 +356,7 @@ function clearDuplicateFields(data: Partial<CaseRecord>): Partial<CaseRecord> {
     clientPoNumber: "",
     feeEntry: "",
     clientCaseLink: { url: "", label: "" },
+    internalNoteForm: false,
     clientQuestionForm: false,
     translatorFinal: [],
     internalReviewFinal: [],
