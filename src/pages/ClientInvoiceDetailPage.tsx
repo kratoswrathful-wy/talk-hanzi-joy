@@ -17,6 +17,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useClientInvoice, clientInvoiceStore, useClientInvoicesLoaded } from "@/hooks/use-client-invoice-store";
+import { useSelectOptions } from "@/stores/select-options-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { type ClientInvoiceStatus, type ClientPaymentRecord, clientInvoiceStatusLabels } from "@/data/client-invoice-types";
@@ -181,6 +182,8 @@ export default function ClientInvoiceDetailPage() {
   const fees = useFees();
   const { isAdmin, profile, roles, user } = useAuth();
   const { checkPerm } = usePermissions();
+  const { options: clientOptions } = useSelectOptions("client");
+  const labelStyles = useLabelStyles();
   const isExecutive = roles.some((r) => r.role === "executive");
   const [showDelete, setShowDelete] = useState(false);
   const [showPasswordDelete, setShowPasswordDelete] = useState(false);
@@ -603,26 +606,42 @@ export default function ClientInvoiceDetailPage() {
           <div className="grid gap-5">
             <div className="grid grid-cols-2 gap-4">
               {/* Left: 純請款紀錄 checkbox */}
-              <div className="grid gap-1.5">
-                <Label className="text-xs text-muted-foreground">類型</Label>
-                <div className="flex items-center h-10 gap-2">
-                  <Checkbox
-                    checked={!!invoice.isRecordOnly}
-                    onCheckedChange={() => handleRecordOnlyCheck()}
-                    disabled={!!invoice.isRecordOnly || isCollected}
-                  />
-                  <span className="text-sm">純請款紀錄</span>
-                  {invoice.isRecordOnly && (
-                    <span className="text-xs text-muted-foreground ml-1">（已鎖定）</span>
-                  )}
-                </div>
+              <div className="flex items-center h-10 gap-2">
+                {(() => {
+                  const hasFeeEntries = invoice.feeIds.length > 0;
+                  const disabled = !!invoice.isRecordOnly || isCollected || hasFeeEntries;
+                  const checkbox = (
+                    <Checkbox
+                      checked={!!invoice.isRecordOnly}
+                      onCheckedChange={() => handleRecordOnlyCheck()}
+                      disabled={disabled}
+                    />
+                  );
+                  return hasFeeEntries && !invoice.isRecordOnly ? (
+                    <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                      <span className="flex items-center">{checkbox}</span>
+                    </TooltipTrigger><TooltipContent className="text-xs">已有費用收錄</TooltipContent></Tooltip></TooltipProvider>
+                  ) : checkbox;
+                })()}
+                <span className="text-sm">純請款紀錄</span>
               </div>
-              {/* Right: 客戶 */}
-              <div className="grid gap-1.5">
-                <Label className="text-xs text-muted-foreground">客戶</Label>
-                <div className="flex items-center h-10">
-                  <span className="text-sm font-medium">{invoice.client || "未指定"}</span>
-                </div>
+              {/* Right: 客戶 with label badge */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">客戶</span>
+                {(() => {
+                  const clientOpt = clientOptions.find((o) => o.label === invoice.client);
+                  const bgColor = clientOpt?.color || "hsl(var(--muted))";
+                  const textColor = labelStyles.client?.textColor || "#fff";
+                  return (
+                    <Badge
+                      variant="default"
+                      className="border"
+                      style={{ backgroundColor: bgColor, color: textColor, borderColor: bgColor }}
+                    >
+                      {invoice.client || "未指定"}
+                    </Badge>
+                  );
+                })()}
               </div>
             </div>
 
