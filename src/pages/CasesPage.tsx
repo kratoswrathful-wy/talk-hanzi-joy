@@ -60,36 +60,35 @@ function CollabTranslationDeadlineCell({ collabRows, status }: { collabRows: Col
   const { profile } = useAuth();
   const displayName = profile?.display_name || "";
   const isDraftOrInquiry = status === "draft" || status === "inquiry";
+  const showIcon = status === "dispatched";
 
   if (isDraftOrInquiry) {
     return <DeadlineText value={pickEarliestDeadline(collabRows, "translationDeadline")} />;
   }
 
-  // Active case
   const isTranslator = collabRows.some(r => r.translator === displayName);
 
   if (isTranslator) {
-    // Show own uncompleted rows' nearest deadline; if all done show own latest
     const myRows = collabRows.filter(r => r.translator === displayName);
     const myUncompleted = myRows.filter(r => !r.taskCompleted);
     if (myUncompleted.length > 0) {
-      return <DeadlineText value={pickEarliestDeadline(myUncompleted, "translationDeadline")} />;
+      return <DeadlineText value={pickEarliestDeadline(myUncompleted, "translationDeadline")} showIcon={showIcon} />;
     }
-    return <DeadlineText value={pickLatestDeadline(myRows, "translationDeadline")} />;
+    return <DeadlineText value={pickLatestDeadline(myRows, "translationDeadline")} showIcon={showIcon} />;
   }
 
-  // Not a translator in this case: show all uncompleted rows' nearest; if all done show latest
   const uncompleted = collabRows.filter(r => !r.taskCompleted);
   if (uncompleted.length > 0) {
-    return <DeadlineText value={pickEarliestDeadline(uncompleted, "translationDeadline")} />;
+    return <DeadlineText value={pickEarliestDeadline(uncompleted, "translationDeadline")} showIcon={showIcon} />;
   }
-  return <DeadlineText value={pickLatestDeadline(collabRows, "translationDeadline")} />;
+  return <DeadlineText value={pickLatestDeadline(collabRows, "translationDeadline")} showIcon={showIcon} />;
 }
 
 function CollabReviewDeadlineCell({ collabRows, status }: { collabRows: CollabRow[]; status: string }) {
   const { profile } = useAuth();
   const displayName = profile?.display_name || "";
   const isDraftOrInquiry = status === "draft" || status === "inquiry";
+  const showIcon = status === "dispatched" || status === "task_completed";
 
   if (isDraftOrInquiry) {
     return <DeadlineText value={pickEarliestDeadline(collabRows, "reviewDeadline")} />;
@@ -101,17 +100,16 @@ function CollabReviewDeadlineCell({ collabRows, status }: { collabRows: CollabRo
     const myRows = collabRows.filter(r => r.reviewer === displayName);
     const myUncompleted = myRows.filter(r => !r.delivered);
     if (myUncompleted.length > 0) {
-      return <DeadlineText value={pickEarliestDeadline(myUncompleted, "reviewDeadline")} />;
+      return <DeadlineText value={pickEarliestDeadline(myUncompleted, "reviewDeadline")} showIcon={showIcon} />;
     }
-    return <DeadlineText value={pickLatestDeadline(myRows, "reviewDeadline")} />;
+    return <DeadlineText value={pickLatestDeadline(myRows, "reviewDeadline")} showIcon={showIcon} />;
   }
 
-  // Not a reviewer: show all uncompleted rows' nearest; if all done show latest
   const uncompleted = collabRows.filter(r => !r.delivered);
   if (uncompleted.length > 0) {
-    return <DeadlineText value={pickEarliestDeadline(uncompleted, "reviewDeadline")} />;
+    return <DeadlineText value={pickEarliestDeadline(uncompleted, "reviewDeadline")} showIcon={showIcon} />;
   }
-  return <DeadlineText value={pickLatestDeadline(collabRows, "reviewDeadline")} />;
+  return <DeadlineText value={pickLatestDeadline(collabRows, "reviewDeadline")} showIcon={showIcon} />;
 }
 
 const caseStatusLabels: Record<CaseStatus, string> = {
