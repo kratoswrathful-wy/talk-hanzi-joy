@@ -401,6 +401,8 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ToolTemplate>(tpl);
   const firstFieldRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const cancelEdit = useCallback(() => { setEditing(false); setDraft(tpl); }, [tpl]);
+  const editRef = useClickOutsideCancel(editing, cancelEdit);
 
   const startEdit = () => {
     setDraft({ ...tpl, fields: [...(tpl.fields || [])], fieldValues: { ...tpl.fieldValues } });
