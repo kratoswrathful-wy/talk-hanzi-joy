@@ -994,16 +994,9 @@ function TranslatorNotesSection() {
                       autoFocus
                       onKeyDown={(e) => {
                         if (e.key === "Escape") setEditingEmail(null);
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSaveNote(member.email);
                       }}
                     />
-                    <div className="flex items-center justify-end gap-2">
-                      <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setEditingEmail(null)}>
-                        取消
-                      </Button>
-                      <Button size="sm" className="h-6 text-xs" onClick={() => handleSaveNote(member.email)}>
-                        儲存
-                      </Button>
-                    </div>
                   </div>
                 ) : (
                   <div className="pl-8">
