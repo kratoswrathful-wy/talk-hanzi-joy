@@ -85,13 +85,22 @@ supabase
   )
   .subscribe();
 
+// Polling fallback for client invoices
+const clientInvoicePoll = createPollFallback("client_invoices", () => {
+  if (loaded) clientInvoiceStore.loadInvoices();
+}, 3000);
+
 export const clientInvoiceStore = {
   getInvoices: () => invoices,
   isLoaded: () => loaded,
 
   subscribe: (listener: Listener) => {
     listeners.add(listener);
-    return () => listeners.delete(listener);
+    if (listeners.size === 1) clientInvoicePoll.start();
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) clientInvoicePoll.stop();
+    };
   },
 
   loadInvoices: async () => {
