@@ -2221,6 +2221,8 @@ function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; ti
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
   const [colorPickerId, setColorPickerId] = useState<string | null>(null);
   const [textColorOpen, setTextColorOpen] = useState(false);
+  const cancelAdding = useCallback(() => { setAdding(false); setNewLabel(""); setNewColor(PRESET_COLORS[0]); }, []);
+  const addingRef = useClickOutsideCancel(adding, cancelAdding);
 
   const textColorValue = fieldKey === "noteStatus" ? labelStyles.noteStatus.textColor : labelStyles.noteNature.textColor;
   const setTextColor = fieldKey === "noteStatus" ? labelStyleStore.setNoteStatusTextColor : labelStyleStore.setNoteNatureTextColor;
