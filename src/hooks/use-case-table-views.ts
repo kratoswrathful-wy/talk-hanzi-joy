@@ -324,12 +324,16 @@ export function useCaseTableViews(userId?: string, viewerDisplayName?: string) {
   const applyFiltersAndSorts = useCallback((items: CaseRecord[]): CaseRecord[] => {
     let result = items;
     if (activeView.filterTree.children.length > 0) {
-      result = result.filter((c) => matchFilterTree(c, activeView.filterTree, matchFilter));
+      result = result.filter((c) =>
+        matchFilterTree(c, activeView.filterTree, (item, filter) =>
+          matchFilter(item, filter, viewerDisplayName)
+        )
+      );
     }
     if (activeView.sorts.length > 0) {
       result = [...result].sort((a, b) => {
         for (const sort of activeView.sorts) {
-          const cmp = compareCases(a, b, sort);
+          const cmp = compareCases(a, b, sort, viewerDisplayName);
           if (cmp !== 0) return cmp;
         }
         return 0;
@@ -350,7 +354,7 @@ export function useCaseTableViews(userId?: string, viewerDisplayName?: string) {
       result = [...pinned_top, ...middle, ...pinned_bottom];
     }
     return result;
-  }, [activeView]);
+  }, [activeView, viewerDisplayName]);
 
   const pinTop = useCallback((ids: string[]) => {
     const current = activeView.pinnedTop || [];
