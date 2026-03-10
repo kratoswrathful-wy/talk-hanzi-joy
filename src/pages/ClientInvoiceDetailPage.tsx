@@ -17,6 +17,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useClientInvoice, clientInvoiceStore, useClientInvoicesLoaded } from "@/hooks/use-client-invoice-store";
+import { useSelectOptions } from "@/stores/select-options-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { type ClientInvoiceStatus, type ClientPaymentRecord, clientInvoiceStatusLabels } from "@/data/client-invoice-types";
