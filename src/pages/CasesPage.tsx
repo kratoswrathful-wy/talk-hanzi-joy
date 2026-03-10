@@ -324,7 +324,12 @@ const allColumnDefs: ColumnDef[] = [
       if (c.multiCollab && c.collabRows?.length > 0) {
         return <CollabTranslationDeadlineCell collabRows={c.collabRows} status={c.status} />;
       }
-      return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(c.translationDeadline)}</span>;
+      return (
+        <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
+          {formatDateTime(c.translationDeadline)}
+          <DeadlineProximityIcon deadline={c.translationDeadline} />
+        </span>
+      );
     },
   },
   {
