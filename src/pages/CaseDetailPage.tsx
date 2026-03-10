@@ -495,6 +495,7 @@ function ToolInstance({
                   }
                   className="flex-1 min-h-0 h-auto py-1"
                   minRows={1}
+                  maxRows={undefined}
                   borderless
                 />
                 <CopyButton value={values[f.id] || ""} />
