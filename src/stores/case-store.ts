@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import type { CaseRecord, ToolEntry } from "@/data/case-types";
+import { createPollFallback } from "@/lib/realtime-poll";
 
 type Listener = () => void;
 
