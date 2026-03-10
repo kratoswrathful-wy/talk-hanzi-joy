@@ -218,8 +218,8 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
                       } else if (!!v) {
                         updateRow(idx, { accepted: true });
                       } else {
-                        // Unchecking – accepted becomes false (translator field unlocks automatically)
-                        updateRow(idx, { accepted: false });
+                        // Unchecking – clear translator and unlock
+                        updateRow(idx, { accepted: false, translator: "" });
                       }
                     }}
                   />
