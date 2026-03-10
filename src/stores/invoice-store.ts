@@ -58,11 +58,26 @@ async function getUserId() {
   _cachedUserId = data?.session?.user?.id ?? null;
   return _cachedUserId;
 }
-supabase.auth.onAuthStateChange((event, session) => {
+supabase.auth.onAuthStateChange((_event, session) => {
   _cachedUserId = session?.user?.id ?? null;
   loaded = false;
   notify();
 });
+
+// Realtime subscription – full reload on any invoice or link change
+supabase
+  .channel("invoices-realtime")
+  .on(
+    "postgres_changes",
+    { event: "*", schema: "public", table: "invoices" },
+    () => { if (loaded) invoiceStore.loadInvoices(); }
+  )
+  .on(
+    "postgres_changes",
+    { event: "*", schema: "public", table: "invoice_fees" },
+    () => { if (loaded) invoiceStore.loadInvoices(); }
+  )
+  .subscribe();
 
 export const invoiceStore = {
   getInvoices: () => invoices,

@@ -69,6 +69,21 @@ supabase.auth.onAuthStateChange((_event, session) => {
   notify();
 });
 
+// Realtime subscription – full reload on any client invoice or link change
+supabase
+  .channel("client-invoices-realtime")
+  .on(
+    "postgres_changes",
+    { event: "*", schema: "public", table: "client_invoices" },
+    () => { if (loaded) clientInvoiceStore.loadInvoices(); }
+  )
+  .on(
+    "postgres_changes",
+    { event: "*", schema: "public", table: "client_invoice_fees" },
+    () => { if (loaded) clientInvoiceStore.loadInvoices(); }
+  )
+  .subscribe();
+
 export const clientInvoiceStore = {
   getInvoices: () => invoices,
   isLoaded: () => loaded,

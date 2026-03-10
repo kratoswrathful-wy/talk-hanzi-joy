@@ -103,6 +103,38 @@ supabase.auth.onAuthStateChange((event, session) => {
   }
 });
 
+// Realtime subscription – sync changes from other users
+supabase
+  .channel("fees-realtime")
+  .on(
+    "postgres_changes",
+    { event: "*", schema: "public", table: "fees" },
+    (payload) => {
+      const env = getEnvironment();
+      if (payload.eventType === "UPDATE" && payload.new) {
+        const row = payload.new as any;
+        if (row.env !== env) return;
+        const updated = dbToApp(row as DbFee);
+        fees = fees.map((f) => (f.id === updated.id ? updated : f));
+        notify();
+      } else if (payload.eventType === "INSERT" && payload.new) {
+        const row = payload.new as any;
+        if (row.env !== env) return;
+        if (!fees.some((f) => f.id === row.id)) {
+          fees = [dbToApp(row as DbFee), ...fees];
+          notify();
+        }
+      } else if (payload.eventType === "DELETE" && payload.old) {
+        const oldId = (payload.old as any).id;
+        if (fees.some((f) => f.id === oldId)) {
+          fees = fees.filter((f) => f.id !== oldId);
+          notify();
+        }
+      }
+    }
+  )
+  .subscribe();
+
 export const feeStore = {
   getFees: () => fees,
   isLoaded: () => loaded,

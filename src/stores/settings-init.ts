@@ -41,6 +41,39 @@ supabase.auth.onAuthStateChange(() => {
   }, 100);
 });
 
+// Realtime: reload settings when app_settings change
+let settingsReloadTimer: ReturnType<typeof setTimeout> | null = null;
+supabase
+  .channel("settings-realtime")
+  .on(
+    "postgres_changes",
+    { event: "*", schema: "public", table: "app_settings" },
+    () => {
+      // Debounce to avoid multiple rapid reloads
+      if (settingsReloadTimer) clearTimeout(settingsReloadTimer);
+      settingsReloadTimer = setTimeout(() => {
+        if (loaded) loadAllSettings();
+      }, 300);
+    }
+  )
+  .on(
+    "postgres_changes",
+    { event: "*", schema: "public", table: "profiles" },
+    () => {
+      // Reload assignees when profiles change
+      if (loaded) selectOptionsStore.loadAssignees();
+    }
+  )
+  .on(
+    "postgres_changes",
+    { event: "*", schema: "public", table: "member_translator_settings" },
+    () => {
+      // Reload assignees when member settings change
+      if (loaded) selectOptionsStore.loadAssignees();
+    }
+  )
+  .subscribe();
+
 export function initSettings() {
   ensureLoaded();
 }
