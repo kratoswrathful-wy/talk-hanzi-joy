@@ -497,7 +497,7 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
                 onFieldsChange={(f) => setDraft((prev) => ({ ...prev, fields: f }))}
                 onFieldValuesChange={(v) => setDraft((prev) => ({ ...prev, fieldValues: v }))}
               />
-            </>
+            </div>
           ) : (
             <>
               {displayFields.length === 0 && !tpl.tool && (
