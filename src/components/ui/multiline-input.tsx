@@ -9,7 +9,7 @@ export interface MultilineInputProps extends Omit<React.TextareaHTMLAttributes<H
 }
 
 const MultilineInput = React.forwardRef<HTMLTextAreaElement, MultilineInputProps>(
-  ({ className, minRows = 1, maxRows = 10, borderless = false, value, ...props }, ref) => {
+  ({ className, minRows = 1, maxRows, borderless = false, value, ...props }, ref) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     const autoResize = React.useCallback(() => {
