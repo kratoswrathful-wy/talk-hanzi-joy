@@ -443,6 +443,8 @@ export default function CasesPage() {
 
   // Delete
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [casesDupDialogOpen, setCasesDupDialogOpen] = useState(false);
+  const [casesDupInfo, setCasesDupInfo] = useState<{ newTitle: string; renames: { oldTitle: string; newTitle: string }[] } | null>(null);
   const handleDeleteSelected = useCallback(async () => {
     for (const id of rowSelection.selectedIds) {
       await caseStore.remove(id);
