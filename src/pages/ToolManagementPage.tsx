@@ -423,15 +423,6 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
     }, 50);
   };
 
-  const handleSave = () => {
-    toolTemplateStore.update(tpl.id, {
-      name: draft.name,
-      tool: draft.tool,
-      fields: draft.fields,
-      fieldValues: draft.fieldValues,
-    });
-    setEditing(false);
-  };
 
   const handleToolChange = (newTool: string) => {
     const selectedTool = toolOptions.find((o) => o.label === newTool);
