@@ -295,9 +295,20 @@ function ToolInstance({
   const [newFieldLabel, setNewFieldLabel] = useState("");
 
   const selectedTool = toolOptions.find((o) => o.label === entry.tool);
-  const fields: ToolEntryField[] = entry.fields || selectedTool?.toolFields?.map(f => ({ ...f, type: (f.type || "text") as "text" | "file" })) || [];
+  const resolvedFields: ToolEntryField[] = entry.fields || selectedTool?.toolFields?.map(f => ({ ...f, type: (f.type || "text") as "text" | "file" })) || [];
   const values = entry.fieldValues || {};
   const fileValues = entry.fileValues || {};
+
+  // Persist resolved fields so we don't depend on async toolOptions on every render
+  useEffect(() => {
+    if (!entry.fields && resolvedFields.length > 0) {
+      onUpdate({ fields: resolvedFields });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry.fields, resolvedFields.length]);
+
+  // Use a stable ref of fields: prefer entry.fields (persisted) to avoid flicker
+  const fields = resolvedFields;
   const hasToolSelected = !!entry.tool;
 
   const matchingTemplates = allTemplates.filter((t) => t.tool === entry.tool);
