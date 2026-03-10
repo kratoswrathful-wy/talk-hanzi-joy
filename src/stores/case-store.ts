@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
-import type { CaseRecord, ToolEntry } from "@/data/case-types";
+import type { CaseRecord, CaseStatus, ToolEntry } from "@/data/case-types";
 import { createPollFallback } from "@/lib/realtime-poll";
 
 type Listener = () => void;
@@ -281,7 +281,7 @@ supabase
   )
   .subscribe();
 
-async function duplicate(id: string): Promise<CaseRecord | null> {
+async function duplicate(id: string): Promise<{ newCase: CaseRecord; renames: { oldTitle: string; newTitle: string }[] } | null> {
   const source = cases.find((c) => c.id === id);
   if (!source) return null;
   const { id: _id, createdAt, updatedAt, createdBy, comments: _c, internalComments: _ic, ...rest } = source;
@@ -307,13 +307,21 @@ async function duplicate(id: string): Promise<CaseRecord | null> {
   const pattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${todayStr}([A-Z])?$`);
   const matching = cases.filter((c) => pattern.test(c.title));
 
+  const renames: { oldTitle: string; newTitle: string }[] = [];
+
   if (matching.length === 0) {
-    return create({ ...rest, title: baseTitle });
+    // Clear fields on duplication
+    const cleaned = clearDuplicateFields(rest);
+    const newCase = await create({ ...cleaned, title: baseTitle });
+    return newCase ? { newCase, renames } : null;
   }
 
   const exactMatch = matching.find((c) => c.title === baseTitle);
   if (exactMatch) {
-    await update(exactMatch.id, { title: `${baseTitle}A` });
+    const oldTitle = exactMatch.title;
+    const newTitle = `${baseTitle}A`;
+    await update(exactMatch.id, { title: newTitle });
+    renames.push({ oldTitle, newTitle });
   }
 
   let maxCode = exactMatch ? "A".charCodeAt(0) : "A".charCodeAt(0) - 1;
@@ -326,7 +334,36 @@ async function duplicate(id: string): Promise<CaseRecord | null> {
   }
 
   const nextLetter = String.fromCharCode(maxCode + 1);
-  return create({ ...rest, title: `${baseTitle}${nextLetter}` });
+  const cleaned = clearDuplicateFields(rest);
+  const newCase = await create({ ...cleaned, title: `${baseTitle}${nextLetter}` });
+  return newCase ? { newCase, renames } : null;
+}
+
+/** Fields to clear when duplicating a case */
+function clearDuplicateFields(data: Partial<CaseRecord>): Partial<CaseRecord> {
+  return {
+    ...data,
+    status: "draft" as CaseStatus,
+    multiCollab: false,
+    collabCount: 0,
+    collabRows: [],
+    translator: [],
+    translationDeadline: null,
+    reviewDeadline: null,
+    workGroups: (data.workGroups || []).map(g => ({ ...g, unitCount: 0 })),
+    unitCount: 0,
+    keyword: "",
+    clientPoNumber: "",
+    feeEntry: "",
+    clientCaseLink: { url: "", label: "" },
+    internalNoteForm: false,
+    clientQuestionForm: false,
+    translatorFinal: [],
+    internalReviewFinal: [],
+    trackChanges: [],
+    caseReferenceMaterials: [],
+    sourceFiles: [],
+  };
 }
 
 // Polling fallback – ensures sync within 3s even if Realtime misses events

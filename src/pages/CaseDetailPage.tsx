@@ -495,6 +495,7 @@ function ToolInstance({
                   }
                   className="flex-1 min-h-0 h-auto py-1"
                   minRows={1}
+                  maxRows={undefined}
                   borderless
                 />
                 <CopyButton value={values[f.id] || ""} />
@@ -679,6 +680,8 @@ export default function CaseDetailPage() {
   const [collabCancelMode, setCollabCancelMode] = useState<"cancel" | "reduce">("cancel");
   const [collabReduceTarget, setCollabReduceTarget] = useState(0);
   const [creatorName, setCreatorName] = useState("");
+  const [dupDialogOpen, setDupDialogOpen] = useState(false);
+  const [dupInfo, setDupInfo] = useState<{ newTitle: string; renames: { oldTitle: string; newTitle: string }[] } | null>(null);
   const { primaryRole: currentRole, profile } = useAuth();
   const { checkPerm } = usePermissions();
   const isManager = currentRole === "pm" || currentRole === "executive";
@@ -862,21 +865,13 @@ export default function CaseDetailPage() {
   const isMember = currentRole === "member";
   const isPmOrAbove = currentRole === "pm" || currentRole === "executive";
 
+
   const handleDuplicate = async () => {
-    const dup = await caseStore.duplicate(caseData.id);
-    if (dup) {
-      // Clear specified fields on the duplicated case
-      await caseStore.update(dup.id, {
-        translator: [],
-        unitCount: 0,
-        translationDeadline: null,
-        reviewDeadline: null,
-        caseReferenceMaterials: [],
-        multiCollab: false,
-        collabCount: 0,
-        collabRows: [],
-      });
-      navigate(`/cases/${dup.id}`);
+    const result = await caseStore.duplicate(caseData.id);
+    if (result) {
+      setDupInfo({ newTitle: result.newCase.title, renames: result.renames });
+      setDupDialogOpen(true);
+      navigate(`/cases/${result.newCase.id}`);
     }
   };
 
@@ -1877,39 +1872,42 @@ export default function CaseDetailPage() {
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <Field label="自製準則頁面">
-          <FileField value={Array.isArray(caseData.customGuidelinesUrl) ? caseData.customGuidelinesUrl : []} onChange={(v) => save({ customGuidelinesUrl: v })} />
-        </Field>
-        <Field label="客戶指定準則">
-          <FileField value={Array.isArray(caseData.clientGuidelines) ? caseData.clientGuidelines : []} onChange={(v) => save({ clientGuidelines: v })} />
-        </Field>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="本系列參考資料">
-          <FileField value={Array.isArray(caseData.seriesReferenceMaterials) ? caseData.seriesReferenceMaterials : []} onChange={(v) => save({ seriesReferenceMaterials: v })} />
-        </Field>
-        <Field label="本案參考資料">
-          <FileField value={Array.isArray(caseData.caseReferenceMaterials) ? caseData.caseReferenceMaterials : []} onChange={(v) => save({ caseReferenceMaterials: v })} />
-        </Field>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="譯者完稿">
-          <FileField value={Array.isArray(caseData.translatorFinal) ? caseData.translatorFinal : []} onChange={(v) => save({ translatorFinal: v })} />
-        </Field>
-        <Field label="內審完稿">
-          <FileField value={Array.isArray(caseData.internalReviewFinal) ? caseData.internalReviewFinal : []} onChange={(v) => save({ internalReviewFinal: v })} />
-        </Field>
-      </div>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-        <Field label="追蹤修訂">
-          <FileField value={Array.isArray(caseData.trackChanges) ? caseData.trackChanges : []} onChange={(v) => save({ trackChanges: v })} />
-        </Field>
-        <Field label="常用資訊">
-          <FileField
-            value={(Array.isArray(caseData.commonInfo) ? caseData.commonInfo : []).map(item => ({ name: (item as any).name || (item as any).label || "", url: item.url }))}
-            onChange={(v) => save({ commonInfo: v.map(f => ({ label: f.name, url: f.url })) })}
-          />
-        </Field>
+        {/* Left column: 自製準則, 常用資訊, 譯者完稿, 內審完稿, 追蹤修訂 */}
+        <div className="space-y-1">
+          <Field label="自製準則">
+            <FileField value={Array.isArray(caseData.customGuidelinesUrl) ? caseData.customGuidelinesUrl : []} onChange={(v) => save({ customGuidelinesUrl: v })} />
+          </Field>
+          <Field label="常用資訊">
+            <FileField
+              value={(Array.isArray(caseData.commonInfo) ? caseData.commonInfo : []).map(item => ({ name: (item as any).name || (item as any).label || "", url: item.url }))}
+              onChange={(v) => save({ commonInfo: v.map(f => ({ label: f.name, url: f.url })) })}
+            />
+          </Field>
+          <Field label="譯者完稿">
+            <FileField value={Array.isArray(caseData.translatorFinal) ? caseData.translatorFinal : []} onChange={(v) => save({ translatorFinal: v })} />
+          </Field>
+          <Field label="內審完稿">
+            <FileField value={Array.isArray(caseData.internalReviewFinal) ? caseData.internalReviewFinal : []} onChange={(v) => save({ internalReviewFinal: v })} />
+          </Field>
+          <Field label="追蹤修訂">
+            <FileField value={Array.isArray(caseData.trackChanges) ? caseData.trackChanges : []} onChange={(v) => save({ trackChanges: v })} />
+          </Field>
+        </div>
+        {/* Right column: 客戶指定準則, 本系列參考資料, 本案參考資料, 原文檔 */}
+        <div className="space-y-1">
+          <Field label="客戶指定準則">
+            <FileField value={Array.isArray(caseData.clientGuidelines) ? caseData.clientGuidelines : []} onChange={(v) => save({ clientGuidelines: v })} />
+          </Field>
+          <Field label="本系列參考資料">
+            <FileField value={Array.isArray(caseData.seriesReferenceMaterials) ? caseData.seriesReferenceMaterials : []} onChange={(v) => save({ seriesReferenceMaterials: v })} />
+          </Field>
+          <Field label="本案參考資料">
+            <FileField value={Array.isArray(caseData.caseReferenceMaterials) ? caseData.caseReferenceMaterials : []} onChange={(v) => save({ caseReferenceMaterials: v })} />
+          </Field>
+          <Field label="原文檔">
+            <FileField value={Array.isArray(caseData.sourceFiles) ? caseData.sourceFiles : []} onChange={(v) => save({ sourceFiles: v })} />
+          </Field>
+        </div>
       </div>
 
       <Separator />
@@ -2308,6 +2306,34 @@ export default function CaseDetailPage() {
             >
               確認
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Duplicate overlay */}
+      <AlertDialog open={dupDialogOpen} onOpenChange={setDupDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>已複製頁面</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>已複製頁面並切換至新頁面。</p>
+                <p>新頁面名稱：<span className="font-medium text-foreground">{dupInfo?.newTitle}</span></p>
+                {dupInfo?.renames && dupInfo.renames.length > 0 && (
+                  <div>
+                    <p className="font-medium text-foreground">以下頁面名稱已變更：</p>
+                    <ul className="list-disc list-inside text-sm">
+                      {dupInfo.renames.map((r, i) => (
+                        <li key={i}>{r.oldTitle} → {r.newTitle}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setDupDialogOpen(false)}>確定</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
