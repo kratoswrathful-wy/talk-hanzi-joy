@@ -651,7 +651,7 @@ function CommonLinksSection() {
           >
             <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             {editingId === link.id ? (
-              <div className="flex items-center gap-1.5 flex-1">
+              <div ref={editingLinkRef} className="flex items-center gap-1.5 flex-1">
                 <Input
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
