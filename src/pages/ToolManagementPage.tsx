@@ -531,6 +531,8 @@ function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; l
   const [tool, setTool] = useState("");
   const [fields, setFields] = useState<TemplateField[]>([]);
   const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const cancelForm = useCallback(() => { onDone(); }, [onDone]);
+  const formRef = useClickOutsideCancel(true, cancelForm);
 
   const handleToolChange = (newTool: string) => {
     // Preserve the original field type from the tool definition
