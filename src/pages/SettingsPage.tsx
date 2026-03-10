@@ -2189,7 +2189,7 @@ function StatusStyleSection() {
         {textColorOpen && (
           <div className="mt-2 flex items-center gap-3">
             <span
-              className="inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium"
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap"
               style={{ backgroundColor: statusOptions[0]?.color || PRESET_COLORS[0], color: labelStyles.statusLabel.textColor, borderColor: statusOptions[0]?.color || PRESET_COLORS[0] }}
             >
               預覽
