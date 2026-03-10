@@ -188,7 +188,7 @@ function IMESafeInput({ value, onSave, disabled, placeholder, className, minRows
       onFocus={() => setFocused(true)}
       className={className || "max-w-md"}
       minRows={minRows ?? 1}
-      maxRows={maxRows ?? 3}
+      maxRows={maxRows}
       borderless={borderless}
       disabled={disabled}
       placeholder={placeholder}
