@@ -61,6 +61,9 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
   const [bulkDeadlineField, setBulkDeadlineField] = useState<"translationDeadline" | "reviewDeadline" | null>(null);
   const [bulkDeadlineValue, setBulkDeadlineValue] = useState<string | null>(null);
 
+  // Last-accept confirmation state
+  const [lastAcceptConfirm, setLastAcceptConfirm] = useState<{ idx: number } | null>(null);
+
   const updateRow = useCallback(
     (idx: number, patch: Partial<CollabRow>) => {
       const next = rows.map((r, i) => (i === idx ? { ...r, ...patch } : r));
