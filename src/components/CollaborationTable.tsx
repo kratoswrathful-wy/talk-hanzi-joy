@@ -209,16 +209,19 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
               <div className="flex items-center justify-center px-1.5 py-1">
                 {showAccepted ? (
                   <Checkbox
-                    checked={row.accepted}
+                    checked={!!row.accepted}
                     disabled={acceptedDisabled}
                     onCheckedChange={(v) => {
-                      if (!!v && !row.translator) {
-                        // Auto-fill translator with checker's name
-                        updateRow(idx, { accepted: true, translator: displayName });
-                      } else if (!!v) {
-                        updateRow(idx, { accepted: true });
+                      if (!!v) {
+                        // Auto-fill translator with checker's name when translator is empty/blank
+                        const translatorEmpty = !row.translator || !row.translator.trim();
+                        if (translatorEmpty && displayName) {
+                          updateRow(idx, { accepted: true, translator: displayName });
+                        } else {
+                          updateRow(idx, { accepted: true });
+                        }
                       } else {
-                        // Unchecking – clear translator and unlock
+                        // Unchecking – always clear translator and unlock
                         updateRow(idx, { accepted: false, translator: "" });
                       }
                     }}
