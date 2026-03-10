@@ -339,14 +339,6 @@ function ClientPricingSection() {
             onRemoveCustomColor={(c) => selectOptionsStore.removeCustomColor("client", c)}
             colorUsageMap={getColorUsageMap(clientOptions)}
           />
-          <div className="flex gap-1.5 justify-end">
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setAdding(false)}>
-              取消
-            </Button>
-            <Button size="sm" className="h-7 text-xs" disabled={!newLabel.trim()} onClick={handleAddClient}>
-              新增
-            </Button>
-          </div>
         </div>
       ) : (
         <Button
