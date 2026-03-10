@@ -85,6 +85,8 @@ function ClientPricingSection() {
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
   const [textColorOpen, setTextColorOpen] = useState(false);
+  const cancelAdding = useCallback(() => { setAdding(false); setNewLabel(""); setNewColor(PRESET_COLORS[0]); }, []);
+  const addingRef = useClickOutsideCancel(adding, cancelAdding);
 
   const toggleClient = (id: string) => {
     setExpandedClients((prev) => {
