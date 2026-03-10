@@ -401,8 +401,17 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ToolTemplate>(tpl);
   const firstFieldRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const saveAndClose = useCallback(() => {
+    toolTemplateStore.update(tpl.id, {
+      name: draft.name,
+      tool: draft.tool,
+      fields: draft.fields,
+      fieldValues: draft.fieldValues,
+    });
+    setEditing(false);
+  }, [tpl.id, draft]);
   const cancelEdit = useCallback(() => { setEditing(false); setDraft(tpl); }, [tpl]);
-  const editRef = useClickOutsideCancel(editing, cancelEdit);
+  const editRef = useClickOutsideCancel(editing, saveAndClose);
 
   const startEdit = () => {
     setDraft({ ...tpl, fields: [...(tpl.fields || [])], fieldValues: { ...tpl.fieldValues } });
@@ -414,15 +423,6 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
     }, 50);
   };
 
-  const handleSave = () => {
-    toolTemplateStore.update(tpl.id, {
-      name: draft.name,
-      tool: draft.tool,
-      fields: draft.fields,
-      fieldValues: draft.fieldValues,
-    });
-    setEditing(false);
-  };
 
   const handleToolChange = (newTool: string) => {
     const selectedTool = toolOptions.find((o) => o.label === newTool);
@@ -475,7 +475,7 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
                   value={draft.name}
                   onChange={(e) => setDraft({ ...draft, name: e.target.value })}
                   className="h-7 text-sm"
-                  onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") cancelEdit(); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") saveAndClose(); if (e.key === "Escape") cancelEdit(); }}
                 />
               </div>
               <div className="grid grid-cols-[80px_1fr] items-center gap-2">

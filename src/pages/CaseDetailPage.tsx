@@ -493,7 +493,7 @@ function ToolInstance({
                   onSave={(v) =>
                     onUpdate({ fieldValues: { ...values, [f.id]: v } })
                   }
-                  className="flex-1 min-h-0 h-auto py-0.5"
+                  className="flex-1 min-h-0 h-auto !py-px !leading-snug"
                   minRows={1}
                   maxRows={undefined}
                   borderless

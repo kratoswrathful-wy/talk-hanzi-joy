@@ -283,24 +283,36 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
           <AlertDialogHeader>
             <AlertDialogTitle>編輯分段名稱</AlertDialogTitle>
           </AlertDialogHeader>
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            if (segmentOverlay) {
-              updateRow(segmentOverlay.idx, { segment: segmentOverlay.value });
-            }
-            setSegmentOverlay(null);
-          }}>
+          <div>
             <Input
               value={segmentOverlay?.value ?? ""}
               onChange={(e) => setSegmentOverlay((prev) => prev ? { ...prev, value: e.target.value } : null)}
               placeholder="分段名稱"
               autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (segmentOverlay) {
+                    updateRow(segmentOverlay.idx, { segment: segmentOverlay.value });
+                  }
+                  setSegmentOverlay(null);
+                }
+              }}
             />
             <AlertDialogFooter className="mt-4">
               <AlertDialogCancel type="button">取消</AlertDialogCancel>
-              <AlertDialogAction type="submit">確定</AlertDialogAction>
+              <Button
+                onClick={() => {
+                  if (segmentOverlay) {
+                    updateRow(segmentOverlay.idx, { segment: segmentOverlay.value });
+                  }
+                  setSegmentOverlay(null);
+                }}
+              >
+                確定
+              </Button>
             </AlertDialogFooter>
-          </form>
+          </div>
         </AlertDialogContent>
       </AlertDialog>
 
