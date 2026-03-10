@@ -1,6 +1,7 @@
 import type { Invoice, InvoiceStatus, PaymentRecord } from "@/data/invoice-types";
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
+import { createPollFallback } from "@/lib/realtime-poll";
 
 type Listener = () => void;
 

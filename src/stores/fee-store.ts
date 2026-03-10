@@ -1,6 +1,7 @@
 import { type TranslatorFee, type ClientInfo, defaultClientInfo } from "@/data/fee-mock-data";
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
+import { createPollFallback } from "@/lib/realtime-poll";
 
 type Listener = () => void;
 
