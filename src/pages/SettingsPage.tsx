@@ -796,6 +796,8 @@ function TranslatorNotesSection() {
   const [editValue, setEditValue] = useState("");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const cancelEditing = useCallback(() => { setEditingEmail(null); setEditValue(""); }, []);
+  const editingRef = useClickOutsideCancel(!!editingEmail, cancelEditing);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
