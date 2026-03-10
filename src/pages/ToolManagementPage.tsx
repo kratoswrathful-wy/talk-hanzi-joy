@@ -467,7 +467,7 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
       {expanded && (
         <div className="px-4 py-3 space-y-2 border-t border-border">
           {editing ? (
-            <>
+            <div ref={editRef}>
               <div className="grid grid-cols-[80px_1fr] items-center gap-2">
                 <span className="text-xs text-muted-foreground">範本名稱</span>
                 <Input
