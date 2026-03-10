@@ -583,15 +583,6 @@ function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; l
           onFieldValuesChange={setFieldValues}
         />
       )}
-      <div className="flex gap-1.5 justify-end pt-1">
-        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onDone}>
-          取消
-        </Button>
-        <Button size="sm" className="h-7 text-xs gap-1" disabled={!name.trim()} onClick={handleSave}>
-          <Save className="h-3 w-3" />
-          儲存變更
-        </Button>
-      </div>
     </div>
   );
 }
