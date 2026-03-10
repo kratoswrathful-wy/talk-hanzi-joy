@@ -32,6 +32,7 @@ const operatorLabels: Record<FilterOperator, string> = {
   is_not_checked: "未勾選",
   gt: "大於",
   lt: "小於",
+  is_empty: "空白",
 };
 
 const logicLabels: Record<LogicOperator, string> = {
@@ -42,14 +43,14 @@ const logicLabels: Record<LogicOperator, string> = {
 function getOperatorsForType(type: string): FilterOperator[] {
   switch (type) {
     case "checkbox": return ["is_checked", "is_not_checked"];
-    case "number": case "computed": return ["equals", "gt", "lt"];
-    case "select": return ["equals", "contains"];
-    default: return ["equals", "contains"];
+    case "number": case "computed": return ["equals", "gt", "lt", "is_empty"];
+    case "select": return ["equals", "contains", "is_empty"];
+    default: return ["equals", "contains", "is_empty"];
   }
 }
 
 function needsValueInput(op: FilterOperator) {
-  return !["is_checked", "is_not_checked"].includes(op);
+  return !["is_checked", "is_not_checked", "is_empty"].includes(op);
 }
 
 interface Props {

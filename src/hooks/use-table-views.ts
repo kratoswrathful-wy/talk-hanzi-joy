@@ -79,6 +79,7 @@ function matchFilter(fee: TranslatorFee, filter: TableFilter): boolean {
     case "is_not_checked": result = val === false; break;
     case "gt": result = Number(val) > Number(filter.value); break;
     case "lt": result = Number(val) < Number(filter.value); break;
+    case "is_empty": result = String(val ?? "").trim() === ""; break;
     default: result = true;
   }
   return filter.negated ? !result : result;

@@ -28,7 +28,81 @@ export const caseFieldMetas: FieldMeta[] = [
   { key: "createdAt", label: "建立時間", type: "date" },
 ];
 
-function getFieldValue(c: CaseRecord, field: string): string | number | boolean {
+type DeadlineField = "translationDeadline" | "reviewDeadline";
+
+function pickCollabDeadline(
+  rows: CaseRecord["collabRows"],
+  field: DeadlineField,
+  mode: "earliest" | "latest"
+): string | null {
+  const timestamps = rows
+    .map((r) => r[field])
+    .filter((value): value is string => Boolean(value))
+    .map((value) => new Date(value).getTime())
+    .filter((ts) => !Number.isNaN(ts));
+
+  if (timestamps.length === 0) return null;
+
+  const targetTs = mode === "earliest"
+    ? Math.min(...timestamps)
+    : Math.max(...timestamps);
+
+  return new Date(targetTs).toISOString();
+}
+
+function getCaseDeadlineForSort(
+  c: CaseRecord,
+  field: DeadlineField,
+  viewerDisplayName?: string
+): string {
+  if (!c.multiCollab || !c.collabRows?.length) {
+    return c[field] || "";
+  }
+
+  const rows = c.collabRows;
+
+  if (c.status === "draft" || c.status === "inquiry") {
+    return pickCollabDeadline(rows, field, "earliest") || "";
+  }
+
+  if (field === "translationDeadline") {
+    if (viewerDisplayName && rows.some((r) => r.translator === viewerDisplayName)) {
+      const myRows = rows.filter((r) => r.translator === viewerDisplayName);
+      const myUncompleted = myRows.filter((r) => !r.taskCompleted);
+      return (
+        myUncompleted.length > 0
+          ? pickCollabDeadline(myUncompleted, field, "earliest")
+          : pickCollabDeadline(myRows, field, "latest")
+      ) || "";
+    }
+
+    const uncompleted = rows.filter((r) => !r.taskCompleted);
+    return (
+      uncompleted.length > 0
+        ? pickCollabDeadline(uncompleted, field, "earliest")
+        : pickCollabDeadline(rows, field, "latest")
+    ) || "";
+  }
+
+  if (viewerDisplayName && rows.some((r) => r.reviewer === viewerDisplayName)) {
+    const myRows = rows.filter((r) => r.reviewer === viewerDisplayName);
+    const myUncompleted = myRows.filter((r) => !r.delivered);
+    return (
+      myUncompleted.length > 0
+        ? pickCollabDeadline(myUncompleted, field, "earliest")
+        : pickCollabDeadline(myRows, field, "latest")
+    ) || "";
+  }
+
+  const uncompleted = rows.filter((r) => !r.delivered);
+  return (
+    uncompleted.length > 0
+      ? pickCollabDeadline(uncompleted, field, "earliest")
+      : pickCollabDeadline(rows, field, "latest")
+  ) || "";
+}
+
+function getFieldValue(c: CaseRecord, field: string, viewerDisplayName?: string): string | number | boolean {
   switch (field) {
     case "title": return c.title;
     case "status": return c.status;
@@ -37,10 +111,10 @@ function getFieldValue(c: CaseRecord, field: string): string | number | boolean 
     case "billingUnit": return c.billingUnit;
     case "unitCount": return c.unitCount;
     case "translator": return (c.translator || []).join(", ");
-    case "translationDeadline": return c.translationDeadline || "";
+    case "translationDeadline": return getCaseDeadlineForSort(c, "translationDeadline", viewerDisplayName);
     case "reviewer": return c.reviewer;
-    case "reviewDeadline": return c.reviewDeadline || "";
-    
+    case "reviewDeadline": return getCaseDeadlineForSort(c, "reviewDeadline", viewerDisplayName);
+
     case "executionTool": return c.executionTool;
     case "deliveryMethod": return c.deliveryMethod;
     case "createdAt": return c.createdAt;
@@ -48,8 +122,8 @@ function getFieldValue(c: CaseRecord, field: string): string | number | boolean 
   }
 }
 
-function matchFilter(c: CaseRecord, filter: TableFilter): boolean {
-  const val = getFieldValue(c, filter.field);
+function matchFilter(c: CaseRecord, filter: TableFilter, viewerDisplayName?: string): boolean {
+  const val = getFieldValue(c, filter.field, viewerDisplayName);
   let result: boolean;
   switch (filter.operator) {
     case "equals": result = String(val) === filter.value; break;
@@ -57,12 +131,13 @@ function matchFilter(c: CaseRecord, filter: TableFilter): boolean {
     case "contains": result = String(val).toLowerCase().includes(filter.value.toLowerCase()); break;
     case "gt": result = Number(val) > Number(filter.value); break;
     case "lt": result = Number(val) < Number(filter.value); break;
+    case "is_empty": result = String(val ?? "").trim() === ""; break;
     default: result = true;
   }
   return filter.negated ? !result : result;
 }
 
-function compareCases(a: CaseRecord, b: CaseRecord, sort: TableSort): number {
+function compareCases(a: CaseRecord, b: CaseRecord, sort: TableSort, viewerDisplayName?: string): number {
   if (sort.field === "status") {
     const aLabel = CASE_STATUS_LABEL_MAP[a.status] || a.status;
     const bLabel = CASE_STATUS_LABEL_MAP[b.status] || b.status;
@@ -70,8 +145,8 @@ function compareCases(a: CaseRecord, b: CaseRecord, sort: TableSort): number {
     return sort.direction === "desc" ? -cmp : cmp;
   }
   const meta = caseFieldMetas.find((m) => m.key === sort.field);
-  const av = getFieldValue(a, sort.field);
-  const bv = getFieldValue(b, sort.field);
+  const av = getFieldValue(a, sort.field, viewerDisplayName);
+  const bv = getFieldValue(b, sort.field, viewerDisplayName);
   const cmp = smartCompare(av, bv, meta?.type);
   return sort.direction === "desc" ? -cmp : cmp;
 }
@@ -126,7 +201,7 @@ function loadActiveViewFromStorage(key: string): string {
   }
 }
 
-export function useCaseTableViews(userId?: string) {
+export function useCaseTableViews(userId?: string, viewerDisplayName?: string) {
   const storageKey = userId ? `${BASE_STORAGE_KEY}:${userId}` : BASE_STORAGE_KEY;
   const activeKey = userId ? `${BASE_ACTIVE_VIEW_KEY}:${userId}` : BASE_ACTIVE_VIEW_KEY;
 
@@ -249,12 +324,16 @@ export function useCaseTableViews(userId?: string) {
   const applyFiltersAndSorts = useCallback((items: CaseRecord[]): CaseRecord[] => {
     let result = items;
     if (activeView.filterTree.children.length > 0) {
-      result = result.filter((c) => matchFilterTree(c, activeView.filterTree, matchFilter));
+      result = result.filter((c) =>
+        matchFilterTree(c, activeView.filterTree, (item, filter) =>
+          matchFilter(item, filter, viewerDisplayName)
+        )
+      );
     }
     if (activeView.sorts.length > 0) {
       result = [...result].sort((a, b) => {
         for (const sort of activeView.sorts) {
-          const cmp = compareCases(a, b, sort);
+          const cmp = compareCases(a, b, sort, viewerDisplayName);
           if (cmp !== 0) return cmp;
         }
         return 0;
@@ -275,7 +354,7 @@ export function useCaseTableViews(userId?: string) {
       result = [...pinned_top, ...middle, ...pinned_bottom];
     }
     return result;
-  }, [activeView]);
+  }, [activeView, viewerDisplayName]);
 
   const pinTop = useCallback((ids: string[]) => {
     const current = activeView.pinnedTop || [];
