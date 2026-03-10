@@ -3,6 +3,7 @@ import { TableFooterStats, type NumericColumnConfig } from "@/components/TableFo
 import { Plus, GripVertical, ExternalLink, Trash2, Copy } from "lucide-react";
 import { CreateWithTemplateButton } from "@/components/CreateWithTemplateButton";
 import { useAuth } from "@/hooks/use-auth";
+import { DeadlineProximityIcon } from "@/components/DeadlineProximityIcon";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,7 +48,12 @@ function pickLatestDeadline(rows: CollabRow[], field: "translationDeadline" | "r
 
 function DeadlineText({ value }: { value: string | null }) {
   if (!value) return <span className="text-sm text-muted-foreground">—</span>;
-  return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(value)}</span>;
+  return (
+    <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
+      {formatDateTime(value)}
+      <DeadlineProximityIcon deadline={value} />
+    </span>
+  );
 }
 
 function CollabTranslationDeadlineCell({ collabRows, status }: { collabRows: CollabRow[]; status: string }) {
@@ -318,7 +324,12 @@ const allColumnDefs: ColumnDef[] = [
       if (c.multiCollab && c.collabRows?.length > 0) {
         return <CollabTranslationDeadlineCell collabRows={c.collabRows} status={c.status} />;
       }
-      return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(c.translationDeadline)}</span>;
+      return (
+        <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
+          {formatDateTime(c.translationDeadline)}
+          <DeadlineProximityIcon deadline={c.translationDeadline} />
+        </span>
+      );
     },
   },
   {
@@ -339,7 +350,12 @@ const allColumnDefs: ColumnDef[] = [
       if (c.multiCollab && c.collabRows?.length > 0) {
         return <CollabReviewDeadlineCell collabRows={c.collabRows} status={c.status} />;
       }
-      return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(c.reviewDeadline)}</span>;
+      return (
+        <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
+          {formatDateTime(c.reviewDeadline)}
+          <DeadlineProximityIcon deadline={c.reviewDeadline} />
+        </span>
+      );
     },
   },
   {

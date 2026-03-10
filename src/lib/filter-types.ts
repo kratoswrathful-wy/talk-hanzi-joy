@@ -170,6 +170,32 @@ export function findGroup(group: FilterGroup, groupId: string): FilterGroup | nu
   return null;
 }
 
+/** Smart compare helper for sort functions — handles empty-to-end, date fields, booleans */
+export function smartCompare(
+  av: string | number | boolean,
+  bv: string | number | boolean,
+  fieldType?: "date" | "text" | "number" | "select" | "checkbox" | "computed",
+): number {
+  // Push empty/null strings to the end
+  const aEmpty = av === "" || av === null || av === undefined;
+  const bEmpty = bv === "" || bv === null || bv === undefined;
+  if (aEmpty && bEmpty) return 0;
+  if (aEmpty) return 1;
+  if (bEmpty) return -1;
+
+  // Date fields: compare as timestamps
+  if (fieldType === "date" || (typeof av === "string" && typeof bv === "string" && /^\d{4}-\d{2}/.test(av) && /^\d{4}-\d{2}/.test(bv))) {
+    const ta = new Date(av as string).getTime();
+    const tb = new Date(bv as string).getTime();
+    if (!isNaN(ta) && !isNaN(tb)) return ta - tb;
+  }
+
+  if (typeof av === "boolean" && typeof bv === "boolean") return (av ? 1 : 0) - (bv ? 1 : 0);
+  if (typeof av === "number" && typeof bv === "number") return av - bv;
+  if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv, "zh-Hant-TW");
+  return String(av).localeCompare(String(bv));
+}
+
 /** Generic tree-based matching: evaluates each condition with the provided matcher */
 export function matchFilterTree<T>(
   item: T,

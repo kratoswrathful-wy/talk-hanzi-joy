@@ -4,7 +4,7 @@ import {
   type TableFilter, type TableSort, type TableView, type FilterGroup,
   type FilterOperator, type FieldMeta, type LogicOperator,
   createRootGroup, addConditionToGroup, addSubGroup, removeNode,
-  updateConditionInTree, setGroupLogic, countConditions, matchFilterTree,
+  updateConditionInTree, setGroupLogic, countConditions, matchFilterTree, smartCompare,
 } from "@/lib/filter-types";
 
 export type { TableFilter, TableSort, TableView, FilterOperator, FieldMeta, FilterGroup, LogicOperator };
@@ -88,12 +88,10 @@ function compareNotes(a: InternalNote, b: InternalNote, sort: TableSort): number
     const cmp = getStatusSortIndex(aLabel) - getStatusSortIndex(bLabel);
     return sort.direction === "desc" ? -cmp : cmp;
   }
+  const meta = internalNotesFieldMetas.find((m) => m.key === sort.field);
   const av = getFieldValue(a, sort.field);
   const bv = getFieldValue(b, sort.field);
-  let cmp = 0;
-  if (typeof av === "string" && typeof bv === "string") cmp = av.localeCompare(bv, "zh-Hant-TW");
-  else if (typeof av === "number" && typeof bv === "number") cmp = av - bv;
-  else cmp = String(av).localeCompare(String(bv));
+  const cmp = smartCompare(av, bv, meta?.type);
   return sort.direction === "desc" ? -cmp : cmp;
 }
 

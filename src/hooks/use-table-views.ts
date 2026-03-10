@@ -5,7 +5,7 @@ import {
   type TableFilter, type TableSort, type TableView, type FilterGroup,
   type FilterOperator, type FieldMeta, type LogicOperator,
   createRootGroup, addConditionToGroup, addSubGroup, removeNode,
-  updateConditionInTree, setGroupLogic, countConditions, matchFilterTree,
+  updateConditionInTree, setGroupLogic, countConditions, matchFilterTree, smartCompare,
 } from "@/lib/filter-types";
 
 // Re-export for consumers
@@ -91,18 +91,10 @@ function compareFees(a: TranslatorFee, b: TranslatorFee, sort: TableSort): numbe
     const cmp = getStatusSortIndex(aLabel) - getStatusSortIndex(bLabel);
     return sort.direction === "desc" ? -cmp : cmp;
   }
+  const meta = fieldMetas.find((m) => m.key === sort.field);
   const av = getFieldValue(a, sort.field);
   const bv = getFieldValue(b, sort.field);
-  let cmp = 0;
-  if (typeof av === "string" && typeof bv === "string") {
-    cmp = av.localeCompare(bv, "zh-Hant-TW");
-  } else if (typeof av === "number" && typeof bv === "number") {
-    cmp = av - bv;
-  } else if (typeof av === "boolean" && typeof bv === "boolean") {
-    cmp = (av ? 1 : 0) - (bv ? 1 : 0);
-  } else {
-    cmp = String(av).localeCompare(String(bv));
-  }
+  const cmp = smartCompare(av, bv, meta?.type);
   return sort.direction === "desc" ? -cmp : cmp;
 }
 
