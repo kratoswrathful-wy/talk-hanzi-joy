@@ -247,6 +247,39 @@ supabase.auth.onAuthStateChange((event) => {
   }
 });
 
+// Realtime subscription – sync changes from other users
+supabase
+  .channel("cases-realtime")
+  .on(
+    "postgres_changes",
+    { event: "*", schema: "public", table: "cases" },
+    (payload) => {
+      const env = getEnvironment();
+      if (payload.eventType === "UPDATE" && payload.new) {
+        const row = payload.new as any;
+        if (row.env !== env) return;
+        const updated = fromDb(row);
+        cases = cases.map((c) => (c.id === updated.id ? updated : c));
+        notify();
+      } else if (payload.eventType === "INSERT" && payload.new) {
+        const row = payload.new as any;
+        if (row.env !== env) return;
+        const exists = cases.some((c) => c.id === row.id);
+        if (!exists) {
+          cases = [fromDb(row), ...cases];
+          notify();
+        }
+      } else if (payload.eventType === "DELETE" && payload.old) {
+        const oldId = (payload.old as any).id;
+        if (cases.some((c) => c.id === oldId)) {
+          cases = cases.filter((c) => c.id !== oldId);
+          notify();
+        }
+      }
+    }
+  )
+  .subscribe();
+
 async function duplicate(id: string): Promise<CaseRecord | null> {
   const source = cases.find((c) => c.id === id);
   if (!source) return null;
