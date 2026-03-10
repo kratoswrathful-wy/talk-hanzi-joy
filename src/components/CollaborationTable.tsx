@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { MultilineInput } from "@/components/ui/multiline-input";
 import { Button } from "@/components/ui/button";
 import ColorSelect from "@/components/ColorSelect";
 import DateTimePicker from "@/components/DateTimePicker";
@@ -284,13 +285,16 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
             <AlertDialogTitle>編輯分段名稱</AlertDialogTitle>
           </AlertDialogHeader>
           <div>
-            <Input
+            <MultilineInput
               value={segmentOverlay?.value ?? ""}
               onChange={(e) => setSegmentOverlay((prev) => prev ? { ...prev, value: e.target.value } : null)}
               placeholder="分段名稱"
+              minRows={3}
+              maxRows={10}
               autoFocus
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
+                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   if (segmentOverlay) {
                     updateRow(segmentOverlay.idx, { segment: segmentOverlay.value });
