@@ -347,6 +347,33 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Last-accept confirmation dialog */}
+      <AlertDialog open={!!lastAcceptConfirm} onOpenChange={(open) => { if (!open) setLastAcceptConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>確認承接最後一個分段</AlertDialogTitle>
+          </AlertDialogHeader>
+          <p className="text-sm text-muted-foreground">
+            您即將勾選最後一個「確認承接」方塊，此操作會將案件狀態推進至「已派出」。確定要繼續嗎？
+          </p>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (lastAcceptConfirm) {
+                const row = rows[lastAcceptConfirm.idx];
+                const translatorEmpty = !row.translator || !row.translator.trim();
+                if (translatorEmpty && displayName) {
+                  updateRow(lastAcceptConfirm.idx, { accepted: true, translator: displayName });
+                } else {
+                  updateRow(lastAcceptConfirm.idx, { accepted: true });
+                }
+              }
+              setLastAcceptConfirm(null);
+            }}>確定</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
