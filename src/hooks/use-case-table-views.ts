@@ -28,7 +28,81 @@ export const caseFieldMetas: FieldMeta[] = [
   { key: "createdAt", label: "建立時間", type: "date" },
 ];
 
-function getFieldValue(c: CaseRecord, field: string): string | number | boolean {
+type DeadlineField = "translationDeadline" | "reviewDeadline";
+
+function pickCollabDeadline(
+  rows: CaseRecord["collabRows"],
+  field: DeadlineField,
+  mode: "earliest" | "latest"
+): string | null {
+  const timestamps = rows
+    .map((r) => r[field])
+    .filter((value): value is string => Boolean(value))
+    .map((value) => new Date(value).getTime())
+    .filter((ts) => !Number.isNaN(ts));
+
+  if (timestamps.length === 0) return null;
+
+  const targetTs = mode === "earliest"
+    ? Math.min(...timestamps)
+    : Math.max(...timestamps);
+
+  return new Date(targetTs).toISOString();
+}
+
+function getCaseDeadlineForSort(
+  c: CaseRecord,
+  field: DeadlineField,
+  viewerDisplayName?: string
+): string {
+  if (!c.multiCollab || !c.collabRows?.length) {
+    return c[field] || "";
+  }
+
+  const rows = c.collabRows;
+
+  if (c.status === "draft" || c.status === "inquiry") {
+    return pickCollabDeadline(rows, field, "earliest") || "";
+  }
+
+  if (field === "translationDeadline") {
+    if (viewerDisplayName && rows.some((r) => r.translator === viewerDisplayName)) {
+      const myRows = rows.filter((r) => r.translator === viewerDisplayName);
+      const myUncompleted = myRows.filter((r) => !r.taskCompleted);
+      return (
+        myUncompleted.length > 0
+          ? pickCollabDeadline(myUncompleted, field, "earliest")
+          : pickCollabDeadline(myRows, field, "latest")
+      ) || "";
+    }
+
+    const uncompleted = rows.filter((r) => !r.taskCompleted);
+    return (
+      uncompleted.length > 0
+        ? pickCollabDeadline(uncompleted, field, "earliest")
+        : pickCollabDeadline(rows, field, "latest")
+    ) || "";
+  }
+
+  if (viewerDisplayName && rows.some((r) => r.reviewer === viewerDisplayName)) {
+    const myRows = rows.filter((r) => r.reviewer === viewerDisplayName);
+    const myUncompleted = myRows.filter((r) => !r.delivered);
+    return (
+      myUncompleted.length > 0
+        ? pickCollabDeadline(myUncompleted, field, "earliest")
+        : pickCollabDeadline(myRows, field, "latest")
+    ) || "";
+  }
+
+  const uncompleted = rows.filter((r) => !r.delivered);
+  return (
+    uncompleted.length > 0
+      ? pickCollabDeadline(uncompleted, field, "earliest")
+      : pickCollabDeadline(rows, field, "latest")
+  ) || "";
+}
+
+function getFieldValue(c: CaseRecord, field: string, viewerDisplayName?: string): string | number | boolean {
   switch (field) {
     case "title": return c.title;
     case "status": return c.status;
@@ -37,10 +111,10 @@ function getFieldValue(c: CaseRecord, field: string): string | number | boolean 
     case "billingUnit": return c.billingUnit;
     case "unitCount": return c.unitCount;
     case "translator": return (c.translator || []).join(", ");
-    case "translationDeadline": return c.translationDeadline || "";
+    case "translationDeadline": return getCaseDeadlineForSort(c, "translationDeadline", viewerDisplayName);
     case "reviewer": return c.reviewer;
-    case "reviewDeadline": return c.reviewDeadline || "";
-    
+    case "reviewDeadline": return getCaseDeadlineForSort(c, "reviewDeadline", viewerDisplayName);
+
     case "executionTool": return c.executionTool;
     case "deliveryMethod": return c.deliveryMethod;
     case "createdAt": return c.createdAt;
