@@ -694,7 +694,7 @@ function CommonLinksSection() {
         ))}
       </div>
       {adding ? (
-        <div className="space-y-2 px-2">
+        <div ref={addingLinkRef} className="space-y-2 px-2">
           <Input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
