@@ -254,7 +254,7 @@ function NoteDetailView({
             <Badge variant="destructive" className="text-xs">已失效</Badge>
             <div className="text-xs text-muted-foreground space-y-0.5 mt-1">
               <div>變更者：{note.invalidatedBy || "—"}</div>
-              <div>失效時間：{note.invalidatedAt ? new Date(note.invalidatedAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) : "—"}</div>
+              <div>失效時間：{note.invalidatedAt ? new Date(note.invalidatedAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei" }) + " (UTC+8)" : "—"}</div>
               <div>理由：{note.invalidationReason || "—"}</div>
             </div>
           </div>
