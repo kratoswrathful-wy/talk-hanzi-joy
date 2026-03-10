@@ -46,12 +46,12 @@ function pickLatestDeadline(rows: CollabRow[], field: "translationDeadline" | "r
   return dates[0].toISOString();
 }
 
-function DeadlineText({ value }: { value: string | null }) {
+function DeadlineText({ value, showIcon }: { value: string | null; showIcon?: boolean }) {
   if (!value) return <span className="text-sm text-muted-foreground">—</span>;
   return (
     <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
       {formatDateTime(value)}
-      <DeadlineProximityIcon deadline={value} />
+      {showIcon && <DeadlineProximityIcon deadline={value} />}
     </span>
   );
 }
