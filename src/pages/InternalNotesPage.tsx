@@ -59,7 +59,7 @@ const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 /* ── Helpers ── */
 const formatDate = (iso: string) => {
   const d = new Date(iso);
-  return d.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Taipei" });
+  return d.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit" });
 };
 
 function generateNoteTitle(caseTitle: string): string {
@@ -241,7 +241,7 @@ function NoteDetailView({
         <span className="text-sm">{note.creator || "—"}</span>
       </Field>
       <Field label="建立時間">
-        <span className="text-sm">{new Date(note.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei" })} (UTC+8)</span>
+        <span className="text-sm">{new Date(note.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
       </Field>
 
       <Field label="性質">
@@ -254,7 +254,7 @@ function NoteDetailView({
             <Badge variant="destructive" className="text-xs">已失效</Badge>
             <div className="text-xs text-muted-foreground space-y-0.5 mt-1">
               <div>變更者：{note.invalidatedBy || "—"}</div>
-              <div>失效時間：{note.invalidatedAt ? new Date(note.invalidatedAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei" }) + " (UTC+8)" : "—"}</div>
+              <div>失效時間：{note.invalidatedAt ? new Date(note.invalidatedAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) : "—"}</div>
               <div>理由：{note.invalidationReason || "—"}</div>
             </div>
           </div>
@@ -342,7 +342,7 @@ function NoteDetailView({
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{c.author}</span>
-                      <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei" })} (UTC+8)</span>
+                      <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
                     </div>
                     <button className="text-muted-foreground hover:text-foreground text-[10px] px-1.5 py-0.5 rounded hover:bg-accent transition-colors" onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)}>回覆</button>
                   </div>
@@ -352,7 +352,7 @@ function NoteDetailView({
                   <div key={r.id} className="ml-6 rounded-md border border-border/60 bg-secondary/15 px-3 py-2 text-xs">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium">{r.author}</span>
- <span className="text-muted-foreground">{new Date(r.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei" })} (UTC+8)</span>
+ <span className="text-muted-foreground">{new Date(r.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
                     </div>
                     <CommentContent content={r.content} imageUrls={r.imageUrls} fileUrls={r.fileUrls} />
                   </div>

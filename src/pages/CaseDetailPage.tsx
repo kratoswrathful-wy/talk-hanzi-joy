@@ -1930,7 +1930,7 @@ export default function CaseDetailPage() {
       {/* Meta info */}
       <div className="flex gap-6 text-xs text-muted-foreground">
         <span>建立者：{creatorName || "—"}</span>
-        <span>建立時間：{new Date(caseData.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei" })} (UTC+8)</span>
+        <span>建立時間：{new Date(caseData.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
       </div>
 
       <Separator />
@@ -1948,7 +1948,7 @@ export default function CaseDetailPage() {
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{c.author}</span>
-                      <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei" })} (UTC+8)</span>
+                      <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
                     </div>
                     <button
                       className="text-muted-foreground hover:text-foreground text-[10px] px-1.5 py-0.5 rounded hover:bg-accent transition-colors"
@@ -1964,7 +1964,7 @@ export default function CaseDetailPage() {
                   <div key={r.id} className="ml-6 rounded-md border border-border/60 bg-secondary/15 px-3 py-2 text-xs">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium">{r.author}</span>
-                      <span className="text-muted-foreground">{new Date(r.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei" })} (UTC+8)</span>
+                      <span className="text-muted-foreground">{new Date(r.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
                     </div>
                     <CommentContent content={r.content} imageUrls={r.imageUrls} fileUrls={r.fileUrls} />
                   </div>
@@ -2030,7 +2030,7 @@ export default function CaseDetailPage() {
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{c.author}</span>
-                          <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei" })} (UTC+8)</span>
+                          <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
                         </div>
                         <button
                           className="text-muted-foreground hover:text-foreground text-[10px] px-1.5 py-0.5 rounded hover:bg-accent transition-colors"
@@ -2045,7 +2045,7 @@ export default function CaseDetailPage() {
                       <div key={r.id} className="ml-6 rounded-md border border-border/60 bg-secondary/15 px-3 py-2 text-xs">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="font-medium">{r.author}</span>
-     <span className="text-muted-foreground">{new Date(r.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei" })} (UTC+8)</span>
+     <span className="text-muted-foreground">{new Date(r.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
                         </div>
                         <CommentContent content={r.content} imageUrls={r.imageUrls} fileUrls={r.fileUrls} />
                       </div>

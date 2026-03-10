@@ -65,7 +65,7 @@ function StatusBadge({ status }: { status: ClientInvoiceStatus }) {
 
 const formatDate = (iso: string) => {
   const d = new Date(iso);
-  return d.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Taipei" });
+  return d.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit" });
 };
 
 const formatCurrency = (n: number) =>
