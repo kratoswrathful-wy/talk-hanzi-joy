@@ -1171,8 +1171,8 @@ function TierGroupEditorModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-card border border-border rounded-xl shadow-2xl p-6 max-w-lg w-full mx-4 space-y-4 max-h-[85vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-card border border-border rounded-xl shadow-2xl p-6 max-w-lg w-full mx-4 space-y-4 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="space-y-1">
           <h3 className="text-base font-semibold">新增級距組合</h3>
           <p className="text-xs text-muted-foreground">
