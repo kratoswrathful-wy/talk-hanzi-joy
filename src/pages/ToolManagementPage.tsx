@@ -401,8 +401,17 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ToolTemplate>(tpl);
   const firstFieldRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const saveAndClose = useCallback(() => {
+    toolTemplateStore.update(tpl.id, {
+      name: draft.name,
+      tool: draft.tool,
+      fields: draft.fields,
+      fieldValues: draft.fieldValues,
+    });
+    setEditing(false);
+  }, [tpl.id, draft]);
   const cancelEdit = useCallback(() => { setEditing(false); setDraft(tpl); }, [tpl]);
-  const editRef = useClickOutsideCancel(editing, cancelEdit);
+  const editRef = useClickOutsideCancel(editing, saveAndClose);
 
   const startEdit = () => {
     setDraft({ ...tpl, fields: [...(tpl.fields || [])], fieldValues: { ...tpl.fieldValues } });
