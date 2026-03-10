@@ -494,12 +494,6 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
                 onFieldsChange={(f) => setDraft((prev) => ({ ...prev, fields: f }))}
                 onFieldValuesChange={(v) => setDraft((prev) => ({ ...prev, fieldValues: v }))}
               />
-              <div className="flex justify-end pt-1">
-                <Button size="sm" className="h-7 text-xs gap-1" onClick={handleSave}>
-                  <Save className="h-3 w-3" />
-                  儲存變更
-                </Button>
-              </div>
             </>
           ) : (
             <>
