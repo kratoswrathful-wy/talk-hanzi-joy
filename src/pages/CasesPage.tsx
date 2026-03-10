@@ -555,8 +555,12 @@ export default function CasesPage() {
                 className="h-9 gap-1 text-muted-foreground"
                 onClick={async () => {
                   const id = Array.from(rowSelection.selectedIds)[0];
-                  const newCase = await caseStore.duplicate(id);
-                  if (newCase) navigate(`/cases/${newCase.id}`);
+                  const result = await caseStore.duplicate(id);
+                  if (result) {
+                    setCasesDupInfo({ newTitle: result.newCase.title, renames: result.renames });
+                    setCasesDupDialogOpen(true);
+                    navigate(`/cases/${result.newCase.id}`);
+                  }
                 }}
               >
                 <Copy className="h-4 w-4" />

@@ -863,21 +863,15 @@ export default function CaseDetailPage() {
   const isMember = currentRole === "member";
   const isPmOrAbove = currentRole === "pm" || currentRole === "executive";
 
+  const [dupDialogOpen, setDupDialogOpen] = useState(false);
+  const [dupInfo, setDupInfo] = useState<{ newTitle: string; renames: { oldTitle: string; newTitle: string }[] } | null>(null);
+
   const handleDuplicate = async () => {
-    const dup = await caseStore.duplicate(caseData.id);
-    if (dup) {
-      // Clear specified fields on the duplicated case
-      await caseStore.update(dup.id, {
-        translator: [],
-        unitCount: 0,
-        translationDeadline: null,
-        reviewDeadline: null,
-        caseReferenceMaterials: [],
-        multiCollab: false,
-        collabCount: 0,
-        collabRows: [],
-      });
-      navigate(`/cases/${dup.id}`);
+    const result = await caseStore.duplicate(caseData.id);
+    if (result) {
+      setDupInfo({ newTitle: result.newCase.title, renames: result.renames });
+      setDupDialogOpen(true);
+      navigate(`/cases/${result.newCase.id}`);
     }
   };
 
