@@ -1930,7 +1930,7 @@ export default function CaseDetailPage() {
       {/* Meta info */}
       <div className="flex gap-6 text-xs text-muted-foreground">
         <span>建立者：{creatorName || "—"}</span>
-        <span>建立時間：{new Date(caseData.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
+        <span>建立時間：{new Date(caseData.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei" })} (UTC+8)</span>
       </div>
 
       <Separator />
