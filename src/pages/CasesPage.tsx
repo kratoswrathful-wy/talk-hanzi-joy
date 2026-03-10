@@ -3,6 +3,7 @@ import { TableFooterStats, type NumericColumnConfig } from "@/components/TableFo
 import { Plus, GripVertical, ExternalLink, Trash2, Copy } from "lucide-react";
 import { CreateWithTemplateButton } from "@/components/CreateWithTemplateButton";
 import { useAuth } from "@/hooks/use-auth";
+import { DeadlineProximityIcon } from "@/components/DeadlineProximityIcon";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
