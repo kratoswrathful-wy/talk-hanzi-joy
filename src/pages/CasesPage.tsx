@@ -349,10 +349,11 @@ const allColumnDefs: ColumnDef[] = [
       if (c.multiCollab && c.collabRows?.length > 0) {
         return <CollabReviewDeadlineCell collabRows={c.collabRows} status={c.status} />;
       }
+      const showIcon = c.status === "dispatched" || c.status === "task_completed";
       return (
         <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
           {formatDateTime(c.reviewDeadline)}
-          <DeadlineProximityIcon deadline={c.reviewDeadline} />
+          {showIcon && <DeadlineProximityIcon deadline={c.reviewDeadline} />}
         </span>
       );
     },
