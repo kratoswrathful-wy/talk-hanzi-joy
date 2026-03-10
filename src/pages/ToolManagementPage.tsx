@@ -667,8 +667,6 @@ function CommonLinksSection() {
                   placeholder="https://..."
                   onKeyDown={(e) => { if (e.key === "Enter") handleSaveEdit(); if (e.key === "Escape") setEditingId(null); }}
                 />
-                <Button size="sm" className="h-7 text-xs px-2" onClick={handleSaveEdit}>儲存</Button>
-                <Button variant="ghost" size="sm" className="h-7 text-xs px-2" onClick={() => setEditingId(null)}>取消</Button>
               </div>
             ) : (
               <>
