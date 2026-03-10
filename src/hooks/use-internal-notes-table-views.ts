@@ -76,6 +76,7 @@ function matchFilter(note: InternalNote, filter: TableFilter): boolean {
     case "contains": result = String(val).toLowerCase().includes(filter.value.toLowerCase()); break;
     case "gt": result = Number(val) > Number(filter.value); break;
     case "lt": result = Number(val) < Number(filter.value); break;
+    case "is_empty": result = String(val ?? "").trim() === ""; break;
     default: result = true;
   }
   return filter.negated ? !result : result;
