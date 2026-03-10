@@ -241,7 +241,7 @@ function NoteDetailView({
         <span className="text-sm">{note.creator || "—"}</span>
       </Field>
       <Field label="建立時間">
-        <span className="text-sm">{new Date(note.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
+        <span className="text-sm">{new Date(note.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei" })} (UTC+8)</span>
       </Field>
 
       <Field label="性質">
