@@ -5,7 +5,7 @@ import {
   type TableFilter, type TableSort, type TableView, type FilterGroup,
   type FilterOperator, type FieldMeta, type LogicOperator,
   createRootGroup, addConditionToGroup, addSubGroup, removeNode,
-  updateConditionInTree, setGroupLogic, countConditions, matchFilterTree,
+  updateConditionInTree, setGroupLogic, countConditions, matchFilterTree, smartCompare,
 } from "@/lib/filter-types";
 
 export type { TableFilter, TableSort, TableView, FilterOperator, FieldMeta, FilterGroup, LogicOperator };
