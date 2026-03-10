@@ -217,7 +217,13 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
                     disabled={acceptedDisabled}
                     onCheckedChange={(v) => {
                       if (!!v) {
-                        // Auto-fill translator with checker's name when translator is empty/blank
+                        // Check if this is the last unchecked row
+                        const uncheckedCount = rows.filter((r, ri) => !r.accepted && ri !== idx).length;
+                        if (uncheckedCount === 0) {
+                          // This is the last one – show confirmation
+                          setLastAcceptConfirm({ idx });
+                          return;
+                        }
                         const translatorEmpty = !row.translator || !row.translator.trim();
                         if (translatorEmpty && displayName) {
                           updateRow(idx, { accepted: true, translator: displayName });
@@ -225,7 +231,6 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
                           updateRow(idx, { accepted: true });
                         }
                       } else {
-                        // Unchecking – always clear translator and unlock
                         updateRow(idx, { accepted: false, translator: "" });
                       }
                     }}
