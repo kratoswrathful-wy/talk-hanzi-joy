@@ -342,7 +342,7 @@ function NoteDetailView({
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{c.author}</span>
-                      <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
+                      <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei" })} (UTC+8)</span>
                     </div>
                     <button className="text-muted-foreground hover:text-foreground text-[10px] px-1.5 py-0.5 rounded hover:bg-accent transition-colors" onClick={() => setReplyingTo(replyingTo === c.id ? null : c.id)}>回覆</button>
                   </div>
