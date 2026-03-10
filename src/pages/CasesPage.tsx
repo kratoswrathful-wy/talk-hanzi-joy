@@ -47,7 +47,12 @@ function pickLatestDeadline(rows: CollabRow[], field: "translationDeadline" | "r
 
 function DeadlineText({ value }: { value: string | null }) {
   if (!value) return <span className="text-sm text-muted-foreground">—</span>;
-  return <span className="text-sm text-muted-foreground tabular-nums">{formatDateTime(value)}</span>;
+  return (
+    <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
+      {formatDateTime(value)}
+      <DeadlineProximityIcon deadline={value} />
+    </span>
+  );
 }
 
 function CollabTranslationDeadlineCell({ collabRows, status }: { collabRows: CollabRow[]; status: string }) {
