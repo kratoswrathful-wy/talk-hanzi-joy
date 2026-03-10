@@ -598,6 +598,10 @@ function CommonLinksSection() {
   const [editUrl, setEditUrl] = useState("");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const cancelEditing = useCallback(() => { setEditingId(null); }, []);
+  const editingLinkRef = useClickOutsideCancel(!!editingId, cancelEditing);
+  const cancelAddingLink = useCallback(() => { setAdding(false); setNewName(""); setNewUrl(""); }, []);
+  const addingLinkRef = useClickOutsideCancel(adding, cancelAddingLink);
 
   const handleAdd = () => {
     if (!newName.trim() || !newUrl.trim()) return;
