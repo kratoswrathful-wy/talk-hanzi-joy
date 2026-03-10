@@ -1866,6 +1866,8 @@ function CaseCategorySection() {
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
   const [colorPickerOptionId, setColorPickerOptionId] = useState<string | null>(null);
   const [textColorOpen, setTextColorOpen] = useState(false);
+  const cancelAdding = useCallback(() => { setAdding(false); setNewLabel(""); setNewColor(PRESET_COLORS[0]); }, []);
+  const addingRef = useClickOutsideCancel(adding, cancelAdding);
 
   const handleDragStart = (idx: number) => setDragIndex(idx);
   const handleDragOver = (e: React.DragEvent, idx: number) => {
