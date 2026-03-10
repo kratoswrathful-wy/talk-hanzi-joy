@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { MultilineInput } from "@/components/ui/multiline-input";
 import { Button } from "@/components/ui/button";
 import ColorSelect from "@/components/ColorSelect";
 import DateTimePicker from "@/components/DateTimePicker";
