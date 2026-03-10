@@ -528,6 +528,7 @@ function TaskTypeOrderSection() {
         ))}
       </div>
 
+      <div className="mt-auto space-y-4">
       {adding ? (
         <div className="space-y-2 px-2">
           <Input
@@ -571,7 +572,7 @@ function TaskTypeOrderSection() {
       )}
 
       {/* Label text color picker - collapsible */}
-      <div className="border-t border-border pt-4 mt-auto">
+      <div className="border-t border-border pt-4">
         <button
           className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full text-left"
           onClick={() => setTextColorOpen((v) => !v)}
@@ -598,6 +599,7 @@ function TaskTypeOrderSection() {
             />
           </div>
         )}
+      </div>
       </div>
     </div>
   );
