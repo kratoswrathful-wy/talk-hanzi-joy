@@ -752,6 +752,34 @@ export default function CasesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Duplicate overlay */}
+      <AlertDialog open={casesDupDialogOpen} onOpenChange={setCasesDupDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>已複製頁面</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>已複製頁面並切換至新頁面。</p>
+                <p>新頁面名稱：<span className="font-medium text-foreground">{casesDupInfo?.newTitle}</span></p>
+                {casesDupInfo?.renames && casesDupInfo.renames.length > 0 && (
+                  <div>
+                    <p className="font-medium text-foreground">以下頁面名稱已變更：</p>
+                    <ul className="list-disc list-inside text-sm">
+                      {casesDupInfo.renames.map((r, i) => (
+                        <li key={i}>{r.oldTitle} → {r.newTitle}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setCasesDupDialogOpen(false)}>確定</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
