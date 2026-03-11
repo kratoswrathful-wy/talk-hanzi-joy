@@ -847,6 +847,48 @@ export default function CasesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Fee generation result dialog */}
+      <AlertDialog open={!!feeGenResult} onOpenChange={(open) => { if (!open) setFeeGenResult(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>產生費用單結果</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                {feeGenResult?.generated && feeGenResult.generated.length > 0 && (
+                  <div>
+                    <p className="font-medium text-foreground">已成功產生費用單：</p>
+                    <ul className="list-disc list-inside text-sm mt-1 space-y-0.5">
+                      {feeGenResult.generated.map((r) => (
+                        <li key={r.caseId}>
+                          <span className="text-foreground">{r.caseTitle}</span>
+                          <span className="text-muted-foreground">（{r.feeCount} 筆）</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {feeGenResult?.skipped && feeGenResult.skipped.length > 0 && (
+                  <div>
+                    <p className="font-medium text-foreground">以下案件已有連結費用頁面，未產生新費用：</p>
+                    <ul className="list-disc list-inside text-sm mt-1 space-y-0.5">
+                      {feeGenResult.skipped.map((s, i) => (
+                        <li key={i} className="text-muted-foreground">{s.title}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {feeGenResult?.generated.length === 0 && feeGenResult?.skipped.length === 0 && (
+                  <p className="text-muted-foreground">未選取任何案件。</p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setFeeGenResult(null)}>確定</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
