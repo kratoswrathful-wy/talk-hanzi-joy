@@ -82,11 +82,11 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
 
   const columns = [
     { key: "segment", label: "檔案或分段", width: "200px" },
-    { key: "translator", label: "譯者", width: "140px" },
+    { key: "translator", label: "譯者", width: "140px", bulkPerson: true },
     { key: "unitCount", label: "計費單位數", width: "90px" },
     { key: "translationDeadline", label: "翻譯交期", width: "180px", bulk: true },
     { key: showAccepted ? "accepted" : "taskCompleted", label: showAccepted ? "確認承接" : "任務完成", width: "80px" },
-    { key: "reviewer", label: "審稿人員", width: "140px" },
+    { key: "reviewer", label: "審稿人員", width: "140px", bulkPerson: true },
     { key: "reviewDeadline", label: "審稿交期", width: "180px", bulk: true },
     { key: "delivered", label: "交件完畢", width: "80px" },
   ];
