@@ -205,6 +205,7 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm text-primary hover:underline truncate max-w-[200px]"
+                    title={item.name}
                   >
                     {item.name}
                   </a>
