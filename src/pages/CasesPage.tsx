@@ -409,7 +409,7 @@ const allColumnDefs: ColumnDef[] = [
   },
 ];
 
-const editableFields = new Set(["title", "category", "billingUnit", "translator", "reviewer", "executionTool", "deliveryMethod"]);
+const editableFields = new Set(["title", "status", "category", "billingUnit", "translator", "reviewer", "executionTool", "deliveryMethod"]);
 
 export default function CasesPage() {
   const navigate = useNavigate();
