@@ -345,16 +345,18 @@ const allColumnDefs: ColumnDef[] = [
     key: "translationDeadline",
     label: "翻譯交期",
     minWidth: 110,
-    render: (c) => {
+    render: (c, { editable, onCommit }) => {
       if (c.multiCollab && c.collabRows?.length > 0) {
         return <CollabTranslationDeadlineCell collabRows={c.collabRows} status={c.status} />;
       }
       const showIcon = c.status === "dispatched";
       return (
-        <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
-          {formatDateTime(c.translationDeadline)}
-          {showIcon && <DeadlineProximityIcon deadline={c.translationDeadline} />}
-        </span>
+        <InlineEditCell value={c.translationDeadline} type="datetime" editable={editable} onCommit={(v) => onCommit("translationDeadline", v)}>
+          <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
+            {formatDateTime(c.translationDeadline)}
+            {showIcon && <DeadlineProximityIcon deadline={c.translationDeadline} />}
+          </span>
+        </InlineEditCell>
       );
     },
   },
