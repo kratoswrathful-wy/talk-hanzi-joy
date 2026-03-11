@@ -256,6 +256,43 @@ function FileFieldRow({ label, value, onChange }: { label: string; value: any[];
   );
 }
 
+/** Wrapper for tool file fields: + button in label, delete button beside content */
+function ToolFileFieldRow({ fieldId, label, value, onChange, canRemoveField, onDeleteField }: {
+  fieldId: string; label: string; value: any[]; onChange: (v: any[]) => void;
+  canRemoveField: boolean; onDeleteField: () => void;
+}) {
+  const addRef = useRef<(() => void) | null>(null);
+  return (
+    <Field
+      key={fieldId}
+      label={label}
+      action={
+        <button
+          type="button"
+          onClick={() => addRef.current?.()}
+          className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      }
+    >
+      <div className="flex items-start gap-1.5">
+        <div className="flex-1">
+          <FileField value={Array.isArray(value) ? value : []} onChange={onChange} externalAdd addButtonRef={addRef} />
+        </div>
+        {canRemoveField && (
+          <button
+            className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0 mt-1"
+            onClick={onDeleteField}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+    </Field>
+  );
+}
+
 /* ── Copy button for text fields ── */
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
@@ -500,24 +537,15 @@ function ToolInstance({
           const fieldType = f.type || "text";
           if (fieldType === "file") {
             return (
-              <Field key={f.id} label={f.label}>
-                <div className="flex items-start gap-1.5">
-                  <div className="flex-1">
-                    <FileField
-                      value={fileValues[f.id] || []}
-                      onChange={(v) => onUpdate({ fileValues: { ...fileValues, [f.id]: v } })}
-                    />
-                  </div>
-                  {canRemoveField && (
-                    <button
-                      className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-all shrink-0 mt-1"
-                      onClick={() => setDeleteFieldId(f.id)}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-              </Field>
+              <ToolFileFieldRow
+                key={f.id}
+                fieldId={f.id}
+                label={f.label}
+                value={fileValues[f.id] || []}
+                onChange={(v) => onUpdate({ fileValues: { ...fileValues, [f.id]: v } })}
+                canRemoveField={canRemoveField}
+                onDeleteField={() => setDeleteFieldId(f.id)}
+              />
             );
           }
           return (
