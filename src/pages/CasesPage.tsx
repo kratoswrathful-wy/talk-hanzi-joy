@@ -425,6 +425,24 @@ export default function CasesPage() {
 
   const visibleFieldKeys = caseFieldMetas.map((f) => f.key);
 
+  // Register cases module with global undo store
+  useEffect(() => {
+    undoStore.registerModule("cases", (change, direction) => {
+      if (change.type === "update" && change.fieldChanges) {
+        const updates: Record<string, any> = {};
+        for (const [field, vals] of Object.entries(change.fieldChanges)) {
+          updates[field] = direction === "undo" ? vals.oldValue : vals.newValue;
+        }
+        caseStore.update(change.recordId, updates);
+      } else if (change.type === "delete" && direction === "undo" && change.deletedSnapshot) {
+        // Re-create the deleted record
+        caseStore.create(change.deletedSnapshot as any);
+      } else if (change.type === "create" && direction === "undo") {
+        caseStore.remove(change.recordId);
+      }
+    });
+  }, []);
+
   // Column resize
   const resizingRef = useRef<{ key: string; startX: number; startWidth: number } | null>(null);
   const handleResizeStart = useCallback((e: React.MouseEvent, key: string) => {
@@ -481,17 +499,26 @@ export default function CasesPage() {
     if (newCase) navigate(`/cases/${newCase.id}`);
   };
 
-  // Delete
+  // Delete with undo support
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [casesDupDialogOpen, setCasesDupDialogOpen] = useState(false);
   const [casesDupInfo, setCasesDupInfo] = useState<{ newTitle: string; renames: { oldTitle: string; newTitle: string }[] } | null>(null);
   const handleDeleteSelected = useCallback(async () => {
+    // Snapshot deleted records for undo
+    const snapshots: CaseRecord[] = [];
+    for (const id of rowSelection.selectedIds) {
+      const c = cases.find((x) => x.id === id);
+      if (c) snapshots.push({ ...c });
+    }
     for (const id of rowSelection.selectedIds) {
       await caseStore.remove(id);
     }
+    if (snapshots.length > 0) {
+      undoStore.pushDelete("cases", snapshots, `刪除 ${snapshots.length} 個案件`);
+    }
     rowSelection.deselectAll();
     setShowDeleteConfirm(false);
-  }, [rowSelection]);
+  }, [rowSelection, cases]);
 
   // Generate fees for selected cases
   const [feeGenResult, setFeeGenResult] = useState<{ generated: GenerateFeeResult[]; skipped: { title: string }[] } | null>(null);
@@ -511,22 +538,104 @@ export default function CasesPage() {
     setFeeGenResult({ generated, skipped });
   }, [rowSelection, cases, profile]);
 
-  // Mark selected as delivered
+  // Mark selected as delivered with undo
   const handleMarkDelivered = useCallback(async () => {
+    const entries: { recordId: string; oldValue: any }[] = [];
     for (const id of rowSelection.selectedIds) {
+      const c = cases.find((x) => x.id === id);
+      if (c) entries.push({ recordId: id, oldValue: c.status });
       await caseStore.update(id, { status: "delivered" as CaseStatus });
     }
+    if (entries.length > 0) {
+      undoStore.pushBatchUpdate("cases", entries, "status", "delivered", `將 ${entries.length} 個案件標記為已交件`);
+    }
     rowSelection.deselectAll();
-  }, [rowSelection]);
+  }, [rowSelection, cases]);
+
+  // Batch edit feedback dialog
+  const [batchEditResult, setBatchEditResult] = useState<{ field: string; value: string; count: number; locked: { title: string; reason: string }[] } | null>(null);
+
+  // Field label map for batch edit feedback
+  const fieldLabelMap: Record<string, string> = {
+    title: "案件編號", status: "狀態", category: "類型", billingUnit: "計費單位",
+    translator: "譯者", reviewer: "審稿人員", executionTool: "執行工具", deliveryMethod: "交件方式",
+    workType: "工作類型",
+  };
+  const statusLabelMap: Record<string, string> = {
+    draft: "草稿", inquiry: "詢案中", dispatched: "已派出", task_completed: "任務完成",
+    delivered: "已交件", feedback: "處理回饋", feedback_completed: "回饋處理完畢",
+  };
 
   const handleCellCommit = useCallback((caseId: string, field: string, value: string | boolean | string[]) => {
-    const targetIds = rowSelection.selectedIds.has(caseId) && rowSelection.selectedCount > 1
-      ? Array.from(rowSelection.selectedIds)
-      : [caseId];
+    const isBatch = rowSelection.selectedIds.has(caseId) && rowSelection.selectedCount > 1;
+    const targetIds = isBatch ? Array.from(rowSelection.selectedIds) : [caseId];
+
+    const undoEntries: { recordId: string; oldValue: any }[] = [];
+    let editedCount = 0;
+    const locked: { title: string; reason: string }[] = [];
+
     for (const id of targetIds) {
+      const c = cases.find((x) => x.id === id);
+      if (!c) continue;
+
+      const oldValue = (c as any)[field] ?? "";
+      undoEntries.push({ recordId: id, oldValue });
       caseStore.update(id, { [field]: value });
+      editedCount++;
     }
-  }, [rowSelection]);
+
+    // Push undo
+    if (undoEntries.length > 0) {
+      undoStore.pushBatchUpdate("cases", undoEntries, field, value,
+        `更新 ${undoEntries.length} 個案件的${fieldLabelMap[field] || field}`);
+    }
+
+    // Show batch feedback dialog when multiple items edited
+    if (isBatch) {
+      const displayValue = field === "status"
+        ? statusLabelMap[String(value)] || String(value)
+        : Array.isArray(value) ? value.join(", ") : String(value);
+      setBatchEditResult({
+        field: fieldLabelMap[field] || field,
+        value: displayValue,
+        count: editedCount,
+        locked,
+      });
+    }
+  }, [rowSelection.selectedIds, rowSelection.selectedCount, cases]);
+
+  // Right-click context menu
+  const ctxMenu = useTableContextMenu(rowSelection.selectedIds, rowSelection.setSelectedIds);
+
+  const buildContextMenuItems = useCallback((rowId: string): ContextMenuItem[] => {
+    const items: ContextMenuItem[] = [];
+    // 複製頁面
+    items.push({
+      key: "duplicate",
+      label: "複製頁面",
+      icon: <Copy className="h-4 w-4" />,
+      onClick: async () => {
+        const ids = rowSelection.selectedIds.has(rowId) ? Array.from(rowSelection.selectedIds) : [rowId];
+        // Only duplicate first selected
+        const result = await caseStore.duplicate(ids[0]);
+        if (result) {
+          setCasesDupInfo({ newTitle: result.newCase.title, renames: result.renames });
+          setCasesDupDialogOpen(true);
+          navigate(`/cases/${result.newCase.id}`);
+        }
+      },
+    });
+    // 交件完畢 — PM+ only
+    if (isAdmin) {
+      items.push({
+        key: "markDelivered",
+        label: "交件完畢",
+        icon: <CheckSquare className="h-4 w-4" />,
+        onClick: () => handleMarkDelivered(),
+      });
+    }
+    return items;
+  }, [rowSelection.selectedIds, isAdmin, handleMarkDelivered, navigate]);
 
   // Ordered visible columns
   const hiddenSet = new Set(activeView.hiddenColumns || []);
