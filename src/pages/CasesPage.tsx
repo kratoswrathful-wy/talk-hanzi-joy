@@ -293,7 +293,11 @@ const allColumnDefs: ColumnDef[] = [
     key: "workType",
     label: "工作類型",
     minWidth: 120,
-    render: (c) => <WorkTypeLabels values={c.workType} />,
+    render: (c, { editable, onCommit }) => (
+      <InlineEditCell value={c.workType} type="multiColorSelect" fieldKey="workType" editable={editable} onCommit={(v) => onCommit("workType", v)}>
+        <WorkTypeLabels values={c.workType} />
+      </InlineEditCell>
+    ),
   },
   {
     key: "billingUnit",
@@ -341,16 +345,18 @@ const allColumnDefs: ColumnDef[] = [
     key: "translationDeadline",
     label: "翻譯交期",
     minWidth: 110,
-    render: (c) => {
+    render: (c, { editable, onCommit }) => {
       if (c.multiCollab && c.collabRows?.length > 0) {
         return <CollabTranslationDeadlineCell collabRows={c.collabRows} status={c.status} />;
       }
       const showIcon = c.status === "dispatched";
       return (
-        <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
-          {formatDateTime(c.translationDeadline)}
-          {showIcon && <DeadlineProximityIcon deadline={c.translationDeadline} />}
-        </span>
+        <InlineEditCell value={c.translationDeadline} type="datetime" editable={editable} onCommit={(v) => onCommit("translationDeadline", v)}>
+          <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
+            {formatDateTime(c.translationDeadline)}
+            {showIcon && <DeadlineProximityIcon deadline={c.translationDeadline} />}
+          </span>
+        </InlineEditCell>
       );
     },
   },
@@ -368,16 +374,18 @@ const allColumnDefs: ColumnDef[] = [
     key: "reviewDeadline",
     label: "審稿交期",
     minWidth: 110,
-    render: (c) => {
+    render: (c, { editable, onCommit }) => {
       if (c.multiCollab && c.collabRows?.length > 0) {
         return <CollabReviewDeadlineCell collabRows={c.collabRows} status={c.status} />;
       }
       const showIcon = c.status === "dispatched" || c.status === "task_completed";
       return (
-        <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
-          {formatDateTime(c.reviewDeadline)}
-          {showIcon && <DeadlineProximityIcon deadline={c.reviewDeadline} />}
-        </span>
+        <InlineEditCell value={c.reviewDeadline} type="datetime" editable={editable} onCommit={(v) => onCommit("reviewDeadline", v)}>
+          <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
+            {formatDateTime(c.reviewDeadline)}
+            {showIcon && <DeadlineProximityIcon deadline={c.reviewDeadline} />}
+          </span>
+        </InlineEditCell>
       );
     },
   },
@@ -409,7 +417,7 @@ const allColumnDefs: ColumnDef[] = [
   },
 ];
 
-const editableFields = new Set(["title", "status", "category", "billingUnit", "translator", "reviewer", "executionTool", "deliveryMethod"]);
+const editableFields = new Set(["title", "status", "category", "workType", "billingUnit", "translator", "translationDeadline", "reviewer", "reviewDeadline", "executionTool", "deliveryMethod"]);
 
 export default function CasesPage() {
   const navigate = useNavigate();
@@ -566,7 +574,7 @@ export default function CasesPage() {
     delivered: "已交件", feedback: "處理回饋", feedback_completed: "回饋處理完畢",
   };
 
-  const handleCellCommit = useCallback((caseId: string, field: string, value: string | boolean | string[]) => {
+  const handleCellCommit = useCallback((caseId: string, field: string, value: string | boolean | string[] | null) => {
     const isBatch = rowSelection.selectedIds.has(caseId) && rowSelection.selectedCount > 1;
     const targetIds = isBatch ? Array.from(rowSelection.selectedIds) : [caseId];
 
