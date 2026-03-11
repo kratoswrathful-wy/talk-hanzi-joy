@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { TableFooterStats, type NumericColumnConfig } from "@/components/TableFooterStats";
-import { Plus, GripVertical, ExternalLink, Trash2, Copy, FileText, CheckSquare } from "lucide-react";
+import { Plus, GripVertical, ExternalLink, Trash2, Copy, FileText, CheckSquare, ChevronLeft, ChevronRight } from "lucide-react";
 import { CreateWithTemplateButton } from "@/components/CreateWithTemplateButton";
 import { useAuth } from "@/hooks/use-auth";
 import { DeadlineProximityIcon } from "@/components/DeadlineProximityIcon";
