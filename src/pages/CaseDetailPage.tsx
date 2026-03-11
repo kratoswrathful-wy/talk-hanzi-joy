@@ -850,9 +850,12 @@ export default function CaseDetailPage() {
   };
 
   /* ── Question Tool helpers ── */
-  const questionTools: ToolEntry[] = caseData?.questionTools?.length
-    ? caseData.questionTools
-    : [{ id: `qt-${Date.now()}`, tool: "", fieldValues: {} }];
+  const questionTools: ToolEntry[] = useMemo(() =>
+    caseData?.questionTools?.length
+      ? caseData.questionTools
+      : [{ id: "qt-default", tool: "", fieldValues: {} }],
+    [caseData?.questionTools]
+  );
 
   const saveQuestionTools = (newTools: ToolEntry[]) => {
     save({ questionTools: newTools });
