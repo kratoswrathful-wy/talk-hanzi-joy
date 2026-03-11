@@ -1874,14 +1874,8 @@ export default function CaseDetailPage() {
         <h2 className="text-base font-semibold">準則與檔案</h2>
         <span className="text-xs text-muted-foreground">檔案如上傳不成功，請改以拖曳方式上傳</span>
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="交件方式">
-          <FileField value={Array.isArray(caseData.deliveryMethodFiles) ? caseData.deliveryMethodFiles : []} onChange={(v) => save({ deliveryMethodFiles: v })} />
-        </Field>
-        <Field label="客戶收件">
-          <FileField value={Array.isArray(caseData.clientReceiptFiles) ? caseData.clientReceiptFiles : []} onChange={(v) => save({ clientReceiptFiles: v })} />
-        </Field>
-      </div>
+
+
       <div className="grid grid-cols-2 gap-4">
         {/* Left column: 客戶指定準則, 本系列參考資料, 本案參考資料, 原文檔 */}
         <div className="space-y-1">
