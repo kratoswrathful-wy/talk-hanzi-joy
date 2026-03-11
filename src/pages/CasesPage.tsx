@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { TableFooterStats, type NumericColumnConfig } from "@/components/TableFooterStats";
-import { Plus, GripVertical, ExternalLink, Trash2, Copy } from "lucide-react";
+import { Plus, GripVertical, ExternalLink, Trash2, Copy, FileText, CheckSquare } from "lucide-react";
 import { CreateWithTemplateButton } from "@/components/CreateWithTemplateButton";
 import { useAuth } from "@/hooks/use-auth";
 import { DeadlineProximityIcon } from "@/components/DeadlineProximityIcon";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useCases, caseStore } from "@/hooks/use-case-store";
+import { useFees } from "@/hooks/use-fee-store";
 import { useRowSelection } from "@/hooks/use-row-selection";
 import { useCaseTableViews, caseFieldMetas } from "@/hooks/use-case-table-views";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
@@ -29,6 +30,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import type { CaseRecord, CaseStatus, CollabRow } from "@/data/case-types";
+import { generateFeesForCase, caseHasLinkedFees, type GenerateFeeResult } from "@/lib/generate-case-fees";
+import { usePermissions } from "@/hooks/use-permissions";
 
 /** Pick the earliest (minimum/soonest) deadline from a set of rows */
 function pickEarliestDeadline(rows: CollabRow[], field: "translationDeadline" | "reviewDeadline"): string | null {
@@ -391,7 +394,9 @@ const editableFields = new Set(["title", "category", "billingUnit", "translator"
 export default function CasesPage() {
   const navigate = useNavigate();
   const cases = useCases();
+  const allFees = useFees();
   const { isAdmin, user, profile } = useAuth();
+  const { checkPerm } = usePermissions();
   const tableViews = useCaseTableViews(user?.id, profile?.display_name || "");
   const { activeView } = tableViews;
 
@@ -466,6 +471,32 @@ export default function CasesPage() {
     }
     rowSelection.deselectAll();
     setShowDeleteConfirm(false);
+  }, [rowSelection]);
+
+  // Generate fees for selected cases
+  const [feeGenResult, setFeeGenResult] = useState<{ generated: GenerateFeeResult[]; skipped: { title: string }[] } | null>(null);
+  const handleGenerateFees = useCallback(() => {
+    const generated: GenerateFeeResult[] = [];
+    const skipped: { title: string }[] = [];
+    for (const id of rowSelection.selectedIds) {
+      const c = cases.find((x) => x.id === id);
+      if (!c) continue;
+      if (caseHasLinkedFees(c.id)) {
+        skipped.push({ title: c.title });
+        continue;
+      }
+      const result = generateFeesForCase(c, profile?.id || "");
+      generated.push(result);
+    }
+    setFeeGenResult({ generated, skipped });
+  }, [rowSelection, cases, profile]);
+
+  // Mark selected as delivered
+  const handleMarkDelivered = useCallback(async () => {
+    for (const id of rowSelection.selectedIds) {
+      await caseStore.update(id, { status: "delivered" as CaseStatus });
+    }
+    rowSelection.deselectAll();
   }, [rowSelection]);
 
   const handleCellCommit = useCallback((caseId: string, field: string, value: string | boolean | string[]) => {
@@ -553,6 +584,18 @@ export default function CasesPage() {
             label="新增案件"
           />
         )}
+        {/* 交件完畢 button — PM+ only */}
+        {isAdmin && rowSelection.selectedCount > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 gap-1"
+            onClick={handleMarkDelivered}
+          >
+            <CheckSquare className="h-4 w-4" />
+            交件完畢
+          </Button>
+        )}
         {activeView.isDefault ? (
           <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
             一切檢視設定僅對本人生效
@@ -584,6 +627,15 @@ export default function CasesPage() {
                 複製本單
               </Button>
             )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-9 gap-1 text-muted-foreground"
+              onClick={handleGenerateFees}
+            >
+              <FileText className="h-4 w-4" />
+              產生費用單
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -792,6 +844,48 @@ export default function CasesPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => setCasesDupDialogOpen(false)}>確定</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Fee generation result dialog */}
+      <AlertDialog open={!!feeGenResult} onOpenChange={(open) => { if (!open) setFeeGenResult(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>產生費用單結果</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                {feeGenResult?.generated && feeGenResult.generated.length > 0 && (
+                  <div>
+                    <p className="font-medium text-foreground">已成功產生費用單：</p>
+                    <ul className="list-disc list-inside text-sm mt-1 space-y-0.5">
+                      {feeGenResult.generated.map((r) => (
+                        <li key={r.caseId}>
+                          <span className="text-foreground">{r.caseTitle}</span>
+                          <span className="text-muted-foreground">（{r.feeCount} 筆）</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {feeGenResult?.skipped && feeGenResult.skipped.length > 0 && (
+                  <div>
+                    <p className="font-medium text-foreground">以下案件已有連結費用頁面，未產生新費用：</p>
+                    <ul className="list-disc list-inside text-sm mt-1 space-y-0.5">
+                      {feeGenResult.skipped.map((s, i) => (
+                        <li key={i} className="text-muted-foreground">{s.title}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {feeGenResult?.generated.length === 0 && feeGenResult?.skipped.length === 0 && (
+                  <p className="text-muted-foreground">未選取任何案件。</p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setFeeGenResult(null)}>確定</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
