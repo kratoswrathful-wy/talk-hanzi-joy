@@ -265,15 +265,17 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
 
       {/* Collapsed: single add button / Expanded: overlay toolbar */}
       {!actionsExpanded && !uploading ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-7 text-xs gap-1 border-dashed"
-          onClick={() => setActionsExpanded(true)}
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </Button>
+        !externalAdd ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs gap-1 border-dashed"
+            onClick={() => setActionsExpanded(true)}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+        ) : null
       ) : (
         <>
           {/* Backdrop overlay — click anywhere to close */}
