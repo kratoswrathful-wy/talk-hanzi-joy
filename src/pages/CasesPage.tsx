@@ -785,55 +785,45 @@ export default function CasesPage() {
         )}
       </div>
 
-      {/* Filter/Sort/View toolbar with scroll arrows */}
-      <div className="flex items-center gap-1">
-        <FilterSortToolbar
-          views={tableViews.views}
-          activeView={activeView}
-          activeViewId={tableViews.activeViewId}
-          onSetActiveView={tableViews.setActiveViewId}
-          onAddView={tableViews.addView}
-          onDeleteView={tableViews.deleteView}
-          onAddCondition={tableViews.addCondition}
-          onRemoveFilterNode={tableViews.removeFilterNode}
-          onUpdateCondition={tableViews.updateCondition}
-          onAddFilterGroup={tableViews.addFilterGroup}
-          onChangeGroupLogic={tableViews.changeGroupLogic}
-          onAddSort={tableViews.addSort}
-          onRemoveSort={tableViews.removeSort}
-          onUpdateSort={tableViews.updateSort}
-          onRenameView={tableViews.renameView}
-          onReorderViews={tableViews.reorderViews}
-          visibleFieldKeys={visibleFieldKeys}
-          selectedCount={rowSelection.selectedCount}
-          hiddenColumns={activeView.hiddenColumns || []}
-          onToggleColumn={tableViews.toggleColumnVisibility}
-          fieldMetasList={caseFieldMetas}
-          statusOptionsList={[
-            { value: "draft", label: "草稿" },
-            { value: "inquiry", label: "詢案中" },
-            { value: "dispatched", label: "已派出" },
-            { value: "task_completed", label: "任務完成" },
-            { value: "delivered", label: "已交件" },
-            { value: "feedback", label: "處理回饋" },
-            { value: "feedback_completed", label: "回饋處理完畢" },
-          ]}
-          selectedIds={[...rowSelection.selectedIds]}
-          onPinTop={tableViews.pinTop}
-          onPinBottom={tableViews.pinBottom}
-          onUnpinItem={tableViews.unpinItem}
-          pinnedTop={activeView.pinnedTop || []}
-          pinnedBottom={activeView.pinnedBottom || []}
-        />
-        <div className="flex items-center gap-0.5 shrink-0 ml-1">
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => tableContainerRef.current?.scrollTo({ left: 0, behavior: "smooth" })}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => tableContainerRef.current?.scrollTo({ left: tableContainerRef.current.scrollWidth, behavior: "smooth" })}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      {/* Filter/Sort/View toolbar */}
+      <FilterSortToolbar
+        views={tableViews.views}
+        activeView={activeView}
+        activeViewId={tableViews.activeViewId}
+        onSetActiveView={tableViews.setActiveViewId}
+        onAddView={tableViews.addView}
+        onDeleteView={tableViews.deleteView}
+        onAddCondition={tableViews.addCondition}
+        onRemoveFilterNode={tableViews.removeFilterNode}
+        onUpdateCondition={tableViews.updateCondition}
+        onAddFilterGroup={tableViews.addFilterGroup}
+        onChangeGroupLogic={tableViews.changeGroupLogic}
+        onAddSort={tableViews.addSort}
+        onRemoveSort={tableViews.removeSort}
+        onUpdateSort={tableViews.updateSort}
+        onRenameView={tableViews.renameView}
+        onReorderViews={tableViews.reorderViews}
+        visibleFieldKeys={visibleFieldKeys}
+        selectedCount={rowSelection.selectedCount}
+        hiddenColumns={activeView.hiddenColumns || []}
+        onToggleColumn={tableViews.toggleColumnVisibility}
+        fieldMetasList={caseFieldMetas}
+        statusOptionsList={[
+          { value: "draft", label: "草稿" },
+          { value: "inquiry", label: "詢案中" },
+          { value: "dispatched", label: "已派出" },
+          { value: "task_completed", label: "任務完成" },
+          { value: "delivered", label: "已交件" },
+          { value: "feedback", label: "處理回饋" },
+          { value: "feedback_completed", label: "回饋處理完畢" },
+        ]}
+        selectedIds={[...rowSelection.selectedIds]}
+        onPinTop={tableViews.pinTop}
+        onPinBottom={tableViews.pinBottom}
+        onUnpinItem={tableViews.unpinItem}
+        pinnedTop={activeView.pinnedTop || []}
+        pinnedBottom={activeView.pinnedBottom || []}
+      />
 
       {/* Fixed right-side scroll buttons */}
       <div className="fixed right-4 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-1">
