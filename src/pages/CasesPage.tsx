@@ -881,6 +881,7 @@ export default function CasesPage() {
                 <tr
                   key={c.id}
                   ref={(el) => registerRowRef(c.id, el)}
+                  onContextMenu={(e) => ctxMenu.handleContextMenu(e, c.id)}
                   className={cn(
                     "border-b border-border/40 transition-colors hover:bg-muted/30",
                     isSelected && "bg-primary/5"
