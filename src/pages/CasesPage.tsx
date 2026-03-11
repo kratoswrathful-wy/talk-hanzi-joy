@@ -32,6 +32,8 @@ import { cn } from "@/lib/utils";
 import type { CaseRecord, CaseStatus, CollabRow } from "@/data/case-types";
 import { generateFeesForCase, caseHasLinkedFees, type GenerateFeeResult } from "@/lib/generate-case-fees";
 import { usePermissions } from "@/hooks/use-permissions";
+import { undoStore } from "@/stores/undo-store";
+import { useTableContextMenu, TableContextMenuOverlay, type ContextMenuItem } from "@/components/TableContextMenu";
 
 /** Pick the earliest (minimum/soonest) deadline from a set of rows */
 function pickEarliestDeadline(rows: CollabRow[], field: "translationDeadline" | "reviewDeadline"): string | null {
