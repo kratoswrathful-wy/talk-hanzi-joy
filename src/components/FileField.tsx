@@ -38,7 +38,7 @@ interface FileFieldProps {
   addButtonRef?: React.MutableRefObject<(() => void) | null>;
 }
 
-export default function FileField({ value, onChange }: FileFieldProps) {
+export default function FileField({ value, onChange, externalAdd, addButtonRef }: FileFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
