@@ -394,7 +394,9 @@ const editableFields = new Set(["title", "category", "billingUnit", "translator"
 export default function CasesPage() {
   const navigate = useNavigate();
   const cases = useCases();
+  const allFees = useFees();
   const { isAdmin, user, profile } = useAuth();
+  const { checkPerm } = usePermissions();
   const tableViews = useCaseTableViews(user?.id, profile?.display_name || "");
   const { activeView } = tableViews;
 
