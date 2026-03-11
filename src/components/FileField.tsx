@@ -32,9 +32,13 @@ export interface FileItem {
 interface FileFieldProps {
   value: FileItem[];
   onChange: (items: FileItem[]) => void;
+  /** When true, hides the inline + button (caller renders it externally via addButtonRef) */
+  externalAdd?: boolean;
+  /** Ref callback to expose the expand toggle for external + button */
+  addButtonRef?: React.MutableRefObject<(() => void) | null>;
 }
 
-export default function FileField({ value, onChange }: FileFieldProps) {
+export default function FileField({ value, onChange, externalAdd, addButtonRef }: FileFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -49,6 +53,10 @@ export default function FileField({ value, onChange }: FileFieldProps) {
   const [uploadedBytes, setUploadedBytes] = useState(0);
   const [totalBytes, setTotalBytes] = useState(0);
   const commonLinks = useCommonLinks();
+
+  // Expose expand toggle for external add button
+  const expandToggle = useCallback(() => setActionsExpanded(true), []);
+  if (addButtonRef) addButtonRef.current = expandToggle;
 
   // Use refs to always access latest value/onChange inside async upload
   const valueRef = useRef(value);
@@ -257,15 +265,17 @@ export default function FileField({ value, onChange }: FileFieldProps) {
 
       {/* Collapsed: single add button / Expanded: overlay toolbar */}
       {!actionsExpanded && !uploading ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-7 text-xs gap-1 border-dashed"
-          onClick={() => setActionsExpanded(true)}
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </Button>
+        !externalAdd ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs gap-1 border-dashed"
+            onClick={() => setActionsExpanded(true)}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+        ) : null
       ) : (
         <>
           {/* Backdrop overlay — click anywhere to close */}

@@ -223,12 +223,36 @@ function TitleInput({ value, onSave }: { value: string; onSave: (v: string) => v
   );
 }
 
-function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+function Field({ label, children, className, action }: { label: string; children: React.ReactNode; className?: string; action?: React.ReactNode }) {
   return (
     <div className={`grid grid-cols-[100px_1fr] items-start gap-3 py-1 ${className || ""}`}>
-      <span className="text-sm text-muted-foreground pt-1">{label}</span>
+      <span className="text-sm text-muted-foreground pt-1 flex items-center gap-1">
+        {label}
+        {action}
+      </span>
       <div className="min-w-0">{children}</div>
     </div>
+  );
+}
+
+/** Wrapper that renders a FileField with the + button next to the label */
+function FileFieldRow({ label, value, onChange }: { label: string; value: any[]; onChange: (v: any[]) => void }) {
+  const addRef = useRef<(() => void) | null>(null);
+  return (
+    <Field
+      label={label}
+      action={
+        <button
+          type="button"
+          onClick={() => addRef.current?.()}
+          className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      }
+    >
+      <FileField value={Array.isArray(value) ? value : []} onChange={onChange} externalAdd addButtonRef={addRef} />
+    </Field>
   );
 }
 
@@ -1877,41 +1901,24 @@ export default function CaseDetailPage() {
 
 
       <div className="grid grid-cols-2 gap-4">
-        {/* Left column: 客戶指定準則, 本系列參考資料, 本案參考資料, 原文檔 */}
+        {/* Left column */}
         <div className="space-y-1">
-          <Field label="客戶指定準則">
-            <FileField value={Array.isArray(caseData.clientGuidelines) ? caseData.clientGuidelines : []} onChange={(v) => save({ clientGuidelines: v })} />
-          </Field>
-          <Field label="本系列參考資料">
-            <FileField value={Array.isArray(caseData.seriesReferenceMaterials) ? caseData.seriesReferenceMaterials : []} onChange={(v) => save({ seriesReferenceMaterials: v })} />
-          </Field>
-          <Field label="本案參考資料">
-            <FileField value={Array.isArray(caseData.caseReferenceMaterials) ? caseData.caseReferenceMaterials : []} onChange={(v) => save({ caseReferenceMaterials: v })} />
-          </Field>
-          <Field label="原文檔">
-            <FileField value={Array.isArray(caseData.sourceFiles) ? caseData.sourceFiles : []} onChange={(v) => save({ sourceFiles: v })} />
-          </Field>
+          <FileFieldRow label="客戶指定準則" value={caseData.clientGuidelines} onChange={(v) => save({ clientGuidelines: v })} />
+          <FileFieldRow label="本系列參考資料" value={caseData.seriesReferenceMaterials} onChange={(v) => save({ seriesReferenceMaterials: v })} />
+          <FileFieldRow label="本案參考資料" value={caseData.caseReferenceMaterials} onChange={(v) => save({ caseReferenceMaterials: v })} />
+          <FileFieldRow label="原文檔" value={caseData.sourceFiles} onChange={(v) => save({ sourceFiles: v })} />
         </div>
-        {/* Right column: 自製準則, 常用資訊, 譯者完稿, 內審完稿, 追蹤修訂 */}
+        {/* Right column */}
         <div className="space-y-1">
-          <Field label="自製準則">
-            <FileField value={Array.isArray(caseData.customGuidelinesUrl) ? caseData.customGuidelinesUrl : []} onChange={(v) => save({ customGuidelinesUrl: v })} />
-          </Field>
-          <Field label="常用資訊">
-            <FileField
-              value={(Array.isArray(caseData.commonInfo) ? caseData.commonInfo : []).map(item => ({ name: (item as any).name || (item as any).label || "", url: item.url }))}
-              onChange={(v) => save({ commonInfo: v.map(f => ({ label: f.name, url: f.url })) })}
-            />
-          </Field>
-          <Field label="譯者完稿">
-            <FileField value={Array.isArray(caseData.translatorFinal) ? caseData.translatorFinal : []} onChange={(v) => save({ translatorFinal: v })} />
-          </Field>
-          <Field label="內審完稿">
-            <FileField value={Array.isArray(caseData.internalReviewFinal) ? caseData.internalReviewFinal : []} onChange={(v) => save({ internalReviewFinal: v })} />
-          </Field>
-          <Field label="追蹤修訂">
-            <FileField value={Array.isArray(caseData.trackChanges) ? caseData.trackChanges : []} onChange={(v) => save({ trackChanges: v })} />
-          </Field>
+          <FileFieldRow label="自製準則" value={caseData.customGuidelinesUrl} onChange={(v) => save({ customGuidelinesUrl: v })} />
+          <FileFieldRow
+            label="常用資訊"
+            value={(Array.isArray(caseData.commonInfo) ? caseData.commonInfo : []).map(item => ({ name: (item as any).name || (item as any).label || "", url: item.url }))}
+            onChange={(v) => save({ commonInfo: v.map(f => ({ label: f.name, url: f.url })) })}
+          />
+          <FileFieldRow label="譯者完稿" value={caseData.translatorFinal} onChange={(v) => save({ translatorFinal: v })} />
+          <FileFieldRow label="內審完稿" value={caseData.internalReviewFinal} onChange={(v) => save({ internalReviewFinal: v })} />
+          <FileFieldRow label="追蹤修訂" value={caseData.trackChanges} onChange={(v) => save({ trackChanges: v })} />
         </div>
       </div>
 
