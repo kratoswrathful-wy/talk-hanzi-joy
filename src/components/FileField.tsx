@@ -54,6 +54,10 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
   const [totalBytes, setTotalBytes] = useState(0);
   const commonLinks = useCommonLinks();
 
+  // Expose expand toggle for external add button
+  const expandToggle = useCallback(() => setActionsExpanded(true), []);
+  if (addButtonRef) addButtonRef.current = expandToggle;
+
   // Use refs to always access latest value/onChange inside async upload
   const valueRef = useRef(value);
   valueRef.current = value;
