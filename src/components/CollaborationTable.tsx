@@ -106,6 +106,14 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
     setBulkDeadlineValue(null);
   };
 
+  const applyBulkPerson = () => {
+    if (!bulkPersonField) return;
+    const next = rows.map((r) => ({ ...r, [bulkPersonField]: bulkPersonValue }));
+    onChange(next);
+    setBulkPersonField(null);
+    setBulkPersonValue("");
+  };
+
   return (
     <div className="space-y-0">
       <div ref={scrollRef} className="border border-border rounded-lg overflow-x-auto">
