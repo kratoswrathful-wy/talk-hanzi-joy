@@ -23,6 +23,8 @@ interface DateTimePickerProps {
   disabled?: boolean;
   placeholder?: string;
   className?: string;
+  defaultOpen?: boolean;
+  onClose?: () => void;
 }
 
 /* ── Generic rolling N-digit input hook ── */
