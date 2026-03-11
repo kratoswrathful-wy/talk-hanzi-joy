@@ -293,7 +293,11 @@ const allColumnDefs: ColumnDef[] = [
     key: "workType",
     label: "工作類型",
     minWidth: 120,
-    render: (c) => <WorkTypeLabels values={c.workType} />,
+    render: (c, { editable, onCommit }) => (
+      <InlineEditCell value={c.workType} type="multiColorSelect" fieldKey="workType" editable={editable} onCommit={(v) => onCommit("workType", v)}>
+        <WorkTypeLabels values={c.workType} />
+      </InlineEditCell>
+    ),
   },
   {
     key: "billingUnit",
