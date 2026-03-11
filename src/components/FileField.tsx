@@ -32,6 +32,10 @@ export interface FileItem {
 interface FileFieldProps {
   value: FileItem[];
   onChange: (items: FileItem[]) => void;
+  /** When true, hides the inline + button (caller renders it externally via addButtonRef) */
+  externalAdd?: boolean;
+  /** Ref callback to expose the expand toggle for external + button */
+  addButtonRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 export default function FileField({ value, onChange }: FileFieldProps) {
