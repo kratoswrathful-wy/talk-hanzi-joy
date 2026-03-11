@@ -584,6 +584,18 @@ export default function CasesPage() {
             label="新增案件"
           />
         )}
+        {/* 交件完畢 button — PM+ only */}
+        {isAdmin && rowSelection.selectedCount > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 gap-1"
+            onClick={handleMarkDelivered}
+          >
+            <CheckSquare className="h-4 w-4" />
+            交件完畢
+          </Button>
+        )}
         {activeView.isDefault ? (
           <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
             一切檢視設定僅對本人生效
@@ -615,6 +627,15 @@ export default function CasesPage() {
                 複製本單
               </Button>
             )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-9 gap-1 text-muted-foreground"
+              onClick={handleGenerateFees}
+            >
+              <FileText className="h-4 w-4" />
+              產生費用單
+            </Button>
             <Button
               variant="ghost"
               size="icon"
