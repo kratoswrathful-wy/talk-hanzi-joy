@@ -15,7 +15,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { ChevronLeft, ChevronRight, Calendar, Copy, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Copy, Check, Users } from "lucide-react";
 import type { CollabRow } from "@/data/case-types";
 import { useAuth } from "@/hooks/use-auth";
 
