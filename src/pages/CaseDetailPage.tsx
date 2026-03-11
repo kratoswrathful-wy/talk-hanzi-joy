@@ -223,12 +223,36 @@ function TitleInput({ value, onSave }: { value: string; onSave: (v: string) => v
   );
 }
 
-function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
+function Field({ label, children, className, action }: { label: string; children: React.ReactNode; className?: string; action?: React.ReactNode }) {
   return (
     <div className={`grid grid-cols-[100px_1fr] items-start gap-3 py-1 ${className || ""}`}>
-      <span className="text-sm text-muted-foreground pt-1">{label}</span>
+      <span className="text-sm text-muted-foreground pt-1 flex items-center gap-1">
+        {label}
+        {action}
+      </span>
       <div className="min-w-0">{children}</div>
     </div>
+  );
+}
+
+/** Wrapper that renders a FileField with the + button next to the label */
+function FileFieldRow({ label, value, onChange }: { label: string; value: any[]; onChange: (v: any[]) => void }) {
+  const addRef = useRef<(() => void) | null>(null);
+  return (
+    <Field
+      label={label}
+      action={
+        <button
+          type="button"
+          onClick={() => addRef.current?.()}
+          className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      }
+    >
+      <FileField value={Array.isArray(value) ? value : []} onChange={onChange} externalAdd addButtonRef={addRef} />
+    </Field>
   );
 }
 
