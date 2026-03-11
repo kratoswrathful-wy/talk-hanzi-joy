@@ -36,20 +36,7 @@ export function useUndoRedo({ onApply }: UndoRedoOptions) {
     onApply(entry, false);
   }, [onApply]);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        undo();
-      }
-      if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
-        e.preventDefault();
-        redo();
-      }
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [undo, redo]);
+  // Keyboard listener removed — global undo is handled by src/stores/undo-store.ts
 
   return { push, undo, redo };
 }
