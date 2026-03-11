@@ -15,7 +15,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { ChevronLeft, ChevronRight, Calendar, Copy, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Copy, Check, Users } from "lucide-react";
 import type { CollabRow } from "@/data/case-types";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -61,6 +61,10 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
   const [bulkDeadlineField, setBulkDeadlineField] = useState<"translationDeadline" | "reviewDeadline" | null>(null);
   const [bulkDeadlineValue, setBulkDeadlineValue] = useState<string | null>(null);
 
+  // Bulk person state
+  const [bulkPersonField, setBulkPersonField] = useState<"translator" | "reviewer" | null>(null);
+  const [bulkPersonValue, setBulkPersonValue] = useState<string>("");
+
   // Last-accept confirmation state
   const [lastAcceptConfirm, setLastAcceptConfirm] = useState<{ idx: number } | null>(null);
 
@@ -78,11 +82,11 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
 
   const columns = [
     { key: "segment", label: "檔案或分段", width: "200px" },
-    { key: "translator", label: "譯者", width: "140px" },
+    { key: "translator", label: "譯者", width: "140px", bulkPerson: true },
     { key: "unitCount", label: "計費單位數", width: "90px" },
     { key: "translationDeadline", label: "翻譯交期", width: "180px", bulk: true },
     { key: showAccepted ? "accepted" : "taskCompleted", label: showAccepted ? "確認承接" : "任務完成", width: "80px" },
-    { key: "reviewer", label: "審稿人員", width: "140px" },
+    { key: "reviewer", label: "審稿人員", width: "140px", bulkPerson: true },
     { key: "reviewDeadline", label: "審稿交期", width: "180px", bulk: true },
     { key: "delivered", label: "交件完畢", width: "80px" },
   ];
@@ -100,6 +104,14 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
     onChange(next);
     setBulkDeadlineField(null);
     setBulkDeadlineValue(null);
+  };
+
+  const applyBulkPerson = () => {
+    if (!bulkPersonField) return;
+    const next = rows.map((r) => ({ ...r, [bulkPersonField]: bulkPersonValue }));
+    onChange(next);
+    setBulkPersonField(null);
+    setBulkPersonValue("");
   };
 
   return (
@@ -125,6 +137,24 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
                         }}
                       >
                         <Calendar className="h-3 w-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>一次套用到所有列</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+              {(col as any).bulkPerson && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                          setBulkPersonField(col.key as "translator" | "reviewer");
+                          setBulkPersonValue("");
+                        }}
+                      >
+                        <Users className="h-3 w-3" />
                       </button>
                     </TooltipTrigger>
                     <TooltipContent>一次套用到所有列</TooltipContent>
@@ -348,7 +378,27 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Last-accept confirmation dialog */}
+      {/* Bulk person dialog */}
+      <AlertDialog open={!!bulkPersonField} onOpenChange={(open) => { if (!open) { setBulkPersonField(null); setBulkPersonValue(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {bulkPersonField === "translator" ? "批次設定譯者" : "批次設定審稿人員"}
+            </AlertDialogTitle>
+          </AlertDialogHeader>
+          <ColorSelect
+            fieldKey="assignee"
+            value={bulkPersonValue}
+            onValueChange={(v) => setBulkPersonValue(v)}
+            className="w-full"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={applyBulkPerson}>套用到所有列</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={!!lastAcceptConfirm} onOpenChange={(open) => { if (!open) setLastAcceptConfirm(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
