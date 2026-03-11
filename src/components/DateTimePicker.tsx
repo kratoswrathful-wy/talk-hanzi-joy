@@ -398,6 +398,7 @@ export default function DateTimePicker({
     if (!v) {
       if (!validateDate() || !validateTime()) return;
       commitAll();
+      onClose?.();
     }
     setOpen(v);
   };
