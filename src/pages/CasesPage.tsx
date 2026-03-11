@@ -259,7 +259,25 @@ const allColumnDefs: ColumnDef[] = [
     key: "status",
     label: "狀態",
     minWidth: 70,
-    render: (c) => <CaseStatusBadge status={c.status} />,
+    render: (c, { editable, onCommit }) => (
+      <InlineEditCell
+        value={c.status}
+        type="select"
+        options={[
+          { value: "draft", label: "草稿" },
+          { value: "inquiry", label: "詢案中" },
+          { value: "dispatched", label: "已派出" },
+          { value: "task_completed", label: "任務完成" },
+          { value: "delivered", label: "已交件" },
+          { value: "feedback", label: "處理回饋" },
+          { value: "feedback_completed", label: "回饋處理完畢" },
+        ]}
+        editable={editable}
+        onCommit={(v) => onCommit("status", v)}
+      >
+        <CaseStatusBadge status={c.status} />
+      </InlineEditCell>
+    ),
   },
   {
     key: "category",
