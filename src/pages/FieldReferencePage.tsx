@@ -22,7 +22,7 @@ const sections: { title: string; fields: { name: string; type: string; location:
       { name: "交件方式", type: "文字", location: "總表 / 詳情頁" },
       { name: "客戶收件", type: "文字", location: "詳情頁" },
       { name: "自製準則頁面", type: "URL", location: "詳情頁" },
-      { name: "客戶指定準則", type: "文字", location: "詳情頁" },
+      { name: "客戶準則", type: "文字", location: "詳情頁" },
       { name: "提問表單", type: "文字", location: "詳情頁" },
       { name: "填寫內部註記表單", type: "核取方塊", location: "詳情頁" },
       { name: "填寫客戶提問表單", type: "核取方塊", location: "詳情頁" },

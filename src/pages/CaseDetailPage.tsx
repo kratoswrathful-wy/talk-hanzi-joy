@@ -1903,9 +1903,9 @@ export default function CaseDetailPage() {
       <div className="grid grid-cols-2 gap-4">
         {/* Left column */}
         <div className="space-y-1">
-          <FileFieldRow label="客戶指定準則" value={caseData.clientGuidelines} onChange={(v) => save({ clientGuidelines: v })} />
-          <FileFieldRow label="本系列參考資料" value={caseData.seriesReferenceMaterials} onChange={(v) => save({ seriesReferenceMaterials: v })} />
-          <FileFieldRow label="本案參考資料" value={caseData.caseReferenceMaterials} onChange={(v) => save({ caseReferenceMaterials: v })} />
+          <FileFieldRow label="客戶準則" value={caseData.clientGuidelines} onChange={(v) => save({ clientGuidelines: v })} />
+          <FileFieldRow label="系列參考" value={caseData.seriesReferenceMaterials} onChange={(v) => save({ seriesReferenceMaterials: v })} />
+          <FileFieldRow label="本案資料" value={caseData.caseReferenceMaterials} onChange={(v) => save({ caseReferenceMaterials: v })} />
           <FileFieldRow label="原文檔" value={caseData.sourceFiles} onChange={(v) => save({ sourceFiles: v })} />
         </div>
         {/* Right column */}
