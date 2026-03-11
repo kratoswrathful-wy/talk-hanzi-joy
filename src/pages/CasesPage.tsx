@@ -473,6 +473,32 @@ export default function CasesPage() {
     setShowDeleteConfirm(false);
   }, [rowSelection]);
 
+  // Generate fees for selected cases
+  const [feeGenResult, setFeeGenResult] = useState<{ generated: GenerateFeeResult[]; skipped: { title: string }[] } | null>(null);
+  const handleGenerateFees = useCallback(() => {
+    const generated: GenerateFeeResult[] = [];
+    const skipped: { title: string }[] = [];
+    for (const id of rowSelection.selectedIds) {
+      const c = cases.find((x) => x.id === id);
+      if (!c) continue;
+      if (caseHasLinkedFees(c.id)) {
+        skipped.push({ title: c.title });
+        continue;
+      }
+      const result = generateFeesForCase(c, profile?.id || "");
+      generated.push(result);
+    }
+    setFeeGenResult({ generated, skipped });
+  }, [rowSelection, cases, profile]);
+
+  // Mark selected as delivered
+  const handleMarkDelivered = useCallback(async () => {
+    for (const id of rowSelection.selectedIds) {
+      await caseStore.update(id, { status: "delivered" as CaseStatus });
+    }
+    rowSelection.deselectAll();
+  }, [rowSelection]);
+
   const handleCellCommit = useCallback((caseId: string, field: string, value: string | boolean | string[]) => {
     const targetIds = rowSelection.selectedIds.has(caseId) && rowSelection.selectedCount > 1
       ? Array.from(rowSelection.selectedIds)
