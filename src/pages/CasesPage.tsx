@@ -374,16 +374,18 @@ const allColumnDefs: ColumnDef[] = [
     key: "reviewDeadline",
     label: "審稿交期",
     minWidth: 110,
-    render: (c) => {
+    render: (c, { editable, onCommit }) => {
       if (c.multiCollab && c.collabRows?.length > 0) {
         return <CollabReviewDeadlineCell collabRows={c.collabRows} status={c.status} />;
       }
       const showIcon = c.status === "dispatched" || c.status === "task_completed";
       return (
-        <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
-          {formatDateTime(c.reviewDeadline)}
-          {showIcon && <DeadlineProximityIcon deadline={c.reviewDeadline} />}
-        </span>
+        <InlineEditCell value={c.reviewDeadline} type="datetime" editable={editable} onCommit={(v) => onCommit("reviewDeadline", v)}>
+          <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
+            {formatDateTime(c.reviewDeadline)}
+            {showIcon && <DeadlineProximityIcon deadline={c.reviewDeadline} />}
+          </span>
+        </InlineEditCell>
       );
     },
   },
