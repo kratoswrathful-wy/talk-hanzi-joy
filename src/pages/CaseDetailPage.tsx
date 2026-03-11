@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useEffect, useState, useCallback, lazy, Suspense, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, lazy, Suspense, useRef } from "react";
 import { ArrowLeft, Trash2, Plus, X, Copy, Check, ExternalLink, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -824,9 +824,12 @@ export default function CaseDetailPage() {
   }, []);
 
   /* ── Tool helpers ── */
-  const tools: ToolEntry[] = caseData?.tools?.length
-    ? caseData.tools
-    : [{ id: `te-${Date.now()}`, tool: caseData?.executionTool || "", fieldValues: caseData?.toolFieldValues || {} }];
+  const tools: ToolEntry[] = useMemo(() =>
+    caseData?.tools?.length
+      ? caseData.tools
+      : [{ id: "te-default", tool: caseData?.executionTool || "", fieldValues: caseData?.toolFieldValues || {} }],
+    [caseData?.tools, caseData?.executionTool, caseData?.toolFieldValues]
+  );
 
   const saveTools = (newTools: ToolEntry[]) => {
     save({ tools: newTools });
@@ -847,9 +850,12 @@ export default function CaseDetailPage() {
   };
 
   /* ── Question Tool helpers ── */
-  const questionTools: ToolEntry[] = caseData?.questionTools?.length
-    ? caseData.questionTools
-    : [{ id: `qt-${Date.now()}`, tool: "", fieldValues: {} }];
+  const questionTools: ToolEntry[] = useMemo(() =>
+    caseData?.questionTools?.length
+      ? caseData.questionTools
+      : [{ id: "qt-default", tool: "", fieldValues: {} }],
+    [caseData?.questionTools]
+  );
 
   const saveQuestionTools = (newTools: ToolEntry[]) => {
     save({ questionTools: newTools });
