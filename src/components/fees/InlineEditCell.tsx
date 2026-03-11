@@ -127,9 +127,10 @@ export function InlineEditCell({ value, type, options, fieldKey, editable, locke
           value={typeof value === "string" ? value : null}
           onChange={(iso) => {
             onCommit(iso);
-            setEditing(false);
           }}
+          onClose={() => setEditing(false)}
           className="h-7 text-xs"
+          defaultOpen
         />
       </div>
     );

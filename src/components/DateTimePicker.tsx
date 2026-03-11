@@ -23,6 +23,8 @@ interface DateTimePickerProps {
   disabled?: boolean;
   placeholder?: string;
   className?: string;
+  defaultOpen?: boolean;
+  onClose?: () => void;
 }
 
 /* ── Generic rolling N-digit input hook ── */
@@ -209,8 +211,10 @@ export default function DateTimePicker({
   disabled = false,
   placeholder = "選擇日期與時間",
   className,
+  defaultOpen = false,
+  onClose,
 }: DateTimePickerProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const dateRef = useRef<HTMLInputElement>(null);
   const timeRef = useRef<HTMLInputElement>(null);
 
@@ -394,6 +398,7 @@ export default function DateTimePicker({
     if (!v) {
       if (!validateDate() || !validateTime()) return;
       commitAll();
+      onClose?.();
     }
     setOpen(v);
   };
