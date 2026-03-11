@@ -1019,6 +1019,44 @@ export default function CasesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Batch edit feedback dialog */}
+      <AlertDialog open={!!batchEditResult} onOpenChange={(open) => { if (!open) setBatchEditResult(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>批次編輯完成</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>
+                  已將 <span className="font-medium text-foreground">{batchEditResult?.count}</span> 個項目的
+                  <span className="font-medium text-foreground">「{batchEditResult?.field}」</span>
+                  變更為 <span className="font-medium text-foreground">「{batchEditResult?.value}」</span>
+                </p>
+                {batchEditResult?.locked && batchEditResult.locked.length > 0 && (
+                  <div>
+                    <p className="font-medium text-foreground">以下項目因鎖定而未變更：</p>
+                    <ul className="list-disc list-inside text-sm mt-1 space-y-0.5">
+                      {batchEditResult.locked.map((l, i) => (
+                        <li key={i} className="text-muted-foreground">{l.title}：{l.reason}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setBatchEditResult(null)}>確定</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Right-click context menu */}
+      <TableContextMenuOverlay
+        menu={ctxMenu.menu}
+        items={ctxMenu.menu ? buildContextMenuItems(ctxMenu.menu.rowId) : []}
+        onClose={ctxMenu.closeMenu}
+      />
     </div>
   );
 }
