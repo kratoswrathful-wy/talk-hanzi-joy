@@ -5,25 +5,26 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
+import DateTimePicker from "@/components/DateTimePicker";
 import { cn } from "@/lib/utils";
 
 interface Props {
-  value: string | boolean | string[];
-  type: "text" | "select" | "checkbox" | "colorSelect" | "multiColorSelect";
+  value: string | boolean | string[] | null;
+  type: "text" | "select" | "checkbox" | "colorSelect" | "multiColorSelect" | "datetime";
   options?: { value: string; label: string }[];
   /** For colorSelect/multiColorSelect type: the field key in selectOptionsStore */
   fieldKey?: string;
   editable: boolean;
   /** When set, field is visually locked with this tooltip on hover */
   lockedTooltip?: string;
-  onCommit: (newValue: string | boolean | string[]) => void;
+  onCommit: (newValue: string | boolean | string[] | null) => void;
   className?: string;
   children: React.ReactNode;
 }
 
 export function InlineEditCell({ value, type, options, fieldKey, editable, lockedTooltip, onCommit, className, children }: Props) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(String(value));
+  const [draft, setDraft] = useState(String(value ?? ""));
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -35,7 +36,7 @@ export function InlineEditCell({ value, type, options, fieldKey, editable, locke
 
   const commit = useCallback(() => {
     setEditing(false);
-    if (draft !== String(value)) {
+    if (draft !== String(value ?? "")) {
       onCommit(draft);
     }
   }, [draft, value, onCommit]);
@@ -48,7 +49,11 @@ export function InlineEditCell({ value, type, options, fieldKey, editable, locke
       onCommit(!(value as boolean));
       return;
     }
-    setDraft(String(value));
+    if (type === "datetime") {
+      setEditing(true);
+      return;
+    }
+    setDraft(String(value ?? ""));
     setEditing(true);
   }, [editable, type, value, onCommit]);
 
@@ -110,6 +115,21 @@ export function InlineEditCell({ value, type, options, fieldKey, editable, locke
           fieldKey={fieldKey}
           values={Array.isArray(value) ? value : []}
           onValuesChange={(v) => { onCommit(v); }}
+        />
+      </div>
+    );
+  }
+
+  if (editing && type === "datetime") {
+    return (
+      <div onClick={(e) => e.stopPropagation()}>
+        <DateTimePicker
+          value={typeof value === "string" ? value : null}
+          onChange={(iso) => {
+            onCommit(iso);
+            setEditing(false);
+          }}
+          className="h-7 text-xs"
         />
       </div>
     );
