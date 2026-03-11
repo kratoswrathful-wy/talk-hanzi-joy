@@ -61,6 +61,10 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
   const [bulkDeadlineField, setBulkDeadlineField] = useState<"translationDeadline" | "reviewDeadline" | null>(null);
   const [bulkDeadlineValue, setBulkDeadlineValue] = useState<string | null>(null);
 
+  // Bulk person state
+  const [bulkPersonField, setBulkPersonField] = useState<"translator" | "reviewer" | null>(null);
+  const [bulkPersonValue, setBulkPersonValue] = useState<string>("");
+
   // Last-accept confirmation state
   const [lastAcceptConfirm, setLastAcceptConfirm] = useState<{ idx: number } | null>(null);
 
