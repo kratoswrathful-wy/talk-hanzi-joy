@@ -787,14 +787,6 @@ export default function CasesPage() {
 
       {/* Filter/Sort/View toolbar with scroll arrows */}
       <div className="flex items-center gap-1">
-        <div className="flex items-center gap-0.5 shrink-0">
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => tableContainerRef.current?.scrollTo({ left: 0, behavior: "smooth" })}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => tableContainerRef.current?.scrollTo({ left: tableContainerRef.current.scrollWidth, behavior: "smooth" })}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
         <FilterSortToolbar
           views={tableViews.views}
           activeView={activeView}
@@ -833,7 +825,7 @@ export default function CasesPage() {
           pinnedTop={activeView.pinnedTop || []}
           pinnedBottom={activeView.pinnedBottom || []}
         />
-        <div className="ml-auto flex items-center gap-0.5 shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0 ml-1">
           <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={() => tableContainerRef.current?.scrollTo({ left: 0, behavior: "smooth" })}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -841,6 +833,16 @@ export default function CasesPage() {
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
+      </div>
+
+      {/* Fixed right-side scroll buttons */}
+      <div className="fixed right-4 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-1">
+        <Button variant="outline" size="icon" className="h-8 w-8 bg-card shadow-md" onClick={() => tableContainerRef.current?.scrollTo({ left: 0, behavior: "smooth" })}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="icon" className="h-8 w-8 bg-card shadow-md" onClick={() => tableContainerRef.current?.scrollTo({ left: tableContainerRef.current.scrollWidth, behavior: "smooth" })}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
       </div>
 
       <motion.div
