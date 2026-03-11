@@ -574,7 +574,7 @@ export default function CasesPage() {
     delivered: "已交件", feedback: "處理回饋", feedback_completed: "回饋處理完畢",
   };
 
-  const handleCellCommit = useCallback((caseId: string, field: string, value: string | boolean | string[]) => {
+  const handleCellCommit = useCallback((caseId: string, field: string, value: string | boolean | string[] | null) => {
     const isBatch = rowSelection.selectedIds.has(caseId) && rowSelection.selectedCount > 1;
     const targetIds = isBatch ? Array.from(rowSelection.selectedIds) : [caseId];
 
