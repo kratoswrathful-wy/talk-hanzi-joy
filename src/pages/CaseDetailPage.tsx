@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useEffect, useState, useCallback, lazy, Suspense, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, lazy, Suspense, useRef } from "react";
 import { ArrowLeft, Trash2, Plus, X, Copy, Check, ExternalLink, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
