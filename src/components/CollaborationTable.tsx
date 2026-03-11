@@ -143,6 +143,24 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
                   </Tooltip>
                 </TooltipProvider>
               )}
+              {(col as any).bulkPerson && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                          setBulkPersonField(col.key as "translator" | "reviewer");
+                          setBulkPersonValue("");
+                        }}
+                      >
+                        <Users className="h-3 w-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>一次套用到所有列</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
           ))}
         </div>
