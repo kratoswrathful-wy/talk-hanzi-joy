@@ -824,9 +824,12 @@ export default function CaseDetailPage() {
   }, []);
 
   /* ── Tool helpers ── */
-  const tools: ToolEntry[] = caseData?.tools?.length
-    ? caseData.tools
-    : [{ id: `te-${Date.now()}`, tool: caseData?.executionTool || "", fieldValues: caseData?.toolFieldValues || {} }];
+  const tools: ToolEntry[] = useMemo(() =>
+    caseData?.tools?.length
+      ? caseData.tools
+      : [{ id: "te-default", tool: caseData?.executionTool || "", fieldValues: caseData?.toolFieldValues || {} }],
+    [caseData?.tools, caseData?.executionTool, caseData?.toolFieldValues]
+  );
 
   const saveTools = (newTools: ToolEntry[]) => {
     save({ tools: newTools });
