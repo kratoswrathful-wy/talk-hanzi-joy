@@ -378,7 +378,27 @@ export default function CollaborationTable({ rows, onChange, caseStatus }: Props
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Last-accept confirmation dialog */}
+      {/* Bulk person dialog */}
+      <AlertDialog open={!!bulkPersonField} onOpenChange={(open) => { if (!open) { setBulkPersonField(null); setBulkPersonValue(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {bulkPersonField === "translator" ? "批次設定譯者" : "批次設定審稿人員"}
+            </AlertDialogTitle>
+          </AlertDialogHeader>
+          <ColorSelect
+            fieldKey="assignee"
+            value={bulkPersonValue}
+            onValueChange={(v) => setBulkPersonValue(v)}
+            className="w-full"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={applyBulkPerson}>套用到所有列</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={!!lastAcceptConfirm} onOpenChange={(open) => { if (!open) setLastAcceptConfirm(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
