@@ -211,8 +211,10 @@ export default function DateTimePicker({
   disabled = false,
   placeholder = "選擇日期與時間",
   className,
+  defaultOpen = false,
+  onClose,
 }: DateTimePickerProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const dateRef = useRef<HTMLInputElement>(null);
   const timeRef = useRef<HTMLInputElement>(null);
 
