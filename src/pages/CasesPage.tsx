@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { TableFooterStats, type NumericColumnConfig } from "@/components/TableFooterStats";
-import { Plus, GripVertical, ExternalLink, Trash2, Copy } from "lucide-react";
+import { Plus, GripVertical, ExternalLink, Trash2, Copy, FileText, CheckSquare } from "lucide-react";
 import { CreateWithTemplateButton } from "@/components/CreateWithTemplateButton";
 import { useAuth } from "@/hooks/use-auth";
 import { DeadlineProximityIcon } from "@/components/DeadlineProximityIcon";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useCases, caseStore } from "@/hooks/use-case-store";
+import { useFees } from "@/hooks/use-fee-store";
 import { useRowSelection } from "@/hooks/use-row-selection";
 import { useCaseTableViews, caseFieldMetas } from "@/hooks/use-case-table-views";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
@@ -29,6 +30,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import type { CaseRecord, CaseStatus, CollabRow } from "@/data/case-types";
+import { generateFeesForCase, caseHasLinkedFees, type GenerateFeeResult } from "@/lib/generate-case-fees";
+import { usePermissions } from "@/hooks/use-permissions";
 
 /** Pick the earliest (minimum/soonest) deadline from a set of rows */
 function pickEarliestDeadline(rows: CollabRow[], field: "translationDeadline" | "reviewDeadline"): string | null {
