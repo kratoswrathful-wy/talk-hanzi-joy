@@ -284,6 +284,8 @@ supabase
       if (payload.eventType === "UPDATE" && payload.new) {
         const row = payload.new as any;
         if (row.env !== env) return;
+        // Skip realtime updates for cases with pending optimistic writes
+        if (pendingUpdates.has(row.id)) return;
         const updated = fromDb(row);
         cases = cases.map((c) => (c.id === updated.id ? updated : c));
         notify();
