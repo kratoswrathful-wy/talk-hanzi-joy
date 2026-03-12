@@ -245,10 +245,8 @@ const allColumnDefs: ColumnDef[] = [
       const rev = f.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
       const cost = f.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
       // Get client currency and convert revenue to TWD
-      const clientOptions = selectOptionsStore.getSortedOptions("client");
       const clientOpt = selectOptionsStore.getSortedOptions("client").find((o) => o.label === f.clientInfo?.client);
       const clientCurrency = clientOpt?.currency || "TWD";
-      const twdRate = currencyStore.getTwdRate(clientCurrency);
       const twdRate = currencyStore.getTwdRate(clientCurrency);
       const revTwd = rev * twdRate;
       const p = revTwd - cost;
