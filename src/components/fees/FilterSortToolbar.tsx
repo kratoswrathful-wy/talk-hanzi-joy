@@ -709,6 +709,10 @@ function FilterRow({ filter, meta, ops, allFields, onUpdateFilter, onRemoveFilte
             onChange={(e) => onUpdateFilter(filter.id, { value: e.target.value })}
             placeholder="值..."
             className="h-7 text-xs flex-1"
+            onKeyDown={(e) => e.stopPropagation()}
+            onCompositionStart={(e) => e.stopPropagation()}
+            onCompositionEnd={(e) => e.stopPropagation()}
+            onCompositionUpdate={(e) => e.stopPropagation()}
           />
         )
       )}
