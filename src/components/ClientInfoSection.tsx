@@ -206,6 +206,13 @@ export default function ClientInfoSection({
         (sum, item) => sum + Number(item.unitCount) * Number(item.clientPrice), 0
       );
 
+  // Get client currency and exchange rate
+  const clientOptions = storeSnapshot.client?.options || [];
+  const clientOpt = clientOptions.find((o) => o.label === clientInfo.client);
+  const clientCurrency = clientOpt?.currency || "TWD";
+  const twdRate = currencyStore.getTwdRate(clientCurrency);
+  const revenueTotalTwd = revenueTotal * twdRate;
+
   // All fees in the same case group (including current)
   const allSameCaseFees = clientInfo.sameCase && currentInternalNote
     ? allFees.filter(
@@ -224,7 +231,7 @@ export default function ClientInfoSection({
     : translatorTotal;
 
   const profitFeeCount = allSameCaseFees.length;
-  const profit = revenueTotal - totalTranslatorCost;
+  const profit = revenueTotalTwd - totalTranslatorCost;
 
   const isFirstFeeDisabled = !canEdit || !clientInfo.sameCase || clientInfo.notFirstFee;
   const notFirstFeeDisabled = !canEdit || !clientInfo.sameCase || clientInfo.isFirstFee;
