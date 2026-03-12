@@ -1353,7 +1353,7 @@ export default function CaseDetailPage() {
               <CaseStatusBadge status={caseData.status} />
               {isInquiry && !caseData.multiCollab && (
                 <span className="text-xs text-muted-foreground">
-                  譯者若可承接，請直接點選右上角的「承接本案」。
+                  譯者若可承接，請直接點選右上角的「承接本案」
                 </span>
               )}
               {caseData.multiCollab && isInquiry && (
