@@ -1129,6 +1129,17 @@ export default function CaseDetailPage() {
             module="cases"
             onApply={(values) => save(values)}
           />
+          {/* Decline button for translators on draft/inquiry */}
+          {(isDraft || isInquiry) && isMember && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs min-w-[88px] border-destructive text-destructive hover:bg-destructive/10"
+              onClick={() => setDeclineOpen(true)}
+            >
+              無法承接
+            </Button>
+          )}
           {/* Left-side grey button */}
           {isInquiry && isPmOrAbove ? (
             <Button
