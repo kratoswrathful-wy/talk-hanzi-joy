@@ -268,25 +268,50 @@ async function update(id: string, partial: Partial<CaseRecord>) {
   // Optimistic update BEFORE DB write to prevent poll/realtime from overwriting
   const updatedAt = mapped.updated_at;
   cases = cases.map((c) => (c.id === id ? { ...c, ...partial, updatedAt } : c));
+
   // Merge with existing pending updates instead of replacing to avoid losing concurrent writes
   pendingUpdates.set(id, { ...pendingUpdates.get(id), ...partial });
   inFlightCount.set(id, (inFlightCount.get(id) || 0) + 1);
+
+  // If a delayed cleanup was scheduled, cancel it because we have a new write.
+  const cleanupTimer = pendingCleanupTimers.get(id);
+  if (cleanupTimer) {
+    clearTimeout(cleanupTimer);
+    pendingCleanupTimers.delete(id);
+  }
+
   notify();
 
   const { error } = await (supabase.from("cases").update(mapped as any).eq("id", id) as any);
+
   const remaining = (inFlightCount.get(id) || 1) - 1;
   if (remaining <= 0) {
-    pendingUpdates.delete(id);
     inFlightCount.delete(id);
+
+    // Keep pending patch briefly after success to guard against stale poll/realtime snapshots.
+    const timer = setTimeout(() => {
+      pendingUpdates.delete(id);
+      pendingCleanupTimers.delete(id);
+    }, PENDING_CLEANUP_DELAY_MS);
+    pendingCleanupTimers.set(id, timer);
   } else {
     inFlightCount.set(id, remaining);
   }
 
   if (error) {
-    // On failure, reload to restore correct state
+    // On failure, clear pending state then reload to restore correct state.
+    const timer = pendingCleanupTimers.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      pendingCleanupTimers.delete(id);
+    }
+    pendingUpdates.delete(id);
+    inFlightCount.delete(id);
+
     loadPromise = null;
     await load();
   }
+
   return error;
 }
 
