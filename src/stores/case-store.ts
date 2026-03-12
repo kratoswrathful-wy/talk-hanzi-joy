@@ -363,7 +363,7 @@ supabase
         // Skip realtime updates for cases with pending optimistic writes
         if (pendingUpdates.has(row.id)) return;
         const updated = fromDb(row);
-        cases = cases.map((c) => (c.id === updated.id ? updated : c));
+        cases = cases.map((c) => (c.id === updated.id ? mergeIncomingCase(c, updated) : c));
         notify();
       } else if (payload.eventType === "INSERT" && payload.new) {
         const row = payload.new as any;
