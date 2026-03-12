@@ -12,7 +12,7 @@ import {
   type FieldMeta, type FilterGroup, type LogicOperator,
   countConditions, flattenConditions,
 } from "@/lib/filter-types";
-import { fieldMetas } from "@/hooks/use-table-views";
+import { fieldMetas, translatorInvoiceStatusOptions, clientInvoiceStatusOptions } from "@/hooks/use-table-views";
 import { cn } from "@/lib/utils";
 import { useSelectOptions } from "@/stores/select-options-store";
 
@@ -566,6 +566,8 @@ function FilterRow({ filter, meta, ops, visibleFields, onUpdateFilter, onRemoveF
 
   const selectOpts: { value: string; label: string }[] | null = (() => {
     if (filter.field === "status") return statusOptionsList || statusOptions;
+    if (filter.field === "translatorInvoiceStatus") return translatorInvoiceStatusOptions;
+    if (filter.field === "clientInvoiceStatus") return clientInvoiceStatusOptions;
     if (isSelectType && storeKey) {
       return storeOptions.map((o) => ({ value: o.label, label: o.label }));
     }

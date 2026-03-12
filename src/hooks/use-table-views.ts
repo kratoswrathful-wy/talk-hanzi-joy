@@ -1,5 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { type TranslatorFee } from "@/data/fee-mock-data";
+import { type Invoice } from "@/data/invoice-types";
+import { type ClientInvoice } from "@/data/client-invoice-types";
 import { getStatusSortIndex, FEE_STATUS_LABEL_MAP } from "@/stores/select-options-store";
 import {
   type TableFilter, type TableSort, type TableView, type FilterGroup,
@@ -31,12 +33,44 @@ export const fieldMetas: FieldMeta[] = [
   { key: "sameCase", label: "費用群組", type: "checkbox" },
   { key: "translatorInvoiceStatus", label: "稿費請款狀態", type: "select" },
   { key: "clientInvoiceStatus", label: "客戶請款狀態", type: "select" },
+  { key: "translatorInvoice", label: "稿費請款單", type: "text" },
   { key: "invoice", label: "請款單", type: "text" },
   { key: "createdBy", label: "建立者", type: "text" },
   { key: "createdAt", label: "建立時間", type: "date" },
 ];
 
-function getFieldValue(fee: TranslatorFee, field: string): string | number | boolean {
+export interface FeeFilterContext {
+  invoices: Invoice[];
+  clientInvoices: ClientInvoice[];
+}
+
+const TRANSLATOR_INVOICE_STATUS_MAP: Record<string, string> = {
+  pending: "待付款",
+  partial: "部份付款",
+  paid: "已付款",
+};
+
+const CLIENT_INVOICE_STATUS_MAP: Record<string, string> = {
+  pending: "待收款",
+  partial_collected: "部份到帳",
+  collected: "全額收齊",
+};
+
+export const translatorInvoiceStatusOptions = [
+  { value: "尚未請款", label: "尚未請款" },
+  { value: "待付款", label: "待付款" },
+  { value: "部份付款", label: "部份付款" },
+  { value: "已付款", label: "已付款" },
+];
+
+export const clientInvoiceStatusOptions = [
+  { value: "尚未請款", label: "尚未請款" },
+  { value: "待收款", label: "待收款" },
+  { value: "部份到帳", label: "部份到帳" },
+  { value: "全額收齊", label: "全額收齊" },
+];
+
+function getFieldValue(fee: TranslatorFee, field: string, ctx?: FeeFilterContext): string | number | boolean {
   switch (field) {
     case "title": return fee.title;
     case "status": return fee.status;
@@ -62,30 +96,52 @@ function getFieldValue(fee: TranslatorFee, field: string): string | number | boo
     case "rateConfirmed": return !!fee.clientInfo?.rateConfirmed;
     case "invoiced": return !!fee.clientInfo?.invoiced;
     case "sameCase": return !!fee.clientInfo?.sameCase;
+    case "translatorInvoiceStatus": {
+      if (!ctx) return "";
+      const linked = ctx.invoices.find((inv) => inv.feeIds.includes(fee.id));
+      return linked ? (TRANSLATOR_INVOICE_STATUS_MAP[linked.status] || linked.status) : "尚未請款";
+    }
+    case "clientInvoiceStatus": {
+      if (!ctx) return "";
+      const linked = ctx.clientInvoices.find((inv) => inv.feeIds.includes(fee.id));
+      return linked ? (CLIENT_INVOICE_STATUS_MAP[linked.status] || linked.status) : "尚未請款";
+    }
+    case "translatorInvoice": {
+      if (!ctx) return "";
+      const linked = ctx.invoices.filter((inv) => inv.feeIds.includes(fee.id));
+      return linked.map((inv) => inv.title || inv.translator).join(", ");
+    }
+    case "invoice": {
+      if (!ctx) return "";
+      const linked = ctx.invoices.filter((inv) => inv.feeIds.includes(fee.id));
+      return linked.map((inv) => inv.title || inv.translator).join(", ");
+    }
     case "createdBy": return fee.createdBy;
     case "createdAt": return fee.createdAt;
     default: return "";
   }
 }
 
-function matchFilter(fee: TranslatorFee, filter: TableFilter): boolean {
-  const val = getFieldValue(fee, filter.field);
-  let result: boolean;
-  switch (filter.operator) {
-    case "equals": result = String(val) === filter.value; break;
-    case "not_equals": result = String(val) !== filter.value; break;
-    case "contains": result = String(val).toLowerCase().includes(filter.value.toLowerCase()); break;
-    case "is_checked": result = val === true; break;
-    case "is_not_checked": result = val === false; break;
-    case "gt": result = Number(val) > Number(filter.value); break;
-    case "lt": result = Number(val) < Number(filter.value); break;
-    case "is_empty": result = String(val ?? "").trim() === ""; break;
-    default: result = true;
-  }
-  return filter.negated ? !result : result;
+function matchFilterWithCtx(ctx?: FeeFilterContext) {
+  return (fee: TranslatorFee, filter: TableFilter): boolean => {
+    const val = getFieldValue(fee, filter.field, ctx);
+    let result: boolean;
+    switch (filter.operator) {
+      case "equals": result = String(val) === filter.value; break;
+      case "not_equals": result = String(val) !== filter.value; break;
+      case "contains": result = String(val).toLowerCase().includes(filter.value.toLowerCase()); break;
+      case "is_checked": result = val === true; break;
+      case "is_not_checked": result = val === false; break;
+      case "gt": result = Number(val) > Number(filter.value); break;
+      case "lt": result = Number(val) < Number(filter.value); break;
+      case "is_empty": result = String(val ?? "").trim() === ""; break;
+      default: result = true;
+    }
+    return filter.negated ? !result : result;
+  };
 }
 
-function compareFees(a: TranslatorFee, b: TranslatorFee, sort: TableSort): number {
+function compareFeesWithCtx(a: TranslatorFee, b: TranslatorFee, sort: TableSort, ctx?: FeeFilterContext): number {
   if (sort.field === "status") {
     const aLabel = FEE_STATUS_LABEL_MAP[a.status] || a.status;
     const bLabel = FEE_STATUS_LABEL_MAP[b.status] || b.status;
@@ -93,8 +149,8 @@ function compareFees(a: TranslatorFee, b: TranslatorFee, sort: TableSort): numbe
     return sort.direction === "desc" ? -cmp : cmp;
   }
   const meta = fieldMetas.find((m) => m.key === sort.field);
-  const av = getFieldValue(a, sort.field);
-  const bv = getFieldValue(b, sort.field);
+  const av = getFieldValue(a, sort.field, ctx);
+  const bv = getFieldValue(b, sort.field, ctx);
   const cmp = smartCompare(av, bv, meta?.type);
   return sort.direction === "desc" ? -cmp : cmp;
 }
@@ -104,7 +160,8 @@ const defaultColumnWidths: Record<string, number> = {
   title: 220, status: 90, assignee: 100, internalNote: 160, taskSummary: 120,
   client: 100, contact: 100, clientCaseId: 120, clientPoNumber: 100, dispatchRoute: 100,
   clientRevenue: 100, profit: 100, reconciled: 70, rateConfirmed: 70, invoiced: 70,
-  sameCase: 70, translatorInvoiceStatus: 100, clientInvoiceStatus: 100, invoice: 100, createdBy: 80, createdAt: 110,
+  sameCase: 70, translatorInvoiceStatus: 100, clientInvoiceStatus: 100,
+  translatorInvoice: 120, invoice: 100, createdBy: 80, createdAt: 110,
 };
 const defaultHiddenColumns = ["contact", "dispatchRoute", "sameCase"];
 
@@ -272,15 +329,16 @@ export function useTableViews(userId?: string) {
     updateView(activeViewId, { columnWidths: { ...activeView.columnWidths, [key]: width } });
   }, [activeViewId, activeView, updateView]);
 
-  const applyFiltersAndSorts = useCallback((fees: TranslatorFee[]): TranslatorFee[] => {
+  const applyFiltersAndSorts = useCallback((fees: TranslatorFee[], ctx?: FeeFilterContext): TranslatorFee[] => {
     let result = fees;
+    const matcher = matchFilterWithCtx(ctx);
     if (activeView.filterTree.children.length > 0) {
-      result = result.filter((fee) => matchFilterTree(fee, activeView.filterTree, matchFilter));
+      result = result.filter((fee) => matchFilterTree(fee, activeView.filterTree, matcher));
     }
     if (activeView.sorts.length > 0) {
       result = [...result].sort((a, b) => {
         for (const sort of activeView.sorts) {
-          const cmp = compareFees(a, b, sort);
+          const cmp = compareFeesWithCtx(a, b, sort, ctx);
           if (cmp !== 0) return cmp;
         }
         return 0;

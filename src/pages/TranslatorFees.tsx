@@ -326,6 +326,13 @@ const allColumnDefs: ColumnDef[] = [
     render: (f) => <ClientInvoiceStatusCell feeId={f.id} />,
   },
   {
+    key: "translatorInvoice",
+    label: "稿費請款單",
+    minWidth: 100,
+    managerOnly: true,
+    render: (f) => <TranslatorInvoiceLink feeId={f.id} />,
+  },
+  {
     key: "invoice",
     label: "請款單",
     minWidth: 80,
@@ -450,6 +457,28 @@ function ClientInvoiceStatusCell({ feeId }: { feeId: string }) {
   );
 }
 
+function TranslatorInvoiceLink({ feeId }: { feeId: string }) {
+  const navigate = useNavigate();
+  const invoices = useInvoices();
+  const linked = invoices.filter((inv) => inv.feeIds.includes(feeId));
+  if (linked.length === 0) return <span className="text-sm text-muted-foreground">—</span>;
+  return (
+    <div className="flex flex-col gap-0.5">
+      {linked.map((inv) => (
+        <button
+          key={inv.id}
+          onClick={(e) => { e.stopPropagation(); navigate(`/invoices/${inv.id}`); }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="text-xs text-primary hover:underline truncate text-left"
+          title={inv.title}
+        >
+          {inv.title || inv.translator}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function InvoiceLink({ feeId }: { feeId: string }) {
   const navigate = useNavigate();
   const invoices = useInvoices();
@@ -508,16 +537,18 @@ export default function TranslatorFees() {
 
   const [expandedRows, setExpandedRows] = useState<Record<string, ExpandType | null>>({});
 
+  const allInvoices = useInvoices();
+  const allClientInvoices = useClientInvoices();
+
   // Filter fees for assignee role: translators only see finalized fees assigned to them
   const effectiveRole = isAdmin ? "pm" : "assignee";
   const baseFees = effectiveRole === "assignee"
     ? fees.filter((f) => f.status === "finalized" && f.assignee === profile?.display_name)
     : fees;
-  const visibleFees = tableViews.applyFiltersAndSorts(baseFees);
+  const filterCtx = useMemo(() => ({ invoices: allInvoices, clientInvoices: allClientInvoices }), [allInvoices, allClientInvoices]);
+  const visibleFees = tableViews.applyFiltersAndSorts(baseFees, filterCtx);
 
   const rowSelection = useRowSelection(visibleFees.map((f) => f.id));
-  const allInvoices = useInvoices();
-  const allClientInvoices = useClientInvoices();
 
   // Build lock context for a fee (linked invoices)
   const getLockContext = useCallback((fee: TranslatorFee): FeeFieldLockContext => {
