@@ -454,7 +454,7 @@ function NewNoteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
     const reviewer = caseRecord?.reviewer || "";
     const title = generateNoteTitle(selectedCase);
     const newNote: InternalNote = {
-      id: `note-${Date.now()}`,
+      id: crypto.randomUUID(),
       title,
       relatedCase: selectedCase,
       createdAt: new Date().toISOString(),
