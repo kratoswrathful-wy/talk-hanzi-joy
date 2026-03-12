@@ -333,6 +333,11 @@ function reset() {
   loaded = false;
   loadPromise = null;
   cases = [];
+
+  pendingUpdates.clear();
+  inFlightCount.clear();
+  pendingCleanupTimers.forEach((timer) => clearTimeout(timer));
+  pendingCleanupTimers.clear();
 }
 
 // Listen for auth changes — only reload on sign-in to avoid race conditions
