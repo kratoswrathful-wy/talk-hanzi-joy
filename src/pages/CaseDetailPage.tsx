@@ -1126,10 +1126,12 @@ export default function CaseDetailPage() {
               className="text-xs"
             />
           )}
-          <ApplyTemplateButton
-            module="cases"
-            onApply={(values) => save(values)}
-          />
+          {isPmOrAbove && (
+            <ApplyTemplateButton
+              module="cases"
+              onApply={(values) => save(values)}
+            />
+          )}
           {/* Decline button for translators on draft/inquiry */}
           {(isDraft || isInquiry) && isMember && (
             <Button
