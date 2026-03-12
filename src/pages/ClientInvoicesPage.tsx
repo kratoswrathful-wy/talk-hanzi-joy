@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { TableFooterStats, type NumericColumnConfig } from "@/components/TableFooterStats";
 import { Plus, ExternalLink, Trash2, GripVertical } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
@@ -15,7 +16,7 @@ import { useSelectOptions, getStatusLabelStyle } from "@/stores/select-options-s
 import { useLabelStyles } from "@/stores/label-style-store";
 import { type ClientInvoiceStatus, clientInvoiceStatusLabels } from "@/data/client-invoice-types";
 import { type ClientInvoice } from "@/data/client-invoice-types";
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useClientInvoiceTableViews, clientInvoiceFieldMetas } from "@/hooks/use-client-invoice-table-views";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import {
@@ -96,6 +97,7 @@ export default function ClientInvoicesPage() {
   const navigate = useNavigate();
   const { isAdmin, user, roles } = useAuth();
   const isExecutive = roles.some((r) => r.role === "executive");
+  const { checkPerm } = usePermissions();
   const allInvoices = useClientInvoices();
   const fees = useFees();
   const { options: clientOptions } = useSelectOptions("client");
@@ -113,6 +115,10 @@ export default function ClientInvoicesPage() {
   const tableViews = useClientInvoiceTableViews(user?.id);
   const { activeView } = tableViews;
   const visibleFieldKeys = clientInvoiceFieldMetas.map((f) => f.key);
+  const permittedFieldKeys = useMemo(() =>
+    clientInvoiceFieldMetas.filter((f) => checkPerm("client_invoices", `table_field_${f.key}`, "view")).map((f) => f.key),
+    [checkPerm]
+  );
 
   const visibleInvoices = tableViews.applyFiltersAndSorts(allInvoices, getInvoiceTotal);
 
@@ -489,6 +495,7 @@ export default function ClientInvoicesPage() {
         onRenameView={tableViews.renameView}
         onReorderViews={tableViews.reorderViews}
         visibleFieldKeys={visibleFieldKeys}
+        permittedFieldKeys={permittedFieldKeys}
         selectedCount={rowSelection.selectedCount}
         hiddenColumns={activeView.hiddenColumns || []}
         onToggleColumn={tableViews.toggleColumnVisibility}

@@ -29,6 +29,10 @@ const fieldToStoreKey: Record<string, string> = {
   billingUnit: "billingUnit",
   executionTool: "executionTool",
   noteType: "noteNature",
+  feeTaskType: "taskType",
+  feeBillingUnit: "billingUnit",
+  clientTaskType: "taskType",
+  clientBillingUnit: "billingUnit",
 };
 
 const operatorLabels: Record<FilterOperator, string> = {
@@ -560,6 +564,9 @@ function SortPopover({
                         placeholder="搜尋欄位..."
                         className="bg-transparent outline-none text-xs w-full placeholder:text-muted-foreground"
                         onKeyDown={(e) => e.stopPropagation()}
+                        onCompositionStart={(e) => e.stopPropagation()}
+                        onCompositionEnd={(e) => e.stopPropagation()}
+                        onCompositionUpdate={(e) => e.stopPropagation()}
                       />
                     </div>
                   </div>
@@ -655,6 +662,9 @@ function FilterRow({ filter, meta, ops, allFields, onUpdateFilter, onRemoveFilte
                 placeholder="搜尋欄位..."
                 className="bg-transparent outline-none text-xs w-full placeholder:text-muted-foreground"
                 onKeyDown={(e) => e.stopPropagation()}
+                onCompositionStart={(e) => e.stopPropagation()}
+                onCompositionEnd={(e) => e.stopPropagation()}
+                onCompositionUpdate={(e) => e.stopPropagation()}
               />
             </div>
           </div>
@@ -699,6 +709,10 @@ function FilterRow({ filter, meta, ops, allFields, onUpdateFilter, onRemoveFilte
             onChange={(e) => onUpdateFilter(filter.id, { value: e.target.value })}
             placeholder="值..."
             className="h-7 text-xs flex-1"
+            onKeyDown={(e) => e.stopPropagation()}
+            onCompositionStart={(e) => e.stopPropagation()}
+            onCompositionEnd={(e) => e.stopPropagation()}
+            onCompositionUpdate={(e) => e.stopPropagation()}
           />
         )
       )}

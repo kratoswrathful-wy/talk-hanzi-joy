@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { useRowSelection } from "@/hooks/use-row-selection";
+import { usePermissions } from "@/hooks/use-permissions";
 import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
 import FileField from "@/components/FileField";
@@ -521,6 +522,7 @@ function NewNoteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
 export default function InternalNotesPage() {
   const notes = useInternalNotes();
   const { user } = useAuth();
+  const { checkPerm } = usePermissions();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [newNoteOpen, setNewNoteOpen] = useState(false);
@@ -540,6 +542,10 @@ export default function InternalNotesPage() {
   const tableViews = useInternalNotesTableViews(user?.id);
   const { activeView } = tableViews;
   const visibleFieldKeys = internalNotesFieldMetas.map((f) => f.key);
+  const permittedFieldKeys = useMemo(() =>
+    internalNotesFieldMetas.filter((f) => checkPerm("internal_notes", `table_field_${f.key}`, "view")).map((f) => f.key),
+    [checkPerm]
+  );
 
   const visibleNotes = tableViews.applyFiltersAndSorts(notes);
   const rowSelection = useRowSelection(visibleNotes.map((n) => n.id));
@@ -742,6 +748,7 @@ export default function InternalNotesPage() {
         onRenameView={tableViews.renameView}
         onReorderViews={tableViews.reorderViews}
         visibleFieldKeys={visibleFieldKeys}
+        permittedFieldKeys={permittedFieldKeys}
         selectedCount={rowSelection.selectedCount}
         hiddenColumns={activeView.hiddenColumns || []}
         onToggleColumn={tableViews.toggleColumnVisibility}

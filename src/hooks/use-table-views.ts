@@ -20,12 +20,20 @@ export const fieldMetas: FieldMeta[] = [
   { key: "assignee", label: "譯者", type: "select" },
   { key: "internalNote", label: "關聯案件", type: "text" },
   { key: "taskSummary", label: "稿費總額", type: "computed" },
+  { key: "feeTaskType", label: "稿費工作類型", type: "select" },
+  { key: "feeBillingUnit", label: "稿費計費單位", type: "select" },
+  { key: "feeUnitCount", label: "稿費單位數", type: "number" },
+  { key: "feeUnitPrice", label: "稿費單價", type: "number" },
   { key: "client", label: "客戶", type: "select" },
   { key: "contact", label: "聯絡人", type: "text" },
   { key: "clientCaseId", label: "關鍵字", type: "text" },
   { key: "clientPoNumber", label: "客戶 PO#", type: "text" },
   { key: "dispatchRoute", label: "派案途徑", type: "select" },
   { key: "clientRevenue", label: "營收總額", type: "computed" },
+  { key: "clientTaskType", label: "營收工作類型", type: "select" },
+  { key: "clientBillingUnit", label: "營收計費單位", type: "select" },
+  { key: "clientUnitCount", label: "營收單位數", type: "number" },
+  { key: "clientUnitPrice", label: "營收單價", type: "number" },
   { key: "profit", label: "利潤", type: "computed" },
   { key: "reconciled", label: "對帳完成", type: "checkbox" },
   { key: "rateConfirmed", label: "費率無誤", type: "checkbox" },
@@ -77,6 +85,10 @@ function getFieldValue(fee: TranslatorFee, field: string, ctx?: FeeFilterContext
     case "assignee": return fee.assignee;
     case "internalNote": return fee.internalNote;
     case "taskSummary": return fee.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
+    case "feeTaskType": return fee.taskItems.map((i) => i.taskType).join(", ");
+    case "feeBillingUnit": return fee.taskItems.map((i) => i.billingUnit).join(", ");
+    case "feeUnitCount": return fee.taskItems.reduce((s, i) => s + i.unitCount, 0);
+    case "feeUnitPrice": return fee.taskItems.length > 0 ? fee.taskItems[0].unitPrice : 0;
     case "client": return fee.clientInfo?.client || "";
     case "clientCaseId": return fee.clientInfo?.clientCaseId || "";
     case "contact": return fee.clientInfo?.contact || "";
@@ -86,6 +98,10 @@ function getFieldValue(fee: TranslatorFee, field: string, ctx?: FeeFilterContext
       if (!fee.clientInfo || fee.clientInfo.notFirstFee) return 0;
       return fee.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
     }
+    case "clientTaskType": return fee.clientInfo?.clientTaskItems.map((i) => i.taskType).join(", ") || "";
+    case "clientBillingUnit": return fee.clientInfo?.clientTaskItems.map((i) => i.billingUnit).join(", ") || "";
+    case "clientUnitCount": return fee.clientInfo?.clientTaskItems.reduce((s, i) => s + Number(i.unitCount), 0) || 0;
+    case "clientUnitPrice": return fee.clientInfo?.clientTaskItems.length ? Number(fee.clientInfo.clientTaskItems[0].clientPrice) : 0;
     case "profit": {
       if (!fee.clientInfo || fee.clientInfo.notFirstFee) return 0;
       const rev = fee.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
@@ -158,12 +174,14 @@ function compareFeesWithCtx(a: TranslatorFee, b: TranslatorFee, sort: TableSort,
 const defaultColumnOrder = fieldMetas.map((f) => f.key);
 const defaultColumnWidths: Record<string, number> = {
   title: 220, status: 90, assignee: 100, internalNote: 160, taskSummary: 120,
+  feeTaskType: 100, feeBillingUnit: 80, feeUnitCount: 80, feeUnitPrice: 80,
   client: 100, contact: 100, clientCaseId: 120, clientPoNumber: 100, dispatchRoute: 100,
-  clientRevenue: 100, profit: 100, reconciled: 70, rateConfirmed: 70, invoiced: 70,
+  clientRevenue: 100, clientTaskType: 100, clientBillingUnit: 80, clientUnitCount: 80, clientUnitPrice: 80,
+  profit: 100, reconciled: 70, rateConfirmed: 70, invoiced: 70,
   sameCase: 70, translatorInvoiceStatus: 100, clientInvoiceStatus: 100,
   translatorInvoice: 120, invoice: 100, createdBy: 80, createdAt: 110,
 };
-const defaultHiddenColumns = ["contact", "dispatchRoute", "sameCase"];
+const defaultHiddenColumns = ["contact", "dispatchRoute", "sameCase", "feeTaskType", "feeBillingUnit", "feeUnitCount", "feeUnitPrice", "clientTaskType", "clientBillingUnit", "clientUnitCount", "clientUnitPrice"];
 
 function createDefaultView(): TableView {
   return {

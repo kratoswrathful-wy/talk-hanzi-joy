@@ -18,7 +18,7 @@ import { InlineEditCell } from "@/components/fees/InlineEditCell";
 import { useSelectOptions, getStatusLabelStyle } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import AssigneeTag from "@/components/AssigneeTag";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -424,6 +424,10 @@ export default function CasesPage() {
   const rowSelection = useRowSelection(visibleFees.map((c) => c.id));
 
   const visibleFieldKeys = caseFieldMetas.map((f) => f.key);
+  const permittedFieldKeys = useMemo(() =>
+    caseFieldMetas.filter((f) => checkPerm("case_management", `table_field_${f.key}`, "view")).map((f) => f.key),
+    [checkPerm]
+  );
 
   // Register cases module with global undo store
   useEffect(() => {
@@ -796,6 +800,7 @@ export default function CasesPage() {
         onRenameView={tableViews.renameView}
         onReorderViews={tableViews.reorderViews}
         visibleFieldKeys={visibleFieldKeys}
+        permittedFieldKeys={permittedFieldKeys}
         selectedCount={rowSelection.selectedCount}
         hiddenColumns={activeView.hiddenColumns || []}
         onToggleColumn={tableViews.toggleColumnVisibility}

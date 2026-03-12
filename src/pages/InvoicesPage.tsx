@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { TableFooterStats, type NumericColumnConfig } from "@/components/TableFooterStats";
 import { Plus, ExternalLink, Trash2, GripVertical } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import AssigneeTag from "@/components/AssigneeTag";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +17,7 @@ import { useSelectOptions, selectOptionsStore, getStatusLabelStyle } from "@/sto
 import { useLabelStyles } from "@/stores/label-style-store";
 import { type InvoiceStatus, invoiceStatusLabels } from "@/data/invoice-types";
 import { type Invoice } from "@/data/invoice-types";
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useInvoiceTableViews, invoiceFieldMetas } from "@/hooks/use-invoice-table-views";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import {
@@ -109,6 +110,7 @@ export default function InvoicesPage() {
   const navigate = useNavigate();
   const { isAdmin, profile, user, roles } = useAuth();
   const isExecutive = roles.some((r) => r.role === "executive");
+  const { checkPerm } = usePermissions();
   const allInvoices = useInvoices();
   const invoices = isAdmin ? allInvoices : allInvoices.filter(
     (inv) => inv.translator === profile?.display_name
@@ -132,6 +134,10 @@ export default function InvoicesPage() {
   const tableViews = useInvoiceTableViews(user?.id);
   const { activeView } = tableViews;
   const visibleFieldKeys = invoiceFieldMetas.map((f) => f.key);
+  const permittedFieldKeys = useMemo(() =>
+    invoiceFieldMetas.filter((f) => checkPerm("translator_invoices", `table_field_${f.key}`, "view")).map((f) => f.key),
+    [checkPerm]
+  );
 
   // Apply filters and sorts
   const visibleInvoices = tableViews.applyFiltersAndSorts(invoices, getInvoiceTotal);
@@ -503,6 +509,7 @@ export default function InvoicesPage() {
         onRenameView={tableViews.renameView}
         onReorderViews={tableViews.reorderViews}
         visibleFieldKeys={visibleFieldKeys}
+        permittedFieldKeys={permittedFieldKeys}
         selectedCount={rowSelection.selectedCount}
         hiddenColumns={activeView.hiddenColumns || []}
         onToggleColumn={tableViews.toggleColumnVisibility}
