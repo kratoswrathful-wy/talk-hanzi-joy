@@ -1337,7 +1337,7 @@ export default function CaseDetailPage() {
           />
         </div>
 
-        <div className="flex items-end gap-3 pr-40">
+        <div className="flex items-end gap-3 pr-12">
           {/* Case icon */}
           {caseData.iconUrl && (
             <img
