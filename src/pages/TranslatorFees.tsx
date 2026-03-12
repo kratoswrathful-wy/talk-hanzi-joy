@@ -37,6 +37,7 @@ import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-st
 import AssigneeTag from "@/components/AssigneeTag";
 import { supabase } from "@/integrations/supabase/client";
 import { getFieldLock, getMultiSelectFieldLock, type FeeFieldLockContext } from "@/lib/fee-field-locks";
+import { currencyStore } from "@/stores/currency-store";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
   draft: "草稿",
