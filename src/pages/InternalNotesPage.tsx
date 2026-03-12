@@ -528,6 +528,9 @@ export default function InternalNotesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [newNoteOpen, setNewNoteOpen] = useState(false);
 
+  // Load notes from DB on mount
+  useEffect(() => { internalNotesStore.load(); }, []);
+
   // Auto-open note if ?noteId= is in URL
   useEffect(() => {
     const noteId = searchParams.get("noteId");
