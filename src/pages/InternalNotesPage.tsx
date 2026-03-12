@@ -152,7 +152,7 @@ function NoteDetailView({
     setInvalidateReason("");
   };
 
-  const handleNewSameCaseNote = () => {
+  const handleNewSameCaseNote = async () => {
     const title = generateNoteTitle(note.relatedCase);
     // Get case reviewer
     const cases = caseStore.getAll();
@@ -178,7 +178,7 @@ function NoteDetailView({
       comments: [],
       invalidated: false,
     };
-    internalNotesStore.add(newNote);
+    await internalNotesStore.add(newNote);
     toast.success(`已建立新註記頁面「${title}」，現有內容複製自原頁面，請確實妥善編輯更改。`);
     navigate(`/internal-notes?noteId=${newNote.id}`);
   };
