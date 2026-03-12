@@ -57,6 +57,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           custom_guidelines_url: Json
+          decline_records: Json
           delivery_method: string
           delivery_method_files: Json | null
           dispatch_route: string | null
@@ -120,6 +121,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           custom_guidelines_url?: Json
+          decline_records?: Json
           delivery_method?: string
           delivery_method_files?: Json | null
           dispatch_route?: string | null
@@ -183,6 +185,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           custom_guidelines_url?: Json
+          decline_records?: Json
           delivery_method?: string
           delivery_method_files?: Json | null
           dispatch_route?: string | null
