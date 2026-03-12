@@ -424,6 +424,10 @@ export default function CasesPage() {
   const rowSelection = useRowSelection(visibleFees.map((c) => c.id));
 
   const visibleFieldKeys = caseFieldMetas.map((f) => f.key);
+  const permittedFieldKeys = useMemo(() =>
+    caseFieldMetas.filter((f) => checkPerm("case_management", `table_field_${f.key}`, "view")).map((f) => f.key),
+    [checkPerm]
+  );
 
   // Register cases module with global undo store
   useEffect(() => {

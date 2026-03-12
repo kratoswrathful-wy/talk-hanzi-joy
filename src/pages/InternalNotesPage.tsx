@@ -540,6 +540,10 @@ export default function InternalNotesPage() {
   const tableViews = useInternalNotesTableViews(user?.id);
   const { activeView } = tableViews;
   const visibleFieldKeys = internalNotesFieldMetas.map((f) => f.key);
+  const permittedFieldKeys = useMemo(() =>
+    internalNotesFieldMetas.filter((f) => checkPerm("internal_notes", `table_field_${f.key}`, "view")).map((f) => f.key),
+    [checkPerm]
+  );
 
   const visibleNotes = tableViews.applyFiltersAndSorts(notes);
   const rowSelection = useRowSelection(visibleNotes.map((n) => n.id));

@@ -132,6 +132,10 @@ export default function InvoicesPage() {
   const tableViews = useInvoiceTableViews(user?.id);
   const { activeView } = tableViews;
   const visibleFieldKeys = invoiceFieldMetas.map((f) => f.key);
+  const permittedFieldKeys = useMemo(() =>
+    invoiceFieldMetas.filter((f) => checkPerm("translator_invoices", `table_field_${f.key}`, "view")).map((f) => f.key),
+    [checkPerm]
+  );
 
   // Apply filters and sorts
   const visibleInvoices = tableViews.applyFiltersAndSorts(invoices, getInvoiceTotal);
