@@ -389,6 +389,39 @@ export type Database = {
         }
         Relationships: []
       }
+      icon_library: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          env: string
+          id: string
+          name: string
+          storage_path: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          env?: string
+          id?: string
+          name?: string
+          storage_path?: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          env?: string
+          id?: string
+          name?: string
+          storage_path?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
+      }
       internal_notes: {
         Row: {
           comments: Json
