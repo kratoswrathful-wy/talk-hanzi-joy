@@ -1,5 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { type TranslatorFee } from "@/data/fee-mock-data";
+import { type Invoice } from "@/data/invoice-types";
+import { type ClientInvoice } from "@/data/client-invoice-types";
 import { getStatusSortIndex, FEE_STATUS_LABEL_MAP } from "@/stores/select-options-store";
 import {
   type TableFilter, type TableSort, type TableView, type FilterGroup,
@@ -31,10 +33,16 @@ export const fieldMetas: FieldMeta[] = [
   { key: "sameCase", label: "費用群組", type: "checkbox" },
   { key: "translatorInvoiceStatus", label: "稿費請款狀態", type: "select" },
   { key: "clientInvoiceStatus", label: "客戶請款狀態", type: "select" },
+  { key: "translatorInvoice", label: "稿費請款單", type: "text" },
   { key: "invoice", label: "請款單", type: "text" },
   { key: "createdBy", label: "建立者", type: "text" },
   { key: "createdAt", label: "建立時間", type: "date" },
 ];
+
+export interface FeeFilterContext {
+  invoices: Invoice[];
+  clientInvoices: ClientInvoice[];
+}
 
 function getFieldValue(fee: TranslatorFee, field: string): string | number | boolean {
   switch (field) {
