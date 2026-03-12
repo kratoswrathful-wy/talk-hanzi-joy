@@ -2253,7 +2253,7 @@ export default function CaseDetailPage() {
                       <div key={r.id} className="ml-6 rounded-md border border-border/60 bg-secondary/15 px-3 py-2 text-xs">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="font-medium">{r.author}</span>
-     <span className="text-muted-foreground">{new Date(r.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
+     <span className="text-muted-foreground">{formatTimestamp(r.createdAt)}</span>
                         </div>
                         <CommentContent content={r.content} imageUrls={r.imageUrls} fileUrls={r.fileUrls} />
                       </div>
