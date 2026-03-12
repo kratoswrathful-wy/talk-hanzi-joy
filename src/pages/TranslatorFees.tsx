@@ -515,6 +515,9 @@ export default function TranslatorFees() {
 
   const [expandedRows, setExpandedRows] = useState<Record<string, ExpandType | null>>({});
 
+  const allInvoices = useInvoices();
+  const allClientInvoices = useClientInvoices();
+
   // Filter fees for assignee role: translators only see finalized fees assigned to them
   const effectiveRole = isAdmin ? "pm" : "assignee";
   const baseFees = effectiveRole === "assignee"
@@ -524,8 +527,6 @@ export default function TranslatorFees() {
   const visibleFees = tableViews.applyFiltersAndSorts(baseFees, filterCtx);
 
   const rowSelection = useRowSelection(visibleFees.map((f) => f.id));
-  const allInvoices = useInvoices();
-  const allClientInvoices = useClientInvoices();
 
   // Build lock context for a fee (linked invoices)
   const getLockContext = useCallback((fee: TranslatorFee): FeeFieldLockContext => {
