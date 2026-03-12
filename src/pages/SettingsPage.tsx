@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect, useSyncExternalStore } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, GripVertical, Pencil, Shield, ChevronDown, ChevronRight, Palette } from "lucide-react";
+import { Plus, Trash2, GripVertical, Pencil, Shield, ChevronDown, ChevronRight, Palette, Download } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import ColorPicker from "@/components/ColorPicker";
 import { useSelectOptions, selectOptionsStore, PRESET_COLORS, STATUS_TABLE_MAP, ALL_STATUS_TABLES } from "@/stores/select-options-store";
