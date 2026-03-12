@@ -900,7 +900,7 @@ export default function CaseDetailPage() {
     const nextSeq = String(maxSeq + 1).padStart(5, "0");
 
     const newNote: InternalNote = {
-      id: `note-${Date.now()}`,
+      id: crypto.randomUUID(),
       title: `${prefix}${nextSeq}`,
       relatedCase: caseTitle,
       createdAt: new Date().toISOString(),
