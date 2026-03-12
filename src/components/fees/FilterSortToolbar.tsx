@@ -252,7 +252,7 @@ export function FilterSortToolbar({
                   variant="ghost"
                   size="sm"
                   className="h-7 text-xs gap-1 flex-1 justify-start text-muted-foreground"
-                  onClick={() => onAddCondition("root", { field: visibleFields[0]?.key || "title", operator: "contains", value: "" })}
+                  onClick={() => onAddCondition("root", { field: allFields[0]?.key || "title", operator: "contains", value: "" })}
                 >
                   <Plus className="h-3 w-3" />
                   新增條件
