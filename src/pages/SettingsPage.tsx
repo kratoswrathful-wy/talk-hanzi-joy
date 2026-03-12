@@ -72,6 +72,7 @@ function ClientPricingSection() {
   const labelStyles = useLabelStyles();
   const { options: taskTypeOptions } = useSelectOptions("taskType");
   const { getAllClientPricing, setClientPrice, removeClientPrice } = useClientPricing();
+  const { currencies } = useCurrencies();
   const allPricing = getAllClientPricing();
 
   const [editingCell, setEditingCell] = useState<string | null>(null);
@@ -85,8 +86,9 @@ function ClientPricingSection() {
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
+  const [newCurrency, setNewCurrency] = useState(currencies[0]?.code || "TWD");
   const [textColorOpen, setTextColorOpen] = useState(false);
-  const cancelAdding = useCallback(() => { setAdding(false); setNewLabel(""); setNewColor(PRESET_COLORS[0]); }, []);
+  const cancelAdding = useCallback(() => { setAdding(false); setNewLabel(""); setNewColor(PRESET_COLORS[0]); setNewCurrency(currencies[0]?.code || "TWD"); }, [currencies]);
   const addingRef = useClickOutsideCancel(adding, cancelAdding);
 
   const toggleClient = (id: string) => {
@@ -112,7 +114,7 @@ function ClientPricingSection() {
   const handleAddClient = () => {
     const label = newLabel.trim();
     if (!label || clientOptions.some((o) => o.label === label)) return;
-    selectOptionsStore.addOption("client", label, newColor);
+    selectOptionsStore.addOption("client", label, newColor, { currency: newCurrency });
     // Auto-populate hourly pricing (450) for all task types
     for (const tt of taskTypeOptions) {
       for (const bu of billingUnitOptions) {
@@ -123,6 +125,7 @@ function ClientPricingSection() {
     }
     setNewLabel("");
     setNewColor(PRESET_COLORS[0]);
+    setNewCurrency(currencies[0]?.code || "TWD");
     setAdding(false);
   };
 
