@@ -78,8 +78,8 @@ function StatusBadge({ status }: { status: ClientInvoiceStatus }) {
   );
 }
 
-const formatCurrency = (n: number) =>
-  n.toLocaleString("zh-TW", { style: "currency", currency: "TWD", minimumFractionDigits: 0 });
+const formatCurrency = (n: number, code = "TWD") =>
+  `${code} ${n.toLocaleString("zh-TW", { minimumFractionDigits: 0 })}`;
 
 const formatTimestamp = (date: Date | string) => {
   const d = typeof date === "string" ? new Date(date) : date;

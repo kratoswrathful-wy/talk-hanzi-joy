@@ -2475,13 +2475,15 @@ function CurrencySettingsSection() {
               )}
               <span className="text-xs text-muted-foreground">TWD</span>
             </div>
-            {cur.code !== "TWD" && (
+            {cur.code !== "TWD" ? (
               <button
                 className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
                 onClick={() => deleteCurrency(cur.id)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
+            ) : (
+              <div className="h-6 w-6 shrink-0" />
             )}
           </div>
         ))}

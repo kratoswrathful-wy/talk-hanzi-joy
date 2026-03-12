@@ -254,7 +254,7 @@ const allColumnDefs: ColumnDef[] = [
       const p = revTwd - cost;
       return (
         <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-          <span className={cn("text-sm tabular-nums font-medium cursor-default", p >= 0 ? "text-success" : "text-destructive")}>{formatCurrency(p)}</span>
+          <span className={cn("text-sm tabular-nums font-medium cursor-default", p >= 0 ? "text-success" : "text-destructive")}>{formatCurrency(p, "TWD")}</span>
         </TooltipTrigger><TooltipContent className="text-xs">自動計算{clientCurrency !== "TWD" ? ` (${clientCurrency}→TWD ×${twdRate})` : ""}</TooltipContent></Tooltip></TooltipProvider>
       );
     },
