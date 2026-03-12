@@ -355,8 +355,20 @@ function ToolInstance({
   const [addingFieldType, setAddingFieldType] = useState<"text" | "file" | null>(null);
   const [newFieldLabel, setNewFieldLabel] = useState("");
 
+  // Keep a stable ref of last resolved fields to prevent flicker during async toolOptions loading
+  const lastFieldsRef = useRef<ToolEntryField[]>([]);
+
   const selectedTool = toolOptions.find((o) => o.label === entry.tool);
-  const resolvedFields: ToolEntryField[] = entry.fields || selectedTool?.toolFields?.map(f => ({ ...f, type: (f.type || "text") as "text" | "file" })) || [];
+  const computedFields: ToolEntryField[] = entry.fields || selectedTool?.toolFields?.map(f => ({ ...f, type: (f.type || "text") as "text" | "file" })) || [];
+
+  // If computed fields are non-empty, update stable ref
+  if (computedFields.length > 0) {
+    lastFieldsRef.current = computedFields;
+  }
+
+  // Use computed if available, otherwise fall back to last known fields (avoids empty flash)
+  const resolvedFields = computedFields.length > 0 ? computedFields : lastFieldsRef.current;
+
   const values = entry.fieldValues || {};
   const fileValues = entry.fileValues || {};
 
@@ -368,7 +380,6 @@ function ToolInstance({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry.fields, resolvedFields.length]);
 
-  // Use a stable ref of fields: prefer entry.fields (persisted) to avoid flicker
   const fields = resolvedFields;
   const hasToolSelected = !!entry.tool;
 
@@ -745,6 +756,8 @@ export default function CaseDetailPage() {
   const [creatorName, setCreatorName] = useState("");
   const [dupDialogOpen, setDupDialogOpen] = useState(false);
   const [dupInfo, setDupInfo] = useState<{ newTitle: string; renames: { oldTitle: string; newTitle: string }[] } | null>(null);
+  const [declineOpen, setDeclineOpen] = useState(false);
+  const [declineProposedDeadline, setDeclineProposedDeadline] = useState<string | null>(null);
   const { primaryRole: currentRole, profile } = useAuth();
   const { checkPerm } = usePermissions();
   const isManager = currentRole === "pm" || currentRole === "executive";
@@ -785,6 +798,9 @@ export default function CaseDetailPage() {
      window.addEventListener("beforeunload", handler);
      return () => window.removeEventListener("beforeunload", handler);
    }, [shouldBlockNav]);
+
+  // Load internal notes from DB
+  useEffect(() => { internalNotesStore.load(); }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -934,6 +950,20 @@ export default function CaseDetailPage() {
   const isMember = currentRole === "member";
   const isPmOrAbove = currentRole === "pm" || currentRole === "executive";
 
+  const handleDecline = () => {
+    const displayName = profile?.display_name || profile?.email || "";
+    const record = {
+      id: crypto.randomUUID(),
+      translator: displayName,
+      proposedDeadline: declineProposedDeadline || undefined,
+      createdAt: new Date().toISOString(),
+    };
+    const existing = caseData.declineRecords || [];
+    save({ declineRecords: [...existing, record] });
+    setDeclineOpen(false);
+    setDeclineProposedDeadline(null);
+    toast({ title: "已記錄無法承接" });
+  };
 
   const handleDuplicate = async () => {
     const result = await caseStore.duplicate(caseData.id);
@@ -1099,6 +1129,17 @@ export default function CaseDetailPage() {
             module="cases"
             onApply={(values) => save(values)}
           />
+          {/* Decline button for translators on draft/inquiry */}
+          {(isDraft || isInquiry) && isMember && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs min-w-[88px] border-destructive text-destructive hover:bg-destructive/10"
+              onClick={() => setDeclineOpen(true)}
+            >
+              無法承接
+            </Button>
+          )}
           {/* Left-side grey button */}
           {isInquiry && isPmOrAbove ? (
             <Button
@@ -1310,6 +1351,27 @@ export default function CaseDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Decline records display */}
+      {(caseData.declineRecords || []).length > 0 && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-1.5">
+          <p className="text-sm font-medium text-destructive">無法承接紀錄</p>
+          {(caseData.declineRecords || []).map((rec) => (
+            <div key={rec.id} className="flex items-center gap-3 text-sm">
+              <span className="font-medium">{rec.translator}</span>
+              <span className="text-muted-foreground">
+                {formatTimestamp(new Date(rec.createdAt))}
+              </span>
+              {rec.proposedDeadline && (
+                <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                  建議交期：{formatTimestamp(new Date(rec.proposedDeadline))}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       <Separator />
 
       <h2 className="text-base font-semibold">基本資訊</h2>
@@ -1974,7 +2036,7 @@ export default function CaseDetailPage() {
       {/* Meta info */}
       <div className="flex gap-6 text-xs text-muted-foreground">
         <span>建立者：{creatorName || "—"}</span>
-        <span>建立時間：{new Date(caseData.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
+        <span>建立時間：{formatTimestamp(new Date(caseData.createdAt))}</span>
       </div>
 
       <Separator />
@@ -2177,6 +2239,29 @@ export default function CaseDetailPage() {
               pendingNavigateRef.current = null;
               if (nav) nav();
             }}>公布</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Decline confirmation dialog */}
+      <AlertDialog open={declineOpen} onOpenChange={(v) => { if (!v) { setDeclineOpen(false); setDeclineProposedDeadline(null); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>無法承接</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <span>按下此按鈕會在頁面上留下紀錄，告知派案人員無法承接本案，是否確定？</span>
+              <span className="block text-sm font-medium text-foreground mt-3">如果要接，請問希望可以將交期延到何時？（選填）</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="px-1">
+            <DateTimePicker
+              value={declineProposedDeadline}
+              onChange={setDeclineProposedDeadline}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setDeclineOpen(false); setDeclineProposedDeadline(null); }}>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDecline} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">確認</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

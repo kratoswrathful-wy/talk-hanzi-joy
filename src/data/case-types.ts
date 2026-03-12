@@ -46,6 +46,13 @@ export interface CaseComment {
   createdAt: string;
 }
 
+export interface DeclineRecord {
+  id: string;
+  translator: string;
+  proposedDeadline?: string; // ISO datetime, optional
+  createdAt: string;
+}
+
 export interface CaseRecord {
   id: string;
   title: string;
@@ -104,6 +111,7 @@ export interface CaseRecord {
   multiCollab: boolean;
   collabCount: number;
   collabRows: CollabRow[];
+  declineRecords: DeclineRecord[];
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;

@@ -59,7 +59,7 @@ const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 /* ── Helpers ── */
 const formatDate = (iso: string) => {
   const d = new Date(iso);
-  return d.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit" });
+  return d.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Taipei" }) + " (UTC+8)";
 };
 
 function generateNoteTitle(caseTitle: string): string {
@@ -527,6 +527,9 @@ export default function InternalNotesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [newNoteOpen, setNewNoteOpen] = useState(false);
+
+  // Load notes from DB on mount
+  useEffect(() => { internalNotesStore.load(); }, []);
 
   // Auto-open note if ?noteId= is in URL
   useEffect(() => {

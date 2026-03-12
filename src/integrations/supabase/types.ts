@@ -57,6 +57,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           custom_guidelines_url: Json
+          decline_records: Json
           delivery_method: string
           delivery_method_files: Json | null
           dispatch_route: string | null
@@ -120,6 +121,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           custom_guidelines_url?: Json
+          decline_records?: Json
           delivery_method?: string
           delivery_method_files?: Json | null
           dispatch_route?: string | null
@@ -183,6 +185,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           custom_guidelines_url?: Json
+          decline_records?: Json
           delivery_method?: string
           delivery_method_files?: Json | null
           dispatch_route?: string | null
@@ -379,6 +382,84 @@ export type Database = {
           status?: string
           task_items?: Json
           title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      internal_notes: {
+        Row: {
+          comments: Json
+          created_at: string
+          created_by: string | null
+          creator: string
+          env: string
+          file_name: string
+          id: string
+          id_row_count: string
+          internal_assignee: Json
+          invalidated: boolean
+          invalidated_at: string | null
+          invalidated_by: string | null
+          invalidation_reason: string | null
+          note_type: string
+          question_or_note: string
+          question_or_note_blocks: Json
+          reference_files: Json
+          related_case: string
+          source_text: string
+          status: string
+          title: string
+          translated_text: string
+          updated_at: string
+        }
+        Insert: {
+          comments?: Json
+          created_at?: string
+          created_by?: string | null
+          creator?: string
+          env?: string
+          file_name?: string
+          id?: string
+          id_row_count?: string
+          internal_assignee?: Json
+          invalidated?: boolean
+          invalidated_at?: string | null
+          invalidated_by?: string | null
+          invalidation_reason?: string | null
+          note_type?: string
+          question_or_note?: string
+          question_or_note_blocks?: Json
+          reference_files?: Json
+          related_case?: string
+          source_text?: string
+          status?: string
+          title?: string
+          translated_text?: string
+          updated_at?: string
+        }
+        Update: {
+          comments?: Json
+          created_at?: string
+          created_by?: string | null
+          creator?: string
+          env?: string
+          file_name?: string
+          id?: string
+          id_row_count?: string
+          internal_assignee?: Json
+          invalidated?: boolean
+          invalidated_at?: string | null
+          invalidated_by?: string | null
+          invalidation_reason?: string | null
+          note_type?: string
+          question_or_note?: string
+          question_or_note_blocks?: Json
+          reference_files?: Json
+          related_case?: string
+          source_text?: string
+          status?: string
+          title?: string
+          translated_text?: string
           updated_at?: string
         }
         Relationships: []
