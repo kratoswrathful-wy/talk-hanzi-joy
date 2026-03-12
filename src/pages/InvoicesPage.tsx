@@ -68,7 +68,7 @@ function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
   );
 }
 
-// formatDate is now timezone-aware, defined inside component scope
+import { formatDateTz as formatDate } from "@/lib/format-timestamp";
 
 const formatCurrency = (n: number) =>
   n.toLocaleString("zh-TW", { style: "currency", currency: "TWD", minimumFractionDigits: 0 });

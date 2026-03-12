@@ -57,7 +57,7 @@ import { useLabelStyles } from "@/stores/label-style-store";
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
 /* ── Helpers ── */
-// formatDate is now timezone-aware, defined inside component scope
+import { formatDateTz as formatDate } from "@/lib/format-timestamp";
 
 function generateNoteTitle(caseTitle: string): string {
   const baseId = caseTitle.replace(/[_\-]?\d{6,8}$/g, "").replace(/[_\-]?\d{4}[\-\/]?\d{2}[\-\/]?\d{2}$/, "").trim() || caseTitle;

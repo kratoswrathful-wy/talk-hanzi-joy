@@ -61,7 +61,7 @@ const clientInfoLogKeywords = [
   "同一案件", "主要營收", "營收", "利潤", "客戶端",
 ];
 
-// formatDate is now timezone-aware, defined inside component scope
+import { formatDateTz as formatDate } from "@/lib/format-timestamp";
 
 const formatCurrency = (n: number) =>
   n.toLocaleString("zh-TW", { style: "currency", currency: "TWD", minimumFractionDigits: 0 });
