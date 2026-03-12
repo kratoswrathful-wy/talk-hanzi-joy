@@ -101,6 +101,7 @@ export function FilterSortToolbar({
   onAddSort, onRemoveSort, onUpdateSort,
   onRenameView, onReorderViews,
   visibleFieldKeys,
+  permittedFieldKeys,
   selectedCount,
   hiddenColumns,
   onToggleColumn,
@@ -119,7 +120,11 @@ export function FilterSortToolbar({
   const editInputRef = useRef<HTMLInputElement>(null);
   const dragViewRef = useRef<string | null>(null);
   const [dragOverViewId, setDragOverViewId] = useState<string | null>(null);
-  const allFields = fieldMetasList || fieldMetas;
+  const rawFields = fieldMetasList || fieldMetas;
+  // Filter by permission: if permittedFieldKeys is provided, only show those fields
+  const allFields = permittedFieldKeys
+    ? rawFields.filter((f) => permittedFieldKeys.includes(f.key))
+    : rawFields;
   const visibleFields = allFields.filter((f) => visibleFieldKeys.includes(f.key));
   const hiddenSet = new Set(hiddenColumns);
   const pinnedTopCount = (pinnedTop || []).length;
