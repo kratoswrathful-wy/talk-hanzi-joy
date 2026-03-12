@@ -457,6 +457,28 @@ function ClientInvoiceStatusCell({ feeId }: { feeId: string }) {
   );
 }
 
+function TranslatorInvoiceLink({ feeId }: { feeId: string }) {
+  const navigate = useNavigate();
+  const invoices = useInvoices();
+  const linked = invoices.filter((inv) => inv.feeIds.includes(feeId));
+  if (linked.length === 0) return <span className="text-sm text-muted-foreground">—</span>;
+  return (
+    <div className="flex flex-col gap-0.5">
+      {linked.map((inv) => (
+        <button
+          key={inv.id}
+          onClick={(e) => { e.stopPropagation(); navigate(`/invoices/${inv.id}`); }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="text-xs text-primary hover:underline truncate text-left"
+          title={inv.title}
+        >
+          {inv.title || inv.translator}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function InvoiceLink({ feeId }: { feeId: string }) {
   const navigate = useNavigate();
   const invoices = useInvoices();
