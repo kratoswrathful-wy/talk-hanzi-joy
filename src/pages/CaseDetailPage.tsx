@@ -382,7 +382,6 @@ function ToolInstance({
 
   const fields = resolvedFields;
   const hasToolSelected = !!entry.tool;
-  const hasToolSelected = !!entry.tool;
 
   const matchingTemplates = allTemplates.filter((t) => t.tool === entry.tool);
 
