@@ -130,20 +130,18 @@ export const internalNotesStore = {
     }
   },
 
-  add: (note: InternalNote) => {
+  add: async (note: InternalNote) => {
     notes = [note, ...notes];
     notify();
-    supabase
+    const { error } = await supabase
       .from("internal_notes")
       .insert({
         id: note.id,
         ...appToDb(note),
         created_at: note.createdAt,
         env: getEnvironment(),
-      } as any)
-      .then(({ error }) => {
-        if (error) console.error("Failed to insert internal note:", error);
-      });
+      } as any);
+    if (error) console.error("Failed to insert internal note:", error);
     return note;
   },
 
