@@ -44,7 +44,33 @@ export interface FeeFilterContext {
   clientInvoices: ClientInvoice[];
 }
 
-function getFieldValue(fee: TranslatorFee, field: string): string | number | boolean {
+const TRANSLATOR_INVOICE_STATUS_MAP: Record<string, string> = {
+  pending: "待付款",
+  partial: "部份付款",
+  paid: "已付款",
+};
+
+const CLIENT_INVOICE_STATUS_MAP: Record<string, string> = {
+  pending: "待收款",
+  partial_collected: "部份到帳",
+  collected: "全額收齊",
+};
+
+export const translatorInvoiceStatusOptions = [
+  { value: "尚未請款", label: "尚未請款" },
+  { value: "待付款", label: "待付款" },
+  { value: "部份付款", label: "部份付款" },
+  { value: "已付款", label: "已付款" },
+];
+
+export const clientInvoiceStatusOptions = [
+  { value: "尚未請款", label: "尚未請款" },
+  { value: "待收款", label: "待收款" },
+  { value: "部份到帳", label: "部份到帳" },
+  { value: "全額收齊", label: "全額收齊" },
+];
+
+function getFieldValue(fee: TranslatorFee, field: string, ctx?: FeeFilterContext): string | number | boolean {
   switch (field) {
     case "title": return fee.title;
     case "status": return fee.status;
@@ -70,6 +96,26 @@ function getFieldValue(fee: TranslatorFee, field: string): string | number | boo
     case "rateConfirmed": return !!fee.clientInfo?.rateConfirmed;
     case "invoiced": return !!fee.clientInfo?.invoiced;
     case "sameCase": return !!fee.clientInfo?.sameCase;
+    case "translatorInvoiceStatus": {
+      if (!ctx) return "";
+      const linked = ctx.invoices.find((inv) => inv.feeIds.includes(fee.id));
+      return linked ? (TRANSLATOR_INVOICE_STATUS_MAP[linked.status] || linked.status) : "尚未請款";
+    }
+    case "clientInvoiceStatus": {
+      if (!ctx) return "";
+      const linked = ctx.clientInvoices.find((inv) => inv.feeIds.includes(fee.id));
+      return linked ? (CLIENT_INVOICE_STATUS_MAP[linked.status] || linked.status) : "尚未請款";
+    }
+    case "translatorInvoice": {
+      if (!ctx) return "";
+      const linked = ctx.invoices.filter((inv) => inv.feeIds.includes(fee.id));
+      return linked.map((inv) => inv.title || inv.translator).join(", ");
+    }
+    case "invoice": {
+      if (!ctx) return "";
+      const linked = ctx.invoices.filter((inv) => inv.feeIds.includes(fee.id));
+      return linked.map((inv) => inv.title || inv.translator).join(", ");
+    }
     case "createdBy": return fee.createdBy;
     case "createdAt": return fee.createdAt;
     default: return "";
