@@ -232,11 +232,19 @@ async function update(id: string, partial: Partial<CaseRecord>) {
   // Optimistic update BEFORE DB write to prevent poll/realtime from overwriting
   const updatedAt = mapped.updated_at;
   cases = cases.map((c) => (c.id === id ? { ...c, ...partial, updatedAt } : c));
-  pendingUpdates.set(id, partial);
+  // Merge with existing pending updates instead of replacing to avoid losing concurrent writes
+  pendingUpdates.set(id, { ...pendingUpdates.get(id), ...partial });
+  inFlightCount.set(id, (inFlightCount.get(id) || 0) + 1);
   notify();
 
   const { error } = await (supabase.from("cases").update(mapped as any).eq("id", id) as any);
-  pendingUpdates.delete(id);
+  const remaining = (inFlightCount.get(id) || 1) - 1;
+  if (remaining <= 0) {
+    pendingUpdates.delete(id);
+    inFlightCount.delete(id);
+  } else {
+    inFlightCount.set(id, remaining);
+  }
 
   if (error) {
     // On failure, reload to restore correct state

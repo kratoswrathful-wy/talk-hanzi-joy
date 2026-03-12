@@ -1374,7 +1374,19 @@ export default function CaseDetailPage() {
       {/* Decline records display */}
       {(caseData.declineRecords || []).length > 0 && (
         <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-1.5">
-          <p className="text-sm font-medium text-destructive">無法承接紀錄</p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-destructive">無法承接紀錄</p>
+            {isDispatched && isPmOrAbove && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs text-destructive hover:text-destructive"
+                onClick={() => save({ declineRecords: [] })}
+              >
+                清除全部
+              </Button>
+            )}
+          </div>
           {(caseData.declineRecords || []).map((rec) => (
             <div key={rec.id} className="flex items-center gap-3 text-sm">
               <span className="font-medium">{rec.translator}</span>
