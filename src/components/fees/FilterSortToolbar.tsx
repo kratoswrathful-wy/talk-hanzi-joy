@@ -444,7 +444,7 @@ function FilterGroupUI({
               ops={allFields.find((f) => f.key === node.condition!.field)
                 ? getOperatorsForType(allFields.find((f) => f.key === node.condition!.field)!.type)
                 : []}
-              visibleFields={visibleFields}
+               allFields={allFields}
               onUpdateFilter={onUpdateCondition}
               onRemoveFilter={onRemoveNode}
               statusOptionsList={statusOptionsList}
