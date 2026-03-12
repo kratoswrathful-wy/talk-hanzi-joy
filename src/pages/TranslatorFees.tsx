@@ -228,9 +228,11 @@ const allColumnDefs: ColumnDef[] = [
     render: (f) => {
       if (!f.clientInfo || f.clientInfo.notFirstFee) return <span className="text-sm text-muted-foreground">N/A</span>;
       const rev = f.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
+      const clientOpt2 = selectOptionsStore.getSortedOptions("client").find((o) => o.label === f.clientInfo?.client);
+      const revCurrency = clientOpt2?.currency || "TWD";
       return (
         <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-          <span className="text-sm tabular-nums cursor-default">{formatCurrency(rev)}</span>
+          <span className="text-sm tabular-nums cursor-default">{formatCurrency(rev, revCurrency)}</span>
         </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
       );
     },
