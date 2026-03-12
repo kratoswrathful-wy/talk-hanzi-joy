@@ -340,6 +340,18 @@ function ClientPricingSection() {
               if (e.key === "Escape") setAdding(false);
             }}
           />
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground whitespace-nowrap">貨幣</Label>
+            <select
+              value={newCurrency}
+              onChange={(e) => setNewCurrency(e.target.value)}
+              className="h-7 rounded-md border border-input bg-background px-2 text-xs flex-1"
+            >
+              {currencies.map((c) => (
+                <option key={c.id} value={c.code}>{c.code} — {c.label}</option>
+              ))}
+            </select>
+          </div>
           <ColorPicker
             value={newColor}
             onChange={(color) => setNewColor(color)}
