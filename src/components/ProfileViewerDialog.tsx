@@ -48,7 +48,8 @@ export default function ProfileViewerDialog({ open, onOpenChange, email }: Profi
   }, [open, email]);
 
   const isOwnProfile = profile && user && profile.id === user.id;
-  const tzInfo = getTimezoneInfo(profile?.timezone);
+  const defaultTz = getTimezoneInfo("Asia/Taipei");
+  const tzInfo = profile?.timezone ? getTimezoneInfo(profile.timezone) : defaultTz;
   const initials = (profile?.display_name || profile?.email || "?").slice(0, 2).toUpperCase();
 
   return (
