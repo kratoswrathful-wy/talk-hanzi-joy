@@ -122,24 +122,26 @@ function getFieldValue(fee: TranslatorFee, field: string, ctx?: FeeFilterContext
   }
 }
 
-function matchFilter(fee: TranslatorFee, filter: TableFilter): boolean {
-  const val = getFieldValue(fee, filter.field);
-  let result: boolean;
-  switch (filter.operator) {
-    case "equals": result = String(val) === filter.value; break;
-    case "not_equals": result = String(val) !== filter.value; break;
-    case "contains": result = String(val).toLowerCase().includes(filter.value.toLowerCase()); break;
-    case "is_checked": result = val === true; break;
-    case "is_not_checked": result = val === false; break;
-    case "gt": result = Number(val) > Number(filter.value); break;
-    case "lt": result = Number(val) < Number(filter.value); break;
-    case "is_empty": result = String(val ?? "").trim() === ""; break;
-    default: result = true;
-  }
-  return filter.negated ? !result : result;
+function matchFilterWithCtx(ctx?: FeeFilterContext) {
+  return (fee: TranslatorFee, filter: TableFilter): boolean => {
+    const val = getFieldValue(fee, filter.field, ctx);
+    let result: boolean;
+    switch (filter.operator) {
+      case "equals": result = String(val) === filter.value; break;
+      case "not_equals": result = String(val) !== filter.value; break;
+      case "contains": result = String(val).toLowerCase().includes(filter.value.toLowerCase()); break;
+      case "is_checked": result = val === true; break;
+      case "is_not_checked": result = val === false; break;
+      case "gt": result = Number(val) > Number(filter.value); break;
+      case "lt": result = Number(val) < Number(filter.value); break;
+      case "is_empty": result = String(val ?? "").trim() === ""; break;
+      default: result = true;
+    }
+    return filter.negated ? !result : result;
+  };
 }
 
-function compareFees(a: TranslatorFee, b: TranslatorFee, sort: TableSort): number {
+function compareFeesWithCtx(a: TranslatorFee, b: TranslatorFee, sort: TableSort, ctx?: FeeFilterContext): number {
   if (sort.field === "status") {
     const aLabel = FEE_STATUS_LABEL_MAP[a.status] || a.status;
     const bLabel = FEE_STATUS_LABEL_MAP[b.status] || b.status;
@@ -147,8 +149,8 @@ function compareFees(a: TranslatorFee, b: TranslatorFee, sort: TableSort): numbe
     return sort.direction === "desc" ? -cmp : cmp;
   }
   const meta = fieldMetas.find((m) => m.key === sort.field);
-  const av = getFieldValue(a, sort.field);
-  const bv = getFieldValue(b, sort.field);
+  const av = getFieldValue(a, sort.field, ctx);
+  const bv = getFieldValue(b, sort.field, ctx);
   const cmp = smartCompare(av, bv, meta?.type);
   return sort.direction === "desc" ? -cmp : cmp;
 }
