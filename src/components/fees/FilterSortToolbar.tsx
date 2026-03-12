@@ -78,6 +78,8 @@ interface Props {
   onRenameView: (id: string, name: string) => void;
   onReorderViews: (fromId: string, toId: string) => void;
   visibleFieldKeys: string[];
+  /** Fields the user has permission to view. If omitted, all fields are permitted. */
+  permittedFieldKeys?: string[];
   selectedCount: number;
   hiddenColumns: string[];
   onToggleColumn: (key: string) => void;
