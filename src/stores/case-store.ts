@@ -13,6 +13,8 @@ const listeners = new Set<Listener>();
 
 // Track in-flight optimistic updates to prevent poll/realtime from overwriting
 const pendingUpdates = new Map<string, Partial<CaseRecord>>();
+// Count concurrent in-flight writes per case to avoid premature pending cleanup
+const inFlightCount = new Map<string, number>();
 
 function notify() {
   listeners.forEach((l) => l());
