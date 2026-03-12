@@ -219,7 +219,7 @@ function TitleInput({ value, onSave }: { value: string; onSave: (v: string) => v
         setFocused(true);
         e.target.select();
       }}
-      className="w-full max-w-md bg-background text-2xl font-semibold tracking-tight border border-transparent hover:border-input focus:border-input rounded-md px-3 py-1.5 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      className="w-full bg-background text-2xl font-semibold tracking-tight border border-transparent hover:border-input focus:border-input rounded-md px-3 py-1.5 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
     />
   );
 }

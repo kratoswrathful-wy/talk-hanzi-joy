@@ -11,6 +11,9 @@ let loadPromise: Promise<void> | null = null;
 let loadVersion = 0; // version counter to discard stale loads
 const listeners = new Set<Listener>();
 
+// Track in-flight optimistic updates to prevent poll/realtime from overwriting
+const pendingUpdates = new Map<string, Partial<CaseRecord>>();
+
 function notify() {
   listeners.forEach((l) => l());
 }
@@ -184,7 +187,15 @@ async function load() {
     const { data } = await (supabase.from("cases").select("*") as any).eq("env", env).order("created_at", { ascending: false });
     // Discard result if a newer load was started (race condition from auth changes)
     if (version !== loadVersion) return;
-    cases = (data || []).map(fromDb);
+    let fetched = (data || []).map(fromDb);
+    // Re-apply any in-flight optimistic updates so poll/realtime don't overwrite them
+    if (pendingUpdates.size > 0) {
+      fetched = fetched.map((c) => {
+        const pending = pendingUpdates.get(c.id);
+        return pending ? { ...c, ...pending } : c;
+      });
+    }
+    cases = fetched;
     loaded = true;
     notify();
   })();
@@ -215,10 +226,20 @@ async function create(partial: Partial<CaseRecord>): Promise<CaseRecord | null> 
 async function update(id: string, partial: Partial<CaseRecord>) {
   const mapped = toDb(partial);
   mapped.updated_at = new Date().toISOString();
+
+  // Optimistic update BEFORE DB write to prevent poll/realtime from overwriting
+  const updatedAt = mapped.updated_at;
+  cases = cases.map((c) => (c.id === id ? { ...c, ...partial, updatedAt } : c));
+  pendingUpdates.set(id, partial);
+  notify();
+
   const { error } = await (supabase.from("cases").update(mapped as any).eq("id", id) as any);
-  if (!error) {
-    cases = cases.map((c) => (c.id === id ? { ...c, ...partial, updatedAt: mapped.updated_at } : c));
-    notify();
+  pendingUpdates.delete(id);
+
+  if (error) {
+    // On failure, reload to restore correct state
+    loadPromise = null;
+    await load();
   }
   return error;
 }
@@ -263,6 +284,8 @@ supabase
       if (payload.eventType === "UPDATE" && payload.new) {
         const row = payload.new as any;
         if (row.env !== env) return;
+        // Skip realtime updates for cases with pending optimistic writes
+        if (pendingUpdates.has(row.id)) return;
         const updated = fromDb(row);
         cases = cases.map((c) => (c.id === updated.id ? updated : c));
         notify();
