@@ -88,7 +88,7 @@ export default function ProfileViewerDialog({ open, onOpenChange, email }: Profi
               {tzInfo && (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Globe className="h-3.5 w-3.5 shrink-0" />
-                  <span>{tzInfo.label}{tzInfo.value !== "Asia/Taipei" ? ` (${tzInfo.utcOffset})` : ""}</span>
+                  <span>{tzInfo.label}</span>
                 </div>
               )}
               {profile.phone && (
