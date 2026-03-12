@@ -950,6 +950,20 @@ export default function CaseDetailPage() {
   const isMember = currentRole === "member";
   const isPmOrAbove = currentRole === "pm" || currentRole === "executive";
 
+  const handleDecline = () => {
+    const displayName = profile?.display_name || profile?.email || "";
+    const record = {
+      id: crypto.randomUUID(),
+      translator: displayName,
+      proposedDeadline: declineProposedDeadline || undefined,
+      createdAt: new Date().toISOString(),
+    };
+    const existing = caseData.declineRecords || [];
+    save({ declineRecords: [...existing, record] });
+    setDeclineOpen(false);
+    setDeclineProposedDeadline(null);
+    toast({ title: "已記錄無法承接" });
+  };
 
   const handleDuplicate = async () => {
     const result = await caseStore.duplicate(caseData.id);
