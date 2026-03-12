@@ -6,6 +6,7 @@ import { clientInvoiceStore } from "@/stores/client-invoice-store";
 import { useClientInvoices } from "@/hooks/use-client-invoice-store";
 import { toast } from "sonner";
 import { selectOptionsStore } from "@/stores/select-options-store";
+import { currencyStore } from "@/stores/currency-store";
 import { useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
