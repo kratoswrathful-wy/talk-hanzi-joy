@@ -800,6 +800,7 @@ export default function CasesPage() {
         onRenameView={tableViews.renameView}
         onReorderViews={tableViews.reorderViews}
         visibleFieldKeys={visibleFieldKeys}
+        permittedFieldKeys={permittedFieldKeys}
         selectedCount={rowSelection.selectedCount}
         hiddenColumns={activeView.hiddenColumns || []}
         onToggleColumn={tableViews.toggleColumnVisibility}
