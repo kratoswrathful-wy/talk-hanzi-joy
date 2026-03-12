@@ -40,7 +40,7 @@ export function DeadlineProximityIcon({ deadline }: DeadlineProximityIconProps) 
     <TooltipProvider delayDuration={200}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className="inline-block text-xs leading-none cursor-default ml-0.5">{emoji}</span>
+          <span className="inline-block text-lg leading-none cursor-default ml-0.5">{emoji}</span>
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-[240px] text-xs">
           {tooltipText}
