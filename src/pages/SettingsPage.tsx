@@ -192,6 +192,11 @@ function ClientPricingSection() {
                     >
                       {client.label}
                     </span>
+                    {client.currency && (
+                      <span className="text-[10px] text-muted-foreground font-medium ml-1">
+                        {client.currency}
+                      </span>
+                    )}
                   </button>
                   <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Popover
