@@ -221,7 +221,11 @@ async function load() {
     const { data } = await (supabase.from("cases").select("*") as any).eq("env", env).order("created_at", { ascending: false });
     // Discard result if a newer load was started (race condition from auth changes)
     if (version !== loadVersion) return;
-    let fetched = (data || []).map(fromDb);
+    const currentById = new Map(cases.map((c) => [c.id, c] as const));
+    let fetched = (data || [])
+      .map(fromDb)
+      .map((incoming) => mergeIncomingCase(currentById.get(incoming.id), incoming));
+
     // Re-apply any in-flight optimistic updates so poll/realtime don't overwrite them
     if (pendingUpdates.size > 0) {
       fetched = fetched.map((c) => {
