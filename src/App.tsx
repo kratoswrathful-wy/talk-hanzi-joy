@@ -28,6 +28,7 @@ import InternalNotesPage from "@/pages/InternalNotesPage";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 import { initSettings } from "@/stores/settings-init";
+import { setUserTimezone } from "@/lib/format-timestamp";
 
 // Initialize settings loading (will auto-reload on auth changes)
 initSettings();
