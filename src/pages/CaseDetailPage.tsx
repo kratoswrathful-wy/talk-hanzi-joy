@@ -1470,7 +1470,6 @@ export default function CaseDetailPage() {
                     onSave={(v) => updateGroup(idx, { unitCount: v })}
                     className="w-[80px] shrink-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
-                  />
                   {workGroups.length > 1 ? (
                     <button
                       type="button"
