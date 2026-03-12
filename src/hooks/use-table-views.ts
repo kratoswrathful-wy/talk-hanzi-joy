@@ -158,7 +158,8 @@ const defaultColumnWidths: Record<string, number> = {
   title: 220, status: 90, assignee: 100, internalNote: 160, taskSummary: 120,
   client: 100, contact: 100, clientCaseId: 120, clientPoNumber: 100, dispatchRoute: 100,
   clientRevenue: 100, profit: 100, reconciled: 70, rateConfirmed: 70, invoiced: 70,
-  sameCase: 70, translatorInvoiceStatus: 100, clientInvoiceStatus: 100, invoice: 100, createdBy: 80, createdAt: 110,
+  sameCase: 70, translatorInvoiceStatus: 100, clientInvoiceStatus: 100,
+  translatorInvoice: 120, invoice: 100, createdBy: 80, createdAt: 110,
 };
 const defaultHiddenColumns = ["contact", "dispatchRoute", "sameCase"];
 
