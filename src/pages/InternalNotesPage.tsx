@@ -448,7 +448,7 @@ function NewNoteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
     return cases.filter((c) => c.title.toLowerCase().includes(search.toLowerCase()));
   }, [cases, search]);
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!selectedCase) return;
     const caseRecord = cases.find((c) => c.title === selectedCase);
     const reviewer = caseRecord?.reviewer || "";
@@ -472,7 +472,7 @@ function NewNoteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
       comments: [],
       invalidated: false,
     };
-    internalNotesStore.add(newNote);
+    await internalNotesStore.add(newNote);
     onOpenChange(false);
     setSearch("");
     setSelectedCase("");
