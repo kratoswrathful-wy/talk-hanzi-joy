@@ -327,15 +327,16 @@ export function useTableViews(userId?: string) {
     updateView(activeViewId, { columnWidths: { ...activeView.columnWidths, [key]: width } });
   }, [activeViewId, activeView, updateView]);
 
-  const applyFiltersAndSorts = useCallback((fees: TranslatorFee[]): TranslatorFee[] => {
+  const applyFiltersAndSorts = useCallback((fees: TranslatorFee[], ctx?: FeeFilterContext): TranslatorFee[] => {
     let result = fees;
+    const matcher = matchFilterWithCtx(ctx);
     if (activeView.filterTree.children.length > 0) {
-      result = result.filter((fee) => matchFilterTree(fee, activeView.filterTree, matchFilter));
+      result = result.filter((fee) => matchFilterTree(fee, activeView.filterTree, matcher));
     }
     if (activeView.sorts.length > 0) {
       result = [...result].sort((a, b) => {
         for (const sort of activeView.sorts) {
-          const cmp = compareFees(a, b, sort);
+          const cmp = compareFeesWithCtx(a, b, sort, ctx);
           if (cmp !== 0) return cmp;
         }
         return 0;
