@@ -142,16 +142,7 @@ function CaseStatusBadge({ status }: { status: CaseStatus }) {
   );
 }
 
-const formatDate = (iso: string) => {
-  const d = new Date(iso);
-  return d.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Taipei" }) + " (UTC+8)";
-};
-
-const formatDateTime = (iso: string | null) => {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleString("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei" }) + " (UTC+8)";
-};
+// Timezone-aware formatters moved into component scope (need useAuth profile)
 
 interface ColumnDef {
   key: string;
