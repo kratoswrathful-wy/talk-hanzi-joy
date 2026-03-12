@@ -326,6 +326,13 @@ const allColumnDefs: ColumnDef[] = [
     render: (f) => <ClientInvoiceStatusCell feeId={f.id} />,
   },
   {
+    key: "translatorInvoice",
+    label: "稿費請款單",
+    minWidth: 100,
+    managerOnly: true,
+    render: (f) => <TranslatorInvoiceLink feeId={f.id} />,
+  },
+  {
     key: "invoice",
     label: "請款單",
     minWidth: 80,
