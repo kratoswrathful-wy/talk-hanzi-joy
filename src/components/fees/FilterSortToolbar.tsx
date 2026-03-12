@@ -29,6 +29,10 @@ const fieldToStoreKey: Record<string, string> = {
   billingUnit: "billingUnit",
   executionTool: "executionTool",
   noteType: "noteNature",
+  feeTaskType: "taskType",
+  feeBillingUnit: "billingUnit",
+  clientTaskType: "taskType",
+  clientBillingUnit: "billingUnit",
 };
 
 const operatorLabels: Record<FilterOperator, string> = {
