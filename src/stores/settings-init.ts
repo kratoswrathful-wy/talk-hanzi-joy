@@ -22,6 +22,7 @@ async function loadAllSettings() {
     toolTemplateStore.loadSettings(),
     pageTemplateStore.loadSettings(),
     commonLinksStore.loadSettings(),
+    currencyStore.loadSettings(),
     selectOptionsStore.loadAssignees(),
   ]);
 }
