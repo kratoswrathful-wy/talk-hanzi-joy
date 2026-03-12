@@ -1382,7 +1382,11 @@ export default function TranslatorFeeDetail() {
           if (effectiveClient) {
             const cp = defaultPricingStore.getClientPrice(effectiveClient, taskType, billingUnit);
             if (cp !== undefined) {
-              const tp = defaultPricingStore.getTranslatorPrice(cp, taskType, billingUnit);
+              const clientOpt = selectOptionsStore.getSortedOptions("client").find((o) => o.label === effectiveClient);
+              const clientCurrency = clientOpt?.currency || "TWD";
+              const twdRate = currencyStore.getTwdRate(clientCurrency);
+              const cpInTwd = cp * twdRate;
+              const tp = defaultPricingStore.getTranslatorPrice(cpInTwd, taskType, billingUnit);
               return tp ?? 0;
             }
           }
