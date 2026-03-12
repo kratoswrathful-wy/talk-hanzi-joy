@@ -46,6 +46,8 @@ import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-stor
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { internalNotesStore, useInternalNotes } from "@/stores/internal-notes-store";
+import { getUserTimezone } from "@/lib/format-timestamp";
+import { getTimezoneInfo } from "@/data/timezone-options";
 import type { InternalNote } from "@/hooks/use-internal-notes-table-views";
 
 import CollaborationTable from "@/components/CollaborationTable";
