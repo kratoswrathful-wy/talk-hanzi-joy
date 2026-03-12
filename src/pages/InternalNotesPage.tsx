@@ -160,7 +160,7 @@ function NoteDetailView({
     const reviewer = relatedCase?.reviewer || "";
 
     const newNote: InternalNote = {
-      id: `note-${Date.now()}`,
+      id: crypto.randomUUID(),
       title,
       relatedCase: note.relatedCase,
       createdAt: new Date().toISOString(),
