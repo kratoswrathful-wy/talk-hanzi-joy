@@ -218,10 +218,20 @@ async function create(partial: Partial<CaseRecord>): Promise<CaseRecord | null> 
 async function update(id: string, partial: Partial<CaseRecord>) {
   const mapped = toDb(partial);
   mapped.updated_at = new Date().toISOString();
+
+  // Optimistic update BEFORE DB write to prevent poll/realtime from overwriting
+  const updatedAt = mapped.updated_at;
+  cases = cases.map((c) => (c.id === id ? { ...c, ...partial, updatedAt } : c));
+  pendingUpdates.set(id, partial);
+  notify();
+
   const { error } = await (supabase.from("cases").update(mapped as any).eq("id", id) as any);
-  if (!error) {
-    cases = cases.map((c) => (c.id === id ? { ...c, ...partial, updatedAt: mapped.updated_at } : c));
-    notify();
+  pendingUpdates.delete(id);
+
+  if (error) {
+    // On failure, reload to restore correct state
+    loadPromise = null;
+    await load();
   }
   return error;
 }
