@@ -520,7 +520,8 @@ export default function TranslatorFees() {
   const baseFees = effectiveRole === "assignee"
     ? fees.filter((f) => f.status === "finalized" && f.assignee === profile?.display_name)
     : fees;
-  const visibleFees = tableViews.applyFiltersAndSorts(baseFees);
+  const filterCtx = useMemo(() => ({ invoices: allInvoices, clientInvoices: allClientInvoices }), [allInvoices, allClientInvoices]);
+  const visibleFees = tableViews.applyFiltersAndSorts(baseFees, filterCtx);
 
   const rowSelection = useRowSelection(visibleFees.map((f) => f.id));
   const allInvoices = useInvoices();
