@@ -1351,6 +1351,27 @@ export default function CaseDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Decline records display */}
+      {(caseData.declineRecords || []).length > 0 && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-1.5">
+          <p className="text-sm font-medium text-destructive">無法承接紀錄</p>
+          {(caseData.declineRecords || []).map((rec) => (
+            <div key={rec.id} className="flex items-center gap-3 text-sm">
+              <span className="font-medium">{rec.translator}</span>
+              <span className="text-muted-foreground">
+                {formatTimestamp(new Date(rec.createdAt))}
+              </span>
+              {rec.proposedDeadline && (
+                <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                  建議交期：{formatTimestamp(new Date(rec.proposedDeadline))}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       <Separator />
 
       <h2 className="text-base font-semibold">基本資訊</h2>
