@@ -1,6 +1,5 @@
 import { useSyncExternalStore } from "react";
 import { loadSetting, saveSetting, markDirty } from "./settings-persistence";
-import { selectOptionsStore } from "./select-options-store";
 
 export interface TemplateField {
   id: string;
@@ -33,12 +32,9 @@ function notify() {
 
 export const toolTemplateStore = {
   getAll: (): ToolTemplate[] => {
-    const toolOptions = selectOptionsStore.getSortedOptions("tool");
-    const toolOrder = new Map(toolOptions.map((o, i) => [o.label, i]));
     return [...snapshot].sort((a, b) => {
-      const aIdx = toolOrder.get(a.tool) ?? toolOptions.length;
-      const bIdx = toolOrder.get(b.tool) ?? toolOptions.length;
-      if (aIdx !== bIdx) return aIdx - bIdx;
+      const toolCmp = a.tool.localeCompare(b.tool, "zh-Hant", { sensitivity: "base" });
+      if (toolCmp !== 0) return toolCmp;
       return a.name.localeCompare(b.name, "zh-Hant", { sensitivity: "base" });
     });
   },
