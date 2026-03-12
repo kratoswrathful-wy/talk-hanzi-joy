@@ -167,6 +167,7 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.multiCollab !== undefined) map.multi_collab = c.multiCollab;
   if (c.collabCount !== undefined) map.collab_count = c.collabCount;
   if (c.collabRows !== undefined) map.collab_rows = c.collabRows;
+  if (c.declineRecords !== undefined) map.decline_records = c.declineRecords;
   if (c.createdBy !== undefined) map.created_by = c.createdBy;
   return map;
 }
