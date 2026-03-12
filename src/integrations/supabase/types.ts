@@ -64,6 +64,7 @@ export type Database = {
           env: string
           execution_tool: string
           fee_entry: string
+          icon_url: string | null
           id: string
           inquiry_note: string
           internal_comments: Json | null
@@ -128,6 +129,7 @@ export type Database = {
           env?: string
           execution_tool?: string
           fee_entry?: string
+          icon_url?: string | null
           id?: string
           inquiry_note?: string
           internal_comments?: Json | null
@@ -192,6 +194,7 @@ export type Database = {
           env?: string
           execution_tool?: string
           fee_entry?: string
+          icon_url?: string | null
           id?: string
           inquiry_note?: string
           internal_comments?: Json | null
