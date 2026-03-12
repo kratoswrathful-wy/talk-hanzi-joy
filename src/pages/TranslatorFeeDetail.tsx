@@ -748,7 +748,13 @@ export default function TranslatorFeeDetail() {
           if (effectiveClient) {
             const cp = defaultPricingStore.getClientPrice(effectiveClient, taskType, bu);
             if (cp !== undefined) {
-              const tp = defaultPricingStore.getTranslatorPrice(cp, taskType, bu);
+              // Apply currency exchange rate before matching tier
+              const clientOpt = selectOptionsStore.getSortedOptions("client").find((o) => o.label === effectiveClient);
+              const clientCurrency = clientOpt?.currency || "TWD";
+              const { currencyStore } = await import("@/stores/currency-store");
+              const twdRate = currencyStore.getTwdRate(clientCurrency);
+              const cpInTwd = cp * twdRate;
+              const tp = defaultPricingStore.getTranslatorPrice(cpInTwd, taskType, bu);
               return tp ?? 0;
             }
           }
