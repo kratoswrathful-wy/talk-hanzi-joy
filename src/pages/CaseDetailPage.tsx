@@ -355,8 +355,20 @@ function ToolInstance({
   const [addingFieldType, setAddingFieldType] = useState<"text" | "file" | null>(null);
   const [newFieldLabel, setNewFieldLabel] = useState("");
 
+  // Keep a stable ref of last resolved fields to prevent flicker during async toolOptions loading
+  const lastFieldsRef = useRef<ToolEntryField[]>([]);
+
   const selectedTool = toolOptions.find((o) => o.label === entry.tool);
-  const resolvedFields: ToolEntryField[] = entry.fields || selectedTool?.toolFields?.map(f => ({ ...f, type: (f.type || "text") as "text" | "file" })) || [];
+  const computedFields: ToolEntryField[] = entry.fields || selectedTool?.toolFields?.map(f => ({ ...f, type: (f.type || "text") as "text" | "file" })) || [];
+
+  // If computed fields are non-empty, update stable ref
+  if (computedFields.length > 0) {
+    lastFieldsRef.current = computedFields;
+  }
+
+  // Use computed if available, otherwise fall back to last known fields (avoids empty flash)
+  const resolvedFields = computedFields.length > 0 ? computedFields : lastFieldsRef.current;
+
   const values = entry.fieldValues || {};
   const fileValues = entry.fileValues || {};
 
@@ -368,8 +380,8 @@ function ToolInstance({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry.fields, resolvedFields.length]);
 
-  // Use a stable ref of fields: prefer entry.fields (persisted) to avoid flicker
   const fields = resolvedFields;
+  const hasToolSelected = !!entry.tool;
   const hasToolSelected = !!entry.tool;
 
   const matchingTemplates = allTemplates.filter((t) => t.tool === entry.tool);
