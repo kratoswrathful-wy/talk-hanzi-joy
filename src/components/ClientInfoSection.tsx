@@ -694,7 +694,7 @@ export default function ClientInfoSection({
                 </TableCell>
                 <TableCell className={`text-right text-sm font-bold ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
                   <Tooltip><TooltipTrigger asChild>
-                    <span className="cursor-default">{clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}</span>
+                    <span className="cursor-default">{clientItemsLocked && !firstFeePage ? "N/A" : `TWD ${profit.toLocaleString()}`}</span>
                   </TooltipTrigger><TooltipContent className="text-xs">自動計算{clientCurrency !== "TWD" ? `（營收 ${revenueTotal.toLocaleString()} ${clientCurrency} × ${twdRate} − 稿費總額）` : ""}</TooltipContent></Tooltip>
                 </TableCell>
                 <TableCell />
