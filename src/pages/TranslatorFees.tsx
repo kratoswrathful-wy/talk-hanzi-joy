@@ -64,8 +64,8 @@ const clientInfoLogKeywords = [
 
 import { formatDateTz as formatDate } from "@/lib/format-timestamp";
 
-const formatCurrency = (n: number) =>
-  n.toLocaleString("zh-TW", { style: "currency", currency: "TWD", minimumFractionDigits: 0 });
+const formatCurrency = (n: number, code = "TWD") =>
+  `${code} ${n.toLocaleString("zh-TW", { minimumFractionDigits: 0 })}`;
 
 // Editable fields - computed/date/createdBy are not editable
 const editableFields = new Set([
