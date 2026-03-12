@@ -16,7 +16,7 @@ import { useSelectOptions, getStatusLabelStyle } from "@/stores/select-options-s
 import { useLabelStyles } from "@/stores/label-style-store";
 import { type ClientInvoiceStatus, clientInvoiceStatusLabels } from "@/data/client-invoice-types";
 import { type ClientInvoice } from "@/data/client-invoice-types";
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useClientInvoiceTableViews, clientInvoiceFieldMetas } from "@/hooks/use-client-invoice-table-views";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import {

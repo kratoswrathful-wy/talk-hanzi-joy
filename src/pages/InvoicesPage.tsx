@@ -17,7 +17,7 @@ import { useSelectOptions, selectOptionsStore, getStatusLabelStyle } from "@/sto
 import { useLabelStyles } from "@/stores/label-style-store";
 import { type InvoiceStatus, invoiceStatusLabels } from "@/data/invoice-types";
 import { type Invoice } from "@/data/invoice-types";
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useInvoiceTableViews, invoiceFieldMetas } from "@/hooks/use-invoice-table-views";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import {
