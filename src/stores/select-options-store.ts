@@ -19,6 +19,7 @@ export interface SelectOption {
   timezone?: string | null;
   statusMessage?: string | null;
   toolFields?: ToolFieldDef[];
+  currency?: string; // currency code for client options, e.g. "TWD", "USD"
 }
 
 export const PRESET_COLORS = [
