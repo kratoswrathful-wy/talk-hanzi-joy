@@ -85,6 +85,10 @@ function getFieldValue(fee: TranslatorFee, field: string, ctx?: FeeFilterContext
     case "assignee": return fee.assignee;
     case "internalNote": return fee.internalNote;
     case "taskSummary": return fee.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
+    case "feeTaskType": return fee.taskItems.map((i) => i.taskType).join(", ");
+    case "feeBillingUnit": return fee.taskItems.map((i) => i.billingUnit).join(", ");
+    case "feeUnitCount": return fee.taskItems.reduce((s, i) => s + i.unitCount, 0);
+    case "feeUnitPrice": return fee.taskItems.length > 0 ? fee.taskItems[0].unitPrice : 0;
     case "client": return fee.clientInfo?.client || "";
     case "clientCaseId": return fee.clientInfo?.clientCaseId || "";
     case "contact": return fee.clientInfo?.contact || "";
@@ -94,6 +98,10 @@ function getFieldValue(fee: TranslatorFee, field: string, ctx?: FeeFilterContext
       if (!fee.clientInfo || fee.clientInfo.notFirstFee) return 0;
       return fee.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
     }
+    case "clientTaskType": return fee.clientInfo?.clientTaskItems.map((i) => i.taskType).join(", ") || "";
+    case "clientBillingUnit": return fee.clientInfo?.clientTaskItems.map((i) => i.billingUnit).join(", ") || "";
+    case "clientUnitCount": return fee.clientInfo?.clientTaskItems.reduce((s, i) => s + Number(i.unitCount), 0) || 0;
+    case "clientUnitPrice": return fee.clientInfo?.clientTaskItems.length ? Number(fee.clientInfo.clientTaskItems[0].clientPrice) : 0;
     case "profit": {
       if (!fee.clientInfo || fee.clientInfo.notFirstFee) return 0;
       const rev = fee.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
