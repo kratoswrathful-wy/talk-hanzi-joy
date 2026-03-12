@@ -233,6 +233,19 @@ function ClientPricingSection() {
 
                 {isExpanded && (
                   <div className="ml-6 mt-1 mb-2 space-y-1">
+                    {/* Currency selector for this client */}
+                    <div className="flex items-center gap-2 px-2 py-1">
+                      <Label className="text-xs text-muted-foreground whitespace-nowrap">預設貨幣</Label>
+                      <select
+                        value={client.currency || "TWD"}
+                        onChange={(e) => selectOptionsStore.updateOptionCurrency("client", client.id, e.target.value)}
+                        className="h-6 rounded border border-input bg-background px-1.5 text-xs"
+                      >
+                        {currencies.map((c) => (
+                          <option key={c.id} value={c.code}>{c.code}</option>
+                        ))}
+                      </select>
+                    </div>
                     <div className="grid grid-cols-[1fr_60px_100px_36px] gap-2 px-2 text-xs text-muted-foreground font-medium border-b border-border pb-1">
                       <span>任務類型</span>
                       <span>單位</span>
