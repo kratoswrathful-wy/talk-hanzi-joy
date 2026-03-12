@@ -566,6 +566,8 @@ function FilterRow({ filter, meta, ops, visibleFields, onUpdateFilter, onRemoveF
 
   const selectOpts: { value: string; label: string }[] | null = (() => {
     if (filter.field === "status") return statusOptionsList || statusOptions;
+    if (filter.field === "translatorInvoiceStatus") return translatorInvoiceStatusOptions;
+    if (filter.field === "clientInvoiceStatus") return clientInvoiceStatusOptions;
     if (isSelectType && storeKey) {
       return storeOptions.map((o) => ({ value: o.label, label: o.label }));
     }
