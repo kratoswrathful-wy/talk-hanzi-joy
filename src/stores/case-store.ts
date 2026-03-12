@@ -95,6 +95,7 @@ function fromDb(row: any): CaseRecord {
     collabCount: Number(row.collab_count) || 0,
     collabRows: Array.isArray(row.collab_rows) ? row.collab_rows : [],
     declineRecords: Array.isArray(row.decline_records) ? row.decline_records : [],
+    iconUrl: row.icon_url ?? "",
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -168,6 +169,7 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.collabCount !== undefined) map.collab_count = c.collabCount;
   if (c.collabRows !== undefined) map.collab_rows = c.collabRows;
   if (c.declineRecords !== undefined) map.decline_records = c.declineRecords;
+  if (c.iconUrl !== undefined) map.icon_url = c.iconUrl;
   if (c.createdBy !== undefined) map.created_by = c.createdBy;
   return map;
 }
