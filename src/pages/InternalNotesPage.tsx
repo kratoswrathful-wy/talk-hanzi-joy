@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { useRowSelection } from "@/hooks/use-row-selection";
+import { usePermissions } from "@/hooks/use-permissions";
 import ColorSelect from "@/components/ColorSelect";
 import MultiColorSelect from "@/components/MultiColorSelect";
 import FileField from "@/components/FileField";
