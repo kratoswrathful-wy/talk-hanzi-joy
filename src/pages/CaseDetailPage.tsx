@@ -876,25 +876,6 @@ export default function CaseDetailPage() {
     [caseData?.tools, caseData?.executionTool, caseData?.toolFieldValues]
   );
 
-  const saveTools = (newTools: ToolEntry[]) => {
-    save({ tools: newTools });
-  };
-
-  const updateTool = (idx: number, updates: Partial<ToolEntry>) => {
-    const next = tools.map((t, i) => (i === idx ? { ...t, ...updates } : t));
-    saveTools(next);
-  };
-
-  const removeTool = (idx: number) => {
-    const next = tools.filter((_, i) => i !== idx);
-    saveTools(next.length ? next : [{ id: `te-${Date.now()}`, tool: "", fieldValues: {} }]);
-  };
-
-  const addTool = () => {
-    saveTools([...tools, { id: `te-${Date.now()}`, tool: "", fieldValues: {} }]);
-  };
-
-  /* ── Question Tool helpers ── */
   const questionTools: ToolEntry[] = useMemo(() =>
     caseData?.questionTools?.length
       ? caseData.questionTools
@@ -902,22 +883,82 @@ export default function CaseDetailPage() {
     [caseData?.questionTools]
   );
 
-  const saveQuestionTools = (newTools: ToolEntry[]) => {
-    save({ questionTools: newTools });
+  const getEffectiveTools = (record: CaseRecord): ToolEntry[] =>
+    record.tools?.length
+      ? record.tools
+      : [{ id: "te-default", tool: record.executionTool || "", fieldValues: record.toolFieldValues || {} }];
+
+  const getEffectiveQuestionTools = (record: CaseRecord): ToolEntry[] =>
+    record.questionTools?.length
+      ? record.questionTools
+      : [{ id: "qt-default", tool: "", fieldValues: {} }];
+
+  const mergeToolEntryUpdates = (entry: ToolEntry, updates: Partial<ToolEntry>): ToolEntry => {
+    const next: ToolEntry = { ...entry, ...updates };
+
+    if (updates.fieldValues !== undefined) {
+      next.fieldValues = updates.fields !== undefined
+        ? updates.fieldValues
+        : { ...(entry.fieldValues || {}), ...updates.fieldValues };
+    }
+
+    if (updates.fileValues !== undefined) {
+      next.fileValues = updates.fields !== undefined
+        ? updates.fileValues
+        : { ...(entry.fileValues || {}), ...updates.fileValues };
+    }
+
+    return next;
   };
 
+  const patchTools = useCallback((updater: (current: ToolEntry[]) => ToolEntry[]) => {
+    setCaseData((prev) => {
+      if (!prev) return prev;
+      const current = getEffectiveTools(prev);
+      const next = updater(current);
+      caseStore.update(prev.id, { tools: next });
+      return { ...prev, tools: next };
+    });
+  }, []);
+
+  const updateTool = (idx: number, updates: Partial<ToolEntry>) => {
+    patchTools((current) => current.map((t, i) => (i === idx ? mergeToolEntryUpdates(t, updates) : t)));
+  };
+
+  const removeTool = (idx: number) => {
+    patchTools((current) => {
+      const next = current.filter((_, i) => i !== idx);
+      return next.length ? next : [{ id: `te-${Date.now()}`, tool: "", fieldValues: {} }];
+    });
+  };
+
+  const addTool = () => {
+    patchTools((current) => [...current, { id: `te-${Date.now()}`, tool: "", fieldValues: {} }]);
+  };
+
+  const patchQuestionTools = useCallback((updater: (current: ToolEntry[]) => ToolEntry[]) => {
+    setCaseData((prev) => {
+      if (!prev) return prev;
+      const current = getEffectiveQuestionTools(prev);
+      const next = updater(current);
+      caseStore.update(prev.id, { questionTools: next });
+      return { ...prev, questionTools: next };
+    });
+  }, []);
+
   const updateQuestionTool = (idx: number, updates: Partial<ToolEntry>) => {
-    const next = questionTools.map((t, i) => (i === idx ? { ...t, ...updates } : t));
-    saveQuestionTools(next);
+    patchQuestionTools((current) => current.map((t, i) => (i === idx ? mergeToolEntryUpdates(t, updates) : t)));
   };
 
   const removeQuestionTool = (idx: number) => {
-    const next = questionTools.filter((_, i) => i !== idx);
-    saveQuestionTools(next.length ? next : [{ id: `qt-${Date.now()}`, tool: "", fieldValues: {} }]);
+    patchQuestionTools((current) => {
+      const next = current.filter((_, i) => i !== idx);
+      return next.length ? next : [{ id: `qt-${Date.now()}`, tool: "", fieldValues: {} }];
+    });
   };
 
   const addQuestionTool = () => {
-    saveQuestionTools([...questionTools, { id: `qt-${Date.now()}`, tool: "", fieldValues: {} }]);
+    patchQuestionTools((current) => [...current, { id: `qt-${Date.now()}`, tool: "", fieldValues: {} }]);
   };
 
   /* ── Internal Note creation from case ── */
