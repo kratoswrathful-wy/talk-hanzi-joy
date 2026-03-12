@@ -1350,7 +1350,6 @@ export default function CaseDetailPage() {
           <div className="min-w-0 flex flex-col justify-end gap-1.5">
             <TitleInput value={caseData.title} onSave={(v) => save({ title: v })} />
             <div className="flex items-center gap-2 pl-3">
-              <span className="text-sm text-muted-foreground">狀態</span>
               <CaseStatusBadge status={caseData.status} />
               {isInquiry && !caseData.multiCollab && (
                 <span className="text-xs text-muted-foreground">
