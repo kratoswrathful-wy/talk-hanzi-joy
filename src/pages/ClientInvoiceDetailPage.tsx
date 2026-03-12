@@ -1,4 +1,6 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { getUserTimezone } from "@/lib/format-timestamp";
+import { getTimezoneInfo } from "@/data/timezone-options";
 import { ArrowLeft, Plus, X, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -83,18 +85,21 @@ const formatCurrency = (n: number, code = "TWD") =>
 
 const formatTimestamp = (date: Date | string) => {
   const d = typeof date === "string" ? new Date(date) : date;
+  const tz = getUserTimezone();
+  const tzLabel = getTimezoneInfo(tz)?.utcOffset || "UTC+8";
   const formatted = d.toLocaleString("zh-TW", {
     year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", hour12: false,
-    timeZone: "Asia/Taipei",
+    timeZone: tz,
   });
-  return `${formatted} (UTC+8)`;
+  return `${formatted} (${tzLabel})`;
 };
 
 const formatDateOnly = (iso: string) => {
   if (!iso) return "";
+  const tz = getUserTimezone();
   const d = new Date(iso);
-  return d.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Taipei" });
+  return d.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: tz });
 };
 
 interface CommentEntry {

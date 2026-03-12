@@ -46,6 +46,8 @@ import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-stor
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { internalNotesStore, useInternalNotes } from "@/stores/internal-notes-store";
+import { getUserTimezone } from "@/lib/format-timestamp";
+import { getTimezoneInfo } from "@/data/timezone-options";
 import type { InternalNote } from "@/hooks/use-internal-notes-table-views";
 
 import CollaborationTable from "@/components/CollaborationTable";
@@ -149,6 +151,30 @@ function ClientCaseLinkField({ value, onSave, disabled, defaultLabel }: {
   );
 }
 
+/** Number input with local state buffer to prevent fast-typing race conditions */
+function BufferedNumberInput({ value, onSave, className }: { value: number; onSave: (v: number) => void; className?: string }) {
+  const [local, setLocal] = useState(String(value || ""));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setLocal(value ? String(value) : "");
+  }, [value, focused]);
+
+  return (
+    <Input
+      type="number"
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => {
+        setFocused(false);
+        const num = Number(local) || 0;
+        if (num !== value) onSave(num);
+      }}
+      className={className}
+    />
+  );
+}
 
 const caseStatusLabels: Record<CaseStatus, string> = CASE_STATUS_LABEL_MAP as Record<CaseStatus, string>;
 
@@ -735,8 +761,10 @@ function ToolInstance({
 }
 
 function formatTimestamp(d: Date) {
-  const formatted = d.toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei" });
-  return `${formatted} (UTC+8)`;
+  const tz = getUserTimezone();
+  const tzLabel = getTimezoneInfo(tz)?.utcOffset || "UTC+8";
+  const formatted = d.toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz });
+  return `${formatted} (${tzLabel})`;
 }
 
 export default function CaseDetailPage() {
@@ -1126,10 +1154,12 @@ export default function CaseDetailPage() {
               className="text-xs"
             />
           )}
-          <ApplyTemplateButton
-            module="cases"
-            onApply={(values) => save(values)}
-          />
+          {isPmOrAbove && (
+            <ApplyTemplateButton
+              module="cases"
+              onApply={(values) => save(values)}
+            />
+          )}
           {/* Decline button for translators on draft/inquiry */}
           {(isDraft || isInquiry) && isMember && (
             <Button
@@ -1353,7 +1383,7 @@ export default function CaseDetailPage() {
               <CaseStatusBadge status={caseData.status} />
               {isInquiry && !caseData.multiCollab && (
                 <span className="text-xs text-muted-foreground">
-                  譯者若可承接，請直接點選右上角的「承接本案」。
+                  譯者若可承接，請直接點選右上角的「承接本案」
                 </span>
               )}
               {caseData.multiCollab && isInquiry && (
@@ -1459,10 +1489,9 @@ export default function CaseDetailPage() {
                     className="flex-1 min-w-0"
                   />
                   <span className="text-sm text-muted-foreground shrink-0">計費單位數</span>
-                  <Input
-                    type="number"
-                    value={g.unitCount || ""}
-                    onChange={(e) => updateGroup(idx, { unitCount: Number(e.target.value) || 0 })}
+                  <BufferedNumberInput
+                    value={g.unitCount || 0}
+                    onSave={(v) => updateGroup(idx, { unitCount: v })}
                     className="w-[80px] shrink-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                   {workGroups.length > 1 ? (

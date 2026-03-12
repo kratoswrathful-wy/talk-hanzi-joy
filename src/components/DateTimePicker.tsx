@@ -16,6 +16,8 @@ import {
   AlertDialogFooter,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+import { getUserTimezone } from "@/lib/format-timestamp";
+import { getTimezoneInfo } from "@/data/timezone-options";
 
 interface DateTimePickerProps {
   value: string | null;
@@ -25,6 +27,87 @@ interface DateTimePickerProps {
   className?: string;
   defaultOpen?: boolean;
   onClose?: () => void;
+}
+
+/* ── Timezone helpers ── */
+
+/** Get UTC offset label string for a timezone, e.g. "UTC+8" */
+function getTzLabel(tz: string): string {
+  const info = getTimezoneInfo(tz);
+  if (info) return info.utcOffset;
+  try {
+    const d = new Date();
+    const fmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "shortOffset" });
+    const parts = fmt.formatToParts(d);
+    const tzPart = parts.find(p => p.type === "timeZoneName");
+    if (tzPart) return tzPart.value.replace("GMT", "UTC");
+  } catch {}
+  return "UTC+8";
+}
+
+/** Parse an ISO string into { year, month, day, hour, minute } in a given timezone */
+function isoToTzParts(iso: string, tz: string): { year: number; month: number; day: number; hour: number; minute: number } {
+  const d = new Date(iso);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+
+  const get = (type: string) => {
+    const p = parts.find(p => p.type === type);
+    return p ? parseInt(p.value, 10) : 0;
+  };
+  // hour12:false with en-US: midnight can be "24" in some locales
+  let hour = get("hour");
+  if (hour === 24) hour = 0;
+  return { year: get("year"), month: get("month"), day: get("day"), hour, minute: get("minute") };
+}
+
+/** Build an ISO string from date/time parts in a given timezone */
+function tzPartsToIso(y: number, mm: number, dd: number, hh: number, mi: number, tz: string): string | null {
+  if (isNaN(y) || y < 1900 || y > 2100) return null;
+  if (mm < 1 || mm > 12 || dd < 1) return null;
+  const maxDay = getDaysInMonth(new Date(y, mm - 1));
+  if (dd > maxDay) return null;
+  if (hh > 23 || mi > 59) return null;
+
+  // Create a Date as if in UTC, then adjust by the timezone offset
+  const utcGuess = new Date(Date.UTC(y, mm - 1, dd, hh, mi, 0));
+  // Find what the tz shows for this UTC time
+  const inTz = isoToTzParts(utcGuess.toISOString(), tz);
+  // Compute offset: the difference between what we wanted and what the tz shows
+  const wantedMinutes = hh * 60 + mi;
+  const gotMinutes = inTz.hour * 60 + inTz.minute;
+  // Also account for date difference
+  const wantedDayVal = y * 10000 + mm * 100 + dd;
+  const gotDayVal = inTz.year * 10000 + inTz.month * 100 + inTz.day;
+  let dayDiffMinutes = 0;
+  if (gotDayVal > wantedDayVal) dayDiffMinutes = 1440;
+  else if (gotDayVal < wantedDayVal) dayDiffMinutes = -1440;
+
+  const offsetMinutes = (gotMinutes + dayDiffMinutes) - wantedMinutes;
+  const result = new Date(utcGuess.getTime() - offsetMinutes * 60000);
+
+  // Verify the result
+  const verify = isoToTzParts(result.toISOString(), tz);
+  if (verify.year !== y || verify.month !== mm || verify.day !== dd || verify.hour !== hh || verify.minute !== mi) {
+    // DST edge case - try a second pass
+    const utcGuess2 = new Date(Date.UTC(y, mm - 1, dd, hh, mi, 0));
+    const offset2 = offsetMinutes + (offsetMinutes > 0 ? -60 : 60);
+    const result2 = new Date(utcGuess2.getTime() - offset2 * 60000);
+    const v2 = isoToTzParts(result2.toISOString(), tz);
+    if (v2.year === y && v2.month === mm && v2.day === dd && v2.hour === hh && v2.minute === mi) {
+      return result2.toISOString();
+    }
+  }
+
+  if (isNaN(result.getTime())) return null;
+  return result.toISOString();
 }
 
 /* ── Generic rolling N-digit input hook ── */
@@ -129,6 +212,7 @@ function DateTimeCalendar({
     />
   );
 }
+
 /* ── Inline fix input for AlertDialog ── */
 function FixInput({
   maxDigits,
@@ -218,19 +302,26 @@ export default function DateTimePicker({
   const dateRef = useRef<HTMLInputElement>(null);
   const timeRef = useRef<HTMLInputElement>(null);
 
-  const parsedDate = value ? new Date(value) : null;
+  const tz = getUserTimezone();
+  const tzLabel = getTzLabel(tz);
+
+  // Parse value in user timezone
+  const tzParts = value ? isoToTzParts(value, tz) : null;
 
   // Year is a regular text input
-  const [yearInput, setYearInput] = useState(parsedDate ? format(parsedDate, "yyyy") : "");
+  const [yearInput, setYearInput] = useState(tzParts ? String(tzParts.year) : "");
   // MMDD rolling input
-  const dateRolling = useRollingInput(4, parsedDate ? format(parsedDate, "MMdd") : "0101");
+  const dateRolling = useRollingInput(4, tzParts ? String(tzParts.month).padStart(2, "0") + String(tzParts.day).padStart(2, "0") : "0101");
   // HHmm rolling input
-  const timeRolling = useRollingInput(4, parsedDate ? format(parsedDate, "HHmm") : "0000");
+  const timeRolling = useRollingInput(4, tzParts ? String(tzParts.hour).padStart(2, "0") + String(tzParts.minute).padStart(2, "0") : "0000");
 
   const [timeError, setTimeError] = useState(false);
   const [dateError, setDateError] = useState(false);
   const [validationMsg, setValidationMsg] = useState<string | null>(null);
-  const [displayMonth, setDisplayMonth] = useState<Date>(parsedDate || new Date());
+
+  // For calendar display, create a pseudo-Date in local browser time that represents the tz parts
+  const calendarDate = tzParts ? new Date(tzParts.year, tzParts.month - 1, tzParts.day) : undefined;
+  const [displayMonth, setDisplayMonth] = useState<Date>(calendarDate || new Date());
 
   const dateDisplay = `${dateRolling.padded.slice(0, 2)}/${dateRolling.padded.slice(2, 4)}`;
   const timeDisplay = `${timeRolling.padded.slice(0, 2)}:${timeRolling.padded.slice(2, 4)}`;
@@ -238,11 +329,11 @@ export default function DateTimePicker({
   // Sync from outside
   useEffect(() => {
     if (value) {
-      const d = new Date(value);
-      setYearInput(format(d, "yyyy"));
-      dateRolling.reset(format(d, "MMdd"));
-      timeRolling.reset(format(d, "HHmm"));
-      setDisplayMonth(d);
+      const p = isoToTzParts(value, tz);
+      setYearInput(String(p.year));
+      dateRolling.reset(String(p.month).padStart(2, "0") + String(p.day).padStart(2, "0"));
+      timeRolling.reset(String(p.hour).padStart(2, "0") + String(p.minute).padStart(2, "0"));
+      setDisplayMonth(new Date(p.year, p.month - 1, p.day));
     } else {
       setYearInput("");
       dateRolling.reset("0101");
@@ -255,18 +346,11 @@ export default function DateTimePicker({
 
   const buildIso = (year: string, mmdd: string, hhmm: string): string | null => {
     const y = parseInt(year);
-    if (!year || isNaN(y) || y < 1900 || y > 2100) return null;
     const mm = parseInt(mmdd.slice(0, 2));
     const dd = parseInt(mmdd.slice(2, 4));
-    if (mm < 1 || mm > 12 || dd < 1) return null;
-    const maxDay = getDaysInMonth(new Date(y, mm - 1));
-    if (dd > maxDay) return null;
     const hh = parseInt(hhmm.slice(0, 2));
     const mi = parseInt(hhmm.slice(2, 4));
-    if (hh > 23 || mi > 59) return null;
-    const dt = new Date(y, mm - 1, dd, hh, mi, 0, 0);
-    if (isNaN(dt.getTime())) return null;
-    return dt.toISOString();
+    return tzPartsToIso(y, mm, dd, hh, mi, tz);
   };
 
   const commitAll = () => {
@@ -301,22 +385,33 @@ export default function DateTimePicker({
 
   const handleCalendarSelect = (selected: Date | undefined) => {
     if (!selected) return;
-    setYearInput(format(selected, "yyyy"));
-    dateRolling.reset(format(selected, "MMdd"));
+    // selected is a browser-local Date from the calendar; extract its y/m/d
+    const sy = selected.getFullYear();
+    const sm = selected.getMonth() + 1;
+    const sd = selected.getDate();
+    setYearInput(String(sy));
+    const mmdd = String(sm).padStart(2, "0") + String(sd).padStart(2, "0");
+    dateRolling.reset(mmdd);
     setDateError(false);
     // Commit immediately
-    const iso = buildIso(format(selected, "yyyy"), format(selected, "MMdd"), timeRolling.padded);
+    const iso = buildIso(String(sy), mmdd, timeRolling.padded);
     onChange(iso);
     setTimeout(() => timeRef.current?.focus(), 50);
   };
 
   const handleQuickDate = (daysFromNow: number) => {
-    const target = startOfDay(addDays(new Date(), daysFromNow));
-    setYearInput(format(target, "yyyy"));
-    dateRolling.reset(format(target, "MMdd"));
+    // "Today" in user's timezone
+    const nowParts = isoToTzParts(new Date().toISOString(), tz);
+    const target = new Date(nowParts.year, nowParts.month - 1, nowParts.day + daysFromNow);
+    const ty = target.getFullYear();
+    const tm = target.getMonth() + 1;
+    const td = target.getDate();
+    setYearInput(String(ty));
+    const mmdd = String(tm).padStart(2, "0") + String(td).padStart(2, "0");
+    dateRolling.reset(mmdd);
     setDateError(false);
     setDisplayMonth(target);
-    const iso = buildIso(format(target, "yyyy"), format(target, "MMdd"), timeRolling.padded);
+    const iso = buildIso(String(ty), mmdd, timeRolling.padded);
     onChange(iso);
     setTimeout(() => timeRef.current?.focus(), 50);
   };
@@ -378,18 +473,32 @@ export default function DateTimePicker({
   const handleOpenChange = (v: boolean) => {
     if (disabled) return;
     if (v && !value) {
-      // Default to next whole hour
-      const now = new Date();
-      const next = new Date(now);
-      next.setMinutes(0, 0, 0);
-      next.setHours(now.getHours() + 1);
-      setYearInput(format(next, "yyyy"));
-      dateRolling.reset(format(next, "MMdd"));
-      timeRolling.reset(format(next, "HHmm"));
-      setDisplayMonth(next);
+      // Default to next whole hour in user timezone
+      const nowIso = new Date().toISOString();
+      const nowParts = isoToTzParts(nowIso, tz);
+      // Next whole hour
+      let nh = nowParts.hour + 1;
+      let nd = nowParts.day;
+      let nm = nowParts.month;
+      let ny = nowParts.year;
+      if (nh > 23) {
+        nh = 0;
+        // Advance day
+        const temp = new Date(ny, nm - 1, nd + 1);
+        ny = temp.getFullYear();
+        nm = temp.getMonth() + 1;
+        nd = temp.getDate();
+      }
+      setYearInput(String(ny));
+      const mmdd = String(nm).padStart(2, "0") + String(nd).padStart(2, "0");
+      const hhmm = String(nh).padStart(2, "0") + "00";
+      dateRolling.reset(mmdd);
+      timeRolling.reset(hhmm);
+      setDisplayMonth(new Date(ny, nm - 1, nd));
       setDateError(false);
       setTimeError(false);
-      onChange(next.toISOString());
+      const iso = tzPartsToIso(ny, nm, nd, nh, 0, tz);
+      onChange(iso);
     }
     if (v) {
       // Always focus date input when opening
@@ -403,8 +512,9 @@ export default function DateTimePicker({
     setOpen(v);
   };
 
-  const displayText = parsedDate
-    ? `${format(parsedDate, "yyyy/MM/dd")} ${format(parsedDate, "HH:mm")}`
+  // Display text on the trigger button - show in user timezone
+  const displayText = tzParts
+    ? `${String(tzParts.year)}/${String(tzParts.month).padStart(2, "0")}/${String(tzParts.day).padStart(2, "0")} ${String(tzParts.hour).padStart(2, "0")}:${String(tzParts.minute).padStart(2, "0")}`
     : null;
 
   return (
@@ -426,7 +536,7 @@ export default function DateTimePicker({
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
         <div className="p-3 space-y-3">
-          {/* Year + MM/DD + HH:mm inputs */}
+          {/* Year + MM/DD + HH:mm inputs + timezone label */}
           <div className="flex items-center gap-1.5">
             <input
               type="text"
@@ -468,11 +578,12 @@ export default function DateTimePicker({
                   : "border-input focus-visible:ring-ring"
               )}
             />
+            <span className="text-xs text-muted-foreground shrink-0">{tzLabel}</span>
           </div>
 
           {/* Calendar */}
           <DateTimeCalendar
-            selected={parsedDate || undefined}
+            selected={calendarDate}
             onSelect={handleCalendarSelect}
             displayMonth={displayMonth}
             onMonthChange={setDisplayMonth}
