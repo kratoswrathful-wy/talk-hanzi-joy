@@ -41,7 +41,12 @@ function TranslatorFeeDetailWrapper() {
 const queryClient = new QueryClient();
 
 function AuthenticatedRoutes() {
-  const { user, loading } = useAuth();
+  const { user, loading, profile } = useAuth();
+
+  // Sync user timezone for formatters
+  useEffect(() => {
+    setUserTimezone(profile?.timezone);
+  }, [profile?.timezone]);
 
   if (loading) {
     return (
