@@ -797,6 +797,9 @@ export default function CaseDetailPage() {
      return () => window.removeEventListener("beforeunload", handler);
    }, [shouldBlockNav]);
 
+  // Load internal notes from DB
+  useEffect(() => { internalNotesStore.load(); }, []);
+
   useEffect(() => {
     let mounted = true;
     const doLoad = () => {
