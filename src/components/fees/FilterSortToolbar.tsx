@@ -502,6 +502,96 @@ function FilterGroupUI({
   );
 }
 
+/* ── Sort Popover (with search) ── */
+
+function SortPopover({
+  activeView, allFields, onUpdateSort, onRemoveSort, onAddSort,
+}: {
+  activeView: TableView;
+  allFields: FieldMeta[];
+  onUpdateSort: (id: string, updates: Partial<TableSort>) => void;
+  onRemoveSort: (id: string) => void;
+  onAddSort: (sort: Omit<TableSort, "id">) => void;
+}) {
+  const [sortFieldSearch, setSortFieldSearch] = useState("");
+  const filteredSortFields = useMemo(() => {
+    if (!sortFieldSearch.trim()) return allFields;
+    const q = sortFieldSearch.toLowerCase();
+    return allFields.filter((f) => f.label.toLowerCase().includes(q) || f.key.toLowerCase().includes(q));
+  }, [allFields, sortFieldSearch]);
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5">
+          <ArrowUpDown className="h-3 w-3" />
+          排序
+          {activeView.sorts.length > 0 && (
+            <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px]">
+              {activeView.sorts.length}
+            </Badge>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[340px] p-3" align="start">
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">排序規則</p>
+          {activeView.sorts.length === 0 && (
+            <p className="text-xs text-muted-foreground italic py-2">尚未新增排序規則</p>
+          )}
+          {activeView.sorts.map((sort) => (
+            <div key={sort.id} className="flex items-center gap-1.5">
+              <Select value={sort.field} onValueChange={(v) => onUpdateSort(sort.id, { field: v })}>
+                <SelectTrigger className="h-7 text-xs w-[120px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <div className="px-2 pb-1.5 pt-1 sticky top-0 bg-popover">
+                    <div className="flex items-center gap-1.5 border rounded-md px-2 h-7">
+                      <Search className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <input
+                        value={sortFieldSearch}
+                        onChange={(e) => setSortFieldSearch(e.target.value)}
+                        placeholder="搜尋欄位..."
+                        className="bg-transparent outline-none text-xs w-full placeholder:text-muted-foreground"
+                        onKeyDown={(e) => e.stopPropagation()}
+                      />
+                    </div>
+                  </div>
+                  {filteredSortFields.map((f) => (
+                    <SelectItem key={f.key} value={f.key} className="text-xs">{f.label}</SelectItem>
+                  ))}
+                  {filteredSortFields.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-2">無符合結果</p>
+                  )}
+                </SelectContent>
+              </Select>
+              <Select value={sort.direction} onValueChange={(v) => onUpdateSort(sort.id, { direction: v as "asc" | "desc" })}>
+                <SelectTrigger className="h-7 text-xs w-[80px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="asc" className="text-xs">升序</SelectItem>
+                  <SelectItem value="desc" className="text-xs">降序</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onRemoveSort(sort.id)}>
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          ))}
+          <Separator />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs gap-1 w-full justify-start text-muted-foreground"
+            onClick={() => onAddSort({ field: allFields[0]?.key || "title", direction: "asc" })}
+          >
+            <Plus className="h-3 w-3" />
+            新增排序
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /* ── Single filter condition row ── */
 
 const statusOptions = [
@@ -513,13 +603,14 @@ interface FilterRowProps {
   filter: TableFilter;
   meta: FieldMeta | undefined;
   ops: FilterOperator[];
-  visibleFields: FieldMeta[];
+  allFields: FieldMeta[];
   onUpdateFilter: (id: string, updates: Partial<TableFilter>) => void;
   onRemoveFilter: (id: string) => void;
   statusOptionsList?: { value: string; label: string }[];
 }
 
-function FilterRow({ filter, meta, ops, visibleFields, onUpdateFilter, onRemoveFilter, statusOptionsList }: FilterRowProps) {
+function FilterRow({ filter, meta, ops, allFields, onUpdateFilter, onRemoveFilter, statusOptionsList }: FilterRowProps) {
+  const [fieldSearch, setFieldSearch] = useState("");
   const storeKey = meta ? fieldToStoreKey[meta.key] : undefined;
   const isSelectType = meta?.type === "select";
 
@@ -537,14 +628,35 @@ function FilterRow({ filter, meta, ops, visibleFields, onUpdateFilter, onRemoveF
 
   const isCheckbox = meta?.type === "checkbox";
 
+  const filteredFields = useMemo(() => {
+    if (!fieldSearch.trim()) return allFields;
+    const q = fieldSearch.toLowerCase();
+    return allFields.filter((f) => f.label.toLowerCase().includes(q) || f.key.toLowerCase().includes(q));
+  }, [allFields, fieldSearch]);
+
   return (
     <div className="flex items-center gap-1.5">
-      <Select value={filter.field} onValueChange={(v) => onUpdateFilter(filter.id, { field: v, value: "" })}>
+      <Select value={filter.field} onValueChange={(v) => { onUpdateFilter(filter.id, { field: v, value: "" }); setFieldSearch(""); }}>
         <SelectTrigger className="h-7 text-xs w-[100px]"><SelectValue /></SelectTrigger>
         <SelectContent>
-          {visibleFields.map((f) => (
+          <div className="px-2 pb-1.5 pt-1 sticky top-0 bg-popover">
+            <div className="flex items-center gap-1.5 border rounded-md px-2 h-7">
+              <Search className="h-3 w-3 text-muted-foreground shrink-0" />
+              <input
+                value={fieldSearch}
+                onChange={(e) => setFieldSearch(e.target.value)}
+                placeholder="搜尋欄位..."
+                className="bg-transparent outline-none text-xs w-full placeholder:text-muted-foreground"
+                onKeyDown={(e) => e.stopPropagation()}
+              />
+            </div>
+          </div>
+          {filteredFields.map((f) => (
             <SelectItem key={f.key} value={f.key} className="text-xs">{f.label}</SelectItem>
           ))}
+          {filteredFields.length === 0 && (
+            <p className="text-xs text-muted-foreground text-center py-2">無符合結果</p>
+          )}
         </SelectContent>
       </Select>
       {!isCheckbox && (
