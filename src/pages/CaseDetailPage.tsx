@@ -2243,6 +2243,29 @@ export default function CaseDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Decline confirmation dialog */}
+      <AlertDialog open={declineOpen} onOpenChange={(v) => { if (!v) { setDeclineOpen(false); setDeclineProposedDeadline(null); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>無法承接</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <span>按下此按鈕會在頁面上留下紀錄，告知派案人員無法承接本案，是否確定？</span>
+              <span className="block text-sm font-medium text-foreground mt-3">如果要接，請問希望可以將交期延到何時？（選填）</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="px-1">
+            <DateTimePicker
+              value={declineProposedDeadline}
+              onChange={setDeclineProposedDeadline}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setDeclineOpen(false); setDeclineProposedDeadline(null); }}>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDecline} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">確認</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Multi-collab: initial count dialog */}
       <AlertDialog open={collabCountDialogOpen} onOpenChange={(v) => { if (!v) setCollabCountDialogOpen(false); }}>
         <AlertDialogContent>
