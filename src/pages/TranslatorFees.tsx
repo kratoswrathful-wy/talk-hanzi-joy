@@ -243,11 +243,18 @@ const allColumnDefs: ColumnDef[] = [
       if (!f.clientInfo || f.clientInfo.notFirstFee) return <span className="text-sm text-muted-foreground">N/A</span>;
       const rev = f.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
       const cost = f.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
-      const p = rev - cost;
+      // Get client currency and convert revenue to TWD
+      const clientOptions = selectOptionsStore.getSortedOptions("client");
+      const clientOpt = clientOptions.find((o) => o.label === f.clientInfo?.client);
+      const clientCurrency = clientOpt?.currency || "TWD";
+      const { currencyStore } = require("@/stores/currency-store");
+      const twdRate = currencyStore.getTwdRate(clientCurrency);
+      const revTwd = rev * twdRate;
+      const p = revTwd - cost;
       return (
         <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
           <span className={cn("text-sm tabular-nums font-medium cursor-default", p >= 0 ? "text-success" : "text-destructive")}>{formatCurrency(p)}</span>
-        </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
+        </TooltipTrigger><TooltipContent className="text-xs">自動計算{clientCurrency !== "TWD" ? ` (${clientCurrency}→TWD ×${twdRate})` : ""}</TooltipContent></Tooltip></TooltipProvider>
       );
     },
   },
