@@ -479,7 +479,7 @@ function FilterGroupUI({
                   variant="ghost"
                   size="sm"
                   className="h-6 text-[10px] gap-1 text-muted-foreground px-2"
-                  onClick={() => onAddCondition(node.group!.id, { field: visibleFields[0]?.key || "title", operator: "contains", value: "" })}
+                  onClick={() => onAddCondition(node.group!.id, { field: allFields[0]?.key || "title", operator: "contains", value: "" })}
                 >
                   <Plus className="h-2.5 w-2.5" />
                   條件
