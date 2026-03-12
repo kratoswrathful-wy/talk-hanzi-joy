@@ -19,9 +19,16 @@ import { useSelectOptions } from "@/stores/select-options-store";
 const fieldToStoreKey: Record<string, string> = {
   assignee: "assignee",
   translator: "assignee",
+  reviewer: "assignee",
+  internalAssignee: "assignee",
   client: "client",
   status: "status",
   dispatchRoute: "dispatchRoute",
+  category: "caseCategory",
+  workType: "taskType",
+  billingUnit: "billingUnit",
+  executionTool: "executionTool",
+  noteType: "noteNature",
 };
 
 const operatorLabels: Record<FilterOperator, string> = {
