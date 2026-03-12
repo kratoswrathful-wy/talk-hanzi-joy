@@ -151,6 +151,30 @@ function ClientCaseLinkField({ value, onSave, disabled, defaultLabel }: {
   );
 }
 
+/** Number input with local state buffer to prevent fast-typing race conditions */
+function BufferedNumberInput({ value, onSave, className }: { value: number; onSave: (v: number) => void; className?: string }) {
+  const [local, setLocal] = useState(String(value || ""));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setLocal(value ? String(value) : "");
+  }, [value, focused]);
+
+  return (
+    <Input
+      type="number"
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => {
+        setFocused(false);
+        const num = Number(local) || 0;
+        if (num !== value) onSave(num);
+      }}
+      className={className}
+    />
+  );
+}
 
 const caseStatusLabels: Record<CaseStatus, string> = CASE_STATUS_LABEL_MAP as Record<CaseStatus, string>;
 
