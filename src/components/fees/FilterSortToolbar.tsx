@@ -272,59 +272,13 @@ export function FilterSortToolbar({
         </Popover>
 
         {/* Sort button */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5">
-              <ArrowUpDown className="h-3 w-3" />
-              排序
-              {activeView.sorts.length > 0 && (
-                <Badge variant="secondary" className="h-4 min-w-4 px-1 text-[10px]">
-                  {activeView.sorts.length}
-                </Badge>
-              )}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[340px] p-3" align="start">
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">排序規則</p>
-              {activeView.sorts.length === 0 && (
-                <p className="text-xs text-muted-foreground italic py-2">尚未新增排序規則</p>
-              )}
-              {activeView.sorts.map((sort) => (
-                <div key={sort.id} className="flex items-center gap-1.5">
-                  <Select value={sort.field} onValueChange={(v) => onUpdateSort(sort.id, { field: v })}>
-                    <SelectTrigger className="h-7 text-xs w-[120px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {visibleFields.map((f) => (
-                        <SelectItem key={f.key} value={f.key} className="text-xs">{f.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={sort.direction} onValueChange={(v) => onUpdateSort(sort.id, { direction: v as "asc" | "desc" })}>
-                    <SelectTrigger className="h-7 text-xs w-[80px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="asc" className="text-xs">升序</SelectItem>
-                      <SelectItem value="desc" className="text-xs">降序</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => onRemoveSort(sort.id)}>
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-              ))}
-              <Separator />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs gap-1 w-full justify-start text-muted-foreground"
-                onClick={() => onAddSort({ field: visibleFields[0]?.key || "title", direction: "asc" })}
-              >
-                <Plus className="h-3 w-3" />
-                新增排序
-              </Button>
-            </div>
-          </PopoverContent>
-        </Popover>
+        <SortPopover
+          activeView={activeView}
+          allFields={allFields}
+          onUpdateSort={onUpdateSort}
+          onRemoveSort={onRemoveSort}
+          onAddSort={onAddSort}
+        />
 
         {/* Pin to top/bottom buttons - show when items are selected */}
         {onPinTop && onPinBottom && selectedIds && selectedIds.length > 0 && (
