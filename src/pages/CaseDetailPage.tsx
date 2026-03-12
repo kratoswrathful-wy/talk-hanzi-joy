@@ -735,8 +735,10 @@ function ToolInstance({
 }
 
 function formatTimestamp(d: Date) {
-  const formatted = d.toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei" });
-  return `${formatted} (UTC+8)`;
+  const tz = getUserTimezone();
+  const tzLabel = getTimezoneInfo(tz)?.utcOffset || "UTC+8";
+  const formatted = d.toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz });
+  return `${formatted} (${tzLabel})`;
 }
 
 export default function CaseDetailPage() {
