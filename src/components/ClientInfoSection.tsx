@@ -6,6 +6,7 @@ import { clientInvoiceStore } from "@/stores/client-invoice-store";
 import { useClientInvoices } from "@/hooks/use-client-invoice-store";
 import { toast } from "sonner";
 import { selectOptionsStore } from "@/stores/select-options-store";
+import { currencyStore } from "@/stores/currency-store";
 import { useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -205,6 +206,13 @@ export default function ClientInfoSection({
         (sum, item) => sum + Number(item.unitCount) * Number(item.clientPrice), 0
       );
 
+  // Get client currency and exchange rate
+  const clientOptions = storeSnapshot.client?.options || [];
+  const clientOpt = clientOptions.find((o) => o.label === clientInfo.client);
+  const clientCurrency = clientOpt?.currency || "TWD";
+  const twdRate = currencyStore.getTwdRate(clientCurrency);
+  const revenueTotalTwd = revenueTotal * twdRate;
+
   // All fees in the same case group (including current)
   const allSameCaseFees = clientInfo.sameCase && currentInternalNote
     ? allFees.filter(
@@ -223,7 +231,7 @@ export default function ClientInfoSection({
     : translatorTotal;
 
   const profitFeeCount = allSameCaseFees.length;
-  const profit = revenueTotal - totalTranslatorCost;
+  const profit = revenueTotalTwd - totalTranslatorCost;
 
   const isFirstFeeDisabled = !canEdit || !clientInfo.sameCase || clientInfo.notFirstFee;
   const notFirstFeeDisabled = !canEdit || !clientInfo.sameCase || clientInfo.isFirstFee;
@@ -650,12 +658,12 @@ export default function ClientInfoSection({
                   </Tooltip>
                 </TableCell>
                 <TableCell className="text-sm font-medium text-right">
-                  營收總額
+                  營收總額{clientCurrency !== "TWD" && ` (${clientCurrency})`}
                 </TableCell>
                 <TableCell className="text-right text-sm font-bold tabular-nums">
                   <Tooltip><TooltipTrigger asChild>
                     <span className="cursor-default">{clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}</span>
-                  </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip>
+                  </TooltipTrigger><TooltipContent className="text-xs">自動計算{clientCurrency !== "TWD" ? `（匯率 1 ${clientCurrency} = ${twdRate} TWD）` : ""}</TooltipContent></Tooltip>
                 </TableCell>
                 <TableCell />
               </TableRow>
@@ -682,11 +690,12 @@ export default function ClientInfoSection({
                   {clientInfo.sameCase && profitFeeCount > 0
                     ? `利潤（${profitFeeCount} 筆稿費）`
                     : "利潤"}
+                  {clientCurrency !== "TWD" && " (TWD)"}
                 </TableCell>
                 <TableCell className={`text-right text-sm font-bold ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
                   <Tooltip><TooltipTrigger asChild>
                     <span className="cursor-default">{clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}</span>
-                  </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip>
+                  </TooltipTrigger><TooltipContent className="text-xs">自動計算{clientCurrency !== "TWD" ? `（營收 ${revenueTotal.toLocaleString()} ${clientCurrency} × ${twdRate} − 稿費總額）` : ""}</TooltipContent></Tooltip>
                 </TableCell>
                 <TableCell />
               </TableRow>

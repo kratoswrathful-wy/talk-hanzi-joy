@@ -12,6 +12,7 @@ import { motion } from "framer-motion";
 import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, type TranslatorFee, defaultClientInfo } from "@/data/fee-mock-data";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
 import { selectOptionsStore, PRESET_COLORS, CONTACT_DEFAULT_COLOR } from "@/stores/select-options-store";
+import { currencyStore } from "@/stores/currency-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
@@ -153,15 +154,8 @@ interface CommentEntry {
   timestamp: string;
 }
 
-const formatTimestamp = (date: Date | string) => {
-  const d = typeof date === "string" ? new Date(date) : date;
-  const formatted = d.toLocaleString("zh-TW", {
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", hour12: false,
-    timeZone: "Asia/Taipei",
-  });
-  return `${formatted} (UTC+8)`;
-};
+import { formatTimestamp24h } from "@/lib/format-timestamp";
+const formatTimestamp = (date: Date | string) => formatTimestamp24h(date);
 
 const mentionUsers = ["王小明", "李美玲", "張大偉", "陳雅婷"];
 
@@ -755,7 +749,12 @@ export default function TranslatorFeeDetail() {
           if (effectiveClient) {
             const cp = defaultPricingStore.getClientPrice(effectiveClient, taskType, bu);
             if (cp !== undefined) {
-              const tp = defaultPricingStore.getTranslatorPrice(cp, taskType, bu);
+              // Apply currency exchange rate before matching tier
+              const clientOpt = selectOptionsStore.getSortedOptions("client").find((o) => o.label === effectiveClient);
+              const clientCurrency = clientOpt?.currency || "TWD";
+              const twdRate = currencyStore.getTwdRate(clientCurrency);
+              const cpInTwd = cp * twdRate;
+              const tp = defaultPricingStore.getTranslatorPrice(cpInTwd, taskType, bu);
               return tp ?? 0;
             }
           }
@@ -1383,7 +1382,11 @@ export default function TranslatorFeeDetail() {
           if (effectiveClient) {
             const cp = defaultPricingStore.getClientPrice(effectiveClient, taskType, billingUnit);
             if (cp !== undefined) {
-              const tp = defaultPricingStore.getTranslatorPrice(cp, taskType, billingUnit);
+              const clientOpt = selectOptionsStore.getSortedOptions("client").find((o) => o.label === effectiveClient);
+              const clientCurrency = clientOpt?.currency || "TWD";
+              const twdRate = currencyStore.getTwdRate(clientCurrency);
+              const cpInTwd = cp * twdRate;
+              const tp = defaultPricingStore.getTranslatorPrice(cpInTwd, taskType, billingUnit);
               return tp ?? 0;
             }
           }

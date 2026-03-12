@@ -37,6 +37,7 @@ import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-st
 import AssigneeTag from "@/components/AssigneeTag";
 import { supabase } from "@/integrations/supabase/client";
 import { getFieldLock, getMultiSelectFieldLock, type FeeFieldLockContext } from "@/lib/fee-field-locks";
+import { currencyStore } from "@/stores/currency-store";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
   draft: "草稿",
@@ -61,10 +62,7 @@ const clientInfoLogKeywords = [
   "同一案件", "主要營收", "營收", "利潤", "客戶端",
 ];
 
-const formatDate = (iso: string) => {
-  const d = new Date(iso);
-  return d.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Taipei" }) + " (UTC+8)";
-};
+import { formatDateTz as formatDate } from "@/lib/format-timestamp";
 
 const formatCurrency = (n: number) =>
   n.toLocaleString("zh-TW", { style: "currency", currency: "TWD", minimumFractionDigits: 0 });
@@ -246,11 +244,16 @@ const allColumnDefs: ColumnDef[] = [
       if (!f.clientInfo || f.clientInfo.notFirstFee) return <span className="text-sm text-muted-foreground">N/A</span>;
       const rev = f.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
       const cost = f.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
-      const p = rev - cost;
+      // Get client currency and convert revenue to TWD
+      const clientOpt = selectOptionsStore.getSortedOptions("client").find((o) => o.label === f.clientInfo?.client);
+      const clientCurrency = clientOpt?.currency || "TWD";
+      const twdRate = currencyStore.getTwdRate(clientCurrency);
+      const revTwd = rev * twdRate;
+      const p = revTwd - cost;
       return (
         <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
           <span className={cn("text-sm tabular-nums font-medium cursor-default", p >= 0 ? "text-success" : "text-destructive")}>{formatCurrency(p)}</span>
-        </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
+        </TooltipTrigger><TooltipContent className="text-xs">自動計算{clientCurrency !== "TWD" ? ` (${clientCurrency}→TWD ×${twdRate})` : ""}</TooltipContent></Tooltip></TooltipProvider>
       );
     },
   },

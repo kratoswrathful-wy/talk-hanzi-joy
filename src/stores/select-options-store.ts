@@ -19,6 +19,7 @@ export interface SelectOption {
   timezone?: string | null;
   statusMessage?: string | null;
   toolFields?: ToolFieldDef[];
+  currency?: string; // currency code for client options, e.g. "TWD", "USD"
 }
 
 export const PRESET_COLORS = [
@@ -201,13 +202,25 @@ export const selectOptionsStore = {
     return sortOptions(field.options);
   },
 
-  addOption: (fieldKey: string, label: string, color: string) => {
+  addOption: (fieldKey: string, label: string, color: string, extra?: Partial<SelectOption>) => {
     const field = selectOptionsStore.getField(fieldKey);
     const id = `opt-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
-    field.options.push({ id, label, color });
+    field.options.push({ id, label, color, ...extra });
     store = { ...store, [fieldKey]: { ...field, options: [...field.options] } };
     notify();
     return id;
+  },
+
+  updateOptionCurrency: (fieldKey: string, optionId: string, currency: string) => {
+    const field = selectOptionsStore.getField(fieldKey);
+    store = {
+      ...store,
+      [fieldKey]: {
+        ...field,
+        options: field.options.map((o) => (o.id === optionId ? { ...o, currency } : o)),
+      },
+    };
+    notify();
   },
 
   deleteOption: (fieldKey: string, optionId: string) => {

@@ -8,6 +8,7 @@ import ColorPicker from "@/components/ColorPicker";
 import { useSelectOptions, selectOptionsStore, PRESET_COLORS, STATUS_TABLE_MAP, ALL_STATUS_TABLES } from "@/stores/select-options-store";
 import { useLabelStyles, labelStyleStore } from "@/stores/label-style-store";
 import { useClientPricing, useTranslatorTiers, defaultPricingStore, type TranslatorTier, clientPricingKey, parseClientPricingKey } from "@/stores/default-pricing-store";
+import { useCurrencies, currencyStore, type CurrencyOption } from "@/stores/currency-store";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions, type PermissionConfig } from "@/hooks/use-permissions";
 import { Switch } from "@/components/ui/switch";
@@ -71,6 +72,7 @@ function ClientPricingSection() {
   const labelStyles = useLabelStyles();
   const { options: taskTypeOptions } = useSelectOptions("taskType");
   const { getAllClientPricing, setClientPrice, removeClientPrice } = useClientPricing();
+  const { currencies } = useCurrencies();
   const allPricing = getAllClientPricing();
 
   const [editingCell, setEditingCell] = useState<string | null>(null);
@@ -84,8 +86,9 @@ function ClientPricingSection() {
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
+  const [newCurrency, setNewCurrency] = useState(currencies[0]?.code || "TWD");
   const [textColorOpen, setTextColorOpen] = useState(false);
-  const cancelAdding = useCallback(() => { setAdding(false); setNewLabel(""); setNewColor(PRESET_COLORS[0]); }, []);
+  const cancelAdding = useCallback(() => { setAdding(false); setNewLabel(""); setNewColor(PRESET_COLORS[0]); setNewCurrency(currencies[0]?.code || "TWD"); }, [currencies]);
   const addingRef = useClickOutsideCancel(adding, cancelAdding);
 
   const toggleClient = (id: string) => {
@@ -111,7 +114,7 @@ function ClientPricingSection() {
   const handleAddClient = () => {
     const label = newLabel.trim();
     if (!label || clientOptions.some((o) => o.label === label)) return;
-    selectOptionsStore.addOption("client", label, newColor);
+    selectOptionsStore.addOption("client", label, newColor, { currency: newCurrency });
     // Auto-populate hourly pricing (450) for all task types
     for (const tt of taskTypeOptions) {
       for (const bu of billingUnitOptions) {
@@ -122,6 +125,7 @@ function ClientPricingSection() {
     }
     setNewLabel("");
     setNewColor(PRESET_COLORS[0]);
+    setNewCurrency(currencies[0]?.code || "TWD");
     setAdding(false);
   };
 
@@ -188,6 +192,11 @@ function ClientPricingSection() {
                     >
                       {client.label}
                     </span>
+                    {client.currency && (
+                      <span className="text-[10px] text-muted-foreground font-medium ml-1">
+                        {client.currency}
+                      </span>
+                    )}
                   </button>
                   <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Popover
@@ -224,6 +233,19 @@ function ClientPricingSection() {
 
                 {isExpanded && (
                   <div className="ml-6 mt-1 mb-2 space-y-1">
+                    {/* Currency selector for this client */}
+                    <div className="flex items-center gap-2 px-2 py-1">
+                      <Label className="text-xs text-muted-foreground whitespace-nowrap">預設貨幣</Label>
+                      <select
+                        value={client.currency || "TWD"}
+                        onChange={(e) => selectOptionsStore.updateOptionCurrency("client", client.id, e.target.value)}
+                        className="h-6 rounded border border-input bg-background px-1.5 text-xs"
+                      >
+                        {currencies.map((c) => (
+                          <option key={c.id} value={c.code}>{c.code}</option>
+                        ))}
+                      </select>
+                    </div>
                     <div className="grid grid-cols-[1fr_60px_100px_36px] gap-2 px-2 text-xs text-muted-foreground font-medium border-b border-border pb-1">
                       <span>任務類型</span>
                       <span>單位</span>
@@ -331,6 +353,18 @@ function ClientPricingSection() {
               if (e.key === "Escape") setAdding(false);
             }}
           />
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground whitespace-nowrap">貨幣</Label>
+            <select
+              value={newCurrency}
+              onChange={(e) => setNewCurrency(e.target.value)}
+              className="h-7 rounded-md border border-input bg-background px-2 text-xs flex-1"
+            >
+              {currencies.map((c) => (
+                <option key={c.id} value={c.code}>{c.code} — {c.label}</option>
+              ))}
+            </select>
+          </div>
           <ColorPicker
             value={newColor}
             onChange={(color) => setNewColor(color)}
@@ -2345,6 +2379,142 @@ function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; ti
   );
 }
 
+// ─── Currency Settings Section ───
+
+function CurrencySettingsSection() {
+  const { currencies, addCurrency, updateCurrency, deleteCurrency, reorderCurrencies } = useCurrencies();
+  const [adding, setAdding] = useState(false);
+  const [newCode, setNewCode] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [newRate, setNewRate] = useState("1");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editRate, setEditRate] = useState("");
+
+  const handleAdd = () => {
+    const code = newCode.trim().toUpperCase();
+    const label = newLabel.trim();
+    const rate = Number(newRate);
+    if (!code || !label || isNaN(rate) || rate <= 0) return;
+    if (currencies.some((c) => c.code === code)) return;
+    addCurrency(code, label, rate);
+    setNewCode("");
+    setNewLabel("");
+    setNewRate("1");
+    setAdding(false);
+  };
+
+  const handleDrop = (idx: number) => {
+    if (dragIndex === null || dragIndex === idx) return;
+    const ids = currencies.map((c) => c.id);
+    const [moved] = ids.splice(dragIndex, 1);
+    ids.splice(idx, 0, moved);
+    reorderCurrencies(ids);
+    setDragIndex(null);
+    setDragOverIndex(null);
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-6 gap-4 flex flex-col">
+      <div>
+        <h2 className="text-base font-semibold">貨幣設定</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          管理貨幣種類及其新台幣匯率。客戶報價將使用此匯率換算利潤。
+        </p>
+      </div>
+
+      <div className="space-y-1">
+        {currencies.map((cur, idx) => (
+          <div
+            key={cur.id}
+            draggable
+            onDragStart={() => setDragIndex(idx)}
+            onDragOver={(e) => { e.preventDefault(); if (dragIndex !== null && dragIndex !== idx) setDragOverIndex(idx); }}
+            onDrop={() => handleDrop(idx)}
+            onDragEnd={() => { setDragIndex(null); setDragOverIndex(null); }}
+            className={cn(
+              "flex items-center justify-between px-2 py-1.5 rounded-md transition-colors group cursor-grab active:cursor-grabbing",
+              dragOverIndex === idx && "bg-primary/10 border border-dashed border-primary/30",
+              dragIndex === idx && "opacity-50",
+              dragOverIndex !== idx && "hover:bg-secondary/30"
+            )}
+          >
+            <div className="flex items-center gap-3 flex-1">
+              <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium w-12">{cur.code}</span>
+              <span className="text-sm text-muted-foreground">{cur.label}</span>
+              <span className="text-xs text-muted-foreground ml-auto mr-2">1 {cur.code} =</span>
+              {editingId === cur.id ? (
+                <Input
+                  value={editRate}
+                  onChange={(e) => { if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setEditRate(e.target.value); }}
+                  onBlur={() => {
+                    const rate = Number(editRate);
+                    if (!isNaN(rate) && rate > 0) updateCurrency(cur.id, { twdRate: rate });
+                    setEditingId(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const rate = Number(editRate);
+                      if (!isNaN(rate) && rate > 0) updateCurrency(cur.id, { twdRate: rate });
+                      setEditingId(null);
+                    }
+                    if (e.key === "Escape") setEditingId(null);
+                  }}
+                  autoFocus
+                  className="h-6 w-16 text-xs text-right"
+                />
+              ) : (
+                <button
+                  className="text-sm tabular-nums hover:text-primary cursor-pointer w-16 text-right"
+                  onClick={() => { setEditingId(cur.id); setEditRate(String(cur.twdRate)); }}
+                >
+                  {cur.twdRate}
+                </button>
+              )}
+              <span className="text-xs text-muted-foreground">TWD</span>
+            </div>
+            {cur.code !== "TWD" && (
+              <button
+                className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
+                onClick={() => deleteCurrency(cur.id)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {adding ? (
+        <div className="space-y-2 px-2">
+          <div className="flex items-center gap-2">
+            <Input value={newCode} onChange={(e) => setNewCode(e.target.value.toUpperCase())} placeholder="貨幣代碼 (如 USD)" className="h-7 text-xs flex-1" autoFocus />
+            <Input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="名稱 (如 美元)" className="h-7 text-xs flex-1" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground whitespace-nowrap">新台幣匯率</Label>
+            <Input
+              value={newRate}
+              onChange={(e) => { if (/^[0-9]*\.?[0-9]*$/.test(e.target.value)) setNewRate(e.target.value); }}
+              placeholder="30"
+              className="h-7 text-xs w-20"
+              onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); if (e.key === "Escape") setAdding(false); }}
+            />
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleAdd}>新增</Button>
+          </div>
+        </div>
+      ) : (
+        <Button variant="outline" size="sm" className="gap-1 text-xs w-full" onClick={() => setAdding(true)}>
+          <Plus className="h-3.5 w-3.5" />
+          新增貨幣
+        </Button>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Settings Page ───
 
 export default function SettingsPage() {
@@ -2371,13 +2541,18 @@ export default function SettingsPage() {
         <DispatchRouteSection />
       </div>
 
-      {/* Row 3: 客戶設定 (left) — 狀態標籤 (right) — collapsible, default collapsed */}
+      {/* Row 3: 客戶設定 (left) — 狀態標籤 (right) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {canViewSection("client_pricing") && <ClientPricingSection />}
         <StatusStyleSection />
       </div>
 
-      {/* Row 4: 內部註記狀態 (left) — 內部註記性質 (right) */}
+      {/* Row 4: 貨幣設定 (left) — 空 (right) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {canViewSection("client_pricing") && <CurrencySettingsSection />}
+      </div>
+
+      {/* Row 5: 內部註記狀態 (left) — 內部註記性質 (right) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <NoteSelectSection fieldKey="noteStatus" title="內部註記狀態" addLabel="新增狀態" />
         <NoteSelectSection fieldKey="noteNature" title="內部註記性質" addLabel="新增性質" />

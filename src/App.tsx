@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -27,6 +28,7 @@ import InternalNotesPage from "@/pages/InternalNotesPage";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 import { initSettings } from "@/stores/settings-init";
+import { setUserTimezone } from "@/lib/format-timestamp";
 
 // Initialize settings loading (will auto-reload on auth changes)
 initSettings();
@@ -39,7 +41,12 @@ function TranslatorFeeDetailWrapper() {
 const queryClient = new QueryClient();
 
 function AuthenticatedRoutes() {
-  const { user, loading } = useAuth();
+  const { user, loading, profile } = useAuth();
+
+  // Sync user timezone for formatters
+  useEffect(() => {
+    setUserTimezone(profile?.timezone);
+  }, [profile?.timezone]);
 
   if (loading) {
     return (

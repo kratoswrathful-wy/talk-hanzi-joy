@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { formatDateTz as formatDate, formatDateTimeTz as formatDateTime } from "@/lib/format-timestamp";
 import { useCases, caseStore } from "@/hooks/use-case-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useRowSelection } from "@/hooks/use-row-selection";
@@ -142,16 +143,7 @@ function CaseStatusBadge({ status }: { status: CaseStatus }) {
   );
 }
 
-const formatDate = (iso: string) => {
-  const d = new Date(iso);
-  return d.toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Asia/Taipei" }) + " (UTC+8)";
-};
-
-const formatDateTime = (iso: string | null) => {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleString("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Taipei" }) + " (UTC+8)";
-};
+// Timezone-aware formatters: each usage passes userTz from useAuth
 
 interface ColumnDef {
   key: string;
