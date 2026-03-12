@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useClickOutsideCancel } from "@/hooks/use-click-outside";
+import { iconLibraryStore, type IconLibraryItem } from "@/stores/icon-library-store";
 
 function getColorUsageMap(options: { color: string; label: string }[]): Record<string, string[]> {
   const map: Record<string, string[]> = {};
