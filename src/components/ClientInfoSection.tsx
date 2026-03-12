@@ -615,7 +615,7 @@ export default function ClientInfoSection({
                   </TableCell>
                   <TableCell className="text-right text-xs font-medium">
                     <Tooltip><TooltipTrigger asChild>
-                      <span className="cursor-default">{clientInfo.notFirstFee ? <span className="text-muted-foreground">N/A</span> : (Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}</span>
+                      <span className="cursor-default">{clientInfo.notFirstFee ? <span className="text-muted-foreground">N/A</span> : `${clientCurrency} ${(Number(item.unitCount) * Number(item.clientPrice)).toLocaleString()}`}</span>
                     </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip>
                   </TableCell>
                   <TableCell className="px-2">
@@ -662,7 +662,7 @@ export default function ClientInfoSection({
                 </TableCell>
                 <TableCell className="text-right text-sm font-bold tabular-nums">
                   <Tooltip><TooltipTrigger asChild>
-                    <span className="cursor-default">{clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}</span>
+                    <span className="cursor-default">{clientItemsLocked && !firstFeePage ? "N/A" : `${clientCurrency} ${revenueTotal.toLocaleString()}`}</span>
                   </TooltipTrigger><TooltipContent className="text-xs">自動計算{clientCurrency !== "TWD" ? `（匯率 1 ${clientCurrency} = ${twdRate} TWD）` : ""}</TooltipContent></Tooltip>
                 </TableCell>
                 <TableCell />
@@ -694,7 +694,7 @@ export default function ClientInfoSection({
                 </TableCell>
                 <TableCell className={`text-right text-sm font-bold ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
                   <Tooltip><TooltipTrigger asChild>
-                    <span className="cursor-default">{clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}</span>
+                    <span className="cursor-default">{clientItemsLocked && !firstFeePage ? "N/A" : `TWD ${profit.toLocaleString()}`}</span>
                   </TooltipTrigger><TooltipContent className="text-xs">自動計算{clientCurrency !== "TWD" ? `（營收 ${revenueTotal.toLocaleString()} ${clientCurrency} × ${twdRate} − 稿費總額）` : ""}</TooltipContent></Tooltip>
                 </TableCell>
                 <TableCell />

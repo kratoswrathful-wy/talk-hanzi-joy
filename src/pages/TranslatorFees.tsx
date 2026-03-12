@@ -64,8 +64,8 @@ const clientInfoLogKeywords = [
 
 import { formatDateTz as formatDate } from "@/lib/format-timestamp";
 
-const formatCurrency = (n: number) =>
-  n.toLocaleString("zh-TW", { style: "currency", currency: "TWD", minimumFractionDigits: 0 });
+const formatCurrency = (n: number, code = "TWD") =>
+  `${code} ${n.toLocaleString("zh-TW", { minimumFractionDigits: 0 })}`;
 
 // Editable fields - computed/date/createdBy are not editable
 const editableFields = new Set([
@@ -160,7 +160,7 @@ const allColumnDefs: ColumnDef[] = [
       const total = f.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
       return (
         <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-          <span className="text-sm tabular-nums cursor-default">{formatCurrency(total)}</span>
+          <span className="text-sm tabular-nums cursor-default">{formatCurrency(total, "TWD")}</span>
         </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
       );
     },
@@ -228,9 +228,11 @@ const allColumnDefs: ColumnDef[] = [
     render: (f) => {
       if (!f.clientInfo || f.clientInfo.notFirstFee) return <span className="text-sm text-muted-foreground">N/A</span>;
       const rev = f.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
+      const clientOpt2 = selectOptionsStore.getSortedOptions("client").find((o) => o.label === f.clientInfo?.client);
+      const revCurrency = clientOpt2?.currency || "TWD";
       return (
         <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-          <span className="text-sm tabular-nums cursor-default">{formatCurrency(rev)}</span>
+          <span className="text-sm tabular-nums cursor-default">{formatCurrency(rev, revCurrency)}</span>
         </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
       );
     },
@@ -252,7 +254,7 @@ const allColumnDefs: ColumnDef[] = [
       const p = revTwd - cost;
       return (
         <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-          <span className={cn("text-sm tabular-nums font-medium cursor-default", p >= 0 ? "text-success" : "text-destructive")}>{formatCurrency(p)}</span>
+          <span className={cn("text-sm tabular-nums font-medium cursor-default", p >= 0 ? "text-success" : "text-destructive")}>{formatCurrency(p, "TWD")}</span>
         </TooltipTrigger><TooltipContent className="text-xs">自動計算{clientCurrency !== "TWD" ? ` (${clientCurrency}→TWD ×${twdRate})` : ""}</TooltipContent></Tooltip></TooltipProvider>
       );
     },

@@ -70,8 +70,8 @@ function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
 
 import { formatDateTz as formatDate } from "@/lib/format-timestamp";
 
-const formatCurrency = (n: number) =>
-  n.toLocaleString("zh-TW", { style: "currency", currency: "TWD", minimumFractionDigits: 0 });
+const formatCurrency = (n: number, code = "TWD") =>
+  `${code} ${n.toLocaleString("zh-TW", { minimumFractionDigits: 0 })}`;
 
 // Cache for creator UUID → display name
 const creatorNameCache = new Map<string, string>();

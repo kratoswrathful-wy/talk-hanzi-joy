@@ -2347,7 +2347,7 @@ export default function TranslatorFeeDetail() {
                       </TableCell>
                       <TableCell className="text-right text-xs font-medium">
                         <Tooltip><TooltipTrigger asChild>
-                          <span className="cursor-default">{isNoFeeTranslator ? 0 : (Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}</span>
+                          <span className="cursor-default">{isNoFeeTranslator ? 0 : `TWD ${(Number(item.unitCount) * Number(item.unitPrice)).toLocaleString()}`}</span>
                         </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip>
                       </TableCell>
                       <TableCell className="px-2">
@@ -2379,7 +2379,7 @@ export default function TranslatorFeeDetail() {
                       </TableCell>
                       <TableCell className="text-right text-sm font-bold">
                         <Tooltip><TooltipTrigger asChild>
-                          <span className="cursor-default">{totalAmount.toLocaleString()}</span>
+                          <span className="cursor-default">TWD {totalAmount.toLocaleString()}</span>
                         </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip>
                       </TableCell>
                       <TableCell />
