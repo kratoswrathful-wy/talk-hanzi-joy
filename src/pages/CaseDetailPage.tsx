@@ -1465,11 +1465,11 @@ export default function CaseDetailPage() {
                     className="flex-1 min-w-0"
                   />
                   <span className="text-sm text-muted-foreground shrink-0">計費單位數</span>
-                  <Input
-                    type="number"
-                    value={g.unitCount || ""}
-                    onChange={(e) => updateGroup(idx, { unitCount: Number(e.target.value) || 0 })}
+                  <BufferedNumberInput
+                    value={g.unitCount || 0}
+                    onSave={(v) => updateGroup(idx, { unitCount: v })}
                     className="w-[80px] shrink-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
                   />
                   {workGroups.length > 1 ? (
                     <button
