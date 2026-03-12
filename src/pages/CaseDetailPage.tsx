@@ -1333,7 +1333,7 @@ export default function CaseDetailPage() {
             <img
               src={caseData.iconUrl}
               alt="案件圖示"
-              className="w-[72px] h-[72px] rounded-md object-cover shrink-0 border border-border"
+              className="w-[126px] h-[126px] rounded-md object-cover shrink-0 border border-border"
             />
           )}
           <TitleInput value={caseData.title} onSave={(v) => save({ title: v })} />

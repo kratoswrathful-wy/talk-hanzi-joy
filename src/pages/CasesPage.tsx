@@ -239,7 +239,7 @@ const allColumnDefs: ColumnDef[] = [
     render: (c, { editable, onCommit }) => (
       <div className="relative flex items-center group/title gap-1.5">
         {c.iconUrl && (
-          <img src={c.iconUrl} alt="" className="w-6 h-6 rounded object-cover shrink-0 border border-border" />
+          <img src={c.iconUrl} alt="" className="w-8 h-8 rounded object-cover shrink-0 border border-border" />
         )}
         <InlineEditCell value={c.title} type="text" editable={editable} onCommit={(v) => onCommit("title", v)} className="flex-1 min-w-0 pr-6">
           <span className="truncate font-medium text-card-foreground">
