@@ -662,7 +662,7 @@ export default function ClientInfoSection({
                 </TableCell>
                 <TableCell className="text-right text-sm font-bold tabular-nums">
                   <Tooltip><TooltipTrigger asChild>
-                    <span className="cursor-default">{clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}</span>
+                    <span className="cursor-default">{clientItemsLocked && !firstFeePage ? "N/A" : `${clientCurrency} ${revenueTotal.toLocaleString()}`}</span>
                   </TooltipTrigger><TooltipContent className="text-xs">自動計算{clientCurrency !== "TWD" ? `（匯率 1 ${clientCurrency} = ${twdRate} TWD）` : ""}</TooltipContent></Tooltip>
                 </TableCell>
                 <TableCell />
