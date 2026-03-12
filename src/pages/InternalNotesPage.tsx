@@ -521,6 +521,7 @@ function NewNoteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
 export default function InternalNotesPage() {
   const notes = useInternalNotes();
   const { user } = useAuth();
+  const { checkPerm } = usePermissions();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [newNoteOpen, setNewNoteOpen] = useState(false);

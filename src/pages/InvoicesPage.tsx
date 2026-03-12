@@ -110,6 +110,7 @@ export default function InvoicesPage() {
   const navigate = useNavigate();
   const { isAdmin, profile, user, roles } = useAuth();
   const isExecutive = roles.some((r) => r.role === "executive");
+  const { checkPerm } = usePermissions();
   const allInvoices = useInvoices();
   const invoices = isAdmin ? allInvoices : allInvoices.filter(
     (inv) => inv.translator === profile?.display_name

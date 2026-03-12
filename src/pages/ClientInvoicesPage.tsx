@@ -97,6 +97,7 @@ export default function ClientInvoicesPage() {
   const navigate = useNavigate();
   const { isAdmin, user, roles } = useAuth();
   const isExecutive = roles.some((r) => r.role === "executive");
+  const { checkPerm } = usePermissions();
   const allInvoices = useClientInvoices();
   const fees = useFees();
   const { options: clientOptions } = useSelectOptions("client");
