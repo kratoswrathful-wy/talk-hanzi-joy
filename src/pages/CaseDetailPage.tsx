@@ -1337,7 +1337,7 @@ export default function CaseDetailPage() {
           />
         </div>
 
-        <div className="flex items-start gap-3 pr-40">
+        <div className="flex items-end gap-3 pr-40">
           {/* Case icon */}
           {caseData.iconUrl && (
             <img
@@ -1346,8 +1346,8 @@ export default function CaseDetailPage() {
               className="w-[126px] h-[126px] rounded-md object-cover shrink-0 border border-border"
             />
           )}
-          {/* Title + Status stacked */}
-          <div className="min-w-0 flex flex-col gap-1.5">
+          {/* Title + Status stacked, bottom-aligned with icon */}
+          <div className="min-w-0 flex flex-col justify-end gap-1.5">
             <TitleInput value={caseData.title} onSave={(v) => save({ title: v })} />
             <div className="flex items-center gap-2 pl-3">
               <span className="text-sm text-muted-foreground">狀態</span>
