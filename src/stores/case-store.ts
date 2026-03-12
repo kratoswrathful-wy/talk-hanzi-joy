@@ -11,6 +11,9 @@ let loadPromise: Promise<void> | null = null;
 let loadVersion = 0; // version counter to discard stale loads
 const listeners = new Set<Listener>();
 
+// Track in-flight optimistic updates to prevent poll/realtime from overwriting
+const pendingUpdates = new Map<string, Partial<CaseRecord>>();
+
 function notify() {
   listeners.forEach((l) => l());
 }
