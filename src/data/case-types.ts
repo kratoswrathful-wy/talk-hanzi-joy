@@ -112,6 +112,7 @@ export interface CaseRecord {
   collabCount: number;
   collabRows: CollabRow[];
   declineRecords: DeclineRecord[];
+  iconUrl: string;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
