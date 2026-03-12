@@ -564,6 +564,9 @@ function SortPopover({
                         placeholder="搜尋欄位..."
                         className="bg-transparent outline-none text-xs w-full placeholder:text-muted-foreground"
                         onKeyDown={(e) => e.stopPropagation()}
+                        onCompositionStart={(e) => e.stopPropagation()}
+                        onCompositionEnd={(e) => e.stopPropagation()}
+                        onCompositionUpdate={(e) => e.stopPropagation()}
                       />
                     </div>
                   </div>
