@@ -130,35 +130,31 @@ export const internalNotesStore = {
     }
   },
 
-  add: (note: InternalNote) => {
+  add: async (note: InternalNote) => {
     notes = [note, ...notes];
     notify();
-    supabase
+    const { error } = await supabase
       .from("internal_notes")
       .insert({
         id: note.id,
         ...appToDb(note),
         created_at: note.createdAt,
         env: getEnvironment(),
-      } as any)
-      .then(({ error }) => {
-        if (error) console.error("Failed to insert internal note:", error);
-      });
+      } as any);
+    if (error) console.error("Failed to insert internal note:", error);
     return note;
   },
 
-  update: (id: string, updates: Partial<InternalNote>) => {
+  update: async (id: string, updates: Partial<InternalNote>) => {
     notes = notes.map((n) => (n.id === id ? { ...n, ...updates } : n));
     notify();
     const dbUpdates = appToDb(updates);
     if (Object.keys(dbUpdates).length === 0) return;
-    supabase
+    const { error } = await supabase
       .from("internal_notes")
       .update({ ...dbUpdates, updated_at: new Date().toISOString() })
-      .eq("id", id)
-      .then(({ error }) => {
-        if (error) console.error("Failed to update internal note:", error);
-      });
+      .eq("id", id);
+    if (error) console.error("Failed to update internal note:", error);
   },
 
   remove: (id: string) => {

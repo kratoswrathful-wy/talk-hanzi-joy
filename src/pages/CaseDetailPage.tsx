@@ -892,7 +892,7 @@ export default function CaseDetailPage() {
   };
 
   /* ── Internal Note creation from case ── */
-  const handleCreateInternalNote = () => {
+  const handleCreateInternalNote = async () => {
     const caseTitle = caseData?.title || "";
     const baseId = caseTitle.replace(/[_\-]?\d{6,8}$/g, "").replace(/[_\-]?\d{4}[\-\/]?\d{2}[\-\/]?\d{2}$/, "").trim() || caseTitle;
     const prefix = `${baseId}_Note_`;
@@ -918,7 +918,7 @@ export default function CaseDetailPage() {
       comments: [],
       invalidated: false,
     };
-    internalNotesStore.add(newNote);
+    await internalNotesStore.add(newNote);
     navigate(`/internal-notes?noteId=${newNote.id}`);
   };
 

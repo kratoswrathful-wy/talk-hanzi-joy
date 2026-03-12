@@ -152,7 +152,7 @@ function NoteDetailView({
     setInvalidateReason("");
   };
 
-  const handleNewSameCaseNote = () => {
+  const handleNewSameCaseNote = async () => {
     const title = generateNoteTitle(note.relatedCase);
     // Get case reviewer
     const cases = caseStore.getAll();
@@ -178,7 +178,7 @@ function NoteDetailView({
       comments: [],
       invalidated: false,
     };
-    internalNotesStore.add(newNote);
+    await internalNotesStore.add(newNote);
     toast.success(`已建立新註記頁面「${title}」，現有內容複製自原頁面，請確實妥善編輯更改。`);
     navigate(`/internal-notes?noteId=${newNote.id}`);
   };
@@ -448,7 +448,7 @@ function NewNoteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
     return cases.filter((c) => c.title.toLowerCase().includes(search.toLowerCase()));
   }, [cases, search]);
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!selectedCase) return;
     const caseRecord = cases.find((c) => c.title === selectedCase);
     const reviewer = caseRecord?.reviewer || "";
@@ -472,7 +472,7 @@ function NewNoteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
       comments: [],
       invalidated: false,
     };
-    internalNotesStore.add(newNote);
+    await internalNotesStore.add(newNote);
     onOpenChange(false);
     setSearch("");
     setSelectedCase("");
