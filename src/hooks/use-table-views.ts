@@ -174,12 +174,14 @@ function compareFeesWithCtx(a: TranslatorFee, b: TranslatorFee, sort: TableSort,
 const defaultColumnOrder = fieldMetas.map((f) => f.key);
 const defaultColumnWidths: Record<string, number> = {
   title: 220, status: 90, assignee: 100, internalNote: 160, taskSummary: 120,
+  feeTaskType: 100, feeBillingUnit: 80, feeUnitCount: 80, feeUnitPrice: 80,
   client: 100, contact: 100, clientCaseId: 120, clientPoNumber: 100, dispatchRoute: 100,
-  clientRevenue: 100, profit: 100, reconciled: 70, rateConfirmed: 70, invoiced: 70,
+  clientRevenue: 100, clientTaskType: 100, clientBillingUnit: 80, clientUnitCount: 80, clientUnitPrice: 80,
+  profit: 100, reconciled: 70, rateConfirmed: 70, invoiced: 70,
   sameCase: 70, translatorInvoiceStatus: 100, clientInvoiceStatus: 100,
   translatorInvoice: 120, invoice: 100, createdBy: 80, createdAt: 110,
 };
-const defaultHiddenColumns = ["contact", "dispatchRoute", "sameCase"];
+const defaultHiddenColumns = ["contact", "dispatchRoute", "sameCase", "feeTaskType", "feeBillingUnit", "feeUnitCount", "feeUnitPrice", "clientTaskType", "clientBillingUnit", "clientUnitCount", "clientUnitPrice"];
 
 function createDefaultView(): TableView {
   return {
