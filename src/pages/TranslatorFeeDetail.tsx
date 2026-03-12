@@ -2379,7 +2379,7 @@ export default function TranslatorFeeDetail() {
                       </TableCell>
                       <TableCell className="text-right text-sm font-bold">
                         <Tooltip><TooltipTrigger asChild>
-                          <span className="cursor-default">{totalAmount.toLocaleString()}</span>
+                          <span className="cursor-default">TWD {totalAmount.toLocaleString()}</span>
                         </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip>
                       </TableCell>
                       <TableCell />
