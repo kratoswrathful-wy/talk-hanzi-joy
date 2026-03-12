@@ -15,9 +15,41 @@ const listeners = new Set<Listener>();
 const pendingUpdates = new Map<string, Partial<CaseRecord>>();
 // Count concurrent in-flight writes per case to avoid premature pending cleanup
 const inFlightCount = new Map<string, number>();
+// Keep pending patches for a short grace window after successful write (handles replica lag)
+const pendingCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const PENDING_CLEANUP_DELAY_MS = 2000;
 
 function notify() {
   listeners.forEach((l) => l());
+}
+
+function parseTimestamp(value: string | null | undefined): number {
+  if (!value) return 0;
+  const ts = Date.parse(value);
+  return Number.isNaN(ts) ? 0 : ts;
+}
+
+function mergeIncomingCase(current: CaseRecord | undefined, incoming: CaseRecord): CaseRecord {
+  if (!current) return incoming;
+
+  const currentTs = parseTimestamp(current.updatedAt);
+  const incomingTs = parseTimestamp(incoming.updatedAt);
+
+  // Never let older snapshots overwrite newer local data.
+  if (incomingTs > 0 && currentTs > 0 && incomingTs < currentTs) {
+    return current;
+  }
+
+  const keepTools = current.tools.length > 0 && incoming.tools.length === 0;
+  const keepQuestionTools = current.questionTools.length > 0 && incoming.questionTools.length === 0;
+
+  if (!keepTools && !keepQuestionTools) return incoming;
+
+  return {
+    ...incoming,
+    ...(keepTools ? { tools: current.tools } : {}),
+    ...(keepQuestionTools ? { questionTools: current.questionTools } : {}),
+  };
 }
 
 // ── DB ↔ App mapping ──
@@ -189,7 +221,11 @@ async function load() {
     const { data } = await (supabase.from("cases").select("*") as any).eq("env", env).order("created_at", { ascending: false });
     // Discard result if a newer load was started (race condition from auth changes)
     if (version !== loadVersion) return;
-    let fetched = (data || []).map(fromDb);
+    const currentById = new Map(cases.map((c) => [c.id, c] as const));
+    let fetched = (data || [])
+      .map(fromDb)
+      .map((incoming) => mergeIncomingCase(currentById.get(incoming.id), incoming));
+
     // Re-apply any in-flight optimistic updates so poll/realtime don't overwrite them
     if (pendingUpdates.size > 0) {
       fetched = fetched.map((c) => {
@@ -232,25 +268,50 @@ async function update(id: string, partial: Partial<CaseRecord>) {
   // Optimistic update BEFORE DB write to prevent poll/realtime from overwriting
   const updatedAt = mapped.updated_at;
   cases = cases.map((c) => (c.id === id ? { ...c, ...partial, updatedAt } : c));
+
   // Merge with existing pending updates instead of replacing to avoid losing concurrent writes
   pendingUpdates.set(id, { ...pendingUpdates.get(id), ...partial });
   inFlightCount.set(id, (inFlightCount.get(id) || 0) + 1);
+
+  // If a delayed cleanup was scheduled, cancel it because we have a new write.
+  const cleanupTimer = pendingCleanupTimers.get(id);
+  if (cleanupTimer) {
+    clearTimeout(cleanupTimer);
+    pendingCleanupTimers.delete(id);
+  }
+
   notify();
 
   const { error } = await (supabase.from("cases").update(mapped as any).eq("id", id) as any);
+
   const remaining = (inFlightCount.get(id) || 1) - 1;
   if (remaining <= 0) {
-    pendingUpdates.delete(id);
     inFlightCount.delete(id);
+
+    // Keep pending patch briefly after success to guard against stale poll/realtime snapshots.
+    const timer = setTimeout(() => {
+      pendingUpdates.delete(id);
+      pendingCleanupTimers.delete(id);
+    }, PENDING_CLEANUP_DELAY_MS);
+    pendingCleanupTimers.set(id, timer);
   } else {
     inFlightCount.set(id, remaining);
   }
 
   if (error) {
-    // On failure, reload to restore correct state
+    // On failure, clear pending state then reload to restore correct state.
+    const timer = pendingCleanupTimers.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      pendingCleanupTimers.delete(id);
+    }
+    pendingUpdates.delete(id);
+    inFlightCount.delete(id);
+
     loadPromise = null;
     await load();
   }
+
   return error;
 }
 
@@ -272,6 +333,11 @@ function reset() {
   loaded = false;
   loadPromise = null;
   cases = [];
+
+  pendingUpdates.clear();
+  inFlightCount.clear();
+  pendingCleanupTimers.forEach((timer) => clearTimeout(timer));
+  pendingCleanupTimers.clear();
 }
 
 // Listen for auth changes — only reload on sign-in to avoid race conditions
@@ -297,7 +363,7 @@ supabase
         // Skip realtime updates for cases with pending optimistic writes
         if (pendingUpdates.has(row.id)) return;
         const updated = fromDb(row);
-        cases = cases.map((c) => (c.id === updated.id ? updated : c));
+        cases = cases.map((c) => (c.id === updated.id ? mergeIncomingCase(c, updated) : c));
         notify();
       } else if (payload.eventType === "INSERT" && payload.new) {
         const row = payload.new as any;
