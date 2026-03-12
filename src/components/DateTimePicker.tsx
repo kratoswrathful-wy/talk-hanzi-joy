@@ -512,9 +512,9 @@ export default function DateTimePicker({
     setOpen(v);
   };
 
-  // Display text on the trigger button - show in user timezone
+  // Display text on the trigger button - show in user timezone + UTC offset
   const displayText = tzParts
-    ? `${String(tzParts.year)}/${String(tzParts.month).padStart(2, "0")}/${String(tzParts.day).padStart(2, "0")} ${String(tzParts.hour).padStart(2, "0")}:${String(tzParts.minute).padStart(2, "0")}`
+    ? `${String(tzParts.year)}/${String(tzParts.month).padStart(2, "0")}/${String(tzParts.day).padStart(2, "0")} ${String(tzParts.hour).padStart(2, "0")}:${String(tzParts.minute).padStart(2, "0")} (${tzLabel})`
     : null;
 
   return (
