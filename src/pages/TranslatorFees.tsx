@@ -1032,13 +1032,18 @@ export default function TranslatorFees() {
               { key: "taskSummary", getValue: (f: TranslatorFee) => f.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0) },
               { key: "clientRevenue", getValue: (f: TranslatorFee) => {
                 if (!f.clientInfo || f.clientInfo.notFirstFee) return null;
-                return f.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
+                const rev = f.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
+                const clientOpt = selectOptionsStore.getSortedOptions("client").find((o) => o.label === f.clientInfo?.client);
+                const rate = currencyStore.getTwdRate(clientOpt?.currency || "TWD");
+                return rev * rate;
               }},
               { key: "profit", getValue: (f: TranslatorFee) => {
                 if (!f.clientInfo || f.clientInfo.notFirstFee) return null;
                 const rev = f.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
                 const cost = f.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
-                return rev - cost;
+                const clientOpt = selectOptionsStore.getSortedOptions("client").find((o) => o.label === f.clientInfo?.client);
+                const rate = currencyStore.getTwdRate(clientOpt?.currency || "TWD");
+                return rev * rate - cost;
               }},
             ]}
             data={visibleFees}
