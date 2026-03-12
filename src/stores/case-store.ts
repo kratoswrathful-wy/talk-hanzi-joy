@@ -94,6 +94,7 @@ function fromDb(row: any): CaseRecord {
     multiCollab: row.multi_collab ?? false,
     collabCount: Number(row.collab_count) || 0,
     collabRows: Array.isArray(row.collab_rows) ? row.collab_rows : [],
+    declineRecords: Array.isArray(row.decline_records) ? row.decline_records : [],
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
