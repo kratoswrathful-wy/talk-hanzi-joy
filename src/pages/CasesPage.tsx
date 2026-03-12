@@ -143,7 +143,7 @@ function CaseStatusBadge({ status }: { status: CaseStatus }) {
   );
 }
 
-// Timezone-aware formatters moved into component scope (need useAuth profile)
+// Timezone-aware formatters: each usage passes userTz from useAuth
 
 interface ColumnDef {
   key: string;
