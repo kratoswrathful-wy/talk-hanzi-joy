@@ -15,9 +15,41 @@ const listeners = new Set<Listener>();
 const pendingUpdates = new Map<string, Partial<CaseRecord>>();
 // Count concurrent in-flight writes per case to avoid premature pending cleanup
 const inFlightCount = new Map<string, number>();
+// Keep pending patches for a short grace window after successful write (handles replica lag)
+const pendingCleanupTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const PENDING_CLEANUP_DELAY_MS = 2000;
 
 function notify() {
   listeners.forEach((l) => l());
+}
+
+function parseTimestamp(value: string | null | undefined): number {
+  if (!value) return 0;
+  const ts = Date.parse(value);
+  return Number.isNaN(ts) ? 0 : ts;
+}
+
+function mergeIncomingCase(current: CaseRecord | undefined, incoming: CaseRecord): CaseRecord {
+  if (!current) return incoming;
+
+  const currentTs = parseTimestamp(current.updatedAt);
+  const incomingTs = parseTimestamp(incoming.updatedAt);
+
+  // Never let older snapshots overwrite newer local data.
+  if (incomingTs > 0 && currentTs > 0 && incomingTs < currentTs) {
+    return current;
+  }
+
+  const keepTools = current.tools.length > 0 && incoming.tools.length === 0;
+  const keepQuestionTools = current.questionTools.length > 0 && incoming.questionTools.length === 0;
+
+  if (!keepTools && !keepQuestionTools) return incoming;
+
+  return {
+    ...incoming,
+    ...(keepTools ? { tools: current.tools } : {}),
+    ...(keepQuestionTools ? { questionTools: current.questionTools } : {}),
+  };
 }
 
 // ── DB ↔ App mapping ──
