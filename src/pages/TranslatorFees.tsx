@@ -947,6 +947,7 @@ export default function TranslatorFees() {
         onRenameView={tableViews.renameView}
         onReorderViews={tableViews.reorderViews}
         visibleFieldKeys={visibleFieldKeys}
+        permittedFieldKeys={visibleFieldKeys}
         selectedCount={rowSelection.selectedCount}
         hiddenColumns={activeView.hiddenColumns || []}
         onToggleColumn={tableViews.toggleColumnVisibility}
