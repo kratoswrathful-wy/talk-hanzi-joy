@@ -160,7 +160,7 @@ const allColumnDefs: ColumnDef[] = [
       const total = f.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
       return (
         <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-          <span className="text-sm tabular-nums cursor-default">{formatCurrency(total)}</span>
+          <span className="text-sm tabular-nums cursor-default">{formatCurrency(total, "TWD")}</span>
         </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
       );
     },
