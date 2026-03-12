@@ -46,6 +46,13 @@ export interface CaseComment {
   createdAt: string;
 }
 
+export interface DeclineRecord {
+  id: string;
+  translator: string;
+  proposedDeadline?: string; // ISO datetime, optional
+  createdAt: string;
+}
+
 export interface CaseRecord {
   id: string;
   title: string;
