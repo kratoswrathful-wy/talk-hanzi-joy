@@ -658,12 +658,12 @@ export default function ClientInfoSection({
                   </Tooltip>
                 </TableCell>
                 <TableCell className="text-sm font-medium text-right">
-                  營收總額
+                  營收總額{clientCurrency !== "TWD" && ` (${clientCurrency})`}
                 </TableCell>
                 <TableCell className="text-right text-sm font-bold tabular-nums">
                   <Tooltip><TooltipTrigger asChild>
                     <span className="cursor-default">{clientItemsLocked && !firstFeePage ? "N/A" : revenueTotal.toLocaleString()}</span>
-                  </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip>
+                  </TooltipTrigger><TooltipContent className="text-xs">自動計算{clientCurrency !== "TWD" ? `（匯率 1 ${clientCurrency} = ${twdRate} TWD）` : ""}</TooltipContent></Tooltip>
                 </TableCell>
                 <TableCell />
               </TableRow>
@@ -690,11 +690,12 @@ export default function ClientInfoSection({
                   {clientInfo.sameCase && profitFeeCount > 0
                     ? `利潤（${profitFeeCount} 筆稿費）`
                     : "利潤"}
+                  {clientCurrency !== "TWD" && " (TWD)"}
                 </TableCell>
                 <TableCell className={`text-right text-sm font-bold ${clientItemsLocked && !firstFeePage ? "" : profit >= 0 ? "text-success" : "text-destructive"}`}>
                   <Tooltip><TooltipTrigger asChild>
                     <span className="cursor-default">{clientItemsLocked && !firstFeePage ? "N/A" : profit.toLocaleString()}</span>
-                  </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip>
+                  </TooltipTrigger><TooltipContent className="text-xs">自動計算{clientCurrency !== "TWD" ? `（營收 ${revenueTotal.toLocaleString()} ${clientCurrency} × ${twdRate} − 稿費總額）` : ""}</TooltipContent></Tooltip>
                 </TableCell>
                 <TableCell />
               </TableRow>
