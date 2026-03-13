@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { useEffect, useState, useCallback, useMemo, lazy, Suspense, useRef } from "react";
 import { ArrowLeft, Trash2, Plus, X, Copy, Check, ExternalLink, Settings } from "lucide-react";
 import { CaseIconUploader } from "@/components/CaseIconUploader";
