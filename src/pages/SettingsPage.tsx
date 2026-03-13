@@ -2393,6 +2393,7 @@ function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; ti
 // ─── Currency Settings Section ───
 
 function CurrencySettingsSection() {
+  const { confirmDelete } = useDeleteConfirm();
   const { currencies, addCurrency, updateCurrency, deleteCurrency, reorderCurrencies } = useCurrencies();
   const [adding, setAdding] = useState(false);
   const [newCode, setNewCode] = useState("");
