@@ -2490,7 +2490,7 @@ function CurrencySettingsSection() {
             {cur.code !== "TWD" ? (
               <button
                 className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
-                onClick={() => deleteCurrency(cur.id)}
+                onClick={() => confirmDelete(() => deleteCurrency(cur.id), cur.label)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
