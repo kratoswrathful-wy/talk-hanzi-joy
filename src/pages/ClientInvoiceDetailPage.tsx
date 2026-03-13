@@ -1116,6 +1116,18 @@ export default function ClientInvoiceDetailPage() {
             <AlertDialogDescription asChild>
               <div className="space-y-3">
                 <p>勾選「純請款紀錄」後將鎖定，請輸入請款金額：</p>
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-muted-foreground whitespace-nowrap">幣值</Label>
+                  <select
+                    value={recordCurrencyInput}
+                    onChange={(e) => setRecordCurrencyInput(e.target.value)}
+                    className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    {currencies.map((c) => (
+                      <option key={c.id} value={c.code}>{c.code} — {c.label}</option>
+                    ))}
+                  </select>
+                </div>
                 <Input
                   type="number"
                   value={recordAmountInput}
@@ -1131,6 +1143,44 @@ export default function ClientInvoiceDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleRecordAmountConfirm}>確定</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit record-only dialog */}
+      <AlertDialog open={showEditRecordDialog} onOpenChange={setShowEditRecordDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>編輯請款金額</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-muted-foreground whitespace-nowrap">幣值</Label>
+                  <select
+                    value={editRecordCurrency}
+                    onChange={(e) => setEditRecordCurrency(e.target.value)}
+                    className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    {currencies.map((c) => (
+                      <option key={c.id} value={c.code}>{c.code} — {c.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <Input
+                  type="number"
+                  value={editRecordAmount}
+                  onChange={(e) => setEditRecordAmount(e.target.value)}
+                  placeholder="輸入金額"
+                  className="w-full"
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === "Enter") handleEditRecordConfirm(); }}
+                />
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleEditRecordConfirm}>確定</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
