@@ -1478,19 +1478,29 @@ export default function CaseDetailPage() {
               </Button>
             )}
           </div>
-          {(caseData.declineRecords || []).map((rec) => (
-            <div key={rec.id} className="flex items-center gap-3 text-sm">
-              <span className="font-medium">{rec.translator}</span>
-              <span className="text-muted-foreground">
-                {formatTimestamp(new Date(rec.createdAt))}
-              </span>
-              {rec.proposedDeadline && (
-                <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                  建議交期：{formatTimestamp(new Date(rec.proposedDeadline))}
-                </span>
-              )}
-            </div>
-          ))}
+          {(caseData.declineRecords || []).map((rec) => {
+            const infoParts: string[] = [];
+            if (rec.proposedDeadline) infoParts.push(`建議交期：${formatTimestamp(new Date(rec.proposedDeadline))}`);
+            if (rec.availableCount) infoParts.push(`可接字數：${rec.availableCount.toLocaleString()}`);
+            return (
+              <div key={rec.id} className="text-sm space-y-0.5">
+                <div className="flex items-center gap-3">
+                  <span className="font-medium">{rec.translator}</span>
+                  <span className="text-muted-foreground">
+                    {formatTimestamp(new Date(rec.createdAt))}
+                  </span>
+                  {infoParts.length > 0 && (
+                    <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                      {infoParts.join(" / ")}
+                    </span>
+                  )}
+                </div>
+                {rec.message && (
+                  <p className="text-xs text-muted-foreground pl-0 ml-0">譯者留言：{rec.message}</p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
