@@ -131,6 +131,9 @@ const fieldLabels: Record<string, string> = {
 export default function InvoiceDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const autoFocusTitle = !!(location.state as any)?.autoFocusTitle;
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const invoice = useInvoice(id);
   const fees = useFees();
   const { isAdmin, profile, roles, user } = useAuth();

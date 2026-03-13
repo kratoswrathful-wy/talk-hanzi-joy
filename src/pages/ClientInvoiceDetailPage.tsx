@@ -184,6 +184,9 @@ function DateOnlyPicker({ value, onChange, disabled, placeholder }: {
 export default function ClientInvoiceDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const autoFocusTitle = !!(location.state as any)?.autoFocusTitle;
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const invoice = useClientInvoice(id);
   const fees = useFees();
   const { isAdmin, profile, roles, user } = useAuth();
