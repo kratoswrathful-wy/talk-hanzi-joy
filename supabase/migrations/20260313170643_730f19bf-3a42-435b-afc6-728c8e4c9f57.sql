@@ -1,0 +1,1 @@
+ALTER TABLE public.client_invoices ADD COLUMN IF NOT EXISTS billing_channel text NOT NULL DEFAULT '';
