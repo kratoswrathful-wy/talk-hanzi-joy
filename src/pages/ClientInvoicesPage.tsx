@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useCurrencies } from "@/stores/currency-store";
 import { TableFooterStats, type NumericColumnConfig } from "@/components/TableFooterStats";
 import { Plus, ExternalLink, Trash2, GripVertical } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -99,6 +100,7 @@ export default function ClientInvoicesPage() {
   const isExecutive = roles.some((r) => r.role === "executive");
   const { checkPerm } = usePermissions();
   const allInvoices = useClientInvoices();
+  const { getTwdRate } = useCurrencies();
   const fees = useFees();
   const { options: clientOptions } = useSelectOptions("client");
 
@@ -167,7 +169,14 @@ export default function ClientInvoicesPage() {
       key: "totalAmount",
       label: "應收總額",
       minWidth: 80,
-      render: (inv, total) => <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-sm tabular-nums cursor-default">{formatCurrency(inv.isRecordOnly ? (inv.recordAmount || 0) : total)}</span></TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>,
+      render: (inv, total) => {
+        const rawAmount = inv.isRecordOnly ? (inv.recordAmount || 0) : total;
+        const cur = inv.isRecordOnly ? (inv.recordCurrency || "TWD") : "TWD";
+        const twdAmount = cur !== "TWD" ? rawAmount * getTwdRate(cur) : rawAmount;
+        const displayText = cur !== "TWD" ? formatCurrency(twdAmount, "TWD") : formatCurrency(rawAmount, "TWD");
+        const tooltipText = cur !== "TWD" ? `原幣值 ${formatCurrency(rawAmount, cur)}（匯率 1 ${cur} = ${getTwdRate(cur)} TWD）` : "自動計算";
+        return <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-sm tabular-nums cursor-default">{displayText}</span></TooltipTrigger><TooltipContent className="text-xs">{tooltipText}</TooltipContent></Tooltip></TooltipProvider>;
+      },
     },
     {
       key: "serviceFee",

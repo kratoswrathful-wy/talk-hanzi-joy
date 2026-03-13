@@ -714,6 +714,7 @@ export default function ClientInvoiceDetailPage() {
                   <TableHead className="text-center">標題</TableHead>
                   <TableHead className="text-center w-[120px]">應收總額</TableHead>
                   {editable && !invoice.isRecordOnly && <TableHead className="text-center w-[60px]">移除</TableHead>}
+                  {invoice.isRecordOnly && editable && <TableHead className="text-center w-[60px]">編輯</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -722,9 +723,16 @@ export default function ClientInvoiceDetailPage() {
                     <TableCell className="text-sm font-medium">請款紀錄</TableCell>
                     <TableCell className="text-center text-sm tabular-nums">
                       <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-                        <span className="cursor-default">{formatCurrency(invoice.recordAmount || 0)}</span>
+                        <span className="cursor-default">{formatCurrency(invoice.recordAmount || 0, recordCur)}</span>
                       </TooltipTrigger><TooltipContent className="text-xs">手動輸入</TooltipContent></Tooltip></TooltipProvider>
                     </TableCell>
+                    {editable && (
+                      <TableCell className="text-center">
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={handleEditRecordOpen}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ) : (
                   <>
@@ -780,11 +788,26 @@ export default function ClientInvoiceDetailPage() {
                     </TableCell>
                     <TableCell className="text-center">
                       <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-                        <span className="font-semibold tabular-nums cursor-default">{formatCurrency(total)}</span>
+                        <span className="font-semibold tabular-nums cursor-default">{formatCurrency(total, recordCur)}</span>
                       </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
                     </TableCell>
                     {editable && !invoice.isRecordOnly && <TableCell />}
+                    {invoice.isRecordOnly && editable && <TableCell />}
                   </TableRow>
+                  {/* TWD conversion row when record-only and non-TWD currency */}
+                  {totalInTwd !== null && (
+                    <TableRow>
+                      <TableCell className="text-left">
+                        <span className="text-muted-foreground text-sm">換算新台幣</span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                          <span className="font-semibold tabular-nums cursor-default">{formatCurrency(totalInTwd, "TWD")}</span>
+                        </TooltipTrigger><TooltipContent className="text-xs">匯率 1 {recordCur} = {recordTwdRate} TWD</TooltipContent></Tooltip></TooltipProvider>
+                      </TableCell>
+                      {editable && <TableCell />}
+                    </TableRow>
+                  )}
                   {/* Show remaining / service fee info when partially or fully collected */}
                   {invoice.status !== "pending" && paidSoFar > 0 && (
                     <>
@@ -793,9 +816,10 @@ export default function ClientInvoiceDetailPage() {
                           <span className="text-muted-foreground text-sm">收款總額</span>
                         </TableCell>
                         <TableCell className="text-center">
-                          <span className="font-semibold tabular-nums">{formatCurrency(paidSoFar)}</span>
+                          <span className="font-semibold tabular-nums">{formatCurrency(paidSoFar, recordCur)}</span>
                         </TableCell>
                         {editable && !invoice.isRecordOnly && <TableCell />}
+                        {invoice.isRecordOnly && editable && <TableCell />}
                       </TableRow>
                       {invoice.status === "partial_collected" && remaining > 0 && (
                         <TableRow>
@@ -803,9 +827,10 @@ export default function ClientInvoiceDetailPage() {
                             <span className="text-muted-foreground text-sm">剩餘應收總額</span>
                           </TableCell>
                           <TableCell className="text-center">
-                            <span className="font-semibold tabular-nums text-amber-500">{formatCurrency(remaining)}</span>
+                            <span className="font-semibold tabular-nums text-amber-500">{formatCurrency(remaining, recordCur)}</span>
                           </TableCell>
                           {editable && !invoice.isRecordOnly && <TableCell />}
+                          {invoice.isRecordOnly && editable && <TableCell />}
                         </TableRow>
                       )}
                       {invoice.status === "collected" && paidSoFar < total && (
@@ -814,9 +839,10 @@ export default function ClientInvoiceDetailPage() {
                             <span className="text-muted-foreground text-sm">手續費</span>
                           </TableCell>
                           <TableCell className="text-center">
-                            <span className="font-semibold tabular-nums text-destructive">{formatCurrency(total - paidSoFar)}</span>
+                            <span className="font-semibold tabular-nums text-destructive">{formatCurrency(total - paidSoFar, recordCur)}</span>
                           </TableCell>
                           {editable && !invoice.isRecordOnly && <TableCell />}
+                          {invoice.isRecordOnly && editable && <TableCell />}
                         </TableRow>
                       )}
                     </>
@@ -1090,6 +1116,18 @@ export default function ClientInvoiceDetailPage() {
             <AlertDialogDescription asChild>
               <div className="space-y-3">
                 <p>勾選「純請款紀錄」後將鎖定，請輸入請款金額：</p>
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-muted-foreground whitespace-nowrap">幣值</Label>
+                  <select
+                    value={recordCurrencyInput}
+                    onChange={(e) => setRecordCurrencyInput(e.target.value)}
+                    className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    {currencies.map((c) => (
+                      <option key={c.id} value={c.code}>{c.code} — {c.label}</option>
+                    ))}
+                  </select>
+                </div>
                 <Input
                   type="number"
                   value={recordAmountInput}
@@ -1105,6 +1143,44 @@ export default function ClientInvoiceDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleRecordAmountConfirm}>確定</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit record-only dialog */}
+      <AlertDialog open={showEditRecordDialog} onOpenChange={setShowEditRecordDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>編輯請款金額</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs text-muted-foreground whitespace-nowrap">幣值</Label>
+                  <select
+                    value={editRecordCurrency}
+                    onChange={(e) => setEditRecordCurrency(e.target.value)}
+                    className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    {currencies.map((c) => (
+                      <option key={c.id} value={c.code}>{c.code} — {c.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <Input
+                  type="number"
+                  value={editRecordAmount}
+                  onChange={(e) => setEditRecordAmount(e.target.value)}
+                  placeholder="輸入金額"
+                  className="w-full"
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === "Enter") handleEditRecordConfirm(); }}
+                />
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleEditRecordConfirm}>確定</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

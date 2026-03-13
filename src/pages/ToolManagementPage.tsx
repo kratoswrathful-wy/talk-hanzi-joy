@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { useClickOutsideCancel } from "@/hooks/use-click-outside";
+import { useDeleteConfirm } from "@/hooks/use-delete-confirm";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,7 @@ function getColorUsageMap(options: { label: string; color: string }[]): Record<s
 
 /* ── Tool Sub-Field Manager ── */
 function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { optionId: string; fields: { id: string; label: string; type?: "text" | "file" }[]; fieldKey?: string }) {
+  const { confirmDelete } = useDeleteConfirm();
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [newFieldType, setNewFieldType] = useState<"text" | "file" | null>(null);
@@ -111,7 +113,7 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
           )}
           <button
             className="h-5 w-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-muted text-muted-foreground hover:text-destructive transition-all"
-            onClick={() => selectOptionsStore.removeToolField(optionId, f.id, fieldKey)}
+            onClick={() => confirmDelete(() => selectOptionsStore.removeToolField(optionId, f.id, fieldKey), f.label)}
           >
             <Trash2 className="h-3 w-3" />
           </button>
@@ -397,6 +399,7 @@ function TemplateFieldManager({
 
 /* ── Template Card (collapsible) ── */
 function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { id: string; label: string; color: string; toolFields?: { id: string; label: string; type?: "text" | "file" }[] }[] }) {
+  const { confirmDelete } = useDeleteConfirm();
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ToolTemplate>(tpl);
@@ -457,7 +460,7 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
         </button>
         <button
           className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
-          onClick={() => toolTemplateStore.remove(tpl.id)}
+          onClick={() => confirmDelete(() => toolTemplateStore.remove(tpl.id), tpl.name)}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
@@ -589,6 +592,7 @@ function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; l
 
 /* ── Common Links Manager ── */
 function CommonLinksSection() {
+  const { confirmDelete } = useDeleteConfirm();
   const links = useCommonLinks();
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
@@ -683,7 +687,7 @@ function CommonLinksSection() {
                   </button>
                   <button
                     className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
-                    onClick={() => commonLinksStore.remove(link.id)}
+                    onClick={() => confirmDelete(() => commonLinksStore.remove(link.id), link.name)}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -727,6 +731,7 @@ function CommonLinksSection() {
 
 /* ── Page Template Section ── */
 function PageTemplateSection() {
+  const { confirmDelete } = useDeleteConfirm();
   const navigate = useNavigate();
   const allTemplates = usePageTemplates();
   const [addingModule, setAddingModule] = useState<PageModule | null>(null);
@@ -771,7 +776,7 @@ function PageTemplateSection() {
                   {!tpl.isDefault && (
                     <button
                       className="h-4 w-4 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0"
-                      onClick={() => pageTemplateStore.remove(tpl.id)}
+                      onClick={() => confirmDelete(() => pageTemplateStore.remove(tpl.id), tpl.name)}
                       title="刪除範本"
                     >
                       <Trash2 className="h-2.5 w-2.5" />
@@ -822,6 +827,7 @@ function PageTemplateSection() {
 /* ── Main Page ── */
 export default function ToolManagementPage() {
   const { options: toolOptions, customColors } = useSelectOptions("executionTool");
+  const { confirmDelete } = useDeleteConfirm();
   const labelStyles = useLabelStyles();
   const templates = useToolTemplates();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -942,7 +948,7 @@ export default function ToolManagementPage() {
                   </Popover>
                   <button
                     className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
-                    onClick={(e) => { e.stopPropagation(); selectOptionsStore.deleteOption("executionTool", opt.id); }}
+                    onClick={(e) => { e.stopPropagation(); confirmDelete(() => selectOptionsStore.deleteOption("executionTool", opt.id), opt.label); }}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useSyncExternalStore } from "react";
+import { useDeleteConfirm } from "@/hooks/use-delete-confirm";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -68,6 +69,7 @@ function handleTabKeyDown(
 // ─── Client Pricing Section (with integrated client management) ───
 
 function ClientPricingSection() {
+  const { confirmDelete } = useDeleteConfirm();
   const { options: clientOptions, customColors } = useSelectOptions("client");
   const { options: billingUnitOptions } = useSelectOptions("billingUnit");
   const labelStyles = useLabelStyles();
@@ -225,7 +227,7 @@ function ClientPricingSection() {
                     </Popover>
                     <button
                       className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
-                      onClick={(e) => { e.stopPropagation(); selectOptionsStore.deleteOption("client", client.id); }}
+                      onClick={(e) => { e.stopPropagation(); confirmDelete(() => selectOptionsStore.deleteOption("client", client.id), client.label); }}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -321,7 +323,7 @@ function ClientPricingSection() {
                                     variant="ghost"
                                     size="icon"
                                     className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                    onClick={() => removeClientPrice(client.label, tt.label, bu.label)}
+                                    onClick={() => confirmDelete(() => removeClientPrice(client.label, tt.label, bu.label), `${client.label} / ${tt.label} / ${bu.label} 報價`)}
                                   >
                                     <Trash2 className="h-3 w-3" />
                                   </Button>
@@ -424,6 +426,7 @@ function ClientPricingSection() {
 // ─── Task Type Settings Section (drag reorder + add/delete/color) ───
 
 function TaskTypeOrderSection() {
+  const { confirmDelete } = useDeleteConfirm();
   const { options: taskTypeOptions, customColors } = useSelectOptions("taskType");
   const labelStyles = useLabelStyles();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -483,7 +486,7 @@ function TaskTypeOrderSection() {
 
   const handleDeleteTaskType = (optId: string) => {
     const opt = taskTypeOptions.find((o) => o.id === optId);
-    selectOptionsStore.deleteOption("taskType", optId);
+    confirmDelete(() => selectOptionsStore.deleteOption("taskType", optId), opt?.label);
   };
 
   const handleColorChange = (optId: string, color: string) => {
@@ -634,6 +637,7 @@ function TaskTypeOrderSection() {
 // ─── Billing Unit Settings Section (drag reorder + add/delete/color) ───
 
 function BillingUnitOrderSection() {
+  const { confirmDelete } = useDeleteConfirm();
   const { options: billingUnitOptions, customColors } = useSelectOptions("billingUnit");
   const labelStyles = useLabelStyles();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -736,7 +740,7 @@ function BillingUnitOrderSection() {
               </Popover>
               <button
                 className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
-                onClick={(e) => { e.stopPropagation(); selectOptionsStore.deleteOption("billingUnit", bu.id); }}
+                onClick={(e) => { e.stopPropagation(); confirmDelete(() => selectOptionsStore.deleteOption("billingUnit", bu.id), bu.label); }}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -1345,6 +1349,7 @@ function TierGroupEditorModal({
 
 function TranslatorTierSection() {
   const { tiers, addTier, addTierToGroup, updateTierRow, removeTierRow } = useTranslatorTiers();
+  const { confirmDelete } = useDeleteConfirm();
   const { options: taskTypeOptions } = useSelectOptions("taskType");
   const { options: buOptions } = useSelectOptions("billingUnit");
   const labelStyles = useLabelStyles();
@@ -1546,13 +1551,15 @@ function TranslatorTierSection() {
                       size="icon"
                       className="h-6 w-6 text-muted-foreground hover:text-destructive"
                       onClick={() => {
-                        removeTierRow(tier.id);
-                        setUncommittedIds((prev) => {
-                          if (!prev.has(tier.id)) return prev;
-                          const next = new Set(prev);
-                          next.delete(tier.id);
-                          return next;
-                        });
+                        confirmDelete(() => {
+                          removeTierRow(tier.id);
+                          setUncommittedIds((prev) => {
+                            if (!prev.has(tier.id)) return prev;
+                            const next = new Set(prev);
+                            next.delete(tier.id);
+                            return next;
+                          });
+                        }, "此級距");
                       }}
                     >
                       <Trash2 className="h-3 w-3" />
@@ -1656,7 +1663,7 @@ function TranslatorTierSection() {
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                        onClick={() => removeTierRow(tier.id)}
+                        onClick={() => confirmDelete(() => removeTierRow(tier.id), "此級距")}
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>
@@ -1717,6 +1724,7 @@ const roleLabelMap: Record<string, string> = {
 // ─── Dispatch Route Settings Section ───
 
 function DispatchRouteSection() {
+  const { confirmDelete } = useDeleteConfirm();
   const { options: routeOptions, customColors } = useSelectOptions("dispatchRoute");
   const labelStyles = useLabelStyles();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -1812,7 +1820,7 @@ function DispatchRouteSection() {
               </Popover>
               <button
                 className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
-                onClick={(e) => { e.stopPropagation(); selectOptionsStore.deleteOption("dispatchRoute", opt.id); }}
+                onClick={(e) => { e.stopPropagation(); confirmDelete(() => selectOptionsStore.deleteOption("dispatchRoute", opt.id), opt.label); }}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -1892,6 +1900,7 @@ function DispatchRouteSection() {
 // ─── Case Category Settings Section ───
 
 function CaseCategorySection() {
+  const { confirmDelete } = useDeleteConfirm();
   const { options: categoryOptions, customColors } = useSelectOptions("caseCategory");
   const labelStyles = useLabelStyles();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -1987,7 +1996,7 @@ function CaseCategorySection() {
               </Popover>
               <button
                 className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
-                onClick={(e) => { e.stopPropagation(); selectOptionsStore.deleteOption("caseCategory", opt.id); }}
+                onClick={(e) => { e.stopPropagation(); confirmDelete(() => selectOptionsStore.deleteOption("caseCategory", opt.id), opt.label); }}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -2247,6 +2256,7 @@ function StatusStyleSection() {
 
 /* ── Note Select Section (for noteStatus, noteNature) ── */
 function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; title: string; addLabel: string }) {
+  const { confirmDelete } = useDeleteConfirm();
   const { options, customColors } = useSelectOptions(fieldKey);
   const labelStyles = useLabelStyles();
   const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -2322,7 +2332,7 @@ function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; ti
               </Popover>
               <button
                 className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
-                onClick={(e) => { e.stopPropagation(); selectOptionsStore.deleteOption(fieldKey, opt.id); }}
+                onClick={(e) => { e.stopPropagation(); confirmDelete(() => selectOptionsStore.deleteOption(fieldKey, opt.id), opt.label); }}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -2383,6 +2393,7 @@ function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; ti
 // ─── Currency Settings Section ───
 
 function CurrencySettingsSection() {
+  const { confirmDelete } = useDeleteConfirm();
   const { currencies, addCurrency, updateCurrency, deleteCurrency, reorderCurrencies } = useCurrencies();
   const [adding, setAdding] = useState(false);
   const [newCode, setNewCode] = useState("");
@@ -2479,7 +2490,7 @@ function CurrencySettingsSection() {
             {cur.code !== "TWD" ? (
               <button
                 className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
-                onClick={() => deleteCurrency(cur.id)}
+                onClick={() => confirmDelete(() => deleteCurrency(cur.id), cur.label)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -2521,6 +2532,7 @@ function CurrencySettingsSection() {
 // ─── Icon Library Section ───
 
 function IconLibrarySection() {
+  const { confirmDelete } = useDeleteConfirm();
   useEffect(() => { iconLibraryStore.load(); }, []);
   const items = useSyncExternalStore(iconLibraryStore.subscribe, iconLibraryStore.getAll);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -2591,7 +2603,7 @@ function IconLibrarySection() {
                   <Download className="h-3 w-3" />
                 </button>
                 <button
-                  onClick={() => handleDelete(item.id)}
+                  onClick={() => confirmDelete(() => handleDelete(item.id), item.name || "此圖示")}
                   className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-colors"
                   title="刪除"
                 >
