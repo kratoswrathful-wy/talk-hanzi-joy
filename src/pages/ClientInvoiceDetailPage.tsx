@@ -193,6 +193,7 @@ export default function ClientInvoiceDetailPage() {
   const { isAdmin, profile, roles, user } = useAuth();
   const { checkPerm } = usePermissions();
   const { options: clientOptions } = useSelectOptions("client");
+  const { options: billingChannelOptions } = useSelectOptions("billingChannel");
   const labelStyles = useLabelStyles();
   const { currencies, getTwdRate } = useCurrencies();
   const isExecutive = roles.some((r) => r.role === "executive");
