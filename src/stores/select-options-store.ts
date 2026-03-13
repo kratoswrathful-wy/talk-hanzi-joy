@@ -350,6 +350,20 @@ export const selectOptionsStore = {
     notify();
   },
 
+  updateToolDefaultFieldValues: (optionId: string, values: Record<string, string>, fieldKey: string = "executionTool") => {
+    const field = selectOptionsStore.getField(fieldKey);
+    store = {
+      ...store,
+      [fieldKey]: {
+        ...field,
+        options: field.options.map((o) =>
+          o.id === optionId ? { ...o, defaultFieldValues: values } : o
+        ),
+      },
+    };
+    notify();
+  },
+
   reorderOptions: (fieldKey: string, orderedIds: string[]) => {
     const field = selectOptionsStore.getField(fieldKey);
     const ordered = orderedIds
