@@ -388,7 +388,7 @@ export default function InvoicesPage() {
       const inv = await invoiceStore.createInvoice(name, []);
       if (inv) {
         toast.success("已建立請款單");
-        navigate(`/invoices/${inv.id}`);
+        navigate(`/invoices/${inv.id}`, { state: { autoFocusTitle: true } });
       }
     }
   }, [isAdmin, profile, navigate]);
@@ -399,7 +399,7 @@ export default function InvoicesPage() {
     setShowTranslatorPicker(false);
     if (inv) {
       toast.success("已建立請款單");
-      navigate(`/invoices/${inv.id}`);
+      navigate(`/invoices/${inv.id}`, { state: { autoFocusTitle: true } });
     }
   }, [selectedTranslator, navigate]);
 

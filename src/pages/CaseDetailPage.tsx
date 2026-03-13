@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { useEffect, useState, useCallback, useMemo, lazy, Suspense, useRef } from "react";
 import { ArrowLeft, Trash2, Plus, X, Copy, Check, ExternalLink, Settings } from "lucide-react";
 import { CaseIconUploader } from "@/components/CaseIconUploader";
@@ -224,16 +224,25 @@ function IMESafeInput({ value, onSave, disabled, placeholder, className, minRows
 }
 
 /** IME-safe title input — single line */
-function TitleInput({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+function TitleInput({ value, onSave, autoFocusSelect }: { value: string; onSave: (v: string) => void; autoFocusSelect?: boolean }) {
   const [local, setLocal] = useState(value);
   const [focused, setFocused] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!focused) setLocal(value);
   }, [value, focused]);
 
+  useEffect(() => {
+    if (autoFocusSelect && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [autoFocusSelect]);
+
   return (
     <input
+      ref={inputRef}
       type="text"
       value={local}
       onChange={(e) => setLocal(e.target.value)}
@@ -771,6 +780,8 @@ function formatTimestamp(d: Date | string) {
 export default function CaseDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const autoFocusTitle = !!(location.state as any)?.autoFocusTitle;
   const [caseData, setCaseData] = useState<CaseRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -788,6 +799,8 @@ export default function CaseDetailPage() {
   const [dupInfo, setDupInfo] = useState<{ newTitle: string; renames: { oldTitle: string; newTitle: string }[] } | null>(null);
   const [declineOpen, setDeclineOpen] = useState(false);
   const [declineProposedDeadline, setDeclineProposedDeadline] = useState<string | null>(null);
+  const [declineAvailableCount, setDeclineAvailableCount] = useState("");
+  const [declineMessage, setDeclineMessage] = useState("");
   const { primaryRole: currentRole, profile } = useAuth();
   const { checkPerm } = usePermissions();
   const isManager = currentRole === "pm" || currentRole === "executive";
@@ -1023,16 +1036,20 @@ export default function CaseDetailPage() {
 
   const handleDecline = () => {
     const displayName = profile?.display_name || profile?.email || "";
-    const record = {
+    const record: import("@/data/case-types").DeclineRecord = {
       id: crypto.randomUUID(),
       translator: displayName,
       proposedDeadline: declineProposedDeadline || undefined,
+      availableCount: declineAvailableCount ? Number(declineAvailableCount) : undefined,
+      message: declineMessage.trim() || undefined,
       createdAt: new Date().toISOString(),
     };
     const existing = caseData.declineRecords || [];
     save({ declineRecords: [...existing, record] });
     setDeclineOpen(false);
     setDeclineProposedDeadline(null);
+    setDeclineAvailableCount("");
+    setDeclineMessage("");
     toast({ title: "已記錄無法承接" });
   };
 
@@ -1041,13 +1058,13 @@ export default function CaseDetailPage() {
     if (result) {
       setDupInfo({ newTitle: result.newCase.title, renames: result.renames });
       setDupDialogOpen(true);
-      navigate(`/cases/${result.newCase.id}`);
+      navigate(`/cases/${result.newCase.id}`, { state: { autoFocusTitle: true } });
     }
   };
 
   const handleNewCase = async (templateValues: Record<string, any> = {}) => {
     const newCase = await caseStore.create({ title: "", ...templateValues });
-    if (newCase) navigate(`/cases/${newCase.id}`);
+    if (newCase) navigate(`/cases/${newCase.id}`, { state: { autoFocusTitle: true } });
   };
 
   const handlePublish = () => {
@@ -1422,7 +1439,7 @@ export default function CaseDetailPage() {
           )}
           {/* Title + Status stacked, bottom-aligned with icon */}
           <div className="min-w-0 flex flex-col justify-end gap-1.5">
-            <TitleInput value={caseData.title} onSave={(v) => save({ title: v })} />
+            <TitleInput value={caseData.title} onSave={(v) => save({ title: v })} autoFocusSelect={autoFocusTitle} />
             <div className="flex items-center gap-2 pl-3">
               <CaseStatusBadge status={caseData.status} />
               {isInquiry && !caseData.multiCollab && (
@@ -1461,19 +1478,29 @@ export default function CaseDetailPage() {
               </Button>
             )}
           </div>
-          {(caseData.declineRecords || []).map((rec) => (
-            <div key={rec.id} className="flex items-center gap-3 text-sm">
-              <span className="font-medium">{rec.translator}</span>
-              <span className="text-muted-foreground">
-                {formatTimestamp(new Date(rec.createdAt))}
-              </span>
-              {rec.proposedDeadline && (
-                <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                  建議交期：{formatTimestamp(new Date(rec.proposedDeadline))}
-                </span>
-              )}
-            </div>
-          ))}
+          {(caseData.declineRecords || []).map((rec) => {
+            const infoParts: string[] = [];
+            if (rec.proposedDeadline) infoParts.push(`建議交期：${formatTimestamp(new Date(rec.proposedDeadline))}`);
+            if (rec.availableCount) infoParts.push(`可接字數：${rec.availableCount.toLocaleString()}`);
+            return (
+              <div key={rec.id} className="text-sm space-y-0.5">
+                <div className="flex items-center gap-3">
+                  <span className="font-medium">{rec.translator}</span>
+                  <span className="text-muted-foreground">
+                    {formatTimestamp(new Date(rec.createdAt))}
+                  </span>
+                  {infoParts.length > 0 && (
+                    <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                      {infoParts.join(" / ")}
+                    </span>
+                  )}
+                </div>
+                {rec.message && (
+                  <p className="text-xs text-muted-foreground pl-0 ml-0">譯者留言：{rec.message}</p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -2348,23 +2375,45 @@ export default function CaseDetailPage() {
       </AlertDialog>
 
       {/* Decline confirmation dialog */}
-      <AlertDialog open={declineOpen} onOpenChange={(v) => { if (!v) { setDeclineOpen(false); setDeclineProposedDeadline(null); } }}>
+      <AlertDialog open={declineOpen} onOpenChange={(v) => { if (!v) { setDeclineOpen(false); setDeclineProposedDeadline(null); setDeclineAvailableCount(""); setDeclineMessage(""); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>無法承接</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3">
-              <span>按下此按鈕會在頁面上留下紀錄，告知派案人員無法承接本案，是否確定？</span>
-              <span className="block text-sm font-medium text-foreground mt-3">如果要接，請問希望可以將交期延到何時？（選填）</span>
+            <AlertDialogDescription>
+              以下三項皆為選填（0–3 項），填完後按確認即可。
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="px-1">
-            <DateTimePicker
-              value={declineProposedDeadline}
-              onChange={setDeclineProposedDeadline}
-            />
+          <div className="space-y-4 px-1">
+            <div className="space-y-1.5">
+              <Label className="text-sm">按照此字數和內容，期限延到何時你可以接案？</Label>
+              <DateTimePicker
+                value={declineProposedDeadline}
+                onChange={setDeclineProposedDeadline}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">如果交期無法變動，請問你大約可以做多少字？</Label>
+              <Input
+                type="number"
+                placeholder="字數"
+                value={declineAvailableCount}
+                onChange={(e) => setDeclineAvailableCount(e.target.value)}
+                className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">請問你是否有其他情況或派案提議想說明？</Label>
+              <MultilineInput
+                placeholder="請輸入…"
+                value={declineMessage}
+                onChange={(e) => setDeclineMessage(e.target.value)}
+                minRows={2}
+                maxRows={5}
+              />
+            </div>
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => { setDeclineOpen(false); setDeclineProposedDeadline(null); }}>取消</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => { setDeclineOpen(false); setDeclineProposedDeadline(null); setDeclineAvailableCount(""); setDeclineMessage(""); }}>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleDecline} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">確認</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

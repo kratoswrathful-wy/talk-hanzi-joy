@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { getUserTimezone } from "@/lib/format-timestamp";
 import { getTimezoneInfo } from "@/data/timezone-options";
 import { ArrowLeft, Plus, X, Loader2, Pencil } from "lucide-react";
@@ -24,7 +24,7 @@ import { useFees } from "@/hooks/use-fee-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { useCurrencies } from "@/stores/currency-store";
 import { type ClientInvoiceStatus, type ClientPaymentRecord, clientInvoiceStatusLabels } from "@/data/client-invoice-types";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useClientInvoices } from "@/hooks/use-client-invoice-store";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -184,6 +184,9 @@ function DateOnlyPicker({ value, onChange, disabled, placeholder }: {
 export default function ClientInvoiceDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const autoFocusTitle = !!(location.state as any)?.autoFocusTitle;
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const invoice = useClientInvoice(id);
   const fees = useFees();
   const { isAdmin, profile, roles, user } = useAuth();
@@ -224,6 +227,14 @@ export default function ClientInvoiceDetailPage() {
   const [comments, setComments] = useState<CommentEntry[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
+
+  // Auto-focus title on new page creation
+  useEffect(() => {
+    if (autoFocusTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [autoFocusTitle]);
 
   // Edit history
   const [editLog, setEditLog] = useState<EditLogEntry[]>([]);
@@ -627,8 +638,10 @@ export default function ClientInvoiceDetailPage() {
                 </h1>
               ) : (
                 <Input
+                  ref={titleInputRef}
                   value={invoice.title}
                   onChange={(e) => handleTitleChange(e.target.value)}
+                  onFocus={(e) => e.target.select()}
                   placeholder="客戶請款單標題"
                   className="text-2xl font-semibold tracking-tight border-0 shadow-none px-0 h-auto py-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
                 />

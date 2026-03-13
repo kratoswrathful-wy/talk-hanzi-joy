@@ -386,7 +386,7 @@ export default function ClientInvoicesPage() {
     setShowClientInput(false);
     if (inv) {
       toast.success("已建立客戶請款單");
-      navigate(`/client-invoices/${inv.id}`);
+      navigate(`/client-invoices/${inv.id}`, { state: { autoFocusTitle: true } });
     }
   }, [newClientName, navigate]);
 

@@ -1,4 +1,4 @@
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { ArrowLeft, Plus, X, Loader2, FileText, Copy, Check } from "lucide-react";
 import { CommentContent } from "@/components/comments/CommentContent";
@@ -185,6 +185,9 @@ export default function TranslatorFeeDetail() {
   const allClientInvoices = useClientInvoices();
 
   const navigate = useNavigate();
+  const location = useLocation();
+  const autoFocusTitle = !!(location.state as any)?.autoFocusTitle;
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState(feeData?.title ?? "");
   const [taskItems, setTaskItems] = useState<FeeTaskItem[]>(
     feeData?.taskItems && feeData.taskItems.length > 0
@@ -263,7 +266,14 @@ export default function TranslatorFeeDetail() {
   // Compute linked invoices for this fee
   const linkedTranslatorInvoices = id ? allInvoices.filter((inv) => inv.feeIds.includes(id)).map((inv) => ({ id: inv.id, title: inv.title })) : [];
   const linkedClientInvoices = id ? allClientInvoices.filter((inv) => inv.feeIds.includes(id)).map((inv) => ({ id: inv.id, title: inv.title })) : [];
-  
+
+  // Auto-focus title on new page creation
+  useEffect(() => {
+    if (autoFocusTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [autoFocusTitle]);
 
   // Find the other fee that is firstFee in the same case group
   const otherFirstFee = (() => {
@@ -1621,7 +1631,7 @@ export default function TranslatorFeeDetail() {
                         internalNoteUrl,
                         clientInfo: { ...clientInfo },
                       });
-                      navigate(`/fees/${draft.id}`);
+                      navigate(`/fees/${draft.id}`, { state: { autoFocusTitle: true } });
                     }}
                   >
                     複製本頁
@@ -1766,11 +1776,13 @@ export default function TranslatorFeeDetail() {
         {/* Title */}
         <div className="flex items-start justify-between gap-4">
           <Input
+            ref={titleInputRef}
             value={title}
             onChange={(e) => {
               setTitle(e.target.value);
               if (id) feeStore.updateFee(id, { title: e.target.value });
             }}
+            onFocus={(e) => e.target.select()}
             disabled={!canEdit}
             className="text-2xl font-semibold tracking-tight bg-transparent border-0 shadow-none px-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
             placeholder="輸入稿費單標題"

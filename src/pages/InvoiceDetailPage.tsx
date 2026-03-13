@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { getUserTimezone } from "@/lib/format-timestamp";
 import { getTimezoneInfo } from "@/data/timezone-options";
 import { ArrowLeft, Plus, Trash2, X, Loader2 } from "lucide-react";
@@ -131,6 +131,9 @@ const fieldLabels: Record<string, string> = {
 export default function InvoiceDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const autoFocusTitle = !!(location.state as any)?.autoFocusTitle;
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const invoice = useInvoice(id);
   const fees = useFees();
   const { isAdmin, profile, roles, user } = useAuth();
@@ -149,6 +152,14 @@ export default function InvoiceDetailPage() {
   const [addFeeOpen, setAddFeeOpen] = useState(false);
   const [selectedAddFees, setSelectedAddFees] = useState<string[]>([]);
   const allInvoices = useInvoices();
+
+  // Auto-focus title on new page creation
+  useEffect(() => {
+    if (autoFocusTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [autoFocusTitle]);
 
   // Comments
   const [comments, setComments] = useState<CommentEntry[]>([]);
@@ -544,8 +555,10 @@ export default function InvoiceDetailPage() {
               </h1>
             ) : (
               <Input
+                ref={titleInputRef}
                 value={invoice.title}
                 onChange={(e) => handleTitleChange(e.target.value)}
+                onFocus={(e) => e.target.select()}
                 placeholder="請款單標題"
                 className="text-2xl font-semibold tracking-tight border-0 shadow-none px-0 h-auto py-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
               />

@@ -67,7 +67,7 @@ function CollabTranslationDeadlineCell({ collabRows, status }: { collabRows: Col
   const { profile } = useAuth();
   const displayName = profile?.display_name || "";
   const isDraftOrInquiry = status === "draft" || status === "inquiry";
-  const showIcon = status === "dispatched";
+  const showIcon = !isDraftOrInquiry;
 
   if (isDraftOrInquiry) {
     return <DeadlineText value={pickEarliestDeadline(collabRows, "translationDeadline")} />;
@@ -95,7 +95,7 @@ function CollabReviewDeadlineCell({ collabRows, status }: { collabRows: CollabRo
   const { profile } = useAuth();
   const displayName = profile?.display_name || "";
   const isDraftOrInquiry = status === "draft" || status === "inquiry";
-  const showIcon = status === "dispatched" || status === "task_completed";
+  const showIcon = !isDraftOrInquiry;
 
   if (isDraftOrInquiry) {
     return <DeadlineText value={pickEarliestDeadline(collabRows, "reviewDeadline")} />;
@@ -367,7 +367,7 @@ const allColumnDefs: ColumnDef[] = [
       if (c.multiCollab && c.collabRows?.length > 0) {
         return <CollabTranslationDeadlineCell collabRows={c.collabRows} status={c.status} />;
       }
-      const showIcon = c.status === "dispatched";
+      const showIcon = c.status !== "draft" && c.status !== "inquiry";
       return (
         <InlineEditCell value={c.translationDeadline} type="datetime" editable={editable} onCommit={(v) => onCommit("translationDeadline", v)}>
           <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
@@ -396,7 +396,7 @@ const allColumnDefs: ColumnDef[] = [
       if (c.multiCollab && c.collabRows?.length > 0) {
         return <CollabReviewDeadlineCell collabRows={c.collabRows} status={c.status} />;
       }
-      const showIcon = c.status === "dispatched" || c.status === "task_completed";
+      const showIcon = c.status !== "draft" && c.status !== "inquiry";
       return (
         <InlineEditCell value={c.reviewDeadline} type="datetime" editable={editable} onCommit={(v) => onCommit("reviewDeadline", v)}>
           <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
@@ -526,7 +526,7 @@ export default function CasesPage() {
 
   const handleCreate = async (templateValues: Record<string, any> = {}) => {
     const newCase = await caseStore.create({ title: "新案件", ...templateValues });
-    if (newCase) navigate(`/cases/${newCase.id}`);
+    if (newCase) navigate(`/cases/${newCase.id}`, { state: { autoFocusTitle: true } });
   };
 
   // Delete with undo support
