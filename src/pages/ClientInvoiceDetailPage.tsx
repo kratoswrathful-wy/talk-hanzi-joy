@@ -1,7 +1,7 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { getUserTimezone } from "@/lib/format-timestamp";
 import { getTimezoneInfo } from "@/data/timezone-options";
-import { ArrowLeft, Plus, X, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, X, Loader2, Pencil } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { motion } from "framer-motion";
@@ -22,6 +22,7 @@ import { useClientInvoice, clientInvoiceStore, useClientInvoicesLoaded } from "@
 import { useSelectOptions } from "@/stores/select-options-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useLabelStyles } from "@/stores/label-style-store";
+import { useCurrencies } from "@/stores/currency-store";
 import { type ClientInvoiceStatus, type ClientPaymentRecord, clientInvoiceStatusLabels } from "@/data/client-invoice-types";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useClientInvoices } from "@/hooks/use-client-invoice-store";
