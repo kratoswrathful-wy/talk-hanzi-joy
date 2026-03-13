@@ -190,6 +190,7 @@ export default function ClientInvoiceDetailPage() {
   const { checkPerm } = usePermissions();
   const { options: clientOptions } = useSelectOptions("client");
   const labelStyles = useLabelStyles();
+  const { currencies, getTwdRate } = useCurrencies();
   const isExecutive = roles.some((r) => r.role === "executive");
   const [showDelete, setShowDelete] = useState(false);
   const [showPasswordDelete, setShowPasswordDelete] = useState(false);
