@@ -788,11 +788,26 @@ export default function ClientInvoiceDetailPage() {
                     </TableCell>
                     <TableCell className="text-center">
                       <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-                        <span className="font-semibold tabular-nums cursor-default">{formatCurrency(total)}</span>
+                        <span className="font-semibold tabular-nums cursor-default">{formatCurrency(total, recordCur)}</span>
                       </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
                     </TableCell>
                     {editable && !invoice.isRecordOnly && <TableCell />}
+                    {invoice.isRecordOnly && editable && <TableCell />}
                   </TableRow>
+                  {/* TWD conversion row when record-only and non-TWD currency */}
+                  {totalInTwd !== null && (
+                    <TableRow>
+                      <TableCell className="text-left">
+                        <span className="text-muted-foreground text-sm">換算新台幣</span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                          <span className="font-semibold tabular-nums cursor-default">{formatCurrency(totalInTwd, "TWD")}</span>
+                        </TooltipTrigger><TooltipContent className="text-xs">匯率 1 {recordCur} = {recordTwdRate} TWD</TooltipContent></Tooltip></TooltipProvider>
+                      </TableCell>
+                      {editable && <TableCell />}
+                    </TableRow>
+                  )}
                   {/* Show remaining / service fee info when partially or fully collected */}
                   {invoice.status !== "pending" && paidSoFar > 0 && (
                     <>
@@ -801,9 +816,10 @@ export default function ClientInvoiceDetailPage() {
                           <span className="text-muted-foreground text-sm">收款總額</span>
                         </TableCell>
                         <TableCell className="text-center">
-                          <span className="font-semibold tabular-nums">{formatCurrency(paidSoFar)}</span>
+                          <span className="font-semibold tabular-nums">{formatCurrency(paidSoFar, recordCur)}</span>
                         </TableCell>
                         {editable && !invoice.isRecordOnly && <TableCell />}
+                        {invoice.isRecordOnly && editable && <TableCell />}
                       </TableRow>
                       {invoice.status === "partial_collected" && remaining > 0 && (
                         <TableRow>
@@ -811,9 +827,10 @@ export default function ClientInvoiceDetailPage() {
                             <span className="text-muted-foreground text-sm">剩餘應收總額</span>
                           </TableCell>
                           <TableCell className="text-center">
-                            <span className="font-semibold tabular-nums text-amber-500">{formatCurrency(remaining)}</span>
+                            <span className="font-semibold tabular-nums text-amber-500">{formatCurrency(remaining, recordCur)}</span>
                           </TableCell>
                           {editable && !invoice.isRecordOnly && <TableCell />}
+                          {invoice.isRecordOnly && editable && <TableCell />}
                         </TableRow>
                       )}
                       {invoice.status === "collected" && paidSoFar < total && (
@@ -822,9 +839,10 @@ export default function ClientInvoiceDetailPage() {
                             <span className="text-muted-foreground text-sm">手續費</span>
                           </TableCell>
                           <TableCell className="text-center">
-                            <span className="font-semibold tabular-nums text-destructive">{formatCurrency(total - paidSoFar)}</span>
+                            <span className="font-semibold tabular-nums text-destructive">{formatCurrency(total - paidSoFar, recordCur)}</span>
                           </TableCell>
                           {editable && !invoice.isRecordOnly && <TableCell />}
+                          {invoice.isRecordOnly && editable && <TableCell />}
                         </TableRow>
                       )}
                     </>
