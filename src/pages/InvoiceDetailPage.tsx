@@ -153,6 +153,14 @@ export default function InvoiceDetailPage() {
   const [selectedAddFees, setSelectedAddFees] = useState<string[]>([]);
   const allInvoices = useInvoices();
 
+  // Auto-focus title on new page creation
+  useEffect(() => {
+    if (autoFocusTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [autoFocusTitle]);
+
   // Comments
   const [comments, setComments] = useState<CommentEntry[]>([]);
   const [internalComments, setInternalComments] = useState<CommentEntry[]>([]);

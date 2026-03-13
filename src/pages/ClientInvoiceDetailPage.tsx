@@ -228,6 +228,14 @@ export default function ClientInvoiceDetailPage() {
   const [commentDraft, setCommentDraft] = useState("");
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
+  // Auto-focus title on new page creation
+  useEffect(() => {
+    if (autoFocusTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [autoFocusTitle]);
+
   // Edit history
   const [editLog, setEditLog] = useState<EditLogEntry[]>([]);
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
