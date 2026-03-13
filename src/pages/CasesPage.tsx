@@ -67,7 +67,7 @@ function CollabTranslationDeadlineCell({ collabRows, status }: { collabRows: Col
   const { profile } = useAuth();
   const displayName = profile?.display_name || "";
   const isDraftOrInquiry = status === "draft" || status === "inquiry";
-  const showIcon = status === "dispatched";
+  const showIcon = !isDraftOrInquiry;
 
   if (isDraftOrInquiry) {
     return <DeadlineText value={pickEarliestDeadline(collabRows, "translationDeadline")} />;
