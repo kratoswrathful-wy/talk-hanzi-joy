@@ -731,6 +731,7 @@ function CommonLinksSection() {
 
 /* ── Page Template Section ── */
 function PageTemplateSection() {
+  const { confirmDelete } = useDeleteConfirm();
   const navigate = useNavigate();
   const allTemplates = usePageTemplates();
   const [addingModule, setAddingModule] = useState<PageModule | null>(null);
