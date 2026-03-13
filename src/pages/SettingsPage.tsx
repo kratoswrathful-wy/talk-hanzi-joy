@@ -1664,7 +1664,7 @@ function TranslatorTierSection() {
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                        onClick={() => removeTierRow(tier.id)}
+                        onClick={() => confirmDelete(() => removeTierRow(tier.id), "此級距")}
                       >
                         <Trash2 className="h-3 w-3" />
                       </Button>
