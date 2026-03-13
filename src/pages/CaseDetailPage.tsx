@@ -799,6 +799,8 @@ export default function CaseDetailPage() {
   const [dupInfo, setDupInfo] = useState<{ newTitle: string; renames: { oldTitle: string; newTitle: string }[] } | null>(null);
   const [declineOpen, setDeclineOpen] = useState(false);
   const [declineProposedDeadline, setDeclineProposedDeadline] = useState<string | null>(null);
+  const [declineAvailableCount, setDeclineAvailableCount] = useState("");
+  const [declineMessage, setDeclineMessage] = useState("");
   const { primaryRole: currentRole, profile } = useAuth();
   const { checkPerm } = usePermissions();
   const isManager = currentRole === "pm" || currentRole === "executive";
