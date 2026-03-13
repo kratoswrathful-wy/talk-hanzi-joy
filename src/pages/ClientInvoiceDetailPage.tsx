@@ -638,8 +638,10 @@ export default function ClientInvoiceDetailPage() {
                 </h1>
               ) : (
                 <Input
+                  ref={titleInputRef}
                   value={invoice.title}
                   onChange={(e) => handleTitleChange(e.target.value)}
+                  onFocus={(e) => e.target.select()}
                   placeholder="客戶請款單標題"
                   className="text-2xl font-semibold tracking-tight border-0 shadow-none px-0 h-auto py-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
                 />
