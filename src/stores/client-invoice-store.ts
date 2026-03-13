@@ -45,6 +45,7 @@ function dbToApp(row: DbClientInvoice, feeIds: string[]): ClientInvoice {
     payments: Array.isArray(row.payments) ? row.payments : [],
     isRecordOnly: row.is_record_only || false,
     recordAmount: row.record_amount || 0,
+    recordCurrency: (row as any).record_currency || undefined,
     expectedCollectionDate: row.expected_collection_date || undefined,
     actualCollectionDate: row.actual_collection_date || undefined,
   };
