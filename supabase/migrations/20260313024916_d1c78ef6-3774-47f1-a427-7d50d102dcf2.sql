@@ -1,0 +1,1 @@
+ALTER TABLE public.client_invoices ADD COLUMN IF NOT EXISTS record_currency TEXT DEFAULT 'TWD';
