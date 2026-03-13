@@ -2662,6 +2662,11 @@ export default function SettingsPage() {
         <NoteSelectSection fieldKey="noteNature" title="內部註記性質" addLabel="新增性質" />
       </div>
 
+      {/* Row 6: 請款管道 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <BillingChannelSection />
+      </div>
+
       {/* Translator tiers - full width */}
       {canViewSection("translator_tiers") && <TranslatorTierSection />}
     </div>
