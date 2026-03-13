@@ -827,6 +827,7 @@ function PageTemplateSection() {
 /* ── Main Page ── */
 export default function ToolManagementPage() {
   const { options: toolOptions, customColors } = useSelectOptions("executionTool");
+  const { confirmDelete } = useDeleteConfirm();
   const labelStyles = useLabelStyles();
   const templates = useToolTemplates();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
