@@ -194,6 +194,40 @@ function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { op
   );
 }
 
+/* ── Tool Default Field Values Editor ── */
+function ToolDefaultValuesEditor({ optionId, fields, defaultValues }: { optionId: string; fields: { id: string; label: string; type?: "text" | "file" }[]; defaultValues: Record<string, string> }) {
+  const textFields = fields.filter(f => (f.type || "text") === "text");
+  if (textFields.length === 0) return null;
+
+  const handleChange = (fieldId: string, value: string) => {
+    const next = { ...defaultValues, [fieldId]: value };
+    // Clean empty values
+    for (const k of Object.keys(next)) {
+      if (!next[k]) delete next[k];
+    }
+    selectOptionsStore.updateToolDefaultFieldValues(optionId, next);
+  };
+
+  return (
+    <div className="ml-8 mb-2 space-y-1.5">
+      <p className="text-xs text-muted-foreground">預設範本內容（選擇此工具時自動帶入）</p>
+      {textFields.map((f) => (
+        <div key={f.id} className="grid grid-cols-[80px_1fr] items-center gap-2">
+          <span className="text-xs text-muted-foreground truncate">{f.label}</span>
+          <MultilineInput
+            value={defaultValues[f.id] || ""}
+            onChange={(e) => handleChange(f.id, e.target.value)}
+            className="h-7 text-sm"
+            minRows={1}
+            maxRows={3}
+            placeholder="預設值..."
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ── Template Field Manager (for templates) ── */
 function TemplateFieldManager({
   fields,
