@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { useClickOutsideCancel } from "@/hooks/use-click-outside";
+import { useDeleteConfirm } from "@/hooks/use-delete-confirm";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
