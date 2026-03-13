@@ -638,6 +638,7 @@ function TaskTypeOrderSection() {
 // ─── Billing Unit Settings Section (drag reorder + add/delete/color) ───
 
 function BillingUnitOrderSection() {
+  const { confirmDelete } = useDeleteConfirm();
   const { options: billingUnitOptions, customColors } = useSelectOptions("billingUnit");
   const labelStyles = useLabelStyles();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
