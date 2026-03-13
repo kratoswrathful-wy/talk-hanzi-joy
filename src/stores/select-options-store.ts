@@ -184,6 +184,14 @@ function initDefaults() {
       customColors: [],
       manualOrder: true,
     },
+    billingChannel: {
+      options: [
+        { id: "opt-bc1", label: "個人", color: PRESET_COLORS[8] },
+        { id: "opt-bc2", label: "公司", color: PRESET_COLORS[6] },
+      ],
+      customColors: [],
+      manualOrder: true,
+    },
   };
 }
 
