@@ -1901,6 +1901,7 @@ function DispatchRouteSection() {
 // ─── Case Category Settings Section ───
 
 function CaseCategorySection() {
+  const { confirmDelete } = useDeleteConfirm();
   const { options: categoryOptions, customColors } = useSelectOptions("caseCategory");
   const labelStyles = useLabelStyles();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
