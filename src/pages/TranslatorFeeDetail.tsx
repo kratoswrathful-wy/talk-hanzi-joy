@@ -1,4 +1,4 @@
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { ArrowLeft, Plus, X, Loader2, FileText, Copy, Check } from "lucide-react";
 import { CommentContent } from "@/components/comments/CommentContent";
