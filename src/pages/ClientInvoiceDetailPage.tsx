@@ -659,25 +659,43 @@ export default function ClientInvoiceDetailPage() {
           {/* Fields: two columns */}
           <div className="grid gap-5">
             <div className="grid grid-cols-2 gap-4">
-              {/* Left: 純請款紀錄 checkbox */}
-              <div className="flex items-center h-10 gap-2">
-                {(() => {
-                  const hasFeeEntries = invoice.feeIds.length > 0;
-                  const disabled = !!invoice.isRecordOnly || isCollected || hasFeeEntries;
-                  const checkbox = (
-                    <Checkbox
-                      checked={!!invoice.isRecordOnly}
-                      onCheckedChange={() => handleRecordOnlyCheck()}
-                      disabled={disabled}
-                    />
-                  );
-                  return hasFeeEntries && !invoice.isRecordOnly ? (
-                    <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-                      <span className="flex items-center">{checkbox}</span>
-                    </TooltipTrigger><TooltipContent className="text-xs">已有費用收錄</TooltipContent></Tooltip></TooltipProvider>
-                  ) : checkbox;
-                })()}
-                <span className="text-sm">純請款紀錄</span>
+              {/* Left: 純請款紀錄 checkbox + 請款管道 */}
+              <div className="flex items-center h-10 gap-3">
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const hasFeeEntries = invoice.feeIds.length > 0;
+                    const disabled = !!invoice.isRecordOnly || isCollected || hasFeeEntries;
+                    const checkbox = (
+                      <Checkbox
+                        checked={!!invoice.isRecordOnly}
+                        onCheckedChange={() => handleRecordOnlyCheck()}
+                        disabled={disabled}
+                      />
+                    );
+                    return hasFeeEntries && !invoice.isRecordOnly ? (
+                      <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                        <span className="flex items-center">{checkbox}</span>
+                      </TooltipTrigger><TooltipContent className="text-xs">已有費用收錄</TooltipContent></Tooltip></TooltipProvider>
+                    ) : checkbox;
+                  })()}
+                  <span className="text-sm">純請款紀錄</span>
+                </div>
+                <Select
+                  value={invoice.billingChannel || ""}
+                  onValueChange={(v) => clientInvoiceStore.updateInvoice(invoice.id, { billingChannel: v })}
+                  disabled={isCollected}
+                >
+                  <SelectTrigger className="h-8 w-[120px] text-xs">
+                    <SelectValue placeholder="請款管道" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {billingChannelOptions.map((opt) => (
+                      <SelectItem key={opt.id} value={opt.label} className="text-xs">
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               {/* Right: 客戶 with label badge */}
               <div className="flex items-center gap-2">
