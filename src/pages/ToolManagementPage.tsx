@@ -28,6 +28,7 @@ function getColorUsageMap(options: { label: string; color: string }[]): Record<s
 
 /* ── Tool Sub-Field Manager ── */
 function ToolFieldManager({ optionId, fields, fieldKey = "executionTool" }: { optionId: string; fields: { id: string; label: string; type?: "text" | "file" }[]; fieldKey?: string }) {
+  const { confirmDelete } = useDeleteConfirm();
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [newFieldType, setNewFieldType] = useState<"text" | "file" | null>(null);
