@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useCurrencies } from "@/stores/currency-store";
 import { TableFooterStats, type NumericColumnConfig } from "@/components/TableFooterStats";
 import { Plus, ExternalLink, Trash2, GripVertical } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
