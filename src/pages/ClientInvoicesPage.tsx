@@ -100,6 +100,7 @@ export default function ClientInvoicesPage() {
   const isExecutive = roles.some((r) => r.role === "executive");
   const { checkPerm } = usePermissions();
   const allInvoices = useClientInvoices();
+  const { getTwdRate } = useCurrencies();
   const fees = useFees();
   const { options: clientOptions } = useSelectOptions("client");
 
