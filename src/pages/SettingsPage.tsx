@@ -69,6 +69,7 @@ function handleTabKeyDown(
 // ─── Client Pricing Section (with integrated client management) ───
 
 function ClientPricingSection() {
+  const { confirmDelete } = useDeleteConfirm();
   const { options: clientOptions, customColors } = useSelectOptions("client");
   const { options: billingUnitOptions } = useSelectOptions("billingUnit");
   const labelStyles = useLabelStyles();
