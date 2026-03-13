@@ -500,8 +500,12 @@ export default function ClientInvoiceDetailPage() {
 
   // Record-only checkbox handler
   const handleRecordOnlyCheck = () => {
-    if (invoice.isRecordOnly) return; // already locked
+    if (invoice.isRecordOnly) return;
     setRecordAmountInput("");
+    setRecordCurrencyInput((() => {
+      const clientOpt = clientOptions.find((o) => o.label === invoice.client);
+      return clientOpt?.currency || "TWD";
+    })());
     setShowRecordAmountDialog(true);
   };
 
@@ -514,9 +518,31 @@ export default function ClientInvoiceDetailPage() {
     clientInvoiceStore.updateInvoice(invoice.id, {
       isRecordOnly: true,
       recordAmount: amount,
+      recordCurrency: recordCurrencyInput,
     });
     setShowRecordAmountDialog(false);
     toast.success("已設定為純請款紀錄");
+  };
+
+  // Edit record-only handler
+  const handleEditRecordOpen = () => {
+    setEditRecordAmount(String(invoice.recordAmount || 0));
+    setEditRecordCurrency(invoice.recordCurrency || "TWD");
+    setShowEditRecordDialog(true);
+  };
+
+  const handleEditRecordConfirm = () => {
+    const amount = parseFloat(editRecordAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("請輸入有效金額");
+      return;
+    }
+    clientInvoiceStore.updateInvoice(invoice.id, {
+      recordAmount: amount,
+      recordCurrency: editRecordCurrency,
+    });
+    setShowEditRecordDialog(false);
+    toast.success("已更新請款紀錄");
   };
 
   const handleNoteChange = (newNote: string) => {
