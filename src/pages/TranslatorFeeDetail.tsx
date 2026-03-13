@@ -1776,11 +1776,13 @@ export default function TranslatorFeeDetail() {
         {/* Title */}
         <div className="flex items-start justify-between gap-4">
           <Input
+            ref={titleInputRef}
             value={title}
             onChange={(e) => {
               setTitle(e.target.value);
               if (id) feeStore.updateFee(id, { title: e.target.value });
             }}
+            onFocus={(e) => e.target.select()}
             disabled={!canEdit}
             className="text-2xl font-semibold tracking-tight bg-transparent border-0 shadow-none px-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
             placeholder="輸入稿費單標題"
