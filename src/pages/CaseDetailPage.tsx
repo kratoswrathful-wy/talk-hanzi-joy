@@ -1036,16 +1036,20 @@ export default function CaseDetailPage() {
 
   const handleDecline = () => {
     const displayName = profile?.display_name || profile?.email || "";
-    const record = {
+    const record: import("@/data/case-types").DeclineRecord = {
       id: crypto.randomUUID(),
       translator: displayName,
       proposedDeadline: declineProposedDeadline || undefined,
+      availableCount: declineAvailableCount ? Number(declineAvailableCount) : undefined,
+      message: declineMessage.trim() || undefined,
       createdAt: new Date().toISOString(),
     };
     const existing = caseData.declineRecords || [];
     save({ declineRecords: [...existing, record] });
     setDeclineOpen(false);
     setDeclineProposedDeadline(null);
+    setDeclineAvailableCount("");
+    setDeclineMessage("");
     toast({ title: "已記錄無法承接" });
   };
 
