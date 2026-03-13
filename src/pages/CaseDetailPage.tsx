@@ -1399,15 +1399,17 @@ export default function CaseDetailPage() {
 
       {/* Title row with optional icon + uploader button top-right */}
       <div className="relative">
-        {/* Uploader button: top-right */}
-        <div className="absolute right-0 top-0 z-10">
-          <CaseIconUploader
-            caseId={caseData.id}
-            currentIconUrl={caseData.iconUrl || null}
-            onUploaded={(url) => save({ iconUrl: url })}
-            onRemoved={() => save({ iconUrl: "" })}
-          />
-        </div>
+        {/* Uploader button: top-right (hidden for member/translator role) */}
+        {isAdmin && (
+          <div className="absolute right-0 top-0 z-10">
+            <CaseIconUploader
+              caseId={caseData.id}
+              currentIconUrl={caseData.iconUrl || null}
+              onUploaded={(url) => save({ iconUrl: url })}
+              onRemoved={() => save({ iconUrl: "" })}
+            />
+          </div>
+        )}
 
         <div className="flex items-end gap-3 pr-12">
           {/* Case icon */}

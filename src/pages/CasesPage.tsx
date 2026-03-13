@@ -236,19 +236,41 @@ const allColumnDefs: ColumnDef[] = [
     key: "title",
     label: "案件編號",
     minWidth: 120,
-    render: (c, { editable, onCommit }) => (
-      <div className="relative flex items-center group/title gap-1.5">
-        {c.iconUrl && (
-          <img src={c.iconUrl} alt="" className="w-8 h-8 rounded object-cover shrink-0 border border-border" />
-        )}
-        <InlineEditCell value={c.title} type="text" editable={editable} onCommit={(v) => onCommit("title", v)} className="flex-1 min-w-0 pr-6">
-          <span className="truncate font-medium text-card-foreground">
-            {c.title || <span className="text-muted-foreground italic">未命名案件</span>}
-          </span>
-        </InlineEditCell>
-        <OpenButton caseId={c.id} />
-      </div>
-    ),
+    render: (c, { editable, onCommit }) => {
+      // Unique translators who declined
+      const declineNames = Array.from(new Set((c.declineRecords || []).map((d: any) => d.translator).filter(Boolean)));
+      const declineCount = declineNames.length;
+      return (
+        <div className="relative flex items-center group/title gap-1.5">
+          {c.iconUrl && (
+            <img src={c.iconUrl} alt="" className="w-8 h-8 rounded object-cover shrink-0 border border-border" />
+          )}
+          {declineCount > 0 && (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-destructive/15 text-[11px] font-semibold text-destructive cursor-default">
+                    {declineCount}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs">
+                  <p className="text-xs font-medium mb-0.5">無法承接</p>
+                  {declineNames.map((name, i) => (
+                    <p key={i} className="text-xs">{name}</p>
+                  ))}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          <InlineEditCell value={c.title} type="text" editable={editable} onCommit={(v) => onCommit("title", v)} className="flex-1 min-w-0 pr-6">
+            <span className="truncate font-medium text-card-foreground">
+              {c.title || <span className="text-muted-foreground italic">未命名案件</span>}
+            </span>
+          </InlineEditCell>
+          <OpenButton caseId={c.id} />
+        </div>
+      );
+    },
   },
   {
     key: "status",
