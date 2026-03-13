@@ -2257,6 +2257,7 @@ function StatusStyleSection() {
 
 /* ── Note Select Section (for noteStatus, noteNature) ── */
 function NoteSelectSection({ fieldKey, title, addLabel }: { fieldKey: string; title: string; addLabel: string }) {
+  const { confirmDelete } = useDeleteConfirm();
   const { options, customColors } = useSelectOptions(fieldKey);
   const labelStyles = useLabelStyles();
   const [dragIdx, setDragIdx] = useState<number | null>(null);
