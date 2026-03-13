@@ -955,7 +955,12 @@ export default function ToolManagementPage() {
                 </div>
               </div>
               {expandedTools.has(opt.id) && (
-                <ToolFieldManager optionId={opt.id} fields={opt.toolFields || []} />
+                <>
+                  <ToolFieldManager optionId={opt.id} fields={opt.toolFields || []} />
+                  {(opt.toolFields || []).filter(f => (f.type || "text") === "text").length > 0 && (
+                    <ToolDefaultValuesEditor optionId={opt.id} fields={opt.toolFields || []} defaultValues={opt.defaultFieldValues || {}} />
+                  )}
+                </>
               )}
             </div>
           ))}
