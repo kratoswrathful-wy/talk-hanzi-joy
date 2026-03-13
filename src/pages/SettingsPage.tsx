@@ -1552,13 +1552,15 @@ function TranslatorTierSection() {
                       size="icon"
                       className="h-6 w-6 text-muted-foreground hover:text-destructive"
                       onClick={() => {
-                        removeTierRow(tier.id);
-                        setUncommittedIds((prev) => {
-                          if (!prev.has(tier.id)) return prev;
-                          const next = new Set(prev);
-                          next.delete(tier.id);
-                          return next;
-                        });
+                        confirmDelete(() => {
+                          removeTierRow(tier.id);
+                          setUncommittedIds((prev) => {
+                            if (!prev.has(tier.id)) return prev;
+                            const next = new Set(prev);
+                            next.delete(tier.id);
+                            return next;
+                          });
+                        }, "此級距");
                       }}
                     >
                       <Trash2 className="h-3 w-3" />
