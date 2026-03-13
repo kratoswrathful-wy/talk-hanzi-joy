@@ -367,7 +367,7 @@ const allColumnDefs: ColumnDef[] = [
       if (c.multiCollab && c.collabRows?.length > 0) {
         return <CollabTranslationDeadlineCell collabRows={c.collabRows} status={c.status} />;
       }
-      const showIcon = c.status === "dispatched";
+      const showIcon = c.status !== "draft" && c.status !== "inquiry";
       return (
         <InlineEditCell value={c.translationDeadline} type="datetime" editable={editable} onCommit={(v) => onCommit("translationDeadline", v)}>
           <span className="inline-flex items-center gap-0.5 text-sm text-muted-foreground tabular-nums">
