@@ -227,7 +227,7 @@ function ClientPricingSection() {
                     </Popover>
                     <button
                       className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
-                      onClick={(e) => { e.stopPropagation(); selectOptionsStore.deleteOption("client", client.id); }}
+                      onClick={(e) => { e.stopPropagation(); confirmDelete(() => selectOptionsStore.deleteOption("client", client.id), client.label); }}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
