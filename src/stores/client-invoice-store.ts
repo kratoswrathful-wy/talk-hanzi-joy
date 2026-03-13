@@ -202,6 +202,7 @@ export const clientInvoiceStore = {
     if (updates.isRecordOnly !== undefined) dbUpdates.is_record_only = updates.isRecordOnly;
     if (updates.recordAmount !== undefined) dbUpdates.record_amount = updates.recordAmount;
     if (updates.recordCurrency !== undefined) dbUpdates.record_currency = updates.recordCurrency;
+    if (updates.billingChannel !== undefined) dbUpdates.billing_channel = updates.billingChannel;
     if (updates.expectedCollectionDate !== undefined) dbUpdates.expected_collection_date = updates.expectedCollectionDate || null;
     if (updates.actualCollectionDate !== undefined) dbUpdates.actual_collection_date = updates.actualCollectionDate || null;
 
