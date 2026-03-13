@@ -1621,7 +1621,7 @@ export default function TranslatorFeeDetail() {
                         internalNoteUrl,
                         clientInfo: { ...clientInfo },
                       });
-                      navigate(`/fees/${draft.id}`);
+                      navigate(`/fees/${draft.id}`, { state: { autoFocusTitle: true } });
                     }}
                   >
                     複製本頁

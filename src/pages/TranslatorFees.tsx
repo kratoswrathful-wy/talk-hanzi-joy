@@ -623,7 +623,7 @@ export default function TranslatorFees() {
 
   const handleCreate = () => {
     const newFee = feeStore.createDraft();
-    navigate(`/fees/${newFee.id}`);
+    navigate(`/fees/${newFee.id}`, { state: { autoFocusTitle: true } });
   };
 
   // Delete selected fees

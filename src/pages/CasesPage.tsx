@@ -526,7 +526,7 @@ export default function CasesPage() {
 
   const handleCreate = async (templateValues: Record<string, any> = {}) => {
     const newCase = await caseStore.create({ title: "新案件", ...templateValues });
-    if (newCase) navigate(`/cases/${newCase.id}`);
+    if (newCase) navigate(`/cases/${newCase.id}`, { state: { autoFocusTitle: true } });
   };
 
   // Delete with undo support

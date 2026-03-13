@@ -1047,7 +1047,7 @@ export default function CaseDetailPage() {
 
   const handleNewCase = async (templateValues: Record<string, any> = {}) => {
     const newCase = await caseStore.create({ title: "", ...templateValues });
-    if (newCase) navigate(`/cases/${newCase.id}`);
+    if (newCase) navigate(`/cases/${newCase.id}`, { state: { autoFocusTitle: true } });
   };
 
   const handlePublish = () => {
