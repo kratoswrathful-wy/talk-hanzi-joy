@@ -2603,7 +2603,7 @@ function IconLibrarySection() {
                   <Download className="h-3 w-3" />
                 </button>
                 <button
-                  onClick={() => handleDelete(item.id)}
+                  onClick={() => confirmDelete(() => handleDelete(item.id), item.name || "此圖示")}
                   className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted transition-colors"
                   title="刪除"
                 >

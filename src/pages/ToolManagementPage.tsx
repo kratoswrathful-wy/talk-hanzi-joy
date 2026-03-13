@@ -233,7 +233,7 @@ function TemplateFieldManager({
   };
 
   const handleRemove = (fieldId: string) => {
-    onFieldsChange(fields.filter((f) => f.id !== fieldId));
+    const field = fields.find((f) => f.id === fieldId);
     const next = { ...fieldValues };
     delete next[fieldId];
     onFieldValuesChange(next);
