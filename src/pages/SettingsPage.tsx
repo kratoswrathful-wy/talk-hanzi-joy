@@ -1725,6 +1725,7 @@ const roleLabelMap: Record<string, string> = {
 // ─── Dispatch Route Settings Section ───
 
 function DispatchRouteSection() {
+  const { confirmDelete } = useDeleteConfirm();
   const { options: routeOptions, customColors } = useSelectOptions("dispatchRoute");
   const labelStyles = useLabelStyles();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
