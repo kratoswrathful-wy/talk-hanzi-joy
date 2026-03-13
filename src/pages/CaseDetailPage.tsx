@@ -2365,23 +2365,45 @@ export default function CaseDetailPage() {
       </AlertDialog>
 
       {/* Decline confirmation dialog */}
-      <AlertDialog open={declineOpen} onOpenChange={(v) => { if (!v) { setDeclineOpen(false); setDeclineProposedDeadline(null); } }}>
+      <AlertDialog open={declineOpen} onOpenChange={(v) => { if (!v) { setDeclineOpen(false); setDeclineProposedDeadline(null); setDeclineAvailableCount(""); setDeclineMessage(""); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>無法承接</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3">
-              <span>按下此按鈕會在頁面上留下紀錄，告知派案人員無法承接本案，是否確定？</span>
-              <span className="block text-sm font-medium text-foreground mt-3">如果要接，請問希望可以將交期延到何時？（選填）</span>
+            <AlertDialogDescription>
+              以下三項皆為選填（0–3 項），填完後按確認即可。
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="px-1">
-            <DateTimePicker
-              value={declineProposedDeadline}
-              onChange={setDeclineProposedDeadline}
-            />
+          <div className="space-y-4 px-1">
+            <div className="space-y-1.5">
+              <Label className="text-sm">按照此字數和內容，期限延到何時你可以接案？</Label>
+              <DateTimePicker
+                value={declineProposedDeadline}
+                onChange={setDeclineProposedDeadline}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">如果交期無法變動，請問你大約可以做多少字？</Label>
+              <Input
+                type="number"
+                placeholder="字數"
+                value={declineAvailableCount}
+                onChange={(e) => setDeclineAvailableCount(e.target.value)}
+                className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">請問你是否有其他情況或派案提議想說明？</Label>
+              <MultilineInput
+                placeholder="請輸入…"
+                value={declineMessage}
+                onChange={(e) => setDeclineMessage(e.target.value)}
+                minRows={2}
+                maxRows={5}
+              />
+            </div>
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => { setDeclineOpen(false); setDeclineProposedDeadline(null); }}>取消</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => { setDeclineOpen(false); setDeclineProposedDeadline(null); setDeclineAvailableCount(""); setDeclineMessage(""); }}>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleDecline} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">確認</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
