@@ -266,7 +266,14 @@ export default function TranslatorFeeDetail() {
   // Compute linked invoices for this fee
   const linkedTranslatorInvoices = id ? allInvoices.filter((inv) => inv.feeIds.includes(id)).map((inv) => ({ id: inv.id, title: inv.title })) : [];
   const linkedClientInvoices = id ? allClientInvoices.filter((inv) => inv.feeIds.includes(id)).map((inv) => ({ id: inv.id, title: inv.title })) : [];
-  
+
+  // Auto-focus title on new page creation
+  useEffect(() => {
+    if (autoFocusTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [autoFocusTitle]);
 
   // Find the other fee that is firstFee in the same case group
   const otherFirstFee = (() => {
