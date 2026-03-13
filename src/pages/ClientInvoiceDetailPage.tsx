@@ -211,8 +211,12 @@ export default function ClientInvoiceDetailPage() {
   // Record-only amount dialog
   const [showRecordAmountDialog, setShowRecordAmountDialog] = useState(false);
   const [recordAmountInput, setRecordAmountInput] = useState("");
+  const [recordCurrencyInput, setRecordCurrencyInput] = useState("TWD");
 
-  // Amount too high alert
+  // Edit record-only dialog
+  const [showEditRecordDialog, setShowEditRecordDialog] = useState(false);
+  const [editRecordAmount, setEditRecordAmount] = useState("");
+  const [editRecordCurrency, setEditRecordCurrency] = useState("TWD");
   const [amountTooHighMsg, setAmountTooHighMsg] = useState<string | null>(null);
 
   // Comments
