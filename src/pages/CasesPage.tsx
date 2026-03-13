@@ -95,7 +95,7 @@ function CollabReviewDeadlineCell({ collabRows, status }: { collabRows: CollabRo
   const { profile } = useAuth();
   const displayName = profile?.display_name || "";
   const isDraftOrInquiry = status === "draft" || status === "inquiry";
-  const showIcon = status === "dispatched" || status === "task_completed";
+  const showIcon = !isDraftOrInquiry;
 
   if (isDraftOrInquiry) {
     return <DeadlineText value={pickEarliestDeadline(collabRows, "reviewDeadline")} />;
