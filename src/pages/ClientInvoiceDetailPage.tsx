@@ -714,6 +714,7 @@ export default function ClientInvoiceDetailPage() {
                   <TableHead className="text-center">標題</TableHead>
                   <TableHead className="text-center w-[120px]">應收總額</TableHead>
                   {editable && !invoice.isRecordOnly && <TableHead className="text-center w-[60px]">移除</TableHead>}
+                  {invoice.isRecordOnly && editable && <TableHead className="text-center w-[60px]">編輯</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -722,9 +723,16 @@ export default function ClientInvoiceDetailPage() {
                     <TableCell className="text-sm font-medium">請款紀錄</TableCell>
                     <TableCell className="text-center text-sm tabular-nums">
                       <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-                        <span className="cursor-default">{formatCurrency(invoice.recordAmount || 0)}</span>
+                        <span className="cursor-default">{formatCurrency(invoice.recordAmount || 0, recordCur)}</span>
                       </TooltipTrigger><TooltipContent className="text-xs">手動輸入</TooltipContent></Tooltip></TooltipProvider>
                     </TableCell>
+                    {editable && (
+                      <TableCell className="text-center">
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={handleEditRecordOpen}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ) : (
                   <>
