@@ -185,6 +185,9 @@ export default function TranslatorFeeDetail() {
   const allClientInvoices = useClientInvoices();
 
   const navigate = useNavigate();
+  const location = useLocation();
+  const autoFocusTitle = !!(location.state as any)?.autoFocusTitle;
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState(feeData?.title ?? "");
   const [taskItems, setTaskItems] = useState<FeeTaskItem[]>(
     feeData?.taskItems && feeData.taskItems.length > 0
