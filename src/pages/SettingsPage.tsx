@@ -1350,6 +1350,7 @@ function TierGroupEditorModal({
 
 function TranslatorTierSection() {
   const { tiers, addTier, addTierToGroup, updateTierRow, removeTierRow } = useTranslatorTiers();
+  const { confirmDelete } = useDeleteConfirm();
   const { options: taskTypeOptions } = useSelectOptions("taskType");
   const { options: buOptions } = useSelectOptions("billingUnit");
   const labelStyles = useLabelStyles();
