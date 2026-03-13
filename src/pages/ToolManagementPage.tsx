@@ -592,6 +592,7 @@ function NewTemplateForm({ toolOptions, onDone }: { toolOptions: { id: string; l
 
 /* ── Common Links Manager ── */
 function CommonLinksSection() {
+  const { confirmDelete } = useDeleteConfirm();
   const links = useCommonLinks();
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
