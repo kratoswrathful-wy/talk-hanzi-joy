@@ -19,6 +19,7 @@ export interface SelectOption {
   timezone?: string | null;
   statusMessage?: string | null;
   toolFields?: ToolFieldDef[];
+  defaultFieldValues?: Record<string, string>; // default values for tool fields (used when tool is selected in case)
   currency?: string; // currency code for client options, e.g. "TWD", "USD"
 }
 
@@ -344,6 +345,20 @@ export const selectOptionsStore = {
           const remaining = fields.filter((f) => !orderedIds.includes(f.id));
           return { ...o, toolFields: [...ordered, ...remaining] };
         }),
+      },
+    };
+    notify();
+  },
+
+  updateToolDefaultFieldValues: (optionId: string, values: Record<string, string>, fieldKey: string = "executionTool") => {
+    const field = selectOptionsStore.getField(fieldKey);
+    store = {
+      ...store,
+      [fieldKey]: {
+        ...field,
+        options: field.options.map((o) =>
+          o.id === optionId ? { ...o, defaultFieldValues: values } : o
+        ),
       },
     };
     notify();
