@@ -487,7 +487,7 @@ function TaskTypeOrderSection() {
 
   const handleDeleteTaskType = (optId: string) => {
     const opt = taskTypeOptions.find((o) => o.id === optId);
-    selectOptionsStore.deleteOption("taskType", optId);
+    confirmDelete(() => selectOptionsStore.deleteOption("taskType", optId), opt?.label);
   };
 
   const handleColorChange = (optId: string, color: string) => {
