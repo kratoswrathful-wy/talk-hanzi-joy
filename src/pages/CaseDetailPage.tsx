@@ -224,16 +224,25 @@ function IMESafeInput({ value, onSave, disabled, placeholder, className, minRows
 }
 
 /** IME-safe title input — single line */
-function TitleInput({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+function TitleInput({ value, onSave, autoFocusSelect }: { value: string; onSave: (v: string) => void; autoFocusSelect?: boolean }) {
   const [local, setLocal] = useState(value);
   const [focused, setFocused] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!focused) setLocal(value);
   }, [value, focused]);
 
+  useEffect(() => {
+    if (autoFocusSelect && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [autoFocusSelect]);
+
   return (
     <input
+      ref={inputRef}
       type="text"
       value={local}
       onChange={(e) => setLocal(e.target.value)}
