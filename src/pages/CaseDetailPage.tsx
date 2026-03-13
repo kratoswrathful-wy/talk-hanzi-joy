@@ -1400,7 +1400,7 @@ export default function CaseDetailPage() {
       {/* Title row with optional icon + uploader button top-right */}
       <div className="relative">
         {/* Uploader button: top-right (hidden for member/translator role) */}
-        {isAdmin && (
+        {isManager && (
           <div className="absolute right-0 top-0 z-10">
             <CaseIconUploader
               caseId={caseData.id}
