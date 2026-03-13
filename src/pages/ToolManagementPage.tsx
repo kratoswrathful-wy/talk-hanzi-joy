@@ -776,7 +776,7 @@ function PageTemplateSection() {
                   {!tpl.isDefault && (
                     <button
                       className="h-4 w-4 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all shrink-0"
-                      onClick={() => pageTemplateStore.remove(tpl.id)}
+                      onClick={() => confirmDelete(() => pageTemplateStore.remove(tpl.id), tpl.name)}
                       title="刪除範本"
                     >
                       <Trash2 className="h-2.5 w-2.5" />
