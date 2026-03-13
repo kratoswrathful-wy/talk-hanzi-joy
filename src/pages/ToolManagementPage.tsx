@@ -460,11 +460,7 @@ function TemplateCard({ tpl, toolOptions }: { tpl: ToolTemplate; toolOptions: { 
         </button>
         <button
           className="h-6 w-6 rounded flex items-center justify-center hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
-          onClick={() => {
-            const { confirmDelete } = useDeleteConfirm;
-            // Direct delete with confirmation handled by parent
-            toolTemplateStore.remove(tpl.id);
-          }}
+          onClick={() => confirmDelete(() => toolTemplateStore.remove(tpl.id), tpl.name)}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
