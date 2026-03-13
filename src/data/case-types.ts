@@ -50,6 +50,8 @@ export interface DeclineRecord {
   id: string;
   translator: string;
   proposedDeadline?: string; // ISO datetime, optional
+  availableCount?: number;   // how many characters they can handle
+  message?: string;          // free-text message from translator
   createdAt: string;
 }
 
