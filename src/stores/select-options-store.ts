@@ -19,6 +19,7 @@ export interface SelectOption {
   timezone?: string | null;
   statusMessage?: string | null;
   toolFields?: ToolFieldDef[];
+  defaultFieldValues?: Record<string, string>; // default values for tool fields (used when tool is selected in case)
   currency?: string; // currency code for client options, e.g. "TWD", "USD"
 }
 
