@@ -287,6 +287,7 @@ export type Database = {
           note: string
           payments: Json
           record_amount: number
+          record_currency: string | null
           status: string
           title: string
           transfer_date: string | null
@@ -306,6 +307,7 @@ export type Database = {
           note?: string
           payments?: Json
           record_amount?: number
+          record_currency?: string | null
           status?: string
           title?: string
           transfer_date?: string | null
@@ -325,6 +327,7 @@ export type Database = {
           note?: string
           payments?: Json
           record_amount?: number
+          record_currency?: string | null
           status?: string
           title?: string
           transfer_date?: string | null

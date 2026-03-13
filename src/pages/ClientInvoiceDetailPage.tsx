@@ -1,7 +1,7 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { getUserTimezone } from "@/lib/format-timestamp";
 import { getTimezoneInfo } from "@/data/timezone-options";
-import { ArrowLeft, Plus, X, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, X, Loader2, Pencil } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { motion } from "framer-motion";
@@ -22,6 +22,7 @@ import { useClientInvoice, clientInvoiceStore, useClientInvoicesLoaded } from "@
 import { useSelectOptions } from "@/stores/select-options-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useLabelStyles } from "@/stores/label-style-store";
+import { useCurrencies } from "@/stores/currency-store";
 import { type ClientInvoiceStatus, type ClientPaymentRecord, clientInvoiceStatusLabels } from "@/data/client-invoice-types";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useClientInvoices } from "@/hooks/use-client-invoice-store";
@@ -189,6 +190,7 @@ export default function ClientInvoiceDetailPage() {
   const { checkPerm } = usePermissions();
   const { options: clientOptions } = useSelectOptions("client");
   const labelStyles = useLabelStyles();
+  const { currencies, getTwdRate } = useCurrencies();
   const isExecutive = roles.some((r) => r.role === "executive");
   const [showDelete, setShowDelete] = useState(false);
   const [showPasswordDelete, setShowPasswordDelete] = useState(false);
@@ -210,8 +212,12 @@ export default function ClientInvoiceDetailPage() {
   // Record-only amount dialog
   const [showRecordAmountDialog, setShowRecordAmountDialog] = useState(false);
   const [recordAmountInput, setRecordAmountInput] = useState("");
+  const [recordCurrencyInput, setRecordCurrencyInput] = useState("TWD");
 
-  // Amount too high alert
+  // Edit record-only dialog
+  const [showEditRecordDialog, setShowEditRecordDialog] = useState(false);
+  const [editRecordAmount, setEditRecordAmount] = useState("");
+  const [editRecordCurrency, setEditRecordCurrency] = useState("TWD");
   const [amountTooHighMsg, setAmountTooHighMsg] = useState<string | null>(null);
 
   // Comments
@@ -360,7 +366,10 @@ export default function ClientInvoiceDetailPage() {
   }, 0);
 
   // If record-only, the total is the recordAmount
+  const recordCur = invoice.recordCurrency || "TWD";
   const total = invoice.isRecordOnly ? (invoice.recordAmount || 0) : feeTotal;
+  const recordTwdRate = getTwdRate(recordCur);
+  const totalInTwd = invoice.isRecordOnly && recordCur !== "TWD" ? total * recordTwdRate : null;
 
   const isCollected = invoice.status === "collected";
   const editable = isAdmin && !isCollected;
@@ -494,8 +503,12 @@ export default function ClientInvoiceDetailPage() {
 
   // Record-only checkbox handler
   const handleRecordOnlyCheck = () => {
-    if (invoice.isRecordOnly) return; // already locked
+    if (invoice.isRecordOnly) return;
     setRecordAmountInput("");
+    setRecordCurrencyInput((() => {
+      const clientOpt = clientOptions.find((o) => o.label === invoice.client);
+      return clientOpt?.currency || "TWD";
+    })());
     setShowRecordAmountDialog(true);
   };
 
@@ -508,9 +521,31 @@ export default function ClientInvoiceDetailPage() {
     clientInvoiceStore.updateInvoice(invoice.id, {
       isRecordOnly: true,
       recordAmount: amount,
+      recordCurrency: recordCurrencyInput,
     });
     setShowRecordAmountDialog(false);
     toast.success("已設定為純請款紀錄");
+  };
+
+  // Edit record-only handler
+  const handleEditRecordOpen = () => {
+    setEditRecordAmount(String(invoice.recordAmount || 0));
+    setEditRecordCurrency(invoice.recordCurrency || "TWD");
+    setShowEditRecordDialog(true);
+  };
+
+  const handleEditRecordConfirm = () => {
+    const amount = parseFloat(editRecordAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("請輸入有效金額");
+      return;
+    }
+    clientInvoiceStore.updateInvoice(invoice.id, {
+      recordAmount: amount,
+      recordCurrency: editRecordCurrency,
+    });
+    setShowEditRecordDialog(false);
+    toast.success("已更新請款紀錄");
   };
 
   const handleNoteChange = (newNote: string) => {

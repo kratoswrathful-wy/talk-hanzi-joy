@@ -524,14 +524,15 @@ export default function DateTimePicker({
         <Button
           variant="outline"
           disabled={disabled}
+          title={displayText || undefined}
           className={cn(
-            "justify-start text-left font-normal h-9",
+            "justify-start text-left font-normal h-9 min-w-0 overflow-hidden",
             !displayText && "text-muted-foreground",
             className
           )}
         >
-          <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-          {displayText || placeholder}
+          <CalendarIcon className="mr-2 h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{displayText || placeholder}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start" sideOffset={4}>
