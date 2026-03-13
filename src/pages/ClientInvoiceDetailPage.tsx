@@ -366,7 +366,10 @@ export default function ClientInvoiceDetailPage() {
   }, 0);
 
   // If record-only, the total is the recordAmount
+  const recordCur = invoice.recordCurrency || "TWD";
   const total = invoice.isRecordOnly ? (invoice.recordAmount || 0) : feeTotal;
+  const recordTwdRate = getTwdRate(recordCur);
+  const totalInTwd = invoice.isRecordOnly && recordCur !== "TWD" ? total * recordTwdRate : null;
 
   const isCollected = invoice.status === "collected";
   const editable = isAdmin && !isCollected;
