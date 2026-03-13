@@ -1041,7 +1041,7 @@ export default function CaseDetailPage() {
     if (result) {
       setDupInfo({ newTitle: result.newCase.title, renames: result.renames });
       setDupDialogOpen(true);
-      navigate(`/cases/${result.newCase.id}`);
+      navigate(`/cases/${result.newCase.id}`, { state: { autoFocusTitle: true } });
     }
   };
 
