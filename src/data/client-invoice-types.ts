@@ -28,6 +28,7 @@ export interface ClientInvoice {
   payments: ClientPaymentRecord[];
   isRecordOnly?: boolean;
   recordAmount?: number;
+  recordCurrency?: string;
   expectedCollectionDate?: string;
   actualCollectionDate?: string;
 }

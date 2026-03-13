@@ -91,14 +91,16 @@ function AuthenticatedRoutes() {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/*" element={<AuthenticatedRoutes />} />
-        </Routes>
-      </BrowserRouter>
+      <DeleteConfirmProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/*" element={<AuthenticatedRoutes />} />
+          </Routes>
+        </BrowserRouter>
+      </DeleteConfirmProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
