@@ -29,6 +29,7 @@ export interface ClientInvoice {
   isRecordOnly?: boolean;
   recordAmount?: number;
   recordCurrency?: string;
+  billingChannel?: string;
   expectedCollectionDate?: string;
   actualCollectionDate?: string;
 }

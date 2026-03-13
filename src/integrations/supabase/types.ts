@@ -275,6 +275,7 @@ export type Database = {
       client_invoices: {
         Row: {
           actual_collection_date: string | null
+          billing_channel: string
           client: string
           comments: Json
           created_at: string
@@ -295,6 +296,7 @@ export type Database = {
         }
         Insert: {
           actual_collection_date?: string | null
+          billing_channel?: string
           client?: string
           comments?: Json
           created_at?: string
@@ -315,6 +317,7 @@ export type Database = {
         }
         Update: {
           actual_collection_date?: string | null
+          billing_channel?: string
           client?: string
           comments?: Json
           created_at?: string

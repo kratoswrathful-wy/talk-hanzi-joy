@@ -46,6 +46,7 @@ function dbToApp(row: DbClientInvoice, feeIds: string[]): ClientInvoice {
     isRecordOnly: row.is_record_only || false,
     recordAmount: row.record_amount || 0,
     recordCurrency: (row as any).record_currency || undefined,
+    billingChannel: (row as any).billing_channel || undefined,
     expectedCollectionDate: row.expected_collection_date || undefined,
     actualCollectionDate: row.actual_collection_date || undefined,
   };
@@ -186,7 +187,7 @@ export const clientInvoiceStore = {
     return newInvoice;
   },
 
-  updateInvoice: (id: string, updates: Partial<Pick<ClientInvoice, "status" | "transferDate" | "note" | "title" | "payments" | "isRecordOnly" | "recordAmount" | "recordCurrency" | "expectedCollectionDate" | "actualCollectionDate">> & Record<string, any>) => {
+  updateInvoice: (id: string, updates: Partial<Pick<ClientInvoice, "status" | "transferDate" | "note" | "title" | "payments" | "isRecordOnly" | "recordAmount" | "recordCurrency" | "billingChannel" | "expectedCollectionDate" | "actualCollectionDate">> & Record<string, any>) => {
     invoices = invoices.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv));
     notify();
 
@@ -201,6 +202,7 @@ export const clientInvoiceStore = {
     if (updates.isRecordOnly !== undefined) dbUpdates.is_record_only = updates.isRecordOnly;
     if (updates.recordAmount !== undefined) dbUpdates.record_amount = updates.recordAmount;
     if (updates.recordCurrency !== undefined) dbUpdates.record_currency = updates.recordCurrency;
+    if (updates.billingChannel !== undefined) dbUpdates.billing_channel = updates.billingChannel;
     if (updates.expectedCollectionDate !== undefined) dbUpdates.expected_collection_date = updates.expectedCollectionDate || null;
     if (updates.actualCollectionDate !== undefined) dbUpdates.actual_collection_date = updates.actualCollectionDate || null;
 

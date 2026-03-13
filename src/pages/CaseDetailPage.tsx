@@ -1440,7 +1440,7 @@ export default function CaseDetailPage() {
             />
           )}
           {/* Title + Status stacked, bottom-aligned with icon */}
-          <div className="min-w-0 flex flex-col justify-end gap-1.5">
+          <div className="min-w-0 flex-1 flex flex-col justify-end gap-1.5">
             <TitleInput value={caseData.title} onSave={(v) => save({ title: v })} autoFocusSelect={autoFocusTitle} />
             <div className="flex items-center gap-2 pl-3">
               <CaseStatusBadge status={caseData.status} />

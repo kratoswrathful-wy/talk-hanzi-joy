@@ -62,7 +62,7 @@ const listeners = new Set<Listener>();
 const SETTINGS_KEY = "select_options";
 
 // Fields to persist (assignee is loaded from profiles, not settings)
-const PERSISTED_FIELDS = ["taskType", "billingUnit", "client", "contact", "dispatchRoute", "caseCategory", "executionTool", "questionTool", "noteStatus", "noteNature", "statusLabel"];
+const PERSISTED_FIELDS = ["taskType", "billingUnit", "client", "contact", "dispatchRoute", "caseCategory", "executionTool", "questionTool", "noteStatus", "noteNature", "statusLabel", "billingChannel"];
 
 function persistableSnapshot() {
   const snapshot: Record<string, FieldOptions> = {};
@@ -180,6 +180,14 @@ function initDefaults() {
         { id: "sl-invoice-pending", label: "待付款", color: "#6B7280", textColor: "#FFFFFF" },
         { id: "sl-invoice-partial", label: "部份付款", color: "#EAB308", textColor: "#FFFFFF" },
         { id: "sl-invoice-paid", label: "已付款", color: "#22C55E", textColor: "#FFFFFF" },
+      ],
+      customColors: [],
+      manualOrder: true,
+    },
+    billingChannel: {
+      options: [
+        { id: "opt-bc1", label: "個人", color: PRESET_COLORS[8] },
+        { id: "opt-bc2", label: "公司", color: PRESET_COLORS[6] },
       ],
       customColors: [],
       manualOrder: true,
