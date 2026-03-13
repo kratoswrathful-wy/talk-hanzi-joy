@@ -2532,6 +2532,7 @@ function CurrencySettingsSection() {
 // ─── Icon Library Section ───
 
 function IconLibrarySection() {
+  const { confirmDelete } = useDeleteConfirm();
   useEffect(() => { iconLibraryStore.load(); }, []);
   const items = useSyncExternalStore(iconLibraryStore.subscribe, iconLibraryStore.getAll);
   const [editingId, setEditingId] = useState<string | null>(null);
