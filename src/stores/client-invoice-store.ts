@@ -35,6 +35,7 @@ function dbToApp(row: DbClientInvoice, feeIds: string[]): ClientInvoice {
   return {
     id: row.id,
     title: row.title || "",
+    invoiceNumber: row.invoice_number || "",
     client: row.client,
     status: row.status as ClientInvoiceStatus,
     transferDate: row.transfer_date || undefined,
