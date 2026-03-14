@@ -986,10 +986,7 @@ export default function ClientInvoiceDetailPage() {
                       <p className="text-sm font-medium">加入費用</p>
                       <div className="max-h-48 overflow-y-auto space-y-1">
                         {availableFees.map((f) => {
-                          const clientInfo = f.clientInfo as any;
-                          const fTotal = clientInfo?.items
-                            ? clientInfo.items.reduce((s: number, i: any) => s + (i.quantity || 0) * (i.unitPrice || 0), 0)
-                            : 0;
+                          const { amount: fTotal, currency: feeCur } = getFeeRevenue(f, clientOptions);
                           return (
                             <label key={f.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent cursor-pointer text-sm">
                               <Checkbox
@@ -1001,7 +998,7 @@ export default function ClientInvoiceDetailPage() {
                                 }}
                               />
                               <span className="flex-1 truncate">{f.title || "未命名"}</span>
-                              <span className="text-muted-foreground tabular-nums">{formatCurrency(fTotal)}</span>
+                              <span className="text-muted-foreground tabular-nums">{formatCurrency(fTotal, feeCur)}</span>
                             </label>
                           );
                         })}
