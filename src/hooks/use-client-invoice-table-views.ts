@@ -15,11 +15,16 @@ export const clientInvoiceFieldMetas: FieldMeta[] = [
   { key: "title", label: "標題", type: "text" },
   { key: "client", label: "客戶", type: "select" },
   { key: "status", label: "狀態", type: "select" },
+  { key: "billingChannel", label: "請款管道", type: "select" },
+  { key: "isRecordOnly", label: "純請款紀錄", type: "checkbox" },
   { key: "feeCount", label: "費用數", type: "computed" },
   { key: "totalAmount", label: "應收總額", type: "computed" },
+  { key: "recordCurrency", label: "幣別", type: "select" },
   { key: "serviceFee", label: "手續費", type: "computed" },
+  { key: "expectedCollectionDate", label: "預計收款時間", type: "date" },
+  { key: "actualCollectionDate", label: "實際收款時間", type: "date" },
   { key: "transferDate", label: "匯款日期", type: "date" },
-  { key: "note", label: "備註", type: "text" },
+  { key: "note", label: "客戶請款備註", type: "text" },
   { key: "createdBy", label: "建立者", type: "text" },
   { key: "createdAt", label: "建立時間", type: "date" },
 ];
@@ -40,6 +45,11 @@ function getFieldValue(
       const paid = inv.payments.reduce((s: number, p: any) => s + (p.type === "full" ? (p.noFee ? total : (p.amount || 0)) : (p.amount || 0)), 0);
       return inv.status === "collected" && paid < total ? total - paid : 0;
     }
+    case "billingChannel": return inv.billingChannel || "";
+    case "isRecordOnly": return !!inv.isRecordOnly;
+    case "recordCurrency": return inv.isRecordOnly ? (inv.recordCurrency || "TWD") : "";
+    case "expectedCollectionDate": return inv.expectedCollectionDate || "";
+    case "actualCollectionDate": return inv.actualCollectionDate || "";
     case "transferDate": return inv.transferDate || "";
     case "note": return inv.note;
     case "createdBy": return inv.createdBy;
@@ -85,10 +95,12 @@ function compareItems(
 
 const defaultColumnOrder = clientInvoiceFieldMetas.map((f) => f.key);
 const defaultColumnWidths: Record<string, number> = {
-  title: 220, client: 150, status: 100, feeCount: 80, totalAmount: 120,
-  serviceFee: 100, transferDate: 120, note: 200, createdBy: 100, createdAt: 120,
+  title: 220, client: 150, status: 100, billingChannel: 100, isRecordOnly: 100,
+  feeCount: 80, totalAmount: 120, recordCurrency: 80,
+  serviceFee: 100, expectedCollectionDate: 130, actualCollectionDate: 130,
+  transferDate: 120, note: 200, createdBy: 100, createdAt: 120,
 };
-const defaultHiddenColumns = ["createdBy", "transferDate"];
+const defaultHiddenColumns = ["createdBy", "transferDate", "isRecordOnly", "recordCurrency"];
 
 function createDefaultView(): TableView {
   return {

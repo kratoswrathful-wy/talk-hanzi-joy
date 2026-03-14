@@ -160,6 +160,22 @@ export default function ClientInvoicesPage() {
       render: (inv) => <StatusBadge status={inv.status} />,
     },
     {
+      key: "billingChannel",
+      label: "請款管道",
+      minWidth: 80,
+      render: (inv) => (
+        <span className="text-sm truncate">{inv.billingChannel || "—"}</span>
+      ),
+    },
+    {
+      key: "isRecordOnly",
+      label: "純請款紀錄",
+      minWidth: 80,
+      render: (inv) => (
+        <span className="text-sm">{inv.isRecordOnly ? "是" : "否"}</span>
+      ),
+    },
+    {
       key: "feeCount",
       label: "費用數",
       minWidth: 60,
@@ -179,6 +195,14 @@ export default function ClientInvoicesPage() {
       },
     },
     {
+      key: "recordCurrency",
+      label: "幣別",
+      minWidth: 60,
+      render: (inv) => (
+        <span className="text-sm">{inv.isRecordOnly ? (inv.recordCurrency || "TWD") : "—"}</span>
+      ),
+    },
+    {
       key: "serviceFee",
       label: "手續費",
       minWidth: 80,
@@ -188,6 +212,26 @@ export default function ClientInvoicesPage() {
         const fee = inv.status === "collected" && paid < t ? t - paid : 0;
         return <span className={cn("text-sm tabular-nums", fee > 0 && "text-destructive")}>{fee > 0 ? formatCurrency(fee) : "—"}</span>;
       },
+    },
+    {
+      key: "expectedCollectionDate",
+      label: "預計收款時間",
+      minWidth: 110,
+      render: (inv) => (
+        <span className="text-sm text-muted-foreground tabular-nums">
+          {inv.expectedCollectionDate ? formatDate(inv.expectedCollectionDate) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "actualCollectionDate",
+      label: "實際收款時間",
+      minWidth: 110,
+      render: (inv) => (
+        <span className="text-sm text-muted-foreground tabular-nums">
+          {inv.actualCollectionDate ? formatDate(inv.actualCollectionDate) : "—"}
+        </span>
+      ),
     },
     {
       key: "transferDate",
@@ -201,7 +245,7 @@ export default function ClientInvoicesPage() {
     },
     {
       key: "note",
-      label: "備註",
+      label: "客戶請款備註",
       minWidth: 100,
       render: (inv) => (
         <span className="text-sm text-muted-foreground truncate">{inv.note || "—"}</span>
