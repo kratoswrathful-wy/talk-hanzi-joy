@@ -85,6 +85,20 @@ function StatusBadge({ status }: { status: ClientInvoiceStatus }) {
 const formatCurrency = (n: number, code = "TWD") =>
   `${code} ${n.toLocaleString("zh-TW", { minimumFractionDigits: 0 })}`;
 
+/** Compute a single fee's revenue in its original client currency */
+function getFeeRevenue(fee: any, clientOptions: any[]): { amount: number; currency: string } {
+  const ci = fee.clientInfo as any;
+  if (!ci?.clientTaskItems) return { amount: 0, currency: "TWD" };
+  // For notFirstFee pages, revenue is attributed to the first fee, so skip
+  if (ci.notFirstFee) return { amount: 0, currency: "TWD" };
+  const amount = ci.clientTaskItems.reduce(
+    (s: number, i: any) => s + Number(i.unitCount || 0) * Number(i.clientPrice || 0), 0
+  );
+  const clientOpt = clientOptions.find((o: any) => o.label === ci.client);
+  const currency = clientOpt?.currency || "TWD";
+  return { amount, currency };
+}
+
 const formatTimestamp = (date: Date | string) => {
   const d = typeof date === "string" ? new Date(date) : date;
   const tz = getUserTimezone();
