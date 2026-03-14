@@ -198,6 +198,7 @@ export const clientInvoiceStore = {
     if (updates.transferDate !== undefined) dbUpdates.transfer_date = updates.transferDate || null;
     if (updates.note !== undefined) dbUpdates.note = updates.note;
     if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.invoiceNumber !== undefined) dbUpdates.invoice_number = updates.invoiceNumber;
     if (updates.payments !== undefined) dbUpdates.payments = updates.payments;
     if (updates.comments !== undefined) dbUpdates.comments = updates.comments;
     if (updates.edit_logs !== undefined) dbUpdates.edit_logs = updates.edit_logs;
