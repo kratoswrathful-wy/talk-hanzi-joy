@@ -66,10 +66,26 @@ function StatusBadge({ status }: { status: ClientInvoiceStatus }) {
 }
 
 import { formatDateTz as formatDate } from "@/lib/format-timestamp";
+import { selectOptionsStore } from "@/stores/select-options-store";
+import { currencyStore } from "@/stores/currency-store";
 
 const formatCurrency = (n: number, code = "TWD") =>
   `${code} ${n.toLocaleString("zh-TW", { minimumFractionDigits: 0 })}`;
 
+/** Compute a single fee's revenue in its original client currency */
+function getFeeRevenueTwd(fee: any): number {
+  const ci = fee.clientInfo as any;
+  if (!ci?.clientTaskItems) return 0;
+  if (ci.notFirstFee) return 0;
+  const amount = ci.clientTaskItems.reduce(
+    (s: number, i: any) => s + Number(i.unitCount || 0) * Number(i.clientPrice || 0), 0
+  );
+  const clientOpts = selectOptionsStore.getSortedOptions("client");
+  const clientOpt = clientOpts.find((o: any) => o.label === ci.client);
+  const cur = clientOpt?.currency || "TWD";
+  const rate = currencyStore.getTwdRate(cur);
+  return amount * rate;
+}
 const creatorNameCache = new Map<string, string>();
 
 function CreatorName({ uid }: { uid: string }) {
