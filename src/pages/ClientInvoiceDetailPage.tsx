@@ -482,10 +482,20 @@ export default function ClientInvoiceDetailPage() {
     toast.success("已刪除客戶請款單");
   };
 
-  const handleTitleChange = (newTitle: string) => {
-    const oldTitle = invoice.title;
-    clientInvoiceStore.updateInvoice(invoice.id, { title: newTitle });
-    trackChange("title", oldTitle, newTitle);
+  const handleTitleBlur = () => {
+    if (localTitle !== invoice.title) {
+      const oldTitle = invoice.title;
+      clientInvoiceStore.updateInvoice(invoice.id, { title: localTitle });
+      trackChange("title", oldTitle, localTitle);
+    }
+  };
+
+  const handleInvoiceNumberBlur = () => {
+    if (localInvoiceNumber !== (invoice.invoiceNumber || "")) {
+      const old = invoice.invoiceNumber || "";
+      clientInvoiceStore.updateInvoice(invoice.id, { invoiceNumber: localInvoiceNumber });
+      trackChange("invoiceNumber", old, localInvoiceNumber);
+    }
   };
 
   // Full payment dialog confirm
