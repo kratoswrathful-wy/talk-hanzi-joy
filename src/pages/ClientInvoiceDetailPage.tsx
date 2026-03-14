@@ -882,15 +882,31 @@ export default function ClientInvoiceDetailPage() {
               </TableBody>
               {(linkedFees.length > 0 || invoice.isRecordOnly) && (
                 <TableFooter>
+                  {/* Show original currency sum row when non-record-only and multi-currency */}
+                  {!invoice.isRecordOnly && feeTotalsByCurrency.size > 0 && (
+                    <TableRow>
+                      <TableCell className="text-left">
+                        <span className="text-muted-foreground text-sm">
+                          {invoice.isRecordOnly ? "純請款紀錄" : `共 ${linkedFees.length} 筆費用`}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                          <span className="font-medium tabular-nums cursor-default text-sm">{feeTotalOriginal}</span>
+                        </TooltipTrigger><TooltipContent className="text-xs">原幣值合計</TooltipContent></Tooltip></TooltipProvider>
+                      </TableCell>
+                      {editable && <TableCell />}
+                    </TableRow>
+                  )}
                   <TableRow>
                     <TableCell className="text-left">
                       <span className="text-muted-foreground text-sm">
-                        {invoice.isRecordOnly ? "純請款紀錄" : `共 ${linkedFees.length} 筆費用`}
+                        {invoice.isRecordOnly ? "純請款紀錄" : "應收總額 (TWD)"}
                       </span>
                     </TableCell>
                     <TableCell className="text-center">
                       <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-                        <span className="font-semibold tabular-nums cursor-default">{formatCurrency(total, recordCur)}</span>
+                        <span className="font-semibold tabular-nums cursor-default">{formatCurrency(total, invoice.isRecordOnly ? recordCur : "TWD")}</span>
                       </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
                     </TableCell>
                     {editable && !invoice.isRecordOnly && <TableCell />}
