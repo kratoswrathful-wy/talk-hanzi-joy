@@ -16,7 +16,7 @@ export const clientInvoiceFieldMetas: FieldMeta[] = [
   { key: "client", label: "客戶", type: "select" },
   { key: "status", label: "狀態", type: "select" },
   { key: "billingChannel", label: "請款管道", type: "select" },
-  { key: "isRecordOnly", label: "純請款紀錄", type: "boolean" },
+  { key: "isRecordOnly", label: "純請款紀錄", type: "checkbox" },
   { key: "feeCount", label: "費用數", type: "computed" },
   { key: "totalAmount", label: "應收總額", type: "computed" },
   { key: "recordCurrency", label: "幣別", type: "select" },
