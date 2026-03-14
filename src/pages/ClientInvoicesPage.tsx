@@ -146,6 +146,14 @@ export default function ClientInvoicesPage() {
       ),
     },
     {
+      key: "invoiceNumber",
+      label: "請款單編號",
+      minWidth: 100,
+      render: (inv) => (
+        <span className="text-sm truncate">{inv.invoiceNumber || "—"}</span>
+      ),
+    },
+    {
       key: "client",
       label: "客戶",
       minWidth: 100,
