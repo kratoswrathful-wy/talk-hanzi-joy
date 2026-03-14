@@ -124,9 +124,7 @@ export default function ClientInvoicesPage() {
     return feeIds.reduce((sum, fid) => {
       const fee = fees.find((f) => f.id === fid);
       if (!fee) return sum;
-      const clientInfo = fee.clientInfo as any;
-      if (!clientInfo?.items) return sum;
-      return sum + clientInfo.items.reduce((s: number, i: any) => s + (i.quantity || 0) * (i.unitPrice || 0), 0);
+      return sum + getFeeRevenueTwd(fee);
     }, 0);
   }, [fees]);
 
