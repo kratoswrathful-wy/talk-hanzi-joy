@@ -17,6 +17,7 @@ export interface ClientPaymentRecord {
 export interface ClientInvoice {
   id: string;
   title: string;
+  invoiceNumber: string;
   client: string;
   status: ClientInvoiceStatus;
   transferDate?: string;

@@ -1,0 +1,1 @@
+ALTER TABLE public.client_invoices ADD COLUMN invoice_number text NOT NULL DEFAULT '';

@@ -16,6 +16,7 @@ function notify() {
 interface DbClientInvoice {
   id: string;
   title: string;
+  invoice_number: string;
   client: string;
   status: string;
   transfer_date: string | null;
@@ -34,6 +35,7 @@ function dbToApp(row: DbClientInvoice, feeIds: string[]): ClientInvoice {
   return {
     id: row.id,
     title: row.title || "",
+    invoiceNumber: row.invoice_number || "",
     client: row.client,
     status: row.status as ClientInvoiceStatus,
     transferDate: row.transfer_date || undefined,
@@ -148,6 +150,7 @@ export const clientInvoiceStore = {
     const newInvoice: ClientInvoice = {
       id,
       title,
+      invoiceNumber: "",
       client,
       status: "pending",
       note: "",
@@ -187,7 +190,7 @@ export const clientInvoiceStore = {
     return newInvoice;
   },
 
-  updateInvoice: (id: string, updates: Partial<Pick<ClientInvoice, "status" | "transferDate" | "note" | "title" | "payments" | "isRecordOnly" | "recordAmount" | "recordCurrency" | "billingChannel" | "expectedCollectionDate" | "actualCollectionDate">> & Record<string, any>) => {
+  updateInvoice: (id: string, updates: Partial<Pick<ClientInvoice, "status" | "transferDate" | "note" | "title" | "invoiceNumber" | "payments" | "isRecordOnly" | "recordAmount" | "recordCurrency" | "billingChannel" | "expectedCollectionDate" | "actualCollectionDate">> & Record<string, any>) => {
     invoices = invoices.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv));
     notify();
 
@@ -196,6 +199,7 @@ export const clientInvoiceStore = {
     if (updates.transferDate !== undefined) dbUpdates.transfer_date = updates.transferDate || null;
     if (updates.note !== undefined) dbUpdates.note = updates.note;
     if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.invoiceNumber !== undefined) dbUpdates.invoice_number = updates.invoiceNumber;
     if (updates.payments !== undefined) dbUpdates.payments = updates.payments;
     if (updates.comments !== undefined) dbUpdates.comments = updates.comments;
     if (updates.edit_logs !== undefined) dbUpdates.edit_logs = updates.edit_logs;

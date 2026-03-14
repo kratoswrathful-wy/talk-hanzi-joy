@@ -13,6 +13,7 @@ export { countConditions };
 
 export const clientInvoiceFieldMetas: FieldMeta[] = [
   { key: "title", label: "標題", type: "text" },
+  { key: "invoiceNumber", label: "請款單編號", type: "text" },
   { key: "client", label: "客戶", type: "select" },
   { key: "status", label: "狀態", type: "select" },
   { key: "billingChannel", label: "請款管道", type: "select" },
@@ -36,6 +37,7 @@ function getFieldValue(
 ): string | number | boolean {
   switch (field) {
     case "title": return inv.title;
+    case "invoiceNumber": return inv.invoiceNumber || "";
     case "client": return inv.client;
     case "status": return inv.status;
     case "feeCount": return inv.feeIds.length;
@@ -95,7 +97,7 @@ function compareItems(
 
 const defaultColumnOrder = clientInvoiceFieldMetas.map((f) => f.key);
 const defaultColumnWidths: Record<string, number> = {
-  title: 220, client: 150, status: 100, billingChannel: 100, isRecordOnly: 100,
+  title: 220, invoiceNumber: 140, client: 150, status: 100, billingChannel: 100, isRecordOnly: 100,
   feeCount: 80, totalAmount: 120, recordCurrency: 80,
   serviceFee: 100, expectedCollectionDate: 130, actualCollectionDate: 130,
   transferDate: 120, note: 200, createdBy: 100, createdAt: 120,
