@@ -694,8 +694,10 @@ export default function ClientInvoiceDetailPage() {
               ) : (
                 <Input
                   ref={titleInputRef}
-                  value={invoice.title}
-                  onChange={(e) => handleTitleChange(e.target.value)}
+                  value={localTitle}
+                  onChange={(e) => setLocalTitle(e.target.value)}
+                  onBlur={handleTitleBlur}
+                  onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                   onFocus={(e) => e.target.select()}
                   placeholder="客戶請款單標題"
                   className="text-2xl font-semibold tracking-tight border-0 shadow-none px-0 h-auto py-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
