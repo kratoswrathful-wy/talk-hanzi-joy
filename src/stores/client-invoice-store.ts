@@ -16,6 +16,7 @@ function notify() {
 interface DbClientInvoice {
   id: string;
   title: string;
+  invoice_number: string;
   client: string;
   status: string;
   transfer_date: string | null;
