@@ -717,12 +717,10 @@ export default function ClientInvoiceDetailPage() {
               <span className="text-sm text-muted-foreground">{invoice.invoiceNumber || "—"}</span>
             ) : (
               <Input
-                value={invoice.invoiceNumber || ""}
-                onChange={(e) => {
-                  const old = invoice.invoiceNumber || "";
-                  clientInvoiceStore.updateInvoice(invoice.id, { invoiceNumber: e.target.value });
-                  trackChange("invoiceNumber", old, e.target.value);
-                }}
+                value={localInvoiceNumber}
+                onChange={(e) => setLocalInvoiceNumber(e.target.value)}
+                onBlur={handleInvoiceNumberBlur}
+                onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                 placeholder="輸入請款單編號"
                 className="h-8 text-sm max-w-xs"
               />
