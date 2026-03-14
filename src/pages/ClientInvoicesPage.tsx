@@ -66,10 +66,26 @@ function StatusBadge({ status }: { status: ClientInvoiceStatus }) {
 }
 
 import { formatDateTz as formatDate } from "@/lib/format-timestamp";
+import { selectOptionsStore } from "@/stores/select-options-store";
+import { currencyStore } from "@/stores/currency-store";
 
 const formatCurrency = (n: number, code = "TWD") =>
   `${code} ${n.toLocaleString("zh-TW", { minimumFractionDigits: 0 })}`;
 
+/** Compute a single fee's revenue in its original client currency */
+function getFeeRevenueTwd(fee: any): number {
+  const ci = fee.clientInfo as any;
+  if (!ci?.clientTaskItems) return 0;
+  if (ci.notFirstFee) return 0;
+  const amount = ci.clientTaskItems.reduce(
+    (s: number, i: any) => s + Number(i.unitCount || 0) * Number(i.clientPrice || 0), 0
+  );
+  const clientOpts = selectOptionsStore.getSortedOptions("client");
+  const clientOpt = clientOpts.find((o: any) => o.label === ci.client);
+  const cur = clientOpt?.currency || "TWD";
+  const rate = currencyStore.getTwdRate(cur);
+  return amount * rate;
+}
 const creatorNameCache = new Map<string, string>();
 
 function CreatorName({ uid }: { uid: string }) {
@@ -108,9 +124,7 @@ export default function ClientInvoicesPage() {
     return feeIds.reduce((sum, fid) => {
       const fee = fees.find((f) => f.id === fid);
       if (!fee) return sum;
-      const clientInfo = fee.clientInfo as any;
-      if (!clientInfo?.items) return sum;
-      return sum + clientInfo.items.reduce((s: number, i: any) => s + (i.quantity || 0) * (i.unitPrice || 0), 0);
+      return sum + getFeeRevenueTwd(fee);
     }, 0);
   }, [fees]);
 
@@ -197,8 +211,8 @@ export default function ClientInvoicesPage() {
         const rawAmount = inv.isRecordOnly ? (inv.recordAmount || 0) : total;
         const cur = inv.isRecordOnly ? (inv.recordCurrency || "TWD") : "TWD";
         const twdAmount = cur !== "TWD" ? rawAmount * getTwdRate(cur) : rawAmount;
-        const displayText = cur !== "TWD" ? formatCurrency(twdAmount, "TWD") : formatCurrency(rawAmount, "TWD");
-        const tooltipText = cur !== "TWD" ? `原幣值 ${formatCurrency(rawAmount, cur)}（匯率 1 ${cur} = ${getTwdRate(cur)} TWD）` : "自動計算";
+        const displayText = formatCurrency(Math.round(twdAmount), "TWD");
+        const tooltipText = inv.isRecordOnly && cur !== "TWD" ? `原幣值 ${formatCurrency(rawAmount, cur)}（匯率 1 ${cur} = ${getTwdRate(cur)} TWD）` : "自動計算";
         return <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-sm tabular-nums cursor-default">{displayText}</span></TooltipTrigger><TooltipContent className="text-xs">{tooltipText}</TooltipContent></Tooltip></TooltipProvider>;
       },
     },

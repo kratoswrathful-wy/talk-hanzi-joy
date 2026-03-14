@@ -85,6 +85,20 @@ function StatusBadge({ status }: { status: ClientInvoiceStatus }) {
 const formatCurrency = (n: number, code = "TWD") =>
   `${code} ${n.toLocaleString("zh-TW", { minimumFractionDigits: 0 })}`;
 
+/** Compute a single fee's revenue in its original client currency */
+function getFeeRevenue(fee: any, clientOptions: any[]): { amount: number; currency: string } {
+  const ci = fee.clientInfo as any;
+  if (!ci?.clientTaskItems) return { amount: 0, currency: "TWD" };
+  // For notFirstFee pages, revenue is attributed to the first fee, so skip
+  if (ci.notFirstFee) return { amount: 0, currency: "TWD" };
+  const amount = ci.clientTaskItems.reduce(
+    (s: number, i: any) => s + Number(i.unitCount || 0) * Number(i.clientPrice || 0), 0
+  );
+  const clientOpt = clientOptions.find((o: any) => o.label === ci.client);
+  const currency = clientOpt?.currency || "TWD";
+  return { amount, currency };
+}
+
 const formatTimestamp = (date: Date | string) => {
   const d = typeof date === "string" ? new Date(date) : date;
   const tz = getUserTimezone();
@@ -352,6 +366,45 @@ export default function ClientInvoiceDetailPage() {
 
   const clientInvoicesLoaded = useClientInvoicesLoaded();
 
+  const linkedFees = useMemo(() => {
+    if (!invoice) return [];
+    return invoice.feeIds
+      .map((fid) => fees.find((f) => f.id === fid))
+      .filter(Boolean) as typeof fees;
+  }, [invoice, fees]);
+
+  // Total receivable from linked fees – sum original currency then convert to TWD
+  const feeTotalsByCurrency = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const f of linkedFees) {
+      const { amount, currency } = getFeeRevenue(f, clientOptions);
+      map.set(currency, (map.get(currency) || 0) + amount);
+    }
+    return map;
+  }, [linkedFees, clientOptions]);
+
+  const feeTotalTwd = useMemo(() => {
+    let total = 0;
+    feeTotalsByCurrency.forEach((amount, cur) => {
+      total += amount * getTwdRate(cur);
+    });
+    return Math.round(total);
+  }, [feeTotalsByCurrency, getTwdRate]);
+
+  // For display in the fee table footer: show original currency sums
+  const feeTotalOriginal = useMemo(() => {
+    const entries = Array.from(feeTotalsByCurrency.entries());
+    if (entries.length === 0) return "TWD 0";
+    if (entries.length === 1) return formatCurrency(entries[0][1], entries[0][0]);
+    return entries.map(([cur, amt]) => formatCurrency(amt, cur)).join(" + ");
+  }, [feeTotalsByCurrency]);
+
+  // Buffered title input
+  const [localTitle, setLocalTitle] = useState(invoice?.title || "");
+  const [localInvoiceNumber, setLocalInvoiceNumber] = useState(invoice?.invoiceNumber || "");
+  useEffect(() => { if (invoice) setLocalTitle(invoice.title); }, [invoice?.id]);
+  useEffect(() => { if (invoice) setLocalInvoiceNumber(invoice.invoiceNumber || ""); }, [invoice?.id]);
+
   if (!invoice) {
     if (!clientInvoicesLoaded) {
       return (
@@ -368,20 +421,9 @@ export default function ClientInvoiceDetailPage() {
     );
   }
 
-  const linkedFees = invoice.feeIds
-    .map((fid) => fees.find((f) => f.id === fid))
-    .filter(Boolean) as typeof fees;
-
-  // Total receivable from linked fees
-  const feeTotal = linkedFees.reduce((sum, f) => {
-    const clientInfo = f.clientInfo as any;
-    if (!clientInfo?.items) return sum;
-    return sum + clientInfo.items.reduce((s: number, i: any) => s + (i.quantity || 0) * (i.unitPrice || 0), 0);
-  }, 0);
-
-  // If record-only, the total is the recordAmount
+  // If record-only, the total is the recordAmount (in original currency)
   const recordCur = invoice.recordCurrency || "TWD";
-  const total = invoice.isRecordOnly ? (invoice.recordAmount || 0) : feeTotal;
+  const total = invoice.isRecordOnly ? (invoice.recordAmount || 0) : feeTotalTwd;
   const recordTwdRate = getTwdRate(recordCur);
   const totalInTwd = invoice.isRecordOnly && recordCur !== "TWD" ? total * recordTwdRate : null;
 
@@ -440,10 +482,20 @@ export default function ClientInvoiceDetailPage() {
     toast.success("已刪除客戶請款單");
   };
 
-  const handleTitleChange = (newTitle: string) => {
-    const oldTitle = invoice.title;
-    clientInvoiceStore.updateInvoice(invoice.id, { title: newTitle });
-    trackChange("title", oldTitle, newTitle);
+  const handleTitleBlur = () => {
+    if (localTitle !== invoice.title) {
+      const oldTitle = invoice.title;
+      clientInvoiceStore.updateInvoice(invoice.id, { title: localTitle });
+      trackChange("title", oldTitle, localTitle);
+    }
+  };
+
+  const handleInvoiceNumberBlur = () => {
+    if (localInvoiceNumber !== (invoice.invoiceNumber || "")) {
+      const old = invoice.invoiceNumber || "";
+      clientInvoiceStore.updateInvoice(invoice.id, { invoiceNumber: localInvoiceNumber });
+      trackChange("invoiceNumber", old, localInvoiceNumber);
+    }
   };
 
   // Full payment dialog confirm
@@ -642,8 +694,10 @@ export default function ClientInvoiceDetailPage() {
               ) : (
                 <Input
                   ref={titleInputRef}
-                  value={invoice.title}
-                  onChange={(e) => handleTitleChange(e.target.value)}
+                  value={localTitle}
+                  onChange={(e) => setLocalTitle(e.target.value)}
+                  onBlur={handleTitleBlur}
+                  onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                   onFocus={(e) => e.target.select()}
                   placeholder="客戶請款單標題"
                   className="text-2xl font-semibold tracking-tight border-0 shadow-none px-0 h-auto py-0 focus-visible:ring-0 focus-visible:ring-offset-0 bg-transparent"
@@ -663,12 +717,10 @@ export default function ClientInvoiceDetailPage() {
               <span className="text-sm text-muted-foreground">{invoice.invoiceNumber || "—"}</span>
             ) : (
               <Input
-                value={invoice.invoiceNumber || ""}
-                onChange={(e) => {
-                  const old = invoice.invoiceNumber || "";
-                  clientInvoiceStore.updateInvoice(invoice.id, { invoiceNumber: e.target.value });
-                  trackChange("invoiceNumber", old, e.target.value);
-                }}
+                value={localInvoiceNumber}
+                onChange={(e) => setLocalInvoiceNumber(e.target.value)}
+                onBlur={handleInvoiceNumberBlur}
+                onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                 placeholder="輸入請款單編號"
                 className="h-8 text-sm max-w-xs"
               />
@@ -790,10 +842,7 @@ export default function ClientInvoiceDetailPage() {
                 ) : (
                   <>
                     {linkedFees.map((fee) => {
-                      const clientInfo = fee.clientInfo as any;
-                      const ft = clientInfo?.items
-                        ? clientInfo.items.reduce((s: number, i: any) => s + (i.quantity || 0) * (i.unitPrice || 0), 0)
-                        : 0;
+                      const { amount: ft, currency: feeCur } = getFeeRevenue(fee, clientOptions);
                       return (
                         <TableRow key={fee.id}>
                           <TableCell>
@@ -803,8 +852,8 @@ export default function ClientInvoiceDetailPage() {
                           </TableCell>
                           <TableCell className="text-center text-sm tabular-nums">
                             <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-                              <span className="cursor-default">{formatCurrency(ft)}</span>
-                            </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
+                              <span className="cursor-default">{formatCurrency(ft, feeCur)}</span>
+                            </TooltipTrigger><TooltipContent className="text-xs">自動計算{feeCur !== "TWD" ? `（匯率 1 ${feeCur} = ${getTwdRate(feeCur)} TWD）` : ""}</TooltipContent></Tooltip></TooltipProvider>
                           </TableCell>
                           {editable && (
                             <TableCell className="text-center">
@@ -833,15 +882,31 @@ export default function ClientInvoiceDetailPage() {
               </TableBody>
               {(linkedFees.length > 0 || invoice.isRecordOnly) && (
                 <TableFooter>
+                  {/* Show original currency sum row when non-record-only and multi-currency */}
+                  {!invoice.isRecordOnly && feeTotalsByCurrency.size > 0 && (
+                    <TableRow>
+                      <TableCell className="text-left">
+                        <span className="text-muted-foreground text-sm">
+                          {invoice.isRecordOnly ? "純請款紀錄" : `共 ${linkedFees.length} 筆費用`}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+                          <span className="font-medium tabular-nums cursor-default text-sm">{feeTotalOriginal}</span>
+                        </TooltipTrigger><TooltipContent className="text-xs">原幣值合計</TooltipContent></Tooltip></TooltipProvider>
+                      </TableCell>
+                      {editable && <TableCell />}
+                    </TableRow>
+                  )}
                   <TableRow>
                     <TableCell className="text-left">
                       <span className="text-muted-foreground text-sm">
-                        {invoice.isRecordOnly ? "純請款紀錄" : `共 ${linkedFees.length} 筆費用`}
+                        {invoice.isRecordOnly ? "純請款紀錄" : "應收總額 (TWD)"}
                       </span>
                     </TableCell>
                     <TableCell className="text-center">
                       <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-                        <span className="font-semibold tabular-nums cursor-default">{formatCurrency(total, recordCur)}</span>
+                        <span className="font-semibold tabular-nums cursor-default">{formatCurrency(total, invoice.isRecordOnly ? recordCur : "TWD")}</span>
                       </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
                     </TableCell>
                     {editable && !invoice.isRecordOnly && <TableCell />}
@@ -921,10 +986,7 @@ export default function ClientInvoiceDetailPage() {
                       <p className="text-sm font-medium">加入費用</p>
                       <div className="max-h-48 overflow-y-auto space-y-1">
                         {availableFees.map((f) => {
-                          const clientInfo = f.clientInfo as any;
-                          const fTotal = clientInfo?.items
-                            ? clientInfo.items.reduce((s: number, i: any) => s + (i.quantity || 0) * (i.unitPrice || 0), 0)
-                            : 0;
+                          const { amount: fTotal, currency: feeCur } = getFeeRevenue(f, clientOptions);
                           return (
                             <label key={f.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent cursor-pointer text-sm">
                               <Checkbox
@@ -936,7 +998,7 @@ export default function ClientInvoiceDetailPage() {
                                 }}
                               />
                               <span className="flex-1 truncate">{f.title || "未命名"}</span>
-                              <span className="text-muted-foreground tabular-nums">{formatCurrency(fTotal)}</span>
+                              <span className="text-muted-foreground tabular-nums">{formatCurrency(fTotal, feeCur)}</span>
                             </label>
                           );
                         })}
