@@ -656,6 +656,25 @@ export default function ClientInvoiceDetailPage() {
             </div>
           </div>
 
+          {/* Invoice number row */}
+          <div className="flex items-center gap-3">
+            <Label className="text-xs text-muted-foreground whitespace-nowrap">請款單編號</Label>
+            {isCollected ? (
+              <span className="text-sm text-muted-foreground">{invoice.invoiceNumber || "—"}</span>
+            ) : (
+              <Input
+                value={invoice.invoiceNumber || ""}
+                onChange={(e) => {
+                  const old = invoice.invoiceNumber || "";
+                  clientInvoiceStore.updateInvoice(invoice.id, { invoiceNumber: e.target.value });
+                  trackChange("invoiceNumber", old, e.target.value);
+                }}
+                placeholder="輸入請款單編號"
+                className="h-8 text-sm max-w-xs"
+              />
+            )}
+          </div>
+
           <Separator />
 
           {/* Fields: two columns */}
