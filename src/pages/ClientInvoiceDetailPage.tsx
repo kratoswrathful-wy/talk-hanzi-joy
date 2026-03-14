@@ -842,10 +842,7 @@ export default function ClientInvoiceDetailPage() {
                 ) : (
                   <>
                     {linkedFees.map((fee) => {
-                      const clientInfo = fee.clientInfo as any;
-                      const ft = clientInfo?.items
-                        ? clientInfo.items.reduce((s: number, i: any) => s + (i.quantity || 0) * (i.unitPrice || 0), 0)
-                        : 0;
+                      const { amount: ft, currency: feeCur } = getFeeRevenue(fee, clientOptions);
                       return (
                         <TableRow key={fee.id}>
                           <TableCell>
@@ -855,8 +852,8 @@ export default function ClientInvoiceDetailPage() {
                           </TableCell>
                           <TableCell className="text-center text-sm tabular-nums">
                             <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-                              <span className="cursor-default">{formatCurrency(ft)}</span>
-                            </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
+                              <span className="cursor-default">{formatCurrency(ft, feeCur)}</span>
+                            </TooltipTrigger><TooltipContent className="text-xs">自動計算{feeCur !== "TWD" ? `（匯率 1 ${feeCur} = ${getTwdRate(feeCur)} TWD）` : ""}</TooltipContent></Tooltip></TooltipProvider>
                           </TableCell>
                           {editable && (
                             <TableCell className="text-center">
