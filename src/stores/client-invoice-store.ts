@@ -150,6 +150,7 @@ export const clientInvoiceStore = {
     const newInvoice: ClientInvoice = {
       id,
       title,
+      invoiceNumber: "",
       client,
       status: "pending",
       note: "",
