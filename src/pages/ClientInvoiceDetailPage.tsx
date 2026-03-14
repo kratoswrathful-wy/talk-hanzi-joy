@@ -386,18 +386,37 @@ export default function ClientInvoiceDetailPage() {
     .map((fid) => fees.find((f) => f.id === fid))
     .filter(Boolean) as typeof fees;
 
-  // Total receivable from linked fees
-  const feeTotal = linkedFees.reduce((sum, f) => {
-    const clientInfo = f.clientInfo as any;
-    if (!clientInfo?.items) return sum;
-    return sum + clientInfo.items.reduce((s: number, i: any) => s + (i.quantity || 0) * (i.unitPrice || 0), 0);
-  }, 0);
+  // Total receivable from linked fees – sum original currency then convert to TWD
+  const feeTotalsByCurrency = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const f of linkedFees) {
+      const { amount, currency } = getFeeRevenue(f, clientOptions);
+      map.set(currency, (map.get(currency) || 0) + amount);
+    }
+    return map;
+  }, [linkedFees, clientOptions]);
 
-  // If record-only, the total is the recordAmount
+  const feeTotalTwd = useMemo(() => {
+    let total = 0;
+    feeTotalsByurrency.forEach((amount, cur) => {
+      total += amount * getTwdRate(cur);
+    });
+    return Math.round(total);
+  }, [feeTotalsByurrency, getTwdRate]);
+
+  // If record-only, the total is the recordAmount (in original currency)
   const recordCur = invoice.recordCurrency || "TWD";
-  const total = invoice.isRecordOnly ? (invoice.recordAmount || 0) : feeTotal;
+  const total = invoice.isRecordOnly ? (invoice.recordAmount || 0) : feeTotalTwd;
   const recordTwdRate = getTwdRate(recordCur);
   const totalInTwd = invoice.isRecordOnly && recordCur !== "TWD" ? total * recordTwdRate : null;
+
+  // For display in the fee table footer: show original currency sums
+  const feeTotalOriginal = useMemo(() => {
+    const entries = Array.from(feeTotalsByurrency.entries());
+    if (entries.length === 0) return "TWD 0";
+    if (entries.length === 1) return formatCurrency(entries[0][1], entries[0][0]);
+    return entries.map(([cur, amt]) => formatCurrency(amt, cur)).join(" + ");
+  }, [feeTotalsByurrency]);
 
   const isCollected = invoice.status === "collected";
   const editable = isAdmin && !isCollected;
