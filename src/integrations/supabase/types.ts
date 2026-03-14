@@ -284,6 +284,7 @@ export type Database = {
           env: string
           expected_collection_date: string | null
           id: string
+          invoice_number: string
           is_record_only: boolean
           note: string
           payments: Json
@@ -305,6 +306,7 @@ export type Database = {
           env?: string
           expected_collection_date?: string | null
           id?: string
+          invoice_number?: string
           is_record_only?: boolean
           note?: string
           payments?: Json
@@ -326,6 +328,7 @@ export type Database = {
           env?: string
           expected_collection_date?: string | null
           id?: string
+          invoice_number?: string
           is_record_only?: boolean
           note?: string
           payments?: Json
