@@ -37,6 +37,7 @@ function getFieldValue(
 ): string | number | boolean {
   switch (field) {
     case "title": return inv.title;
+    case "invoiceNumber": return inv.invoiceNumber || "";
     case "client": return inv.client;
     case "status": return inv.status;
     case "feeCount": return inv.feeIds.length;
