@@ -45,6 +45,11 @@ function getFieldValue(
       const paid = inv.payments.reduce((s: number, p: any) => s + (p.type === "full" ? (p.noFee ? total : (p.amount || 0)) : (p.amount || 0)), 0);
       return inv.status === "collected" && paid < total ? total - paid : 0;
     }
+    case "billingChannel": return inv.billingChannel || "";
+    case "isRecordOnly": return !!inv.isRecordOnly;
+    case "recordCurrency": return inv.isRecordOnly ? (inv.recordCurrency || "TWD") : "";
+    case "expectedCollectionDate": return inv.expectedCollectionDate || "";
+    case "actualCollectionDate": return inv.actualCollectionDate || "";
     case "transferDate": return inv.transferDate || "";
     case "note": return inv.note;
     case "createdBy": return inv.createdBy;
