@@ -13,6 +13,7 @@ export { countConditions };
 
 export const clientInvoiceFieldMetas: FieldMeta[] = [
   { key: "title", label: "標題", type: "text" },
+  { key: "invoiceNumber", label: "請款單編號", type: "text" },
   { key: "client", label: "客戶", type: "select" },
   { key: "status", label: "狀態", type: "select" },
   { key: "billingChannel", label: "請款管道", type: "select" },
