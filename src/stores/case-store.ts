@@ -427,23 +427,23 @@ async function duplicate(id: string): Promise<{ newCase: CaseRecord; renames: { 
   const exactMatch = matching.find((c) => c.title === baseTitle);
   if (exactMatch) {
     const oldTitle = exactMatch.title;
-    const newTitle = `${baseTitle}A`;
+    const newTitle = `${prefix}${todayStr}A${suffix}`;
     await update(exactMatch.id, { title: newTitle });
     renames.push({ oldTitle, newTitle });
   }
 
   let maxCode = exactMatch ? "A".charCodeAt(0) : "A".charCodeAt(0) - 1;
   for (const c of matching) {
-    const suffixMatch = c.title.match(/([A-Z])$/);
-    if (suffixMatch && c.title === `${baseTitle}${suffixMatch[1]}`) {
-      const code = suffixMatch[1].charCodeAt(0);
+    const letterMatch = c.title.match(new RegExp(`^${escapedPrefix}${todayStr}([A-Z])${escapedSuffix}$`));
+    if (letterMatch) {
+      const code = letterMatch[1].charCodeAt(0);
       if (code > maxCode) maxCode = code;
     }
   }
 
   const nextLetter = String.fromCharCode(maxCode + 1);
   const cleaned = clearDuplicateFields(rest);
-  const newCase = await create({ ...cleaned, title: `${baseTitle}${nextLetter}` });
+  const newCase = await create({ ...cleaned, title: `${prefix}${todayStr}${nextLetter}${suffix}` });
   return newCase ? { newCase, renames } : null;
 }
 

@@ -421,8 +421,13 @@ export default function ClientInvoiceDetailPage() {
     );
   }
 
+  // Derive currency from client settings
+  const clientCurrency = useMemo(() => {
+    const clientOpt = clientOptions.find((o) => o.label === invoice.client);
+    return clientOpt?.currency || "TWD";
+  }, [clientOptions, invoice.client]);
   // If record-only, the total is the recordAmount (in original currency)
-  const recordCur = invoice.recordCurrency || "TWD";
+  const recordCur = invoice.isRecordOnly ? (invoice.recordCurrency || clientCurrency) : clientCurrency;
   const total = invoice.isRecordOnly ? (invoice.recordAmount || 0) : feeTotalTwd;
   const recordTwdRate = getTwdRate(recordCur);
   const totalInTwd = invoice.isRecordOnly && recordCur !== "TWD" ? total * recordTwdRate : null;
