@@ -61,7 +61,24 @@ export function useAuth() {
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      // If session exists but user didn't choose "keep logged in" and
+      // sessionStorage flag is gone (browser was restarted), sign out.
+      if (session) {
+        const keepLoggedIn = localStorage.getItem("keep_logged_in") === "true";
+        const sessionActive = sessionStorage.getItem("session_active") === "true";
+        if (!keepLoggedIn && !sessionActive) {
+          // Browser was restarted without "keep logged in" — clear session
+          await supabase.auth.signOut({ scope: "local" });
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setRoles([]);
+          setLoading(false);
+          return;
+        }
+      }
+
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
