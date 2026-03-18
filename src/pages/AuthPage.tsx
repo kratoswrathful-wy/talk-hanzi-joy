@@ -38,7 +38,17 @@ export default function AuthPage() {
 
     if (isLogin) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) toast.error(error.message);
+      if (error) {
+        toast.error(error.message);
+      } else {
+        // Persist keep-logged-in preference
+        if (keepLoggedIn) {
+          localStorage.setItem("keep_logged_in", "true");
+        } else {
+          localStorage.removeItem("keep_logged_in");
+          sessionStorage.setItem("session_active", "true");
+        }
+      }
     } else {
       const { error } = await supabase.auth.signUp({
         email,

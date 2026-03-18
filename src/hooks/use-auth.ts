@@ -77,9 +77,22 @@ export function useAuth() {
   const isAdmin = roles.some((r) => r.role === "pm" || r.role === "executive");
   const primaryRole = roles.length > 0 ? roles[0].role : "member";
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-  };
+  const signOut = useCallback(async () => {
+    try {
+      // Clear keep-logged-in flags
+      localStorage.removeItem("keep_logged_in");
+      sessionStorage.removeItem("session_active");
+      // Use local scope so sign-out works even if network is down
+      await supabase.auth.signOut({ scope: "local" });
+    } catch (e) {
+      console.error("Sign out error:", e);
+    }
+    // Force clear state regardless
+    setUser(null);
+    setSession(null);
+    setProfile(null);
+    setRoles([]);
+  }, []);
 
   return {
     user,
