@@ -399,6 +399,13 @@ export default function ClientInvoiceDetailPage() {
     return entries.map(([cur, amt]) => formatCurrency(amt, cur)).join(" + ");
   }, [feeTotalsByCurrency]);
 
+  // Derive currency from client settings (must be before early return)
+  const clientCurrency = useMemo(() => {
+    if (!invoice) return "TWD";
+    const clientOpt = clientOptions.find((o) => o.label === invoice.client);
+    return clientOpt?.currency || "TWD";
+  }, [clientOptions, invoice?.client]);
+
   // Buffered title input
   const [localTitle, setLocalTitle] = useState(invoice?.title || "");
   const [localInvoiceNumber, setLocalInvoiceNumber] = useState(invoice?.invoiceNumber || "");
@@ -421,11 +428,6 @@ export default function ClientInvoiceDetailPage() {
     );
   }
 
-  // Derive currency from client settings
-  const clientCurrency = useMemo(() => {
-    const clientOpt = clientOptions.find((o) => o.label === invoice.client);
-    return clientOpt?.currency || "TWD";
-  }, [clientOptions, invoice.client]);
   // If record-only, the total is the recordAmount (in original currency)
   const recordCur = invoice.isRecordOnly ? (invoice.recordCurrency || clientCurrency) : clientCurrency;
   const total = invoice.isRecordOnly ? (invoice.recordAmount || 0) : feeTotalTwd;
