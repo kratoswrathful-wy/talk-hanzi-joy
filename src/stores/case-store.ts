@@ -399,15 +399,20 @@ async function duplicate(id: string): Promise<{ newCase: CaseRecord; renames: { 
   // Extract prefix: everything before the 6-digit date
   const dateMatch = source.title.match(/^(.*?)(\d{6})(_.+)?$/);
   let prefix: string;
+  let suffix: string;
   if (dateMatch) {
     prefix = dateMatch[1]; // e.g. "God of War "
+    suffix = dateMatch[3] || ""; // e.g. "_作業"
   } else {
     prefix = source.title + " ";
+    suffix = "";
   }
-  const baseTitle = `${prefix}${todayStr}`;
+  const baseTitle = `${prefix}${todayStr}${suffix}`;
 
-  // Find all existing cases with the same prefix+date pattern
-  const pattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}${todayStr}([A-Z])?$`);
+  // Find all existing cases with the same prefix+date+suffix pattern
+  const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escapedSuffix = suffix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`^${escapedPrefix}${todayStr}([A-Z])?${escapedSuffix}$`);
   const matching = cases.filter((c) => pattern.test(c.title));
 
   const renames: { oldTitle: string; newTitle: string }[] = [];
