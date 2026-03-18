@@ -26,50 +26,43 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (userId: string) => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
-    setProfile(data);
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
+      setProfile(data);
+    } catch (e) {
+      console.error("fetchProfile error:", e);
+    }
   }, []);
 
   const fetchRoles = useCallback(async (userId: string) => {
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
-    setRoles((data as UserRole[]) || []);
+    try {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+      setRoles((data as UserRole[]) || []);
+    } catch (e) {
+      console.error("fetchRoles error:", e);
+    }
   }, []);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          // Use setTimeout to avoid potential deadlocks
-          setTimeout(() => {
-            fetchProfile(session.user.id);
-            fetchRoles(session.user.id);
-          }, 0);
-        } else {
-          setProfile(null);
-          setRoles([]);
-        }
-        setLoading(false);
-      }
-    );
+    let mounted = true;
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      // If session exists but user didn't choose "keep logged in" and
-      // sessionStorage flag is gone (browser was restarted), sign out.
-      if (session) {
+    // 1) Restore session from storage FIRST
+    supabase.auth.getSession().then(({ data: { session: restored } }) => {
+      if (!mounted) return;
+
+      // "Keep logged in" check: if browser was restarted without the flag, clear session
+      if (restored) {
         const keepLoggedIn = localStorage.getItem("keep_logged_in") === "true";
         const sessionActive = sessionStorage.getItem("session_active") === "true";
         if (!keepLoggedIn && !sessionActive) {
-          // Browser was restarted without "keep logged in" — clear session
-          await supabase.auth.signOut({ scope: "local" });
+          supabase.auth.signOut({ scope: "local" });
           setSession(null);
           setUser(null);
           setProfile(null);
@@ -79,16 +72,42 @@ export function useAuth() {
         }
       }
 
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-        fetchRoles(session.user.id);
+      setSession(restored);
+      setUser(restored?.user ?? null);
+      if (restored?.user) {
+        fetchProfile(restored.user.id);
+        fetchRoles(restored.user.id);
       }
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    // 2) Listen for SUBSEQUENT auth changes (sign-in, sign-out, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, newSession) => {
+        if (!mounted) return;
+        // Skip the initial session event — we already handled it above
+        if (event === "INITIAL_SESSION") return;
+
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
+
+        if (newSession?.user) {
+          // Fire-and-forget to avoid deadlocks in the callback
+          setTimeout(() => {
+            fetchProfile(newSession.user.id);
+            fetchRoles(newSession.user.id);
+          }, 0);
+        } else {
+          setProfile(null);
+          setRoles([]);
+        }
+      }
+    );
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [fetchProfile, fetchRoles]);
 
   const isAdmin = roles.some((r) => r.role === "pm" || r.role === "executive");
@@ -96,15 +115,12 @@ export function useAuth() {
 
   const signOut = useCallback(async () => {
     try {
-      // Clear keep-logged-in flags
       localStorage.removeItem("keep_logged_in");
       sessionStorage.removeItem("session_active");
-      // Use local scope so sign-out works even if network is down
       await supabase.auth.signOut({ scope: "local" });
     } catch (e) {
       console.error("Sign out error:", e);
     }
-    // Force clear state regardless
     setUser(null);
     setSession(null);
     setProfile(null);
