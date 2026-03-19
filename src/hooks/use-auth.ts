@@ -28,28 +28,34 @@ export function useAuth() {
   const [loading, setLoading] = useState(!initialSnapshot.ready);
 
   const fetchProfile = useCallback(async (userId: string) => {
-    try {
-      const { data } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single();
-      setProfile(data);
-    } catch (e) {
-      console.error("fetchProfile error:", e);
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("fetchProfile error:", error);
+      setProfile(null);
+      return;
     }
+
+    setProfile(data);
   }, []);
 
   const fetchRoles = useCallback(async (userId: string) => {
-    try {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId);
-      setRoles((data as UserRole[]) || []);
-    } catch (e) {
-      console.error("fetchRoles error:", e);
+    const { data, error } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+
+    if (error) {
+      console.error("fetchRoles error:", error);
+      setRoles([]);
+      return;
     }
+
+    setRoles((data as UserRole[]) || []);
   }, []);
 
   useEffect(() => {
@@ -62,19 +68,7 @@ export function useAuth() {
     });
 
     void waitForAuthReady()
-      .then(async ({ session: restored }) => {
-        if (!mounted) return;
-
-        if (restored) {
-          const keepLoggedIn = localStorage.getItem("keep_logged_in") === "true";
-          const sessionActive = sessionStorage.getItem("session_active") === "true";
-
-          if (!keepLoggedIn && !sessionActive) {
-            await supabase.auth.signOut({ scope: "local" });
-            if (!mounted) return;
-          }
-        }
-
+      .then(() => {
         if (mounted) setLoading(false);
       })
       .catch((error) => {
