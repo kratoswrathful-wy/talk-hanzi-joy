@@ -31,9 +31,6 @@ import { Loader2 } from "lucide-react";
 import { initSettings } from "@/stores/settings-init";
 import { setUserTimezone } from "@/lib/format-timestamp";
 
-// Initialize settings loading (will auto-reload on auth changes)
-initSettings();
-
 function TranslatorFeeDetailWrapper() {
   const { id } = useParams();
   return <TranslatorFeeDetail key={id} />;
@@ -48,6 +45,12 @@ function AuthenticatedRoutes() {
   useEffect(() => {
     setUserTimezone(profile?.timezone);
   }, [profile?.timezone]);
+
+  useEffect(() => {
+    if (!loading && user) {
+      initSettings();
+    }
+  }, [loading, user]);
 
   if (loading) {
     return (

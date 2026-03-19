@@ -6,6 +6,7 @@ import { useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
+import { getAuthenticatedUser } from "@/lib/auth-ready";
 
 type Listener = () => void;
 
@@ -117,6 +118,15 @@ export const internalNotesStore = {
 
   load: async () => {
     const seq = ++loadSeq;
+    const user = await getAuthenticatedUser();
+    if (seq !== loadSeq) return;
+    if (!user) {
+      notes = [];
+      loaded = false;
+      notify();
+      return;
+    }
+
     const { data, error } = await supabase
       .from("internal_notes")
       .select("*")

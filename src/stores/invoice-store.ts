@@ -2,6 +2,7 @@ import type { Invoice, InvoiceStatus, PaymentRecord } from "@/data/invoice-types
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
+import { getAuthenticatedUser } from "@/lib/auth-ready";
 
 type Listener = () => void;
 
@@ -99,6 +100,14 @@ export const invoiceStore = {
   },
 
   loadInvoices: async () => {
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      invoices = [];
+      loaded = false;
+      notify();
+      return { error: null };
+    }
+
     const env = getEnvironment();
 
     const { data: invData, error } = await supabase

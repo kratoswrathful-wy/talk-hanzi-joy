@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
+import { getAuthSnapshot, subscribeAuthReady, waitForAuthReady } from "@/lib/auth-ready";
 
 interface Profile {
   id: string;
@@ -19,11 +20,12 @@ interface UserRole {
 }
 
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const initialSnapshot = getAuthSnapshot();
+  const [user, setUser] = useState<User | null>(initialSnapshot.user);
+  const [session, setSession] = useState<Session | null>(initialSnapshot.session);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<UserRole[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialSnapshot.ready);
 
   const fetchProfile = useCallback(async (userId: string) => {
     try {
@@ -53,62 +55,58 @@ export function useAuth() {
   useEffect(() => {
     let mounted = true;
 
-    // 1) Restore session from storage FIRST
-    supabase.auth.getSession().then(({ data: { session: restored } }) => {
+    const unsubscribe = subscribeAuthReady((snapshot) => {
       if (!mounted) return;
-
-      // "Keep logged in" check: if browser was restarted without the flag, clear session
-      if (restored) {
-        const keepLoggedIn = localStorage.getItem("keep_logged_in") === "true";
-        const sessionActive = sessionStorage.getItem("session_active") === "true";
-        if (!keepLoggedIn && !sessionActive) {
-          supabase.auth.signOut({ scope: "local" });
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-          setRoles([]);
-          setLoading(false);
-          return;
-        }
-      }
-
-      setSession(restored);
-      setUser(restored?.user ?? null);
-      if (restored?.user) {
-        fetchProfile(restored.user.id);
-        fetchRoles(restored.user.id);
-      }
-      setLoading(false);
+      setSession(snapshot.session);
+      setUser(snapshot.user);
     });
 
-    // 2) Listen for SUBSEQUENT auth changes (sign-in, sign-out, token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, newSession) => {
+    void waitForAuthReady()
+      .then(async ({ session: restored }) => {
         if (!mounted) return;
-        // Skip the initial session event — we already handled it above
-        if (event === "INITIAL_SESSION") return;
 
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
+        if (restored) {
+          const keepLoggedIn = localStorage.getItem("keep_logged_in") === "true";
+          const sessionActive = sessionStorage.getItem("session_active") === "true";
 
-        if (newSession?.user) {
-          // Fire-and-forget to avoid deadlocks in the callback
-          setTimeout(() => {
-            fetchProfile(newSession.user.id);
-            fetchRoles(newSession.user.id);
-          }, 0);
-        } else {
-          setProfile(null);
-          setRoles([]);
+          if (!keepLoggedIn && !sessionActive) {
+            await supabase.auth.signOut({ scope: "local" });
+            if (!mounted) return;
+          }
         }
-      }
-    );
+
+        if (mounted) setLoading(false);
+      })
+      .catch((error) => {
+        console.error("auth init error:", error);
+        if (mounted) setLoading(false);
+      });
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      unsubscribe();
     };
-  }, [fetchProfile, fetchRoles]);
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setProfile(null);
+      setRoles([]);
+      setLoading(false);
+      return;
+    }
+
+    let active = true;
+    setLoading(true);
+
+    void Promise.all([fetchProfile(user.id), fetchRoles(user.id)]).finally(() => {
+      if (active) setLoading(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [user?.id, fetchProfile, fetchRoles]);
 
   const isAdmin = roles.some((r) => r.role === "pm" || r.role === "executive");
   const primaryRole = roles.length > 0 ? roles[0].role : "member";
@@ -125,6 +123,7 @@ export function useAuth() {
     setSession(null);
     setProfile(null);
     setRoles([]);
+    setLoading(false);
   }, []);
 
   return {

@@ -2,6 +2,7 @@ import { type TranslatorFee, type ClientInfo, defaultClientInfo } from "@/data/f
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
+import { getAuthenticatedUser } from "@/lib/auth-ready";
 
 type Listener = () => void;
 
@@ -157,12 +158,22 @@ export const feeStore = {
   /** Load all fees from DB filtered by current environment. */
   loadFees: async () => {
     const seq = ++loadSeq;
+    const user = await getAuthenticatedUser();
+
+    if (seq !== loadSeq) return { error: null };
+    if (!user) {
+      fees = [];
+      loaded = false;
+      notify();
+      return { error: null };
+    }
+
     const { data, error } = await supabase
       .from("fees")
       .select("*")
       .eq("env", getEnvironment())
       .order("created_at", { ascending: false });
-    // Only apply if this is still the latest request
+
     if (seq !== loadSeq) return { error: null };
     if (!error && data) {
       fees = (data as unknown as DbFee[]).map(dbToApp);

@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { loadSetting, saveSetting, markDirty } from "./settings-persistence";
+import { getAuthenticatedUser } from "@/lib/auth-ready";
 
 export interface ToolFieldDef {
   id: string;
@@ -415,6 +416,9 @@ export const selectOptionsStore = {
 
   /** Load assignee options from profiles + invitations in DB, respecting sort_order and frozen */
   loadAssignees: async () => {
+    const user = await getAuthenticatedUser();
+    if (!user) return;
+
     const [{ data: profiles }, { data: invitations }, { data: settings }] = await Promise.all([
       supabase.from("profiles").select("email, display_name, avatar_url, timezone, status_message"),
       supabase.from("invitations").select("email, role").is("accepted_at", null),
