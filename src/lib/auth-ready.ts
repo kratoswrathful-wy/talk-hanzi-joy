@@ -30,6 +30,30 @@ function updateSnapshot(session: Session | null, ready = true) {
   notify();
 }
 
+async function resolveInitialSession() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (session) {
+      const keepLoggedIn = localStorage.getItem("keep_logged_in") === "true";
+      const sessionActive = sessionStorage.getItem("session_active") === "true";
+
+      if (!keepLoggedIn && !sessionActive) {
+        await supabase.auth.signOut({ scope: "local" });
+        updateSnapshot(null, true);
+        return snapshot;
+      }
+    }
+
+    updateSnapshot(session, true);
+    return snapshot;
+  } catch (error) {
+    console.error("Failed to restore auth session:", error);
+    updateSnapshot(null, true);
+    return snapshot;
+  }
+}
+
 function initialize() {
   if (initialized) {
     return initPromise ?? Promise.resolve(snapshot);
@@ -41,18 +65,7 @@ function initialize() {
     updateSnapshot(session, true);
   });
 
-  initPromise = supabase.auth
-    .getSession()
-    .then(({ data: { session } }) => {
-      updateSnapshot(session, true);
-      return snapshot;
-    })
-    .catch((error) => {
-      console.error("Failed to restore auth session:", error);
-      updateSnapshot(null, true);
-      return snapshot;
-    });
-
+  initPromise = resolveInitialSession();
   return initPromise;
 }
 
