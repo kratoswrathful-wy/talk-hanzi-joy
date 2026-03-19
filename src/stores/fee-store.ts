@@ -2,6 +2,7 @@ import { type TranslatorFee, type ClientInfo, defaultClientInfo } from "@/data/f
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
+import { getAuthenticatedUser } from "@/lib/auth-ready";
 
 type Listener = () => void;
 

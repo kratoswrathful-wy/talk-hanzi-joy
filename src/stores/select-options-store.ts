@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { loadSetting, saveSetting, markDirty } from "./settings-persistence";
+import { getAuthenticatedUser } from "@/lib/auth-ready";
 
 export interface ToolFieldDef {
   id: string;
