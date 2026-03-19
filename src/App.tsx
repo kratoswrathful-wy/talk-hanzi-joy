@@ -46,6 +46,12 @@ function AuthenticatedRoutes() {
     setUserTimezone(profile?.timezone);
   }, [profile?.timezone]);
 
+  useEffect(() => {
+    if (!loading && user) {
+      initSettings();
+    }
+  }, [loading, user]);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">

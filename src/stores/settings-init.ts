@@ -7,12 +7,19 @@ import { pageTemplateStore } from "@/stores/page-template-store";
 import { commonLinksStore } from "@/stores/common-links-store";
 import { currencyStore } from "@/stores/currency-store";
 import { resetLoadedKeys } from "@/stores/settings-persistence";
+import { getAuthenticatedUser } from "@/lib/auth-ready";
 
 let loaded = false;
 let loadTimer: ReturnType<typeof setTimeout> | null = null;
 
 async function loadAllSettings() {
-  // Reset loaded flags so stores won't save until load completes
+  const user = await getAuthenticatedUser();
+  if (!user) {
+    loaded = false;
+    resetLoadedKeys();
+    return;
+  }
+
   resetLoadedKeys();
 
   await Promise.all([
@@ -27,23 +34,30 @@ async function loadAllSettings() {
   ]);
 }
 
-function ensureLoaded() {
-  if (!loaded) {
-    loaded = true;
-    loadAllSettings();
-  }
+async function ensureLoaded() {
+  if (loaded) return;
+  const user = await getAuthenticatedUser();
+  if (!user) return;
+  loaded = true;
+  await loadAllSettings();
 }
 
-// Debounce auth state changes to avoid duplicate loads
-supabase.auth.onAuthStateChange(() => {
+supabase.auth.onAuthStateChange((event, session) => {
   loaded = false;
   if (loadTimer) clearTimeout(loadTimer);
-  loadTimer = setTimeout(() => {
-    loadAllSettings();
-  }, 100);
+
+  if (!session) {
+    resetLoadedKeys();
+    return;
+  }
+
+  if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
+    loadTimer = setTimeout(() => {
+      void loadAllSettings();
+    }, 100);
+  }
 });
 
-// Realtime: reload settings when app_settings change
 let settingsReloadTimer: ReturnType<typeof setTimeout> | null = null;
 supabase
   .channel("settings-realtime")
@@ -51,10 +65,9 @@ supabase
     "postgres_changes",
     { event: "*", schema: "public", table: "app_settings" },
     () => {
-      // Debounce to avoid multiple rapid reloads
       if (settingsReloadTimer) clearTimeout(settingsReloadTimer);
       settingsReloadTimer = setTimeout(() => {
-        if (loaded) loadAllSettings();
+        if (loaded) void loadAllSettings();
       }, 300);
     }
   )
@@ -62,20 +75,18 @@ supabase
     "postgres_changes",
     { event: "*", schema: "public", table: "profiles" },
     () => {
-      // Reload assignees when profiles change
-      if (loaded) selectOptionsStore.loadAssignees();
+      if (loaded) void selectOptionsStore.loadAssignees();
     }
   )
   .on(
     "postgres_changes",
     { event: "*", schema: "public", table: "member_translator_settings" },
     () => {
-      // Reload assignees when member settings change
-      if (loaded) selectOptionsStore.loadAssignees();
+      if (loaded) void selectOptionsStore.loadAssignees();
     }
   )
   .subscribe();
 
 export function initSettings() {
-  ensureLoaded();
+  void ensureLoaded();
 }
