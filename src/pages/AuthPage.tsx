@@ -9,6 +9,60 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import logo from "@/assets/1UP_Mark.png";
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+function persistLoginPreference(keepLoggedIn: boolean) {
+  if (keepLoggedIn) {
+    localStorage.setItem("keep_logged_in", "true");
+    sessionStorage.removeItem("session_active");
+    return;
+  }
+
+  localStorage.removeItem("keep_logged_in");
+  sessionStorage.setItem("session_active", "true");
+}
+
+function clearLoginPreference() {
+  localStorage.removeItem("keep_logged_in");
+  sessionStorage.removeItem("session_active");
+}
+
+async function signInWithPasswordFallback(email: string, password: string) {
+  const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_PUBLISHABLE_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, password, gotrue_meta_security: {} }),
+  });
+
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    return {
+      error: new Error(payload?.msg || payload?.message || "登入失敗，請稍後再試"),
+    };
+  }
+
+  const accessToken = payload?.access_token;
+  const refreshToken = payload?.refresh_token;
+
+  if (!accessToken || !refreshToken) {
+    return {
+      error: new Error("登入失敗，認證服務未回傳有效 session"),
+    };
+  }
+
+  const { error } = await supabase.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+
+  return { error };
+}
+
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
@@ -37,17 +91,26 @@ export default function AuthPage() {
     }
 
     if (isLogin) {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        toast.error(error.message);
-      } else {
-        // Persist keep-logged-in preference
-        if (keepLoggedIn) {
-          localStorage.setItem("keep_logged_in", "true");
-        } else {
-          localStorage.removeItem("keep_logged_in");
-          sessionStorage.setItem("session_active", "true");
+      persistLoginPreference(keepLoggedIn);
+
+      let error: Error | null = null;
+
+      try {
+        const result = await supabase.auth.signInWithPassword({ email, password });
+        error = result.error;
+
+        if (error?.message === "Failed to fetch") {
+          const fallback = await signInWithPasswordFallback(email, password);
+          error = fallback.error ?? null;
         }
+      } catch (caught) {
+        const fallback = await signInWithPasswordFallback(email, password).catch((fallbackError) => ({ error: fallbackError as Error }));
+        error = fallback.error ?? (caught instanceof Error ? caught : new Error("登入失敗，請稍後再試"));
+      }
+
+      if (error) {
+        clearLoginPreference();
+        toast.error(error.message);
       }
     } else {
       const { error } = await supabase.auth.signUp({
@@ -137,7 +200,7 @@ export default function AuthPage() {
               {isLogin ? "登入" : "註冊"}
             </Button>
           </form>
-          <div className="mt-4 text-sm text-muted-foreground space-y-1">
+          <div className="mt-4 space-y-1 text-sm text-muted-foreground">
             <div className="flex items-center justify-between">
               {isLogin ? (
                 <div className="flex items-center space-x-2">
@@ -146,21 +209,21 @@ export default function AuthPage() {
                     checked={keepLoggedIn}
                     onCheckedChange={(checked) => setKeepLoggedIn(checked === true)}
                   />
-                  <Label htmlFor="keepLoggedIn" className="text-sm font-normal cursor-pointer">
+                  <Label htmlFor="keepLoggedIn" className="cursor-pointer text-sm font-normal">
                     保持登入
                   </Label>
                 </div>
               ) : <div />}
               <div>
                 {isLogin ? "還沒有帳號？" : "已有帳號？"}{" "}
-                <button className="text-primary hover:underline" onClick={() => setIsLogin(!isLogin)}>
+                <button type="button" className="text-primary hover:underline" onClick={() => setIsLogin(!isLogin)}>
                   {isLogin ? "註冊" : "登入"}
                 </button>
               </div>
             </div>
             {isLogin && (
               <div className="text-right">
-                <button className="text-muted-foreground hover:text-foreground text-xs" onClick={() => setShowReset(true)}>
+                <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setShowReset(true)}>
                   忘記密碼？
                 </button>
               </div>
