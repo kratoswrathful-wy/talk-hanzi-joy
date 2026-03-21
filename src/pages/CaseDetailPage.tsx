@@ -1219,69 +1219,24 @@ export default function CaseDetailPage() {
 
   return (
     <div className="space-y-4 max-w-3xl overflow-hidden">
-      <div className="flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => {
-            if (!assertUniqueCaseTitle("leave")) return;
-            if (shouldBlockNav) {
-              pendingNavigateRef.current = () => navigate("/cases");
-              setPublishPromptOpen(true);
-            } else {
-              navigate("/cases");
-            }
-          }}
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
-        >
-          <span>←</span> 返回列表
-        </button>
-        <div className="flex items-center gap-2">
-          {isPmOrAbove && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs min-w-[88px]"
-              onClick={() => {
-                const url = `${window.location.origin}/cases/${id}`;
-                const title = caseData?.title || "";
-                const plainText = `請問這件可以做嗎？\n${title}（${url}）`;
-                const richHtml = `請問這件可以做嗎？<br><a href="${url}">${title}</a>`;
-                try {
-                  navigator.clipboard.write([
-                    new ClipboardItem({
-                      "text/plain": new Blob([plainText], { type: "text/plain" }),
-                      "text/html": new Blob([richHtml], { type: "text/html" }),
-                    }),
-                  ]).then(() => toast({ description: "已複製詢案訊息至剪貼簿" }));
-                } catch {
-                  navigator.clipboard.writeText(plainText).then(() => toast({ description: "已複製詢案訊息至剪貼簿" }));
-                }
-              }}
-            >
-              產生詢案訊息
-            </Button>
-          )}
-          {isPmOrAbove && caseData && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs min-w-[88px]"
-              onClick={() => setInquirySlackOpen(true)}
-            >
-              <MessageSquare className="h-3.5 w-3.5 mr-1" />
-              Slack 詢案
-            </Button>
-          )}
-          {isPmOrAbove && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs min-w-[88px]"
-              onClick={handleDuplicate}
-            >
-              複製本頁
-            </Button>
-          )}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (!assertUniqueCaseTitle("leave")) return;
+              if (shouldBlockNav) {
+                pendingNavigateRef.current = () => navigate("/cases");
+                setPublishPromptOpen(true);
+              } else {
+                navigate("/cases");
+              }
+            }}
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
+          >
+            <span>←</span> 返回列表
+          </button>
+          <div className="flex items-center gap-2 flex-wrap justify-end">
           {isPmOrAbove && (
             <CreateWithTemplateButton
               module="cases"
@@ -1491,12 +1446,58 @@ export default function CaseDetailPage() {
           ) : null}
         </div>
       </div>
+        {isPmOrAbove && (
+          <div className="flex justify-end items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs min-w-[88px]"
+              onClick={() => {
+                const url = `${window.location.origin}/cases/${id}`;
+                const title = caseData?.title || "";
+                const plainText = `請問這件可以做嗎？\n${title}（${url}）`;
+                const richHtml = `請問這件可以做嗎？<br><a href="${url}">${title}</a>`;
+                try {
+                  navigator.clipboard.write([
+                    new ClipboardItem({
+                      "text/plain": new Blob([plainText], { type: "text/plain" }),
+                      "text/html": new Blob([richHtml], { type: "text/html" }),
+                    }),
+                  ]).then(() => toast({ description: "已複製詢案訊息至剪貼簿" }));
+                } catch {
+                  navigator.clipboard.writeText(plainText).then(() => toast({ description: "已複製詢案訊息至剪貼簿" }));
+                }
+              }}
+            >
+              產生詢案訊息
+            </Button>
+            {caseData && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs min-w-[88px]"
+                onClick={() => setInquirySlackOpen(true)}
+              >
+                <MessageSquare className="h-3.5 w-3.5 mr-1" />
+                Slack 詢案
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs min-w-[88px]"
+              onClick={handleDuplicate}
+            >
+              複製本頁
+            </Button>
+          </div>
+        )}
+      </div>
 
-      {/* Title row with optional icon + uploader button top-right */}
-      <div className="relative">
-        {/* Uploader button: top-right (hidden for member/translator role) */}
+      {/* Title row: icon actions above title (left), then preview + title */}
+      <div className="space-y-2">
         {isManager && (
-          <div className="absolute right-0 top-0 z-10">
+          <div className="flex items-center justify-start">
             <CaseIconUploader
               caseId={caseData.id}
               currentIconUrl={caseData.iconUrl || null}
@@ -1506,7 +1507,7 @@ export default function CaseDetailPage() {
           </div>
         )}
 
-        <div className="flex items-end gap-3 pr-12">
+        <div className="flex items-end gap-3">
           {/* Case icon */}
           {caseData.iconUrl && (
             <img
