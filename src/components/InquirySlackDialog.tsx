@@ -70,7 +70,7 @@ export function InquirySlackDialog({
   const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set());
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [hideSelf, setHideSelf] = useState(false);
+  const [hideSelf, setHideSelf] = useState(true);
   const [sortMode, setSortMode] = useState<SortMode>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
@@ -90,7 +90,7 @@ export function InquirySlackDialog({
   useEffect(() => {
     if (!open) return;
     setSearchQuery("");
-    setHideSelf(false);
+    setHideSelf(true);
     setSortMode("name");
     setSortDir("asc");
   }, [open]);
@@ -223,6 +223,28 @@ export function InquirySlackDialog({
     return copy;
   }, [afterSearch, sortMode, sortDir]);
 
+  const selectableInView = useMemo(
+    () => visibleRows.filter((r): r is (typeof r & { email: string }) => !!r.email),
+    [visibleRows]
+  );
+
+  const allVisibleSelected = useMemo(() => {
+    if (selectableInView.length === 0) return false;
+    return selectableInView.every((r) => selectedEmails.has(r.email));
+  }, [selectableInView, selectedEmails]);
+
+  const noVisibleSelected = useMemo(() => {
+    if (selectableInView.length === 0) return true;
+    return selectableInView.every((r) => !selectedEmails.has(r.email));
+  }, [selectableInView, selectedEmails]);
+
+  const someVisibleSelected = useMemo(() => {
+    if (selectableInView.length === 0) return false;
+    const any = selectableInView.some((r) => selectedEmails.has(r.email));
+    const all = selectableInView.every((r) => selectedEmails.has(r.email));
+    return any && !all;
+  }, [selectableInView, selectedEmails]);
+
   const toggleEmail = (email: string) => {
     setSelectedEmails((prev) => {
       const n = new Set(prev);
@@ -230,20 +252,6 @@ export function InquirySlackDialog({
       else n.add(email);
       return n;
     });
-  };
-
-  const handleSelectAllVisible = () => {
-    setSelectedEmails((prev) => {
-      const n = new Set(prev);
-      for (const r of visibleRows) {
-        if (r.email) n.add(r.email);
-      }
-      return n;
-    });
-  };
-
-  const handleDeselectAll = () => {
-    setSelectedEmails(new Set());
   };
 
   const handleSend = async () => {

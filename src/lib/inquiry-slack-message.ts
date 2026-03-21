@@ -29,17 +29,18 @@ export function escapeSlackMrkdwnText(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-const SLACK_LINK_LABEL = "開啟案件";
+/** Label in `<url|label>` must not contain raw `|` (breaks mrkdwn). */
+function escapeSlackLinkLabel(text: string): string {
+  return escapeSlackMrkdwnText(text).replace(/\|/g, "｜");
+}
 
 /**
- * Slack DM body: hides raw URLs with `<url|開啟案件>` and escapes titles for mrkdwn.
+ * Slack DM body: one `<url|案件標題>` per line (no separate「開啟案件」).
  * Use with chat.postMessage blocks + unfurl disabled.
  */
 export function buildInquiryMessageForSlack(origin: string, cases: Pick<CaseRecord, "id" | "title">[]): string {
   const lines = buildInquiryCaseLines(origin, cases);
-  const body = lines
-    .map((l) => `${escapeSlackMrkdwnText(l.title)}（<${l.url}|${SLACK_LINK_LABEL}>）`)
-    .join("\n");
+  const body = lines.map((l) => `<${l.url}|${escapeSlackLinkLabel(l.title || "（無標題）")}>`).join("\n");
   if (lines.length <= 1) {
     return `請問這件可以做嗎？\n${body}`;
   }
