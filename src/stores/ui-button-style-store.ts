@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { loadSetting, saveSetting, markDirty } from "./settings-persistence";
 import { getUiButtonDef, type UiButtonDef } from "@/lib/ui-button-registry";
 import { cn } from "@/lib/utils";
@@ -157,12 +157,17 @@ export const uiButtonStyleStore = {
   },
 };
 
+/**
+ * useSyncExternalStore 的 getSnapshot 必須在資料未變時回傳穩定可比較的值；
+ * 若每次 new { bgColor, textColor } 會觸發無限 re-render（登入後整頁黑屏）。
+ */
 export function useUiButtonColors(id: string): UiButtonColors {
-  return useSyncExternalStore(
+  const overrideKey = useSyncExternalStore(
     uiButtonStyleStore.subscribe,
-    () => getUiButtonColors(id),
-    () => getUiButtonColors(id)
+    () => JSON.stringify(uiButtonStyleStore.getSnapshot()[id] ?? {}),
+    () => JSON.stringify(uiButtonStyleStore.getSnapshot()[id] ?? {})
   );
+  return useMemo(() => getUiButtonColors(id), [id, overrideKey]);
 }
 
 /** 訂閱 store 並回傳可直接餵給 &lt;Button&gt; 的 props（含 MODULE_TOOLBAR_BTN） */
@@ -176,9 +181,10 @@ export function useToolbarButtonUiProps(id: string): { style: CSSProperties; cla
 export function useToolbarButtonUiPropsMaybe(
   id: string | undefined
 ): { style: CSSProperties; className: string } | null {
-  return useSyncExternalStore(
+  const overrideKey = useSyncExternalStore(
     uiButtonStyleStore.subscribe,
-    () => (id ? getToolbarButtonUiProps(id) : null),
-    () => (id ? getToolbarButtonUiProps(id) : null)
+    () => (id ? JSON.stringify(uiButtonStyleStore.getSnapshot()[id] ?? {}) : "_"),
+    () => (id ? JSON.stringify(uiButtonStyleStore.getSnapshot()[id] ?? {}) : "_")
   );
+  return useMemo(() => (id ? getToolbarButtonUiProps(id) : null), [id, overrideKey]);
 }
