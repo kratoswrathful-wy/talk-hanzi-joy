@@ -730,18 +730,8 @@ export default function InternalNotesPage() {
           <Plus className="h-4 w-4" />
           新增內部註記
         </Button>
-        {activeView.isDefault ? (
-          <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
-            一切檢視設定僅對本人生效
-          </span>
-        ) : (
-          <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
-            此為自訂視圖，只有新增者本人可見
-          </span>
-        )}
         {rowSelection.selectedCount > 0 && (
           <>
-            <span className="text-xs text-muted-foreground">已選取 {rowSelection.selectedCount} 個項目</span>
             <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive" onClick={() => setShowDeleteConfirm(true)}>
               <Trash2 className="h-4 w-4" />
             </Button>

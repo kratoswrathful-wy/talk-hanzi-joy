@@ -822,18 +822,8 @@ export default function CasesPage() {
             Slack 詢案
           </Button>
         )}
-        {activeView.isDefault ? (
-          <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
-            一切檢視設定僅對本人生效
-          </span>
-        ) : (
-          <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1">
-            此為自訂視圖，只有新增者本人可見
-          </span>
-        )}
         {rowSelection.selectedCount > 0 && isAdmin && (
           <>
-            <span className="text-xs text-muted-foreground">已選取 {rowSelection.selectedCount} 個項目</span>
             {rowSelection.selectedCount === 1 && (
               <Button
                 variant="ghost"

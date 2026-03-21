@@ -140,8 +140,9 @@ export function FilterSortToolbar({
 
   return (
     <div className="space-y-2">
-      {/* View tabs */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-1">
+      {/* View tabs + 視圖說明、選取計數（右側） */}
+      <div className="flex flex-wrap items-center gap-2 min-w-0">
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 min-w-0 flex-1 [scrollbar-width:thin]">
         {views.map((view) => (
           <button
             key={view.id}
@@ -222,6 +223,23 @@ export function FilterSortToolbar({
             </div>
           </PopoverContent>
         </Popover>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 pb-1">
+          {activeView.isDefault ? (
+            <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1 whitespace-nowrap">
+              一切檢視設定僅對本人生效
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1 whitespace-nowrap">
+              此為自訂視圖，只有新增者本人可見
+            </span>
+          )}
+          {selectedCount > 0 && (
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
+              已選取 {selectedCount} 個項目
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Filter/Sort/Properties bar */}
@@ -391,12 +409,6 @@ export function FilterSortToolbar({
           </>
         )}
 
-        {/* Selection indicator */}
-        {selectedCount > 0 && (
-          <Badge variant="default" className="h-6 text-xs">
-            已選取 {selectedCount} 個項目
-          </Badge>
-        )}
       </div>
     </div>
   );
