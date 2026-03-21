@@ -103,7 +103,13 @@ export function useAuth() {
   }, [user?.id, fetchProfile, fetchRoles]);
 
   const isAdmin = roles.some((r) => r.role === "pm" || r.role === "executive");
-  const primaryRole = roles.length > 0 ? roles[0].role : "member";
+  // user_roles can return multiple rows with no guaranteed order; pick highest privilege.
+  const primaryRole: UserRole["role"] = (() => {
+    if (roles.some((r) => r.role === "executive")) return "executive";
+    if (roles.some((r) => r.role === "pm")) return "pm";
+    if (roles.some((r) => r.role === "member")) return "member";
+    return "member";
+  })();
 
   const signOut = useCallback(async () => {
     try {

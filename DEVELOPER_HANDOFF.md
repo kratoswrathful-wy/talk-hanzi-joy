@@ -255,6 +255,9 @@ supabase secrets set NOTION_API_TOKEN=ntn_xxxxxxxxxx
 
 ## 9. 步驟六：資料遷移
 
+> **詳細表格清單、外鍵依賴與建議匯入順序**（依 `supabase/migrations` 整理）請見：  
+> **[`data-migration/README.md`](data-migration/README.md)**
+
 ### 需遷移的表格（含業務資料）
 
 | 表格 | 說明 | 優先級 |

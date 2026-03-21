@@ -9,6 +9,9 @@ lerna-debug.log*
 
 node_modules
 dist
+
+# Local Storage export (migration download)
+storage-backup/
 dist-ssr
 *.local
 
@@ -22,3 +25,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# --- 不要提交：本機密碼與暫存 ---
+.env
+.env.*
+!.env.example
+
+# Supabase CLI 本機暫存（勿進 Git）
+supabase/.temp/
+
+# 遷移用個資 CSV（若不需要版本控制可保留此行）
+scripts/profiles-migrate-users.csv

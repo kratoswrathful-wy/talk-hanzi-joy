@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "download-storage": "node scripts/download-storage.mjs"
   },
   "dependencies": {
     "@blocknote/shadcn": "^0.47.1",

@@ -11,7 +11,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <header className="flex h-12 items-center border-b border-border px-4">
             <SidebarTrigger />
           </header>
-          {window.location.hostname !== "talk-hanzi-joy.lovable.app" && (
+          {/* Dev-only: 分身切換（正式站 Vercel / Lovable 不顯示） */}
+          {import.meta.env.DEV && (
             <div className="px-6 pt-3">
               <DevRoleSwitcher />
             </div>

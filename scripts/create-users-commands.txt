@@ -1,0 +1,170 @@
+# Generated: 2026-03-21 18:18
+# Supabase: https://wshsmerltcakffllgyul.supabase.co
+# Users: 25
+# [ZH] 顯示成 ??? 時：PowerShell 5 要用 UTF-8 位元組送 JSON（本檔已改）。已建立過的使用者請用下方 PATCH 或後台改 metadata。
+# One command per line: copy top-to-bottom, Enter after each. Or paste whole # ----- block.
+# PS 5: send JSON as UTF-8 bytes + charset=utf-8 (fixes Chinese display_name showing as ???).
+# Stuck at >> ? Ctrl+C. Use Legacy service_role JWT (eyJ...), NOT sb_secret_. User-Agent avoids browser error.
+# Run once in this window, then each # ----- section below:
+#   $env:SUPABASE_SERVICE_ROLE = "paste eyJ... service_role here"
+
+$supabaseUrl = "https://wshsmerltcakffllgyul.supabase.co"
+$serviceRole = $env:SUPABASE_SERVICE_ROLE
+if (-not $serviceRole) { throw "Set SUPABASE_SERVICE_ROLE first" }
+
+# ----- 1 / 25 : promit0203@gmail.com -----
+$bodyObj = @{ email='promit0203@gmail.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = '林意真' }; id='af66ab20-a702-479f-a966-ad7bc434f114' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: promit0203@gmail.com' -ForegroundColor Green } catch { Write-Host ('FAIL: promit0203@gmail.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 2 / 25 : fox82228@hotmail.com -----
+$bodyObj = @{ email='fox82228@hotmail.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = 'Tony TANG' }; id='9f4c1124-37a2-4446-9c17-9d871949cf95' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: fox82228@hotmail.com' -ForegroundColor Green } catch { Write-Host ('FAIL: fox82228@hotmail.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 3 / 25 : alexandria1up@gmail.com -----
+$bodyObj = @{ email='alexandria1up@gmail.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = 'alexandria1up' }; id='977514c8-4338-47cc-892b-ad90948fabf0' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: alexandria1up@gmail.com' -ForegroundColor Green } catch { Write-Host ('FAIL: alexandria1up@gmail.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 4 / 25 : peiyun.chi@gmail.com -----
+$bodyObj = @{ email='peiyun.chi@gmail.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = 'Peggy Chi' }; id='8ce52220-c29d-435a-9ad7-445f25863f4d' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: peiyun.chi@gmail.com' -ForegroundColor Green } catch { Write-Host ('FAIL: peiyun.chi@gmail.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 5 / 25 : gracechao@hearingaction.com -----
+$bodyObj = @{ email='gracechao@hearingaction.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = 'Grace' }; id='140abee2-2bed-4c8a-9b0e-5c9de84633c8' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: gracechao@hearingaction.com' -ForegroundColor Green } catch { Write-Host ('FAIL: gracechao@hearingaction.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 6 / 25 : valodja.j@gmail.com -----
+$bodyObj = @{ email='valodja.j@gmail.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = '威儀' }; id='9f96ef05-18c9-4442-929d-42fd6ad47990' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: valodja.j@gmail.com' -ForegroundColor Green } catch { Write-Host ('FAIL: valodja.j@gmail.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 7 / 25 : fayebelle.huang@gmail.com -----
+$bodyObj = @{ email='fayebelle.huang@gmail.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = '黃惠茹' }; id='69b78a8b-13c3-4078-8548-3285387514fc' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: fayebelle.huang@gmail.com' -ForegroundColor Green } catch { Write-Host ('FAIL: fayebelle.huang@gmail.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 8 / 25 : sunny5512373@gmail.com -----
+$bodyObj = @{ email='sunny5512373@gmail.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = '子晴' }; id='c3255e69-885c-4510-8761-93f2930d1565' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: sunny5512373@gmail.com' -ForegroundColor Green } catch { Write-Host ('FAIL: sunny5512373@gmail.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 9 / 25 : kratoswrathful@gmail.com -----
+$bodyObj = @{ email='kratoswrathful@gmail.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = '測試' }; id='7a7ac754-bc83-4d3d-b2f7-43ca8ade451e' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: kratoswrathful@gmail.com' -ForegroundColor Green } catch { Write-Host ('FAIL: kratoswrathful@gmail.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 10 / 25 : christsu126@gmail.com -----
+$bodyObj = @{ email='christsu126@gmail.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = 'Christine SU' }; id='ba48ee02-a366-477d-9a89-95eaacc9f790' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: christsu126@gmail.com' -ForegroundColor Green } catch { Write-Host ('FAIL: christsu126@gmail.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 11 / 25 : celinetsai@outlook.com -----
+$bodyObj = @{ email='celinetsai@outlook.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = 'Celine Tsai' }; id='675b21b9-a722-424e-84a4-43b506ec80b7' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: celinetsai@outlook.com' -ForegroundColor Green } catch { Write-Host ('FAIL: celinetsai@outlook.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 12 / 25 : sexywuding@gmail.com -----
+$bodyObj = @{ email='sexywuding@gmail.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = '朱耘廷' }; id='d7c9a493-b930-4c69-a892-fe01808d880c' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: sexywuding@gmail.com' -ForegroundColor Green } catch { Write-Host ('FAIL: sexywuding@gmail.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 13 / 25 : alyssatransaltor@gmail.com -----
+$bodyObj = @{ email='alyssatransaltor@gmail.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = 'Alyssa' }; id='11aaa5dc-b46a-4ccd-b9c5-9590431006a0' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: alyssatransaltor@gmail.com' -ForegroundColor Green } catch { Write-Host ('FAIL: alyssatransaltor@gmail.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 14 / 25 : gracet913@gmail.com -----
+$bodyObj = @{ email='gracet913@gmail.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = 'Grace T' }; id='57fae0a6-64d6-4a79-b397-8cb2ba2400db' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: gracet913@gmail.com' -ForegroundColor Green } catch { Write-Host ('FAIL: gracet913@gmail.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 15 / 25 : fl.tsai.2023@gmail.com -----
+$bodyObj = @{ email='fl.tsai.2023@gmail.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = 'Heather Tsai' }; id='befd4d67-f218-442d-a6e2-8bad5dcab6c3' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: fl.tsai.2023@gmail.com' -ForegroundColor Green } catch { Write-Host ('FAIL: fl.tsai.2023@gmail.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 16 / 25 : test-pm@test.local -----
+$bodyObj = @{ email='test-pm@test.local'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = 'PM（測試）' }; id='7a9bad30-d57e-46a0-a373-5e0b68806b4a' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: test-pm@test.local' -ForegroundColor Green } catch { Write-Host ('FAIL: test-pm@test.local - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 17 / 25 : dreamsinger@gmail.com -----
+$bodyObj = @{ email='dreamsinger@gmail.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = 'Eric_Lin' }; id='93882eb2-567d-4728-87bf-4d88a9960b21' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: dreamsinger@gmail.com' -ForegroundColor Green } catch { Write-Host ('FAIL: dreamsinger@gmail.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 18 / 25 : test-t1@test.local -----
+$bodyObj = @{ email='test-t1@test.local'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = '譯者一（測試）' }; id='5c126e91-1acf-4957-9bf0-fcc7aae62a9e' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: test-t1@test.local' -ForegroundColor Green } catch { Write-Host ('FAIL: test-t1@test.local - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 19 / 25 : alicia129.v@gmail.com -----
+$bodyObj = @{ email='alicia129.v@gmail.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = 'Alicia' }; id='4da98583-6dd9-4119-820d-1538917769c2' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: alicia129.v@gmail.com' -ForegroundColor Green } catch { Write-Host ('FAIL: alicia129.v@gmail.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 20 / 25 : test-t2@test.local -----
+$bodyObj = @{ email='test-t2@test.local'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = '譯者二（測試）' }; id='58848399-e3b4-40fa-a75f-b31021b2d07d' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: test-t2@test.local' -ForegroundColor Green } catch { Write-Host ('FAIL: test-t2@test.local - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 21 / 25 : b92302132@gmail.com -----
+$bodyObj = @{ email='b92302132@gmail.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = 'W' }; id='6793b634-f02a-4caf-a264-7bc1bfd4cf0d' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: b92302132@gmail.com' -ForegroundColor Green } catch { Write-Host ('FAIL: b92302132@gmail.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 22 / 25 : robin51134@gmail.com -----
+$bodyObj = @{ email='robin51134@gmail.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = 'Robin Lan' }; id='21f871ca-c6c1-4683-8e67-012018044076' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: robin51134@gmail.com' -ForegroundColor Green } catch { Write-Host ('FAIL: robin51134@gmail.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 23 / 25 : test-exec@test.local -----
+$bodyObj = @{ email='test-exec@test.local'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = '執行長（測試）' }; id='ab654946-b626-4163-afd6-ea02ad88c0a2' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: test-exec@test.local' -ForegroundColor Green } catch { Write-Host ('FAIL: test-exec@test.local - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 24 / 25 : dian.teachingandtraslation@gmail.com -----
+$bodyObj = @{ email='dian.teachingandtraslation@gmail.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = '典蓉' }; id='ab2741a9-8dba-488b-8cc3-948eb37d64a1' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: dian.teachingandtraslation@gmail.com' -ForegroundColor Green } catch { Write-Host ('FAIL: dian.teachingandtraslation@gmail.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- 25 / 25 : lorrainewu5@gmail.com -----
+$bodyObj = @{ email='lorrainewu5@gmail.com'; password='TempMigrate2026!ChangeMe'; email_confirm=$true; user_metadata=@{ display_name = 'Lorraine' }; id='1e6e30c3-366d-46b0-9adf-f38192bc7e71' }
+$bodyUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($bodyObj | ConvertTo-Json -Depth 5))
+$headers = @{ "apikey" = $serviceRole; "Authorization" = "Bearer $serviceRole"; "Content-Type" = "application/json; charset=utf-8"; "User-Agent" = "1UP-TMS-Migration/1.0 (PowerShell)" }
+try { Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users" -Method Post -Headers $headers -Body $bodyUtf8; Write-Host 'OK: lorrainewu5@gmail.com' -ForegroundColor Green } catch { Write-Host ('FAIL: lorrainewu5@gmail.com - ' + $_.Exception.Message) -ForegroundColor Red }
+
+# ----- PATCH only (user already exists; fix display_name UTF-8) example: promit0203 -----
+# $uid = 'af66ab20-a702-479f-a966-ad7bc434f114'
+# $patchObj = @{ user_metadata = @{ display_name = '林意真' } }
+# $patchUtf8 = [System.Text.Encoding]::UTF8.GetBytes(($patchObj | ConvertTo-Json -Depth 5))
+# Invoke-RestMethod -Uri "$supabaseUrl/auth/v1/admin/users/$uid" -Method Patch -Headers $headers -Body $patchUtf8
+

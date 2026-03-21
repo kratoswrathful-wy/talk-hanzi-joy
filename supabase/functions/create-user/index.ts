@@ -21,12 +21,24 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { email, password, role, display_name } = await req.json();
+    const { email, password, role, display_name, id: requestedUserId } = await req.json();
     if (!email || !password) {
       return new Response(JSON.stringify({ error: "email and password required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Optional: preserve legacy UUID when migrating from another Supabase project (Admin API only)
+    if (requestedUserId !== undefined && requestedUserId !== null && requestedUserId !== "") {
+      const uuidRe =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRe.test(String(requestedUserId))) {
+        return new Response(JSON.stringify({ error: "id must be a valid UUID when provided" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Check if invitation exists, if not create one
@@ -46,6 +58,7 @@ Deno.serve(async (req) => {
     }
 
     const { data, error } = await adminClient.auth.admin.createUser({
+      ...(requestedUserId ? { id: String(requestedUserId) } : {}),
       email,
       password,
       email_confirm: true,
