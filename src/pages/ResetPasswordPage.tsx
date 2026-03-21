@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 
 export default function ResetPasswordPage() {
@@ -26,6 +26,27 @@ export default function ResetPasswordPage() {
     }
 
     async function establishRecoverySession() {
+      // Hash 內錯誤（連結過期、已使用等）：#error=access_denied&error_code=otp_expired&...
+      const hashRaw = window.location.hash?.replace(/^#/, "") ?? "";
+      const hashParams = new URLSearchParams(hashRaw);
+      const hashError = hashParams.get("error");
+      const errorCode = hashParams.get("error_code");
+      const errorDesc = hashParams.get("error_description");
+      if (hashError || errorCode) {
+        let msg =
+          "重設密碼連結無效。請回到登入頁，再次使用「忘記密碼」寄送新信件，並在收到後儘快點開連結。";
+        if (errorCode === "otp_expired" || /expired/i.test(errorDesc || "")) {
+          msg =
+            "重設密碼連結已過期或已失效。請回到登入頁重新申請「忘記密碼」，並使用最新信件中的連結。";
+        } else if (errorDesc) {
+          msg = decodeURIComponent(errorDesc.replace(/\+/g, " "));
+        }
+        if (cancelled) return;
+        setSessionError(msg);
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return;
+      }
+
       const params = new URLSearchParams(window.location.search);
       const code = params.get("code");
       const tokenHash = params.get("token_hash");
@@ -151,26 +172,33 @@ export default function ResetPasswordPage() {
             </div>
           )}
           {sessionError && (
-            <p className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">{sessionError}</p>
-          )}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="password">新密碼</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                disabled={!sessionReady}
-              />
+            <div className="mb-4 space-y-3">
+              <p className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">{sessionError}</p>
+              <Button variant="outline" className="w-full" asChild>
+                <Link to="/">返回登入</Link>
+              </Button>
             </div>
-            <Button type="submit" className="w-full" disabled={loading || !sessionReady}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              更新密碼
-            </Button>
-          </form>
+          )}
+          {!sessionError && (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="password">新密碼</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  disabled={!sessionReady}
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading || !sessionReady}>
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                更新密碼
+              </Button>
+            </form>
+          )}
         </CardContent>
       </Card>
     </div>
