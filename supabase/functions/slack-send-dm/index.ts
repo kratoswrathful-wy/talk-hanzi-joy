@@ -80,6 +80,10 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const recipientEmails: string[] = Array.isArray(body.recipient_emails) ? body.recipient_emails : [];
     const message: string = typeof body.message === "string" ? body.message : "";
+    const notificationFallback: string =
+      typeof body.notification_fallback === "string" && body.notification_fallback.trim()
+        ? body.notification_fallback.trim()
+        : message.split("\n")[0]?.slice(0, 300) || "詢案訊息";
 
     if (!message.trim()) {
       return new Response(JSON.stringify({ error: "message required" }), {
@@ -117,7 +121,15 @@ Deno.serve(async (req) => {
 
       const post = await slackApi(token, "chat.postMessage", {
         channel: open.channel.id,
-        text: message,
+        text: notificationFallback,
+        blocks: [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: message },
+          },
+        ],
+        unfurl_links: false,
+        unfurl_media: false,
       });
 
       if (!post.ok) {

@@ -1,6 +1,6 @@
 
 -- Create permission_settings table for field/section permission config
-CREATE TABLE public.permission_settings (
+CREATE TABLE IF NOT EXISTS public.permission_settings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   config jsonb NOT NULL DEFAULT '{}'::jsonb,
   updated_at timestamptz NOT NULL DEFAULT now(),
@@ -9,20 +9,24 @@ CREATE TABLE public.permission_settings (
 
 ALTER TABLE public.permission_settings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone authenticated can read permissions" ON public.permission_settings;
 CREATE POLICY "Anyone authenticated can read permissions"
   ON public.permission_settings FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Executives can update permissions" ON public.permission_settings;
 CREATE POLICY "Executives can update permissions"
   ON public.permission_settings FOR UPDATE TO authenticated
   USING (public.has_role(auth.uid(), 'executive'))
   WITH CHECK (public.has_role(auth.uid(), 'executive'));
 
+DROP POLICY IF EXISTS "Executives can insert permissions" ON public.permission_settings;
 CREATE POLICY "Executives can insert permissions"
   ON public.permission_settings FOR INSERT TO authenticated
   WITH CHECK (public.has_role(auth.uid(), 'executive'));
 
--- Insert default permission config
-INSERT INTO public.permission_settings (config) VALUES ('{
+-- Insert default permission config（僅在尚無任何列時）
+INSERT INTO public.permission_settings (config)
+SELECT '{
   "fields": {
     "member": {
       "title": {"view": true, "edit": false},
@@ -108,4 +112,5 @@ INSERT INTO public.permission_settings (config) VALUES ('{
       "translator_notes": true
     }
   }
-}'::jsonb);
+}'::jsonb
+WHERE NOT EXISTS (SELECT 1 FROM public.permission_settings LIMIT 1);

@@ -20,12 +20,14 @@ import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
 import type { CaseRecord } from "@/data/case-types";
 import {
   buildInquiryMessagePlainText,
-  collectTranslatorNamesFromCases,
+  buildInquiryMessageForSlack,
+  buildInquirySlackNotificationFallback,
 } from "@/lib/inquiry-slack-message";
 import { getTimezoneInfo } from "@/data/timezone-options";
 import { Link } from "react-router-dom";
 
-export type TranslatorRow = {
+export type RecipientRow = {
+  userId: string;
   displayName: string;
   email: string | null;
   timezone: string | null;
@@ -43,7 +45,7 @@ export function InquirySlackDialog({
 }) {
   const { user, isAdmin } = useAuth();
   const [slackConnected, setSlackConnected] = useState<boolean | null>(null);
-  const [rows, setRows] = useState<TranslatorRow[]>([]);
+  const [rows, setRows] = useState<RecipientRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set());
@@ -51,6 +53,14 @@ export function InquirySlackDialog({
   const messagePreview = useMemo(() => {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     return buildInquiryMessagePlainText(origin, cases);
+  }, [cases]);
+
+  const slackMessagePayload = useMemo(() => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    return {
+      message: buildInquiryMessageForSlack(origin, cases),
+      notification_fallback: buildInquirySlackNotificationFallback(cases),
+    };
   }, [cases]);
 
   useEffect(() => {
@@ -65,42 +75,52 @@ export function InquirySlackDialog({
   useEffect(() => {
     if (!open) return;
 
-    const names = collectTranslatorNamesFromCases(cases);
-    if (names.length === 0) {
-      setRows([]);
-      setSelectedEmails(new Set());
-      return;
-    }
-
     let cancelled = false;
     setLoading(true);
 
     void (async () => {
+      const { data: roleRows, error: roleErr } = await supabase.from("user_roles").select("user_id");
+      if (cancelled) return;
+      if (roleErr) {
+        console.error(roleErr);
+        setLoading(false);
+        toast.error("無法載入成員身分");
+        setRows([]);
+        setSelectedEmails(new Set());
+        return;
+      }
+
+      const userIds = [...new Set((roleRows || []).map((r) => r.user_id))];
+      if (userIds.length === 0) {
+        setLoading(false);
+        setRows([]);
+        setSelectedEmails(new Set());
+        return;
+      }
+
       const { data, error } = await supabase
         .from("profiles")
-        .select("email, display_name, timezone, status_message")
-        .in("display_name", names);
+        .select("id, email, display_name, timezone, status_message")
+        .in("id", userIds)
+        .order("display_name", { ascending: true });
 
       if (cancelled) return;
       setLoading(false);
 
       if (error) {
         console.error(error);
-        toast.error("無法載入譯者資料");
+        toast.error("無法載入成員資料");
         setRows([]);
         return;
       }
 
-      const byName = new Map((data || []).map((p) => [p.display_name?.trim() || "", p]));
-      const nextRows: TranslatorRow[] = names.map((name) => {
-        const p = byName.get(name);
-        return {
-          displayName: name,
-          email: p?.email ?? null,
-          timezone: p?.timezone ?? null,
-          statusMessage: p?.status_message ?? null,
-        };
-      });
+      const nextRows: RecipientRow[] = (data || []).map((p) => ({
+        userId: p.id,
+        displayName: p.display_name?.trim() || p.email || "（無名稱）",
+        email: p.email ?? null,
+        timezone: p.timezone ?? null,
+        statusMessage: p.status_message ?? null,
+      }));
       setRows(nextRows);
       const withEmail = nextRows.filter((r) => r.email).map((r) => r.email!);
       setSelectedEmails(new Set(withEmail));
@@ -109,7 +129,7 @@ export function InquirySlackDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, cases]);
+  }, [open]);
 
   const toggleEmail = (email: string) => {
     setSelectedEmails((prev) => {
@@ -127,7 +147,7 @@ export function InquirySlackDialog({
     }
     const emails = [...selectedEmails];
     if (emails.length === 0) {
-      toast.error("請至少選擇一位有電子信箱的譯者");
+      toast.error("請至少選擇一位有電子信箱的成員");
       return;
     }
 
@@ -142,7 +162,8 @@ export function InquirySlackDialog({
         headers: { Authorization: `Bearer ${token}` },
         body: {
           recipient_emails: emails,
-          message: messagePreview,
+          message: slackMessagePayload.message,
+          notification_fallback: slackMessagePayload.notification_fallback,
         },
       });
       if (error) {
@@ -197,41 +218,42 @@ export function InquirySlackDialog({
           </div>
 
           <div>
-            <Label className="text-xs text-muted-foreground">選擇譯者（依個人檔案顯示時區與狀態）</Label>
+            <Label className="text-xs text-muted-foreground">
+              選擇團隊成員（依個人檔案顯示時區與狀態；含 PM、執行官）
+            </Label>
             {loading ? (
               <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                載入譯者…
+                載入成員…
               </div>
             ) : rows.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4">所選案件中沒有指派譯者。</p>
+              <p className="text-sm text-muted-foreground py-4">尚無團隊成員資料。</p>
             ) : (
               <ScrollArea className="h-[220px] border rounded-md mt-2 p-2">
-                <div className="space-y-3 pr-2">
+                <div className="space-y-2 pr-2">
                   {rows.map((r) => {
-                    const tzLabel = r.timezone ? getTimezoneInfo(r.timezone)?.label || r.timezone : "—";
+                    const utcOffset = r.timezone ? getTimezoneInfo(r.timezone)?.utcOffset ?? "—" : "—";
+                    const statusText = r.statusMessage?.trim() || "—";
                     const canSend = !!r.email;
+                    const title = r.email
+                      ? r.email
+                      : "個人檔案無信箱，無法發送 Slack 私訊";
                     return (
                       <div
-                        key={r.displayName}
-                        className={`flex gap-3 rounded-md border p-2 ${!canSend ? "opacity-60" : ""}`}
+                        key={r.userId}
+                        title={title}
+                        className={`flex gap-3 rounded-md border p-2 items-start ${!canSend ? "opacity-60" : ""}`}
                       >
                         <Checkbox
                           checked={r.email ? selectedEmails.has(r.email) : false}
                           disabled={!canSend}
                           onCheckedChange={() => r.email && toggleEmail(r.email)}
-                          className="mt-1"
+                          className="mt-0.5 shrink-0"
                         />
-                        <div className="min-w-0 flex-1 space-y-0.5">
-                          <p className="text-sm font-medium">{r.displayName}</p>
-                          <p className="text-xs text-muted-foreground">信箱：{r.email || "（個人檔案無信箱，無法發送）"}</p>
-                          <p className="text-xs text-muted-foreground">時區：{tzLabel}</p>
-                          {r.statusMessage ? (
-                            <p className="text-xs text-muted-foreground line-clamp-2">狀態：{r.statusMessage}</p>
-                          ) : (
-                            <p className="text-xs text-muted-foreground/70">狀態：—</p>
-                          )}
-                        </div>
+                        <p className="text-sm text-muted-foreground min-w-0 flex-1 leading-snug break-words">
+                          <span className="font-medium text-foreground">{r.displayName}</span>{" "}
+                          <span className="whitespace-nowrap">({utcOffset})</span> {statusText}
+                        </p>
                       </div>
                     );
                   })}
