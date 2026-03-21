@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { MoreHorizontal, Plus, Trash2, Palette, Check, Pencil, X, Search, MessageSquareText } from "lucide-react";
 import ProfileViewerDialog from "@/components/ProfileViewerDialog";
 import AssigneeTag from "@/components/AssigneeTag";
@@ -22,6 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { pinSelectedAssigneesToTop } from "@/lib/assignee-option-order";
 
 interface ColorSelectProps {
   fieldKey: string;
@@ -92,6 +93,11 @@ export default function ColorSelect({
   const filteredOptions = searchQuery.trim()
     ? options.filter((o) => o.label.toLowerCase().includes(searchQuery.toLowerCase()))
     : options;
+
+  const displayOptions = useMemo(() => {
+    if (fieldKey !== "assignee") return filteredOptions;
+    return pinSelectedAssigneesToTop(options, filteredOptions, value ? [value] : []);
+  }, [fieldKey, options, filteredOptions, value]);
 
   const handleSelect = (opt: SelectOption) => {
     onValueChange(opt.label);
@@ -206,7 +212,7 @@ export default function ColorSelect({
 
             {/* Options list - max 15 visible */}
             <div className="max-h-[330px] overflow-y-auto p-1">
-              {filteredOptions.map((opt) => (
+              {displayOptions.map((opt) => (
                 <div key={opt.id} className="relative group">
                   <button
                     className={cn(

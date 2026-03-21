@@ -1007,7 +1007,7 @@ export default function CaseDetailPage() {
       invalidated: false,
     };
     await internalNotesStore.add(newNote);
-    navigate(`/internal-notes?noteId=${newNote.id}`);
+    navigate(`/internal-notes/${newNote.id}`);
   };
 
   // Get linked notes for this case (reactive via useInternalNotes)
@@ -2069,7 +2069,7 @@ export default function CaseDetailPage() {
               {linkedNotes.map((n) => (
                 <Link
                   key={n.id}
-                  to={`/internal-notes?noteId=${n.id}`}
+                  to={`/internal-notes/${n.id}`}
                   className="flex items-center gap-2 text-sm text-primary hover:underline"
                 >
                   <ExternalLink className="h-3.5 w-3.5 shrink-0" />

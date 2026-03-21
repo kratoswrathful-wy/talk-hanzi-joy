@@ -30,7 +30,7 @@ export function escapeSlackMrkdwnText(text: string): string {
 }
 
 /** Label in `<url|label>` must not contain raw `|` (breaks mrkdwn). */
-function escapeSlackLinkLabel(text: string): string {
+export function escapeSlackLinkLabel(text: string): string {
   return escapeSlackMrkdwnText(text).replace(/\|/g, "｜");
 }
 

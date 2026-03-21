@@ -125,6 +125,7 @@ function AuthenticatedRoutes() {
         <Route path="/tools" element={<ToolManagementPage />} />
         <Route path="/tools/page-template/:id" element={<PageTemplateEditorPage />} />
         <Route path="/field-reference" element={<FieldReferencePage />} />
+        <Route path="/internal-notes/:noteId" element={<InternalNotesPage />} />
         <Route path="/internal-notes" element={<InternalNotesPage />} />
         <Route path="/settings" element={<SettingsRoute />} />
         <Route path="/profile" element={<ProfilePage />} />

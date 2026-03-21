@@ -2,7 +2,7 @@
  * Multi-select version of ColorSelect.
  * Reuses the same selectOptionsStore options but allows selecting multiple values.
  */
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Plus, Trash2, Palette, Check, Pencil, X, Search, MoreHorizontal } from "lucide-react";
 import AssigneeTag from "@/components/AssigneeTag";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -22,6 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { pinSelectedAssigneesToTop, sortSelectedAssigneeOptions } from "@/lib/assignee-option-order";
 
 function getColorUsageMap(options: { color: string; label: string }[]): Record<string, string[]> {
   const map: Record<string, string[]> = {};
@@ -75,10 +76,20 @@ export default function MultiColorSelect({
     if (open) { setSearchQuery(""); setTimeout(() => searchInputRef.current?.focus(), 50); }
   }, [open]);
 
-  const selectedOptions = options.filter((o) => values.includes(o.label));
+  const selectedOptions = useMemo(() => {
+    const sel = options.filter((o) => values.includes(o.label));
+    if (fieldKey !== "assignee") return sel;
+    return sortSelectedAssigneeOptions(options, values);
+  }, [options, values, fieldKey]);
+
   const filteredOptions = searchQuery.trim()
     ? options.filter((o) => o.label.toLowerCase().includes(searchQuery.toLowerCase()))
     : options;
+
+  const displayOptions = useMemo(() => {
+    if (fieldKey !== "assignee") return filteredOptions;
+    return pinSelectedAssigneesToTop(options, filteredOptions, values);
+  }, [fieldKey, options, filteredOptions, values]);
 
   const handleToggle = (opt: SelectOption) => {
     if (values.includes(opt.label)) {
@@ -172,7 +183,7 @@ export default function MultiColorSelect({
 
             {/* Options */}
             <div className="max-h-[330px] overflow-y-auto p-1">
-              {filteredOptions.map((opt) => {
+              {displayOptions.map((opt) => {
                 const isChecked = values.includes(opt.label);
                 const isAssignee = fieldKey === "assignee";
                 return (

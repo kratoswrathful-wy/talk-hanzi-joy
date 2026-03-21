@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
+import { planDuplicateCaseTitle } from "@/lib/case-title-duplicate";
 import type { CaseRecord, CaseStatus, ToolEntry } from "@/data/case-types";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
@@ -400,62 +401,21 @@ async function duplicate(id: string): Promise<{ newCase: CaseRecord; renames: { 
   if (!source) return null;
   const { id: _id, createdAt, updatedAt, createdBy, comments: _c, internalComments: _ic, ...rest } = source;
 
-  // Replace 6-digit date (YYMMDD) in title with today's date
   const now = new Date();
   const yy = String(now.getFullYear()).slice(2);
   const mm = String(now.getMonth() + 1).padStart(2, "0");
   const dd = String(now.getDate()).padStart(2, "0");
   const todayStr = `${yy}${mm}${dd}`;
 
-  // Extract prefix: everything before the 6-digit date
-  const dateMatch = source.title.match(/^(.*?)(\d{6})(_.+)?$/);
-  let prefix: string;
-  let suffix: string;
-  if (dateMatch) {
-    prefix = dateMatch[1]; // e.g. "God of War "
-    suffix = dateMatch[3] || ""; // e.g. "_作業"
-  } else {
-    prefix = source.title + " ";
-    suffix = "";
-  }
-  const baseTitle = `${prefix}${todayStr}${suffix}`;
+  const plan = planDuplicateCaseTitle(source.title, id, todayStr, cases.map((c) => ({ id: c.id, title: c.title })));
 
-  // Find all existing cases with the same prefix+date+suffix pattern
-  const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const escapedSuffix = suffix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pattern = new RegExp(`^${escapedPrefix}${todayStr}([A-Z])?${escapedSuffix}$`);
-  const matching = cases.filter((c) => pattern.test(c.title));
-
-  const renames: { oldTitle: string; newTitle: string }[] = [];
-
-  if (matching.length === 0) {
-    // Clear fields on duplication
-    const cleaned = clearDuplicateFields(rest);
-    const newCase = await create({ ...cleaned, title: baseTitle });
-    return newCase ? { newCase, renames } : null;
+  for (const u of plan.titleUpdates) {
+    await update(u.caseId, { title: u.newTitle });
   }
 
-  const exactMatch = matching.find((c) => c.title === baseTitle);
-  if (exactMatch) {
-    const oldTitle = exactMatch.title;
-    const newTitle = `${prefix}${todayStr}A${suffix}`;
-    await update(exactMatch.id, { title: newTitle });
-    renames.push({ oldTitle, newTitle });
-  }
-
-  let maxCode = exactMatch ? "A".charCodeAt(0) : "A".charCodeAt(0) - 1;
-  for (const c of matching) {
-    const letterMatch = c.title.match(new RegExp(`^${escapedPrefix}${todayStr}([A-Z])${escapedSuffix}$`));
-    if (letterMatch) {
-      const code = letterMatch[1].charCodeAt(0);
-      if (code > maxCode) maxCode = code;
-    }
-  }
-
-  const nextLetter = String.fromCharCode(maxCode + 1);
   const cleaned = clearDuplicateFields(rest);
-  const newCase = await create({ ...cleaned, title: `${prefix}${todayStr}${nextLetter}${suffix}` });
-  return newCase ? { newCase, renames } : null;
+  const newCase = await create({ ...cleaned, title: plan.newTitle });
+  return newCase ? { newCase, renames: plan.renames } : null;
 }
 
 /** Fields to clear when duplicating a case */

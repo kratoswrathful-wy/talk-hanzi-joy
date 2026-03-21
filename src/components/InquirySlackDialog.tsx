@@ -359,12 +359,58 @@ export function InquirySlackDialog({
                   <SelectItem value="desc">降序</SelectItem>
                 </SelectContent>
               </Select>
-              <Button type="button" variant="outline" size="sm" className="h-9 text-xs" onClick={handleSelectAllVisible}>
-                全選
-              </Button>
-              <Button type="button" variant="outline" size="sm" className="h-9 text-xs" onClick={handleDeselectAll}>
-                取消全選
-              </Button>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="inquiry-slack-select-all"
+                  disabled={selectableInView.length === 0}
+                  checked={someVisibleSelected ? "indeterminate" : allVisibleSelected}
+                  onCheckedChange={(c) => {
+                    if (c === true) {
+                      setSelectedEmails((prev) => {
+                        const n = new Set(prev);
+                        for (const r of selectableInView) n.add(r.email);
+                        return n;
+                      });
+                    } else {
+                      setSelectedEmails((prev) => {
+                        const n = new Set(prev);
+                        for (const r of selectableInView) n.delete(r.email);
+                        return n;
+                      });
+                    }
+                  }}
+                  className="h-4 w-4"
+                />
+                <label htmlFor="inquiry-slack-select-all" className="text-xs text-muted-foreground cursor-pointer select-none">
+                  全選
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="inquiry-slack-deselect-all"
+                  disabled={selectableInView.length === 0}
+                  checked={noVisibleSelected}
+                  onCheckedChange={(c) => {
+                    if (c === true) {
+                      setSelectedEmails((prev) => {
+                        const n = new Set(prev);
+                        for (const r of selectableInView) n.delete(r.email);
+                        return n;
+                      });
+                    } else {
+                      setSelectedEmails((prev) => {
+                        const n = new Set(prev);
+                        for (const r of selectableInView) n.add(r.email);
+                        return n;
+                      });
+                    }
+                  }}
+                  className="h-4 w-4"
+                />
+                <label htmlFor="inquiry-slack-deselect-all" className="text-xs text-muted-foreground cursor-pointer select-none">
+                  取消全選
+                </label>
+              </div>
               <div className="flex items-center gap-2 ml-auto">
                 <Checkbox
                   id="inquiry-slack-hide-self"

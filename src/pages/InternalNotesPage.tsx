@@ -5,7 +5,7 @@ import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } fro
 import { TableFooterStats } from "@/components/TableFooterStats";
 import { toast } from "sonner";
 import { Plus, ExternalLink, Trash2, GripVertical } from "lucide-react";
-import { useSearchParams, useNavigate, Link } from "react-router-dom";
+import { useSearchParams, useNavigate, Link, useParams } from "react-router-dom";
 import { ApplyTemplateButton } from "@/components/ApplyTemplateButton";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,10 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import {
+  buildInternalNoteLinkMessageHtml,
+  buildInternalNoteLinkMessagePlain,
+} from "@/lib/internal-note-link-message";
 import { useInternalNotes, internalNotesStore } from "@/stores/internal-notes-store";
 import { useAuth } from "@/hooks/use-auth";
 import { caseStore } from "@/hooks/use-case-store";
@@ -132,6 +136,24 @@ function NoteDetailView({
   onDelete: () => void;
 }) {
   const navigate = useNavigate();
+
+  const handleCopyLinkMessage = async () => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const plain = buildInternalNoteLinkMessagePlain(origin, note.title || "（無標題）", note.id);
+    const html = buildInternalNoteLinkMessageHtml(origin, note.title || "（無標題）", note.id);
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/plain": new Blob([plain], { type: "text/plain" }),
+          "text/html": new Blob([html], { type: "text/html" }),
+        }),
+      ]);
+      toast.success("已複製連結訊息至剪貼簿");
+    } catch {
+      await navigator.clipboard.writeText(plain);
+      toast.success("已複製連結訊息至剪貼簿");
+    }
+  };
   const { profile } = useAuth();
   const [invalidateOpen, setInvalidateOpen] = useState(false);
   const [invalidateReason, setInvalidateReason] = useState("");
@@ -181,7 +203,7 @@ function NoteDetailView({
     };
     await internalNotesStore.add(newNote);
     toast.success(`已建立新註記頁面「${title}」，現有內容複製自原頁面，請確實妥善編輯更改。`);
-    navigate(`/internal-notes?noteId=${newNote.id}`);
+    navigate(`/internal-notes/${newNote.id}`);
   };
 
   return (
@@ -190,7 +212,10 @@ function NoteDetailView({
         <button onClick={onBack} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <span>←</span> 返回列表
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" size="sm" className="text-xs min-w-[88px]" onClick={handleCopyLinkMessage}>
+            產生連結訊息
+          </Button>
           <Button variant="outline" size="sm" className="text-xs min-w-[88px]" onClick={handleNewSameCaseNote}>
             新增同案件註記
           </Button>
@@ -477,7 +502,7 @@ function NewNoteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
     onOpenChange(false);
     setSearch("");
     setSelectedCase("");
-    navigate(`/internal-notes?noteId=${newNote.id}`);
+    navigate(`/internal-notes/${newNote.id}`);
   };
 
   return (
@@ -523,21 +548,24 @@ export default function InternalNotesPage() {
   const notes = useInternalNotes();
   const { user } = useAuth();
   const { checkPerm } = usePermissions();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { noteId: routeNoteId } = useParams<{ noteId?: string }>();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [newNoteOpen, setNewNoteOpen] = useState(false);
 
   // Load notes from DB on mount
   useEffect(() => { internalNotesStore.load(); }, []);
 
-  // Auto-open note if ?noteId= is in URL
+  // Legacy ?noteId= → /internal-notes/:noteId
   useEffect(() => {
-    const noteId = searchParams.get("noteId");
-    if (noteId && notes.find((n) => n.id === noteId)) {
-      setSelectedId(noteId);
+    const q = searchParams.get("noteId");
+    if (q && notes.some((n) => n.id === q)) {
+      navigate(`/internal-notes/${q}`, { replace: true });
       setSearchParams({}, { replace: true });
     }
-  }, [searchParams, notes]);
+  }, [searchParams, notes, navigate, setSearchParams]);
+
+  const selectedNote = routeNoteId ? notes.find((n) => n.id === routeNoteId) : undefined;
 
   const tableViews = useInternalNotesTableViews(user?.id);
   const { activeView } = tableViews;
@@ -561,7 +589,7 @@ export default function InternalNotesPage() {
             {n.title || <span className="text-muted-foreground italic">未命名</span>}
           </span>
           <button
-            onClick={(e) => { e.stopPropagation(); e.preventDefault(); setSelectedId(n.id); }}
+            onClick={(e) => { e.stopPropagation(); e.preventDefault(); navigate(`/internal-notes/${n.id}`); }}
             onMouseDown={(e) => e.stopPropagation()}
             className="absolute right-0 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover/title:opacity-100 p-0.5 rounded hover:bg-muted transition-all"
             title="開啟"
@@ -690,15 +718,13 @@ export default function InternalNotesPage() {
     setShowDeleteConfirm(false);
   }, [rowSelection]);
 
-  const selectedNote = notes.find((n) => n.id === selectedId);
-
   if (selectedNote) {
     return (
       <NoteDetailView
         note={selectedNote}
-        onUpdate={(updates) => internalNotesStore.update(selectedId!, updates)}
-        onBack={() => setSelectedId(null)}
-        onDelete={() => { internalNotesStore.remove(selectedId!); setSelectedId(null); }}
+        onUpdate={(updates) => internalNotesStore.update(selectedNote.id, updates)}
+        onBack={() => navigate("/internal-notes")}
+        onDelete={() => { internalNotesStore.remove(selectedNote.id); navigate("/internal-notes"); }}
       />
     );
   }
@@ -812,7 +838,7 @@ export default function InternalNotesPage() {
                   key={note.id}
                   ref={(el) => registerRowRef(note.id, el)}
                   className={cn("border-b border-border/40 transition-colors hover:bg-muted/30 cursor-pointer", isSelected && "bg-primary/5")}
-                  onClick={() => setSelectedId(note.id)}
+                  onClick={() => navigate(`/internal-notes/${note.id}`)}
                 >
                   <td className="w-[40px] px-2 py-1.5 text-center" onClick={(e) => e.stopPropagation()}>
                     <Checkbox checked={isSelected} onCheckedChange={() => rowSelection.handleClick(note.id, { ctrlKey: true } as any)} className="mx-auto" />
