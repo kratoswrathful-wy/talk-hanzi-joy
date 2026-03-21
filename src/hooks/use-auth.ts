@@ -25,7 +25,10 @@ export function useAuth() {
   const [session, setSession] = useState<Session | null>(initialSnapshot.session);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<UserRole[]>([]);
-  const [loading, setLoading] = useState(!initialSnapshot.ready);
+  // 已登入時在讀取 profile / user_roles 完成前必須維持 loading，否則會有一瞬間 roles=[] → isAdmin=false（設定頁誤判）
+  const [loading, setLoading] = useState(
+    () => !initialSnapshot.ready || initialSnapshot.user != null,
+  );
 
   const fetchProfile = useCallback(async (userId: string) => {
     const { data, error } = await supabase
@@ -69,7 +72,10 @@ export function useAuth() {
 
     void waitForAuthReady()
       .then(() => {
-        if (mounted) setLoading(false);
+        if (!mounted) return;
+        // 僅在未登入時關閉 loading；已登入時由「讀取 profile + user_roles」的流程負責 setLoading(false)
+        const snap = getAuthSnapshot();
+        if (!snap.user) setLoading(false);
       })
       .catch((error) => {
         console.error("auth init error:", error);
