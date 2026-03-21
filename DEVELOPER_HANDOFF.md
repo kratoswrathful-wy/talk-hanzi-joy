@@ -445,6 +445,8 @@ Site URL: https://你的正式網域.com
 Redirect URLs: https://你的正式網域.com/reset-password
 ```
 
+收不到重設密碼信時，請依 **[`docs/supabase-password-reset-setup.md`](docs/supabase-password-reset-setup.md)** 完整檢查（含 Redirect URLs、SMTP、垃圾郵件）。可選在 Vercel 設定 `VITE_SUPABASE_AUTH_REDIRECT_ORIGIN` 與 Supabase 清單一致。
+
 ---
 
 ## 12. 步驟九：驗證清單

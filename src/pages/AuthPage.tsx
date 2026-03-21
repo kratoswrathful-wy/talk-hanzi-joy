@@ -12,6 +12,15 @@ import logo from "@/assets/1UP_Mark.png";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+/** Canonical origin for auth redirects; must match Supabase Redirect URLs. */
+function getAuthRedirectOrigin(): string {
+  const fromEnv = import.meta.env.VITE_SUPABASE_AUTH_REDIRECT_ORIGIN?.trim();
+  if (fromEnv) {
+    return fromEnv.replace(/\/$/, "");
+  }
+  return window.location.origin;
+}
+
 function persistLoginPreference(keepLoggedIn: boolean) {
   if (keepLoggedIn) {
     localStorage.setItem("keep_logged_in", "true");
@@ -78,7 +87,7 @@ export default function AuthPage() {
 
     if (showReset) {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${getAuthRedirectOrigin()}/reset-password`,
       });
       setLoading(false);
       if (error) {
@@ -118,7 +127,7 @@ export default function AuthPage() {
         password,
         options: {
           data: { display_name: displayName },
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: getAuthRedirectOrigin(),
         },
       });
       if (error) {
