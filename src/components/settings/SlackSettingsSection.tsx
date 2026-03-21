@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
+import { messageFromFunctionsInvokeErrorAsync } from "@/lib/functions-invoke-error";
 
 export function SlackSettingsSection() {
   const { user, session, isAdmin } = useAuth();
@@ -60,7 +61,7 @@ export function SlackSettingsSection() {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (error) {
-        toast.error(error.message);
+        toast.error(await messageFromFunctionsInvokeErrorAsync(error, data));
         return;
       }
       const url = (data as { url?: string })?.url;
@@ -78,11 +79,11 @@ export function SlackSettingsSection() {
     if (!session?.access_token) return;
     setActionLoading(true);
     try {
-      const { error } = await supabase.functions.invoke("slack-disconnect", {
+      const { data, error } = await supabase.functions.invoke("slack-disconnect", {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (error) {
-        toast.error(error.message);
+        toast.error(await messageFromFunctionsInvokeErrorAsync(error, data));
         return;
       }
       toast.success("已解除 Slack 連結");

@@ -46,3 +46,7 @@ supabase db push
 ## 4. 訊息格式
 
 與案件頁「產生詢案訊息」相同；多筆案件時第一行為「請問這幾件可以做嗎？」，下方每行一筆 `標題（案件連結）`。
+
+## 5. 疑難排解
+
+若出現 **Edge Function** 錯誤，請見 **[SLACK_TROUBLESHOOTING.md](./SLACK_TROUBLESHOOTING.md)**（專案一致、Secrets、部署、Logs）。

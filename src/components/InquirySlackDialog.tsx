@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
+import { messageFromFunctionsInvokeErrorAsync } from "@/lib/functions-invoke-error";
 import type { CaseRecord } from "@/data/case-types";
 import {
   buildInquiryMessagePlainText,
@@ -142,7 +143,7 @@ export function InquirySlackDialog({
         },
       });
       if (error) {
-        toast.error(error.message || "發送失敗");
+        toast.error(await messageFromFunctionsInvokeErrorAsync(error, data));
         return;
       }
       const payload = data as { ok?: boolean; results?: { email: string; ok: boolean; error?: string }[] };
