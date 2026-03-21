@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { useEffect, useState, useCallback, useMemo, lazy, Suspense, useRef } from "react";
-import { ArrowLeft, Trash2, Plus, X, Copy, Check, ExternalLink, Settings } from "lucide-react";
+import { ArrowLeft, Trash2, Plus, X, Copy, Check, ExternalLink, Settings, MessageSquare } from "lucide-react";
 import { CaseIconUploader } from "@/components/CaseIconUploader";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -51,6 +51,7 @@ import { getTimezoneInfo } from "@/data/timezone-options";
 import type { InternalNote } from "@/hooks/use-internal-notes-table-views";
 
 import CollaborationTable from "@/components/CollaborationTable";
+import { InquirySlackDialog } from "@/components/InquirySlackDialog";
 
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
@@ -803,6 +804,7 @@ export default function CaseDetailPage() {
   const [declineProposedDeadline, setDeclineProposedDeadline] = useState<string | null>(null);
   const [declineAvailableCount, setDeclineAvailableCount] = useState("");
   const [declineMessage, setDeclineMessage] = useState("");
+  const [inquirySlackOpen, setInquirySlackOpen] = useState(false);
   const { primaryRole: currentRole, profile } = useAuth();
   const { checkPerm } = usePermissions();
   const isManager = currentRole === "pm" || currentRole === "executive";
@@ -1194,6 +1196,17 @@ export default function CaseDetailPage() {
               }}
             >
               產生詢案訊息
+            </Button>
+          )}
+          {isPmOrAbove && caseData && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs min-w-[88px]"
+              onClick={() => setInquirySlackOpen(true)}
+            >
+              <MessageSquare className="h-3.5 w-3.5 mr-1" />
+              Slack 詢案
             </Button>
           )}
           {isPmOrAbove && (
@@ -2623,6 +2636,14 @@ export default function CaseDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {caseData && (
+        <InquirySlackDialog
+          open={inquirySlackOpen}
+          onOpenChange={setInquirySlackOpen}
+          cases={[caseData]}
+        />
+      )}
 
     </div>
   );

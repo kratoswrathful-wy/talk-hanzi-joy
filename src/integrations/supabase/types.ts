@@ -737,6 +737,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_slack_meta: {
+        Row: {
+          slack_team_id: string | null
+          slack_user_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          slack_team_id?: string | null
+          slack_user_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          slack_team_id?: string | null
+          slack_user_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useClickOutsideCancel } from "@/hooks/use-click-outside";
 import { iconLibraryStore, type IconLibraryItem } from "@/stores/icon-library-store";
+import { SlackSettingsSection } from "@/components/settings/SlackSettingsSection";
 
 function getColorUsageMap(options: { color: string; label: string }[]): Record<string, string[]> {
   const map: Record<string, string[]> = {};
@@ -2696,7 +2697,7 @@ function IconLibrarySection() {
 // ─── Main Settings Page ───
 
 export default function SettingsPage() {
-  const { primaryRole } = useAuth();
+  const { primaryRole, isAdmin } = useAuth();
   const { canViewSection, loading } = usePermissions();
   const isExecutive = primaryRole === "executive";
 
@@ -2744,6 +2745,9 @@ export default function SettingsPage() {
 
       {/* Translator tiers - full width */}
       {canViewSection("translator_tiers") && <TranslatorTierSection />}
+
+      {/* Slack OAuth — PM / Executive */}
+      {isAdmin && <SlackSettingsSection />}
     </div>
   );
 }

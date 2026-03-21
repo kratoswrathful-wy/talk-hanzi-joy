@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { TableFooterStats, type NumericColumnConfig } from "@/components/TableFooterStats";
-import { Plus, GripVertical, ExternalLink, Trash2, Copy, FileText, CheckSquare, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, GripVertical, ExternalLink, Trash2, Copy, FileText, CheckSquare, ChevronLeft, ChevronRight, MessageSquare } from "lucide-react";
 import { CreateWithTemplateButton } from "@/components/CreateWithTemplateButton";
 import { useAuth } from "@/hooks/use-auth";
 import { DeadlineProximityIcon } from "@/components/DeadlineProximityIcon";
@@ -36,6 +36,7 @@ import { generateFeesForCase, caseHasLinkedFees, type GenerateFeeResult } from "
 import { usePermissions } from "@/hooks/use-permissions";
 import { undoStore } from "@/stores/undo-store";
 import { useTableContextMenu, TableContextMenuOverlay, type ContextMenuItem } from "@/components/TableContextMenu";
+import { InquirySlackDialog } from "@/components/InquirySlackDialog";
 
 /** Pick the earliest (minimum/soonest) deadline from a set of rows */
 function pickEarliestDeadline(rows: CollabRow[], field: "translationDeadline" | "reviewDeadline"): string | null {
@@ -449,6 +450,11 @@ export default function CasesPage() {
   const visibleFees = tableViews.applyFiltersAndSorts(cases);
   const rowSelection = useRowSelection(visibleFees.map((c) => c.id));
 
+  const selectedCasesForSlack = useMemo(
+    () => visibleFees.filter((c) => rowSelection.selectedIds.has(c.id)),
+    [visibleFees, rowSelection.selectedIds]
+  );
+
   const visibleFieldKeys = caseFieldMetas.map((f) => f.key);
   const permittedFieldKeys = useMemo(() =>
     caseFieldMetas.filter((f) => checkPerm("case_management", `table_field_${f.key}`, "view")).map((f) => f.key),
@@ -531,6 +537,7 @@ export default function CasesPage() {
 
   // Delete with undo support
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [inquirySlackOpen, setInquirySlackOpen] = useState(false);
   const [casesDupDialogOpen, setCasesDupDialogOpen] = useState(false);
   const [casesDupInfo, setCasesDupInfo] = useState<{ newTitle: string; renames: { oldTitle: string; newTitle: string }[] } | null>(null);
   const handleDeleteSelected = useCallback(async () => {
@@ -753,6 +760,17 @@ export default function CasesPage() {
           >
             <CheckSquare className="h-4 w-4" />
             交件完畢
+          </Button>
+        )}
+        {isAdmin && rowSelection.selectedCount > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 gap-1"
+            onClick={() => setInquirySlackOpen(true)}
+          >
+            <MessageSquare className="h-4 w-4" />
+            Slack 詢案
           </Button>
         )}
         {activeView.isDefault ? (
@@ -1097,6 +1115,12 @@ export default function CasesPage() {
         menu={ctxMenu.menu}
         items={ctxMenu.menu ? buildContextMenuItems(ctxMenu.menu.rowId) : []}
         onClose={ctxMenu.closeMenu}
+      />
+
+      <InquirySlackDialog
+        open={inquirySlackOpen}
+        onOpenChange={setInquirySlackOpen}
+        cases={selectedCasesForSlack}
       />
     </div>
   );
