@@ -6,11 +6,13 @@ verify_jwt = false
 [functions.slack-oauth-callback]
 verify_jwt = false
 
+# 網關 verify_jwt 與新版 sb_publishable_ + 使用者 JWT 組合可能回 Invalid JWT（未到達函式）。
+# 改由函式內 supabase.auth.getUser(jwt) 驗證（見各 index.ts）。
 [functions.slack-oauth-start]
-verify_jwt = true
+verify_jwt = false
 
 [functions.slack-send-dm]
-verify_jwt = true
+verify_jwt = false
 
 [functions.slack-disconnect]
-verify_jwt = true
+verify_jwt = false

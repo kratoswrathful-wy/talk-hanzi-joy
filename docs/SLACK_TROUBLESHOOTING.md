@@ -44,3 +44,15 @@ supabase functions deploy slack-oauth-start slack-oauth-callback slack-disconnec
 ## 6. 查看 Logs
 
 **Supabase Dashboard → Edge Functions → 對應函式 → Logs**，對應點擊當下的請求可看到狀態碼與 `console.error` 輸出。
+
+## 7. Response 為 `Invalid JWT`（網關 401），但 Headers 已正確區分 apikey 與 Bearer
+
+若 **`apikey`** 為 `sb_publishable_...`、**`Authorization`** 為使用者 `eyJ...`，仍回 **401 `Invalid JWT`**，可能是 Supabase Edge **網關**在 `verify_jwt = true` 時與新版金鑰驗證不相容。
+
+本專案 [`config.toml`](../supabase/config.toml) 已將 `slack-oauth-start`、`slack-send-dm`、`slack-disconnect` 設為 **`verify_jwt = false`**，改由函式內 **`supabase.auth.getUser(jwt)`** 驗證（與業務邏輯一致）。
+
+變更後請重新部署：
+
+```bash
+supabase functions deploy slack-oauth-start slack-oauth-callback slack-disconnect slack-send-dm
+```
