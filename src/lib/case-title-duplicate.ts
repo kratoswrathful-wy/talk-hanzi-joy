@@ -56,17 +56,22 @@ export interface PlanDuplicateTitleResult {
 }
 
 /**
- * Title for slot index 0 = no letter; 1 = A; 2 = B; … after the YYMMDD.
+ * Same-day renumbering:
+ * - `totalSlots === 1`: only one row → no letter after date (`prefix + YYMMDD + suffix`).
+ * - `totalSlots >= 2`: every row gets a letter starting at **A** (slot 0 = A, 1 = B, …).
  */
 export function titleForDuplicateSlot(
   prefix: string,
   dateYYMMDD: string,
   slotIndex: number,
-  underscoreSuffix: string | null
+  underscoreSuffix: string | null,
+  totalSlots: number
 ): string {
   const us = underscoreSuffix || "";
-  if (slotIndex <= 0) return `${prefix}${dateYYMMDD}${us}`;
-  const letter = String.fromCharCode("A".charCodeAt(0) + slotIndex - 1);
+  if (totalSlots <= 1) {
+    return `${prefix}${dateYYMMDD}${us}`;
+  }
+  const letter = String.fromCharCode("A".charCodeAt(0) + slotIndex);
   return `${prefix}${dateYYMMDD}${letter}${us}`;
 }
 
@@ -183,15 +188,19 @@ export function planDuplicateCaseTitle(
   const participants = [...existingSameDay, synthetic];
 
   if (participants.length === 1) {
-    const newTitle = titleForDuplicateSlot(prefix, todayYYMMDD, 0, underscoreSuffix);
+    const newTitle = titleForDuplicateSlot(prefix, todayYYMMDD, 0, underscoreSuffix, 1);
     return { newTitle, renames, titleUpdates };
   }
 
+  const totalSlots = participants.length;
   const sorted = [...participants].sort((a, b) => compareParticipants(a, b, sort.key, sort.dir));
 
   const idToNewTitle = new Map<string, string>();
   sorted.forEach((p, slotIndex) => {
-    idToNewTitle.set(p.id, titleForDuplicateSlot(prefix, todayYYMMDD, slotIndex, underscoreSuffix));
+    idToNewTitle.set(
+      p.id,
+      titleForDuplicateSlot(prefix, todayYYMMDD, slotIndex, underscoreSuffix, totalSlots)
+    );
   });
 
   const newTitle = idToNewTitle.get(DUPLICATE_NEW_SLOT_ID) ?? "";

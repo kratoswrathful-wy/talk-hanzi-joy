@@ -50,7 +50,7 @@ export function DuplicateCaseSortDialog({
           <AlertDialogTitle>同日同系列案件排序</AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-3 text-left">
-              <p>複製後需為同日案件重新編排區隔符號。請選擇排序方式，系統會依序指派標題（第一筆無尾碼，之後為 A、B、C…）。</p>
+              <p>複製後需為同日案件重新編排區隔符號。請選擇排序方式，系統會依序指派標題（自 A 起：A、B、C…）。</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">排序依據</Label>

@@ -56,8 +56,9 @@ describe("planDuplicateCaseTitle", () => {
       DEFAULT_DUPLICATE_SORT,
       nowIso
     );
-    expect(r.titleUpdates).toHaveLength(0);
-    expect(r.newTitle).toBe("Moncler 260322A");
+    expect(r.titleUpdates.length).toBe(1);
+    expect(r.titleUpdates[0]).toEqual({ caseId: sourceId, newTitle: "Moncler 260322A" });
+    expect(r.newTitle).toBe("Moncler 260322B");
   });
 
   it("bumps letter when same base exists elsewhere (source old date)", () => {
@@ -84,8 +85,10 @@ describe("planDuplicateCaseTitle", () => {
       DEFAULT_DUPLICATE_SORT,
       nowIso
     );
-    expect(r.newTitle).toBe("Moncler 260322A");
-    expect(r.titleUpdates).toHaveLength(0);
+    expect(r.newTitle).toBe("Moncler 260322B");
+    expect(r.titleUpdates).toEqual([
+      { caseId: "other", newTitle: "Moncler 260322A" },
+    ]);
   });
 
   it("handles 260320B style source title moving to today", () => {
