@@ -40,7 +40,7 @@ export function AppSidebar() {
     ...(canViewMembers ? [{ title: "團隊成員", url: "/members", icon: Users }] : []),
     ...(isExecutive ? [{ title: "權限管理", url: "/permissions", icon: Shield }] : []),
     { title: "個人檔案", url: "/profile", icon: User },
-    { title: "設定", url: "/settings", icon: Settings },
+    ...(isAdmin ? [{ title: "設定", url: "/settings", icon: Settings }] : []),
     ...(canViewFieldRef ? [{ title: "內部資料", url: "/field-reference", icon: Table2 }] : []),
   ];
 

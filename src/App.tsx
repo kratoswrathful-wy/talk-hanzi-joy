@@ -38,6 +38,14 @@ function TranslatorFeeDetailWrapper() {
 
 const queryClient = new QueryClient();
 
+function SettingsRoute() {
+  const { isAdmin } = useAuth();
+  if (!isAdmin) {
+    return <Navigate to="/profile" replace />;
+  }
+  return <SettingsPage />;
+}
+
 function AuthenticatedRoutes() {
   const { user, loading, profile } = useAuth();
 
@@ -81,7 +89,7 @@ function AuthenticatedRoutes() {
         <Route path="/tools/page-template/:id" element={<PageTemplateEditorPage />} />
         <Route path="/field-reference" element={<FieldReferencePage />} />
         <Route path="/internal-notes" element={<InternalNotesPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings" element={<SettingsRoute />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/members" element={<MembersPage />} />
         <Route path="/permissions" element={<PermissionsPage />} />

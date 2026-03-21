@@ -148,6 +148,10 @@ export default function ProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [cropperOpen, setCropperOpen] = useState(false);
   const [rawImageSrc, setRawImageSrc] = useState<string>("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -221,6 +225,38 @@ export default function ProfilePage() {
     }
 
     refetchProfile?.(); setSaving(false); toast.success("個人檔案已更新");
+  };
+
+  const handleChangePassword = async () => {
+    if (!user?.email) return;
+    if (newPassword !== confirmPassword) {
+      toast.error("兩次輸入的新密碼不一致");
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error("新密碼至少需 6 個字元");
+      return;
+    }
+    setPasswordSaving(true);
+    const { error: signInErr } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    });
+    if (signInErr) {
+      toast.error("目前密碼不正確或無法驗證：" + signInErr.message);
+      setPasswordSaving(false);
+      return;
+    }
+    const { error: updateErr } = await supabase.auth.updateUser({ password: newPassword });
+    setPasswordSaving(false);
+    if (updateErr) {
+      toast.error("更新密碼失敗：" + updateErr.message);
+      return;
+    }
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    toast.success("密碼已更新");
   };
 
   const initials = (displayName || email || "?").slice(0, 2).toUpperCase();
@@ -318,6 +354,54 @@ export default function ProfilePage() {
           <Button onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             儲存變更
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">變更密碼</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">請先輸入目前密碼以確認身分，再設定新密碼。</p>
+          <div className="space-y-2">
+            <Label htmlFor="currentPassword">目前密碼</Label>
+            <Input
+              id="currentPassword"
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="newPassword">新密碼</Label>
+            <Input
+              id="newPassword"
+              type="password"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="confirmPassword">確認新密碼</Label>
+            <Input
+              id="confirmPassword"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleChangePassword}
+            disabled={passwordSaving || !currentPassword || !newPassword || !confirmPassword}
+          >
+            {passwordSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            更新密碼
           </Button>
         </CardContent>
       </Card>

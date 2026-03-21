@@ -6,6 +6,7 @@ import {
   type FilterOperator, type FieldMeta, type LogicOperator,
   createRootGroup, addConditionToGroup, addSubGroup, removeNode,
   updateConditionInTree, setGroupLogic, countConditions, matchFilterTree, smartCompare,
+  flattenConditions,
 } from "@/lib/filter-types";
 
 export type { TableFilter, TableSort, TableView, FilterOperator, FieldMeta, FilterGroup, LogicOperator };
@@ -159,13 +160,41 @@ const defaultColumnWidths: Record<string, number> = {
 };
 const defaultHiddenColumns = ["executionTool", "deliveryMethod"];
 
+/** 預設排序：審稿交期由早到晚 */
+const defaultCaseViewSorts: TableSort[] = [
+  { id: "default-sort-review-deadline", field: "reviewDeadline", direction: "asc" },
+];
+
+/** 預設篩選：隱藏「已交件」，減少列表列數（仍會載入全部案件資料，僅減少畫面上渲染的筆數） */
+function createDefaultFilterTree(): FilterGroup {
+  const excludeDelivered: TableFilter = {
+    id: "default-exclude-delivered",
+    field: "status",
+    operator: "not_equals",
+    value: "delivered",
+  };
+  return addConditionToGroup(createRootGroup(), "root", excludeDelivered);
+}
+
+/** 舊版預設：單條 status ≠ feedback_completed */
+function isLegacyV1DefaultCaseFilter(tree: FilterGroup): boolean {
+  const flat = flattenConditions(tree);
+  if (flat.length !== 1) return false;
+  const f = flat[0];
+  return (
+    f.field === "status" &&
+    f.operator === "not_equals" &&
+    f.value === "feedback_completed"
+  );
+}
+
 function createDefaultView(): TableView {
   return {
     id: "default",
     name: "預設視圖",
     isDefault: true,
-    filterTree: createRootGroup(),
-    sorts: [],
+    filterTree: createDefaultFilterTree(),
+    sorts: [...defaultCaseViewSorts],
     pinnedTop: [],
     pinnedBottom: [],
     columnOrder: [...defaultColumnOrder],
@@ -176,6 +205,53 @@ function createDefaultView(): TableView {
 
 const BASE_STORAGE_KEY = "case-table-views";
 const BASE_ACTIVE_VIEW_KEY = "case-table-active-view";
+/** 一次性遷移：預設視圖改為「≠ 已交件」、審稿交期升序；並升級舊版單條 feedback_completed 預設 */
+const DEFAULT_VIEW_FILTERS_V2_KEY = "case-table-default-filters-v2";
+
+function migrateDefaultCaseViewIfNeeded(views: TableView[]): TableView[] {
+  try {
+    if (typeof localStorage !== "undefined" && localStorage.getItem(DEFAULT_VIEW_FILTERS_V2_KEY)) {
+      return views;
+    }
+  } catch {
+    return views;
+  }
+
+  const defaultView = views.find((v) => v.id === "default");
+  if (!defaultView) {
+    try {
+      localStorage.setItem(DEFAULT_VIEW_FILTERS_V2_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+    return views;
+  }
+
+  const emptyFilter = countConditions(defaultView.filterTree) === 0;
+  const legacyV1 = isLegacyV1DefaultCaseFilter(defaultView.filterTree);
+
+  let nextFilterTree = defaultView.filterTree;
+  if (emptyFilter || legacyV1) {
+    nextFilterTree = createDefaultFilterTree();
+  }
+
+  let nextSorts = defaultView.sorts;
+  if (defaultView.sorts.length === 0) {
+    nextSorts = [...defaultCaseViewSorts];
+  }
+
+  const next = views.map((v) =>
+    v.id === "default"
+      ? { ...v, filterTree: nextFilterTree, sorts: nextSorts }
+      : v
+  );
+  try {
+    localStorage.setItem(DEFAULT_VIEW_FILTERS_V2_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+  return next;
+}
 
 function loadViewsFromStorage(key: string): TableView[] {
   try {
@@ -183,14 +259,14 @@ function loadViewsFromStorage(key: string): TableView[] {
     if (stored) {
       const parsed = JSON.parse(stored) as TableView[];
       if (!parsed.some((v) => v.id === "default")) {
-        return [createDefaultView(), ...parsed];
+        return migrateDefaultCaseViewIfNeeded([createDefaultView(), ...parsed]);
       }
-      return parsed;
+      return migrateDefaultCaseViewIfNeeded(parsed);
     }
   } catch (e) {
     console.warn("Failed to load case views from storage:", e);
   }
-  return [createDefaultView()];
+  return migrateDefaultCaseViewIfNeeded([createDefaultView()]);
 }
 
 function loadActiveViewFromStorage(key: string): string {
