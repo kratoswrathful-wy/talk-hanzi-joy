@@ -71,8 +71,8 @@ export function InquirySlackDialog({
 
   const [searchQuery, setSearchQuery] = useState("");
   const [hideSelf, setHideSelf] = useState(true);
-  const [sortMode, setSortMode] = useState<SortMode>("name");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [sortMode, setSortMode] = useState<SortMode>("workload");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const messagePreview = useMemo(() => {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -91,8 +91,8 @@ export function InquirySlackDialog({
     if (!open) return;
     setSearchQuery("");
     setHideSelf(true);
-    setSortMode("name");
-    setSortDir("asc");
+    setSortMode("workload");
+    setSortDir("desc");
   }, [open]);
 
   useEffect(() => {
@@ -445,12 +445,27 @@ export function InquirySlackDialog({
                     return (
                       <div
                         key={r.userId}
+                        role={canSend ? "button" : undefined}
+                        tabIndex={canSend ? 0 : undefined}
                         title={title}
-                        className={`flex gap-3 rounded-md border p-2 items-start ${!canSend ? "opacity-60" : ""}`}
+                        onClick={() => canSend && r.email && toggleEmail(r.email)}
+                        onKeyDown={(e) => {
+                          if (!canSend || !r.email) return;
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleEmail(r.email);
+                          }
+                        }}
+                        className={`flex gap-3 rounded-md border p-2 items-start text-left ${
+                          !canSend
+                            ? "opacity-60 cursor-not-allowed"
+                            : "cursor-pointer hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                        }`}
                       >
                         <Checkbox
                           checked={r.email ? selectedEmails.has(r.email) : false}
                           disabled={!canSend}
+                          onClick={(e) => e.stopPropagation()}
                           onCheckedChange={() => r.email && toggleEmail(r.email)}
                           className="mt-0.5 shrink-0"
                         />
