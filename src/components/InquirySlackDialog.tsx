@@ -12,7 +12,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Loader2, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { messageFromFunctionsInvokeErrorAsync } from "@/lib/functions-invoke-error";
@@ -24,15 +32,25 @@ import {
   buildInquirySlackNotificationFallback,
 } from "@/lib/inquiry-slack-message";
 import { getTimezoneInfo } from "@/data/timezone-options";
+import { getEnvironment } from "@/lib/environment";
+import {
+  buildWorkloadCountByDisplayName,
+  type CaseRowForWorkload,
+} from "@/lib/inquiry-slack-workload";
 import { Link } from "react-router-dom";
 
 export type RecipientRow = {
   userId: string;
+  /** Trimmed profile display_name; used to match cases.translator / reviewer */
+  profileDisplayNameTrimmed: string;
   displayName: string;
   email: string | null;
   timezone: string | null;
   statusMessage: string | null;
 };
+
+type SortMode = "name" | "workload";
+type SortDir = "asc" | "desc";
 
 export function InquirySlackDialog({
   open,
@@ -46,9 +64,15 @@ export function InquirySlackDialog({
   const { user, isAdmin } = useAuth();
   const [slackConnected, setSlackConnected] = useState<boolean | null>(null);
   const [rows, setRows] = useState<RecipientRow[]>([]);
+  const [workloadByName, setWorkloadByName] = useState<Map<string, number>>(() => new Map());
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set());
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [hideSelf, setHideSelf] = useState(false);
+  const [sortMode, setSortMode] = useState<SortMode>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   const messagePreview = useMemo(() => {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -64,6 +88,14 @@ export function InquirySlackDialog({
   }, [cases]);
 
   useEffect(() => {
+    if (!open) return;
+    setSearchQuery("");
+    setHideSelf(false);
+    setSortMode("name");
+    setSortDir("asc");
+  }, [open]);
+
+  useEffect(() => {
     if (!open || !user?.id) return;
 
     void (async () => {
@@ -77,16 +109,36 @@ export function InquirySlackDialog({
 
     let cancelled = false;
     setLoading(true);
+    setSelectedEmails(new Set());
 
     void (async () => {
-      const { data: roleRows, error: roleErr } = await supabase.from("user_roles").select("user_id");
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 30);
+      const cutoffIso = cutoff.toISOString();
+      const env = getEnvironment();
+
+      const [{ data: roleRows, error: roleErr }, casesRes] = await Promise.all([
+        supabase.from("user_roles").select("user_id"),
+        supabase
+          .from("cases")
+          .select("translator, reviewer, collab_rows, updated_at")
+          .eq("env", env)
+          .gte("updated_at", cutoffIso),
+      ]);
+
       if (cancelled) return;
+
+      if (casesRes.error) {
+        console.error(casesRes.error);
+      }
+      const wMap = buildWorkloadCountByDisplayName((casesRes.data || []) as CaseRowForWorkload[]);
+      setWorkloadByName(wMap);
+
       if (roleErr) {
         console.error(roleErr);
         setLoading(false);
         toast.error("無法載入成員身分");
         setRows([]);
-        setSelectedEmails(new Set());
         return;
       }
 
@@ -94,7 +146,6 @@ export function InquirySlackDialog({
       if (userIds.length === 0) {
         setLoading(false);
         setRows([]);
-        setSelectedEmails(new Set());
         return;
       }
 
@@ -114,22 +165,63 @@ export function InquirySlackDialog({
         return;
       }
 
-      const nextRows: RecipientRow[] = (data || []).map((p) => ({
-        userId: p.id,
-        displayName: p.display_name?.trim() || p.email || "（無名稱）",
-        email: p.email ?? null,
-        timezone: p.timezone ?? null,
-        statusMessage: p.status_message ?? null,
-      }));
+      const nextRows: RecipientRow[] = (data || []).map((p) => {
+        const profileDisplayNameTrimmed = (p.display_name || "").trim();
+        return {
+          userId: p.id,
+          profileDisplayNameTrimmed,
+          displayName: profileDisplayNameTrimmed || p.email || "（無名稱）",
+          email: p.email ?? null,
+          timezone: p.timezone ?? null,
+          statusMessage: p.status_message ?? null,
+        };
+      });
       setRows(nextRows);
-      const withEmail = nextRows.filter((r) => r.email).map((r) => r.email!);
-      setSelectedEmails(new Set(withEmail));
     })();
 
     return () => {
       cancelled = true;
     };
   }, [open]);
+
+  const rowsWithWorkload = useMemo(
+    () =>
+      rows.map((r) => ({
+        ...r,
+        workload30: workloadByName.get(r.profileDisplayNameTrimmed) ?? 0,
+      })),
+    [rows, workloadByName]
+  );
+
+  const afterHideSelf = useMemo(() => {
+    if (hideSelf && user?.id) {
+      return rowsWithWorkload.filter((r) => r.userId !== user.id);
+    }
+    return rowsWithWorkload;
+  }, [rowsWithWorkload, hideSelf, user?.id]);
+
+  const afterSearch = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return afterHideSelf;
+    return afterHideSelf.filter(
+      (r) =>
+        r.displayName.toLowerCase().includes(q) ||
+        (r.email?.toLowerCase().includes(q) ?? false)
+    );
+  }, [afterHideSelf, searchQuery]);
+
+  const visibleRows = useMemo(() => {
+    const copy = [...afterSearch];
+    copy.sort((a, b) => {
+      if (sortMode === "name") {
+        const cmp = a.displayName.localeCompare(b.displayName, "zh-Hant");
+        return sortDir === "asc" ? cmp : -cmp;
+      }
+      const cmp = a.workload30 - b.workload30;
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return copy;
+  }, [afterSearch, sortMode, sortDir]);
 
   const toggleEmail = (email: string) => {
     setSelectedEmails((prev) => {
@@ -138,6 +230,20 @@ export function InquirySlackDialog({
       else n.add(email);
       return n;
     });
+  };
+
+  const handleSelectAllVisible = () => {
+    setSelectedEmails((prev) => {
+      const n = new Set(prev);
+      for (const r of visibleRows) {
+        if (r.email) n.add(r.email);
+      }
+      return n;
+    });
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedEmails(new Set());
   };
 
   const handleSend = async () => {
@@ -176,9 +282,7 @@ export function InquirySlackDialog({
         toast.success("已透過 Slack 私訊發送");
         onOpenChange(false);
       } else {
-        toast.error(
-          `部分失敗：${failed.map((f) => `${f.email}(${f.error})`).join("；")}`
-        );
+        toast.error(`部分失敗：${failed.map((f) => `${f.email}(${f.error})`).join("；")}`);
       }
     } finally {
       setSending(false);
@@ -189,8 +293,10 @@ export function InquirySlackDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col gap-0">
-        <DialogHeader>
+      <DialogContent
+        className="max-w-lg max-h-[92vh] h-[min(88vh,860px)] flex flex-col gap-0 overflow-hidden p-6 sm:max-w-lg"
+      >
+        <DialogHeader className="shrink-0 space-y-1.5 pr-6">
           <DialogTitle className="flex items-center gap-2">
             <MessageSquare className="h-5 w-5" />
             Slack 詢案訊息
@@ -209,31 +315,75 @@ export function InquirySlackDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 py-2">
-          <div>
+        <div className="flex flex-1 min-h-0 flex-col gap-3 py-2 overflow-hidden">
+          <div className="shrink-0">
             <Label className="text-xs text-muted-foreground">預覽</Label>
-            <pre className="mt-1 rounded-md border bg-muted/40 p-3 text-xs whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
+            <pre className="mt-1 rounded-md border bg-muted/40 p-3 text-xs whitespace-pre-wrap break-words max-h-28 overflow-y-auto">
               {messagePreview}
             </pre>
           </div>
 
-          <div>
-            <Label className="text-xs text-muted-foreground">
-              選擇團隊成員（依個人檔案顯示時區與狀態；含 PM、執行官）
-            </Label>
+          <div className="flex flex-1 min-h-0 flex-col gap-2 overflow-hidden">
+            <Input
+              placeholder="搜尋姓名或信箱…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="shrink-0"
+              aria-label="搜尋成員"
+            />
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <Select value={sortMode} onValueChange={(v) => setSortMode(v as SortMode)}>
+                <SelectTrigger className="w-[160px] h-9 text-xs">
+                  <SelectValue placeholder="排序" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">字母（顯示名稱）</SelectItem>
+                  <SelectItem value="workload">近期案量（30 天）</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={sortDir} onValueChange={(v) => setSortDir(v as SortDir)}>
+                <SelectTrigger className="w-[100px] h-9 text-xs">
+                  <SelectValue placeholder="方向" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="asc">升序</SelectItem>
+                  <SelectItem value="desc">降序</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button type="button" variant="outline" size="sm" className="h-9 text-xs" onClick={handleSelectAllVisible}>
+                全選
+              </Button>
+              <Button type="button" variant="outline" size="sm" className="h-9 text-xs" onClick={handleDeselectAll}>
+                取消全選
+              </Button>
+              <div className="flex items-center gap-2 ml-auto">
+                <Checkbox
+                  id="inquiry-slack-hide-self"
+                  checked={hideSelf}
+                  onCheckedChange={(c) => setHideSelf(c === true)}
+                />
+                <label htmlFor="inquiry-slack-hide-self" className="text-xs text-muted-foreground cursor-pointer select-none">
+                  隱藏自己
+                </label>
+              </div>
+            </div>
+
             {loading ? (
-              <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground shrink-0">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 載入成員…
               </div>
             ) : rows.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4">尚無團隊成員資料。</p>
+              <p className="text-sm text-muted-foreground py-4 shrink-0">尚無團隊成員資料。</p>
+            ) : visibleRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 shrink-0">沒有符合搜尋的成員。</p>
             ) : (
-              <ScrollArea className="h-[220px] border rounded-md mt-2 p-2">
+              <ScrollArea className="flex-1 min-h-[320px] border rounded-md p-2">
                 <div className="space-y-2 pr-2">
-                  {rows.map((r) => {
+                  {visibleRows.map((r) => {
                     const utcOffset = r.timezone ? getTimezoneInfo(r.timezone)?.utcOffset ?? "—" : "—";
-                    const statusText = r.statusMessage?.trim() || "—";
+                    const statusText = r.statusMessage?.trim() ?? "";
                     const canSend = !!r.email;
                     const title = r.email
                       ? r.email
@@ -252,7 +402,8 @@ export function InquirySlackDialog({
                         />
                         <p className="text-sm text-muted-foreground min-w-0 flex-1 leading-snug break-words">
                           <span className="font-medium text-foreground">{r.displayName}</span>{" "}
-                          <span className="whitespace-nowrap">({utcOffset})</span> {statusText}
+                          <span className="whitespace-nowrap">({utcOffset})</span>
+                          {statusText ? <> {statusText}</> : null}
                         </p>
                       </div>
                     );
@@ -263,7 +414,7 @@ export function InquirySlackDialog({
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="shrink-0 gap-2 sm:gap-0 pt-2 border-t border-border/60 mt-auto">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             取消
           </Button>
