@@ -61,6 +61,69 @@ describe("planDuplicateCaseTitle", () => {
     expect(r.newTitle).toBe("Moncler 260322B");
   });
 
+  it("same-day duplicate: identical created_at tie → source A, new B", () => {
+    const r = planDuplicateCaseTitle(
+      "Moncler 260322",
+      sourceId,
+      today,
+      [
+        {
+          id: sourceId,
+          title: "Moncler 260322",
+          createdAt: nowIso,
+          translationDeadline: null,
+          reviewDeadline: null,
+        },
+      ],
+      DEFAULT_DUPLICATE_SORT,
+      nowIso
+    );
+    expect(r.titleUpdates[0]).toEqual({ caseId: sourceId, newTitle: "Moncler 260322A" });
+    expect(r.newTitle).toBe("Moncler 260322B");
+  });
+
+  it("same-day duplicate: identical created_at tie + desc → new A, source B", () => {
+    const r = planDuplicateCaseTitle(
+      "Moncler 260322",
+      sourceId,
+      today,
+      [
+        {
+          id: sourceId,
+          title: "Moncler 260322",
+          createdAt: nowIso,
+          translationDeadline: null,
+          reviewDeadline: null,
+        },
+      ],
+      { key: "created_at", dir: "desc" },
+      nowIso
+    );
+    expect(r.newTitle).toBe("Moncler 260322A");
+    expect(r.titleUpdates[0]).toEqual({ caseId: sourceId, newTitle: "Moncler 260322B" });
+  });
+
+  it("same-day duplicate: both deadlines null tie (translation_deadline asc) → source A, new B", () => {
+    const r = planDuplicateCaseTitle(
+      "Moncler 260322",
+      sourceId,
+      today,
+      [
+        {
+          id: sourceId,
+          title: "Moncler 260322",
+          createdAt: nowIso,
+          translationDeadline: null,
+          reviewDeadline: null,
+        },
+      ],
+      { key: "translation_deadline", dir: "asc" },
+      nowIso
+    );
+    expect(r.titleUpdates[0]).toEqual({ caseId: sourceId, newTitle: "Moncler 260322A" });
+    expect(r.newTitle).toBe("Moncler 260322B");
+  });
+
   it("bumps letter when same base exists elsewhere (source old date)", () => {
     const r = planDuplicateCaseTitle(
       "Moncler 260321",

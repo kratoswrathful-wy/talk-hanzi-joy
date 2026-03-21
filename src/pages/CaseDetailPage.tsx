@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
-import { useEffect, useState, useCallback, useMemo, lazy, Suspense, useRef } from "react";
+import { useEffect, useLayoutEffect, useState, useCallback, useMemo, lazy, Suspense, useRef } from "react";
 import { ArrowLeft, Trash2, Plus, X, Copy, Check, ExternalLink, Settings, MessageSquare } from "lucide-react";
 import { CaseIconUploader } from "@/components/CaseIconUploader";
 import { supabase } from "@/integrations/supabase/client";
@@ -787,11 +787,17 @@ function formatTimestamp(d: Date | string) {
   return `${formatted} (${tzLabel})`;
 }
 
+type CaseDetailLocationState = { autoFocusTitle?: boolean; duplicateExpectedTitle?: string };
+
 export default function CaseDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const autoFocusTitle = !!(location.state as any)?.autoFocusTitle;
+  const locState = location.state as CaseDetailLocationState | null | undefined;
+  const autoFocusTitle = !!locState?.autoFocusTitle;
+  const duplicateExpectedTitle = locState?.duplicateExpectedTitle;
+  const dupExpectedRef = useRef<string | undefined>(undefined);
+  dupExpectedRef.current = duplicateExpectedTitle;
   const [caseData, setCaseData] = useState<CaseRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -863,13 +869,26 @@ export default function CaseDetailPage() {
   // Load internal notes from DB
   useEffect(() => { internalNotesStore.load(); }, []);
 
+  // Before paint: merge duplicate-expected title so we never flash the wrong title (e.g. source case).
+  useLayoutEffect(() => {
+    if (!id || !duplicateExpectedTitle) return;
+    const found = caseStore.getById(id);
+    if (found && found.title !== duplicateExpectedTitle) {
+      setCaseData({ ...found, title: duplicateExpectedTitle });
+      setLoading(false);
+    }
+  }, [id, duplicateExpectedTitle]);
+
   useEffect(() => {
     let mounted = true;
     // When route id changes (e.g. 複製本頁 → navigate to new case), avoid showing the
     // previous page's title until load() finishes — that caused wrong title + false「同名」errors.
     const immediate = id ? caseStore.getById(id) : undefined;
+    const expected = dupExpectedRef.current;
     if (immediate) {
-      setCaseData(immediate);
+      const merged =
+        expected && immediate.title !== expected ? { ...immediate, title: expected } : immediate;
+      setCaseData(merged);
       setLoading(false);
     } else {
       setCaseData(null);
@@ -879,17 +898,37 @@ export default function CaseDetailPage() {
     caseStore.load().then(() => {
       if (!mounted) return;
       const found = caseStore.getById(id!);
-      setCaseData(found ?? null);
+      const exp = dupExpectedRef.current;
+      if (!found) {
+        setCaseData(null);
+        setLoading(false);
+        return;
+      }
+      const merged = exp && found.title !== exp ? { ...found, title: exp } : found;
+      setCaseData(merged);
       setLoading(false);
     });
     // Re-load when store resets (e.g. role switch triggers auth change → reset)
     const unsub = caseStore.subscribe(() => {
       if (!mounted) return;
       const found = caseStore.getById(id!);
-      if (found) setCaseData(found);
+      if (!found) return;
+      const exp = dupExpectedRef.current;
+      if (exp && found.title !== exp) {
+        setCaseData({ ...found, title: exp });
+        return;
+      }
+      setCaseData(found);
     });
     return () => { mounted = false; unsub(); };
   }, [id]);
+
+  // Strip duplicateExpectedTitle from history state once UI matches (avoids stale state on refresh).
+  useEffect(() => {
+    if (!duplicateExpectedTitle || !caseData || caseData.id !== id) return;
+    if (caseData.title !== duplicateExpectedTitle) return;
+    navigate(".", { replace: true, state: { autoFocusTitle: locState?.autoFocusTitle } });
+  }, [id, caseData?.id, caseData?.title, duplicateExpectedTitle, locState?.autoFocusTitle, navigate]);
 
   useEffect(() => {
     const uid = caseData?.createdBy;
@@ -1104,7 +1143,9 @@ export default function CaseDetailPage() {
       clientInvoicePatchCount: result.clientInvoicePatches.length,
     });
     setDupDialogOpen(true);
-    navigate(`/cases/${result.newCase.id}`, { state: { autoFocusTitle: true } });
+    navigate(`/cases/${result.newCase.id}`, {
+      state: { autoFocusTitle: true, duplicateExpectedTitle: result.newCase.title },
+    });
   };
 
   const runDuplicateWithSort = async (sort: CaseDuplicateSort) => {
@@ -1218,8 +1259,8 @@ export default function CaseDetailPage() {
   const internalComments = caseData.internalComments || [];
 
   return (
-    <div className="space-y-4 max-w-3xl overflow-hidden">
-      <div className="space-y-2">
+    <div className="space-y-2 max-w-3xl overflow-hidden">
+      <div className="space-y-1">
         <div className="flex items-center justify-between gap-2">
           <button
             type="button"
@@ -1447,7 +1488,18 @@ export default function CaseDetailPage() {
         </div>
       </div>
         {isPmOrAbove && (
-          <div className="flex justify-end items-center gap-2 flex-wrap">
+          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
+            <div className="flex items-center shrink-0 min-w-0">
+              {isManager && (
+                <CaseIconUploader
+                  caseId={caseData.id}
+                  currentIconUrl={caseData.iconUrl || null}
+                  onUploaded={(url) => save({ iconUrl: url })}
+                  onRemoved={() => save({ iconUrl: "" })}
+                />
+              )}
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -1490,24 +1542,14 @@ export default function CaseDetailPage() {
             >
               複製本頁
             </Button>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Title row: icon actions above title (left), then preview + title */}
-      <div className="space-y-2">
-        {isManager && (
-          <div className="flex items-center justify-start">
-            <CaseIconUploader
-              caseId={caseData.id}
-              currentIconUrl={caseData.iconUrl || null}
-              onUploaded={(url) => save({ iconUrl: url })}
-              onRemoved={() => save({ iconUrl: "" })}
-            />
-          </div>
-        )}
-
-        <div className="flex items-end gap-3">
+      {/* Title row: logo + title + status */}
+      <div>
+        <div className="flex items-start gap-3">
           {/* Case icon */}
           {caseData.iconUrl && (
             <img
@@ -1516,8 +1558,8 @@ export default function CaseDetailPage() {
               className="w-[126px] h-[126px] rounded-md object-cover shrink-0 border border-border"
             />
           )}
-          {/* Title + Status stacked, bottom-aligned with icon */}
-          <div className="min-w-0 flex-1 flex flex-col justify-end gap-1.5">
+          {/* Title + Status */}
+          <div className="min-w-0 flex-1 flex flex-col justify-start gap-1.5 pt-0.5">
             <TitleInput value={caseData.title} onSave={(v) => save({ title: v })} autoFocusSelect={autoFocusTitle} />
             <div className="flex items-center gap-2 pl-3">
               <CaseStatusBadge status={caseData.status} />

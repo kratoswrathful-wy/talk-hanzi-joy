@@ -588,7 +588,9 @@ export default function CasesPage() {
           clientInvoicePatchCount: result.clientInvoicePatches.length,
         });
         setCasesDupDialogOpen(true);
-        navigate(`/cases/${result.newCase.id}`);
+        navigate(`/cases/${result.newCase.id}`, {
+          state: { autoFocusTitle: true, duplicateExpectedTitle: result.newCase.title },
+        });
       }
     },
     [navigate]

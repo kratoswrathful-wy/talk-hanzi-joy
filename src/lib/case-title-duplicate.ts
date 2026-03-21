@@ -96,6 +96,41 @@ function compareDeadline(
   return dir === "asc" ? cmp : -cmp;
 }
 
+/**
+ * When the primary sort key ties, avoid `localeCompare` on ids: `__duplicate_new__` sorts before UUIDs
+ * and would steal slot A from the source case. Asc = real rows before synthetic; desc = synthetic first.
+ */
+function compareSyntheticTieBreak(
+  a: CaseForDuplicatePlan,
+  b: CaseForDuplicatePlan,
+  key: DuplicateSortKey,
+  dir: DuplicateSortDir
+): number | null {
+  const aIs = a.id === DUPLICATE_NEW_SLOT_ID;
+  const bIs = b.id === DUPLICATE_NEW_SLOT_ID;
+  if (!aIs && !bIs) return null;
+  if (aIs && bIs) return null;
+
+  const ascSyntheticAfterReal = (): number => {
+    if (aIs && !bIs) return 1;
+    if (!aIs && bIs) return -1;
+    return 0;
+  };
+  const descSyntheticBeforeReal = (): number => {
+    if (aIs && !bIs) return -1;
+    if (!aIs && bIs) return 1;
+    return 0;
+  };
+
+  if (key === "created_at") {
+    return dir === "asc" ? ascSyntheticAfterReal() : descSyntheticBeforeReal();
+  }
+  if (key === "translation_deadline" || key === "review_deadline") {
+    return dir === "asc" ? ascSyntheticAfterReal() : descSyntheticBeforeReal();
+  }
+  return null;
+}
+
 function compareParticipants(
   a: CaseForDuplicatePlan,
   b: CaseForDuplicatePlan,
@@ -112,6 +147,8 @@ function compareParticipants(
     cmp = compareDeadline(a.reviewDeadline, b.reviewDeadline, dir);
   }
   if (cmp !== 0) return cmp;
+  const syn = compareSyntheticTieBreak(a, b, key, dir);
+  if (syn !== null && syn !== 0) return syn;
   return a.id.localeCompare(b.id);
 }
 
