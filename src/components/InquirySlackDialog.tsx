@@ -16,6 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { messageFromFunctionsInvokeErrorAsync } from "@/lib/functions-invoke-error";
+import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
 import type { CaseRecord } from "@/data/case-types";
 import {
   buildInquiryMessagePlainText,
@@ -40,7 +41,7 @@ export function InquirySlackDialog({
   onOpenChange: (open: boolean) => void;
   cases: CaseRecord[];
 }) {
-  const { session, user, isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [slackConnected, setSlackConnected] = useState<boolean | null>(null);
   const [rows, setRows] = useState<TranslatorRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -120,10 +121,6 @@ export function InquirySlackDialog({
   };
 
   const handleSend = async () => {
-    if (!session) {
-      toast.error("請先登入");
-      return;
-    }
     if (!slackConnected) {
       toast.error("請先到「設定」連結 Slack");
       return;
@@ -136,7 +133,13 @@ export function InquirySlackDialog({
 
     setSending(true);
     try {
+      const token = await getAccessTokenForEdgeFunctions();
+      if (!token) {
+        toast.error("請重新登入後再試");
+        return;
+      }
       const { data, error } = await supabase.functions.invoke("slack-send-dm", {
+        headers: { Authorization: `Bearer ${token}` },
         body: {
           recipient_emails: emails,
           message: messagePreview,

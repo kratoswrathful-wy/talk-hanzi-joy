@@ -36,7 +36,7 @@ supabase functions deploy slack-oauth-start slack-oauth-callback slack-disconnec
 
 | 狀態 | 可能原因 |
 |------|----------|
-| 401 | 未帶 JWT、JWT 無效、或網關 `verify_jwt` 驗證失敗 |
+| 401 | **JWT 問題**：access token 過期、未帶 `Authorization`、或網關 `verify_jwt` 驗證失敗。請先 **登出再登入**；並確認瀏覽器 **Network** 裡該 POST 的 **Request Headers** 有 `Authorization: Bearer eyJ...` 與正確的 `apikey`（anon）。前端已改為呼叫前 **refreshSession** 以降低過期 token。 |
 | 403 | `user_roles` 無 `pm` / `executive` |
 | 500 | Slack Secret 未設、DB 寫入失敗等 |
 | 405 | 非 POST（一般不會） |

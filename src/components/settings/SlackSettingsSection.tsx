@@ -7,9 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Loader2, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { messageFromFunctionsInvokeErrorAsync } from "@/lib/functions-invoke-error";
+import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
 
 export function SlackSettingsSection() {
-  const { user, session, isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [connected, setConnected] = useState<boolean | null>(null);
   const [slackUserId, setSlackUserId] = useState<string | null>(null);
@@ -51,14 +52,15 @@ export function SlackSettingsSection() {
   if (!isAdmin) return null;
 
   const handleConnect = async () => {
-    if (!session?.access_token) {
-      toast.error("請重新登入後再試");
-      return;
-    }
     setActionLoading(true);
     try {
+      const token = await getAccessTokenForEdgeFunctions();
+      if (!token) {
+        toast.error("請重新登入後再試");
+        return;
+      }
       const { data, error } = await supabase.functions.invoke("slack-oauth-start", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (error) {
         toast.error(await messageFromFunctionsInvokeErrorAsync(error, data));
@@ -76,11 +78,15 @@ export function SlackSettingsSection() {
   };
 
   const handleDisconnect = async () => {
-    if (!session?.access_token) return;
     setActionLoading(true);
     try {
+      const token = await getAccessTokenForEdgeFunctions();
+      if (!token) {
+        toast.error("請重新登入後再試");
+        return;
+      }
       const { data, error } = await supabase.functions.invoke("slack-disconnect", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (error) {
         toast.error(await messageFromFunctionsInvokeErrorAsync(error, data));
