@@ -31,7 +31,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
+import { useToolbarButtonUiProps } from "@/stores/ui-button-style-store";
 import type { CaseRecord, CaseStatus, CollabRow } from "@/data/case-types";
 import { generateFeesForCase, caseHasLinkedFees, type GenerateFeeResult } from "@/lib/generate-case-fees";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -473,6 +473,11 @@ export default function CasesPage() {
     [checkPerm]
   );
 
+  const uiListMarkDelivered = useToolbarButtonUiProps("cases_list_mark_delivered");
+  const uiListSlack = useToolbarButtonUiProps("cases_list_slack");
+  const uiListCopyRow = useToolbarButtonUiProps("cases_list_copy_row");
+  const uiListGenFees = useToolbarButtonUiProps("cases_list_gen_fees");
+
   // Register cases module with global undo store
   useEffect(() => {
     undoStore.registerModule("cases", (change, direction) => {
@@ -797,14 +802,15 @@ export default function CasesPage() {
             module="cases"
             onCreate={handleCreate}
             label="新增案件"
+            uiButtonId="cases_add"
           />
         )}
         {/* 交件完畢 button — PM+ only */}
         {isAdmin && rowSelection.selectedCount > 0 && (
           <Button
-            variant="outline"
             size="sm"
-            className={cn(MODULE_TOOLBAR_BTN)}
+            className={uiListMarkDelivered.className}
+            style={uiListMarkDelivered.style}
             onClick={handleMarkDelivered}
           >
             <CheckSquare className="h-4 w-4" />
@@ -813,9 +819,9 @@ export default function CasesPage() {
         )}
         {isAdmin && rowSelection.selectedCount > 0 && (
           <Button
-            variant="outline"
             size="sm"
-            className={cn(MODULE_TOOLBAR_BTN)}
+            className={uiListSlack.className}
+            style={uiListSlack.style}
             onClick={() => setInquirySlackOpen(true)}
           >
             <MessageSquare className="h-4 w-4" />
@@ -826,9 +832,9 @@ export default function CasesPage() {
           <>
             {rowSelection.selectedCount === 1 && (
               <Button
-                variant="ghost"
                 size="sm"
-                className={cn(MODULE_TOOLBAR_BTN, "text-muted-foreground")}
+                className={uiListCopyRow.className}
+                style={uiListCopyRow.style}
                 onClick={() => {
                   const id = Array.from(rowSelection.selectedIds)[0];
                   beginDuplicate(id);
@@ -839,9 +845,9 @@ export default function CasesPage() {
               </Button>
             )}
             <Button
-              variant="ghost"
               size="sm"
-              className={cn(MODULE_TOOLBAR_BTN, "text-muted-foreground")}
+              className={uiListGenFees.className}
+              style={uiListGenFees.style}
               onClick={handleGenerateFees}
             >
               <FileText className="h-4 w-4" />

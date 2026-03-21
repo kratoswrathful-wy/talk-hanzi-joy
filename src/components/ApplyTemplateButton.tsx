@@ -3,6 +3,7 @@ import { FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
+import { useToolbarButtonUiPropsMaybe } from "@/stores/ui-button-style-store";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { usePageTemplates, type PageModule } from "@/stores/page-template-store";
 import type { PageTemplate } from "@/stores/page-template-store";
@@ -22,7 +23,9 @@ export function ApplyTemplateButton({
   onApply,
   size = "sm",
   className,
+  uiButtonId,
 }: ApplyTemplateButtonProps) {
+  const uiProps = useToolbarButtonUiPropsMaybe(uiButtonId);
   const templates = usePageTemplates(module);
   const [open, setOpen] = useState(false);
 
@@ -48,9 +51,9 @@ export function ApplyTemplateButton({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
-          variant="outline"
           size={size}
-          className={cn(MODULE_TOOLBAR_BTN, className)}
+          className={cn(MODULE_TOOLBAR_BTN, uiProps?.className, className)}
+          style={uiProps?.style}
         >
           套用範本
         </Button>

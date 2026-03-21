@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
+import { useToolbarButtonUiProps } from "@/stores/ui-button-style-store";
 import { buildInternalNoteLinkMessagePlain } from "@/lib/internal-note-link-message";
 import { useInternalNotes, internalNotesStore } from "@/stores/internal-notes-store";
 import { useAuth } from "@/hooks/use-auth";
@@ -154,6 +155,11 @@ function NoteDetailView({
   const [commentDraft, setCommentDraft] = useState("");
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
+  const uiLinkMsg = useToolbarButtonUiProps("internal_notes_link_message");
+  const uiSameCase = useToolbarButtonUiProps("internal_notes_same_case");
+  const uiDeleteNote = useToolbarButtonUiProps("internal_notes_delete");
+  const uiInvalidate = useToolbarButtonUiProps("internal_notes_invalidate");
+
   const comments = note.comments || [];
 
   const handleInvalidate = () => {
@@ -206,22 +212,23 @@ function NoteDetailView({
           <span>←</span> 返回列表
         </button>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" size="sm" className={cn(MODULE_TOOLBAR_BTN)} onClick={handleCopyLinkMessage}>
+          <Button size="sm" className={uiLinkMsg.className} style={uiLinkMsg.style} onClick={handleCopyLinkMessage}>
             產生連結訊息
           </Button>
-          <Button variant="outline" size="sm" className={cn(MODULE_TOOLBAR_BTN)} onClick={handleNewSameCaseNote}>
+          <Button size="sm" className={uiSameCase.className} style={uiSameCase.style} onClick={handleNewSameCaseNote}>
             新增同案件註記
           </Button>
           <ApplyTemplateButton
             module="internalNotes"
+            uiButtonId="internal_notes_apply_template"
             onApply={(values) => {
               onUpdate(values);
             }}
           />
           <Button
             size="sm"
-            className={cn(MODULE_TOOLBAR_BTN, "text-white hover:opacity-80")}
-            style={{ backgroundColor: "#6B7280" }}
+            className={uiDeleteNote.className}
+            style={uiDeleteNote.style}
             onClick={() => setDeleteOpen(true)}
           >
             刪除
@@ -229,8 +236,8 @@ function NoteDetailView({
           {!note.invalidated && (
             <Button
               size="sm"
-              className={cn(MODULE_TOOLBAR_BTN, "text-white hover:opacity-80")}
-              style={{ backgroundColor: "#383A3F" }}
+              className={uiInvalidate.className}
+              style={uiInvalidate.style}
               onClick={() => setInvalidateOpen(true)}
             >
               本註記已失效
@@ -567,6 +574,7 @@ export default function InternalNotesPage() {
     internalNotesFieldMetas.filter((f) => checkPerm("internal_notes", `table_field_${f.key}`, "view")).map((f) => f.key),
     [checkPerm]
   );
+  const uiInternalNotesAdd = useToolbarButtonUiProps("internal_notes_add");
 
   const visibleNotes = tableViews.applyFiltersAndSorts(notes);
   const rowSelection = useRowSelection(visibleNotes.map((n) => n.id));
@@ -726,7 +734,7 @@ export default function InternalNotesPage() {
     <div className="mx-auto max-w-7xl space-y-4">
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">內部註記</h1>
-        <Button size="sm" className={cn(MODULE_TOOLBAR_BTN)} onClick={() => setNewNoteOpen(true)}>
+        <Button size="sm" className={uiInternalNotesAdd.className} style={uiInternalNotesAdd.style} onClick={() => setNewNoteOpen(true)}>
           <Plus className="h-4 w-4" />
           新增內部註記
         </Button>

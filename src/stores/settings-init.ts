@@ -6,6 +6,7 @@ import { toolTemplateStore } from "@/stores/tool-template-store";
 import { pageTemplateStore } from "@/stores/page-template-store";
 import { commonLinksStore } from "@/stores/common-links-store";
 import { currencyStore } from "@/stores/currency-store";
+import { uiButtonStyleStore } from "@/stores/ui-button-style-store";
 import { resetLoadedKeys } from "@/stores/settings-persistence";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
 
@@ -30,6 +31,7 @@ async function loadAllSettings() {
     pageTemplateStore.loadSettings(),
     commonLinksStore.loadSettings(),
     currencyStore.loadSettings(),
+    uiButtonStyleStore.loadSettings(),
     selectOptionsStore.loadAssignees(),
   ]);
 }

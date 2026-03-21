@@ -15,7 +15,8 @@ import {
 import { CaseIconUploader } from "@/components/CaseIconUploader";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import { MODULE_TOOLBAR_BTN, MODULE_TOOLBAR_BTN_LIGHT } from "@/lib/module-toolbar-buttons";
+import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
+import { useToolbarButtonUiProps } from "@/stores/ui-button-style-store";
 import { CreateWithTemplateButton } from "@/components/CreateWithTemplateButton";
 import { SlackMarkIcon } from "@/components/icons/SlackMarkIcon";
 import { Button } from "@/components/ui/button";
@@ -1101,7 +1102,17 @@ export default function CaseDetailPage() {
   
   const isMember = currentRole === "member";
   const isPmOrAbove = currentRole === "pm" || currentRole === "executive";
-  const dispatchedBadgeStyle = getStatusLabelStyle("已派出");
+
+  const uiDecline = useToolbarButtonUiProps("cases_detail_decline");
+  const uiNeutral = useToolbarButtonUiProps("cases_detail_neutral");
+  const uiPublish = useToolbarButtonUiProps("cases_detail_publish");
+  const uiAssignPrimary = useToolbarButtonUiProps("cases_detail_assign_primary");
+  const uiTaskComplete = useToolbarButtonUiProps("cases_detail_task_complete");
+  const uiProcessPrimary = useToolbarButtonUiProps("cases_detail_process_primary");
+  const uiMarkDeliveredDetail = useToolbarButtonUiProps("cases_detail_mark_delivered");
+  const uiInquiryMsg = useToolbarButtonUiProps("cases_detail_inquiry_message");
+  const uiSlackDetail = useToolbarButtonUiProps("cases_detail_slack");
+  const uiCopyPage = useToolbarButtonUiProps("cases_detail_copy_page");
 
   const handleDecline = () => {
     const displayName = profile?.display_name || profile?.email || "";
@@ -1288,14 +1299,15 @@ export default function CaseDetailPage() {
               onCreate={handleNewCase}
               label="新增案件"
               size="sm"
+              uiButtonId="cases_add"
             />
           )}
           {/* Decline button for translators on draft/inquiry */}
           {(isDraft || isInquiry) && isMember && (
             <Button
-              variant="outline"
               size="sm"
-              className={cn(MODULE_TOOLBAR_BTN, "border-destructive text-destructive hover:bg-destructive/10")}
+              className={uiDecline.className}
+              style={uiDecline.style}
               onClick={() => setDeclineOpen(true)}
             >
               無法承接
@@ -1305,8 +1317,8 @@ export default function CaseDetailPage() {
           {isInquiry && isPmOrAbove ? (
             <Button
               size="sm"
-              className={cn(MODULE_TOOLBAR_BTN, "text-white hover:opacity-80")}
-              style={{ backgroundColor: '#6B7280' }}
+              className={uiNeutral.className}
+              style={uiNeutral.style}
               onClick={handleRevertToDraft}
             >
               收回為草稿
@@ -1314,8 +1326,8 @@ export default function CaseDetailPage() {
           ) : isDispatched && isPmOrAbove ? (
             <Button
               size="sm"
-              className={cn(MODULE_TOOLBAR_BTN, "text-white hover:opacity-80")}
-              style={{ backgroundColor: '#6B7280' }}
+              className={uiNeutral.className}
+              style={uiNeutral.style}
               onClick={handleCancelDispatch}
             >
               取消指派
@@ -1323,8 +1335,8 @@ export default function CaseDetailPage() {
           ) : (isDelivered || isFeedback) && isPmOrAbove ? (
             <Button
               size="sm"
-              className={cn(MODULE_TOOLBAR_BTN, "text-white hover:opacity-80")}
-              style={{ backgroundColor: '#6B7280' }}
+              className={uiNeutral.className}
+              style={uiNeutral.style}
               onClick={handleRevertToDispatched}
             >
               退回修正
@@ -1332,8 +1344,8 @@ export default function CaseDetailPage() {
           ) : isTaskCompleted && isPmOrAbove ? (
             <Button
               size="sm"
-              className={cn(MODULE_TOOLBAR_BTN, "text-white hover:opacity-80")}
-              style={{ backgroundColor: '#6B7280' }}
+              className={uiNeutral.className}
+              style={uiNeutral.style}
               onClick={handleRevertToDispatched}
             >
               退回修正
@@ -1341,8 +1353,8 @@ export default function CaseDetailPage() {
           ) : isFeedbackCompleted && isPmOrAbove ? (
             <Button
               size="sm"
-              className={cn(MODULE_TOOLBAR_BTN, "text-white hover:opacity-80")}
-              style={{ backgroundColor: '#6B7280' }}
+              className={uiNeutral.className}
+              style={uiNeutral.style}
               onClick={handleRevertToFeedback}
             >
               退回處理
@@ -1350,8 +1362,8 @@ export default function CaseDetailPage() {
           ) : isDraft && isPmOrAbove ? (
             <Button
               size="sm"
-              className={cn(MODULE_TOOLBAR_BTN, "text-white hover:opacity-80")}
-              style={{ backgroundColor: '#6B7280' }}
+              className={uiNeutral.className}
+              style={uiNeutral.style}
               onClick={() => setDeleteOpen(true)}
             >
               刪除
@@ -1361,7 +1373,8 @@ export default function CaseDetailPage() {
           {isDraft && isPmOrAbove ? (
             <Button
               size="sm"
-              className={MODULE_TOOLBAR_BTN}
+              className={uiPublish.className}
+              style={uiPublish.style}
               onClick={handlePublish}
             >
               公布
@@ -1376,7 +1389,7 @@ export default function CaseDetailPage() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <span>
-                          <Button size="sm" className={cn(MODULE_TOOLBAR_BTN)} disabled>
+                          <Button size="sm" className={cn(uiAssignPrimary.className, "opacity-60")} style={uiAssignPrimary.style} disabled>
                             承接本案
                           </Button>
                         </span>
@@ -1392,7 +1405,7 @@ export default function CaseDetailPage() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <span>
-                          <Button size="sm" className={cn(MODULE_TOOLBAR_BTN)} disabled>
+                          <Button size="sm" className={cn(uiAssignPrimary.className, "opacity-60")} style={uiAssignPrimary.style} disabled>
                             承接本案
                           </Button>
                         </span>
@@ -1405,7 +1418,8 @@ export default function CaseDetailPage() {
               return (
                 <Button
                   size="sm"
-                  className={cn(MODULE_TOOLBAR_BTN, "bg-primary text-primary-foreground hover:bg-primary/90")}
+                  className={uiAssignPrimary.className}
+                  style={uiAssignPrimary.style}
                   onClick={handleAcceptCase}
                 >
                   承接本案
@@ -1418,7 +1432,8 @@ export default function CaseDetailPage() {
               const btn = (
                 <Button
                   size="sm"
-                  className={cn(MODULE_TOOLBAR_BTN, "bg-primary text-primary-foreground hover:bg-primary/90")}
+                  className={uiAssignPrimary.className}
+                  style={uiAssignPrimary.style}
                   disabled={translatorEmpty}
                   onClick={handleFinalize}
                 >
@@ -1442,8 +1457,8 @@ export default function CaseDetailPage() {
                     <span>
                       <Button
                         size="sm"
-                        className={cn(MODULE_TOOLBAR_BTN, "border-0 text-white opacity-60")}
-                        style={{ backgroundColor: "#0C5CB4" }}
+                        className={cn(uiTaskComplete.className, "opacity-60")}
+                        style={uiTaskComplete.style}
                         disabled
                       >
                         <CheckSquare className="h-4 w-4 shrink-0" />
@@ -1457,8 +1472,8 @@ export default function CaseDetailPage() {
             ) : (
               <Button
                 size="sm"
-                className={cn(MODULE_TOOLBAR_BTN, "border-0 text-white hover:brightness-110")}
-                style={{ backgroundColor: "#0C5CB4" }}
+                className={uiTaskComplete.className}
+                style={uiTaskComplete.style}
                 onClick={handleTaskComplete}
               >
                 <CheckSquare className="h-4 w-4 shrink-0" />
@@ -1468,7 +1483,8 @@ export default function CaseDetailPage() {
           ) : isFeedback && (isCurrentUserTranslator || isPmOrAbove) ? (
             <Button
               size="sm"
-              className={cn(MODULE_TOOLBAR_BTN, "bg-primary text-primary-foreground hover:bg-primary/90")}
+              className={uiProcessPrimary.className}
+              style={uiProcessPrimary.style}
               onClick={handleFeedbackComplete}
             >
               處理完畢
@@ -1476,11 +1492,8 @@ export default function CaseDetailPage() {
           ) : (isTaskCompleted || isFeedbackCompleted) && isPmOrAbove ? (
             <Button
               size="sm"
-              className={cn(MODULE_TOOLBAR_BTN, "border-0 hover:opacity-90")}
-              style={{
-                backgroundColor: dispatchedBadgeStyle.bgColor,
-                color: dispatchedBadgeStyle.textColor,
-              }}
+              className={uiMarkDeliveredDetail.className}
+              style={uiMarkDeliveredDetail.style}
               onClick={handleDelivered}
             >
               <CheckSquare className="h-4 w-4 shrink-0" />
@@ -1489,7 +1502,8 @@ export default function CaseDetailPage() {
           ) : isDelivered && isPmOrAbove ? (
             <Button
               size="sm"
-              className={cn(MODULE_TOOLBAR_BTN, "bg-primary text-primary-foreground hover:bg-primary/90")}
+              className={uiProcessPrimary.className}
+              style={uiProcessPrimary.style}
               onClick={handleFeedback}
             >
               處理回饋
@@ -1547,9 +1561,9 @@ export default function CaseDetailPage() {
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
             <Button
-              variant="outline"
               size="sm"
-              className={cn(MODULE_TOOLBAR_BTN, MODULE_TOOLBAR_BTN_LIGHT)}
+              className={uiInquiryMsg.className}
+              style={uiInquiryMsg.style}
               onClick={() => {
                 const url = `${window.location.origin}/cases/${id}`;
                 const title = caseData?.title || "";
@@ -1572,19 +1586,19 @@ export default function CaseDetailPage() {
             </Button>
             {caseData && (
               <Button
-                variant="outline"
                 size="sm"
-                className={cn(MODULE_TOOLBAR_BTN, MODULE_TOOLBAR_BTN_LIGHT)}
+                className={uiSlackDetail.className}
+                style={uiSlackDetail.style}
                 onClick={() => setInquirySlackOpen(true)}
               >
-                <SlackMarkIcon className="h-4 w-4 shrink-0 text-[#0b0b0b]" />
+                <SlackMarkIcon className="h-4 w-4 shrink-0 text-current" />
                 <span className="text-[11px] leading-tight font-medium">Slack 詢案</span>
               </Button>
             )}
             <Button
-              variant="outline"
               size="sm"
-              className={cn(MODULE_TOOLBAR_BTN, MODULE_TOOLBAR_BTN_LIGHT)}
+              className={uiCopyPage.className}
+              style={uiCopyPage.style}
               onClick={handleDuplicate}
             >
               <Copy className="h-4 w-4 shrink-0" />

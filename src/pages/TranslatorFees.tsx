@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
+import { useToolbarButtonUiProps } from "@/stores/ui-button-style-store";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-store";
 import AssigneeTag from "@/components/AssigneeTag";
@@ -551,6 +552,10 @@ export default function TranslatorFees() {
 
   const rowSelection = useRowSelection(visibleFees.map((f) => f.id));
 
+  const uiFeesAdd = useToolbarButtonUiProps("fees_add");
+  const uiFeesTranslatorInv = useToolbarButtonUiProps("fees_translator_invoice");
+  const uiFeesClientInv = useToolbarButtonUiProps("fees_client_invoice");
+
   // Build lock context for a fee (linked invoices)
   const getLockContext = useCallback((fee: TranslatorFee): FeeFieldLockContext => {
     return {
@@ -828,7 +833,7 @@ export default function TranslatorFees() {
           <h1 className="text-2xl font-semibold tracking-tight">費用管理</h1>
         </div>
         {canCreateFee && (
-          <Button size="sm" className="gap-1.5" onClick={handleCreate}>
+          <Button size="sm" className={cn(uiFeesAdd.className, "gap-1.5")} style={uiFeesAdd.style} onClick={handleCreate}>
             <Plus className="h-4 w-4" />
             新增費用
           </Button>
@@ -880,7 +885,7 @@ export default function TranslatorFees() {
                         onDone={() => rowSelection.deselectAll()}
                       />
                     ) : (
-                      <Button variant="outline" size="sm" className={cn(MODULE_TOOLBAR_BTN)} disabled>
+                      <Button size="sm" className={uiFeesClientInv.className} style={uiFeesClientInv.style} disabled>
                         <FileText className="h-4 w-4" />
                         客戶請款
                       </Button>

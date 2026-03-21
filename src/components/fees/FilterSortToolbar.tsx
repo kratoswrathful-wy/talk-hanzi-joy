@@ -140,9 +140,9 @@ export function FilterSortToolbar({
 
   return (
     <div className="space-y-2">
-      {/* View tabs + 視圖說明、選取計數（右側） */}
-      <div className="flex flex-wrap items-center gap-2 min-w-0">
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 min-w-0 flex-1 [scrollbar-width:thin]">
+      {/* View tabs（可橫向捲動）+「+」+ 說明與選取計數（緊貼在 + 右側，靠左排列） */}
+      <div className="flex w-full min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pb-1 [scrollbar-width:thin]">
         {views.map((view) => (
           <button
             key={view.id}
@@ -194,9 +194,11 @@ export function FilterSortToolbar({
             )}
           </button>
         ))}
+        </div>
+        <div className="flex shrink-0 items-center gap-2 pb-1">
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground">
+            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground shrink-0">
               <Plus className="h-3 w-3" />
             </Button>
           </PopoverTrigger>
@@ -223,8 +225,6 @@ export function FilterSortToolbar({
             </div>
           </PopoverContent>
         </Popover>
-        </div>
-        <div className="flex items-center gap-2 shrink-0 pb-1">
           {activeView.isDefault ? (
             <span className="text-xs text-muted-foreground bg-muted/60 border border-border rounded-md px-2.5 py-1 whitespace-nowrap">
               一切檢視設定僅對本人生效

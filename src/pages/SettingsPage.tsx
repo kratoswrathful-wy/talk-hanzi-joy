@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { useClickOutsideCancel } from "@/hooks/use-click-outside";
 import { iconLibraryStore, type IconLibraryItem } from "@/stores/icon-library-store";
 import { SlackSettingsSection } from "@/components/settings/SlackSettingsSection";
+import { ToolbarButtonStyleSection } from "@/components/settings/ToolbarButtonStyleSection";
 
 function getColorUsageMap(options: { color: string; label: string }[]): Record<string, string[]> {
   const map: Record<string, string[]> = {};
@@ -2725,6 +2726,9 @@ export default function SettingsPage() {
         {canViewSection("client_pricing") && <ClientPricingSection />}
         <StatusStyleSection />
       </div>
+
+      {/* 工具列按鈕顏色（全寬，比照狀態標籤） */}
+      <ToolbarButtonStyleSection />
 
       {/* Row 4: 貨幣設定 (left) — 圖示庫 (right) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

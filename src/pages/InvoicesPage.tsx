@@ -46,7 +46,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
+import { useToolbarButtonUiProps } from "@/stores/ui-button-style-store";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -139,6 +139,7 @@ export default function InvoicesPage() {
     invoiceFieldMetas.filter((f) => checkPerm("translator_invoices", `table_field_${f.key}`, "view")).map((f) => f.key),
     [checkPerm]
   );
+  const uiTranslatorInvoicesAdd = useToolbarButtonUiProps("translator_invoices_add");
 
   // Apply filters and sorts
   const visibleInvoices = tableViews.applyFiltersAndSorts(invoices, getInvoiceTotal);
@@ -465,7 +466,7 @@ export default function InvoicesPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">稿費請款</h1>
         </div>
-        <Button size="sm" className={cn(MODULE_TOOLBAR_BTN)} onClick={handleCreateInvoice}>
+        <Button size="sm" className={uiTranslatorInvoicesAdd.className} style={uiTranslatorInvoicesAdd.style} onClick={handleCreateInvoice}>
           <Plus className="h-4 w-4" />
           新增請款單
         </Button>
