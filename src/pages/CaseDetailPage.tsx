@@ -869,32 +869,24 @@ export default function CaseDetailPage() {
   // Load internal notes from DB
   useEffect(() => { internalNotesStore.load(); }, []);
 
-  // Before paint: merge duplicate-expected title so we never flash the wrong title (e.g. source case).
+  // Before paint on every id change: drop stale case from previous route and sync from store
+  // (fixes duplicate→new URL still showing source title). Merge duplicateExpectedTitle when present.
   useLayoutEffect(() => {
-    if (!id || !duplicateExpectedTitle) return;
+    if (!id) return;
     const found = caseStore.getById(id);
-    if (found && found.title !== duplicateExpectedTitle) {
-      setCaseData({ ...found, title: duplicateExpectedTitle });
-      setLoading(false);
-    }
-  }, [id, duplicateExpectedTitle]);
-
-  useEffect(() => {
-    let mounted = true;
-    // When route id changes (e.g. 複製本頁 → navigate to new case), avoid showing the
-    // previous page's title until load() finishes — that caused wrong title + false「同名」errors.
-    const immediate = id ? caseStore.getById(id) : undefined;
-    const expected = dupExpectedRef.current;
-    if (immediate) {
-      const merged =
-        expected && immediate.title !== expected ? { ...immediate, title: expected } : immediate;
+    const exp = duplicateExpectedTitle;
+    if (found) {
+      const merged = exp && found.title !== exp ? { ...found, title: exp } : found;
       setCaseData(merged);
       setLoading(false);
     } else {
       setCaseData(null);
       setLoading(true);
     }
+  }, [id, duplicateExpectedTitle]);
 
+  useEffect(() => {
+    let mounted = true;
     caseStore.load().then(() => {
       if (!mounted) return;
       const found = caseStore.getById(id!);
@@ -908,7 +900,6 @@ export default function CaseDetailPage() {
       setCaseData(merged);
       setLoading(false);
     });
-    // Re-load when store resets (e.g. role switch triggers auth change → reset)
     const unsub = caseStore.subscribe(() => {
       if (!mounted) return;
       const found = caseStore.getById(id!);
@@ -1259,7 +1250,7 @@ export default function CaseDetailPage() {
   const internalComments = caseData.internalComments || [];
 
   return (
-    <div className="space-y-2 max-w-3xl overflow-hidden">
+    <div className="space-y-1 max-w-3xl overflow-hidden">
       <div className="space-y-1">
         <div className="flex items-center justify-between gap-2">
           <button
@@ -1487,9 +1478,20 @@ export default function CaseDetailPage() {
           ) : null}
         </div>
       </div>
-        {isPmOrAbove && (
-          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2">
-            <div className="flex items-center shrink-0 min-w-0">
+      </div>
+
+      {/* 圖示 + 更換圖示（緊靠圖示右、標題上）+ 標題／狀態；右側與詢案／複製同行（PM+） */}
+      {isPmOrAbove ? (
+        <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-2">
+          <div className="flex gap-3 min-w-0 flex-1 items-start">
+            {caseData.iconUrl ? (
+              <img
+                src={caseData.iconUrl}
+                alt="案件圖示"
+                className="w-[126px] h-[126px] rounded-md object-cover shrink-0 border border-border"
+              />
+            ) : null}
+            <div className="min-w-0 flex-1 flex flex-col gap-1.5">
               {isManager && (
                 <CaseIconUploader
                   caseId={caseData.id}
@@ -1498,8 +1500,33 @@ export default function CaseDetailPage() {
                   onRemoved={() => save({ iconUrl: "" })}
                 />
               )}
+              <TitleInput
+                key={caseData.id}
+                value={caseData.title}
+                onSave={(v) => save({ title: v })}
+                autoFocusSelect={autoFocusTitle}
+              />
+              <div className="flex flex-wrap items-center gap-2 pl-3">
+                <CaseStatusBadge status={caseData.status} />
+                {isInquiry && !caseData.multiCollab && (
+                  <span className="text-xs text-muted-foreground">
+                    譯者若可承接，請直接點選右上角的「承接本案」
+                  </span>
+                )}
+                {caseData.multiCollab && isInquiry && (
+                  <span className="text-xs text-muted-foreground">
+                    譯者若可承接，請直接於表格中可承接的橫列勾選「確認承接」。
+                  </span>
+                )}
+                {caseData.multiCollab && isDispatched && (
+                  <span className="text-xs text-muted-foreground">
+                    譯者完成任務後，請直接勾選「任務完成」。
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
             <Button
               variant="outline"
               size="sm"
@@ -1542,15 +1569,10 @@ export default function CaseDetailPage() {
             >
               複製本頁
             </Button>
-            </div>
           </div>
-        )}
-      </div>
-
-      {/* Title row: logo + title + status */}
-      <div>
+        </div>
+      ) : (
         <div className="flex items-start gap-3">
-          {/* Case icon */}
           {caseData.iconUrl && (
             <img
               src={caseData.iconUrl}
@@ -1558,10 +1580,14 @@ export default function CaseDetailPage() {
               className="w-[126px] h-[126px] rounded-md object-cover shrink-0 border border-border"
             />
           )}
-          {/* Title + Status */}
           <div className="min-w-0 flex-1 flex flex-col justify-start gap-1.5 pt-0.5">
-            <TitleInput value={caseData.title} onSave={(v) => save({ title: v })} autoFocusSelect={autoFocusTitle} />
-            <div className="flex items-center gap-2 pl-3">
+            <TitleInput
+              key={caseData.id}
+              value={caseData.title}
+              onSave={(v) => save({ title: v })}
+              autoFocusSelect={autoFocusTitle}
+            />
+            <div className="flex flex-wrap items-center gap-2 pl-3">
               <CaseStatusBadge status={caseData.status} />
               {isInquiry && !caseData.multiCollab && (
                 <span className="text-xs text-muted-foreground">
@@ -1581,7 +1607,7 @@ export default function CaseDetailPage() {
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Decline records display */}
       {(caseData.declineRecords || []).length > 0 && (

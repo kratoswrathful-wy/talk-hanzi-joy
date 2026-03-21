@@ -4,6 +4,8 @@ import {
   planDuplicateCaseTitle,
   needsDuplicateSortDialog,
   DEFAULT_DUPLICATE_SORT,
+  findDuplicateTitleCase,
+  normalizeCaseTitleForComparison,
 } from "./case-title-duplicate";
 
 describe("parseCaseTitleForDuplicate", () => {
@@ -164,6 +166,24 @@ describe("planDuplicateCaseTitle", () => {
       nowIso
     );
     expect(r.newTitle).toBe("Riot - 2XKO 260322");
+  });
+});
+
+describe("findDuplicateTitleCase", () => {
+  it("treats whitespace variants as the same title", () => {
+    const dup = findDuplicateTitleCase(
+      "b",
+      "Hello   World",
+      [
+        { id: "a", title: "Hello World" },
+        { id: "b", title: "x" },
+      ]
+    );
+    expect(dup?.id).toBe("a");
+  });
+
+  it("normalizes internal spaces for comparison", () => {
+    expect(normalizeCaseTitleForComparison("  a  b  ")).toBe("a b");
   });
 });
 

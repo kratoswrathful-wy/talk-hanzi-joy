@@ -171,17 +171,24 @@ export function needsDuplicateSortDialog(
   return existingSameDay.length + 1 >= 2;
 }
 
+/** Normalize for duplicate detection: trim + collapse internal whitespace (any title format). */
+export function normalizeCaseTitleForComparison(title: string): string {
+  return title.trim().replace(/\s+/g, " ");
+}
+
 /**
- * Returns true if another case (≠ currentId) already uses this title (trimmed).
+ * Returns true if another case (≠ currentId) already uses this title (trimmed, whitespace-normalized).
  */
 export function findDuplicateTitleCase(
   currentId: string,
   title: string,
   cases: CaseTitleRef[]
 ): CaseTitleRef | undefined {
-  const t = title.trim();
+  const t = normalizeCaseTitleForComparison(title);
   if (!t) return undefined;
-  return cases.find((c) => c.id !== currentId && c.title.trim() === t);
+  return cases.find(
+    (c) => c.id !== currentId && normalizeCaseTitleForComparison(c.title) === t
+  );
 }
 
 /**
