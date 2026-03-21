@@ -49,10 +49,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import {
-  buildInternalNoteLinkMessageHtml,
-  buildInternalNoteLinkMessagePlain,
-} from "@/lib/internal-note-link-message";
+import { buildInternalNoteLinkMessagePlain } from "@/lib/internal-note-link-message";
 import { useInternalNotes, internalNotesStore } from "@/stores/internal-notes-store";
 import { useAuth } from "@/hooks/use-auth";
 import { caseStore } from "@/hooks/use-case-store";
@@ -140,14 +137,9 @@ function NoteDetailView({
   const handleCopyLinkMessage = async () => {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const plain = buildInternalNoteLinkMessagePlain(origin, note.title || "（無標題）", note.id);
-    const html = buildInternalNoteLinkMessageHtml(origin, note.title || "（無標題）", note.id);
     try {
-      await navigator.clipboard.write([
-        new ClipboardItem({
-          "text/plain": new Blob([plain], { type: "text/plain" }),
-          "text/html": new Blob([html], { type: "text/html" }),
-        }),
-      ]);
+      // Plain text only — Slack pastes HTML as unfurl-able links; mrkdwn <url|label> avoids preview.
+      await navigator.clipboard.writeText(plain);
       toast.success("已複製連結訊息至剪貼簿");
     } catch {
       await navigator.clipboard.writeText(plain);

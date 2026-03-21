@@ -1,6 +1,23 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
-import { planDuplicateCaseTitle } from "@/lib/case-title-duplicate";
+import {
+  planDuplicateCaseTitle,
+  DEFAULT_DUPLICATE_SORT,
+  type DuplicateSortKey,
+  type DuplicateSortDir,
+  type CaseForDuplicatePlan,
+} from "@/lib/case-title-duplicate";
+import {
+  patchesForFeesAfterCaseRename,
+  feeTitleChangeMap,
+  patchesForTranslatorInvoicesAfterFeeRenames,
+  patchesForClientInvoicesAfterFeeRenames,
+  type FeeTitlePatch,
+  type InvoiceTitlePatch,
+} from "@/lib/case-rename-cascade";
+import { feeStore } from "@/stores/fee-store";
+import { invoiceStore } from "@/stores/invoice-store";
+import { clientInvoiceStore } from "@/stores/client-invoice-store";
 import type { CaseRecord, CaseStatus, ToolEntry } from "@/data/case-types";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
@@ -396,7 +413,20 @@ supabase
   )
   .subscribe();
 
-async function duplicate(id: string): Promise<{ newCase: CaseRecord; renames: { oldTitle: string; newTitle: string }[] } | null> {
+export type CaseDuplicateSort = { key: DuplicateSortKey; dir: DuplicateSortDir };
+
+export interface CaseDuplicateResult {
+  newCase: CaseRecord;
+  renames: { oldTitle: string; newTitle: string }[];
+  feePatches: FeeTitlePatch[];
+  translatorInvoicePatches: InvoiceTitlePatch[];
+  clientInvoicePatches: InvoiceTitlePatch[];
+}
+
+async function duplicate(
+  id: string,
+  sort: CaseDuplicateSort = DEFAULT_DUPLICATE_SORT
+): Promise<CaseDuplicateResult | null> {
   const source = cases.find((c) => c.id === id);
   if (!source) return null;
   const { id: _id, createdAt, updatedAt, createdBy, comments: _c, internalComments: _ic, ...rest } = source;
@@ -406,16 +436,72 @@ async function duplicate(id: string): Promise<{ newCase: CaseRecord; renames: { 
   const mm = String(now.getMonth() + 1).padStart(2, "0");
   const dd = String(now.getDate()).padStart(2, "0");
   const todayStr = `${yy}${mm}${dd}`;
+  const createdAtIso = now.toISOString();
 
-  const plan = planDuplicateCaseTitle(source.title, id, todayStr, cases.map((c) => ({ id: c.id, title: c.title })));
+  const casePlans: CaseForDuplicatePlan[] = cases.map((c) => ({
+    id: c.id,
+    title: c.title,
+    createdAt: c.createdAt,
+    translationDeadline: c.translationDeadline,
+    reviewDeadline: c.reviewDeadline,
+  }));
+
+  const plan = planDuplicateCaseTitle(source.title, id, todayStr, casePlans, sort, createdAtIso);
+
+  const oldTitles = new Map<string, string>();
+  for (const u of plan.titleUpdates) {
+    const c = cases.find((x) => x.id === u.caseId);
+    if (c) oldTitles.set(u.caseId, c.title);
+  }
 
   for (const u of plan.titleUpdates) {
     await update(u.caseId, { title: u.newTitle });
   }
 
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const feesBefore = feeStore.getFees();
+  const allFeePatches: FeeTitlePatch[] = [];
+  for (const u of plan.titleUpdates) {
+    const old = oldTitles.get(u.caseId);
+    if (!old) continue;
+    allFeePatches.push(...patchesForFeesAfterCaseRename(u.caseId, old, u.newTitle, origin, feesBefore));
+  }
+
+  for (const p of allFeePatches) {
+    const partial: { title?: string; internalNote?: string } = {};
+    if (p.title !== undefined) partial.title = p.title;
+    if (p.internalNote !== undefined) partial.internalNote = p.internalNote;
+    if (Object.keys(partial).length > 0) feeStore.updateFee(p.feeId, partial);
+  }
+
+  const feeMap = feeTitleChangeMap(feesBefore, allFeePatches);
+  const translatorInvoicePatches = patchesForTranslatorInvoicesAfterFeeRenames(
+    invoiceStore.getInvoices(),
+    feeMap
+  );
+  const clientInvoicePatches = patchesForClientInvoicesAfterFeeRenames(
+    clientInvoiceStore.getInvoices(),
+    feeMap
+  );
+
+  for (const ip of translatorInvoicePatches) {
+    invoiceStore.updateInvoice(ip.invoiceId, { title: ip.newTitle });
+  }
+  for (const ip of clientInvoicePatches) {
+    clientInvoiceStore.updateInvoice(ip.invoiceId, { title: ip.newTitle });
+  }
+
   const cleaned = clearDuplicateFields(rest);
   const newCase = await create({ ...cleaned, title: plan.newTitle });
-  return newCase ? { newCase, renames: plan.renames } : null;
+  if (!newCase) return null;
+
+  return {
+    newCase,
+    renames: plan.renames,
+    feePatches: allFeePatches,
+    translatorInvoicePatches,
+    clientInvoicePatches,
+  };
 }
 
 /** Fields to clear when duplicating a case */

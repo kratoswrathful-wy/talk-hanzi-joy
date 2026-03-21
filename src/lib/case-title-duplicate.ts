@@ -29,23 +29,131 @@ export interface CaseTitleRef {
   title: string;
 }
 
+/** Extra fields for ordering when renumbering same-day same-series cases */
+export interface CaseForDuplicatePlan extends CaseTitleRef {
+  createdAt?: string;
+  translationDeadline?: string | null;
+  reviewDeadline?: string | null;
+}
+
+export type DuplicateSortKey = "created_at" | "translation_deadline" | "review_deadline";
+export type DuplicateSortDir = "asc" | "desc";
+
+export const DEFAULT_DUPLICATE_SORT: { key: DuplicateSortKey; dir: DuplicateSortDir } = {
+  key: "created_at",
+  dir: "asc",
+};
+
+/** Synthetic id for the row representing the new duplicate in sort/plan (not a DB id) */
+export const DUPLICATE_NEW_SLOT_ID = "__duplicate_new__";
+
 export interface PlanDuplicateTitleResult {
   newTitle: string;
-  /** For toast / dialog (same as before) */
+  /** For toast / dialog */
   renames: { oldTitle: string; newTitle: string }[];
-  /** DB updates before insert */
+  /** DB updates for existing cases (before insert of the new duplicate) */
   titleUpdates: { caseId: string; newTitle: string }[];
 }
 
 /**
- * Single source of truth for duplicate naming: same string is used for create() and UI.
- * Excludes `sourceId` from collision detection so duplicating a same-day case does not rename the source.
+ * Title for slot index 0 = no letter; 1 = A; 2 = B; … after the YYMMDD.
+ */
+export function titleForDuplicateSlot(
+  prefix: string,
+  dateYYMMDD: string,
+  slotIndex: number,
+  underscoreSuffix: string | null
+): string {
+  const us = underscoreSuffix || "";
+  if (slotIndex <= 0) return `${prefix}${dateYYMMDD}${us}`;
+  const letter = String.fromCharCode("A".charCodeAt(0) + slotIndex - 1);
+  return `${prefix}${dateYYMMDD}${letter}${us}`;
+}
+
+function parseTs(value: string | null | undefined): number {
+  if (!value) return 0;
+  const t = Date.parse(value);
+  return Number.isNaN(t) ? 0 : t;
+}
+
+/** Null / empty deadlines sort last in ascending order */
+function compareDeadline(
+  a: string | null | undefined,
+  b: string | null | undefined,
+  dir: DuplicateSortDir
+): number {
+  const na = !a || a === "";
+  const nb = !b || b === "";
+  if (na && nb) return 0;
+  if (na) return 1;
+  if (nb) return -1;
+  const cmp = parseTs(a) - parseTs(b);
+  return dir === "asc" ? cmp : -cmp;
+}
+
+function compareParticipants(
+  a: CaseForDuplicatePlan,
+  b: CaseForDuplicatePlan,
+  key: DuplicateSortKey,
+  dir: DuplicateSortDir
+): number {
+  let cmp = 0;
+  if (key === "created_at") {
+    cmp = parseTs(a.createdAt) - parseTs(b.createdAt);
+    if (dir === "desc") cmp = -cmp;
+  } else if (key === "translation_deadline") {
+    cmp = compareDeadline(a.translationDeadline, b.translationDeadline, dir);
+  } else if (key === "review_deadline") {
+    cmp = compareDeadline(a.reviewDeadline, b.reviewDeadline, dir);
+  }
+  if (cmp !== 0) return cmp;
+  return a.id.localeCompare(b.id);
+}
+
+/**
+ * Whether the duplicate flow should show a sort dialog (≥2 same-day same-series slots after adding the new duplicate).
+ */
+export function needsDuplicateSortDialog(
+  sourceTitle: string,
+  todayYYMMDD: string,
+  cases: CaseTitleRef[]
+): boolean {
+  const parsed = parseCaseTitleForDuplicate(sourceTitle.trimEnd());
+  if (!parsed) return false;
+  const { prefix, underscoreSuffix } = parsed;
+  const us = underscoreSuffix || "";
+  const escapedPrefix = escapeRegExp(prefix);
+  const escapedSuffix = escapeRegExp(us);
+  const pattern = new RegExp(`^${escapedPrefix}${todayYYMMDD}([A-Z])?${escapedSuffix}$`);
+  const existingSameDay = cases.filter((c) => pattern.test(c.title));
+  return existingSameDay.length + 1 >= 2;
+}
+
+/**
+ * Returns true if another case (≠ currentId) already uses this title (trimmed).
+ */
+export function findDuplicateTitleCase(
+  currentId: string,
+  title: string,
+  cases: CaseTitleRef[]
+): CaseTitleRef | undefined {
+  const t = title.trim();
+  if (!t) return undefined;
+  return cases.find((c) => c.id !== currentId && c.title.trim() === t);
+}
+
+/**
+ * Plan duplicate naming: same-day same-series cases are renumbered together (ignore prior letters).
+ * The new duplicate is always included as DUPLICATE_NEW_SLOT_ID with `createdAt` = now.
  */
 export function planDuplicateCaseTitle(
   sourceTitle: string,
   sourceId: string,
   todayYYMMDD: string,
-  cases: CaseTitleRef[]
+  cases: CaseForDuplicatePlan[],
+  sort: { key: DuplicateSortKey; dir: DuplicateSortDir },
+  /** ISO timestamp for the synthetic duplicate row (used for created_at sort) */
+  createdAtForNewDuplicate: string
 ): PlanDuplicateTitleResult {
   const renames: { oldTitle: string; newTitle: string }[] = [];
   const titleUpdates: { caseId: string; newTitle: string }[] = [];
@@ -60,34 +168,40 @@ export function planDuplicateCaseTitle(
   const us = underscoreSuffix || "";
   const escapedPrefix = escapeRegExp(prefix);
   const escapedSuffix = escapeRegExp(us);
-  const baseTitle = `${prefix}${todayYYMMDD}${us}`;
-
   const pattern = new RegExp(`^${escapedPrefix}${todayYYMMDD}([A-Z])?${escapedSuffix}$`);
 
-  const others = cases.filter((c) => c.id !== sourceId);
-  const matching = others.filter((c) => pattern.test(c.title));
+  const existingSameDay = cases.filter((c) => pattern.test(c.title));
 
-  if (matching.length === 0) {
-    return { newTitle: baseTitle, renames, titleUpdates };
+  const synthetic: CaseForDuplicatePlan = {
+    id: DUPLICATE_NEW_SLOT_ID,
+    title: "",
+    createdAt: createdAtForNewDuplicate,
+    translationDeadline: null,
+    reviewDeadline: null,
+  };
+
+  const participants = [...existingSameDay, synthetic];
+
+  if (participants.length === 1) {
+    const newTitle = titleForDuplicateSlot(prefix, todayYYMMDD, 0, underscoreSuffix);
+    return { newTitle, renames, titleUpdates };
   }
 
-  const exactMatch = matching.find((c) => c.title === baseTitle);
-  if (exactMatch) {
-    const newTitleForOld = `${prefix}${todayYYMMDD}A${us}`;
-    renames.push({ oldTitle: exactMatch.title, newTitle: newTitleForOld });
-    titleUpdates.push({ caseId: exactMatch.id, newTitle: newTitleForOld });
+  const sorted = [...participants].sort((a, b) => compareParticipants(a, b, sort.key, sort.dir));
+
+  const idToNewTitle = new Map<string, string>();
+  sorted.forEach((p, slotIndex) => {
+    idToNewTitle.set(p.id, titleForDuplicateSlot(prefix, todayYYMMDD, slotIndex, underscoreSuffix));
+  });
+
+  const newTitle = idToNewTitle.get(DUPLICATE_NEW_SLOT_ID) ?? "";
+
+  for (const c of existingSameDay) {
+    const next = idToNewTitle.get(c.id);
+    if (!next || next === c.title) continue;
+    renames.push({ oldTitle: c.title, newTitle: next });
+    titleUpdates.push({ caseId: c.id, newTitle: next });
   }
 
-  let maxCode = exactMatch ? "A".charCodeAt(0) : "A".charCodeAt(0) - 1;
-  for (const c of matching) {
-    const letterMatch = c.title.match(new RegExp(`^${escapedPrefix}${todayYYMMDD}([A-Z])${escapedSuffix}$`));
-    if (letterMatch) {
-      const code = letterMatch[1].charCodeAt(0);
-      if (code > maxCode) maxCode = code;
-    }
-  }
-
-  const nextLetter = String.fromCharCode(maxCode + 1);
-  const newTitle = `${prefix}${todayYYMMDD}${nextLetter}${us}`;
   return { newTitle, renames, titleUpdates };
 }

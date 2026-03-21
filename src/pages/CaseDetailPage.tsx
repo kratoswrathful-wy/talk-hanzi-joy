@@ -14,6 +14,13 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { caseStore } from "@/hooks/use-case-store";
+import type { CaseDuplicateSort } from "@/stores/case-store";
+import {
+  needsDuplicateSortDialog,
+  DEFAULT_DUPLICATE_SORT,
+  findDuplicateTitleCase,
+} from "@/lib/case-title-duplicate";
+import { DuplicateCaseSortDialog } from "@/components/DuplicateCaseSortDialog";
 import { feeStore, useFees } from "@/hooks/use-fee-store";
 import { type TranslatorFee, type FeeTaskItem, type TaskType, type BillingUnit, defaultClientInfo } from "@/data/fee-mock-data";
 import { selectOptionsStore, PRESET_COLORS, CONTACT_DEFAULT_COLOR, useSelectOptions, getStatusLabelStyle, CASE_STATUS_LABEL_MAP } from "@/stores/select-options-store";
@@ -799,7 +806,14 @@ export default function CaseDetailPage() {
   const [collabReduceTarget, setCollabReduceTarget] = useState(0);
   const [creatorName, setCreatorName] = useState("");
   const [dupDialogOpen, setDupDialogOpen] = useState(false);
-  const [dupInfo, setDupInfo] = useState<{ newTitle: string; renames: { oldTitle: string; newTitle: string }[] } | null>(null);
+  const [duplicateSortOpen, setDuplicateSortOpen] = useState(false);
+  const [dupInfo, setDupInfo] = useState<{
+    newTitle: string;
+    renames: { oldTitle: string; newTitle: string }[];
+    feePatchCount: number;
+    translatorInvoicePatchCount: number;
+    clientInvoicePatchCount: number;
+  } | null>(null);
   const [declineOpen, setDeclineOpen] = useState(false);
   const [declineProposedDeadline, setDeclineProposedDeadline] = useState<string | null>(null);
   const [declineAvailableCount, setDeclineAvailableCount] = useState("");
@@ -1057,13 +1071,52 @@ export default function CaseDetailPage() {
     toast({ title: "已記錄無法承接" });
   };
 
-  const handleDuplicate = async () => {
-    const result = await caseStore.duplicate(caseData.id);
-    if (result) {
-      setDupInfo({ newTitle: result.newCase.title, renames: result.renames });
-      setDupDialogOpen(true);
-      navigate(`/cases/${result.newCase.id}`, { state: { autoFocusTitle: true } });
+  const assertUniqueCaseTitle = (action: "leave" | "publish") => {
+    if (!caseData) return true;
+    const dup = findDuplicateTitleCase(caseData.id, caseData.title, caseStore.getAll());
+    if (!dup) return true;
+    const t = dup.title.trim();
+    const desc = `已有其他案件使用相同標題「${t}」。請先修改標題。`;
+    if (action === "publish") {
+      toast({ title: "無法公布", description: desc, variant: "destructive" });
+    } else {
+      toast({ title: "無法離開", description: desc, variant: "destructive" });
     }
+    return false;
+  };
+
+  const applyDuplicateResult = (
+    result: NonNullable<Awaited<ReturnType<typeof caseStore.duplicate>>>
+  ) => {
+    setDupInfo({
+      newTitle: result.newCase.title,
+      renames: result.renames,
+      feePatchCount: result.feePatches.length,
+      translatorInvoicePatchCount: result.translatorInvoicePatches.length,
+      clientInvoicePatchCount: result.clientInvoicePatches.length,
+    });
+    setDupDialogOpen(true);
+    navigate(`/cases/${result.newCase.id}`, { state: { autoFocusTitle: true } });
+  };
+
+  const runDuplicateWithSort = async (sort: CaseDuplicateSort) => {
+    if (!caseData) return;
+    const result = await caseStore.duplicate(caseData.id, sort);
+    if (result) applyDuplicateResult(result);
+  };
+
+  const handleDuplicate = async () => {
+    if (!caseData) return;
+    const now = new Date();
+    const yy = String(now.getFullYear()).slice(2);
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const todayStr = `${yy}${mm}${dd}`;
+    if (needsDuplicateSortDialog(caseData.title, todayStr, caseStore.getAll())) {
+      setDuplicateSortOpen(true);
+      return;
+    }
+    await runDuplicateWithSort(DEFAULT_DUPLICATE_SORT);
   };
 
   const handleNewCase = async (templateValues: Record<string, any> = {}) => {
@@ -1072,6 +1125,7 @@ export default function CaseDetailPage() {
   };
 
   const handlePublish = () => {
+    if (!assertUniqueCaseTitle("publish")) return;
     save({ status: "inquiry" as CaseStatus });
     toast({ title: "案件已公布" });
   };
@@ -1161,6 +1215,7 @@ export default function CaseDetailPage() {
         <button
           type="button"
           onClick={() => {
+            if (!assertUniqueCaseTitle("leave")) return;
             if (shouldBlockNav) {
               pendingNavigateRef.current = () => navigate("/cases");
               setPublishPromptOpen(true);
@@ -2375,9 +2430,13 @@ export default function CaseDetailPage() {
               setPublishPromptOpen(false);
               const nav = pendingNavigateRef.current;
               pendingNavigateRef.current = null;
-              if (nav) nav();
+              if (nav) {
+                if (!assertUniqueCaseTitle("leave")) return;
+                nav();
+              }
             }}>不公布，直接離開</AlertDialogCancel>
             <AlertDialogAction onClick={() => {
+              if (!assertUniqueCaseTitle("publish")) return;
               save({ status: "inquiry" as CaseStatus });
               toast({ title: "案件已公布" });
               setPublishPromptOpen(false);
@@ -2620,13 +2679,22 @@ export default function CaseDetailPage() {
                 <p>新頁面名稱：<span className="font-medium text-foreground">{dupInfo?.newTitle}</span></p>
                 {dupInfo?.renames && dupInfo.renames.length > 0 && (
                   <div>
-                    <p className="font-medium text-foreground">以下頁面名稱已變更：</p>
+                    <p className="font-medium text-foreground">以下更名的案件：</p>
                     <ul className="list-disc list-inside text-sm">
                       {dupInfo.renames.map((r, i) => (
                         <li key={i}>{r.oldTitle} → {r.newTitle}</li>
                       ))}
                     </ul>
                   </div>
+                )}
+                {dupInfo &&
+                  (dupInfo.feePatchCount > 0 ||
+                    dupInfo.translatorInvoicePatchCount > 0 ||
+                    dupInfo.clientInvoicePatchCount > 0) && (
+                  <p className="text-sm text-muted-foreground">
+                    已同步更新：稿費標題 {dupInfo.feePatchCount} 筆；譯者請款 {dupInfo.translatorInvoicePatchCount} 筆；客戶請款{" "}
+                    {dupInfo.clientInvoicePatchCount} 筆。
+                  </p>
                 )}
               </div>
             </AlertDialogDescription>
@@ -2636,6 +2704,14 @@ export default function CaseDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DuplicateCaseSortDialog
+        open={duplicateSortOpen}
+        onOpenChange={setDuplicateSortOpen}
+        onConfirm={(sort) => {
+          void runDuplicateWithSort(sort);
+        }}
+      />
 
       {caseData && (
         <InquirySlackDialog

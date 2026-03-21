@@ -37,6 +37,17 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { undoStore } from "@/stores/undo-store";
 import { useTableContextMenu, TableContextMenuOverlay, type ContextMenuItem } from "@/components/TableContextMenu";
 import { InquirySlackDialog } from "@/components/InquirySlackDialog";
+import { needsDuplicateSortDialog, DEFAULT_DUPLICATE_SORT } from "@/lib/case-title-duplicate";
+import type { CaseDuplicateSort } from "@/stores/case-store";
+import { DuplicateCaseSortDialog } from "@/components/DuplicateCaseSortDialog";
+
+function getTodayYYMMDD(): string {
+  const now = new Date();
+  const yy = String(now.getFullYear()).slice(2);
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  return `${yy}${mm}${dd}`;
+}
 
 /** Pick the earliest (minimum/soonest) deadline from a set of rows */
 function pickEarliestDeadline(rows: CollabRow[], field: "translationDeadline" | "reviewDeadline"): string | null {
@@ -539,7 +550,15 @@ export default function CasesPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [inquirySlackOpen, setInquirySlackOpen] = useState(false);
   const [casesDupDialogOpen, setCasesDupDialogOpen] = useState(false);
-  const [casesDupInfo, setCasesDupInfo] = useState<{ newTitle: string; renames: { oldTitle: string; newTitle: string }[] } | null>(null);
+  const [casesDupSortOpen, setCasesDupSortOpen] = useState(false);
+  const [pendingDuplicateId, setPendingDuplicateId] = useState<string | null>(null);
+  const [casesDupInfo, setCasesDupInfo] = useState<{
+    newTitle: string;
+    renames: { oldTitle: string; newTitle: string }[];
+    feePatchCount: number;
+    translatorInvoicePatchCount: number;
+    clientInvoicePatchCount: number;
+  } | null>(null);
   const handleDeleteSelected = useCallback(async () => {
     // Snapshot deleted records for undo
     const snapshots: CaseRecord[] = [];
@@ -556,6 +575,39 @@ export default function CasesPage() {
     rowSelection.deselectAll();
     setShowDeleteConfirm(false);
   }, [rowSelection, cases]);
+
+  const runCasesDuplicate = useCallback(
+    async (id: string, sort: CaseDuplicateSort) => {
+      const result = await caseStore.duplicate(id, sort);
+      if (result) {
+        setCasesDupInfo({
+          newTitle: result.newCase.title,
+          renames: result.renames,
+          feePatchCount: result.feePatches.length,
+          translatorInvoicePatchCount: result.translatorInvoicePatches.length,
+          clientInvoicePatchCount: result.clientInvoicePatches.length,
+        });
+        setCasesDupDialogOpen(true);
+        navigate(`/cases/${result.newCase.id}`);
+      }
+    },
+    [navigate]
+  );
+
+  const beginDuplicate = useCallback(
+    (id: string) => {
+      const row = cases.find((c) => c.id === id);
+      if (!row) return;
+      const todayStr = getTodayYYMMDD();
+      if (needsDuplicateSortDialog(row.title, todayStr, caseStore.getAll())) {
+        setPendingDuplicateId(id);
+        setCasesDupSortOpen(true);
+        return;
+      }
+      void runCasesDuplicate(id, DEFAULT_DUPLICATE_SORT);
+    },
+    [cases, runCasesDuplicate]
+  );
 
   // Generate fees for selected cases
   const [feeGenResult, setFeeGenResult] = useState<{ generated: GenerateFeeResult[]; skipped: { title: string }[] } | null>(null);
@@ -651,15 +703,9 @@ export default function CasesPage() {
       key: "duplicate",
       label: "複製頁面",
       icon: <Copy className="h-4 w-4" />,
-      onClick: async () => {
+      onClick: () => {
         const ids = rowSelection.selectedIds.has(rowId) ? Array.from(rowSelection.selectedIds) : [rowId];
-        // Only duplicate first selected
-        const result = await caseStore.duplicate(ids[0]);
-        if (result) {
-          setCasesDupInfo({ newTitle: result.newCase.title, renames: result.renames });
-          setCasesDupDialogOpen(true);
-          navigate(`/cases/${result.newCase.id}`);
-        }
+        beginDuplicate(ids[0]);
       },
     });
     // 交件完畢 — PM+ only
@@ -672,7 +718,7 @@ export default function CasesPage() {
       });
     }
     return items;
-  }, [rowSelection.selectedIds, isAdmin, handleMarkDelivered, navigate]);
+  }, [rowSelection.selectedIds, isAdmin, handleMarkDelivered, beginDuplicate]);
 
   // Ordered visible columns
   const hiddenSet = new Set(activeView.hiddenColumns || []);
@@ -790,14 +836,9 @@ export default function CasesPage() {
                 variant="ghost"
                 size="sm"
                 className="h-9 gap-1 text-muted-foreground"
-                onClick={async () => {
+                onClick={() => {
                   const id = Array.from(rowSelection.selectedIds)[0];
-                  const result = await caseStore.duplicate(id);
-                  if (result) {
-                    setCasesDupInfo({ newTitle: result.newCase.title, renames: result.renames });
-                    setCasesDupDialogOpen(true);
-                    navigate(`/cases/${result.newCase.id}`);
-                  }
+                  beginDuplicate(id);
                 }}
               >
                 <Copy className="h-4 w-4" />
@@ -1009,6 +1050,18 @@ export default function CasesPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <DuplicateCaseSortDialog
+        open={casesDupSortOpen}
+        onOpenChange={(v) => {
+          setCasesDupSortOpen(v);
+          if (!v) setPendingDuplicateId(null);
+        }}
+        onConfirm={(sort) => {
+          if (pendingDuplicateId) void runCasesDuplicate(pendingDuplicateId, sort);
+          setPendingDuplicateId(null);
+        }}
+      />
+
       {/* Duplicate overlay */}
       <AlertDialog open={casesDupDialogOpen} onOpenChange={setCasesDupDialogOpen}>
         <AlertDialogContent>
@@ -1020,13 +1073,22 @@ export default function CasesPage() {
                 <p>新頁面名稱：<span className="font-medium text-foreground">{casesDupInfo?.newTitle}</span></p>
                 {casesDupInfo?.renames && casesDupInfo.renames.length > 0 && (
                   <div>
-                    <p className="font-medium text-foreground">以下頁面名稱已變更：</p>
+                    <p className="font-medium text-foreground">以下更名的案件：</p>
                     <ul className="list-disc list-inside text-sm">
                       {casesDupInfo.renames.map((r, i) => (
                         <li key={i}>{r.oldTitle} → {r.newTitle}</li>
                       ))}
                     </ul>
                   </div>
+                )}
+                {casesDupInfo &&
+                  (casesDupInfo.feePatchCount > 0 ||
+                    casesDupInfo.translatorInvoicePatchCount > 0 ||
+                    casesDupInfo.clientInvoicePatchCount > 0) && (
+                  <p className="text-sm text-muted-foreground">
+                    已同步更新：稿費標題 {casesDupInfo.feePatchCount} 筆；譯者請款 {casesDupInfo.translatorInvoicePatchCount}{" "}
+                    筆；客戶請款 {casesDupInfo.clientInvoicePatchCount} 筆。
+                  </p>
                 )}
               </div>
             </AlertDialogDescription>
