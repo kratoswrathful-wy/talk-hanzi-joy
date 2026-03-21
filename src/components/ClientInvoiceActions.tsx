@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { FileText, FilePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -177,7 +179,7 @@ export function ClientInvoiceActions({ selectedFees, onDone }: ClientInvoiceActi
       <>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-1.5 h-9">
+            <Button variant="outline" size="sm" className={cn(MODULE_TOOLBAR_BTN)}>
               <FileText className="h-4 w-4" />
               客戶請款
             </Button>
@@ -244,7 +246,7 @@ export function ClientInvoiceActions({ selectedFees, onDone }: ClientInvoiceActi
         <Button
           variant="outline"
           size="sm"
-          className="gap-1.5 h-9"
+          className={cn(MODULE_TOOLBAR_BTN)}
           onClick={handleBatchClick}
         >
           <FileText className="h-4 w-4" />
@@ -336,7 +338,7 @@ export function ClientInvoiceActions({ selectedFees, onDone }: ClientInvoiceActi
       <Button
         variant="outline"
         size="sm"
-        className="gap-1.5 h-9"
+        className={cn(MODULE_TOOLBAR_BTN)}
         onClick={handleActionClick}
       >
         <FileText className="h-4 w-4" />

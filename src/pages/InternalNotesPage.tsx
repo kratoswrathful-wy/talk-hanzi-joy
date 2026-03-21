@@ -49,6 +49,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
 import { buildInternalNoteLinkMessagePlain } from "@/lib/internal-note-link-message";
 import { useInternalNotes, internalNotesStore } from "@/stores/internal-notes-store";
 import { useAuth } from "@/hooks/use-auth";
@@ -205,10 +206,10 @@ function NoteDetailView({
           <span>←</span> 返回列表
         </button>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" size="sm" className="text-xs min-w-[88px]" onClick={handleCopyLinkMessage}>
+          <Button variant="outline" size="sm" className={cn(MODULE_TOOLBAR_BTN)} onClick={handleCopyLinkMessage}>
             產生連結訊息
           </Button>
-          <Button variant="outline" size="sm" className="text-xs min-w-[88px]" onClick={handleNewSameCaseNote}>
+          <Button variant="outline" size="sm" className={cn(MODULE_TOOLBAR_BTN)} onClick={handleNewSameCaseNote}>
             新增同案件註記
           </Button>
           <ApplyTemplateButton
@@ -219,7 +220,7 @@ function NoteDetailView({
           />
           <Button
             size="sm"
-            className="text-xs min-w-[88px] text-white hover:opacity-80"
+            className={cn(MODULE_TOOLBAR_BTN, "text-white hover:opacity-80")}
             style={{ backgroundColor: "#6B7280" }}
             onClick={() => setDeleteOpen(true)}
           >
@@ -228,7 +229,7 @@ function NoteDetailView({
           {!note.invalidated && (
             <Button
               size="sm"
-              className="text-xs min-w-[88px] text-white hover:opacity-80"
+              className={cn(MODULE_TOOLBAR_BTN, "text-white hover:opacity-80")}
               style={{ backgroundColor: "#383A3F" }}
               onClick={() => setInvalidateOpen(true)}
             >
@@ -725,7 +726,7 @@ export default function InternalNotesPage() {
     <div className="mx-auto max-w-7xl space-y-4">
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">內部註記</h1>
-        <Button size="sm" className="gap-1.5" onClick={() => setNewNoteOpen(true)}>
+        <Button size="sm" className={cn(MODULE_TOOLBAR_BTN)} onClick={() => setNewNoteOpen(true)}>
           <Plus className="h-4 w-4" />
           新增內部註記
         </Button>

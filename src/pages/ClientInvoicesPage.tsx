@@ -42,6 +42,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -525,7 +526,7 @@ export default function ClientInvoicesPage() {
           <h1 className="text-2xl font-semibold tracking-tight">客戶請款</h1>
         </div>
         {isAdmin && (
-          <Button size="sm" className="gap-1.5" onClick={handleCreateInvoice}>
+          <Button size="sm" className={cn(MODULE_TOOLBAR_BTN)} onClick={handleCreateInvoice}>
             <Plus className="h-4 w-4" />
             新增客戶請款單
           </Button>

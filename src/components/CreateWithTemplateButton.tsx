@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Plus, ChevronDown, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { usePageTemplates, pageTemplateStore, type PageModule } from "@/stores/page-template-store";
 import type { PageTemplate } from "@/stores/page-template-store";
@@ -47,11 +49,13 @@ export function CreateWithTemplateButton({
     setOpen(false);
   };
 
+  const mainBtnClass = cn(MODULE_TOOLBAR_BTN, className);
+
   // If no custom templates, just a simple button using default template
   if (!hasCustomTemplates) {
     return (
-      <Button size={size} className={`gap-1.5 ${className || ""}`} onClick={() => handleCreate()}>
-        <Plus className="h-4 w-4" />
+      <Button size={size} className={mainBtnClass} onClick={() => handleCreate()}>
+        <Plus className="h-4 w-4 shrink-0" />
         {label}
       </Button>
     );
@@ -59,13 +63,13 @@ export function CreateWithTemplateButton({
 
   // Split button with dropdown
   return (
-    <div className={`inline-flex items-center ${className || ""}`}>
+    <div className="inline-flex items-center">
       <Button
         size={size}
-        className="gap-1.5 rounded-r-none"
+        className={cn(MODULE_TOOLBAR_BTN, "rounded-r-none", className)}
         onClick={() => handleCreate()}
       >
-        <Plus className="h-4 w-4" />
+        <Plus className="h-4 w-4 shrink-0" />
         {label}
       </Button>
       <Popover open={open} onOpenChange={setOpen}>

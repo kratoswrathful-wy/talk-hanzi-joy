@@ -147,7 +147,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
           { key: "fee_detail_viewDraft", label: "檢視草稿", type: "view" },
           { key: "fee_detail_delete", label: "刪除頁面", type: "both", attribute: "按鈕" },
           { key: "fee_detail_copy", label: "複製頁面", type: "both", attribute: "按鈕" },
-          { key: "fee_detail_createNew", label: "新增費用頁面", type: "both", attribute: "按鈕" },
+          { key: "fee_detail_createNew", label: "新增費用", type: "both", attribute: "按鈕" },
           { key: "fee_detail_finalize", label: "開立稿費條", type: "both", attribute: "按鈕" },
           { key: "fee_detail_recall", label: "收回為草稿", type: "both", attribute: "按鈕" },
         ],

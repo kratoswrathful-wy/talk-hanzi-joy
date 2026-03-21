@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { usePageTemplates, type PageModule } from "@/stores/page-template-store";
 import type { PageTemplate } from "@/stores/page-template-store";
@@ -48,7 +50,7 @@ export function ApplyTemplateButton({
         <Button
           variant="outline"
           size={size}
-          className={`text-xs min-w-[88px] ${className || ""}`}
+          className={cn(MODULE_TOOLBAR_BTN, className)}
         >
           套用範本
         </Button>

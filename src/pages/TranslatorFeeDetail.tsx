@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   DropdownMenu,
@@ -1606,7 +1607,7 @@ export default function TranslatorFeeDetail() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="text-xs min-w-[88px]"
+                    className={MODULE_TOOLBAR_BTN}
                     disabled={!isDraft}
                     onClick={() => {
                       if (isNavigationBlocked) {
@@ -1648,7 +1649,7 @@ export default function TranslatorFeeDetail() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="text-xs min-w-[88px]"
+                    className={MODULE_TOOLBAR_BTN}
                     onClick={() => {
                       if (isNavigationBlocked) {
                         if (needsRoleAssignment) {
@@ -1665,7 +1666,8 @@ export default function TranslatorFeeDetail() {
                       navigate(`/fees/${draft.id}`);
                     }}
                   >
-                    新增費用頁面
+                    <Plus className="h-4 w-4 shrink-0" />
+                    新增費用
                   </Button>
                 </span>
               </TooltipTrigger>
@@ -1710,7 +1712,7 @@ export default function TranslatorFeeDetail() {
                 <span>
                   <Button
                     size="sm"
-                    className="text-xs min-w-[88px] text-white hover:opacity-80"
+                    className={cn(MODULE_TOOLBAR_BTN, "text-white hover:opacity-80")}
                     style={{ backgroundColor: '#6B7280' }}
                     disabled={isFinalized}
                     onClick={() => setDeleteDialogOpen(true)}
@@ -1728,7 +1730,7 @@ export default function TranslatorFeeDetail() {
                 <span>
                   <Button
                     size="sm"
-                    className="text-xs min-w-[88px]"
+                    className={MODULE_TOOLBAR_BTN}
                     disabled={!isNoFeeTranslator && !clientInfo.rateConfirmed}
                     onClick={() => {
                       if (!assignee) {
@@ -1752,7 +1754,7 @@ export default function TranslatorFeeDetail() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="text-xs min-w-[88px]"
+                    className={MODULE_TOOLBAR_BTN}
                     disabled={linkedTranslatorInvoices.length > 0}
                     onClick={handleRecall}
                   >

@@ -32,6 +32,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-store";
 import AssigneeTag from "@/components/AssigneeTag";
@@ -850,7 +851,7 @@ export default function TranslatorFees() {
                         onDone={() => rowSelection.deselectAll()}
                       />
                     ) : (
-                      <Button variant="outline" size="sm" className="gap-1.5 h-9" disabled>
+                      <Button variant="outline" size="sm" className={cn(MODULE_TOOLBAR_BTN)} disabled>
                         <FileText className="h-4 w-4" />
                         譯者請款
                       </Button>
@@ -879,7 +880,7 @@ export default function TranslatorFees() {
                         onDone={() => rowSelection.deselectAll()}
                       />
                     ) : (
-                      <Button variant="outline" size="sm" className="gap-1.5 h-9" disabled>
+                      <Button variant="outline" size="sm" className={cn(MODULE_TOOLBAR_BTN)} disabled>
                         <FileText className="h-4 w-4" />
                         客戶請款
                       </Button>

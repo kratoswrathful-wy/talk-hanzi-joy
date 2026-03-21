@@ -53,6 +53,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
 import { toast } from "sonner";
 import { ApplyTemplateButton } from "@/components/ApplyTemplateButton";
 import { CommentContent } from "@/components/comments/CommentContent";
@@ -531,7 +532,7 @@ export default function InvoiceDetailPage() {
             }}
           />
           {((!isPaid && (isAdmin || isOwnInvoice)) || (isPaid && isExecutive)) && checkPerm("translator_invoice", "inv_detail_delete", "edit") && (
-            <Button size="sm" className="text-xs min-w-[88px] text-white hover:opacity-80" style={{ backgroundColor: '#6B7280' }} onClick={() => {
+            <Button size="sm" className={cn(MODULE_TOOLBAR_BTN, "text-white hover:opacity-80")} style={{ backgroundColor: '#6B7280' }} onClick={() => {
               if (isPaid) {
                 setShowPasswordDelete(true);
               } else {

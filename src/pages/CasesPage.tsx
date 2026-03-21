@@ -31,6 +31,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
 import type { CaseRecord, CaseStatus, CollabRow } from "@/data/case-types";
 import { generateFeesForCase, caseHasLinkedFees, type GenerateFeeResult } from "@/lib/generate-case-fees";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -803,7 +804,7 @@ export default function CasesPage() {
           <Button
             variant="outline"
             size="sm"
-            className="h-9 gap-1"
+            className={cn(MODULE_TOOLBAR_BTN)}
             onClick={handleMarkDelivered}
           >
             <CheckSquare className="h-4 w-4" />
@@ -814,7 +815,7 @@ export default function CasesPage() {
           <Button
             variant="outline"
             size="sm"
-            className="h-9 gap-1"
+            className={cn(MODULE_TOOLBAR_BTN)}
             onClick={() => setInquirySlackOpen(true)}
           >
             <MessageSquare className="h-4 w-4" />
@@ -837,7 +838,7 @@ export default function CasesPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-9 gap-1 text-muted-foreground"
+                className={cn(MODULE_TOOLBAR_BTN, "text-muted-foreground")}
                 onClick={() => {
                   const id = Array.from(rowSelection.selectedIds)[0];
                   beginDuplicate(id);
@@ -850,7 +851,7 @@ export default function CasesPage() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-9 gap-1 text-muted-foreground"
+              className={cn(MODULE_TOOLBAR_BTN, "text-muted-foreground")}
               onClick={handleGenerateFees}
             >
               <FileText className="h-4 w-4" />
