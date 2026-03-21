@@ -865,15 +865,23 @@ export default function CaseDetailPage() {
 
   useEffect(() => {
     let mounted = true;
-    const doLoad = () => {
-      caseStore.load().then(() => {
-        if (!mounted) return;
-        const found = caseStore.getById(id!);
-        setCaseData(found ?? null);
-        setLoading(false);
-      });
-    };
-    doLoad();
+    // When route id changes (e.g. 複製本頁 → navigate to new case), avoid showing the
+    // previous page's title until load() finishes — that caused wrong title + false「同名」errors.
+    const immediate = id ? caseStore.getById(id) : undefined;
+    if (immediate) {
+      setCaseData(immediate);
+      setLoading(false);
+    } else {
+      setCaseData(null);
+      setLoading(true);
+    }
+
+    caseStore.load().then(() => {
+      if (!mounted) return;
+      const found = caseStore.getById(id!);
+      setCaseData(found ?? null);
+      setLoading(false);
+    });
     // Re-load when store resets (e.g. role switch triggers auth change → reset)
     const unsub = caseStore.subscribe(() => {
       if (!mounted) return;
