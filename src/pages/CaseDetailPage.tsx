@@ -899,9 +899,16 @@ export default function CaseDetailPage() {
 
   useEffect(() => {
     let mounted = true;
-    caseStore.load().then(() => {
+    if (!id) return;
+
+    const run = async () => {
+      try {
+        await caseStore.loadCaseIfMissing(id);
+      } catch (e) {
+        console.error("[CaseDetailPage] loadCaseIfMissing", e);
+      }
       if (!mounted) return;
-      const found = caseStore.getById(id!);
+      const found = caseStore.getById(id);
       const exp = dupExpectedRef.current;
       if (!found) {
         setCaseData(null);
@@ -911,10 +918,16 @@ export default function CaseDetailPage() {
       const merged = exp && found.title !== exp ? { ...found, title: exp } : found;
       setCaseData(merged);
       setLoading(false);
-    });
+
+      // 背景同步全表（列表頁／即時更新用）；不阻塞詳情頁首次顯示
+      void caseStore.load().catch((e) => console.error("[CaseDetailPage] case full load", e));
+    };
+
+    void run();
+
     const unsub = caseStore.subscribe(() => {
       if (!mounted) return;
-      const found = caseStore.getById(id!);
+      const found = caseStore.getById(id);
       if (!found) return;
       const exp = dupExpectedRef.current;
       if (exp && found.title !== exp) {
@@ -923,7 +936,10 @@ export default function CaseDetailPage() {
       }
       setCaseData(found);
     });
-    return () => { mounted = false; unsub(); };
+    return () => {
+      mounted = false;
+      unsub();
+    };
   }, [id]);
 
   // Strip duplicateExpectedTitle from history state once UI matches (avoids stale state on refresh).

@@ -23,6 +23,7 @@ async function loadAllSettings() {
 
   resetLoadedKeys();
 
+  // 譯者下拉等需掃 profiles／settings，資料量大時易拖慢首屏；與其餘設定分開載入
   await Promise.all([
     selectOptionsStore.loadSettings(),
     defaultPricingStore.loadSettings(),
@@ -32,8 +33,8 @@ async function loadAllSettings() {
     commonLinksStore.loadSettings(),
     currencyStore.loadSettings(),
     uiButtonStyleStore.loadSettings(),
-    selectOptionsStore.loadAssignees(),
   ]);
+  void selectOptionsStore.loadAssignees().catch((e) => console.error("[settings-init] loadAssignees", e));
 }
 
 async function ensureLoaded() {

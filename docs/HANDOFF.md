@@ -24,6 +24,12 @@
 
 更細的對照表見 [CODEMAP.md](./CODEMAP.md)。
 
+## 案件資料量與詳情頁
+
+- **`case-store`** 仍會在背景執行**全表** `cases` 載入（列表／同步用）。  
+- **案件詳情頁**改為優先呼叫 **`loadCaseIfMissing(id)`**：只向 DB 取**單一列**，避免在案件極多時卡在「全表載入」導致黑畫面或長時間載入。  
+- 登入後 **`initSettings`** 將 **`loadAssignees`** 與其餘設定分開，減少首屏同時打多個重查詢的阻塞。
+
 ## 設定載入流程（重要）
 
 1. 使用者登入後，`AuthenticatedRoutes`（`App.tsx`）在 `user` 就緒時呼叫 **`initSettings()`**（`src/stores/settings-init.ts`）。

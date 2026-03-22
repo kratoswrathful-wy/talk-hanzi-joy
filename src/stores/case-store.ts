@@ -232,39 +232,90 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
 
 // ── Public API ──
 
+/**
+ * 僅載入單一案件（詳情頁優先路徑，避免等待全表 `select("*")` 逾時／阻塞）。
+ * 若記憶體已有該筆則立即回傳；否則向 DB 取一列並合入 `cases`。
+ */
+async function loadCaseIfMissing(id: string): Promise<CaseRecord | undefined> {
+  const existing = getById(id);
+  if (existing) return existing;
+
+  const user = await getAuthenticatedUser();
+  if (!user) return undefined;
+
+  const env = getEnvironment();
+  const { data, error } = await (supabase.from("cases").select("*") as any)
+    .eq("id", id)
+    .eq("env", env)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[case-store] loadCaseIfMissing", error);
+    return undefined;
+  }
+  if (!data) return undefined;
+
+  const incoming = fromDb(data);
+  const current = getById(id);
+  const merged = mergeIncomingCase(current, incoming);
+  const idx = cases.findIndex((c) => c.id === id);
+  if (idx >= 0) {
+    cases = cases.map((c, i) => (i === idx ? merged : c));
+  } else {
+    cases = [merged, ...cases];
+  }
+  notify();
+  return merged;
+}
+
 async function load() {
   if (loadPromise) return loadPromise;
   const version = ++loadVersion;
   loadPromise = (async () => {
-    const user = await getAuthenticatedUser();
-    if (version !== loadVersion) return;
+    try {
+      const user = await getAuthenticatedUser();
+      if (version !== loadVersion) return;
 
-    if (!user) {
-      cases = [];
-      loaded = false;
+      if (!user) {
+        cases = [];
+        loaded = false;
+        loadPromise = null;
+        notify();
+        return;
+      }
+
+      const env = getEnvironment();
+      const { data, error } = await (supabase.from("cases").select("*") as any)
+        .eq("env", env)
+        .order("created_at", { ascending: false });
+      if (version !== loadVersion) return;
+
+      if (error) {
+        console.error("[case-store] full load failed", error);
+        loadPromise = null;
+        notify();
+        return;
+      }
+
+      const currentById = new Map(cases.map((c) => [c.id, c] as const));
+      let fetched = (data || [])
+        .map(fromDb)
+        .map((incoming) => mergeIncomingCase(currentById.get(incoming.id), incoming));
+
+      if (pendingUpdates.size > 0) {
+        fetched = fetched.map((c) => {
+          const pending = pendingUpdates.get(c.id);
+          return pending ? { ...c, ...pending } : c;
+        });
+      }
+      cases = fetched;
+      loaded = true;
+      notify();
+    } catch (e) {
+      console.error("[case-store] load", e);
       loadPromise = null;
       notify();
-      return;
     }
-
-    const env = getEnvironment();
-    const { data } = await (supabase.from("cases").select("*") as any).eq("env", env).order("created_at", { ascending: false });
-    if (version !== loadVersion) return;
-
-    const currentById = new Map(cases.map((c) => [c.id, c] as const));
-    let fetched = (data || [])
-      .map(fromDb)
-      .map((incoming) => mergeIncomingCase(currentById.get(incoming.id), incoming));
-
-    if (pendingUpdates.size > 0) {
-      fetched = fetched.map((c) => {
-        const pending = pendingUpdates.get(c.id);
-        return pending ? { ...c, ...pending } : c;
-      });
-    }
-    cases = fetched;
-    loaded = true;
-    notify();
   })();
   return loadPromise;
 }
@@ -550,4 +601,15 @@ function subscribePoll(fn: Listener) {
   };
 }
 
-export const caseStore = { load, getAll, getById, create, update, remove, duplicate, subscribe: subscribePoll, reset };
+export const caseStore = {
+  load,
+  loadCaseIfMissing,
+  getAll,
+  getById,
+  create,
+  update,
+  remove,
+  duplicate,
+  subscribe: subscribePoll,
+  reset,
+};
