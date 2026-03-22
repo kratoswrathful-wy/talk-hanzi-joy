@@ -838,7 +838,7 @@ export default function TranslatorFees() {
         {canCreateFee && (
           <Button size="sm" className={cn(uiFeesAdd.className, "gap-1.5")} style={uiFeesAdd.style} onClick={handleCreate}>
             <Plus className="h-4 w-4" />
-            新增費用
+            {lbFeesAdd}
           </Button>
         )}
         {isManager && (
@@ -859,9 +859,9 @@ export default function TranslatorFees() {
                         onDone={() => rowSelection.deselectAll()}
                       />
                     ) : (
-                      <Button variant="outline" size="sm" className={cn(MODULE_TOOLBAR_BTN)} disabled>
+                      <Button size="sm" className={uiFeesTranslatorInv.className} style={uiFeesTranslatorInv.style} disabled>
                         <FileText className="h-4 w-4" />
-                        譯者請款
+                        {lbFeesTranslatorInv}
                       </Button>
                     )}
                   </span>
@@ -890,7 +890,7 @@ export default function TranslatorFees() {
                     ) : (
                       <Button size="sm" className={uiFeesClientInv.className} style={uiFeesClientInv.style} disabled>
                         <FileText className="h-4 w-4" />
-                        客戶請款
+                        {lbFeesClientInv}
                       </Button>
                     )}
                   </span>
