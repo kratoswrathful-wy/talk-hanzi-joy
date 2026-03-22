@@ -50,7 +50,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
-import { useToolbarButtonUiProps } from "@/stores/ui-button-style-store";
+import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import { buildInternalNoteLinkMessagePlain } from "@/lib/internal-note-link-message";
 import { useInternalNotes, internalNotesStore } from "@/stores/internal-notes-store";
 import { useAuth } from "@/hooks/use-auth";
@@ -213,10 +213,10 @@ function NoteDetailView({
         </button>
         <div className="flex items-center gap-2 flex-wrap">
           <Button size="sm" className={uiLinkMsg.className} style={uiLinkMsg.style} onClick={handleCopyLinkMessage}>
-            產生連結訊息
+            {lbLinkMsg}
           </Button>
           <Button size="sm" className={uiSameCase.className} style={uiSameCase.style} onClick={handleNewSameCaseNote}>
-            新增同案件註記
+            {lbSameCase}
           </Button>
           <ApplyTemplateButton
             module="internalNotes"
