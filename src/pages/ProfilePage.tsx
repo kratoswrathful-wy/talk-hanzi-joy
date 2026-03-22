@@ -158,6 +158,8 @@ export default function ProfilePage() {
   /** Slack case-reply suffixes (empty = built-in default on send) */
   const [acceptCaseSuffix, setAcceptCaseSuffix] = useState("");
   const [declineLine1Suffix, setDeclineLine1Suffix] = useState("");
+  const [declineLine2Suffix, setDeclineLine2Suffix] = useState("");
+  const [declineLine3Suffix, setDeclineLine3Suffix] = useState("");
 
   useEffect(() => {
     if (profile) {
@@ -175,6 +177,8 @@ export default function ProfilePage() {
         raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
       setAcceptCaseSuffix(typeof o.accept_suffix === "string" ? o.accept_suffix : "");
       setDeclineLine1Suffix(typeof o.decline_line1_suffix === "string" ? o.decline_line1_suffix : "");
+      setDeclineLine2Suffix(typeof o.decline_line2_suffix === "string" ? o.decline_line2_suffix : "");
+      setDeclineLine3Suffix(typeof o.decline_line3_suffix === "string" ? o.decline_line3_suffix : "");
     }
   }, [profile]);
 
@@ -234,6 +238,8 @@ export default function ProfilePage() {
       ...prevDefaults,
       accept_suffix: acceptCaseSuffix.trim() || null,
       decline_line1_suffix: declineLine1Suffix.trim() || null,
+      decline_line2_suffix: declineLine2Suffix.trim() || null,
+      decline_line3_suffix: declineLine3Suffix.trim() || null,
     };
     const { error: profileError } = await supabase
       .from("profiles")
@@ -395,6 +401,10 @@ export default function ProfilePage() {
         onAcceptCaseSuffixChange={setAcceptCaseSuffix}
         declineLine1Suffix={declineLine1Suffix}
         onDeclineLine1SuffixChange={setDeclineLine1Suffix}
+        declineLine2Suffix={declineLine2Suffix}
+        onDeclineLine2SuffixChange={setDeclineLine2Suffix}
+        declineLine3Suffix={declineLine3Suffix}
+        onDeclineLine3SuffixChange={setDeclineLine3Suffix}
       />
 
       <Card>

@@ -13,7 +13,10 @@ async function slackApi(token: string, method: string, body?: Record<string, unk
   return res.json();
 }
 
-/** Resolve PM + Executive emails, excluding sender; respect receive_translator_case_reply_slack_dms. */
+/**
+ * PM／Executive 收件人：必須已在 App 內「連結 Slack」（user_slack_meta）、
+ * 且未關閉 receive_translator_case_reply_slack_dms；排除寄件者。
+ */
 async function resolveCaseReplyRecipientEmails(
   supabase: ReturnType<typeof createClient>,
   senderEmail: string | undefined,
@@ -27,11 +30,23 @@ async function resolveCaseReplyRecipientEmails(
     return [];
   }
 
-  const userIds = [...new Set(roleRows.map((r: { user_id: string }) => r.user_id))];
+  const pmExecIds = [...new Set(roleRows.map((r: { user_id: string }) => r.user_id))];
+
+  const { data: linkedRows, error: linkErr } = await supabase
+    .from("user_slack_meta")
+    .select("user_id")
+    .in("user_id", pmExecIds);
+
+  if (linkErr || !linkedRows?.length) {
+    return [];
+  }
+
+  const linkedIdSet = new Set(linkedRows.map((r: { user_id: string }) => r.user_id));
+
   const { data: profs, error: profErr } = await supabase
     .from("profiles")
     .select("id, email, receive_translator_case_reply_slack_dms")
-    .in("id", userIds);
+    .in("id", [...linkedIdSet]);
 
   if (profErr || !profs?.length) {
     return [];
@@ -41,9 +56,11 @@ async function resolveCaseReplyRecipientEmails(
 
   const out: string[] = [];
   for (const p of profs as {
+    id: string;
     email: string;
     receive_translator_case_reply_slack_dms?: boolean | null;
   }[]) {
+    if (!linkedIdSet.has(p.id)) continue;
     if (p.receive_translator_case_reply_slack_dms === false) continue;
     const em = String(p.email || "").trim().toLowerCase();
     if (!em) continue;

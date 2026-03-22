@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,10 @@ import {
   DEFAULT_DECLINE_LINE1_SUFFIX,
 } from "@/lib/slack-case-reply-defaults";
 import { Input } from "@/components/ui/input";
+import { MultilineInput } from "@/components/ui/multiline-input";
+
+const PREVIEW_CASE_TITLE = "範例案件標題";
+const DECLINE_FORM_HINT_LINE = "<額外留言（或其他你認為適合的文字）>";
 
 type ProfileSlackCardProps = {
   isAdmin: boolean;
@@ -25,6 +29,10 @@ type ProfileSlackCardProps = {
   /** First line after link for decline (empty = use built-in default). */
   declineLine1Suffix: string;
   onDeclineLine1SuffixChange: (v: string) => void;
+  declineLine2Suffix: string;
+  onDeclineLine2SuffixChange: (v: string) => void;
+  declineLine3Suffix: string;
+  onDeclineLine3SuffixChange: (v: string) => void;
 };
 
 /**
@@ -46,6 +54,27 @@ export function ProfileSlackCard({
   const [slackUserId, setSlackUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+
+  const acceptPreviewText = useMemo(() => {
+    const suf = (acceptCaseSuffix.trim() || DEFAULT_ACCEPT_SUFFIX).replace(/^\s*/, " ");
+    return `第 1 行：〈${PREVIEW_CASE_TITLE}〉（將顯示為可點擊連結）\n後接：${suf.trimStart()}`;
+  }, [acceptCaseSuffix]);
+
+  const declinePreviewText = useMemo(() => {
+    const s1 = declineLine1Suffix.trim() || DEFAULT_DECLINE_LINE1_SUFFIX;
+    const s2 = declineLine2Suffix.trim();
+    const s3 = declineLine3Suffix.trim();
+    const parts = [
+      `第 1 行：〈${PREVIEW_CASE_TITLE}〉（可點擊連結）後接：${s1.replace(/^\s*/, "")}`,
+    ];
+    if (s2) parts.push(`第 2 行：${s2}`);
+    else parts.push("第 2 行：（未填則不送出此行）");
+    if (s3) parts.push(`第 3 行：${s3}`);
+    else parts.push("第 3 行：（未填則不送出此行）");
+    parts.push(`第 4 行：${DECLINE_FORM_HINT_LINE}`);
+    parts.push("（若在「無法承接」表單填寫期限、字數、補充，將接在後方一併送出）");
+    return parts.join("\n");
+  }, [declineLine1Suffix, declineLine2Suffix, declineLine3Suffix]);
 
   const refresh = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -183,6 +212,11 @@ export function ProfileSlackCard({
               <Label htmlFor="slackAcceptSuffix" className="text-sm">
                 承接 — 連結後文字
               </Label>
+              <div className="rounded-md border bg-background/80 px-3 py-2 text-xs text-muted-foreground whitespace-pre-wrap font-mono leading-relaxed">
+                <span className="text-[10px] uppercase tracking-wide text-primary/90">即時預覽</span>
+                {"\n"}
+                {acceptPreviewText}
+              </div>
               <p className="text-xs text-muted-foreground font-mono bg-muted/40 px-2 py-1 rounded border border-border/60">
                 {"〈案件標題連結〉"}
               </p>
@@ -193,21 +227,55 @@ export function ProfileSlackCard({
                 placeholder={`預設：${DEFAULT_ACCEPT_SUFFIX.trim()}`}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="slackDeclineLine1" className="text-sm">
-                無法承接 — 第一行連結後文字
-              </Label>
-              <p className="text-xs text-muted-foreground font-mono bg-muted/40 px-2 py-1 rounded border border-border/60">
-                {"〈案件標題連結〉"}
-              </p>
-              <Input
-                id="slackDeclineLine1"
-                value={declineLine1Suffix}
-                onChange={(e) => onDeclineLine1SuffixChange(e.target.value)}
-                placeholder={`預設：${DEFAULT_DECLINE_LINE1_SUFFIX.trim()}`}
-              />
+            <div className="space-y-3">
+              <Label className="text-sm">無法承接 — 訊息預覽（含第 4 行佔位）</Label>
+              <div className="rounded-md border bg-background/80 px-3 py-2 text-xs text-muted-foreground whitespace-pre-wrap font-mono leading-relaxed">
+                <span className="text-[10px] uppercase tracking-wide text-primary/90">即時預覽</span>
+                {"\n"}
+                {declinePreviewText}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="slackDeclineLine1" className="text-sm">
+                  第 1 行 — 連結後文字
+                </Label>
+                <p className="text-xs text-muted-foreground font-mono bg-muted/40 px-2 py-1 rounded border border-border/60">
+                  {"〈案件標題連結〉"}
+                </p>
+                <Input
+                  id="slackDeclineLine1"
+                  value={declineLine1Suffix}
+                  onChange={(e) => onDeclineLine1SuffixChange(e.target.value)}
+                  placeholder={`預設：${DEFAULT_DECLINE_LINE1_SUFFIX.trim()}`}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="slackDeclineLine2" className="text-sm">
+                  第 2 行（選填）
+                </Label>
+                <MultilineInput
+                  id="slackDeclineLine2"
+                  value={declineLine2Suffix}
+                  onChange={(e) => onDeclineLine2SuffixChange(e.target.value)}
+                  placeholder="例如：目前時程無法配合…"
+                  minRows={1}
+                  maxRows={4}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="slackDeclineLine3" className="text-sm">
+                  第 3 行（選填）
+                </Label>
+                <MultilineInput
+                  id="slackDeclineLine3"
+                  value={declineLine3Suffix}
+                  onChange={(e) => onDeclineLine3SuffixChange(e.target.value)}
+                  placeholder="例如：建議改派其他譯者…"
+                  minRows={1}
+                  maxRows={4}
+                />
+              </div>
               <p className="text-xs text-muted-foreground">
-                若在「無法承接」表單填寫期限、字數或補充說明，會接在第一行後面一併送出。
+                第 4 行在預覽為佔位；實際送出時會帶入「無法承接」表單中的補充說明。表單中的期限、字數亦會接在後方一併送出。
               </p>
             </div>
           </div>
@@ -219,7 +287,7 @@ export function ProfileSlackCard({
                   接收「承接／無法承接」自動 Slack 私訊
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  僅影響派案端是否收到他人承接類通知；與下方「Slack 詢案」無關。
+                  僅影響<strong>已連結 Slack</strong>的派案端是否收到承接類通知；與下方「Slack 詢案」無關。
                 </p>
               </div>
               <Switch

@@ -1,7 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
 import { messageFromFunctionsInvokeErrorAsync } from "@/lib/functions-invoke-error";
-import { effectiveAcceptSuffix, effectiveDeclineLine1Suffix } from "@/lib/slack-case-reply-defaults";
+import {
+  effectiveAcceptSuffix,
+  effectiveDeclineLine1Suffix,
+  effectiveDeclineLine2Suffix,
+  effectiveDeclineLine3Suffix,
+} from "@/lib/slack-case-reply-defaults";
 import { toast } from "@/hooks/use-toast";
 
 /** Slack does not allow &, <, > in link label text — strip/replace for display. */
@@ -140,22 +145,26 @@ export async function maybeSendTranslatorCaseReplySlack(params: {
   if (payload?.skipped === "no_recipients_after_filter") {
     toast({
       title: "Slack 通知已略過",
-      description: "沒有符合條件的派案端收件人（或收件人已關閉接收）。",
+      description:
+        "沒有可接收的派案端：請確認至少一位 PM／執行長已在「個人檔案」連結 Slack，並開啟「接收承接／無法承接自動 Slack 私訊」。",
     });
     return;
   }
 
-  const failed = payload?.results?.filter((r) => !r.ok) ?? [];
+  const results = payload?.results ?? [];
+  const failed = results.filter((r) => !r.ok);
+  const anyOk = results.some((r) => r.ok);
+
   if (failed.length > 0) {
     toast({
-      title: "Slack 通知部分失敗",
+      title: anyOk ? "Slack 通知部分失敗" : "Slack 通知未送出",
       description: failed.map((f) => `${f.email}(${f.error ?? "?"})`).join("；"),
       variant: "destructive",
     });
-    return;
+    if (!anyOk) return;
   }
 
-  if (payload?.ok === false && (payload?.results?.length ?? 0) === 0) {
-    return;
+  if (anyOk) {
+    toast({ title: "已透過 Slack 通知派案端" });
   }
 }
