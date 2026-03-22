@@ -137,6 +137,7 @@ export default function ClientInvoicesPage() {
     [checkPerm]
   );
   const uiClientInvoicesAdd = useToolbarButtonUiProps("client_invoices_add");
+  const lbClientInvoicesAdd = useUiButtonLabel("client_invoices_add") ?? "新增客戶請款單";
 
   const visibleInvoices = tableViews.applyFiltersAndSorts(allInvoices, getInvoiceTotal);
 

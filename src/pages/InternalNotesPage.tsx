@@ -578,6 +578,7 @@ export default function InternalNotesPage() {
     [checkPerm]
   );
   const uiInternalNotesAdd = useToolbarButtonUiProps("internal_notes_add");
+  const lbInternalNotesAdd = useUiButtonLabel("internal_notes_add") ?? "新增內部註記";
 
   const visibleNotes = tableViews.applyFiltersAndSorts(notes);
   const rowSelection = useRowSelection(visibleNotes.map((n) => n.id));

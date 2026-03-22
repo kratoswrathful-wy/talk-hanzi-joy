@@ -61,7 +61,20 @@ function initialize() {
 
   initialized = true;
 
-  supabase.auth.onAuthStateChange((_event, session) => {
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    if (event === "SIGNED_OUT") {
+      updateSnapshot(null, true);
+      return;
+    }
+    if (!session?.user) {
+      try {
+        const { data: { session: recovered } } = await supabase.auth.getSession();
+        updateSnapshot(recovered ?? null, true);
+      } catch {
+        updateSnapshot(null, true);
+      }
+      return;
+    }
     updateSnapshot(session, true);
   });
 
