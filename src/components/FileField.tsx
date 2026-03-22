@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { Upload, Link as LinkIcon, X, FileText, BookmarkPlus, GripVertical, Pencil, Check, Plus } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
@@ -75,6 +76,7 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
     setUploadedBytes(0);
     let doneBytes = 0;
     const newItems: FileItem[] = [];
+    const failedNames: string[] = [];
     for (let i = 0; i < files.length; i++) {
       if (cancelRef.current) break;
       const file = files[i];
@@ -86,6 +88,7 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
       if (cancelRef.current) break;
       if (error) {
         console.error("File upload error:", file.name, error);
+        failedNames.push(file.name);
       } else {
         const { data: urlData } = supabase.storage.from("case-files").getPublicUrl(path);
         newItems.push({ name: file.name, url: urlData.publicUrl, size: file.size });
@@ -95,6 +98,17 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
     }
     if (newItems.length > 0 && !cancelRef.current) {
       onChangeRef.current([...valueRef.current, ...newItems]);
+      toast.success(`已加入 ${newItems.length} 個檔案`, {
+        description: "檔案列在上方；若未看到請往上捲動。",
+      });
+      // 收合新增面板，避免使用者視線留在下方進度區而誤以為未加入（多為顯示／版面問題，非未上傳成功）
+      setActionsExpanded(false);
+    }
+    if (failedNames.length > 0 && !cancelRef.current) {
+      toast.error(
+        failedNames.length === 1 ? `上傳失敗：${failedNames[0]}` : `${failedNames.length} 個檔案上傳失敗`,
+        { description: "請檢查檔名、權限或網路後再試。" },
+      );
     }
     setUploading(false);
   }, []);
@@ -170,7 +184,7 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
         <div className="space-y-0.5">
           {value.map((item, idx) => (
             <div
-              key={idx}
+              key={item.url || `${item.name}-${idx}`}
               draggable
               onDragStart={() => setDragIdx(idx)}
               onDragOver={(e) => { e.preventDefault(); if (dragIdx !== null && dragIdx !== idx) setDragOverIdx(idx); }}
@@ -251,7 +265,10 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
-          <Progress value={(uploadedBytes / totalBytes) * 100} className="h-2" />
+          <Progress
+            value={totalBytes > 0 ? (uploadedBytes / totalBytes) * 100 : 0}
+            className="h-2"
+          />
         </div>
       )}
 
@@ -282,12 +299,15 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
           {/* Backdrop overlay — click anywhere to close */}
           <div
             className="fixed inset-0 z-40"
-            onClick={() => setActionsExpanded(false)}
+            onClick={() => {
+              if (!uploading) setActionsExpanded(false);
+            }}
           />
           <div
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
+            onClick={(e) => e.stopPropagation()}
             className={`relative z-50 rounded-md border border-dashed transition-colors bg-background shadow-lg grid grid-cols-2 grid-rows-2 ${
               dragOver ? "border-primary bg-primary/5" : "border-border"
             }`}
