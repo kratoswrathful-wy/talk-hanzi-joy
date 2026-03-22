@@ -95,6 +95,7 @@
 
 ## 延伸閱讀
 
+- [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md) — 本機／遠端 Supabase 部署步驟、case-files 與 Slack、驗收與 `db push` 失敗排除
 - [CODEMAP.md](./CODEMAP.md) — 模組對照
 - `data-migration/README.md` — 資料遷移（若存在）
 - `.cursor/plans/` — 歷史計畫檔（若使用 Cursor 計畫功能）
