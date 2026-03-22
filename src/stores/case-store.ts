@@ -297,6 +297,8 @@ async function load() {
 
       if (error) {
         console.error("[case-store] full load failed", error);
+        cases = [];
+        loaded = true;
         loadPromise = null;
         notify();
         return;
@@ -328,6 +330,11 @@ async function load() {
 function getAll(): CaseRecord[] {
   if (!loaded) load();
   return cases;
+}
+
+/** True after the first full load attempt for the current session (success or failure). */
+function isLoaded(): boolean {
+  return loaded;
 }
 
 function getById(id: string): CaseRecord | undefined {
@@ -611,6 +618,7 @@ export const caseStore = {
   loadCaseIfMissing,
   getAll,
   getById,
+  isLoaded,
   create,
   update,
   remove,

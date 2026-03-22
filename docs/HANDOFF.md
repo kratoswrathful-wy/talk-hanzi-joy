@@ -29,6 +29,8 @@
 
 - **`case-store`** 仍會在背景執行**全表** `cases` 載入（列表／同步用）。  
 - **案件詳情頁**改為優先呼叫 **`loadCaseIfMissing(id)`**：只向 DB 取**單一列**，避免在案件極多時卡在「全表載入」導致黑畫面或長時間載入。  
+- **案件列表頁 `/cases`**：在 **`caseStore.isLoaded()`** 為真之前顯示**載入中**（`useCaseStoreReady`），避免**任何身分**在**新工作階段第一次開列表**（或本機尚無快取、案件總筆數很大）時，在**尚未載入完成**就繪製超大表格，主執行緒被同步處理／渲染塞滿，瀏覽器出現**網頁無回應**或**灰／黑畫面**（**不僅限 member／譯者**）。列表 tbody 對篩選結果使用 **`useDeferredValue`**，降低單次更新阻塞。  
+- 若全表載入**失敗**，`case-store` 會將 **`loaded = true`** 並清空列表，避免永遠卡在載入中。  
 - 登入後 **`initSettings`** 將 **`loadAssignees`** 與其餘設定分開，減少首屏同時打多個重查詢的阻塞。
 - **`mergeIncomingCase`** 對 `tools`／`questionTools` 使用安全讀取，避免異常快取導致整頁 React 崩潰（閃一下後黑屏）。  
 - **案件說明**（BlockNote）以 **`CaseBodyEditorBoundary`** 包住；`body_content` 若非陣列會先正規化為 `[]`，編輯器錯誤時顯示提示而非整頁黑屏。

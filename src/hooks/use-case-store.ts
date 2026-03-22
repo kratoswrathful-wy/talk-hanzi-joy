@@ -7,4 +7,13 @@ export function useCases(): CaseRecord[] {
   return useSyncExternalStore(caseStore.subscribe, caseStore.getAll);
 }
 
+/** True after first full cases load for this session — any role; avoids painting huge table before fetch completes. */
+export function useCaseStoreReady(): boolean {
+  return useSyncExternalStore(
+    caseStore.subscribe,
+    () => caseStore.isLoaded(),
+    () => false,
+  );
+}
+
 export { caseStore };

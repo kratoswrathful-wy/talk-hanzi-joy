@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { TableFooterStats, type NumericColumnConfig } from "@/components/TableFooterStats";
-import { Plus, GripVertical, ExternalLink, Trash2, Copy, FileText, CheckSquare, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, GripVertical, ExternalLink, Trash2, Copy, FileText, CheckSquare, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { CreateWithTemplateButton } from "@/components/CreateWithTemplateButton";
 import { useAuth } from "@/hooks/use-auth";
 import { DeadlineProximityIcon } from "@/components/DeadlineProximityIcon";
@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatDateTz as formatDate, formatDateTimeTz as formatDateTime } from "@/lib/format-timestamp";
-import { useCases, caseStore } from "@/hooks/use-case-store";
+import { useCases, useCaseStoreReady, caseStore } from "@/hooks/use-case-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useRowSelection } from "@/hooks/use-row-selection";
 import { useCaseTableViews, caseFieldMetas } from "@/hooks/use-case-table-views";
@@ -19,7 +19,7 @@ import { InlineEditCell } from "@/components/fees/InlineEditCell";
 import { useSelectOptions, getStatusLabelStyle } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import AssigneeTag from "@/components/AssigneeTag";
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, useDeferredValue } from "react";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -454,6 +454,7 @@ const editableFields = new Set(["title", "status", "category", "workType", "bill
 export default function CasesPage() {
   const navigate = useNavigate();
   const cases = useCases();
+  const casesReady = useCaseStoreReady();
   const allFees = useFees();
   const { isAdmin, user, profile } = useAuth();
   const { checkPerm } = usePermissions();
@@ -461,6 +462,7 @@ export default function CasesPage() {
   const { activeView } = tableViews;
 
   const visibleFees = tableViews.applyFiltersAndSorts(cases);
+  const deferredVisibleFees = useDeferredValue(visibleFees);
   const rowSelection = useRowSelection(visibleFees.map((c) => c.id));
 
   const selectedCasesForSlack = useMemo(
@@ -798,6 +800,17 @@ export default function CasesPage() {
     return () => container.removeEventListener("mousedown", onMouseDown);
   }, [rowSelection]);
 
+  if (!casesReady) {
+    return (
+      <div className="mx-auto flex max-w-7xl min-h-[50vh] flex-col items-center justify-center gap-3 px-4">
+        <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground text-center max-w-sm">
+          載入案件中…（新裝置／新瀏覽器或案件很多時，第一次開此頁可能需數秒，請勿關閉分頁）
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-4">
       <div className="flex items-center gap-3">
@@ -979,7 +992,7 @@ export default function CasesPage() {
             </tr>
           </thead>
           <tbody>
-            {visibleFees.map((c) => {
+            {deferredVisibleFees.map((c) => {
               const isSelected = rowSelection.selectedIds.has(c.id);
               return (
                 <tr
