@@ -51,6 +51,12 @@
 
 - **`InternalNotesPage`** 的 `NoteDetailView`：`lbLinkMsg` 等須有 **`useUiButtonLabel` 對應變數**，否則執行期 `ReferenceError`、黑屏。
 
+### 個人檔案 `/profile` 黑屏（或主內容全黑、短暫像閃登入）
+
+- **曾發生原因**：[`ProfilePage`](src/pages/ProfilePage.tsx) 在 **PM／Executive 專用區塊**（承接／無法承接 Slack 通知開關）與 **`handleSave`** 使用 **`isAdmin`**，但**未從 `useAuth()` 解構**，執行期出現 **`ReferenceError: isAdmin is not defined`**，React 渲染中斷 → **主區域黑畫面**；若同時伴隨 auth／路由重繪，可能**誤以為閃一下登入頁**。
+- **修正**（須保留）：`const { user, profile, refetchProfile, isAdmin } = useAuth();`
+- **預防**：改動頁面後請執行 **`npx tsc -p tsconfig.app.json --noEmit`**。專案根目錄單獨執行 `tsc` 可能只走空的 solution 參考，**不會檢查到 `src/`，易漏掉此類錯誤**。
+
 ### Windows / PowerShell 建置
 
 - 在 PowerShell 中請使用：  

@@ -8,6 +8,7 @@
 |------|------|
 | 路由表 | `src/App.tsx` |
 | 側欄 / 外層 | `src/components/AppLayout.tsx`、`AppSidebar.tsx` |
+| 個人檔案 | `src/pages/ProfilePage.tsx`（`useAuth` 須含 `isAdmin` 等，見 `HANDOFF.md`） |
 
 ## 案件
 

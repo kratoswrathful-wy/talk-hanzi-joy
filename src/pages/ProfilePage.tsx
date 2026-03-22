@@ -135,7 +135,7 @@ function AvatarCropper({
 
 // ─── Profile Page ───
 export default function ProfilePage() {
-  const { user, profile, refetchProfile } = useAuth();
+  const { user, profile, refetchProfile, isAdmin } = useAuth();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
