@@ -681,6 +681,10 @@ CREATE POLICY "Public read access for case files"
 CREATE POLICY "Authenticated users can delete case files"
   ON storage.objects FOR DELETE TO authenticated
   USING (bucket_id = 'case-files');
+CREATE POLICY "Authenticated users can update case files"
+  ON storage.objects FOR UPDATE TO authenticated
+  USING (bucket_id = 'case-files')
+  WITH CHECK (bucket_id = 'case-files');
 
 -- 案件圖示
 INSERT INTO storage.buckets (id, name, public) VALUES ('case-icons', 'case-icons', true)

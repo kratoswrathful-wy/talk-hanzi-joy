@@ -17,6 +17,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { useCommonLinks } from "@/stores/common-links-store";
+import { buildCaseFileObjectPath } from "@/lib/storage-case-files";
 
 const formatBytes = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`;
@@ -76,19 +77,21 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
     setUploadedBytes(0);
     let doneBytes = 0;
     const newItems: FileItem[] = [];
-    const failedNames: string[] = [];
+    const failures: { name: string; message: string }[] = [];
     for (let i = 0; i < files.length; i++) {
       if (cancelRef.current) break;
       const file = files[i];
       setUploadProgress(i);
-      // Sanitize file name: replace spaces and special chars to avoid storage "Invalid key" errors
-      const safeName = file.name.replace(/[^a-zA-Z0-9._\-\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]/g, "_");
-      const path = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}/${safeName}`;
-      const { error } = await supabase.storage.from("case-files").upload(path, file);
+      const path = buildCaseFileObjectPath(file);
+      const { error } = await supabase.storage.from("case-files").upload(path, file, {
+        upsert: true,
+        contentType: file.type || "application/octet-stream",
+        cacheControl: "3600",
+      });
       if (cancelRef.current) break;
       if (error) {
         console.error("File upload error:", file.name, error);
-        failedNames.push(file.name);
+        failures.push({ name: file.name, message: error.message });
       } else {
         const { data: urlData } = supabase.storage.from("case-files").getPublicUrl(path);
         newItems.push({ name: file.name, url: urlData.publicUrl, size: file.size });
@@ -104,10 +107,15 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
       // 收合新增面板，避免使用者視線留在下方進度區而誤以為未加入（多為顯示／版面問題，非未上傳成功）
       setActionsExpanded(false);
     }
-    if (failedNames.length > 0 && !cancelRef.current) {
+    if (failures.length > 0 && !cancelRef.current) {
+      const first = failures[0];
+      const desc =
+        failures.length === 1
+          ? first.message
+          : `${first.message}（另有 ${failures.length - 1} 個失敗）`;
       toast.error(
-        failedNames.length === 1 ? `上傳失敗：${failedNames[0]}` : `${failedNames.length} 個檔案上傳失敗`,
-        { description: "請檢查檔名、權限或網路後再試。" },
+        failures.length === 1 ? `上傳失敗：${first.name}` : `${failures.length} 個檔案上傳失敗`,
+        { description: desc },
       );
     }
     setUploading(false);

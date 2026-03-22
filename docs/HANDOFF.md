@@ -66,6 +66,13 @@
 - **原因**：多為**顯示／版面**問題，非上傳必敗。展開「上傳／拖曳」面板時，**已加入的檔案列在區塊上方**；進度條在下方，使用者若未往上捲，會以為沒加入。
 - **修正**（須保留）：上傳成功後 **toast** 提示、**自動收合**新增面板，且全螢幕 backdrop 在上傳中**不**因點擊而關閉；內層面板 `stopPropagation` 避免誤觸。若 Storage 回傳錯誤，會 **toast 錯誤**（真正上傳失敗）。
 
+### `case-files` Storage 上傳失敗（進度跑完仍失敗）
+
+- **曾發生原因**：`storage.objects` 對 **`case-files`** 僅有 INSERT／SELECT／DELETE，**缺少 UPDATE**；與 **`case-icons`** 不同。部分上傳流程（含 **`upsert: true`** 或 SDK 對既有物件的更新）需要 UPDATE 權限，否則可能失敗。
+- **修正**：migration `20260321120000_case_files_storage_update_policy.sql` 新增 **Authenticated users can update case files**（`USING` + `WITH CHECK` 皆限 `bucket_id = 'case-files'`）。部署後請在 Supabase 執行該 migration。
+- **前端**（須保留）：[`buildCaseFileObjectPath`](src/lib/storage-case-files.ts) 產生路徑；`upload(..., { upsert: true, contentType, cacheControl })`；失敗 **toast 會帶出 Supabase 回傳的 `error.message`** 便於排查（檔案過大、權限、網路等）。
+- **仍失敗時**：請看 toast 內文；若為 **檔案超過專案上限**，需在 Supabase Dashboard → Storage → `case-files` → 調高 **Global file size limit**（或縮小檔案）。
+
 ## 延伸閱讀
 
 - [CODEMAP.md](./CODEMAP.md) — 模組對照

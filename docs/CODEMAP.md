@@ -36,6 +36,7 @@
 | Slack 設定 | `src/components/settings/SlackSettingsSection.tsx` |
 | 重大故障／維運紀錄（DB `ops_incidents`，管理員） | `src/components/settings/OpsIncidentsSection.tsx` |
 | ColorPicker 使用顏色聚合 | `src/lib/settings-color-usage.ts` |
+| `case-files` 上傳路徑／檔名 | `src/lib/storage-case-files.ts`（`buildCaseFileObjectPath`） |
 | 報價格／級距 Tab 切換可編輯格 | `src/lib/settings-editable-cells.ts`（`handleTabKeyDown`、`focusNextEditableCell`） |
 
 ## 工具列按鈕（顏色 / 文案 / 圖示 / 群組）
