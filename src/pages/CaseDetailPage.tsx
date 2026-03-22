@@ -1476,7 +1476,7 @@ export default function CaseDetailPage() {
                         disabled
                       >
                         <CheckSquare className="h-4 w-4 shrink-0" />
-                        任務完成
+                        {lbTaskComplete}
                       </Button>
                     </span>
                   </TooltipTrigger>
@@ -1491,17 +1491,17 @@ export default function CaseDetailPage() {
                 onClick={handleTaskComplete}
               >
                 <CheckSquare className="h-4 w-4 shrink-0" />
-                任務完成
+                {lbTaskComplete}
               </Button>
             )
           ) : isFeedback && (isCurrentUserTranslator || isPmOrAbove) ? (
             <Button
               size="sm"
-              className={uiProcessPrimary.className}
-              style={uiProcessPrimary.style}
+              className={uiFeedbackDone.className}
+              style={uiFeedbackDone.style}
               onClick={handleFeedbackComplete}
             >
-              處理完畢
+              {lbFeedbackDone}
             </Button>
           ) : (isTaskCompleted || isFeedbackCompleted) && isPmOrAbove ? (
             <Button
