@@ -79,6 +79,16 @@
 - **前端**（須保留）：[`buildCaseFileObjectPath`](src/lib/storage-case-files.ts) 產生路徑；`upload(..., { upsert: true, contentType, cacheControl })`；失敗 **toast 會帶出 Supabase 回傳的 `error.message`** 便於排查（檔案過大、權限、網路等）。
 - **仍失敗時**：請看 toast 內文；若為 **檔案超過專案上限**，需在 Supabase Dashboard → Storage → `case-files` → 調高 **Global file size limit**（或縮小檔案）。
 
+#### 如何分辨「權限 (RLS)」與「檔案太大」
+
+| 現象 | 代表 |
+|------|------|
+| 錯誤含 **`new row violates row-level security policy`** 或 **RLS** | **Storage 政策／migration 未套到遠端**，與單檔幾 MB **無關**。請執行 **`20260322140000_repair_case_files_storage_rls.sql`**（及前述 UPDATE policy migration），並在 Supabase **SQL Editor** 跑完或 `supabase db push`。 |
+| 錯誤含 **size** / **maximum** / **413** / **payload** | 才可能是 **單檔或專案上限**：Dashboard → **Project Settings → Storage**（全域）與 **Storage → `case-files` bucket**（`file_size_limit`）；**單一 bucket 上限不得高於專案全域上限**（見 [官方說明](https://supabase.com/docs/guides/storage/uploads/file-limits)）。 |
+| 約 **20MB** 的檔案 | 通常低於免費方案常見 **50MB** 全域上限；若仍見 **RLS** 字樣，請**優先修政策**，不要只調容量。 |
+
+- **Migration** `20260323120000_case_files_bucket_file_size_limit.sql`：將 `case-files` bucket 的 **`file_size_limit`** 設為 **50 MiB**（與常見上限對齊）；若專案全域更小，實際仍以 Dashboard 為準。
+
 ## 延伸閱讀
 
 - [CODEMAP.md](./CODEMAP.md) — 模組對照

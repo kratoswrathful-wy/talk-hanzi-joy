@@ -11,6 +11,8 @@ import type { PageTemplate } from "@/stores/page-template-store";
 interface ApplyTemplateButtonProps {
   module: PageModule;
   onApply: (fieldValues: Record<string, any>) => void;
+  /** Optional toolbar style id (see ui-button-registry / ui-button-style-store). */
+  uiButtonId?: string;
   size?: "sm" | "default";
   className?: string;
 }

@@ -1,9 +1,18 @@
+import type { CSSProperties } from "react";
+
 /** Slack logomark (single-color, use with currentColor) */
-export function SlackMarkIcon({ className }: { className?: string }) {
+export function SlackMarkIcon({
+  className,
+  style,
+}: {
+  className?: string;
+  style?: CSSProperties;
+}) {
   return (
     <svg
       viewBox="0 0 24 24"
       className={className}
+      style={style}
       aria-hidden
       fill="currentColor"
     >

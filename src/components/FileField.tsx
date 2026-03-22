@@ -25,6 +25,25 @@ const formatBytes = (bytes: number) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+/** Map Supabase Storage errors to short hints (RLS vs size vs session). */
+function storageUploadErrorDescription(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes("row-level security") || m.includes("violates row-level security")) {
+    return `${message} — 此為 Storage 權限（RLS），不是檔案大小。請在 Supabase 部署 case-files 的 storage policies migration（見 docs/HANDOFF.md）。`;
+  }
+  if (
+    m.includes("maximum") ||
+    m.includes("file size") ||
+    m.includes("too large") ||
+    m.includes("limit exceeded") ||
+    m.includes("payload too large") ||
+    m.includes("413")
+  ) {
+    return `${message} — 可能超過 Supabase 單檔或專案上限：Dashboard → Storage → 專案與 case-files bucket 的 file size limit。`;
+  }
+  return message;
+}
+
 export interface FileItem {
   name: string;
   url: string;
@@ -120,8 +139,8 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
       const first = failures[0];
       const desc =
         failures.length === 1
-          ? first.message
-          : `${first.message}（另有 ${failures.length - 1} 個失敗）`;
+          ? storageUploadErrorDescription(first.message)
+          : `${storageUploadErrorDescription(first.message)}（另有 ${failures.length - 1} 個失敗）`;
       toast.error(
         failures.length === 1 ? `上傳失敗：${first.name}` : `${failures.length} 個檔案上傳失敗`,
         { description: desc },
