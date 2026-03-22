@@ -21,6 +21,7 @@
 | `src/lib/` | 純函式、工具（重複標題比對、設定共用工具等） |
 | `src/components/settings/` | 設定頁拆出之區塊（Slack、工具列按鈕、**狀態標籤**等） |
 | `docs/` | 本文件與 `CODEMAP.md` |
+| **`ops_incidents`（Supabase）** | 重大故障／維運紀錄時間線（與本文件分工：文件管「怎麼修」、表管「何時／結論」）；管理員於**設定**頁可唯讀瀏覽 |
 
 更細的對照表見 [CODEMAP.md](./CODEMAP.md)。
 

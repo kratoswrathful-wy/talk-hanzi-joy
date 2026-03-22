@@ -653,6 +653,51 @@ export type Database = {
         }
         Relationships: []
       }
+      ops_incidents: {
+        Row: {
+          affected_modules: string[]
+          created_at: string
+          created_by: string | null
+          id: string
+          occurred_at: string
+          reference_links: Json
+          resolution: string
+          root_cause: string
+          severity: string
+          symptoms: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          affected_modules?: string[]
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          occurred_at?: string
+          reference_links?: Json
+          resolution?: string
+          root_cause?: string
+          severity?: string
+          symptoms?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          affected_modules?: string[]
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          occurred_at?: string
+          reference_links?: Json
+          resolution?: string
+          root_cause?: string
+          severity?: string
+          symptoms?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       permission_settings: {
         Row: {
           config: Json

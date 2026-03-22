@@ -69,7 +69,7 @@
 - **富文本**：BlockNote
 
 ### 後端（Supabase）
-- **資料庫**：PostgreSQL（15 個表格 + RLS 政策）
+- **資料庫**：PostgreSQL（16 個 public 表格 + RLS 政策；含 `ops_incidents` 維運紀錄）
 - **認證**：Email + Password
 - **Edge Functions**：4 個 Deno 函數
 - **Storage**：3 個公開 Bucket
@@ -139,13 +139,13 @@ supabase db push
 
 ### 驗證
 
-執行完成後，在 **Table Editor** 中應該看到以下 15 個表格：
+執行完成後，在 **Table Editor** 中應該看到以下表格（含維運紀錄與 Slack 相關者）：
 
 ```
 profiles, user_roles, invitations, permission_settings,
-app_settings, member_translator_settings, fees, invoices,
+app_settings, member_translator_settings, ops_incidents, fees, invoices,
 invoice_fees, client_invoices, client_invoice_fees, cases,
-internal_notes, icon_library
+internal_notes, icon_library, user_slack_meta
 ```
 
 ---

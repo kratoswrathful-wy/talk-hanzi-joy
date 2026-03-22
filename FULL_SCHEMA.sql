@@ -288,6 +288,40 @@ CREATE POLICY "Admins can delete translator settings"
   USING (public.is_admin(auth.uid()));
 
 -- =============================================
+-- 8b. 表格：ops_incidents（重大故障／維運紀錄）
+-- =============================================
+CREATE TABLE public.ops_incidents (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  occurred_at timestamptz NOT NULL DEFAULT now(),
+  title text NOT NULL,
+  severity text NOT NULL DEFAULT 'major' CHECK (severity IN ('major', 'minor', 'info')),
+  symptoms text NOT NULL DEFAULT '',
+  root_cause text NOT NULL DEFAULT '',
+  resolution text NOT NULL DEFAULT '',
+  affected_modules text[] NOT NULL DEFAULT '{}',
+  reference_links jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL
+);
+CREATE INDEX ops_incidents_occurred_at_idx ON public.ops_incidents (occurred_at DESC);
+ALTER TABLE public.ops_incidents ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Authenticated users can read ops incidents"
+  ON public.ops_incidents FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Admins can insert ops incidents"
+  ON public.ops_incidents FOR INSERT TO authenticated
+  WITH CHECK (public.is_admin(auth.uid()));
+CREATE POLICY "Admins can update ops incidents"
+  ON public.ops_incidents FOR UPDATE TO authenticated
+  USING (public.is_admin(auth.uid()));
+CREATE POLICY "Admins can delete ops incidents"
+  ON public.ops_incidents FOR DELETE TO authenticated
+  USING (public.is_admin(auth.uid()));
+CREATE TRIGGER set_ops_incidents_updated_at
+  BEFORE UPDATE ON public.ops_incidents
+  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+-- =============================================
 -- 9. 表格：app_settings
 -- =============================================
 CREATE TABLE public.app_settings (

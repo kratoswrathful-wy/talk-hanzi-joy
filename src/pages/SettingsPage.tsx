@@ -14,6 +14,7 @@ import { DispatchRouteSection } from "@/components/settings/DispatchRouteSection
 import { IconLibrarySection } from "@/components/settings/IconLibrarySection";
 import { TranslatorTierSection } from "@/components/settings/TranslatorTierSection";
 import { TranslatorNotesSection } from "@/components/settings/TranslatorNotesSection";
+import { OpsIncidentsSection } from "@/components/settings/OpsIncidentsSection";
 
 export default function SettingsPage() {
   const { isAdmin } = useAuth();
@@ -71,6 +72,7 @@ export default function SettingsPage() {
       )}
 
       {isAdmin && <SlackSettingsSection />}
+      {isAdmin && <OpsIncidentsSection />}
     </div>
   );
 }
