@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
-import { Loader2, Camera, ZoomIn, ZoomOut, Move } from "lucide-react";
+import { Loader2, Camera, ZoomIn, ZoomOut, Move, Bell } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { TIMEZONE_OPTIONS } from "@/data/timezone-options";
 
 const AVATAR_SIZE = 256;
@@ -152,6 +153,8 @@ export default function ProfilePage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
+  /** PM/Executive: Slack DM when translators accept/decline cases */
+  const [receiveCaseReplySlackDms, setReceiveCaseReplySlackDms] = useState(true);
 
   useEffect(() => {
     if (profile) {
@@ -163,6 +166,7 @@ export default function ProfilePage() {
       setPhone(profile.phone || "");
       setMobile(profile.mobile || "");
       setBio(profile.bio || "");
+      setReceiveCaseReplySlackDms(profile.receive_translator_case_reply_slack_dms !== false);
     }
   }, [profile]);
 
@@ -204,16 +208,21 @@ export default function ProfilePage() {
       return;
     }
     setSaving(true);
+    const baseUpdate = {
+      display_name: displayName,
+      timezone,
+      status_message: statusMessage,
+      phone,
+      mobile,
+      bio,
+    };
     const { error: profileError } = await supabase
       .from("profiles")
-      .update({
-        display_name: displayName,
-        timezone,
-        status_message: statusMessage,
-        phone,
-        mobile,
-        bio,
-      })
+      .update(
+        isAdmin
+          ? { ...baseUpdate, receive_translator_case_reply_slack_dms: receiveCaseReplySlackDms }
+          : baseUpdate,
+      )
       .eq("id", user.id);
 
     if (profileError) { toast.error(profileError.message); setSaving(false); return; }
@@ -351,6 +360,35 @@ export default function ProfilePage() {
               maxRows={8}
             />
           </div>
+
+          {isAdmin && (
+            <div className="space-y-3 rounded-lg border p-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Bell className="h-4 w-4 shrink-0" />
+                Slack：承接／無法承接通知
+              </div>
+              <p className="text-sm text-muted-foreground">
+                當譯者或其他同事在案件上按下「承接」或「無法承接」並成功送出時，系統可自動以對方的 Slack
+                身分私訊派案端（PM／執行長）。若您的工作範圍不包含派案，可關閉此選項以免收到這類私訊。
+              </p>
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-1 pr-2">
+                  <Label htmlFor="receiveCaseReplySlack" className="text-base font-normal cursor-pointer">
+                    接收「承接／無法承接」自動 Slack 私訊
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    僅影響派案端通知；不影響 Slack 詢案等其他功能。
+                  </p>
+                </div>
+                <Switch
+                  id="receiveCaseReplySlack"
+                  checked={receiveCaseReplySlackDms}
+                  onCheckedChange={setReceiveCaseReplySlackDms}
+                />
+              </div>
+            </div>
+          )}
+
           <Button onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             儲存變更

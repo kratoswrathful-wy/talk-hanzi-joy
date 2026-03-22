@@ -13,6 +13,8 @@ interface Profile {
   phone: string | null;
   mobile: string | null;
   bio: string | null;
+  /** PM/Executive: receive Slack DMs when someone accepts/declines a case (server-side filter). */
+  receive_translator_case_reply_slack_dms?: boolean | null;
 }
 
 interface UserRole {

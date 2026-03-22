@@ -13,6 +13,47 @@ async function slackApi(token: string, method: string, body?: Record<string, unk
   return res.json();
 }
 
+/** Resolve PM + Executive emails, excluding sender; respect receive_translator_case_reply_slack_dms. */
+async function resolveCaseReplyRecipientEmails(
+  supabase: ReturnType<typeof createClient>,
+  senderEmail: string | undefined,
+): Promise<string[]> {
+  const { data: roleRows, error: roleErr } = await supabase
+    .from("user_roles")
+    .select("user_id")
+    .in("role", ["pm", "executive"]);
+
+  if (roleErr || !roleRows?.length) {
+    return [];
+  }
+
+  const userIds = [...new Set(roleRows.map((r: { user_id: string }) => r.user_id))];
+  const { data: profs, error: profErr } = await supabase
+    .from("profiles")
+    .select("id, email, receive_translator_case_reply_slack_dms")
+    .in("id", userIds);
+
+  if (profErr || !profs?.length) {
+    return [];
+  }
+
+  const senderLower = (senderEmail || "").trim().toLowerCase();
+
+  const out: string[] = [];
+  for (const p of profs as {
+    email: string;
+    receive_translator_case_reply_slack_dms?: boolean | null;
+  }[]) {
+    if (p.receive_translator_case_reply_slack_dms === false) continue;
+    const em = String(p.email || "").trim().toLowerCase();
+    if (!em) continue;
+    if (senderLower && em === senderLower) continue;
+    out.push(em);
+  }
+
+  return [...new Set(out)];
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -49,17 +90,22 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { data: roles } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .in("role", ["pm", "executive"]);
+    const body = await req.json();
+    const caseReplyNotification = body.case_reply_notification === true;
 
-    if (!roles?.length) {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!caseReplyNotification) {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .in("role", ["pm", "executive"]);
+
+      if (!roles?.length) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     const { data: cred, error: credErr } = await supabase
@@ -77,8 +123,6 @@ Deno.serve(async (req) => {
 
     const token = cred.access_token as string;
 
-    const body = await req.json();
-    const recipientEmails: string[] = Array.isArray(body.recipient_emails) ? body.recipient_emails : [];
     const message: string = typeof body.message === "string" ? body.message : "";
     const notificationFallback: string =
       typeof body.notification_fallback === "string" && body.notification_fallback.trim()
@@ -92,12 +136,24 @@ Deno.serve(async (req) => {
       });
     }
 
-    const uniqueEmails = [...new Set(recipientEmails.map((e) => String(e).trim().toLowerCase()))].filter(Boolean);
+    let uniqueEmails: string[];
+
+    if (caseReplyNotification) {
+      uniqueEmails = await resolveCaseReplyRecipientEmails(supabase, user.email ?? undefined);
+    } else {
+      const recipientEmails: string[] = Array.isArray(body.recipient_emails) ? body.recipient_emails : [];
+      uniqueEmails = [...new Set(recipientEmails.map((e) => String(e).trim().toLowerCase()))].filter(Boolean);
+    }
+
     if (uniqueEmails.length === 0) {
-      return new Response(JSON.stringify({ error: "recipient_emails required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          results: [] as { email: string; ok: boolean; error?: string }[],
+          skipped: caseReplyNotification ? "no_recipients_after_filter" : undefined,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const results: { email: string; ok: boolean; error?: string }[] = [];
@@ -105,7 +161,7 @@ Deno.serve(async (req) => {
     for (const email of uniqueEmails) {
       const lookup = await fetch(
         `https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
       const lu = await lookup.json();
       if (!lu.ok || !lu.user?.id) {
@@ -146,7 +202,7 @@ Deno.serve(async (req) => {
         ok: failed.length === 0,
         results,
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
     console.error(e);

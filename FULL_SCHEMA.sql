@@ -72,6 +72,7 @@ CREATE TABLE public.profiles (
   phone text DEFAULT '',
   mobile text DEFAULT '',
   bio text DEFAULT '',
+  receive_translator_case_reply_slack_dms boolean NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
