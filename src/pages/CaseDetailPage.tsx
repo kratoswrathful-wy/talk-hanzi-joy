@@ -1596,7 +1596,7 @@ export default function CaseDetailPage() {
               }}
             >
               <MessageSquare className="h-4 w-4 shrink-0" />
-              詢案訊息
+              {lbInquiryMsg}
             </Button>
             {caseData && (
               <Button
@@ -1606,7 +1606,7 @@ export default function CaseDetailPage() {
                 onClick={() => setInquirySlackOpen(true)}
               >
                 <SlackMarkIcon className="h-4 w-4 shrink-0 text-current" />
-                <span className="text-[11px] leading-tight font-medium">Slack 詢案</span>
+                <span className="text-xs font-medium leading-tight">{lbSlackDetail}</span>
               </Button>
             )}
             <Button
@@ -1616,7 +1616,7 @@ export default function CaseDetailPage() {
               onClick={handleDuplicate}
             >
               <Copy className="h-4 w-4 shrink-0" />
-              複製本頁
+              {lbCopyPage}
             </Button>
           </div>
         </div>

@@ -46,7 +46,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { useToolbarButtonUiProps } from "@/stores/ui-button-style-store";
+import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -140,6 +140,7 @@ export default function InvoicesPage() {
     [checkPerm]
   );
   const uiTranslatorInvoicesAdd = useToolbarButtonUiProps("translator_invoices_add");
+  const lbTranslatorInvoicesAdd = useUiButtonLabel("translator_invoices_add") ?? "新增請款單";
 
   // Apply filters and sorts
   const visibleInvoices = tableViews.applyFiltersAndSorts(invoices, getInvoiceTotal);
@@ -468,7 +469,7 @@ export default function InvoicesPage() {
         </div>
         <Button size="sm" className={uiTranslatorInvoicesAdd.className} style={uiTranslatorInvoicesAdd.style} onClick={handleCreateInvoice}>
           <Plus className="h-4 w-4" />
-          新增請款單
+          {lbTranslatorInvoicesAdd}
         </Button>
         {canDelete && (
           <Button

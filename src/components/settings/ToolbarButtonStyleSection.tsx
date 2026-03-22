@@ -131,13 +131,7 @@ function ButtonRow({ def }: { def: UiButtonDef }) {
               value={labelDraft}
               onChange={(e) => setLabelDraft(e.target.value)}
               onBlur={() => {
-                const t = labelDraft.trim();
-                if (t === "" || t === def.label) {
-                  uiButtonStyleStore.setButtonPatch(def.id, { label: def.label });
-                  setLabelDraft(def.label);
-                } else {
-                  uiButtonStyleStore.setButtonPatch(def.id, { label: t });
-                }
+                uiButtonStyleStore.setButtonPatch(def.id, { label: labelDraft });
               }}
               placeholder={def.label}
             />

@@ -42,7 +42,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { useToolbarButtonUiProps } from "@/stores/ui-button-style-store";
+import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -529,7 +529,7 @@ export default function ClientInvoicesPage() {
         {isAdmin && (
           <Button size="sm" className={uiClientInvoicesAdd.className} style={uiClientInvoicesAdd.style} onClick={handleCreateInvoice}>
             <Plus className="h-4 w-4" />
-            新增客戶請款單
+            {lbClientInvoicesAdd}
           </Button>
         )}
         {canDelete && (

@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
-import { useToolbarButtonUiProps } from "@/stores/ui-button-style-store";
+import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-store";
 import AssigneeTag from "@/components/AssigneeTag";
@@ -555,6 +555,9 @@ export default function TranslatorFees() {
   const uiFeesAdd = useToolbarButtonUiProps("fees_add");
   const uiFeesTranslatorInv = useToolbarButtonUiProps("fees_translator_invoice");
   const uiFeesClientInv = useToolbarButtonUiProps("fees_client_invoice");
+  const lbFeesAdd = useUiButtonLabel("fees_add") ?? "新增費用";
+  const lbFeesTranslatorInv = useUiButtonLabel("fees_translator_invoice") ?? "譯者請款";
+  const lbFeesClientInv = useUiButtonLabel("fees_client_invoice") ?? "客戶請款";
 
   // Build lock context for a fee (linked invoices)
   const getLockContext = useCallback((fee: TranslatorFee): FeeFieldLockContext => {
