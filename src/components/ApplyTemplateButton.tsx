@@ -3,7 +3,7 @@ import { FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
-import { useToolbarButtonUiPropsMaybe } from "@/stores/ui-button-style-store";
+import { useToolbarButtonUiPropsMaybe, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { usePageTemplates, type PageModule } from "@/stores/page-template-store";
 import type { PageTemplate } from "@/stores/page-template-store";
@@ -26,6 +26,8 @@ export function ApplyTemplateButton({
   uiButtonId,
 }: ApplyTemplateButtonProps) {
   const uiProps = useToolbarButtonUiPropsMaybe(uiButtonId);
+  const labelFromStore = useUiButtonLabel(uiButtonId);
+  const displayLabel = labelFromStore ?? "套用範本";
   const templates = usePageTemplates(module);
   const [open, setOpen] = useState(false);
 
@@ -55,7 +57,7 @@ export function ApplyTemplateButton({
           className={cn(MODULE_TOOLBAR_BTN, uiProps?.className, className)}
           style={uiProps?.style}
         >
-          套用範本
+          {displayLabel}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-48 p-1.5" align="end">

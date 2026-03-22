@@ -31,7 +31,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { useToolbarButtonUiProps } from "@/stores/ui-button-style-store";
+import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import type { CaseRecord, CaseStatus, CollabRow } from "@/data/case-types";
 import { generateFeesForCase, caseHasLinkedFees, type GenerateFeeResult } from "@/lib/generate-case-fees";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -477,6 +477,10 @@ export default function CasesPage() {
   const uiListSlack = useToolbarButtonUiProps("cases_list_slack");
   const uiListCopyRow = useToolbarButtonUiProps("cases_list_copy_row");
   const uiListGenFees = useToolbarButtonUiProps("cases_list_gen_fees");
+  const lbMarkDelivered = useUiButtonLabel("cases_list_mark_delivered") ?? "交件完畢";
+  const lbSlack = useUiButtonLabel("cases_list_slack") ?? "Slack 詢案";
+  const lbCopyRow = useUiButtonLabel("cases_list_copy_row") ?? "複製本單";
+  const lbGenFees = useUiButtonLabel("cases_list_gen_fees") ?? "產生費用單";
 
   // Register cases module with global undo store
   useEffect(() => {
@@ -814,7 +818,7 @@ export default function CasesPage() {
             onClick={handleMarkDelivered}
           >
             <CheckSquare className="h-4 w-4" />
-            交件完畢
+            {lbMarkDelivered}
           </Button>
         )}
         {isAdmin && rowSelection.selectedCount > 0 && (
@@ -841,7 +845,7 @@ export default function CasesPage() {
                 }}
               >
                 <Copy className="h-4 w-4" />
-                複製本單
+                {lbCopyRow}
               </Button>
             )}
             <Button

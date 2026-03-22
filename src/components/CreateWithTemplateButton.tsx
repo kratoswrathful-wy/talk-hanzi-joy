@@ -3,7 +3,7 @@ import { Plus, ChevronDown, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
-import { useToolbarButtonUiPropsMaybe } from "@/stores/ui-button-style-store";
+import { useToolbarButtonUiPropsMaybe, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { usePageTemplates, pageTemplateStore, type PageModule } from "@/stores/page-template-store";
 import type { PageTemplate } from "@/stores/page-template-store";
@@ -34,6 +34,8 @@ export function CreateWithTemplateButton({
   uiButtonId,
 }: CreateWithTemplateButtonProps) {
   const uiProps = useToolbarButtonUiPropsMaybe(uiButtonId);
+  const labelFromStore = useUiButtonLabel(uiButtonId);
+  const displayLabel = labelFromStore ?? label;
   const templates = usePageTemplates(module);
   const [open, setOpen] = useState(false);
 
@@ -61,7 +63,7 @@ export function CreateWithTemplateButton({
     return (
       <Button size={size} className={mainBtnClass} style={uiProps?.style} onClick={() => handleCreate()}>
         <Plus className="h-4 w-4 shrink-0" />
-        {label}
+        {displayLabel}
       </Button>
     );
   }
@@ -76,7 +78,7 @@ export function CreateWithTemplateButton({
         onClick={() => handleCreate()}
       >
         <Plus className="h-4 w-4 shrink-0" />
-        {label}
+        {displayLabel}
       </Button>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>

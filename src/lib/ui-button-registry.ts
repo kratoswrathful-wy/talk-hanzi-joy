@@ -9,6 +9,8 @@ export interface UiButtonDef {
   id: string;
   /** 按鈕在介面上的文字（或主要識別名稱） */
   label: string;
+  /** 是否可在設定中自訂文案（多狀態共用同一樣式時為 false） */
+  labelEditable?: boolean;
   /** 模組名稱（設定頁分組用） */
   module: string;
   /** 出現位置說明，例如「總表」「個別頁」 */
@@ -80,6 +82,7 @@ export const UI_BUTTON_REGISTRY: UiButtonDef[] = [
   {
     id: "cases_detail_neutral",
     label: "灰色操作（收回／取消指派／退回／刪除等）",
+    labelEditable: false,
     module: "案件管理",
     locations: ["案件個別頁"],
     description: "收回為草稿、取消指派、退回修正、退回處理、刪除 等依狀態顯示的灰色按鈕",

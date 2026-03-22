@@ -140,9 +140,9 @@ export function FilterSortToolbar({
 
   return (
     <div className="space-y-2">
-      {/* View tabs（可橫向捲動）+「+」+ 說明與選取計數（緊貼在 + 右側，靠左排列） */}
-      <div className="flex w-full min-w-0 items-center gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pb-1 [scrollbar-width:thin]">
+      {/* 整列靠左：視圖分頁 +「+」+ 說明 + 選取計數 同一橫向捲動列 */}
+      <div className="w-full min-w-0 overflow-x-auto pb-1 [scrollbar-width:thin]">
+        <div className="flex w-max min-w-0 max-w-none items-center gap-2">
         {views.map((view) => (
           <button
             key={view.id}
@@ -194,8 +194,6 @@ export function FilterSortToolbar({
             )}
           </button>
         ))}
-        </div>
-        <div className="flex shrink-0 items-center gap-2 pb-1">
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground shrink-0">
