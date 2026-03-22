@@ -38,10 +38,11 @@ async function resolveInitialSession() {
       const keepLoggedIn = localStorage.getItem("keep_logged_in") === "true";
       const sessionActive = sessionStorage.getItem("session_active") === "true";
 
+      // 先前邏輯：未勾「保持登入」且無 session_active 就 signOut。
+      // 經信箱驗證／OAuth／Magic link 回站的使用者不會走登入表單，永遠不會設 session_active，
+      // 會被誤踢或與還原流程打架。改為：有此 Supabase session 即視為本分頁工作階段有效。
       if (!keepLoggedIn && !sessionActive) {
-        await supabase.auth.signOut({ scope: "local" });
-        updateSnapshot(null, true);
-        return snapshot;
+        sessionStorage.setItem("session_active", "true");
       }
     }
 
@@ -62,6 +63,9 @@ function initialize() {
   initialized = true;
 
   supabase.auth.onAuthStateChange(async (event, session) => {
+    if (session?.user && localStorage.getItem("keep_logged_in") !== "true") {
+      sessionStorage.setItem("session_active", "true");
+    }
     if (event === "SIGNED_OUT") {
       updateSnapshot(null, true);
       return;

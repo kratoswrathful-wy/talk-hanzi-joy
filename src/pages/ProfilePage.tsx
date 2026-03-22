@@ -155,6 +155,9 @@ export default function ProfilePage() {
   const [passwordSaving, setPasswordSaving] = useState(false);
   /** PM/Executive: Slack DM when translators accept/decline cases */
   const [receiveCaseReplySlackDms, setReceiveCaseReplySlackDms] = useState(true);
+  /** Slack case-reply suffixes (empty = built-in default on send) */
+  const [acceptCaseSuffix, setAcceptCaseSuffix] = useState("");
+  const [declineLine1Suffix, setDeclineLine1Suffix] = useState("");
 
   useEffect(() => {
     if (profile) {
@@ -167,6 +170,11 @@ export default function ProfilePage() {
       setMobile(profile.mobile || "");
       setBio(profile.bio || "");
       setReceiveCaseReplySlackDms(profile.receive_translator_case_reply_slack_dms !== false);
+      const raw = profile.slack_message_defaults;
+      const o =
+        raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+      setAcceptCaseSuffix(typeof o.accept_suffix === "string" ? o.accept_suffix : "");
+      setDeclineLine1Suffix(typeof o.decline_line1_suffix === "string" ? o.decline_line1_suffix : "");
     }
   }, [profile]);
 
@@ -216,13 +224,24 @@ export default function ProfilePage() {
       mobile,
       bio,
     };
+    const prevDefaults =
+      profile?.slack_message_defaults &&
+      typeof profile.slack_message_defaults === "object" &&
+      !Array.isArray(profile.slack_message_defaults)
+        ? (profile.slack_message_defaults as Record<string, unknown>)
+        : {};
+    const slack_message_defaults = {
+      ...prevDefaults,
+      accept_suffix: acceptCaseSuffix.trim() || null,
+      decline_line1_suffix: declineLine1Suffix.trim() || null,
+    };
     const { error: profileError } = await supabase
       .from("profiles")
-      .update(
-        isAdmin
-          ? { ...baseUpdate, receive_translator_case_reply_slack_dms: receiveCaseReplySlackDms }
-          : baseUpdate,
-      )
+      .update({
+        ...baseUpdate,
+        slack_message_defaults,
+        ...(isAdmin ? { receive_translator_case_reply_slack_dms: receiveCaseReplySlackDms } : {}),
+      })
       .eq("id", user.id);
 
     if (profileError) { toast.error(profileError.message); setSaving(false); return; }
@@ -372,6 +391,10 @@ export default function ProfilePage() {
         isAdmin={isAdmin}
         receiveCaseReplySlackDms={receiveCaseReplySlackDms}
         onReceiveCaseReplySlackDmsChange={setReceiveCaseReplySlackDms}
+        acceptCaseSuffix={acceptCaseSuffix}
+        onAcceptCaseSuffixChange={setAcceptCaseSuffix}
+        declineLine1Suffix={declineLine1Suffix}
+        onDeclineLine1SuffixChange={setDeclineLine1Suffix}
       />
 
       <Card>

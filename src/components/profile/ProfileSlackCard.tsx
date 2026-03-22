@@ -9,11 +9,22 @@ import { Loader2, MessageSquare, Bell, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { messageFromFunctionsInvokeErrorAsync } from "@/lib/functions-invoke-error";
 import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
+import {
+  DEFAULT_ACCEPT_SUFFIX,
+  DEFAULT_DECLINE_LINE1_SUFFIX,
+} from "@/lib/slack-case-reply-defaults";
+import { Input } from "@/components/ui/input";
 
 type ProfileSlackCardProps = {
   isAdmin: boolean;
   receiveCaseReplySlackDms: boolean;
   onReceiveCaseReplySlackDmsChange: (v: boolean) => void;
+  /** Text after the auto case link for accept (empty = use built-in default). */
+  acceptCaseSuffix: string;
+  onAcceptCaseSuffixChange: (v: string) => void;
+  /** First line after link for decline (empty = use built-in default). */
+  declineLine1Suffix: string;
+  onDeclineLine1SuffixChange: (v: string) => void;
 };
 
 /**
@@ -25,6 +36,10 @@ export function ProfileSlackCard({
   isAdmin,
   receiveCaseReplySlackDms,
   onReceiveCaseReplySlackDmsChange,
+  acceptCaseSuffix,
+  onAcceptCaseSuffixChange,
+  declineLine1Suffix,
+  onDeclineLine1SuffixChange,
 }: ProfileSlackCardProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [connected, setConnected] = useState<boolean | null>(null);
@@ -159,6 +174,44 @@ export function ProfileSlackCard({
             在案件上完成「承接」或「無法承接」並成功送出後，若您已連結 Slack，系統可自動以<strong>您的 Slack 身分</strong>通知派案端（PM／執行長）。
             一般成員請先於上方連結 Slack，後續功能才會生效。
           </p>
+
+          <div className="space-y-4 rounded-md border border-dashed bg-muted/10 p-3">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              訊息開頭會自動插入<strong>可點擊的案件連結</strong>（顯示為案件標題）。下方欄位只編輯連結<strong>後面</strong>緊接的文字；留空則使用系統預設。
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="slackAcceptSuffix" className="text-sm">
+                承接 — 連結後文字
+              </Label>
+              <p className="text-xs text-muted-foreground font-mono bg-muted/40 px-2 py-1 rounded border border-border/60">
+                {"〈案件標題連結〉"}
+              </p>
+              <Input
+                id="slackAcceptSuffix"
+                value={acceptCaseSuffix}
+                onChange={(e) => onAcceptCaseSuffixChange(e.target.value)}
+                placeholder={`預設：${DEFAULT_ACCEPT_SUFFIX.trim()}`}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="slackDeclineLine1" className="text-sm">
+                無法承接 — 第一行連結後文字
+              </Label>
+              <p className="text-xs text-muted-foreground font-mono bg-muted/40 px-2 py-1 rounded border border-border/60">
+                {"〈案件標題連結〉"}
+              </p>
+              <Input
+                id="slackDeclineLine1"
+                value={declineLine1Suffix}
+                onChange={(e) => onDeclineLine1SuffixChange(e.target.value)}
+                placeholder={`預設：${DEFAULT_DECLINE_LINE1_SUFFIX.trim()}`}
+              />
+              <p className="text-xs text-muted-foreground">
+                若在「無法承接」表單填寫期限、字數或補充說明，會接在第一行後面一併送出。
+              </p>
+            </div>
+          </div>
+
           {isAdmin && (
             <div className="flex items-center justify-between gap-4 rounded-md border p-3">
               <div className="space-y-1 pr-2">

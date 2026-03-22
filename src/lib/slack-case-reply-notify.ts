@@ -1,0 +1,161 @@
+import { supabase } from "@/integrations/supabase/client";
+import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
+import { messageFromFunctionsInvokeErrorAsync } from "@/lib/functions-invoke-error";
+import { effectiveAcceptSuffix, effectiveDeclineLine1Suffix } from "@/lib/slack-case-reply-defaults";
+import { toast } from "@/hooks/use-toast";
+
+/** Slack does not allow &, <, > in link label text — strip/replace for display. */
+function sanitizeSlackLinkLabel(text: string): string {
+  return text
+    .replace(/&/g, "＆")
+    .replace(/</g, "‹")
+    .replace(/>/g, "›")
+    .replace(/\|/g, "｜");
+}
+
+function buildCaseUrl(caseId: string): string {
+  if (typeof window === "undefined") return "";
+  const base = window.location.origin.replace(/\/$/, "");
+  return `${base}/cases/${caseId}`;
+}
+
+function formatDeadlineZh(iso: string | null | undefined): string | null {
+  if (!iso?.trim()) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("zh-TW", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export type DeclineFieldsForSlack = {
+  proposedDeadline?: string | null;
+  availableCount?: number | undefined;
+  message?: string | undefined;
+};
+
+function buildAcceptMrkdwn(caseId: string, caseTitle: string, slackDefaults: unknown): string {
+  const url = buildCaseUrl(caseId);
+  const label = sanitizeSlackLinkLabel(caseTitle.trim() || "案件");
+  const link = `<${url}|${label}>`;
+  const suffix = effectiveAcceptSuffix(slackDefaults);
+  return `${link}${suffix}`;
+}
+
+function buildDeclineMrkdwn(
+  caseId: string,
+  caseTitle: string,
+  slackDefaults: unknown,
+  decline: DeclineFieldsForSlack,
+): string {
+  const url = buildCaseUrl(caseId);
+  const label = sanitizeSlackLinkLabel(caseTitle.trim() || "案件");
+  const link = `<${url}|${label}>`;
+  const line1 = `${link}${effectiveDeclineLine1Suffix(slackDefaults)}`;
+
+  const lines: string[] = [line1];
+  const dl = formatDeadlineZh(decline.proposedDeadline ?? null);
+  if (dl) lines.push(`• 可接案期限建議：${dl}`);
+  if (decline.availableCount != null && !Number.isNaN(decline.availableCount)) {
+    lines.push(`• 可承接字數：${decline.availableCount} 字`);
+  }
+  const msg = decline.message?.trim();
+  if (msg) lines.push(`• 補充：${msg}`);
+
+  return lines.join("\n");
+}
+
+function plainFallbackFromMrkdwn(mrkdwn: string): string {
+  const first = mrkdwn.split("\n")[0] ?? "";
+  const pipe = first.indexOf("|");
+  const close = first.lastIndexOf(">");
+  if (first.startsWith("<http") && pipe > 0 && close > pipe) {
+    const title = first.slice(pipe + 1, close);
+    const rest = first.slice(close + 1).trim();
+    return `${title}${rest ? " " + rest : ""}`.slice(0, 300);
+  }
+  return mrkdwn.slice(0, 300);
+}
+
+/**
+ * If the user has linked Slack, notify PM/Executive via edge function (translator identity).
+ * No-op when not linked; toasts on hard errors only.
+ */
+export async function maybeSendTranslatorCaseReplySlack(params: {
+  userId: string;
+  slackMessageDefaults: unknown;
+  caseId: string;
+  caseTitle: string;
+  kind: "accept" | "decline";
+  decline?: DeclineFieldsForSlack;
+}): Promise<void> {
+  const { userId, slackMessageDefaults, caseId, caseTitle, kind, decline } = params;
+
+  const { data: meta } = await supabase
+    .from("user_slack_meta")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!meta) return;
+
+  const token = await getAccessTokenForEdgeFunctions();
+  if (!token) return;
+
+  const message =
+    kind === "accept"
+      ? buildAcceptMrkdwn(caseId, caseTitle, slackMessageDefaults)
+      : buildDeclineMrkdwn(caseId, caseTitle, slackMessageDefaults, decline || {});
+
+  const notification_fallback = plainFallbackFromMrkdwn(message);
+
+  const { data, error } = await supabase.functions.invoke("slack-send-dm", {
+    headers: { Authorization: `Bearer ${token}` },
+    body: {
+      case_reply_notification: true,
+      message,
+      notification_fallback,
+    },
+  });
+
+  if (error) {
+    toast({
+      title: "Slack 通知未送出",
+      description: await messageFromFunctionsInvokeErrorAsync(error, data),
+      variant: "destructive",
+    });
+    return;
+  }
+
+  const payload = data as {
+    ok?: boolean;
+    skipped?: string;
+    results?: { email: string; ok: boolean; error?: string }[];
+  };
+
+  if (payload?.skipped === "no_recipients_after_filter") {
+    toast({
+      title: "Slack 通知已略過",
+      description: "沒有符合條件的派案端收件人（或收件人已關閉接收）。",
+    });
+    return;
+  }
+
+  const failed = payload?.results?.filter((r) => !r.ok) ?? [];
+  if (failed.length > 0) {
+    toast({
+      title: "Slack 通知部分失敗",
+      description: failed.map((f) => `${f.email}(${f.error ?? "?"})`).join("；"),
+      variant: "destructive",
+    });
+    return;
+  }
+
+  if (payload?.ok === false && (payload?.results?.length ?? 0) === 0) {
+    return;
+  }
+}

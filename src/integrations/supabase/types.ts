@@ -733,6 +733,7 @@ export type Database = {
           mobile: string | null
           phone: string | null
           receive_translator_case_reply_slack_dms: boolean
+          slack_message_defaults: Json
           status_message: string | null
           timezone: string | null
           updated_at: string
@@ -747,6 +748,7 @@ export type Database = {
           mobile?: string | null
           phone?: string | null
           receive_translator_case_reply_slack_dms?: boolean
+          slack_message_defaults?: Json
           status_message?: string | null
           timezone?: string | null
           updated_at?: string
@@ -761,6 +763,7 @@ export type Database = {
           mobile?: string | null
           phone?: string | null
           receive_translator_case_reply_slack_dms?: boolean
+          slack_message_defaults?: Json
           status_message?: string | null
           timezone?: string | null
           updated_at?: string

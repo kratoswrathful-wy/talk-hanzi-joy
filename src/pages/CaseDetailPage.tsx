@@ -63,6 +63,7 @@ import { toast } from "@/hooks/use-toast";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-store";
 import { useAuth } from "@/hooks/use-auth";
+import { maybeSendTranslatorCaseReplySlack } from "@/lib/slack-case-reply-notify";
 import { usePermissions } from "@/hooks/use-permissions";
 import { internalNotesStore, useInternalNotes } from "@/stores/internal-notes-store";
 import { getUserTimezone } from "@/lib/format-timestamp";
@@ -838,7 +839,7 @@ export default function CaseDetailPage() {
   const [declineAvailableCount, setDeclineAvailableCount] = useState("");
   const [declineMessage, setDeclineMessage] = useState("");
   const [inquirySlackOpen, setInquirySlackOpen] = useState(false);
-  const { primaryRole: currentRole, profile } = useAuth();
+  const { primaryRole: currentRole, profile, user } = useAuth();
   const { checkPerm } = usePermissions();
   const isManager = currentRole === "pm" || currentRole === "executive";
   const pendingNavigateRef = useRef<(() => void) | null>(null);
@@ -1173,11 +1174,28 @@ export default function CaseDetailPage() {
     };
     const existing = caseData.declineRecords || [];
     save({ declineRecords: [...existing, record] });
+    const caseId = caseData.id;
+    const caseTitle = caseData.title || "";
+    const slackDecline = {
+      proposedDeadline: declineProposedDeadline || undefined,
+      availableCount: declineAvailableCount ? Number(declineAvailableCount) : undefined,
+      message: declineMessage.trim() || undefined,
+    };
     setDeclineOpen(false);
     setDeclineProposedDeadline(null);
     setDeclineAvailableCount("");
     setDeclineMessage("");
     toast({ title: "已記錄無法承接" });
+    if (user?.id) {
+      void maybeSendTranslatorCaseReplySlack({
+        userId: user.id,
+        slackMessageDefaults: profile?.slack_message_defaults,
+        caseId,
+        caseTitle,
+        kind: "decline",
+        decline: slackDecline,
+      });
+    }
   };
 
   const assertUniqueCaseTitle = (action: "leave" | "publish") => {
@@ -1877,6 +1895,15 @@ export default function CaseDetailPage() {
                 updates.status = "dispatched" as CaseStatus;
                 save(updates);
                 toast({ title: "所有譯者已確認承接，狀態已更新為「已派出」" });
+                if (user?.id) {
+                  void maybeSendTranslatorCaseReplySlack({
+                    userId: user.id,
+                    slackMessageDefaults: profile?.slack_message_defaults,
+                    caseId: caseData.id,
+                    caseTitle: caseData.title || "",
+                    kind: "accept",
+                  });
+                }
                 return;
               }
               if (isDispatched && allTaskCompleted) {

@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 
 export function AppSidebar() {
-  const { profile, isAdmin, roles, signOut } = useAuth();
+  const { profile, user, isAdmin, roles, signOut } = useAuth();
   const { checkPerm } = usePermissions();
 
   const isExecutive = roles.some((r) => r.role === "executive");
@@ -44,7 +44,7 @@ export function AppSidebar() {
     ...(canViewFieldRef ? [{ title: "內部資料", url: "/field-reference", icon: Table2 }] : []),
   ];
 
-  const initials = (profile?.display_name || profile?.email || "?").slice(0, 2).toUpperCase();
+  const initials = (profile?.display_name || profile?.email || user?.email || "?").slice(0, 2).toUpperCase();
 
   return (
     <Sidebar className="border-r border-sidebar-border">
@@ -94,7 +94,7 @@ export function AppSidebar() {
           </Avatar>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-sidebar-foreground">
-              {profile?.display_name || profile?.email}
+              {profile?.display_name || profile?.email || user?.email}
             </p>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-sidebar-foreground" onClick={signOut}>

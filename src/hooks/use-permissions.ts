@@ -78,17 +78,25 @@ export function usePermissions() {
   const [loading, setLoading] = useState(true);
 
   const fetchConfig = useCallback(async () => {
-    const env = getEnvironment();
-    const { data } = await (supabase
-      .from("permission_settings")
-      .select("config") as any)
-      .eq("env", env)
-      .limit(1)
-      .single();
-    if (data?.config) {
-      setConfig(data.config as unknown as PermissionConfig);
+    try {
+      const env = getEnvironment();
+      const { data, error } = await (supabase
+        .from("permission_settings")
+        .select("config") as any)
+        .eq("env", env)
+        .limit(1)
+        .maybeSingle();
+      if (error) {
+        console.error("[usePermissions] permission_settings:", error);
+      }
+      if (data?.config) {
+        setConfig(data.config as unknown as PermissionConfig);
+      }
+    } catch (e) {
+      console.error("[usePermissions] fetchConfig:", e);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => {

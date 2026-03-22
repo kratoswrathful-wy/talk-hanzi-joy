@@ -25,6 +25,8 @@
 
 更細的對照表見 [CODEMAP.md](./CODEMAP.md)。
 
+- **Slack 承接／無法承接**：譯者於個人檔案可編輯預設文案（欄位 `profiles.slack_message_defaults`，migration `20260324120000_profiles_slack_message_defaults.sql`）；部署後請 `supabase db push`。行為見 [SLACK_SETUP.md](./SLACK_SETUP.md)。
+
 ## 案件資料量與詳情頁
 
 - **`case-store`** 仍會在背景執行**全表** `cases` 載入（列表／同步用）。  

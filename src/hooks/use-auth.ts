@@ -15,10 +15,30 @@ interface Profile {
   bio: string | null;
   /** PM/Executive: receive Slack DMs when someone accepts/declines a case (server-side filter). */
   receive_translator_case_reply_slack_dms?: boolean | null;
+  /** Optional suffixes for automatic case-reply Slack DMs (JSON from DB). */
+  slack_message_defaults?: unknown;
 }
 
 interface UserRole {
   role: "member" | "pm" | "executive";
+}
+
+/** 只擋「角色」載入；profile 另載入，避免 profiles 欄位／資料問題卡住全站 member */
+const ROLES_LOAD_TIMEOUT_MS = 12000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`${label} timeout`)), ms);
+    promise
+      .then((v) => {
+        clearTimeout(t);
+        resolve(v);
+      })
+      .catch((e) => {
+        clearTimeout(t);
+        reject(e);
+      });
+  });
 }
 
 export function useAuth() {
@@ -33,19 +53,36 @@ export function useAuth() {
   );
 
   const fetchProfile = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
+    const full = await supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
       .maybeSingle();
 
-    if (error) {
-      console.error("fetchProfile error:", error);
+    if (!full.error && full.data) {
+      setProfile(full.data as Profile);
+      return;
+    }
+
+    if (full.error) {
+      console.warn("fetchProfile select * failed, retrying minimal columns:", full.error);
+    }
+
+    const minimal = await supabase
+      .from("profiles")
+      .select(
+        "id, email, display_name, avatar_url, timezone, status_message, phone, mobile, bio, receive_translator_case_reply_slack_dms",
+      )
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (minimal.error) {
+      console.error("fetchProfile error:", minimal.error);
       setProfile(null);
       return;
     }
 
-    setProfile(data);
+    setProfile(minimal.data as Profile);
   }, []);
 
   const fetchRoles = useCallback(async (userId: string) => {
@@ -101,9 +138,16 @@ export function useAuth() {
     let active = true;
     setLoading(true);
 
-    void Promise.all([fetchProfile(user.id), fetchRoles(user.id)]).finally(() => {
-      if (active) setLoading(false);
-    });
+    // profile 不阻塞全螢幕 loading（缺 migration 欄位、大 JSON 等不應讓 member 永遠轉圈）
+    void fetchProfile(user.id);
+
+    void withTimeout(fetchRoles(user.id), ROLES_LOAD_TIMEOUT_MS, "fetchRoles")
+      .catch((e) => {
+        console.error("[useAuth] fetchRoles failed:", e);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
 
     return () => {
       active = false;
