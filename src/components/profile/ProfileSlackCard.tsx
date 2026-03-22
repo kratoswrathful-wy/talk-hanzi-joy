@@ -12,12 +12,16 @@ import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
 import {
   DEFAULT_ACCEPT_SUFFIX,
   DEFAULT_DECLINE_LINE1_SUFFIX,
+  DEFAULT_DECLINE_LINE2_SUFFIX,
+  DEFAULT_DECLINE_LINE3_SUFFIX,
 } from "@/lib/slack-case-reply-defaults";
 import { Input } from "@/components/ui/input";
 import { MultilineInput } from "@/components/ui/multiline-input";
 
-const PREVIEW_CASE_TITLE = "範例案件標題";
-const DECLINE_FORM_HINT_LINE = "<額外留言（或其他你認為適合的文字）>";
+const PREVIEW_PLACEHOLDER_TITLE = "<案件標題>";
+const PREVIEW_PLACEHOLDER_DEADLINE = "<所輸入的建議期限>";
+const PREVIEW_PLACEHOLDER_VOLUME = "<所輸入的可承接量>";
+const PREVIEW_LINE4_PLACEHOLDER = "<按下按鈕後額外輸入的補充留言>";
 
 type ProfileSlackCardProps = {
   isAdmin: boolean;
@@ -60,23 +64,20 @@ export function ProfileSlackCard({
   const [actionLoading, setActionLoading] = useState(false);
 
   const acceptPreviewText = useMemo(() => {
-    const suf = (acceptCaseSuffix.trim() || DEFAULT_ACCEPT_SUFFIX).replace(/^\s*/, " ");
-    return `第 1 行：〈${PREVIEW_CASE_TITLE}〉（將顯示為可點擊連結）\n後接：${suf.trimStart()}`;
+    const acceptSuf = acceptCaseSuffix.trim() || DEFAULT_ACCEPT_SUFFIX.trim();
+    return `第 1 行：${PREVIEW_PLACEHOLDER_TITLE} ${acceptSuf}`;
   }, [acceptCaseSuffix]);
 
   const declinePreviewText = useMemo(() => {
-    const s1 = declineLine1Suffix.trim() || DEFAULT_DECLINE_LINE1_SUFFIX;
-    const s2 = declineLine2Suffix.trim();
-    const s3 = declineLine3Suffix.trim();
+    const line1Suf = declineLine1Suffix.trim() || DEFAULT_DECLINE_LINE1_SUFFIX.trim();
+    const line2Suf = declineLine2Suffix.trim() || DEFAULT_DECLINE_LINE2_SUFFIX.trim();
+    const line3Suf = declineLine3Suffix.trim() || DEFAULT_DECLINE_LINE3_SUFFIX.trim();
     const parts = [
-      `第 1 行：〈${PREVIEW_CASE_TITLE}〉（可點擊連結）後接：${s1.replace(/^\s*/, "")}`,
+      `第 1 行：${PREVIEW_PLACEHOLDER_TITLE} ${line1Suf}`,
+      `第 2 行：${PREVIEW_PLACEHOLDER_DEADLINE} ${line2Suf}`,
+      `第 3 行：${PREVIEW_PLACEHOLDER_VOLUME} ${line3Suf}`,
+      `第 4 行：${PREVIEW_LINE4_PLACEHOLDER}`,
     ];
-    if (s2) parts.push(`第 2 行：${s2}`);
-    else parts.push("第 2 行：（未填則不送出此行）");
-    if (s3) parts.push(`第 3 行：${s3}`);
-    else parts.push("第 3 行：（未填則不送出此行）");
-    parts.push(`第 4 行：${DECLINE_FORM_HINT_LINE}`);
-    parts.push("（若在「無法承接」表單填寫期限、字數、補充，將接在後方一併送出）");
     return parts.join("\n");
   }, [declineLine1Suffix, declineLine2Suffix, declineLine3Suffix]);
 
@@ -210,7 +211,7 @@ export function ProfileSlackCard({
 
           <div className="space-y-4 rounded-md border border-dashed bg-muted/10 p-3">
             <p className="text-xs text-muted-foreground leading-relaxed">
-              訊息開頭會自動插入<strong>可點擊的案件連結</strong>（顯示為案件標題）。下方欄位只編輯連結<strong>後面</strong>緊接的文字；留空則使用系統預設。
+              訊息開頭會自動插入<strong>可點擊的案件連結</strong>（預覽以 <span className="font-mono">&lt;案件標題&gt;</span> 表示）。下方欄位只編輯連結<strong>後面</strong>緊接的文字；留空則使用系統預設。
             </p>
             <div className="space-y-2">
               <Label htmlFor="slackAcceptSuffix" className="text-sm">
@@ -222,7 +223,7 @@ export function ProfileSlackCard({
                 {acceptPreviewText}
               </div>
               <p className="text-xs text-muted-foreground font-mono bg-muted/40 px-2 py-1 rounded border border-border/60">
-                {"〈案件標題連結〉"}
+                {"<案件標題>"}
               </p>
               <Input
                 id="slackAcceptSuffix"
@@ -240,10 +241,10 @@ export function ProfileSlackCard({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="slackDeclineLine1" className="text-sm">
-                  第 1 行 — 連結後文字
+                  第 1 行連結後文字
                 </Label>
                 <p className="text-xs text-muted-foreground font-mono bg-muted/40 px-2 py-1 rounded border border-border/60">
-                  {"〈案件標題連結〉"}
+                  {"<案件標題>"}
                 </p>
                 <Input
                   id="slackDeclineLine1"
@@ -254,32 +255,32 @@ export function ProfileSlackCard({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="slackDeclineLine2" className="text-sm">
-                  第 2 行（選填）
+                  第 2 行建議交期後文字
                 </Label>
                 <MultilineInput
                   id="slackDeclineLine2"
                   value={declineLine2Suffix}
                   onChange={(e) => onDeclineLine2SuffixChange(e.target.value)}
-                  placeholder="例如：目前時程無法配合…"
+                  placeholder={`預設：${DEFAULT_DECLINE_LINE2_SUFFIX.trim()}`}
                   minRows={1}
                   maxRows={4}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="slackDeclineLine3" className="text-sm">
-                  第 3 行（選填）
+                  第 3 行可接案量後文字
                 </Label>
                 <MultilineInput
                   id="slackDeclineLine3"
                   value={declineLine3Suffix}
                   onChange={(e) => onDeclineLine3SuffixChange(e.target.value)}
-                  placeholder="例如：建議改派其他譯者…"
+                  placeholder={`預設：${DEFAULT_DECLINE_LINE3_SUFFIX.trim()}`}
                   minRows={1}
                   maxRows={4}
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                第 4 行在預覽為佔位；實際送出時會帶入「無法承接」表單中的補充說明。表單中的期限、字數亦會接在後方一併送出。
+                第 2、3 行僅在「無法承接」表單有填寫建議期限或可承接字數時會實際送出；第 4 行會帶入表單中的補充留言。
               </p>
             </div>
           </div>

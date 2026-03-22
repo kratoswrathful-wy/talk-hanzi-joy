@@ -5,14 +5,19 @@
 export type SlackMessageDefaults = {
   accept_suffix?: string | null;
   decline_line1_suffix?: string | null;
-  /** Optional 2nd / 3rd line of decline template (after line 1). */
+  /** Text after formatted suggested deadline (line 2) when form has deadline. */
   decline_line2_suffix?: string | null;
+  /** Text after "{n} 字" (line 3) when form has character count. */
   decline_line3_suffix?: string | null;
 };
 
 /** App defaults when profile key is missing or empty. */
 export const DEFAULT_ACCEPT_SUFFIX = " 這件我接了，謝謝！";
 export const DEFAULT_DECLINE_LINE1_SUFFIX = " 這件我沒辦法接，感謝詢問！";
+/** After `<建議期限>` (formatted); leading space separates from deadline text. */
+export const DEFAULT_DECLINE_LINE2_SUFFIX = " 按照本案的內容，延到這個時間我可以接案。";
+/** After `{n} 字`; leading space separates from count. */
+export const DEFAULT_DECLINE_LINE3_SUFFIX = " 按照本案的交期，我可以分擔這個案量。";
 
 export function parseSlackMessageDefaults(raw: unknown): SlackMessageDefaults {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
@@ -36,9 +41,11 @@ export function effectiveDeclineLine1Suffix(raw: unknown): string {
 }
 
 export function effectiveDeclineLine2Suffix(raw: unknown): string {
-  return parseSlackMessageDefaults(raw).decline_line2_suffix?.trim() ?? "";
+  const v = parseSlackMessageDefaults(raw).decline_line2_suffix?.trim();
+  return v || DEFAULT_DECLINE_LINE2_SUFFIX;
 }
 
 export function effectiveDeclineLine3Suffix(raw: unknown): string {
-  return parseSlackMessageDefaults(raw).decline_line3_suffix?.trim() ?? "";
+  const v = parseSlackMessageDefaults(raw).decline_line3_suffix?.trim();
+  return v || DEFAULT_DECLINE_LINE3_SUFFIX;
 }

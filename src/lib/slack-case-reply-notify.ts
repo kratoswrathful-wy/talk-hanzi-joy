@@ -64,12 +64,14 @@ function buildDeclineMrkdwn(
 
   const lines: string[] = [line1];
   const dl = formatDeadlineZh(decline.proposedDeadline ?? null);
-  if (dl) lines.push(`• 可接案期限建議：${dl}`);
+  if (dl) {
+    lines.push(`${dl}${effectiveDeclineLine2Suffix(slackDefaults)}`);
+  }
   if (decline.availableCount != null && !Number.isNaN(decline.availableCount)) {
-    lines.push(`• 可承接字數：${decline.availableCount} 字`);
+    lines.push(`${decline.availableCount} 字${effectiveDeclineLine3Suffix(slackDefaults)}`);
   }
   const msg = decline.message?.trim();
-  if (msg) lines.push(`• 補充：${msg}`);
+  if (msg) lines.push(msg);
 
   return lines.join("\n");
 }
