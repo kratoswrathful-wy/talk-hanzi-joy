@@ -855,7 +855,7 @@ export default function CasesPage() {
               onClick={handleGenerateFees}
             >
               <FileText className="h-4 w-4" />
-              產生費用單
+              {lbGenFees}
             </Button>
             <Button
               variant="ghost"
