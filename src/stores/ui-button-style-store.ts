@@ -4,6 +4,11 @@ import { loadSetting, saveSetting, markDirty } from "./settings-persistence";
 import { getUiButtonDef, type UiButtonDef } from "@/lib/ui-button-registry";
 import { cn } from "@/lib/utils";
 import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
+import {
+  buildDefaultGroupsByModule,
+  mergeGroupsWithRegistry,
+  type ModuleToolbarGroupsState,
+} from "@/lib/ui-toolbar-groups-defaults";
 
 type Listener = () => void;
 
@@ -12,46 +17,121 @@ export interface UiButtonColors {
   textColor: string;
 }
 
-export type ButtonOverride = Partial<UiButtonColors & { label?: string }>;
+export type ButtonOverride = Partial<
+  UiButtonColors & {
+    label?: string;
+    /** `lucide:Name` 或 `custom:slack` */
+    iconKey?: string;
+    /** 自訂圖（data URL）；優先於 iconKey 顯示 */
+    customIconDataUrl?: string;
+  }
+>;
 
 type OverridesState = Record<string, ButtonOverride>;
 
 export interface UiToolbarLayout {
-  /** 所有工具列按鈕共用的寬度（rem），與原 min-w-[8.25rem] 一致 */
   widthRem: number;
+  /** 設定頁各模組的按鈕群組（可自訂） */
+  groupsByModule?: Record<string, ModuleToolbarGroupsState>;
 }
 
-const DEFAULT_LAYOUT: UiToolbarLayout = { widthRem: 8.25 };
+const DEFAULT_LAYOUT: UiToolbarLayout = {
+  widthRem: 8.25,
+  groupsByModule: buildDefaultGroupsByModule(),
+};
 
 const SETTINGS_KEY = "ui_button_styles";
 
 interface PersistedV2 {
   v: 2;
   overrides: OverridesState;
+  layout: { widthRem: number };
+}
+
+interface PersistedV3 {
+  v: 3;
+  overrides: OverridesState;
   layout: UiToolbarLayout;
 }
 
 let overrides: OverridesState = {};
-let layout: UiToolbarLayout = { ...DEFAULT_LAYOUT };
+let layout: UiToolbarLayout = { ...DEFAULT_LAYOUT, groupsByModule: buildDefaultGroupsByModule() };
 const listeners = new Set<Listener>();
 
 function notify() {
   listeners.forEach((l) => l());
   markDirty(SETTINGS_KEY);
-  saveSetting(SETTINGS_KEY, { v: 2, overrides, layout } satisfies PersistedV2);
+  saveSetting(SETTINGS_KEY, {
+    v: 3,
+    overrides,
+    layout: {
+      ...layout,
+      groupsByModule: layout.groupsByModule ?? buildDefaultGroupsByModule(),
+    },
+  } satisfies PersistedV3);
+}
+
+const LEGACY_NEUTRAL_ID = "cases_detail_neutral";
+const NEUTRAL_SPLIT_IDS = [
+  "cases_detail_revert_to_draft",
+  "cases_detail_cancel_dispatch",
+  "cases_detail_revert_revision",
+  "cases_detail_revert_to_feedback",
+  "cases_detail_delete_draft",
+] as const;
+
+function migrateNeutralOverride(o: OverridesState): OverridesState {
+  const legacy = o[LEGACY_NEUTRAL_ID];
+  if (!legacy) return o;
+  const next = { ...o };
+  delete next[LEGACY_NEUTRAL_ID];
+  for (const id of NEUTRAL_SPLIT_IDS) {
+    if (next[id]) continue;
+    const merged: ButtonOverride = {};
+    if (legacy.bgColor !== undefined) merged.bgColor = legacy.bgColor;
+    if (legacy.textColor !== undefined) merged.textColor = legacy.textColor;
+    if (Object.keys(merged).length > 0) next[id] = merged;
+  }
+  return next;
 }
 
 function migrateLoaded(raw: unknown): { overrides: OverridesState; layout: UiToolbarLayout } {
   if (!raw || typeof raw !== "object") {
-    return { overrides: {}, layout: { ...DEFAULT_LAYOUT } };
+    return { overrides: {}, layout: { ...DEFAULT_LAYOUT, groupsByModule: buildDefaultGroupsByModule() } };
   }
   const o = raw as Record<string, unknown>;
-  if (o.v === 2 && o.overrides && typeof o.overrides === "object") {
-    const lay = o.layout && typeof o.layout === "object" ? (o.layout as Partial<UiToolbarLayout>) : {};
-    const w = typeof lay.widthRem === "number" && lay.widthRem > 0 ? lay.widthRem : DEFAULT_LAYOUT.widthRem;
-    return { overrides: o.overrides as OverridesState, layout: { widthRem: w } };
+
+  let ov: OverridesState = {};
+  let lay: UiToolbarLayout = { ...DEFAULT_LAYOUT, groupsByModule: buildDefaultGroupsByModule() };
+
+  if (o.v === 3 && o.overrides && typeof o.overrides === "object") {
+    ov = migrateNeutralOverride(o.overrides as OverridesState);
+    const l = o.layout && typeof o.layout === "object" ? (o.layout as Partial<UiToolbarLayout>) : {};
+    const w = typeof l.widthRem === "number" && l.widthRem > 0 ? l.widthRem : DEFAULT_LAYOUT.widthRem;
+    const gbm = l.groupsByModule && typeof l.groupsByModule === "object"
+      ? (l.groupsByModule as Record<string, ModuleToolbarGroupsState>)
+      : buildDefaultGroupsByModule();
+    lay = {
+      widthRem: w,
+      groupsByModule: gbm,
+    };
+  } else if (o.v === 2 && o.overrides && typeof o.overrides === "object") {
+    ov = migrateNeutralOverride(o.overrides as OverridesState);
+    const l = o.layout && typeof o.layout === "object" ? (o.layout as Partial<UiToolbarLayout>) : {};
+    const w = typeof l.widthRem === "number" && l.widthRem > 0 ? l.widthRem : DEFAULT_LAYOUT.widthRem;
+    lay = { widthRem: w, groupsByModule: buildDefaultGroupsByModule() };
+  } else if (!("v" in o) && typeof raw === "object") {
+    ov = migrateNeutralOverride(raw as OverridesState);
   }
-  return { overrides: raw as OverridesState, layout: { ...DEFAULT_LAYOUT } };
+
+  const mergedGroups: Record<string, ModuleToolbarGroupsState> = {};
+  const defaults = buildDefaultGroupsByModule();
+  for (const mod of Object.keys(defaults)) {
+    mergedGroups[mod] = mergeGroupsWithRegistry(mod, lay.groupsByModule?.[mod]);
+  }
+  lay = { ...lay, groupsByModule: mergedGroups };
+
+  return { overrides: ov, layout: lay };
 }
 
 function getState() {
@@ -86,6 +166,22 @@ export function isUiButtonLabelEditable(id: string): boolean {
   const def = getUiButtonDef(id);
   if (!def) return false;
   return def.labelEditable !== false;
+}
+
+export interface ResolvedUiButtonIcon {
+  iconKey?: string;
+  customIconDataUrl?: string;
+}
+
+/** 合併 registry 預設 icon 與使用者覆寫 */
+export function getUiButtonIconResolved(id: string): ResolvedUiButtonIcon | null {
+  const def = getUiButtonDef(id);
+  const o = overrides[id];
+  if (!def && !o?.iconKey && !o?.customIconDataUrl) return null;
+  return {
+    iconKey: o?.iconKey ?? def?.defaultIconKey,
+    customIconDataUrl: o?.customIconDataUrl,
+  };
 }
 
 function appearanceExtras(
@@ -163,6 +259,29 @@ export function getToolbarButtonUiProps(id: string): { style: CSSProperties; cla
   return appearanceExtras(def, colors, layout.widthRem);
 }
 
+function normalizeButtonOverrideOut(id: string, cur: ButtonOverride): ButtonOverride {
+  const def = getUiButtonDef(id);
+  const out: ButtonOverride = {};
+  if (!def) {
+    if (cur.bgColor !== undefined) out.bgColor = cur.bgColor;
+    if (cur.textColor !== undefined) out.textColor = cur.textColor;
+    if (cur.label !== undefined) out.label = cur.label;
+    if (cur.iconKey !== undefined) out.iconKey = cur.iconKey;
+    if (cur.customIconDataUrl !== undefined) out.customIconDataUrl = cur.customIconDataUrl;
+    return out;
+  }
+  if (cur.bgColor !== undefined && cur.bgColor !== def.defaultBg) out.bgColor = cur.bgColor;
+  if (cur.textColor !== undefined && cur.textColor !== def.defaultText) out.textColor = cur.textColor;
+  if (def.labelEditable !== false && cur.label !== undefined && cur.label !== def.label) {
+    out.label = cur.label;
+  }
+  if (cur.iconKey !== undefined && cur.iconKey !== def.defaultIconKey) out.iconKey = cur.iconKey;
+  if (cur.customIconDataUrl !== undefined && cur.customIconDataUrl.trim()) {
+    out.customIconDataUrl = cur.customIconDataUrl;
+  }
+  return out;
+}
+
 export const uiButtonStyleStore = {
   getOverrides: () => overrides,
   getLayout: () => layout,
@@ -180,19 +299,21 @@ export const uiButtonStyleStore = {
         cur.label = tr;
       }
     }
-
-    const out: ButtonOverride = {};
-    if (def) {
-      if (cur.bgColor !== undefined && cur.bgColor !== def.defaultBg) out.bgColor = cur.bgColor;
-      if (cur.textColor !== undefined && cur.textColor !== def.defaultText) out.textColor = cur.textColor;
-      if (def.labelEditable !== false && cur.label !== undefined && cur.label !== def.label) {
-        out.label = cur.label;
+    if (patch.iconKey !== undefined) {
+      const tr = patch.iconKey.trim();
+      if (!tr || (def && tr === def.defaultIconKey)) {
+        delete cur.iconKey;
+      } else {
+        cur.iconKey = tr;
       }
-    } else {
-      if (cur.bgColor !== undefined) out.bgColor = cur.bgColor;
-      if (cur.textColor !== undefined) out.textColor = cur.textColor;
-      if (cur.label !== undefined) out.label = cur.label;
     }
+    if (patch.customIconDataUrl !== undefined) {
+      const tr = patch.customIconDataUrl.trim();
+      if (!tr) delete cur.customIconDataUrl;
+      else cur.customIconDataUrl = tr;
+    }
+
+    const out = normalizeButtonOverrideOut(id, cur);
 
     if (Object.keys(out).length === 0) {
       const { [id]: _, ...rest } = overrides;
@@ -203,7 +324,6 @@ export const uiButtonStyleStore = {
     notify();
   },
 
-  /** 與舊 API 相容 */
   setButtonColors: (id: string, patch: Partial<UiButtonColors>) => {
     uiButtonStyleStore.setButtonPatch(id, patch);
   },
@@ -211,7 +331,16 @@ export const uiButtonStyleStore = {
   setLayoutWidthRem: (widthRem: number) => {
     const w = Math.min(24, Math.max(4, widthRem));
     if (layout.widthRem === w) return;
-    layout = { widthRem: w };
+    layout = { ...layout, widthRem: w };
+    notify();
+  },
+
+  setModuleGroups: (module: string, state: ModuleToolbarGroupsState) => {
+    const merged = mergeGroupsWithRegistry(module, state);
+    layout = {
+      ...layout,
+      groupsByModule: { ...(layout.groupsByModule ?? buildDefaultGroupsByModule()), [module]: merged },
+    };
     notify();
   },
 
@@ -223,9 +352,8 @@ export const uiButtonStyleStore = {
   },
 
   resetAll: () => {
-    if (Object.keys(overrides).length === 0 && layout.widthRem === DEFAULT_LAYOUT.widthRem) return;
     overrides = {};
-    layout = { ...DEFAULT_LAYOUT };
+    layout = { ...DEFAULT_LAYOUT, groupsByModule: buildDefaultGroupsByModule() };
     notify();
   },
 
@@ -275,6 +403,15 @@ export function useToolbarLayoutWidthRem(): number {
   return useMemo(() => uiButtonStyleStore.getLayout().widthRem, [key]);
 }
 
+export function useUiButtonIconResolved(id: string): ResolvedUiButtonIcon | null {
+  const key = useSyncExternalStore(
+    uiButtonStyleStore.subscribe,
+    () => JSON.stringify(uiButtonStyleStore.getOverrides()[id] ?? {}),
+    () => JSON.stringify(uiButtonStyleStore.getOverrides()[id] ?? {})
+  );
+  return useMemo(() => getUiButtonIconResolved(id), [id, key]);
+}
+
 /** 訂閱 store 並回傳可直接餵給 &lt;Button&gt; 的 props（含 MODULE_TOOLBAR_BTN） */
 export function useToolbarButtonUiProps(id: string): { style: CSSProperties; className: string } {
   const toolbarKey = useSyncExternalStore(
@@ -307,4 +444,16 @@ export function useToolbarButtonUiPropsMaybe(
     () => (id ? JSON.stringify({ o: uiButtonStyleStore.getOverrides()[id] ?? {}, l: uiButtonStyleStore.getLayout() }) : "_")
   );
   return useMemo(() => (id ? getToolbarButtonUiProps(id) : null), [id, key]);
+}
+
+export function useModuleToolbarGroups(module: string): ModuleToolbarGroupsState {
+  const key = useSyncExternalStore(
+    uiButtonStyleStore.subscribe,
+    () => JSON.stringify(uiButtonStyleStore.getLayout().groupsByModule ?? {}),
+    () => JSON.stringify(uiButtonStyleStore.getLayout().groupsByModule ?? {})
+  );
+  return useMemo(() => {
+    const raw = uiButtonStyleStore.getLayout().groupsByModule?.[module];
+    return mergeGroupsWithRegistry(module, raw);
+  }, [module, key]);
 }

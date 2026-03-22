@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { TableFooterStats, type NumericColumnConfig } from "@/components/TableFooterStats";
-import { Plus, GripVertical, ExternalLink, Trash2, Copy, FileText, CheckSquare, ChevronLeft, ChevronRight, MessageSquare } from "lucide-react";
+import { Plus, GripVertical, ExternalLink, Trash2, Copy, FileText, CheckSquare, ChevronLeft, ChevronRight } from "lucide-react";
 import { CreateWithTemplateButton } from "@/components/CreateWithTemplateButton";
 import { useAuth } from "@/hooks/use-auth";
 import { DeadlineProximityIcon } from "@/components/DeadlineProximityIcon";
@@ -31,6 +31,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { UiToolbarButtonIcon } from "@/lib/ui-button-icon-render";
 import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import type { CaseRecord, CaseStatus, CollabRow } from "@/data/case-types";
 import { generateFeesForCase, caseHasLinkedFees, type GenerateFeeResult } from "@/lib/generate-case-fees";
@@ -817,7 +818,7 @@ export default function CasesPage() {
             style={uiListMarkDelivered.style}
             onClick={handleMarkDelivered}
           >
-            <CheckSquare className="h-4 w-4" />
+            <UiToolbarButtonIcon uiButtonId="cases_list_mark_delivered" />
             {lbMarkDelivered}
           </Button>
         )}
@@ -828,8 +829,8 @@ export default function CasesPage() {
             style={uiListSlack.style}
             onClick={() => setInquirySlackOpen(true)}
           >
-            <MessageSquare className="h-4 w-4" />
-            Slack 詢案
+            <UiToolbarButtonIcon uiButtonId="cases_list_slack" />
+            {lbSlack}
           </Button>
         )}
         {rowSelection.selectedCount > 0 && isAdmin && (
@@ -844,7 +845,7 @@ export default function CasesPage() {
                   beginDuplicate(id);
                 }}
               >
-                <Copy className="h-4 w-4" />
+                <UiToolbarButtonIcon uiButtonId="cases_list_copy_row" />
                 {lbCopyRow}
               </Button>
             )}
@@ -854,7 +855,7 @@ export default function CasesPage() {
               style={uiListGenFees.style}
               onClick={handleGenerateFees}
             >
-              <FileText className="h-4 w-4" />
+              <UiToolbarButtonIcon uiButtonId="cases_list_gen_fees" />
               {lbGenFees}
             </Button>
             <Button

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Plus, ChevronDown, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { UiToolbarButtonIcon } from "@/lib/ui-button-icon-render";
 import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
 import { useToolbarButtonUiPropsMaybe, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -62,7 +63,7 @@ export function CreateWithTemplateButton({
   if (!hasCustomTemplates) {
     return (
       <Button size={size} className={mainBtnClass} style={uiProps?.style} onClick={() => handleCreate()}>
-        <Plus className="h-4 w-4 shrink-0" />
+        {uiButtonId ? <UiToolbarButtonIcon uiButtonId={uiButtonId} /> : <Plus className="h-4 w-4 shrink-0" />}
         {displayLabel}
       </Button>
     );
@@ -77,7 +78,7 @@ export function CreateWithTemplateButton({
         style={uiProps?.style}
         onClick={() => handleCreate()}
       >
-        <Plus className="h-4 w-4 shrink-0" />
+        {uiButtonId ? <UiToolbarButtonIcon uiButtonId={uiButtonId} /> : <Plus className="h-4 w-4 shrink-0" />}
         {displayLabel}
       </Button>
       <Popover open={open} onOpenChange={setOpen}>

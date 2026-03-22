@@ -50,6 +50,20 @@ npm run dev
 - Click on "New codespace" to launch a new Codespace environment.
 - Edit files directly within the Codespace and commit and push your changes once you're done.
 
+## 開發者 / 交接
+
+- **[docs/HANDOFF.md](docs/HANDOFF.md)** — 架構重點、設定載入、已知問題與必留修正  
+- **[docs/CODEMAP.md](docs/CODEMAP.md)** — 功能與檔案對照  
+
+本地建置（Windows PowerShell 建議分行執行，避免 `&&` 解析問題）：
+
+```sh
+npm i
+npm run dev
+# 驗證正式建置
+npm run build
+```
+
 ## What technologies are used for this project?
 
 This project is built with:

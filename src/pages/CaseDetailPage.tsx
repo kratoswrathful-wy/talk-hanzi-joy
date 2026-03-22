@@ -9,16 +9,15 @@ import {
   Check,
   ExternalLink,
   Settings,
-  MessageSquare,
   CheckSquare,
 } from "lucide-react";
 import { CaseIconUploader } from "@/components/CaseIconUploader";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
+import { UiToolbarButtonIcon } from "@/lib/ui-button-icon-render";
 import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import { CreateWithTemplateButton } from "@/components/CreateWithTemplateButton";
-import { SlackMarkIcon } from "@/components/icons/SlackMarkIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MultilineInput } from "@/components/ui/multiline-input";
@@ -1087,7 +1086,11 @@ export default function CaseDetailPage() {
 
   /** 必須在 loading / !caseData 的 early return 之前呼叫（Rules of Hooks） */
   const uiDecline = useToolbarButtonUiProps("cases_detail_decline");
-  const uiNeutral = useToolbarButtonUiProps("cases_detail_neutral");
+  const uiRevertToDraft = useToolbarButtonUiProps("cases_detail_revert_to_draft");
+  const uiCancelDispatch = useToolbarButtonUiProps("cases_detail_cancel_dispatch");
+  const uiRevertRevision = useToolbarButtonUiProps("cases_detail_revert_revision");
+  const uiRevertToFeedback = useToolbarButtonUiProps("cases_detail_revert_to_feedback");
+  const uiDeleteDraft = useToolbarButtonUiProps("cases_detail_delete_draft");
   const uiPublish = useToolbarButtonUiProps("cases_detail_publish");
   const uiAcceptCase = useToolbarButtonUiProps("cases_detail_accept_case");
   const uiFinalizeAssign = useToolbarButtonUiProps("cases_detail_finalize_assign");
@@ -1332,56 +1335,62 @@ export default function CaseDetailPage() {
           {isInquiry && isPmOrAbove ? (
             <Button
               size="sm"
-              className={uiNeutral.className}
-              style={uiNeutral.style}
+              className={uiRevertToDraft.className}
+              style={uiRevertToDraft.style}
               onClick={handleRevertToDraft}
             >
-              收回為草稿
+              <UiToolbarButtonIcon uiButtonId="cases_detail_revert_to_draft" />
+              {lbRevertToDraft}
             </Button>
           ) : isDispatched && isPmOrAbove ? (
             <Button
               size="sm"
-              className={uiNeutral.className}
-              style={uiNeutral.style}
+              className={uiCancelDispatch.className}
+              style={uiCancelDispatch.style}
               onClick={handleCancelDispatch}
             >
-              取消指派
+              <UiToolbarButtonIcon uiButtonId="cases_detail_cancel_dispatch" />
+              {lbCancelDispatch}
             </Button>
           ) : (isDelivered || isFeedback) && isPmOrAbove ? (
             <Button
               size="sm"
-              className={uiNeutral.className}
-              style={uiNeutral.style}
+              className={uiRevertRevision.className}
+              style={uiRevertRevision.style}
               onClick={handleRevertToDispatched}
             >
-              退回修正
+              <UiToolbarButtonIcon uiButtonId="cases_detail_revert_revision" />
+              {lbRevertRevision}
             </Button>
           ) : isTaskCompleted && isPmOrAbove ? (
             <Button
               size="sm"
-              className={uiNeutral.className}
-              style={uiNeutral.style}
+              className={uiRevertRevision.className}
+              style={uiRevertRevision.style}
               onClick={handleRevertToDispatched}
             >
-              退回修正
+              <UiToolbarButtonIcon uiButtonId="cases_detail_revert_revision" />
+              {lbRevertRevision}
             </Button>
           ) : isFeedbackCompleted && isPmOrAbove ? (
             <Button
               size="sm"
-              className={uiNeutral.className}
-              style={uiNeutral.style}
+              className={uiRevertToFeedback.className}
+              style={uiRevertToFeedback.style}
               onClick={handleRevertToFeedback}
             >
-              退回處理
+              <UiToolbarButtonIcon uiButtonId="cases_detail_revert_to_feedback" />
+              {lbRevertToFeedback}
             </Button>
           ) : isDraft && isPmOrAbove ? (
             <Button
               size="sm"
-              className={uiNeutral.className}
-              style={uiNeutral.style}
+              className={uiDeleteDraft.className}
+              style={uiDeleteDraft.style}
               onClick={() => setDeleteOpen(true)}
             >
-              刪除
+              <UiToolbarButtonIcon uiButtonId="cases_detail_delete_draft" />
+              {lbDeleteDraft}
             </Button>
           ) : null}
           {/* Right-side primary button */}
@@ -1491,7 +1500,7 @@ export default function CaseDetailPage() {
                 style={uiTaskComplete.style}
                 onClick={handleTaskComplete}
               >
-                <CheckSquare className="h-4 w-4 shrink-0" />
+                <UiToolbarButtonIcon uiButtonId="cases_detail_task_complete" />
                 {lbTaskComplete}
               </Button>
             )
@@ -1511,7 +1520,7 @@ export default function CaseDetailPage() {
               style={uiMarkDeliveredDetail.style}
               onClick={handleDelivered}
             >
-              <CheckSquare className="h-4 w-4 shrink-0" />
+              <UiToolbarButtonIcon uiButtonId="cases_detail_mark_delivered" />
               {lbMarkDelivered}
             </Button>
           ) : isDelivered && isPmOrAbove ? (
@@ -1596,7 +1605,7 @@ export default function CaseDetailPage() {
                 }
               }}
             >
-              <MessageSquare className="h-4 w-4 shrink-0" />
+              <UiToolbarButtonIcon uiButtonId="cases_detail_inquiry_message" />
               {lbInquiryMsg}
             </Button>
             {caseData && (
@@ -1606,7 +1615,7 @@ export default function CaseDetailPage() {
                 style={uiSlackDetail.style}
                 onClick={() => setInquirySlackOpen(true)}
               >
-                <SlackMarkIcon className="h-4 w-4 shrink-0 text-current" />
+                <UiToolbarButtonIcon uiButtonId="cases_detail_slack" />
                 <span className="text-xs font-medium leading-tight">{lbSlackDetail}</span>
               </Button>
             )}
@@ -1616,7 +1625,7 @@ export default function CaseDetailPage() {
               style={uiCopyPage.style}
               onClick={handleDuplicate}
             >
-              <Copy className="h-4 w-4 shrink-0" />
+              <UiToolbarButtonIcon uiButtonId="cases_detail_copy_page" />
               {lbCopyPage}
             </Button>
           </div>
