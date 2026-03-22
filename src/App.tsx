@@ -47,7 +47,7 @@ function SettingsAccessDenied() {
         <AlertTitle>需要 PM 或 Executive 權限</AlertTitle>
         <AlertDescription className="mt-2 space-y-2 text-sm">
           <p>
-            「設定」頁（含 Slack 連結）僅限帳號角色為 <strong>PM</strong> 或 <strong>Executive</strong>。若你剛從連結開啟此頁，可能是因為目前帳號為一般成員。
+            「設定」頁僅限帳號角色為 <strong>PM</strong> 或 <strong>Executive</strong>。Slack 連結已改至<strong>個人檔案</strong>（全員可用）。若你剛從連結開啟此頁，可能是因為目前帳號為一般成員。
           </p>
           <p>
             請由 Executive 在「權限管理」將你的角色設為 PM/Executive，或在 Supabase 的 <code className="rounded bg-muted px-1 text-xs">user_roles</code> 資料表為你的使用者新增{" "}

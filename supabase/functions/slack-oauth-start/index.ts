@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id)
-      .in("role", ["pm", "executive"]);
+      .in("role", ["member", "pm", "executive"]);
 
     if (!roles?.length) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {

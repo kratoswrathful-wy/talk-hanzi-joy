@@ -7,13 +7,13 @@ Deno.serve(async (req) => {
     const siteUrl = (Deno.env.get("SITE_URL") || Deno.env.get("SLACK_OAUTH_FRONTEND_URL") || "http://localhost:5173").replace(/\/$/, "");
 
     if (err) {
-      return Response.redirect(`${siteUrl}/settings?slack_error=${encodeURIComponent(err)}`);
+      return Response.redirect(`${siteUrl}/profile?slack_error=${encodeURIComponent(err)}`);
     }
 
     const code = url.searchParams.get("code");
     const state = url.searchParams.get("state");
     if (!code || !state) {
-      return Response.redirect(`${siteUrl}/settings?slack_error=missing_params`);
+      return Response.redirect(`${siteUrl}/profile?slack_error=missing_params`);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -27,14 +27,14 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (stErr || !row || new Date(row.expires_at) < new Date()) {
-      return Response.redirect(`${siteUrl}/settings?slack_error=invalid_or_expired_state`);
+      return Response.redirect(`${siteUrl}/profile?slack_error=invalid_or_expired_state`);
     }
 
     const clientId = Deno.env.get("SLACK_CLIENT_ID");
     const clientSecret = Deno.env.get("SLACK_CLIENT_SECRET");
     const redirectUri = Deno.env.get("SLACK_REDIRECT_URI");
     if (!clientId || !clientSecret || !redirectUri) {
-      return Response.redirect(`${siteUrl}/settings?slack_error=server_config`);
+      return Response.redirect(`${siteUrl}/profile?slack_error=server_config`);
     }
 
     const tokenRes = await fetch("https://slack.com/api/oauth.v2.access", {
@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     if (!json.ok) {
       console.error("oauth.v2.access", json);
       return Response.redirect(
-        `${siteUrl}/settings?slack_error=${encodeURIComponent(json.error || "oauth_failed")}`
+        `${siteUrl}/profile?slack_error=${encodeURIComponent(json.error || "oauth_failed")}`
       );
     }
 
@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
 
     if (!userToken || !slackUserId) {
       console.error("Missing user token in response", json);
-      return Response.redirect(`${siteUrl}/settings?slack_error=no_user_token`);
+      return Response.redirect(`${siteUrl}/profile?slack_error=no_user_token`);
     }
 
     const { error: upCred } = await supabase.from("user_slack_credentials").upsert(
@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
 
     if (upCred) {
       console.error(upCred);
-      return Response.redirect(`${siteUrl}/settings?slack_error=save_failed`);
+      return Response.redirect(`${siteUrl}/profile?slack_error=save_failed`);
     }
 
     const { error: upMeta } = await supabase.from("user_slack_meta").upsert(
@@ -100,10 +100,10 @@ Deno.serve(async (req) => {
 
     await supabase.from("slack_oauth_states").delete().eq("state", state);
 
-    return Response.redirect(`${siteUrl}/settings?slack=connected`);
+    return Response.redirect(`${siteUrl}/profile?slack=connected`);
   } catch (e) {
     console.error(e);
     const siteUrl = (Deno.env.get("SITE_URL") || "http://localhost:5173").replace(/\/$/, "");
-    return Response.redirect(`${siteUrl}/settings?slack_error=exception`);
+    return Response.redirect(`${siteUrl}/profile?slack_error=exception`);
   }
 });

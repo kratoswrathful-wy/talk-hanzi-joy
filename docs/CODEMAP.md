@@ -34,7 +34,7 @@
 | 內容性質 | `src/components/settings/CaseCategorySection.tsx` |
 | 貨幣設定 | `src/components/settings/CurrencySettingsSection.tsx` |
 | 工具列按鈕樣式 | `src/components/settings/ToolbarButtonStyleSection.tsx` |
-| Slack 設定 | `src/components/settings/SlackSettingsSection.tsx` |
+| Slack（連結／說明） | `src/components/profile/ProfileSlackCard.tsx`（個人檔案） |
 | 重大故障／維運紀錄（DB `ops_incidents`，管理員） | `src/components/settings/OpsIncidentsSection.tsx` |
 | ColorPicker 使用顏色聚合 | `src/lib/settings-color-usage.ts` |
 | `case-files` 上傳路徑／檔名 | `src/lib/storage-case-files.ts`（`buildCaseFileObjectPath`） |

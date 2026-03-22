@@ -57,7 +57,7 @@ supabase functions deploy slack-oauth-start slack-oauth-callback slack-disconnec
 npx supabase@latest functions deploy slack-oauth-start slack-oauth-callback slack-disconnect slack-send-dm
 ```
 
-## 8. 一進設定頁就錯、`user_slack_meta` 為 404（PGRST205）、按「連結 Slack」變 500
+## 8. 一進個人檔案連 Slack 就錯、`user_slack_meta` 為 404（PGRST205）、按「連結 Slack」變 500
 
 代表 **遠端資料庫還沒建立 Slack 相關資料表**（例如曾略過 `db push`）。PostgREST 會回 **404**，`slack-oauth-start` 寫入 **`slack_oauth_states`** 失敗時會回 **500**（`Failed to start OAuth`）。
 
@@ -69,4 +69,4 @@ npx supabase@latest functions deploy slack-oauth-start slack-oauth-callback slac
    ```
 2. **Dashboard** — **SQL Editor**：將本機 [`supabase/migrations/20260319120000_user_slack_oauth.sql`](../supabase/migrations/20260319120000_user_slack_oauth.sql) 全文貼上執行（若表已存在會報錯，需視情況調整）。
 
-套用後在 **Table Editor** 應可看到 **`user_slack_meta`**、**`slack_oauth_states`** 等表；再重新整理網頁與測試「連結 Slack」。
+套用後在 **Table Editor** 應可看到 **`user_slack_meta`**、**`slack_oauth_states`** 等表；再重新整理網頁與在**個人檔案**測試「連結 Slack」。

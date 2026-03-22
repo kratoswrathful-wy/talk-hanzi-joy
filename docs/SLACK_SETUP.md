@@ -23,7 +23,7 @@
 | `SLACK_CLIENT_ID` | Slack App 的 Client ID |
 | `SLACK_CLIENT_SECRET` | Slack App 的 Client Secret |
 | `SLACK_REDIRECT_URI` | 與 Slack Redirect URLs 中某一條 **字元級相同**（例如 `https://xxx.supabase.co/functions/v1/slack-oauth-callback`） |
-| `SITE_URL` | 前端網址，OAuth 完成後導向 `SITE_URL/settings?slack=connected`（例如 `https://your-app.vercel.app`，**不要**結尾斜線或依你習慣與程式一致） |
+| `SITE_URL` | 前端網址，OAuth 完成後導向 `SITE_URL/profile?slack=connected`（例如 `https://your-app.vercel.app`，**不要**結尾斜線或依你習慣與程式一致） |
 
 部署 Edge Functions：
 
@@ -39,7 +39,7 @@ supabase db push
 
 ## 3. 使用者流程
 
-1. **PM / Executive** 登入 → **設定** → **連結 Slack** → 授權。
+1. 登入 → **個人檔案** → **連結 Slack** → 授權（PM／Executive 另可在同頁查看「Slack 詢案」說明）。
 2. **案件管理** 勾選一筆或多筆案件 → **Slack 詢案**；或進入 **案件頁** → **Slack 詢案**。
 3. 勾選團隊成員（需個人檔案有 **與 Slack 相同工作區帳號的 email**），送出後以 **該 PM 的 Slack 身分** 發私訊。
 

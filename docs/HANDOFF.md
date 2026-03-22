@@ -19,7 +19,7 @@
 | `src/stores/` | 前端狀態與持久化（設定、選項、UI 按鈕樣式等） |
 | `src/hooks/` | `useAuth`、`use-case-store`、權限等 |
 | `src/lib/` | 純函式、工具（重複標題比對、設定共用工具等） |
-| `src/components/settings/` | 設定頁拆出之區塊（Slack、工具列按鈕、**狀態標籤**等） |
+| `src/components/settings/` | 設定頁拆出之區塊（工具列按鈕、**狀態標籤**等）；Slack 連結在 **個人檔案**（`ProfileSlackCard`） |
 | `docs/` | 本文件與 `CODEMAP.md` |
 | **`ops_incidents`（Supabase）** | 重大故障／維運紀錄時間線（與本文件分工：文件管「怎麼修」、表管「何時／結論」）；管理員於**設定**頁可唯讀瀏覽 |
 

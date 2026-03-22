@@ -12,8 +12,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
-import { Loader2, Camera, ZoomIn, ZoomOut, Move, Bell } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
+import { Loader2, Camera, ZoomIn, ZoomOut, Move } from "lucide-react";
+import { ProfileSlackCard } from "@/components/profile/ProfileSlackCard";
 import { TIMEZONE_OPTIONS } from "@/data/timezone-options";
 
 const AVATAR_SIZE = 256;
@@ -271,7 +271,7 @@ export default function ProfilePage() {
   const initials = (displayName || email || "?").slice(0, 2).toUpperCase();
 
   return (
-    <div className="mx-auto max-w-xl space-y-6">
+    <div className="mx-auto max-w-2xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">個人檔案</h1>
         <p className="mt-1 text-sm text-muted-foreground">管理您的個人資訊</p>
@@ -361,40 +361,18 @@ export default function ProfilePage() {
             />
           </div>
 
-          {isAdmin && (
-            <div className="space-y-3 rounded-lg border p-4">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Bell className="h-4 w-4 shrink-0" />
-                Slack：承接／無法承接通知
-              </div>
-              <p className="text-sm text-muted-foreground">
-                當譯者或其他同事在案件上按下「承接」或「無法承接」並成功送出時，系統可自動以對方的 Slack
-                身分私訊派案端（PM／執行長）。若您的工作範圍不包含派案，可關閉此選項以免收到這類私訊。
-              </p>
-              <div className="flex items-center justify-between gap-4">
-                <div className="space-y-1 pr-2">
-                  <Label htmlFor="receiveCaseReplySlack" className="text-base font-normal cursor-pointer">
-                    接收「承接／無法承接」自動 Slack 私訊
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    僅影響派案端通知；不影響 Slack 詢案等其他功能。
-                  </p>
-                </div>
-                <Switch
-                  id="receiveCaseReplySlack"
-                  checked={receiveCaseReplySlackDms}
-                  onCheckedChange={setReceiveCaseReplySlackDms}
-                />
-              </div>
-            </div>
-          )}
-
           <Button onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             儲存變更
           </Button>
         </CardContent>
       </Card>
+
+      <ProfileSlackCard
+        isAdmin={isAdmin}
+        receiveCaseReplySlackDms={receiveCaseReplySlackDms}
+        onReceiveCaseReplySlackDmsChange={setReceiveCaseReplySlackDms}
+      />
 
       <Card>
         <CardHeader>

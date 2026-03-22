@@ -256,7 +256,7 @@ export function InquirySlackDialog({
 
   const handleSend = async () => {
     if (!slackConnected) {
-      toast.error("請先到「設定」連結 Slack");
+      toast.error("請先到「個人檔案」連結 Slack");
       return;
     }
     const emails = [...selectedEmails];
@@ -314,8 +314,8 @@ export function InquirySlackDialog({
             {slackConnected === false && (
               <span className="block mt-2 text-destructive">
                 尚未連結 Slack，請至{" "}
-                <Link to="/settings" className="underline font-medium" onClick={() => onOpenChange(false)}>
-                  設定
+                <Link to="/profile" className="underline font-medium" onClick={() => onOpenChange(false)}>
+                  個人檔案
                 </Link>{" "}
                 完成授權。
               </span>
