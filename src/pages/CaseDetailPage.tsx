@@ -1120,6 +1120,11 @@ export default function CaseDetailPage() {
   const uiCopyPage = useToolbarButtonUiProps("cases_detail_copy_page");
 
   const lbDecline = useUiButtonLabel("cases_detail_decline") ?? "無法承接";
+  const lbRevertToDraft = useUiButtonLabel("cases_detail_revert_to_draft") ?? "收回為草稿";
+  const lbCancelDispatch = useUiButtonLabel("cases_detail_cancel_dispatch") ?? "取消指派";
+  const lbRevertRevision = useUiButtonLabel("cases_detail_revert_revision") ?? "退回修正";
+  const lbRevertToFeedback = useUiButtonLabel("cases_detail_revert_to_feedback") ?? "退回處理";
+  const lbDeleteDraft = useUiButtonLabel("cases_detail_delete_draft") ?? "刪除";
   const lbPublish = useUiButtonLabel("cases_detail_publish") ?? "公布";
   const lbAcceptCase = useUiButtonLabel("cases_detail_accept_case") ?? "承接本案";
   const lbFinalizeAssign = useUiButtonLabel("cases_detail_finalize_assign") ?? "確定指派";
