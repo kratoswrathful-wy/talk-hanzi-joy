@@ -59,15 +59,20 @@ function mergeIncomingCase(current: CaseRecord | undefined, incoming: CaseRecord
     return current;
   }
 
-  const keepTools = current.tools.length > 0 && incoming.tools.length === 0;
-  const keepQuestionTools = current.questionTools.length > 0 && incoming.questionTools.length === 0;
+  // 防呆：舊快取或異常資料可能缺 tools／questionTools，避免讀 .length 拋錯導致整頁崩潰
+  const curToolsLen = current.tools?.length ?? 0;
+  const incToolsLen = incoming.tools?.length ?? 0;
+  const curQtLen = current.questionTools?.length ?? 0;
+  const incQtLen = incoming.questionTools?.length ?? 0;
+  const keepTools = curToolsLen > 0 && incToolsLen === 0;
+  const keepQuestionTools = curQtLen > 0 && incQtLen === 0;
 
   if (!keepTools && !keepQuestionTools) return incoming;
 
   return {
     ...incoming,
-    ...(keepTools ? { tools: current.tools } : {}),
-    ...(keepQuestionTools ? { questionTools: current.questionTools } : {}),
+    ...(keepTools ? { tools: current.tools ?? [] } : {}),
+    ...(keepQuestionTools ? { questionTools: current.questionTools ?? [] } : {}),
   };
 }
 

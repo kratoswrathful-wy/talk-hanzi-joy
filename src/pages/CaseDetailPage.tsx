@@ -71,6 +71,7 @@ import type { InternalNote } from "@/hooks/use-internal-notes-table-views";
 
 import CollaborationTable from "@/components/CollaborationTable";
 import { InquirySlackDialog } from "@/components/InquirySlackDialog";
+import { CaseBodyEditorBoundary } from "@/components/CaseBodyEditorBoundary";
 
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
@@ -1129,6 +1130,13 @@ export default function CaseDetailPage() {
   const lbInquiryMsg = useUiButtonLabel("cases_detail_inquiry_message") ?? "詢案訊息";
   const lbSlackDetail = useUiButtonLabel("cases_detail_slack") ?? "Slack 詢案";
   const lbCopyPage = useUiButtonLabel("cases_detail_copy_page") ?? "複製本頁";
+
+  /** BlockNote 必須收到陣列；異常 JSON 曾導致編輯器拋錯→整頁黑屏 */
+  const safeBodyContent = useMemo(() => {
+    const b = caseData?.bodyContent;
+    if (!Array.isArray(b)) return [];
+    return b;
+  }, [caseData?.bodyContent]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-muted-foreground">載入中…</div>;
@@ -2376,12 +2384,15 @@ export default function CaseDetailPage() {
       {/* 案件說明 */}
       <div className="space-y-2">
         <h2 className="text-base font-semibold">案件說明</h2>
-        <Suspense fallback={<div className="h-32 rounded-md border border-input bg-background animate-pulse" />}>
-          <RichTextEditor
-            initialContent={caseData.bodyContent || []}
-            onChange={(blocks) => save({ bodyContent: blocks })}
-          />
-        </Suspense>
+        <CaseBodyEditorBoundary caseId={caseData.id}>
+          <Suspense fallback={<div className="h-32 rounded-md border border-input bg-background animate-pulse" />}>
+            <RichTextEditor
+              key={caseData.id}
+              initialContent={safeBodyContent}
+              onChange={(blocks) => save({ bodyContent: blocks })}
+            />
+          </Suspense>
+        </CaseBodyEditorBoundary>
       </div>
 
       <Separator />
