@@ -49,7 +49,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
 import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import { buildInternalNoteLinkMessagePlain } from "@/lib/internal-note-link-message";
 import { useInternalNotes, internalNotesStore } from "@/stores/internal-notes-store";
@@ -231,7 +230,7 @@ function NoteDetailView({
             style={uiDeleteNote.style}
             onClick={() => setDeleteOpen(true)}
           >
-            刪除
+            {lbDeleteNote}
           </Button>
           {!note.invalidated && (
             <Button
@@ -240,7 +239,7 @@ function NoteDetailView({
               style={uiInvalidate.style}
               onClick={() => setInvalidateOpen(true)}
             >
-              本註記已失效
+              {lbInvalidate}
             </Button>
           )}
         </div>
@@ -736,7 +735,7 @@ export default function InternalNotesPage() {
         <h1 className="text-2xl font-semibold tracking-tight">內部註記</h1>
         <Button size="sm" className={uiInternalNotesAdd.className} style={uiInternalNotesAdd.style} onClick={() => setNewNoteOpen(true)}>
           <Plus className="h-4 w-4" />
-          新增內部註記
+          {lbInternalNotesAdd}
         </Button>
         {rowSelection.selectedCount > 0 && (
           <>
