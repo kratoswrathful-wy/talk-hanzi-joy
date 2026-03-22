@@ -68,6 +68,15 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
 
   const uploadFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.user) {
+      toast.error("無法上傳檔案", {
+        description: "請先登入後再試；若已登入，請重新整理頁面。",
+      });
+      return;
+    }
     cancelRef.current = false;
     setUploading(true);
     setUploadProgress(0);
