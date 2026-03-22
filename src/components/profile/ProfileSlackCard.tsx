@@ -48,6 +48,10 @@ export function ProfileSlackCard({
   onAcceptCaseSuffixChange,
   declineLine1Suffix,
   onDeclineLine1SuffixChange,
+  declineLine2Suffix,
+  onDeclineLine2SuffixChange,
+  declineLine3Suffix,
+  onDeclineLine3SuffixChange,
 }: ProfileSlackCardProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [connected, setConnected] = useState<boolean | null>(null);
