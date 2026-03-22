@@ -158,6 +158,10 @@ function NoteDetailView({
   const uiSameCase = useToolbarButtonUiProps("internal_notes_same_case");
   const uiDeleteNote = useToolbarButtonUiProps("internal_notes_delete");
   const uiInvalidate = useToolbarButtonUiProps("internal_notes_invalidate");
+  const lbLinkMsg = useUiButtonLabel("internal_notes_link_message") ?? "產生連結訊息";
+  const lbSameCase = useUiButtonLabel("internal_notes_same_case") ?? "新增同案件註記";
+  const lbDeleteNote = useUiButtonLabel("internal_notes_delete") ?? "刪除";
+  const lbInvalidate = useUiButtonLabel("internal_notes_invalidate") ?? "本註記已失效";
 
   const comments = note.comments || [];
 

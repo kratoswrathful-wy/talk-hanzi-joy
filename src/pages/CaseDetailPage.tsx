@@ -1085,24 +1085,7 @@ export default function CaseDetailPage() {
     navigate("/cases");
   };
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground">載入中…</div>;
-  }
-  if (!caseData) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground">找不到此案件</div>;
-  }
-
-  const isDraft = caseData.status === "draft";
-  const isInquiry = caseData.status === "inquiry";
-  const isDispatched = caseData.status === "dispatched";
-  const isTaskCompleted = caseData.status === "task_completed";
-  const isDelivered = caseData.status === "delivered";
-  const isFeedback = caseData.status === "feedback";
-  const isFeedbackCompleted = caseData.status === "feedback_completed";
-  
-  const isMember = currentRole === "member";
-  const isPmOrAbove = currentRole === "pm" || currentRole === "executive";
-
+  /** 必須在 loading / !caseData 的 early return 之前呼叫（Rules of Hooks） */
   const uiDecline = useToolbarButtonUiProps("cases_detail_decline");
   const uiNeutral = useToolbarButtonUiProps("cases_detail_neutral");
   const uiPublish = useToolbarButtonUiProps("cases_detail_publish");
@@ -1127,6 +1110,24 @@ export default function CaseDetailPage() {
   const lbInquiryMsg = useUiButtonLabel("cases_detail_inquiry_message") ?? "詢案訊息";
   const lbSlackDetail = useUiButtonLabel("cases_detail_slack") ?? "Slack 詢案";
   const lbCopyPage = useUiButtonLabel("cases_detail_copy_page") ?? "複製本頁";
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-64 text-muted-foreground">載入中…</div>;
+  }
+  if (!caseData) {
+    return <div className="flex items-center justify-center h-64 text-muted-foreground">找不到此案件</div>;
+  }
+
+  const isDraft = caseData.status === "draft";
+  const isInquiry = caseData.status === "inquiry";
+  const isDispatched = caseData.status === "dispatched";
+  const isTaskCompleted = caseData.status === "task_completed";
+  const isDelivered = caseData.status === "delivered";
+  const isFeedback = caseData.status === "feedback";
+  const isFeedbackCompleted = caseData.status === "feedback_completed";
+  
+  const isMember = currentRole === "member";
+  const isPmOrAbove = currentRole === "pm" || currentRole === "executive";
 
   const handleDecline = () => {
     const displayName = profile?.display_name || profile?.email || "";
