@@ -16,7 +16,7 @@ import { CaseIconUploader } from "@/components/CaseIconUploader";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
-import { useToolbarButtonUiProps } from "@/stores/ui-button-style-store";
+import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import { CreateWithTemplateButton } from "@/components/CreateWithTemplateButton";
 import { SlackMarkIcon } from "@/components/icons/SlackMarkIcon";
 import { Button } from "@/components/ui/button";
@@ -1106,13 +1106,27 @@ export default function CaseDetailPage() {
   const uiDecline = useToolbarButtonUiProps("cases_detail_decline");
   const uiNeutral = useToolbarButtonUiProps("cases_detail_neutral");
   const uiPublish = useToolbarButtonUiProps("cases_detail_publish");
-  const uiAssignPrimary = useToolbarButtonUiProps("cases_detail_assign_primary");
+  const uiAcceptCase = useToolbarButtonUiProps("cases_detail_accept_case");
+  const uiFinalizeAssign = useToolbarButtonUiProps("cases_detail_finalize_assign");
   const uiTaskComplete = useToolbarButtonUiProps("cases_detail_task_complete");
-  const uiProcessPrimary = useToolbarButtonUiProps("cases_detail_process_primary");
+  const uiFeedbackDone = useToolbarButtonUiProps("cases_detail_feedback_done");
+  const uiFeedbackOpen = useToolbarButtonUiProps("cases_detail_feedback_open");
   const uiMarkDeliveredDetail = useToolbarButtonUiProps("cases_detail_mark_delivered");
   const uiInquiryMsg = useToolbarButtonUiProps("cases_detail_inquiry_message");
   const uiSlackDetail = useToolbarButtonUiProps("cases_detail_slack");
   const uiCopyPage = useToolbarButtonUiProps("cases_detail_copy_page");
+
+  const lbDecline = useUiButtonLabel("cases_detail_decline") ?? "無法承接";
+  const lbPublish = useUiButtonLabel("cases_detail_publish") ?? "公布";
+  const lbAcceptCase = useUiButtonLabel("cases_detail_accept_case") ?? "承接本案";
+  const lbFinalizeAssign = useUiButtonLabel("cases_detail_finalize_assign") ?? "確定指派";
+  const lbTaskComplete = useUiButtonLabel("cases_detail_task_complete") ?? "任務完成";
+  const lbFeedbackDone = useUiButtonLabel("cases_detail_feedback_done") ?? "處理完畢";
+  const lbMarkDelivered = useUiButtonLabel("cases_detail_mark_delivered") ?? "交件完畢";
+  const lbFeedbackOpen = useUiButtonLabel("cases_detail_feedback_open") ?? "處理回饋";
+  const lbInquiryMsg = useUiButtonLabel("cases_detail_inquiry_message") ?? "詢案訊息";
+  const lbSlackDetail = useUiButtonLabel("cases_detail_slack") ?? "Slack 詢案";
+  const lbCopyPage = useUiButtonLabel("cases_detail_copy_page") ?? "複製本頁";
 
   const handleDecline = () => {
     const displayName = profile?.display_name || profile?.email || "";
@@ -1310,7 +1324,7 @@ export default function CaseDetailPage() {
               style={uiDecline.style}
               onClick={() => setDeclineOpen(true)}
             >
-              無法承接
+              {lbDecline}
             </Button>
           )}
           {/* Left-side grey button */}
@@ -1377,7 +1391,7 @@ export default function CaseDetailPage() {
               style={uiPublish.style}
               onClick={handlePublish}
             >
-              公布
+              {lbPublish}
             </Button>
           ) : isInquiry && isMember ? (
             (() => {
@@ -1389,8 +1403,8 @@ export default function CaseDetailPage() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <span>
-                          <Button size="sm" className={cn(uiAssignPrimary.className, "opacity-60")} style={uiAssignPrimary.style} disabled>
-                            承接本案
+                          <Button size="sm" className={cn(uiAcceptCase.className, "opacity-60")} style={uiAcceptCase.style} disabled>
+                            {lbAcceptCase}
                           </Button>
                         </span>
                       </TooltipTrigger>
@@ -1405,8 +1419,8 @@ export default function CaseDetailPage() {
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <span>
-                          <Button size="sm" className={cn(uiAssignPrimary.className, "opacity-60")} style={uiAssignPrimary.style} disabled>
-                            承接本案
+                          <Button size="sm" className={cn(uiAcceptCase.className, "opacity-60")} style={uiAcceptCase.style} disabled>
+                            {lbAcceptCase}
                           </Button>
                         </span>
                       </TooltipTrigger>
@@ -1418,11 +1432,11 @@ export default function CaseDetailPage() {
               return (
                 <Button
                   size="sm"
-                  className={uiAssignPrimary.className}
-                  style={uiAssignPrimary.style}
+                  className={uiAcceptCase.className}
+                  style={uiAcceptCase.style}
                   onClick={handleAcceptCase}
                 >
-                  承接本案
+                  {lbAcceptCase}
                 </Button>
               );
             })()
@@ -1432,12 +1446,12 @@ export default function CaseDetailPage() {
               const btn = (
                 <Button
                   size="sm"
-                  className={uiAssignPrimary.className}
-                  style={uiAssignPrimary.style}
+                  className={uiFinalizeAssign.className}
+                  style={uiFinalizeAssign.style}
                   disabled={translatorEmpty}
                   onClick={handleFinalize}
                 >
-                  確定指派
+                  {lbFinalizeAssign}
                 </Button>
               );
               return translatorEmpty ? (
@@ -1497,16 +1511,16 @@ export default function CaseDetailPage() {
               onClick={handleDelivered}
             >
               <CheckSquare className="h-4 w-4 shrink-0" />
-              交件完畢
+              {lbMarkDelivered}
             </Button>
           ) : isDelivered && isPmOrAbove ? (
             <Button
               size="sm"
-              className={uiProcessPrimary.className}
-              style={uiProcessPrimary.style}
+              className={uiFeedbackOpen.className}
+              style={uiFeedbackOpen.style}
               onClick={handleFeedback}
             >
-              處理回饋
+              {lbFeedbackOpen}
             </Button>
           ) : null}
         </div>
