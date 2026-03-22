@@ -22,11 +22,20 @@
 
 | 項目 | 位置 |
 |------|------|
-| 設定主頁（仍較大） | `src/pages/SettingsPage.tsx` |
+| 設定主頁（版面／權限 gate） | `src/pages/SettingsPage.tsx` |
+| 任務類型／計費單位／派案來源／客戶報價 | `TaskTypeOrderSection.tsx`、`BillingUnitOrderSection.tsx`、`DispatchRouteSection.tsx`、`ClientPricingSection.tsx`（皆在 `src/components/settings/`） |
+| 譯者備註（拖曳排序、DB） | `src/components/settings/TranslatorNotesSection.tsx` |
+| 譯者單價級距（含 modal／驗證） | `src/components/settings/TranslatorTierSection.tsx` |
+| 圖示庫 | `src/components/settings/IconLibrarySection.tsx` |
 | 狀態標籤區塊 | `src/components/settings/StatusStyleSection.tsx` |
+| 內部註記狀態／性質 | `src/components/settings/NoteSelectSection.tsx` |
+| 請款管道 | `src/components/settings/BillingChannelSection.tsx` |
+| 內容性質 | `src/components/settings/CaseCategorySection.tsx` |
+| 貨幣設定 | `src/components/settings/CurrencySettingsSection.tsx` |
 | 工具列按鈕樣式 | `src/components/settings/ToolbarButtonStyleSection.tsx` |
 | Slack 設定 | `src/components/settings/SlackSettingsSection.tsx` |
 | ColorPicker 使用顏色聚合 | `src/lib/settings-color-usage.ts` |
+| 報價格／級距 Tab 切換可編輯格 | `src/lib/settings-editable-cells.ts`（`handleTabKeyDown`、`focusNextEditableCell`） |
 
 ## 工具列按鈕（顏色 / 文案 / 圖示 / 群組）
 

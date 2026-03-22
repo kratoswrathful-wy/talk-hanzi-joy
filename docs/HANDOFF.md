@@ -61,5 +61,6 @@
 ## 建議的修改方式
 
 1. **先跑** `npm run build` 再交 PR。  
-2. 大改 `SettingsPage.tsx` 前，優先將區塊抽到 `src/components/settings/`（與 `StatusStyleSection`、`ToolbarButtonStyleSection` 相同模式）。  
-3. 共用的小工具放 `src/lib/`，並以單一職責命名（例如 `settings-color-usage.ts`）。
+2. **`SettingsPage.tsx` 已精簡**：僅負責排版與 `canViewSection`／`isAdmin`；實際 UI 在 `src/components/settings/*.tsx`。  
+3. **譯者備註**（`TranslatorNotesSection`）與 **譯者單價級距**（`TranslatorTierSection`）皆受 **`translator_tiers`** 設定區塊權限控制（同區塊一併顯示）。  
+4. 共用的小工具放 `src/lib/`（例如 `settings-color-usage.ts`、`settings-editable-cells.ts`）。
