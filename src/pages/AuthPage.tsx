@@ -90,16 +90,53 @@ export default function AuthPage() {
   const [showReset, setShowReset] = useState(false);
   const [keepLoggedIn, setKeepLoggedIn] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const loginTimedOutRef = useRef(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const trimmedEmail = email.trim();
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (showReset) {
+      if (!trimmedEmail) {
+        toast.error("請輸入電子信箱");
+        return;
+      }
+      if (!emailPattern.test(trimmedEmail)) {
+        toast.error("請輸入有效的電子信箱格式");
+        return;
+      }
+    } else {
+      if (!trimmedEmail) {
+        toast.error("請輸入電子信箱");
+        return;
+      }
+      if (!emailPattern.test(trimmedEmail)) {
+        toast.error("請輸入有效的電子信箱格式");
+        return;
+      }
+      if (!password) {
+        toast.error("請輸入密碼");
+        return;
+      }
+      if (password.length < 6) {
+        toast.error("密碼至少需要 6 個字元");
+        return;
+      }
+      if (!isLogin && !displayName.trim()) {
+        toast.error("請輸入顯示名稱");
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
       if (showReset) {
         try {
           const { error } = await Promise.race([
-            supabase.auth.resetPasswordForEmail(email, {
+            supabase.auth.resetPasswordForEmail(trimmedEmail, {
               redirectTo: `${getAuthRedirectOrigin()}/reset-password`,
             }),
             timeoutPromise(AUTH_REQUEST_TIMEOUT_MS, "連線逾時，請檢查網路後再試"),
@@ -123,15 +160,15 @@ export default function AuthPage() {
         const runLogin = async () => {
           let error: Error | null = null;
           try {
-            const result = await supabase.auth.signInWithPassword({ email, password });
+            const result = await supabase.auth.signInWithPassword({ email: trimmedEmail, password });
             error = result.error;
 
             if (error?.message === "Failed to fetch") {
-              const fallback = await signInWithPasswordFallback(email, password);
+              const fallback = await signInWithPasswordFallback(trimmedEmail, password);
               error = fallback.error ?? null;
             }
           } catch (caught) {
-            const fallback = await signInWithPasswordFallback(email, password).catch((fallbackError) => ({ error: fallbackError as Error }));
+            const fallback = await signInWithPasswordFallback(trimmedEmail, password).catch((fallbackError) => ({ error: fallbackError as Error }));
             error = fallback.error ?? (caught instanceof Error ? caught : new Error("登入失敗，請稍後再試"));
           }
 
@@ -155,7 +192,7 @@ export default function AuthPage() {
         try {
           const { error } = await Promise.race([
             supabase.auth.signUp({
-              email,
+              email: trimmedEmail,
               password,
               options: {
                 data: { display_name: displayName },
@@ -222,7 +259,7 @@ export default function AuthPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form noValidate onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
               <div className="space-y-2">
                 <Label htmlFor="displayName">顯示名稱</Label>
@@ -231,13 +268,13 @@ export default function AuthPage() {
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="您的名稱"
-                  required={!isLogin}
+                  autoComplete="name"
                 />
               </div>
             )}
             <div className="space-y-2">
               <Label htmlFor="email">電子信箱</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">密碼</Label>
@@ -247,8 +284,6 @@ export default function AuthPage() {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={6}
                   className="pr-10"
                   autoComplete={isLogin ? "current-password" : "new-password"}
                 />

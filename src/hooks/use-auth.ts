@@ -66,7 +66,12 @@ export function useAuth() {
       return;
     }
 
-    setProfile(data as Profile);
+    if (!data) {
+      setProfile(null);
+      return;
+    }
+
+    setProfile(data as unknown as Profile);
   }, []);
 
   const fetchRoles = useCallback(async (userId: string) => {
