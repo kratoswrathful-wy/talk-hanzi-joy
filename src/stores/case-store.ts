@@ -434,9 +434,17 @@ function reset() {
 
 // Listen for auth changes — only reload on sign-in to avoid race conditions
 supabase.auth.onAuthStateChange((event) => {
+  // Token refresh (common when tab regains focus) does not change the user; resetting would
+  // clear `loaded` and flash the full-page loader on CasesPage. Refetch in the background instead.
+  if (event === "TOKEN_REFRESHED") {
+    loadPromise = null;
+    void load();
+    return;
+  }
+
   reset();
   // Only reload when a new session is available
-  if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
+  if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
     load();
   }
 });
