@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 import { getAuthSnapshot, subscribeAuthReady, waitForAuthReady } from "@/lib/auth-ready";
+import { PROFILE_SELECT_COLUMNS } from "@/lib/profile-columns";
 
 interface Profile {
   id: string;
@@ -53,36 +54,19 @@ export function useAuth() {
   );
 
   const fetchProfile = useCallback(async (userId: string) => {
-    const full = await supabase
+    const { data, error } = await supabase
       .from("profiles")
-      .select("*")
+      .select(PROFILE_SELECT_COLUMNS)
       .eq("id", userId)
       .maybeSingle();
 
-    if (!full.error && full.data) {
-      setProfile(full.data as Profile);
-      return;
-    }
-
-    if (full.error) {
-      console.warn("fetchProfile select * failed, retrying minimal columns:", full.error);
-    }
-
-    const minimal = await supabase
-      .from("profiles")
-      .select(
-        "id, email, display_name, avatar_url, timezone, status_message, phone, mobile, bio, receive_translator_case_reply_slack_dms",
-      )
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (minimal.error) {
-      console.error("fetchProfile error:", minimal.error);
+    if (error) {
+      console.error("fetchProfile error:", error);
       setProfile(null);
       return;
     }
 
-    setProfile(minimal.data as Profile);
+    setProfile(data as Profile);
   }, []);
 
   const fetchRoles = useCallback(async (userId: string) => {

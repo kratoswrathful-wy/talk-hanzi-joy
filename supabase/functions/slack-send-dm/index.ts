@@ -45,6 +45,7 @@ async function resolveCaseReplyRecipientEmails(
 
   const { data: profs, error: profErr } = await supabase
     .from("profiles")
+    // Must match DB column receive_translator_case_reply_slack_dms (see src/lib/profile-columns.ts)
     .select("id, email, receive_translator_case_reply_slack_dms")
     .in("id", [...linkedIdSet]);
 

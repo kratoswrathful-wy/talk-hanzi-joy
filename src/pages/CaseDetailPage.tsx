@@ -801,6 +801,15 @@ function formatTimestamp(d: Date | string) {
   return `${formatted} (${tzLabel})`;
 }
 
+const CASE_LOAD_TIMEOUT_MS = 30_000;
+const CASE_LOAD_TIMEOUT_ERROR = "CASE_DETAIL_LOAD_TIMEOUT";
+
+function caseDetailLoadTimeoutPromise(): Promise<never> {
+  return new Promise((_, reject) => {
+    setTimeout(() => reject(new Error(CASE_LOAD_TIMEOUT_ERROR)), CASE_LOAD_TIMEOUT_MS);
+  });
+}
+
 type CaseDetailLocationState = { autoFocusTitle?: boolean; duplicateExpectedTitle?: string };
 
 export default function CaseDetailPage() {
@@ -814,6 +823,9 @@ export default function CaseDetailPage() {
   dupExpectedRef.current = duplicateExpectedTitle;
   const [caseData, setCaseData] = useState<CaseRecord | null>(null);
   const [loading, setLoading] = useState(true);
+  /** Single fetch hung past CASE_LOAD_TIMEOUT_MS */
+  const [caseLoadTimedOut, setCaseLoadTimedOut] = useState(false);
+  const [loadRetryNonce, setLoadRetryNonce] = useState(0);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [publishPromptOpen, setPublishPromptOpen] = useState(false);
   const [collabCountDialogOpen, setCollabCountDialogOpen] = useState(false);
@@ -887,6 +899,7 @@ export default function CaseDetailPage() {
   // (fixes duplicate→new URL still showing source title). Merge duplicateExpectedTitle when present.
   useLayoutEffect(() => {
     if (!id) return;
+    setCaseLoadTimedOut(false);
     const found = caseStore.getById(id);
     const exp = duplicateExpectedTitle;
     if (found) {
@@ -904,9 +917,20 @@ export default function CaseDetailPage() {
     if (!id) return;
 
     const run = async () => {
+      setCaseLoadTimedOut(false);
       try {
-        await caseStore.loadCaseIfMissing(id);
+        await Promise.race([
+          caseStore.loadCaseIfMissing(id),
+          caseDetailLoadTimeoutPromise(),
+        ]);
       } catch (e) {
+        if (e instanceof Error && e.message === CASE_LOAD_TIMEOUT_ERROR) {
+          if (!mounted) return;
+          setCaseData(null);
+          setLoading(false);
+          setCaseLoadTimedOut(true);
+          return;
+        }
         console.error("[CaseDetailPage] loadCaseIfMissing", e);
       }
       if (!mounted) return;
@@ -922,7 +946,7 @@ export default function CaseDetailPage() {
       setLoading(false);
 
       // 背景同步全表（列表頁／即時更新用）；不阻塞詳情頁首次顯示
-      void caseStore.load().catch((e) => console.error("[CaseDetailPage] case full load", e));
+      void caseStore.load().catch((err) => console.error("[CaseDetailPage] case full load", err));
     };
 
     void run();
@@ -942,7 +966,7 @@ export default function CaseDetailPage() {
       mounted = false;
       unsub();
     };
-  }, [id]);
+  }, [id, loadRetryNonce]);
 
   // Strip duplicateExpectedTitle from history state once UI matches (avoids stale state on refresh).
   useEffect(() => {
@@ -1146,6 +1170,27 @@ export default function CaseDetailPage() {
 
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-muted-foreground">載入中…</div>;
+  }
+  // 逾時後若 store 仍於背景補上資料，以 caseData 為準（勿挡在逾時畫面）
+  if (!caseData && caseLoadTimedOut) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 min-h-[16rem] px-4 text-center">
+        <p className="text-muted-foreground max-w-md">
+          載入逾時（可能為網路不穩或伺服器回應過慢）。請檢查連線後重試。
+        </p>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            setCaseLoadTimedOut(false);
+            setLoading(true);
+            setLoadRetryNonce((n) => n + 1);
+          }}
+        >
+          重試
+        </Button>
+      </div>
+    );
   }
   if (!caseData) {
     return <div className="flex items-center justify-center h-64 text-muted-foreground">找不到此案件</div>;

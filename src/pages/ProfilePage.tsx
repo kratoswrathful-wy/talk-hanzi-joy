@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { Loader2, Camera, ZoomIn, ZoomOut, Move } from "lucide-react";
 import { ProfileSlackCard } from "@/components/profile/ProfileSlackCard";
 import { TIMEZONE_OPTIONS } from "@/data/timezone-options";
+import { PROFILE_COLUMN_RECEIVE_TRANSLATOR_CASE_REPLY_SLACK_DMS } from "@/lib/profile-columns";
 
 const AVATAR_SIZE = 256;
 const MIN_DIMENSION = 128;
@@ -246,7 +247,7 @@ export default function ProfilePage() {
       .update({
         ...baseUpdate,
         slack_message_defaults,
-        ...(isAdmin ? { receive_translator_case_reply_slack_dms: receiveCaseReplySlackDms } : {}),
+        ...(isAdmin ? { [PROFILE_COLUMN_RECEIVE_TRANSLATOR_CASE_REPLY_SLACK_DMS]: receiveCaseReplySlackDms } : {}),
       })
       .eq("id", user.id);
 

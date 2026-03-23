@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import logo from "@/assets/1UP_Mark.png";
+import { formatLoginError } from "@/lib/format-auth-error";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -72,6 +73,14 @@ async function signInWithPasswordFallback(email: string, password: string) {
   return { error };
 }
 
+const AUTH_REQUEST_TIMEOUT_MS = 30_000;
+
+function timeoutPromise(ms: number, message: string): Promise<never> {
+  return new Promise((_, reject) => {
+    setTimeout(() => reject(new Error(message)), ms);
+  });
+}
+
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
@@ -86,58 +95,87 @@ export default function AuthPage() {
     e.preventDefault();
     setLoading(true);
 
-    if (showReset) {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${getAuthRedirectOrigin()}/reset-password`,
-      });
-      setLoading(false);
-      if (error) {
-        toast.error(error.message);
-      } else {
-        toast.success("密碼重設信已寄出，請檢查您的信箱");
-        setShowReset(false);
-      }
-      return;
-    }
-
-    if (isLogin) {
-      persistLoginPreference(keepLoggedIn);
-
-      let error: Error | null = null;
-
-      try {
-        const result = await supabase.auth.signInWithPassword({ email, password });
-        error = result.error;
-
-        if (error?.message === "Failed to fetch") {
-          const fallback = await signInWithPasswordFallback(email, password);
-          error = fallback.error ?? null;
+    try {
+      if (showReset) {
+        try {
+          const { error } = await Promise.race([
+            supabase.auth.resetPasswordForEmail(email, {
+              redirectTo: `${getAuthRedirectOrigin()}/reset-password`,
+            }),
+            timeoutPromise(AUTH_REQUEST_TIMEOUT_MS, "連線逾時，請檢查網路後再試"),
+          ]);
+          if (error) {
+            toast.error(formatLoginError(error));
+          } else {
+            toast.success("密碼重設信已寄出，請檢查您的信箱");
+            setShowReset(false);
+          }
+        } catch (caught) {
+          toast.error(formatLoginError(caught));
         }
-      } catch (caught) {
-        const fallback = await signInWithPasswordFallback(email, password).catch((fallbackError) => ({ error: fallbackError as Error }));
-        error = fallback.error ?? (caught instanceof Error ? caught : new Error("登入失敗，請稍後再試"));
+        return;
       }
 
-      if (error) {
-        clearLoginPreference();
-        toast.error(error.message);
-      }
-    } else {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { display_name: displayName },
-          emailRedirectTo: getAuthRedirectOrigin(),
-        },
-      });
-      if (error) {
-        toast.error(error.message);
+      if (isLogin) {
+        persistLoginPreference(keepLoggedIn);
+        loginTimedOutRef.current = false;
+
+        const runLogin = async () => {
+          let error: Error | null = null;
+          try {
+            const result = await supabase.auth.signInWithPassword({ email, password });
+            error = result.error;
+
+            if (error?.message === "Failed to fetch") {
+              const fallback = await signInWithPasswordFallback(email, password);
+              error = fallback.error ?? null;
+            }
+          } catch (caught) {
+            const fallback = await signInWithPasswordFallback(email, password).catch((fallbackError) => ({ error: fallbackError as Error }));
+            error = fallback.error ?? (caught instanceof Error ? caught : new Error("登入失敗，請稍後再試"));
+          }
+
+          if (error && !loginTimedOutRef.current) {
+            clearLoginPreference();
+            toast.error(formatLoginError(error));
+          }
+        };
+
+        try {
+          await Promise.race([
+            runLogin(),
+            timeoutPromise(AUTH_REQUEST_TIMEOUT_MS, "連線逾時，請檢查網路後再試"),
+          ]);
+        } catch (caught) {
+          loginTimedOutRef.current = true;
+          clearLoginPreference();
+          toast.error(formatLoginError(caught));
+        }
       } else {
-        toast.success("註冊成功！請檢查您的信箱以驗證帳號");
+        try {
+          const { error } = await Promise.race([
+            supabase.auth.signUp({
+              email,
+              password,
+              options: {
+                data: { display_name: displayName },
+                emailRedirectTo: getAuthRedirectOrigin(),
+              },
+            }),
+            timeoutPromise(AUTH_REQUEST_TIMEOUT_MS, "連線逾時，請檢查網路後再試"),
+          ]);
+          if (error) {
+            toast.error(formatLoginError(error));
+          } else {
+            toast.success("註冊成功！請檢查您的信箱以驗證帳號");
+          }
+        } catch (caught) {
+          toast.error(formatLoginError(caught));
+        }
       }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   if (showReset) {
