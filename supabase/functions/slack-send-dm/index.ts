@@ -58,18 +58,19 @@ async function openDmAndPostMessage(
 }
 
 /**
- * PM／Executive 收件人：必須已在 App 內「連結 Slack」（user_slack_meta）、
- * 且未關閉 receive_translator_case_reply_slack_dms；排除寄件者。
+ * 承接／無法承接：只依「系統身分 + 設定」找收件人，發送目標**僅**使用 OAuth 寫入的 Slack user id
+ *（與 profiles.email 是否等於 Slack 帳號 email 無關；**不使用** users.lookupByEmail）。
  */
-type CaseReplyRecipient = { email: string; slackUserId: string | null };
+type CaseReplyRecipient = {
+  userId: string;
+  /** 僅供 API 回傳／前端顯示，不作路由依據 */
+  profileEmail: string;
+  slackUserId: string;
+};
 
-/**
- * PM／Executive 收件人：已連結 Slack（user_slack_meta 含 slack_user_id）、開啟接收通知等。
- * 優先回傳 DB 內的 Slack user id，避免僅依 profiles.email 做 lookupByEmail（與 Slack 帳號 email 不一致時失敗）。
- */
 async function resolveCaseReplyRecipients(
   supabase: ReturnType<typeof createClient>,
-  senderEmail: string | undefined,
+  senderUserId: string,
 ): Promise<CaseReplyRecipient[]> {
   const { data: roleRows, error: roleErr } = await supabase
     .from("user_roles")
@@ -107,8 +108,6 @@ async function resolveCaseReplyRecipients(
     return [];
   }
 
-  const senderLower = (senderEmail || "").trim().toLowerCase();
-
   const out: CaseReplyRecipient[] = [];
   for (const p of profs as {
     id: string;
@@ -117,19 +116,20 @@ async function resolveCaseReplyRecipients(
   }[]) {
     if (!linkedIdSet.has(p.id)) continue;
     if (p.receive_translator_case_reply_slack_dms === false) continue;
-    const em = String(p.email || "").trim().toLowerCase();
-    if (!em) continue;
-    if (senderLower && em === senderLower) continue;
+    if (p.id === senderUserId) continue;
+    const sid = slackIdByUserId.get(p.id);
+    if (!sid) continue;
     out.push({
-      email: em,
-      slackUserId: slackIdByUserId.get(p.id) ?? null,
+      userId: p.id,
+      profileEmail: String(p.email || "").trim().toLowerCase() || p.id,
+      slackUserId: sid,
     });
   }
 
   const seen = new Set<string>();
   return out.filter((r) => {
-    if (seen.has(r.email)) return false;
-    seen.add(r.email);
+    if (seen.has(r.userId)) return false;
+    seen.add(r.userId);
     return true;
   });
 }
@@ -216,76 +216,63 @@ Deno.serve(async (req) => {
       });
     }
 
-    let caseReplyRecipients: CaseReplyRecipient[] | null = null;
-    let uniqueEmails: string[];
-
-    if (caseReplyNotification) {
-      caseReplyRecipients = await resolveCaseReplyRecipients(supabase, user.email ?? undefined);
-      uniqueEmails = caseReplyRecipients.map((r) => r.email);
-    } else {
-      const recipientEmails: string[] = Array.isArray(body.recipient_emails) ? body.recipient_emails : [];
-      uniqueEmails = [...new Set(recipientEmails.map((e) => String(e).trim().toLowerCase()))].filter(Boolean);
-    }
-
-    if (uniqueEmails.length === 0) {
-      return new Response(
-        JSON.stringify({
-          ok: true,
-          results: [] as { email: string; ok: boolean; error?: string }[],
-          skipped: caseReplyNotification ? "no_recipients_after_filter" : undefined,
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
     const results: { email: string; ok: boolean; error?: string }[] = [];
 
-    const byEmail = caseReplyRecipients
-      ? new Map(caseReplyRecipients.map((r) => [r.email, r] as const))
-      : null;
+    if (caseReplyNotification) {
+      const caseReplyRecipients = await resolveCaseReplyRecipients(supabase, user.id);
 
-    for (const email of uniqueEmails) {
-      const storedId = byEmail?.get(email)?.slackUserId ?? null;
+      if (caseReplyRecipients.length === 0) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            results: [] as { email: string; ok: boolean; error?: string }[],
+            skipped: "no_recipients_after_filter",
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
 
-      // 承接／無法承接：先依 DB 的 slack_user_id；送失敗再以 email lookup 備援
-      if (caseReplyNotification && storedId) {
-        const first = await openDmAndPostMessage(token, storedId, message, notificationFallback);
-        if (first.ok) {
-          results.push({ email, ok: true });
-          continue;
-        }
-        const hint = `${first.stage}:${first.error}`;
-        const lu = await lookupSlackUserIdByEmail(token, email);
-        if (!lu.ok) {
-          results.push({ email, ok: false, error: `${hint};email:${lu.error}` });
-          continue;
-        }
-        const second = await openDmAndPostMessage(token, lu.userId, message, notificationFallback);
-        if (second.ok) {
-          results.push({ email, ok: true });
+      for (const rec of caseReplyRecipients) {
+        const sent = await openDmAndPostMessage(token, rec.slackUserId, message, notificationFallback);
+        if (sent.ok) {
+          results.push({ email: rec.profileEmail, ok: true });
         } else {
           results.push({
-            email,
+            email: rec.profileEmail,
             ok: false,
-            error: `${hint};email_fallback:${second.stage}:${second.error}`,
+            error: `${sent.stage}:${sent.error}`,
           });
         }
-        continue;
+      }
+    } else {
+      const recipientEmails: string[] = Array.isArray(body.recipient_emails) ? body.recipient_emails : [];
+      const uniqueEmails = [...new Set(recipientEmails.map((e) => String(e).trim().toLowerCase()))].filter(Boolean);
+
+      if (uniqueEmails.length === 0) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            results: [] as { email: string; ok: boolean; error?: string }[],
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
 
-      const lu = await lookupSlackUserIdByEmail(token, email);
-      if (!lu.ok) {
-        results.push({ email, ok: false, error: lu.error });
-        continue;
-      }
+      for (const email of uniqueEmails) {
+        const lu = await lookupSlackUserIdByEmail(token, email);
+        if (!lu.ok) {
+          results.push({ email, ok: false, error: lu.error });
+          continue;
+        }
 
-      const sent = await openDmAndPostMessage(token, lu.userId, message, notificationFallback);
-      if (!sent.ok) {
-        results.push({ email, ok: false, error: `${sent.stage}:${sent.error}` });
-        continue;
-      }
+        const sent = await openDmAndPostMessage(token, lu.userId, message, notificationFallback);
+        if (!sent.ok) {
+          results.push({ email, ok: false, error: `${sent.stage}:${sent.error}` });
+          continue;
+        }
 
-      results.push({ email, ok: true });
+        results.push({ email, ok: true });
+      }
     }
 
     const failed = results.filter((r) => !r.ok);
