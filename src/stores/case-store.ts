@@ -29,6 +29,7 @@ let loaded = false;
 let loadPromise: Promise<void> | null = null;
 let loadVersion = 0; // version counter to discard stale loads
 const listeners = new Set<Listener>();
+let currentUserId: string | null = null;
 
 // Track in-flight optimistic updates to prevent poll/realtime from overwriting
 const pendingUpdates = new Map<string, Partial<CaseRecord>>();
@@ -427,6 +428,7 @@ function reset() {
   loaded = false;
   loadPromise = null;
   cases = [];
+  currentUserId = null;
 
   pendingUpdates.clear();
   inFlightCount.clear();
@@ -435,19 +437,27 @@ function reset() {
 }
 
 // Listen for auth changes — only reload on sign-in to avoid race conditions
-supabase.auth.onAuthStateChange((event) => {
+supabase.auth.onAuthStateChange((event, session) => {
+  const nextUserId = session?.user?.id ?? null;
+
   // Token refresh (common when tab regains focus) does not change the user; resetting would
-  // clear `loaded` and flash the full-page loader on CasesPage. Refetch in the background instead.
+  // clear `loaded` and flash the full-page loader on CasesPage. For UX, skip reload on refresh.
   if (event === "TOKEN_REFRESHED") {
     loadPromise = null;
-    void load();
     return;
   }
 
+  // If user didn't actually change (e.g. INITIAL_SESSION firing again), avoid reset/load.
+  if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && loaded && currentUserId && nextUserId && currentUserId === nextUserId) {
+    return;
+  }
+
+  // For real session transitions, reset then reload.
   reset();
-  // Only reload when a new session is available
+  currentUserId = nextUserId;
+  if (event === "SIGNED_OUT") return;
   if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
-    load();
+    void load();
   }
 });
 
@@ -602,7 +612,6 @@ function clearDuplicateFields(data: Partial<CaseRecord>): Partial<CaseRecord> {
     caseReferenceMaterials: [],
     sourceFiles: [],
     declineRecords: [],
-    inquirySlackRecords: [],
   };
 }
 
