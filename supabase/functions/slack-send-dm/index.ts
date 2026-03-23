@@ -243,26 +243,13 @@ Deno.serve(async (req) => {
         if (sent.ok) {
           results.push({ email: rec.profileEmail, ok: true });
         } else {
-          // Fallback: try by email only after open/post fails.
-          const lu = await lookupSlackUserIdByEmail(token, rec.profileEmail);
-          if (lu.ok) {
-            const retry = await openDmAndPostMessage(token, lu.userId, message, notificationFallback);
-            if (retry.ok) {
-              results.push({ email: rec.profileEmail, ok: true });
-              continue;
-            }
-            results.push({
-              email: rec.profileEmail,
-              ok: false,
-              error: `${sent.stage}:${sent.error};fallback:${retry.stage}:${retry.error}`,
-            });
-          } else {
-            results.push({
-              email: rec.profileEmail,
-              ok: false,
-              error: `${sent.stage}:${sent.error}`,
-            });
-          }
+          // 承接／無法承接：不使用 profiles.email 備援，避免同工作區內兩個 Slack 帳號時，
+          // lookupByEmail(TMS 信箱) 將訊息送到錯誤成員（與 OAuth 寫入的 slack_user_id 不一致）。
+          results.push({
+            email: rec.profileEmail,
+            ok: false,
+            error: `${sent.stage}:${sent.error}`,
+          });
         }
       }
     } else {

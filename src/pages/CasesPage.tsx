@@ -42,7 +42,7 @@ import { InquirySlackDialog } from "@/components/InquirySlackDialog";
 import { needsDuplicateSortDialog, DEFAULT_DUPLICATE_SORT } from "@/lib/case-title-duplicate";
 import type { CaseDuplicateSort } from "@/stores/case-store";
 import { DuplicateCaseSortDialog } from "@/components/DuplicateCaseSortDialog";
-import { copyCaseInquiryMessageToClipboard } from "@/lib/copy-case-inquiry-message";
+import { copyMultipleCaseInquiryMessagesToClipboard } from "@/lib/copy-case-inquiry-message";
 
 function getTodayYYMMDD(): string {
   const now = new Date();
@@ -688,6 +688,19 @@ export default function CasesPage() {
     setFeeGenResult({ generated, skipped });
   }, [rowSelection, cases, profile]);
 
+  const handleCopyInquiryMessages = useCallback(() => {
+    if (rowSelection.selectedCount === 0) return;
+    const idSet = rowSelection.selectedIds;
+    const ordered = visibleFees.filter((c) => idSet.has(c.id));
+    const origin = window.location.origin;
+    copyMultipleCaseInquiryMessagesToClipboard(
+      ordered.map((c) => ({
+        title: c.title || "（無標題）",
+        caseUrl: `${origin}/cases/${c.id}`,
+      }))
+    );
+  }, [visibleFees, rowSelection.selectedCount, rowSelection.selectedIds]);
+
   // Mark selected as delivered with undo
   const handleMarkDelivered = useCallback(async () => {
     const entries: { recordId: string; oldValue: any }[] = [];
@@ -859,79 +872,29 @@ export default function CasesPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">案件管理</h1>
-        {isAdmin && (
-          <>
-            <Button
-              size="sm"
-              className={uiInquiryMsg.className}
-              style={uiInquiryMsg.style}
-              disabled={rowSelection.selectedCount !== 1}
-              onClick={() => {
-                const cid = Array.from(rowSelection.selectedIds)[0];
-                const c = cases.find((x) => x.id === cid);
-                const t = c?.title || "（無標題）";
-                const url = `${window.location.origin}/cases/${cid}`;
-                copyCaseInquiryMessageToClipboard(t, url);
-              }}
-            >
-              <UiToolbarButtonIcon uiButtonId="cases_inquiry_message" />
-              {lbInquiryMsg}
-            </Button>
-            {rowSelection.selectedCount > 0 && (
-              <Button
-                size="sm"
-                className={uiSlack.className}
-                style={uiSlack.style}
-                onClick={() => setInquirySlackOpen(true)}
-              >
-                <UiToolbarButtonIcon uiButtonId="cases_slack" />
-                {lbSlack}
-              </Button>
-            )}
-            {rowSelection.selectedCount === 1 && (
-              <Button
-                size="sm"
-                className={uiCopy.className}
-                style={uiCopy.style}
-                onClick={() => {
-                  const id = Array.from(rowSelection.selectedIds)[0];
-                  beginDuplicate(id);
-                }}
-              >
-                <UiToolbarButtonIcon uiButtonId="cases_copy" />
-                {lbCopy}
-              </Button>
-            )}
-            <CreateWithTemplateButton
-              module="cases"
-              onCreate={handleCreate}
-              label="新增案件"
-              uiButtonId="cases_add"
-            />
-            {rowSelection.selectedCount > 0 && (
-              <Button
-                size="sm"
-                className={uiMarkDelivered.className}
-                style={uiMarkDelivered.style}
-                onClick={handleMarkDelivered}
-              >
-                <UiToolbarButtonIcon uiButtonId="cases_mark_delivered" />
-                {lbMarkDelivered}
-              </Button>
-            )}
-            {rowSelection.selectedCount > 0 && (
-              <>
+      <div className="flex flex-wrap items-center gap-3 justify-between w-full">
+        <div className="flex flex-wrap items-center gap-3 min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight">案件管理</h1>
+          {isAdmin && (
+            <>
+              <CreateWithTemplateButton
+                module="cases"
+                onCreate={handleCreate}
+                label="新增案件"
+                uiButtonId="cases_add"
+              />
+              {rowSelection.selectedCount > 0 && (
                 <Button
                   size="sm"
-                  className={uiGenFees.className}
-                  style={uiGenFees.style}
-                  onClick={handleGenerateFees}
+                  className={uiMarkDelivered.className}
+                  style={uiMarkDelivered.style}
+                  onClick={handleMarkDelivered}
                 >
-                  <UiToolbarButtonIcon uiButtonId="cases_gen_fees" />
-                  {lbGenFees}
+                  <UiToolbarButtonIcon uiButtonId="cases_mark_delivered" />
+                  {lbMarkDelivered}
                 </Button>
+              )}
+              {rowSelection.selectedCount > 0 && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -940,9 +903,56 @@ export default function CasesPage() {
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
-              </>
-            )}
-          </>
+              )}
+            </>
+          )}
+        </div>
+        {isAdmin && (
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              className={uiInquiryMsg.className}
+              style={uiInquiryMsg.style}
+              disabled={rowSelection.selectedCount === 0}
+              onClick={handleCopyInquiryMessages}
+            >
+              <UiToolbarButtonIcon uiButtonId="cases_inquiry_message" />
+              {lbInquiryMsg}
+            </Button>
+            <Button
+              size="sm"
+              className={uiSlack.className}
+              style={uiSlack.style}
+              disabled={rowSelection.selectedCount === 0}
+              onClick={() => setInquirySlackOpen(true)}
+            >
+              <UiToolbarButtonIcon uiButtonId="cases_slack" />
+              {lbSlack}
+            </Button>
+            <Button
+              size="sm"
+              className={uiCopy.className}
+              style={uiCopy.style}
+              disabled={rowSelection.selectedCount !== 1}
+              onClick={() => {
+                const id = Array.from(rowSelection.selectedIds)[0];
+                beginDuplicate(id);
+              }}
+            >
+              <UiToolbarButtonIcon uiButtonId="cases_copy" />
+              {lbCopy}
+            </Button>
+            <Button
+              size="sm"
+              className={uiGenFees.className}
+              style={uiGenFees.style}
+              disabled={rowSelection.selectedCount === 0}
+              onClick={handleGenerateFees}
+            >
+              <UiToolbarButtonIcon uiButtonId="cases_gen_fees" />
+              {lbGenFees}
+            </Button>
+          </div>
         )}
       </div>
 
