@@ -1683,17 +1683,20 @@ export default function CaseDetailPage() {
               onClick={() => {
                 const url = `${window.location.origin}/cases/${id}`;
                 const title = caseData?.title || "";
-                const plainText = `請問這件可以做嗎？\n${title}（${url}）`;
-                const richHtml = `請問這件可以做嗎？<br><a href="${url}">${title}</a>`;
+                // Copy Slack-safe inquiry text: use mrkdwn link label (<url|label>) to avoid Slack unfurl/link preview.
+                const slackMrkdwn = `請問這件可以做嗎？\n<${url}|${title}>`;
+                const escapeHtml = (s: string) =>
+                  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                const richHtml = `<pre>${escapeHtml(slackMrkdwn)}</pre>`;
                 try {
                   navigator.clipboard.write([
                     new ClipboardItem({
-                      "text/plain": new Blob([plainText], { type: "text/plain" }),
+                      "text/plain": new Blob([slackMrkdwn], { type: "text/plain" }),
                       "text/html": new Blob([richHtml], { type: "text/html" }),
                     }),
                   ]).then(() => toast({ description: "已複製詢案訊息至剪貼簿" }));
                 } catch {
-                  navigator.clipboard.writeText(plainText).then(() => toast({ description: "已複製詢案訊息至剪貼簿" }));
+                  navigator.clipboard.writeText(slackMrkdwn).then(() => toast({ description: "已複製詢案訊息至剪貼簿" }));
                 }
               }}
             >

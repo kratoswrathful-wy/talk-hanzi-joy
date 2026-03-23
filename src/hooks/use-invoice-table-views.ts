@@ -49,6 +49,23 @@ function makeInvoiceMatcher(feeTotal?: (ids: string[]) => number) {
     const isDate = meta?.type === "date";
     let result: boolean;
     switch (filter.operator) {
+      case "between": {
+        if (!isDate) {
+          result = false;
+          break;
+        }
+        const [startRaw = "", endRaw = ""] = String(filter.value || "").split("|");
+        const startTs = Date.parse(startRaw);
+        const endTs = Date.parse(endRaw);
+        const vTs = Date.parse(String(val));
+        if (Number.isNaN(startTs) || Number.isNaN(endTs) || Number.isNaN(vTs)) result = false;
+        else {
+          const lo = Math.min(startTs, endTs);
+          const hi = Math.max(startTs, endTs);
+          result = vTs >= lo && vTs <= hi;
+        }
+        break;
+      }
       case "equals": {
         if (isDate) result = Date.parse(String(val)) === Date.parse(filter.value);
         else result = String(val) === filter.value;

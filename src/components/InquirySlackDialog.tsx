@@ -46,6 +46,7 @@ export type RecipientRow = {
   profileDisplayNameTrimmed: string;
   displayName: string;
   email: string | null;
+  slackUserId: string | null;
   timezone: string | null;
   statusMessage: string | null;
 };
@@ -150,11 +151,20 @@ export function InquirySlackDialog({
         return;
       }
 
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, email, display_name, timezone, status_message")
-        .in("id", userIds)
-        .order("display_name", { ascending: true });
+      const [
+        { data, error },
+        { data: slackMetaRows, error: slackMetaErr },
+      ] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, email, display_name, timezone, status_message")
+          .in("id", userIds)
+          .order("display_name", { ascending: true }),
+        supabase
+          .from("user_slack_meta")
+          .select("user_id, slack_user_id")
+          .in("user_id", userIds),
+      ]);
 
       if (cancelled) return;
       setLoading(false);
@@ -166,6 +176,14 @@ export function InquirySlackDialog({
         return;
       }
 
+      if (slackMetaErr) {
+        console.error(slackMetaErr);
+      }
+
+      const slackUserIdByUserId = new Map<string, string | null>(
+        (slackMetaRows || []).map((r: any) => [String(r.user_id), r.slack_user_id ?? null])
+      );
+
       const nextRows: RecipientRow[] = (data || []).map((p) => {
         const profileDisplayNameTrimmed = (p.display_name || "").trim();
         return {
@@ -173,6 +191,7 @@ export function InquirySlackDialog({
           profileDisplayNameTrimmed,
           displayName: profileDisplayNameTrimmed || p.email || "（無名稱）",
           email: p.email ?? null,
+          slackUserId: slackUserIdByUserId.get(String(p.id)) ?? null,
           timezone: p.timezone ?? null,
           statusMessage: p.status_message ?? null,
         };
@@ -252,7 +271,7 @@ export function InquirySlackDialog({
   }, [afterSearch, lockedUserIds, sortMode, sortDir]);
 
   const selectableInView = useMemo(
-    () => visibleRows.filter((r): r is (typeof r & { email: string }) => !!r.email),
+    () => visibleRows.filter((r): r is (typeof r & { slackUserId: string }) => !!r.slackUserId),
     [visibleRows]
   );
 
@@ -276,7 +295,7 @@ export function InquirySlackDialog({
   const pendingSelectedRecipients = useMemo(() => {
     return selectableInView.filter((r) => {
       const checked = lockedUserIds.has(r.userId) || selectedUserIds.has(r.userId);
-      if (!checked || !r.email) return false;
+      if (!checked || !r.slackUserId) return false;
       const pending = pendingCasesByUserId.get(r.userId) || [];
       return pending.length > 0;
     });
@@ -303,7 +322,7 @@ export function InquirySlackDialog({
     // Checked recipients = locked (always checked) + manually selected unlocked recipients.
     const checkedRecipients = selectableInView.filter((r) => {
       const isChecked = lockedUserIds.has(r.userId) || selectedUserIds.has(r.userId);
-      return isChecked && !!r.email;
+      return isChecked && !!r.slackUserId;
     });
 
     // Only send to recipients who still have pending cases.
@@ -325,11 +344,11 @@ export function InquirySlackDialog({
         toast.error("請重新登入後再試");
         return;
       }
-      const failedRecipients: { email: string; error: string }[] = [];
+      const failedRecipients: { recipientLabel: string; error: string }[] = [];
 
       for (const r of pendingRecipients) {
         const pendingCases = pendingCasesByUserId.get(r.userId) || [];
-        if (pendingCases.length === 0 || !r.email) continue;
+        if (pendingCases.length === 0 || !r.slackUserId) continue;
 
         const message = buildInquiryMessageForSlack(origin, pendingCases);
         const notificationFallback = buildInquirySlackNotificationFallback(pendingCases);
@@ -337,14 +356,14 @@ export function InquirySlackDialog({
         const { data, error } = await supabase.functions.invoke("slack-send-dm", {
           headers: { Authorization: `Bearer ${token}` },
           body: {
-            recipient_emails: [r.email],
+            recipient_user_ids: [r.userId],
             message,
             notification_fallback: notificationFallback,
           },
         });
 
         if (error) {
-          failedRecipients.push({ email: r.email, error: await messageFromFunctionsInvokeErrorAsync(error, data) });
+          failedRecipients.push({ recipientLabel: r.email || r.userId, error: await messageFromFunctionsInvokeErrorAsync(error, data) });
           continue;
         }
 
@@ -353,24 +372,37 @@ export function InquirySlackDialog({
         const ok = payload?.ok ?? firstResult?.ok ?? false;
 
         if (!ok) {
-          failedRecipients.push({ email: r.email, error: firstResult?.error || "unknown_slack_error" });
+          failedRecipients.push({
+            recipientLabel: r.email || r.userId,
+            error: firstResult?.error || "unknown_slack_error",
+          });
           continue;
         }
 
         // Slack success => persist lock for this recipient userId for each pending case.
+        let allLocksPersisted = true;
         for (const pc of pendingCases) {
           const current = caseStore.getById(pc.id);
           const history = current?.inquirySlackRecords || [];
           const nextHistory = Array.from(new Set([...history, r.userId]));
-          await caseStore.update(pc.id, { inquirySlackRecords: nextHistory });
+          const err = await caseStore.update(pc.id, { inquirySlackRecords: nextHistory });
+          if (err) {
+            allLocksPersisted = false;
+            failedRecipients.push({
+              recipientLabel: r.email || r.userId,
+              error: "Slack 發送成功，但寫入鎖定資料失敗（請確認 DB 欄位已部署）",
+            });
+            break;
+          }
         }
+        if (!allLocksPersisted) continue;
       }
 
       if (failedRecipients.length === 0) {
         toast.success("已透過 Slack 私訊發送");
         onOpenChange(false);
       } else {
-        toast.error(`部分失敗：${failedRecipients.map((f) => `${f.email}(${f.error})`).join("；")}`);
+        toast.error(`部分失敗：${failedRecipients.map((f) => `${f.recipientLabel}(${f.error})`).join("；")}`);
       }
     } finally {
       setSending(false);
@@ -526,11 +558,9 @@ export function InquirySlackDialog({
                   {visibleRows.map((r) => {
                     const utcOffset = r.timezone ? getTimezoneInfo(r.timezone)?.utcOffset ?? "—" : "—";
                     const statusText = r.statusMessage?.trim() ?? "";
-                    const canSend = !!r.email;
+                    const canSend = !!r.slackUserId;
                     const locked = lockedUserIds.has(r.userId);
-                    const title = r.email
-                      ? (locked ? "已送出過（鎖定）" : r.email)
-                      : "個人檔案無信箱，無法發送 Slack 私訊";
+                    const title = locked ? "已送出過（鎖定）" : (canSend ? r.email || r.slackUserId : "未連結 Slack，無法發送 Slack 私訊");
                     return (
                       <div
                         key={r.userId}
@@ -539,7 +569,7 @@ export function InquirySlackDialog({
                         title={title}
                         onClick={() => canSend && !locked && toggleUser(r.userId)}
                         onKeyDown={(e) => {
-                          if (!canSend || !r.email || locked) return;
+                          if (!canSend || locked) return;
                           if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault();
                             toggleUser(r.userId);

@@ -46,6 +46,19 @@ const operatorLabels: Record<FilterOperator, string> = {
   is_not_checked: "未勾選",
   gt: "大於",
   lt: "小於",
+  between: "在 A 和 B 之間",
+  is_empty: "空白",
+};
+
+const dateOperatorLabels: Record<FilterOperator, string> = {
+  equals: "等於",
+  not_equals: "不等於",
+  contains: "包含",
+  is_checked: "已勾選",
+  is_not_checked: "未勾選",
+  gt: "在…之後",
+  lt: "在…之前",
+  between: "在 A 和 B 之間",
   is_empty: "空白",
 };
 
@@ -57,7 +70,7 @@ const logicLabels: Record<LogicOperator, string> = {
 function getOperatorsForType(type: string): FilterOperator[] {
   switch (type) {
     case "checkbox": return ["is_checked", "is_not_checked"];
-    case "date": return ["equals", "gt", "lt", "is_empty"];
+    case "date": return ["equals", "between", "gt", "lt", "contains", "is_empty"];
     case "number": case "computed": return ["equals", "gt", "lt", "is_empty"];
     case "select": return ["equals", "contains", "is_empty"];
     default: return ["equals", "contains", "is_empty"];
@@ -66,6 +79,24 @@ function getOperatorsForType(type: string): FilterOperator[] {
 
 function needsValueInput(op: FilterOperator) {
   return !["is_checked", "is_not_checked", "is_empty"].includes(op);
+}
+
+function formatDateTimeForBadge(value: string): string {
+  // Filter.value for datetime-local typically looks like `YYYY-MM-DDTHH:mm`
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  // No extra 'T' — follow requirement: 日期 + 時間
+  return `${y}/${m}/${day} ${hh}:${mm}`;
+}
+
+function splitBetweenValue(value: string): { start: string; end: string } {
+  const [start = "", end = ""] = value.split("|");
+  return { start, end };
 }
 
 interface Props {
@@ -366,13 +397,17 @@ export function FilterSortToolbar({
         {/* Active filter/sort pills */}
         {flatFilters.map((filter) => {
           const meta = allFields.find((f) => f.key === filter.field);
+          // Note: needs a hook to resolve display value for select fields; use a small inline component.
+          const storeKey = meta ? fieldToStoreKey[meta.key] : undefined;
           return (
-            <Badge key={filter.id} variant="secondary" className="h-6 gap-1 text-xs font-normal">
-              {meta?.label} {filter.negated ? "不" : ""}{operatorLabels[filter.operator]} {needsValueInput(filter.operator) ? `"${filter.value}"` : ""}
-              <button onClick={() => onRemoveFilterNode(filter.id)} className="hover:text-destructive">
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
+            <FilterBadge
+              key={filter.id}
+              filter={filter}
+              meta={meta}
+              storeKey={storeKey}
+              onRemove={() => onRemoveFilterNode(filter.id)}
+              showInversed={filter.negated}
+            />
           );
         })}
         {activeView.sorts.map((sort) => {
@@ -413,6 +448,53 @@ export function FilterSortToolbar({
 
       </div>
     </div>
+  );
+}
+
+function FilterBadge({
+  filter,
+  meta,
+  storeKey,
+  onRemove,
+  showInversed,
+}: {
+  filter: TableFilter;
+  meta: FieldMeta | undefined;
+  storeKey?: string;
+  onRemove: () => void;
+  showInversed: boolean;
+}) {
+  const { options } = useSelectOptions(storeKey || "__noop__");
+
+  const operatorLabelMap = meta?.type === "date" ? dateOperatorLabels : operatorLabels;
+  const label = operatorLabelMap[filter.operator];
+
+  const valueText = (() => {
+    if (!needsValueInput(filter.operator)) return "";
+    if (meta?.type === "select") {
+      // createdBy uses uuid in filter.value; display the corresponding option label.
+      const opt = options.find((o) => o.id === filter.value);
+      if (opt) return opt.label;
+      return filter.value;
+    }
+    if (meta?.type === "date") {
+      if (filter.operator === "between") {
+        const { start, end } = splitBetweenValue(filter.value);
+        return `${formatDateTimeForBadge(start)} 到 ${formatDateTimeForBadge(end)}`;
+      }
+      return formatDateTimeForBadge(filter.value);
+    }
+    return filter.value;
+  })();
+
+  return (
+    <Badge variant="secondary" className="h-6 gap-1 text-xs font-normal">
+      {meta?.label} {showInversed ? "不" : ""}{label}{" "}
+      {needsValueInput(filter.operator) ? `"${valueText}"` : ""}
+      <button onClick={onRemove} className="hover:text-destructive">
+        <X className="h-3 w-3" />
+      </button>
+    </Badge>
   );
 }
 
@@ -647,6 +729,7 @@ function FilterRow({ filter, meta, ops, allFields, onUpdateFilter, onRemoveFilte
   const [fieldSearch, setFieldSearch] = useState("");
   const storeKey = meta ? fieldToStoreKey[meta.key] : undefined;
   const isSelectType = meta?.type === "select";
+  const betweenValues = splitBetweenValue(filter.value || "");
 
   const { options: storeOptions } = useSelectOptions(storeKey || "__noop__");
 
@@ -723,12 +806,40 @@ function FilterRow({ filter, meta, ops, allFields, onUpdateFilter, onRemoveFilte
         <SelectTrigger className="h-7 text-xs w-[80px]"><SelectValue /></SelectTrigger>
         <SelectContent>
           {ops.map((op) => (
-            <SelectItem key={op} value={op} className="text-xs">{operatorLabels[op]}</SelectItem>
+            <SelectItem key={op} value={op} className="text-xs">
+              {(meta?.type === "date" ? dateOperatorLabels : operatorLabels)[op]}
+            </SelectItem>
           ))}
         </SelectContent>
       </Select>
       {needsValueInput(filter.operator) && (
-        selectOpts ? (
+        meta?.type === "date" && filter.operator === "between" ? (
+          <div className="flex gap-1.5 flex-1">
+            <Input
+              value={betweenValues.start}
+              onChange={(e) => onUpdateFilter(filter.id, { value: `${e.target.value}|${betweenValues.end}` })}
+              type="datetime-local"
+              placeholder="開始"
+              className="h-7 text-xs flex-1"
+              autoFocus
+              onKeyDown={(e) => e.stopPropagation()}
+              onCompositionStart={(e) => e.stopPropagation()}
+              onCompositionEnd={(e) => e.stopPropagation()}
+              onCompositionUpdate={(e) => e.stopPropagation()}
+            />
+            <Input
+              value={betweenValues.end}
+              onChange={(e) => onUpdateFilter(filter.id, { value: `${betweenValues.start}|${e.target.value}` })}
+              type="datetime-local"
+              placeholder="結束"
+              className="h-7 text-xs flex-1"
+              onKeyDown={(e) => e.stopPropagation()}
+              onCompositionStart={(e) => e.stopPropagation()}
+              onCompositionEnd={(e) => e.stopPropagation()}
+              onCompositionUpdate={(e) => e.stopPropagation()}
+            />
+          </div>
+        ) : selectOpts ? (
           <Select value={filter.value} onValueChange={(v) => onUpdateFilter(filter.id, { value: v })}>
             <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder="選擇..." /></SelectTrigger>
             <SelectContent>

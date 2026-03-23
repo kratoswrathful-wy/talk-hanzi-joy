@@ -260,33 +260,81 @@ Deno.serve(async (req) => {
         }
       }
     } else {
-      const recipientEmails: string[] = Array.isArray(body.recipient_emails) ? body.recipient_emails : [];
-      const uniqueEmails = [...new Set(recipientEmails.map((e) => String(e).trim().toLowerCase()))].filter(Boolean);
+      const recipientUserIds: string[] = Array.isArray(body.recipient_user_ids) ? body.recipient_user_ids : [];
+      const uniqueUserIds = [...new Set(recipientUserIds.map((u) => String(u).trim()))].filter(Boolean);
 
-      if (uniqueEmails.length === 0) {
-        return new Response(
-          JSON.stringify({
-            ok: true,
-            results: [] as { email: string; ok: boolean; error?: string }[],
-          }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-        );
-      }
+      if (uniqueUserIds.length > 0) {
+        // Prefer Slack routing by OAuth-linked slack_user_id (not profiles.email).
+        const { data: linkedRows, error: linkErr } = await supabase
+          .from("user_slack_meta")
+          .select("user_id, slack_user_id")
+          .in("user_id", uniqueUserIds);
 
-      for (const email of uniqueEmails) {
-        const lu = await lookupSlackUserIdByEmail(token, email);
-        if (!lu.ok) {
-          results.push({ email, ok: false, error: lu.error });
-          continue;
+        const slackByUserId = new Map<string, string>();
+        if (!linkErr && linkedRows) {
+          for (const r of linkedRows as { user_id: string; slack_user_id: string | null }[]) {
+            if (r.slack_user_id) slackByUserId.set(r.user_id, r.slack_user_id);
+          }
         }
 
-        const sent = await openDmAndPostMessage(token, lu.userId, message, notificationFallback);
-        if (!sent.ok) {
-          results.push({ email, ok: false, error: `${sent.stage}:${sent.error}` });
-          continue;
+        const { data: profRows, error: profErr } = await supabase
+          .from("profiles")
+          .select("id, email")
+          .in("id", uniqueUserIds);
+
+        const emailByUserId = new Map<string, string>();
+        if (!profErr && profRows) {
+          for (const p of profRows as { id: string; email: string | null }[]) {
+            emailByUserId.set(p.id, String(p.email || "").trim().toLowerCase());
+          }
         }
 
-        results.push({ email, ok: true });
+        for (const userId of uniqueUserIds) {
+          const slackUserId = slackByUserId.get(userId);
+          const email = emailByUserId.get(userId) || userId;
+
+          if (!slackUserId) {
+            results.push({ email, ok: false, error: "slack_user_id_missing" });
+            continue;
+          }
+
+          const sent = await openDmAndPostMessage(token, slackUserId, message, notificationFallback);
+          if (!sent.ok) {
+            results.push({ email, ok: false, error: `${sent.stage}:${sent.error}` });
+            continue;
+          }
+
+          results.push({ email, ok: true });
+        }
+      } else {
+        const recipientEmails: string[] = Array.isArray(body.recipient_emails) ? body.recipient_emails : [];
+        const uniqueEmails = [...new Set(recipientEmails.map((e) => String(e).trim().toLowerCase()))].filter(Boolean);
+
+        if (uniqueEmails.length === 0) {
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              results: [] as { email: string; ok: boolean; error?: string }[],
+            }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+
+        for (const email of uniqueEmails) {
+          const lu = await lookupSlackUserIdByEmail(token, email);
+          if (!lu.ok) {
+            results.push({ email, ok: false, error: lu.error });
+            continue;
+          }
+
+          const sent = await openDmAndPostMessage(token, lu.userId, message, notificationFallback);
+          if (!sent.ok) {
+            results.push({ email, ok: false, error: `${sent.stage}:${sent.error}` });
+            continue;
+          }
+
+          results.push({ email, ok: true });
+        }
       }
     }
 

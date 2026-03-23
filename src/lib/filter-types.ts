@@ -1,6 +1,15 @@
 /** Shared filter/sort types and tree utilities used by all table views */
 
-export type FilterOperator = "equals" | "not_equals" | "contains" | "is_checked" | "is_not_checked" | "gt" | "lt" | "is_empty";
+export type FilterOperator =
+  | "equals"
+  | "not_equals"
+  | "contains"
+  | "is_checked"
+  | "is_not_checked"
+  | "gt"
+  | "lt"
+  | "between"
+  | "is_empty";
 export type LogicOperator = "and" | "or";
 
 export interface TableFilter {
