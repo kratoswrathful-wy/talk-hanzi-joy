@@ -349,7 +349,10 @@ async function create(partial: Partial<CaseRecord>): Promise<CaseRecord | null> 
   const { data: { user } } = await supabase.auth.getUser();
   const payload = { ...toDb(partial), env, created_by: user?.id || null };
   const { data, error } = await (supabase.from("cases").insert(payload as any).select().single() as any);
-  if (error || !data) return null;
+  if (error || !data) {
+    console.error("[case-store] create failed", error, { payloadKeys: Object.keys(payload || {}) });
+    return null;
+  }
   const record = fromDb(data);
   cases = [record, ...cases];
   notify();
@@ -510,9 +513,15 @@ async function duplicate(
   id: string,
   sort: CaseDuplicateSort = DEFAULT_DUPLICATE_SORT
 ): Promise<CaseDuplicateResult | null> {
-  const source = cases.find((c) => c.id === id);
-  if (!source) return null;
-  const { id: _id, createdAt, updatedAt, createdBy, comments: _c, internalComments: _ic, ...rest } = source;
+  try {
+    const source = cases.find((c) => c.id === id);
+    if (!source) return null;
+    const { id: _id, createdAt, updatedAt, createdBy, comments: _c, internalComments: _ic, ...rest } = source;
+
+    // Important: duplicate should not inherit Slack inquiry lock history.
+    // Deleting prevents DB payload failures when the column isn't deployed yet,
+    // and ensures DB default ([]) is used even when deployed.
+    delete (rest as any).inquirySlackRecords;
 
   const now = new Date();
   const yy = String(now.getFullYear()).slice(2);
@@ -574,17 +583,21 @@ async function duplicate(
     clientInvoiceStore.updateInvoice(ip.invoiceId, { title: ip.newTitle });
   }
 
-  const cleaned = clearDuplicateFields(rest);
-  const newCase = await create({ ...cleaned, title: plan.newTitle });
-  if (!newCase) return null;
+    const cleaned = clearDuplicateFields(rest);
+    const newCase = await create({ ...cleaned, title: plan.newTitle });
+    if (!newCase) return null;
 
-  return {
-    newCase,
-    renames: plan.renames,
-    feePatches: allFeePatches,
-    translatorInvoicePatches,
-    clientInvoicePatches,
-  };
+    return {
+      newCase,
+      renames: plan.renames,
+      feePatches: allFeePatches,
+      translatorInvoicePatches,
+      clientInvoicePatches,
+    };
+  } catch (e) {
+    console.error("[case-store] duplicate failed", e);
+    return null;
+  }
 }
 
 /** Fields to clear when duplicating a case */
