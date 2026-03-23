@@ -226,6 +226,13 @@ function AssigneeLabel({ value }: { value: string }) {
   return <AssigneeTag label={value} avatarUrl={opt?.avatarUrl} />;
 }
 
+function AssigneeLabelById({ id }: { id: string }) {
+  const { options } = useSelectOptions("assignee");
+  if (!id) return <span className="text-sm text-muted-foreground">—</span>;
+  const opt = options.find((o) => o.id === id);
+  return <AssigneeTag label={opt?.label || id} avatarUrl={opt?.avatarUrl} />;
+}
+
 function TranslatorAvatarTag({ name }: { name: string }) {
   const { options } = useSelectOptions("assignee");
   const opt = options.find((o) => o.label === name);
@@ -440,6 +447,42 @@ const allColumnDefs: ColumnDef[] = [
         <span className="text-sm text-muted-foreground">{c.deliveryMethod || "—"}</span>
       </InlineEditCell>
     ),
+  },
+  {
+    key: "createdBy",
+    label: "建立者",
+    minWidth: 90,
+    render: (c) => <AssigneeLabelById id={c.createdBy || ""} />,
+  },
+  {
+    key: "client",
+    label: "客戶",
+    minWidth: 90,
+    render: (c) => <span className="text-sm text-muted-foreground truncate">{c.client || "—"}</span>,
+  },
+  {
+    key: "dispatchRoute",
+    label: "派案途徑",
+    minWidth: 90,
+    render: (c) => <span className="text-sm text-muted-foreground truncate">{c.dispatchRoute || "—"}</span>,
+  },
+  {
+    key: "contact",
+    label: "聯絡人",
+    minWidth: 100,
+    render: (c) => <span className="text-sm text-muted-foreground truncate">{c.contact || "—"}</span>,
+  },
+  {
+    key: "keyword",
+    label: "關鍵字",
+    minWidth: 110,
+    render: (c) => <span className="text-sm text-muted-foreground truncate">{c.keyword || "—"}</span>,
+  },
+  {
+    key: "clientPoNumber",
+    label: "客戶 PO#",
+    minWidth: 100,
+    render: (c) => <span className="text-sm text-muted-foreground truncate">{c.clientPoNumber || "—"}</span>,
   },
   {
     key: "createdAt",

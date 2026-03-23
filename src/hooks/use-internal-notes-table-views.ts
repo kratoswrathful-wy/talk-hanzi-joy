@@ -49,7 +49,7 @@ export const internalNotesFieldMetas: FieldMeta[] = [
   { key: "relatedCase", label: "關聯案件", type: "text" },
   { key: "status", label: "狀態", type: "select" },
   { key: "noteType", label: "性質", type: "select" },
-  { key: "creator", label: "建立者", type: "text" },
+  { key: "creator", label: "建立者", type: "select" },
   { key: "internalAssignee", label: "內部指派", type: "text" },
   { key: "createdAt", label: "建立時間", type: "date" },
 ];
@@ -69,13 +69,31 @@ function getFieldValue(note: InternalNote, field: string): string | number | boo
 
 function matchFilter(note: InternalNote, filter: TableFilter): boolean {
   const val = getFieldValue(note, filter.field);
+  const meta = internalNotesFieldMetas.find((m) => m.key === filter.field);
+  const isDate = meta?.type === "date";
   let result: boolean;
   switch (filter.operator) {
-    case "equals": result = String(val) === filter.value; break;
-    case "not_equals": result = String(val) !== filter.value; break;
+    case "equals": {
+      if (isDate) result = Date.parse(String(val)) === Date.parse(filter.value);
+      else result = String(val) === filter.value;
+      break;
+    }
+    case "not_equals": {
+      if (isDate) result = Date.parse(String(val)) !== Date.parse(filter.value);
+      else result = String(val) !== filter.value;
+      break;
+    }
     case "contains": result = String(val).toLowerCase().includes(filter.value.toLowerCase()); break;
-    case "gt": result = Number(val) > Number(filter.value); break;
-    case "lt": result = Number(val) < Number(filter.value); break;
+    case "gt": {
+      if (isDate) result = Date.parse(String(val)) > Date.parse(filter.value);
+      else result = Number(val) > Number(filter.value);
+      break;
+    }
+    case "lt": {
+      if (isDate) result = Date.parse(String(val)) < Date.parse(filter.value);
+      else result = Number(val) < Number(filter.value);
+      break;
+    }
     case "is_empty": result = String(val ?? "").trim() === ""; break;
     default: result = true;
   }

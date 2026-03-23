@@ -23,6 +23,15 @@ export const caseFieldMetas: FieldMeta[] = [
   { key: "translationDeadline", label: "翻譯交期", type: "date" },
   { key: "reviewer", label: "審稿人員", type: "select" },
   { key: "reviewDeadline", label: "審稿交期", type: "date" },
+
+  { key: "createdBy", label: "建立者", type: "select" },
+
+  // (1.3) Case list extra filters/sorts
+  { key: "client", label: "客戶", type: "select" },
+  { key: "dispatchRoute", label: "派案途徑", type: "select" },
+  { key: "contact", label: "聯絡人", type: "text" },
+  { key: "keyword", label: "關鍵字", type: "text" },
+  { key: "clientPoNumber", label: "客戶 PO#", type: "text" },
   
   { key: "executionTool", label: "執行工具", type: "text" },
   { key: "deliveryMethod", label: "交件方式", type: "text" },
@@ -115,6 +124,12 @@ function getFieldValue(c: CaseRecord, field: string, viewerDisplayName?: string)
     case "translationDeadline": return getCaseDeadlineForSort(c, "translationDeadline", viewerDisplayName);
     case "reviewer": return c.reviewer;
     case "reviewDeadline": return getCaseDeadlineForSort(c, "reviewDeadline", viewerDisplayName);
+    case "createdBy": return c.createdBy;
+    case "client": return c.client;
+    case "dispatchRoute": return c.dispatchRoute;
+    case "contact": return c.contact;
+    case "keyword": return c.keyword;
+    case "clientPoNumber": return c.clientPoNumber;
 
     case "executionTool": return c.executionTool;
     case "deliveryMethod": return c.deliveryMethod;
@@ -125,13 +140,31 @@ function getFieldValue(c: CaseRecord, field: string, viewerDisplayName?: string)
 
 function matchFilter(c: CaseRecord, filter: TableFilter, viewerDisplayName?: string): boolean {
   const val = getFieldValue(c, filter.field, viewerDisplayName);
+  const meta = caseFieldMetas.find((m) => m.key === filter.field);
+  const isDate = meta?.type === "date";
   let result: boolean;
   switch (filter.operator) {
-    case "equals": result = String(val) === filter.value; break;
-    case "not_equals": result = String(val) !== filter.value; break;
+    case "equals": {
+      if (isDate) result = Date.parse(String(val)) === Date.parse(filter.value);
+      else result = String(val) === filter.value;
+      break;
+    }
+    case "not_equals": {
+      if (isDate) result = Date.parse(String(val)) !== Date.parse(filter.value);
+      else result = String(val) !== filter.value;
+      break;
+    }
     case "contains": result = String(val).toLowerCase().includes(filter.value.toLowerCase()); break;
-    case "gt": result = Number(val) > Number(filter.value); break;
-    case "lt": result = Number(val) < Number(filter.value); break;
+    case "gt": {
+      if (isDate) result = Date.parse(String(val)) > Date.parse(filter.value);
+      else result = Number(val) > Number(filter.value);
+      break;
+    }
+    case "lt": {
+      if (isDate) result = Date.parse(String(val)) < Date.parse(filter.value);
+      else result = Number(val) < Number(filter.value);
+      break;
+    }
     case "is_empty": result = String(val ?? "").trim() === ""; break;
     default: result = true;
   }
@@ -154,9 +187,24 @@ function compareCases(a: CaseRecord, b: CaseRecord, sort: TableSort, viewerDispl
 
 const defaultColumnOrder = caseFieldMetas.map((f) => f.key);
 const defaultColumnWidths: Record<string, number> = {
-  title: 200, category: 90, workType: 130, billingUnit: 80, unitCount: 90,
-  translator: 100, translationDeadline: 140, reviewer: 100, reviewDeadline: 140,
-  executionTool: 100, deliveryMethod: 100, createdAt: 110,
+  title: 200,
+  category: 90,
+  workType: 130,
+  billingUnit: 80,
+  unitCount: 90,
+  translator: 100,
+  translationDeadline: 140,
+  reviewer: 100,
+  reviewDeadline: 140,
+  createdBy: 110,
+  client: 110,
+  dispatchRoute: 120,
+  contact: 110,
+  keyword: 120,
+  clientPoNumber: 110,
+  executionTool: 100,
+  deliveryMethod: 100,
+  createdAt: 110,
 };
 const defaultHiddenColumns = ["executionTool", "deliveryMethod"];
 

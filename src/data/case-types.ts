@@ -118,4 +118,9 @@ export interface CaseRecord {
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Slack inquiry history for each case (who already received the InquirySlackDialog DM
+   * for this case). Used to lock checkboxes and prevent re-sending.
+   */
+  inquirySlackRecords: string[];
 }

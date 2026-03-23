@@ -159,6 +159,7 @@ function fromDb(row: any): CaseRecord {
     iconUrl: row.icon_url ?? "",
     createdBy: row.created_by,
     createdAt: row.created_at,
+    inquirySlackRecords: Array.isArray(row.inquiry_slack_records) ? row.inquiry_slack_records : [],
     updatedAt: row.updated_at,
   };
 }
@@ -232,6 +233,7 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.declineRecords !== undefined) map.decline_records = c.declineRecords;
   if (c.iconUrl !== undefined) map.icon_url = c.iconUrl;
   if (c.createdBy !== undefined) map.created_by = c.createdBy;
+  if (c.inquirySlackRecords !== undefined) map.inquiry_slack_records = c.inquirySlackRecords;
   return map;
 }
 
@@ -600,6 +602,7 @@ function clearDuplicateFields(data: Partial<CaseRecord>): Partial<CaseRecord> {
     caseReferenceMaterials: [],
     sourceFiles: [],
     declineRecords: [],
+    inquirySlackRecords: [],
   };
 }
 

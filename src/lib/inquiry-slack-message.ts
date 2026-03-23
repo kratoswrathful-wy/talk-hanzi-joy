@@ -17,7 +17,9 @@ export function buildInquiryCaseLines(origin: string, cases: Pick<CaseRecord, "i
 /** Plain text inquiry message (same rules as CaseDetailPage「產生詢案訊息」) */
 export function buildInquiryMessagePlainText(origin: string, cases: Pick<CaseRecord, "id" | "title">[]): string {
   const lines = buildInquiryCaseLines(origin, cases);
-  const body = lines.map((l) => `${l.title}（${l.url}）`).join("\n");
+  // Avoid showing bare URLs in UI preview (might imply Slack will unfurl/preview).
+  // Keep preview readable by only listing case titles.
+  const body = lines.map((l) => `${l.title}`).join("\n");
   if (lines.length <= 1) {
     return `請問這件可以做嗎？\n${body}`;
   }

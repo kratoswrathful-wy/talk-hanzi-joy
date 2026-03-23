@@ -58,8 +58,8 @@ async function openDmAndPostMessage(
 }
 
 /**
- * 承接／無法承接：只依「系統身分 + 設定」找收件人，發送目標**僅**使用 OAuth 寫入的 Slack user id
- *（與 profiles.email 是否等於 Slack 帳號 email 無關；**不使用** users.lookupByEmail）。
+ * 承接／無法承接：目標優先使用 OAuth 寫入的 Slack user id（與 profiles.email 是否一致無關）。
+ * 只有在 open/post 失敗時，才依 profiles.email 做備援 lookupByEmail 重試。
  */
 type CaseReplyRecipient = {
   userId: string;
@@ -237,11 +237,26 @@ Deno.serve(async (req) => {
         if (sent.ok) {
           results.push({ email: rec.profileEmail, ok: true });
         } else {
-          results.push({
-            email: rec.profileEmail,
-            ok: false,
-            error: `${sent.stage}:${sent.error}`,
-          });
+          // Fallback: try by email only after open/post fails.
+          const lu = await lookupSlackUserIdByEmail(token, rec.profileEmail);
+          if (lu.ok) {
+            const retry = await openDmAndPostMessage(token, lu.userId, message, notificationFallback);
+            if (retry.ok) {
+              results.push({ email: rec.profileEmail, ok: true });
+              continue;
+            }
+            results.push({
+              email: rec.profileEmail,
+              ok: false,
+              error: `${sent.stage}:${sent.error};fallback:${retry.stage}:${retry.error}`,
+            });
+          } else {
+            results.push({
+              email: rec.profileEmail,
+              ok: false,
+              error: `${sent.stage}:${sent.error}`,
+            });
+          }
         }
       }
     } else {

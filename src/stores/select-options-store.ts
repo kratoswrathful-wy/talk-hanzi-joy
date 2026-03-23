@@ -420,7 +420,7 @@ export const selectOptionsStore = {
     if (!user) return;
 
     const [{ data: profiles }, { data: invitations }, { data: settings }] = await Promise.all([
-      supabase.from("profiles").select("email, display_name, avatar_url, timezone, status_message"),
+      supabase.from("profiles").select("id, email, display_name, avatar_url, timezone, status_message"),
       supabase.from("invitations").select("email, role").is("accepted_at", null),
       supabase.from("member_translator_settings").select("email, note, no_fee, sort_order, frozen"),
     ]);
@@ -437,7 +437,8 @@ export const selectOptionsStore = {
       const s = settingsMap.get(p.email);
       if (s?.frozen) return;
       options.push({
-        id: `assignee-${p.email}`,
+        // Use profiles.id as stable identity for person-based filters/sorts (createdBy).
+        id: String(p.id),
         label: p.display_name || p.email,
         email: p.email,
         color: PRESET_COLORS[i % PRESET_COLORS.length],

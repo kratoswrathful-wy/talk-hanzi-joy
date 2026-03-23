@@ -43,7 +43,7 @@ export const fieldMetas: FieldMeta[] = [
   { key: "clientInvoiceStatus", label: "客戶請款狀態", type: "select" },
   { key: "translatorInvoice", label: "稿費請款單", type: "text" },
   { key: "invoice", label: "請款單", type: "text" },
-  { key: "createdBy", label: "建立者", type: "text" },
+  { key: "createdBy", label: "建立者", type: "select" },
   { key: "createdAt", label: "建立時間", type: "date" },
 ];
 
@@ -141,15 +141,33 @@ function getFieldValue(fee: TranslatorFee, field: string, ctx?: FeeFilterContext
 function matchFilterWithCtx(ctx?: FeeFilterContext) {
   return (fee: TranslatorFee, filter: TableFilter): boolean => {
     const val = getFieldValue(fee, filter.field, ctx);
+    const meta = fieldMetas.find((m) => m.key === filter.field);
+    const isDate = meta?.type === "date";
     let result: boolean;
     switch (filter.operator) {
-      case "equals": result = String(val) === filter.value; break;
-      case "not_equals": result = String(val) !== filter.value; break;
+      case "equals": {
+        if (isDate) result = Date.parse(String(val)) === Date.parse(filter.value);
+        else result = String(val) === filter.value;
+        break;
+      }
+      case "not_equals": {
+        if (isDate) result = Date.parse(String(val)) !== Date.parse(filter.value);
+        else result = String(val) !== filter.value;
+        break;
+      }
       case "contains": result = String(val).toLowerCase().includes(filter.value.toLowerCase()); break;
       case "is_checked": result = val === true; break;
       case "is_not_checked": result = val === false; break;
-      case "gt": result = Number(val) > Number(filter.value); break;
-      case "lt": result = Number(val) < Number(filter.value); break;
+      case "gt": {
+        if (isDate) result = Date.parse(String(val)) > Date.parse(filter.value);
+        else result = Number(val) > Number(filter.value);
+        break;
+      }
+      case "lt": {
+        if (isDate) result = Date.parse(String(val)) < Date.parse(filter.value);
+        else result = Number(val) < Number(filter.value);
+        break;
+      }
       case "is_empty": result = String(val ?? "").trim() === ""; break;
       default: result = true;
     }

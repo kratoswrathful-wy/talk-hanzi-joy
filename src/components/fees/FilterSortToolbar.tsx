@@ -21,6 +21,9 @@ const fieldToStoreKey: Record<string, string> = {
   translator: "assignee",
   reviewer: "assignee",
   internalAssignee: "assignee",
+  createdBy: "assignee",
+  // internal notes: creator is stored/displayed as human-readable name
+  creator: "assignee",
   client: "client",
   status: "status",
   dispatchRoute: "dispatchRoute",
@@ -54,6 +57,7 @@ const logicLabels: Record<LogicOperator, string> = {
 function getOperatorsForType(type: string): FilterOperator[] {
   switch (type) {
     case "checkbox": return ["is_checked", "is_not_checked"];
+    case "date": return ["equals", "gt", "lt", "is_empty"];
     case "number": case "computed": return ["equals", "gt", "lt", "is_empty"];
     case "select": return ["equals", "contains", "is_empty"];
     default: return ["equals", "contains", "is_empty"];
@@ -500,7 +504,13 @@ function FilterGroupUI({
                   variant="ghost"
                   size="sm"
                   className="h-6 text-[10px] gap-1 text-muted-foreground px-2"
-                  onClick={() => onAddCondition(node.group!.id, { field: allFields[0]?.key || "title", operator: "contains", value: "" })}
+                  onClick={() => {
+                    const field = allFields[0]?.key || "title";
+                    const meta = allFields.find((f) => f.key === field);
+                    const ops = meta ? getOperatorsForType(meta.type) : [];
+                    const operator = (ops[0] || "equals") as FilterOperator;
+                    onAddCondition(node.group!.id, { field, operator, value: "" });
+                  }}
                 >
                   <Plus className="h-2.5 w-2.5" />
                   條件
@@ -645,7 +655,12 @@ function FilterRow({ filter, meta, ops, allFields, onUpdateFilter, onRemoveFilte
     if (filter.field === "translatorInvoiceStatus") return translatorInvoiceStatusOptions;
     if (filter.field === "clientInvoiceStatus") return clientInvoiceStatusOptions;
     if (isSelectType && storeKey) {
-      return storeOptions.map((o) => ({ value: o.label, label: o.label }));
+      // createdBy is stored as profiles.id (uuid) in DB, so filter.value must match uuid.
+      const valueMode = meta?.key === "createdBy" ? "id" : "label";
+      return storeOptions.map((o) => ({
+        value: valueMode === "id" ? o.id : o.label,
+        label: o.label,
+      }));
     }
     return null;
   })();
@@ -660,7 +675,16 @@ function FilterRow({ filter, meta, ops, allFields, onUpdateFilter, onRemoveFilte
 
   return (
     <div className="flex items-center gap-1.5">
-      <Select value={filter.field} onValueChange={(v) => { onUpdateFilter(filter.id, { field: v, value: "" }); setFieldSearch(""); }}>
+      <Select
+        value={filter.field}
+        onValueChange={(v) => {
+          const nextMeta = allFields.find((f) => f.key === v);
+          const nextOps = nextMeta ? getOperatorsForType(nextMeta.type) : [];
+          const nextOperator = (nextOps[0] || "equals") as FilterOperator;
+          onUpdateFilter(filter.id, { field: v, operator: nextOperator, value: "" });
+          setFieldSearch("");
+        }}
+      >
         <SelectTrigger className="h-7 text-xs w-[100px]"><SelectValue /></SelectTrigger>
         <SelectContent>
           <div className="px-2 pb-1.5 pt-1 sticky top-0 bg-popover">
@@ -717,7 +741,8 @@ function FilterRow({ filter, meta, ops, allFields, onUpdateFilter, onRemoveFilte
           <Input
             value={filter.value}
             onChange={(e) => onUpdateFilter(filter.id, { value: e.target.value })}
-            placeholder="值..."
+            type={meta?.type === "date" ? "datetime-local" : "text"}
+            placeholder={meta?.type === "date" ? "選擇時間..." : "值..."}
             className="h-7 text-xs flex-1"
             autoFocus
             onKeyDown={(e) => e.stopPropagation()}
