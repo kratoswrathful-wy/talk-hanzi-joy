@@ -46,7 +46,6 @@ export type RecipientRow = {
   profileDisplayNameTrimmed: string;
   displayName: string;
   email: string | null;
-  slackUserId: string | null;
   timezone: string | null;
   statusMessage: string | null;
 };
@@ -79,14 +78,6 @@ export function InquirySlackDialog({
   const messagePreview = useMemo(() => {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     return buildInquiryMessagePlainText(origin, cases);
-  }, [cases]);
-
-  const slackMessagePayload = useMemo(() => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    return {
-      message: buildInquiryMessageForSlack(origin, cases),
-      notification_fallback: buildInquirySlackNotificationFallback(cases),
-    };
   }, [cases]);
 
   useEffect(() => {
@@ -151,20 +142,11 @@ export function InquirySlackDialog({
         return;
       }
 
-      const [
-        { data, error },
-        { data: slackMetaRows, error: slackMetaErr },
-      ] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("id, email, display_name, timezone, status_message")
-          .in("id", userIds)
-          .order("display_name", { ascending: true }),
-        supabase
-          .from("user_slack_meta")
-          .select("user_id, slack_user_id")
-          .in("user_id", userIds),
-      ]);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, email, display_name, timezone, status_message")
+        .in("id", userIds)
+        .order("display_name", { ascending: true });
 
       if (cancelled) return;
       setLoading(false);
@@ -176,14 +158,6 @@ export function InquirySlackDialog({
         return;
       }
 
-      if (slackMetaErr) {
-        console.error(slackMetaErr);
-      }
-
-      const slackUserIdByUserId = new Map<string, string | null>(
-        (slackMetaRows || []).map((r: any) => [String(r.user_id), r.slack_user_id ?? null])
-      );
-
       const nextRows: RecipientRow[] = (data || []).map((p) => {
         const profileDisplayNameTrimmed = (p.display_name || "").trim();
         return {
@@ -191,7 +165,6 @@ export function InquirySlackDialog({
           profileDisplayNameTrimmed,
           displayName: profileDisplayNameTrimmed || p.email || "（無名稱）",
           email: p.email ?? null,
-          slackUserId: slackUserIdByUserId.get(String(p.id)) ?? null,
           timezone: p.timezone ?? null,
           statusMessage: p.status_message ?? null,
         };
@@ -271,7 +244,7 @@ export function InquirySlackDialog({
   }, [afterSearch, lockedUserIds, sortMode, sortDir]);
 
   const selectableInView = useMemo(
-    () => visibleRows.filter((r): r is (typeof r & { slackUserId: string }) => !!r.slackUserId),
+    () => visibleRows.filter((r): r is (typeof r & { email: string }) => !!r.email),
     [visibleRows]
   );
 
@@ -295,7 +268,7 @@ export function InquirySlackDialog({
   const pendingSelectedRecipients = useMemo(() => {
     return selectableInView.filter((r) => {
       const checked = lockedUserIds.has(r.userId) || selectedUserIds.has(r.userId);
-      if (!checked || !r.slackUserId) return false;
+      if (!checked || !r.email) return false;
       const pending = pendingCasesByUserId.get(r.userId) || [];
       return pending.length > 0;
     });
@@ -322,7 +295,7 @@ export function InquirySlackDialog({
     // Checked recipients = locked (always checked) + manually selected unlocked recipients.
     const checkedRecipients = selectableInView.filter((r) => {
       const isChecked = lockedUserIds.has(r.userId) || selectedUserIds.has(r.userId);
-      return isChecked && !!r.slackUserId;
+      return isChecked && !!r.email;
     });
 
     // Only send to recipients who still have pending cases.
@@ -348,7 +321,7 @@ export function InquirySlackDialog({
 
       for (const r of pendingRecipients) {
         const pendingCases = pendingCasesByUserId.get(r.userId) || [];
-        if (pendingCases.length === 0 || !r.slackUserId) continue;
+        if (pendingCases.length === 0 || !r.email) continue;
 
         const message = buildInquiryMessageForSlack(origin, pendingCases);
         const notificationFallback = buildInquirySlackNotificationFallback(pendingCases);
@@ -356,7 +329,7 @@ export function InquirySlackDialog({
         const { data, error } = await supabase.functions.invoke("slack-send-dm", {
           headers: { Authorization: `Bearer ${token}` },
           body: {
-            recipient_user_ids: [r.userId],
+            recipient_emails: [r.email],
             message,
             notification_fallback: notificationFallback,
           },
@@ -558,9 +531,9 @@ export function InquirySlackDialog({
                   {visibleRows.map((r) => {
                     const utcOffset = r.timezone ? getTimezoneInfo(r.timezone)?.utcOffset ?? "—" : "—";
                     const statusText = r.statusMessage?.trim() ?? "";
-                    const canSend = !!r.slackUserId;
+                    const canSend = !!r.email;
                     const locked = lockedUserIds.has(r.userId);
-                    const title = locked ? "已送出過（鎖定）" : (canSend ? r.email || r.slackUserId : "未連結 Slack，無法發送 Slack 私訊");
+                    const title = locked ? "已送出過（鎖定）" : (canSend ? r.email || r.userId : "個人檔案無信箱，無法發送 Slack 私訊");
                     return (
                       <div
                         key={r.userId}

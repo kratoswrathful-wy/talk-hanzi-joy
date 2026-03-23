@@ -94,7 +94,8 @@ async function resolveCaseReplyRecipients(
 
   const slackIdByUserId = new Map<string, string>();
   for (const r of linkedRows as { user_id: string; slack_user_id: string | null }[]) {
-    if (r.slack_user_id) slackIdByUserId.set(r.user_id, r.slack_user_id);
+    const sid = String(r.slack_user_id || "").trim();
+    if (sid) slackIdByUserId.set(r.user_id, sid);
   }
 
   const linkedIdSet = new Set(linkedRows.map((r: { user_id: string }) => r.user_id));
@@ -117,7 +118,7 @@ async function resolveCaseReplyRecipients(
     if (!linkedIdSet.has(p.id)) continue;
     if (p.receive_translator_case_reply_slack_dms === false) continue;
     if (p.id === senderUserId) continue;
-    const sid = slackIdByUserId.get(p.id);
+    const sid = String(slackIdByUserId.get(p.id) || "").trim();
     if (!sid) continue;
     out.push({
       userId: p.id,
@@ -233,7 +234,12 @@ Deno.serve(async (req) => {
       }
 
       for (const rec of caseReplyRecipients) {
-        const sent = await openDmAndPostMessage(token, rec.slackUserId, message, notificationFallback);
+        const primarySlackUserId = String(rec.slackUserId || "").trim();
+        if (!primarySlackUserId) {
+          results.push({ email: rec.profileEmail, ok: false, error: "slack_user_id_missing" });
+          continue;
+        }
+        const sent = await openDmAndPostMessage(token, primarySlackUserId, message, notificationFallback);
         if (sent.ok) {
           results.push({ email: rec.profileEmail, ok: true });
         } else {

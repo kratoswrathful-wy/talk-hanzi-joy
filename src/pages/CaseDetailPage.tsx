@@ -64,6 +64,7 @@ import { useLabelStyles } from "@/stores/label-style-store";
 import { useToolTemplates, type ToolTemplate } from "@/stores/tool-template-store";
 import { useAuth } from "@/hooks/use-auth";
 import { maybeSendTranslatorCaseReplySlack } from "@/lib/slack-case-reply-notify";
+import { buildInquiryMessageForSlack } from "@/lib/inquiry-slack-message";
 import { usePermissions } from "@/hooks/use-permissions";
 import { internalNotesStore, useInternalNotes } from "@/stores/internal-notes-store";
 import { getUserTimezone } from "@/lib/format-timestamp";
@@ -1681,23 +1682,18 @@ export default function CaseDetailPage() {
               className={uiInquiryMsg.className}
               style={uiInquiryMsg.style}
               onClick={() => {
-                const url = `${window.location.origin}/cases/${id}`;
-                const title = caseData?.title || "";
-                // Copy Slack-safe inquiry text: use mrkdwn link label (<url|label>) to avoid Slack unfurl/link preview.
-                const slackMrkdwn = `請問這件可以做嗎？\n<${url}|${title}>`;
-                const escapeHtml = (s: string) =>
-                  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                const richHtml = `<pre>${escapeHtml(slackMrkdwn)}</pre>`;
-                try {
-                  navigator.clipboard.write([
-                    new ClipboardItem({
-                      "text/plain": new Blob([slackMrkdwn], { type: "text/plain" }),
-                      "text/html": new Blob([richHtml], { type: "text/html" }),
-                    }),
-                  ]).then(() => toast({ description: "已複製詢案訊息至剪貼簿" }));
-                } catch {
-                  navigator.clipboard.writeText(slackMrkdwn).then(() => toast({ description: "已複製詢案訊息至剪貼簿" }));
-                }
+                const origin = window.location.origin;
+                const slackMrkdwn = buildInquiryMessageForSlack(origin, [{ id, title: caseData?.title || "" }]);
+                navigator.clipboard
+                  .writeText(slackMrkdwn)
+                  .then(() => toast({ description: "已複製詢案訊息至剪貼簿" }))
+                  .catch(() =>
+                    toast({
+                      title: "複製失敗",
+                      description: "請手動複製內容後再貼到 Slack",
+                      variant: "destructive",
+                    })
+                  );
               }}
             >
               <UiToolbarButtonIcon uiButtonId="cases_detail_inquiry_message" />
