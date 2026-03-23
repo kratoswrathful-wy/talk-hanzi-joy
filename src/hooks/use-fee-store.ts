@@ -10,11 +10,11 @@ function ensureLoaded() {
   }
 }
 
-// Reset cache on auth changes — only reload on sign-in to avoid race conditions
+// fee-store handles TOKEN_REFRESHED with background reload only (avoids loaded=false storms)
 supabase.auth.onAuthStateChange((event) => {
+  if (event === "TOKEN_REFRESHED") return;
   loadPromise = null;
-  if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
-    // Small delay to ensure the new session token is fully propagated
+  if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
     loadPromise = new Promise((resolve) => setTimeout(resolve, 100)).then(() => feeStore.loadFees());
   }
 });

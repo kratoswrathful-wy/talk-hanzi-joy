@@ -9,9 +9,12 @@ function ensureLoaded() {
   }
 }
 
-supabase.auth.onAuthStateChange(() => {
+supabase.auth.onAuthStateChange((event) => {
+  if (event === "TOKEN_REFRESHED") return;
   loadPromise = null;
-  clientInvoiceStore.loadInvoices();
+  if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "SIGNED_OUT") {
+    loadPromise = clientInvoiceStore.loadInvoices();
+  }
 });
 
 export function useClientInvoices() {

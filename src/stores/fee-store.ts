@@ -94,16 +94,7 @@ async function getUserId() {
   _cachedUserId = data?.session?.user?.id ?? null;
   return _cachedUserId;
 }
-// Listen for auth changes — reset loaded state and reload
-supabase.auth.onAuthStateChange((event, session) => {
-  _cachedUserId = session?.user?.id ?? null;
-  // Mark as not loaded so detail pages show loading instead of "not found"
-  loaded = false;
-  notify();
-  if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
-    // Will be triggered by use-fee-store's listener
-  }
-});
+// Listen for auth changes — avoid wiping UI on TOKEN_REFRESHED (same user, new access token)
 
 // Realtime subscription – sync changes from other users
 supabase
@@ -251,3 +242,18 @@ export const feeStore = {
     return newFee;
   },
 };
+
+supabase.auth.onAuthStateChange((event, session) => {
+  _cachedUserId = session?.user?.id ?? null;
+  if (event === "TOKEN_REFRESHED") {
+    void feeStore.loadFees();
+    return;
+  }
+  loaded = false;
+  notify();
+  if (event === "SIGNED_OUT" || !session) {
+    fees = [];
+    loaded = false;
+    notify();
+  }
+});

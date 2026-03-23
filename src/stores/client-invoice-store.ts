@@ -69,11 +69,7 @@ async function getUserId() {
   _cachedUserId = data?.session?.user?.id ?? null;
   return _cachedUserId;
 }
-supabase.auth.onAuthStateChange((_event, session) => {
-  _cachedUserId = session?.user?.id ?? null;
-  loaded = false;
-  notify();
-});
+// Auth listener registered after clientInvoiceStore export (see bottom of file)
 
 // Realtime subscription – full reload on any client invoice or link change
 supabase
@@ -287,3 +283,18 @@ export const clientInvoiceStore = {
   getInvoicesByClient: (client: string) =>
     invoices.filter((i) => i.client === client),
 };
+
+supabase.auth.onAuthStateChange((event, session) => {
+  _cachedUserId = session?.user?.id ?? null;
+  if (event === "TOKEN_REFRESHED") {
+    void clientInvoiceStore.loadInvoices();
+    return;
+  }
+  loaded = false;
+  notify();
+  if (event === "SIGNED_OUT" || !session) {
+    invoices = [];
+    loaded = false;
+    notify();
+  }
+});

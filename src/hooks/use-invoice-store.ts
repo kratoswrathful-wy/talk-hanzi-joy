@@ -9,10 +9,13 @@ function ensureLoaded() {
   }
 }
 
-// Reset cache on auth changes (login/logout/switch)
-supabase.auth.onAuthStateChange(() => {
+// invoice-store handles TOKEN_REFRESHED with background reload only
+supabase.auth.onAuthStateChange((event) => {
+  if (event === "TOKEN_REFRESHED") return;
   loadPromise = null;
-  invoiceStore.loadInvoices();
+  if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "SIGNED_OUT") {
+    loadPromise = invoiceStore.loadInvoices();
+  }
 });
 
 export function useInvoices() {

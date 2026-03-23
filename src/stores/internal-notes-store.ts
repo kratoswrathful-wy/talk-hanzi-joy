@@ -106,12 +106,6 @@ const notePoll = createPollFallback("internal_notes", () => {
   if (loaded) internalNotesStore.load();
 }, 3000);
 
-// Auth change – reload
-supabase.auth.onAuthStateChange(() => {
-  loaded = false;
-  notify();
-});
-
 export const internalNotesStore = {
   getAll: (): InternalNote[] => notes,
   isLoaded: () => loaded,
@@ -222,6 +216,20 @@ export const internalNotesStore = {
 
   getSnapshot: () => notes,
 };
+
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === "TOKEN_REFRESHED") {
+    void internalNotesStore.load();
+    return;
+  }
+  loaded = false;
+  notify();
+  if (event === "SIGNED_OUT" || !session) {
+    notes = [];
+    loaded = false;
+    notify();
+  }
+});
 
 export function useInternalNotes(): InternalNote[] {
   return useSyncExternalStore(internalNotesStore.subscribe, internalNotesStore.getSnapshot);

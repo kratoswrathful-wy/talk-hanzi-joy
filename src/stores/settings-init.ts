@@ -54,7 +54,8 @@ supabase.auth.onAuthStateChange((event, session) => {
     return;
   }
 
-  if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") {
+  // Token refresh does not change user; reloading all settings on every refresh can overload login / tab focus
+  if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
     loadTimer = setTimeout(() => {
       void loadAllSettings();
     }, 100);
