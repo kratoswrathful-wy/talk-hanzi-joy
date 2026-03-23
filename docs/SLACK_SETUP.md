@@ -47,7 +47,7 @@ supabase db push
 
 - 譯者在 **個人檔案** 同一區塊可編輯「承接」「無法承接」訊息在 **案件連結後** 的自訂文字（留空則用系統預設）；需按 **儲存變更** 寫入資料庫。
 - 在 **案件頁** 完成「承接本案」或「無法承接」並成功送出後，若已連結 Slack，系統會以 **該譯者的 Slack 身分** 私訊派案端。
-- **收件人條件（派案端）**：角色為 **PM 或 Executive**，且已在 **個人檔案連結 Slack**（`user_slack_meta`，內含 OAuth 寫入的 **`slack_user_id`**），並開啟 **接收「承接／無法承接」自動 Slack 私訊**。Edge Function **優先使用該 Slack user id** 開啟 DM，**不再依賴** `profiles.email` 與 Slack 帳號 email 完全一致；僅在缺少 `slack_user_id` 時才以 `users.lookupByEmail`（profiles.email）備援。
+- **收件人條件（派案端）**：角色為 **PM 或 Executive**，且已在 **個人檔案連結 Slack**（`user_slack_meta`，內含 OAuth 寫入的 **`slack_user_id`**），並開啟 **接收「承接／無法承接」自動 Slack 私訊**。Edge Function **一律先以該 Slack user id** 開 DM 並發送；**若開啟對話或發送失敗**，再依 **`users.lookupByEmail`（profiles.email）** 查 id 重試一次。若 DB 無 `slack_user_id`，則僅走 email lookup。
 - **無法承接** 時：Slack 訊息為多行敘述——第 1 行為 **案件連結**（顯示為標題）＋連結後自訂文字；若案件頁表單有填 **建議期限**，第 2 行為「格式化後的期限」＋第 2 行自訂後綴（預設句可改）；若有填 **可承接字數**，第 3 行為「`{字數} 字`」＋第 3 行自訂後綴；若有填 **補充說明**，再以單獨一行送出（對應個人檔預覽第 4 行佔位）。個人檔「即時預覽」以 `<案件標題>`、`<所輸入的建議期限>` 等佔位說明結構。
 
 ## 4. 訊息格式

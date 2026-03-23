@@ -13,6 +13,50 @@ async function slackApi(token: string, method: string, body?: Record<string, unk
   return res.json();
 }
 
+async function lookupSlackUserIdByEmail(
+  token: string,
+  email: string,
+): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
+  const lookup = await fetch(
+    `https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  const lu = await lookup.json();
+  if (!lu.ok || !lu.user?.id) {
+    return { ok: false, error: (lu.error as string) || "user_not_found" };
+  }
+  return { ok: true, userId: lu.user.id as string };
+}
+
+/** Open DM and post; used for both stored Slack id and email-resolved id */
+async function openDmAndPostMessage(
+  token: string,
+  slackMemberId: string,
+  message: string,
+  notificationFallback: string,
+): Promise<{ ok: true } | { ok: false; stage: "open" | "post"; error: string }> {
+  const open = await slackApi(token, "conversations.open", { users: slackMemberId });
+  if (!open.ok || !open.channel?.id) {
+    return { ok: false, stage: "open", error: (open.error as string) || "open_dm_failed" };
+  }
+  const post = await slackApi(token, "chat.postMessage", {
+    channel: open.channel.id,
+    text: notificationFallback,
+    blocks: [
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: message },
+      },
+    ],
+    unfurl_links: false,
+    unfurl_media: false,
+  });
+  if (!post.ok) {
+    return { ok: false, stage: "post", error: (post.error as string) || "post_failed" };
+  }
+  return { ok: true };
+}
+
 /**
  * PM／Executive 收件人：必須已在 App 內「連結 Slack」（user_slack_meta）、
  * 且未關閉 receive_translator_case_reply_slack_dms；排除寄件者。
@@ -201,45 +245,43 @@ Deno.serve(async (req) => {
       : null;
 
     for (const email of uniqueEmails) {
-      let slackMemberId: string | null = null;
-      if (byEmail) {
-        slackMemberId = byEmail.get(email)?.slackUserId ?? null;
-      }
+      const storedId = byEmail?.get(email)?.slackUserId ?? null;
 
-      if (!slackMemberId) {
-        const lookup = await fetch(
-          `https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        const lu = await lookup.json();
-        if (!lu.ok || !lu.user?.id) {
-          results.push({ email, ok: false, error: lu.error || "user_not_found" });
+      // 承接／無法承接：先依 DB 的 slack_user_id；送失敗再以 email lookup 備援
+      if (caseReplyNotification && storedId) {
+        const first = await openDmAndPostMessage(token, storedId, message, notificationFallback);
+        if (first.ok) {
+          results.push({ email, ok: true });
           continue;
         }
-        slackMemberId = lu.user.id as string;
-      }
-
-      const open = await slackApi(token, "conversations.open", { users: slackMemberId });
-      if (!open.ok || !open.channel?.id) {
-        results.push({ email, ok: false, error: open.error || "open_dm_failed" });
+        const hint = `${first.stage}:${first.error}`;
+        const lu = await lookupSlackUserIdByEmail(token, email);
+        if (!lu.ok) {
+          results.push({ email, ok: false, error: `${hint};email:${lu.error}` });
+          continue;
+        }
+        const second = await openDmAndPostMessage(token, lu.userId, message, notificationFallback);
+        if (second.ok) {
+          results.push({ email, ok: true });
+        } else {
+          results.push({
+            email,
+            ok: false,
+            error: `${hint};email_fallback:${second.stage}:${second.error}`,
+          });
+        }
         continue;
       }
 
-      const post = await slackApi(token, "chat.postMessage", {
-        channel: open.channel.id,
-        text: notificationFallback,
-        blocks: [
-          {
-            type: "section",
-            text: { type: "mrkdwn", text: message },
-          },
-        ],
-        unfurl_links: false,
-        unfurl_media: false,
-      });
+      const lu = await lookupSlackUserIdByEmail(token, email);
+      if (!lu.ok) {
+        results.push({ email, ok: false, error: lu.error });
+        continue;
+      }
 
-      if (!post.ok) {
-        results.push({ email, ok: false, error: post.error || "post_failed" });
+      const sent = await openDmAndPostMessage(token, lu.userId, message, notificationFallback);
+      if (!sent.ok) {
+        results.push({ email, ok: false, error: `${sent.stage}:${sent.error}` });
         continue;
       }
 
