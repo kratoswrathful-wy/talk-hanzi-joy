@@ -1,12 +1,15 @@
-import { useState, useEffect, useRef } from "react";
-import { Palette, ImagePlus } from "lucide-react";
+import { useState, useEffect, useRef, useMemo, useSyncExternalStore } from "react";
+import { Palette, ImagePlus, ChevronDown, ChevronRight } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ColorPicker from "@/components/ColorPicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { groupUiButtonsByModule, getUiButtonDef, type UiButtonDef } from "@/lib/ui-button-registry";
+import { groupUiButtonsByModule, getUiButtonDef, UI_BUTTON_REGISTRY, type UiButtonDef } from "@/lib/ui-button-registry";
+import { formatCssColorForLabel } from "@/lib/css-color";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { iconLibraryStore } from "@/stores/icon-library-store";
 import { UiToolbarButtonIcon } from "@/lib/ui-button-icon-render";
 import {
   mergeGroupsWithRegistry,
@@ -23,19 +26,126 @@ import {
   useModuleToolbarGroups,
   isUiButtonLabelEditable,
   getUiButtonIconResolved,
+  getUiButtonColors,
 } from "@/stores/ui-button-style-store";
 import { cn } from "@/lib/utils";
 
 const MAX_CUSTOM_ICON_BYTES = 120_000;
 
-function getColorUsageMap(buttons: { bgColor: string; label: string }[]) {
-  const map: Record<string, string[]> = {};
-  for (const b of buttons) {
-    const k = b.bgColor;
-    if (!map[k]) map[k] = [];
-    map[k].push(b.label);
+function normalizeUsageKey(color: string): string {
+  const t = color.trim();
+  if (/^#[0-9a-fA-F]{6}$/i.test(t)) return t.toUpperCase();
+  return t;
+}
+
+function buildModuleColorUsageMaps(module: string): {
+  bgUsageMap: Record<string, string[]>;
+  textUsageMap: Record<string, string[]>;
+} {
+  const defs = UI_BUTTON_REGISTRY.filter((b) => b.module === module);
+  const bgUsageMap: Record<string, string[]> = {};
+  const textUsageMap: Record<string, string[]> = {};
+  for (const def of defs) {
+    const col = getUiButtonColors(def.id);
+    const bk = normalizeUsageKey(col.bgColor);
+    const tk = normalizeUsageKey(col.textColor);
+    if (!bgUsageMap[bk]) bgUsageMap[bk] = [];
+    bgUsageMap[bk].push(def.label);
+    if (!textUsageMap[tk]) textUsageMap[tk] = [];
+    textUsageMap[tk].push(def.label);
   }
-  return map;
+  return { bgUsageMap, textUsageMap };
+}
+
+function ToolbarButtonIconsPanel() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    void iconLibraryStore.load();
+  }, []);
+  const libIcons = useSyncExternalStore(iconLibraryStore.subscribe, iconLibraryStore.getAll, iconLibraryStore.getAll);
+  const ovKey = useSyncExternalStore(
+    uiButtonStyleStore.subscribe,
+    () => JSON.stringify(uiButtonStyleStore.getOverrides()),
+    () => JSON.stringify(uiButtonStyleStore.getOverrides())
+  );
+
+  const byModule = useMemo(() => groupUiButtonsByModule(), [ovKey]);
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="rounded-lg border border-border/60 bg-muted/20">
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm font-medium hover:bg-muted/40 rounded-lg"
+        >
+          <span>按鈕圖示一覽（檢視／自訂圖／圖示庫套用）</span>
+          {open ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="px-4 pb-4 space-y-4">
+        <p className="text-[10px] text-muted-foreground">
+          內建圖示為 <code className="text-[9px]">lucide:名稱</code>；可上傳自訂圖或從「圖示庫」選圖套用到按鈕。變更與上方各按鈕列同步。
+        </p>
+        {[...byModule.keys()].map((module) => (
+          <div key={module} className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground">{module}</p>
+            <div className="rounded-md border border-border/50 divide-y divide-border/50 max-h-[240px] overflow-y-auto">
+              {(byModule.get(module) ?? []).map((def) => {
+                const resolved = getUiButtonIconResolved(def.id);
+                const hasCustom = !!resolved?.customIconDataUrl;
+                return (
+                  <div
+                    key={def.id}
+                    className="flex flex-wrap items-center gap-2 px-2 py-2 text-xs bg-background/50"
+                  >
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded border border-border shrink-0">
+                      <UiToolbarButtonIcon uiButtonId={def.id} />
+                    </span>
+                    <span className="font-medium min-w-[100px] flex-1">{def.label}</span>
+                    <code className="text-[9px] text-muted-foreground font-mono max-w-[140px] truncate" title={def.id}>
+                      {def.id}
+                    </code>
+                    {hasCustom ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-[10px]"
+                        onClick={() => uiButtonStyleStore.setButtonPatch(def.id, { customIconDataUrl: "" })}
+                      >
+                        清除自訂圖
+                      </Button>
+                    ) : null}
+                    {libIcons.length > 0 ? (
+                      <Select
+                        onValueChange={(v) => {
+                          const item = libIcons.find((i) => i.id === v);
+                          if (item?.url) uiButtonStyleStore.setButtonPatch(def.id, { customIconDataUrl: item.url });
+                        }}
+                      >
+                        <SelectTrigger className="h-7 w-[140px] text-[10px]">
+                          <SelectValue placeholder="從圖示庫套用" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {libIcons.map((it) => (
+                            <SelectItem key={it.id} value={it.id}>
+                              {it.name || "未命名"}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">圖示庫尚無項目</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </CollapsibleContent>
+    </Collapsible>
+  );
 }
 
 function ToolbarWidthControl() {
@@ -114,10 +224,14 @@ function ButtonRow({
   def,
   module,
   currentGroupId,
+  bgUsageMap,
+  textUsageMap,
 }: {
   def: UiButtonDef;
   module: string;
   currentGroupId: string;
+  bgUsageMap: Record<string, string[]>;
+  textUsageMap: Record<string, string[]>;
 }) {
   const colors = useUiButtonColors(def.id);
   const previewProps = useToolbarButtonUiProps(def.id);
@@ -141,9 +255,6 @@ function ButtonRow({
   useEffect(() => {
     setIconDraft(effectiveIconKey);
   }, [effectiveIconKey, def.id]);
-
-  const usageButtons = [{ bgColor: colors.bgColor, label: def.label }];
-  const colorUsageMap = getColorUsageMap(usageButtons);
 
   const previewPending = pendingCustomUrl !== null;
 
@@ -318,8 +429,9 @@ function ButtonRow({
                 customColors={[]}
                 onAddCustomColor={() => {}}
                 onRemoveCustomColor={() => {}}
-                colorUsageMap={colorUsageMap}
+                colorUsageMap={bgUsageMap}
                 onResetDefault={() => uiButtonStyleStore.setButtonPatch(def.id, { bgColor: def.defaultBg })}
+                resetDefaultLabel={formatCssColorForLabel(def.defaultBg)}
               />
             </PopoverContent>
           </Popover>
@@ -338,8 +450,9 @@ function ButtonRow({
                 customColors={[]}
                 onAddCustomColor={() => {}}
                 onRemoveCustomColor={() => {}}
-                colorUsageMap={{}}
+                colorUsageMap={textUsageMap}
                 onResetDefault={() => uiButtonStyleStore.setButtonPatch(def.id, { textColor: def.defaultText })}
+                resetDefaultLabel={formatCssColorForLabel(def.defaultText)}
               />
             </PopoverContent>
           </Popover>
@@ -382,6 +495,15 @@ function GroupTitleField({
 
 function ModuleToolbarBlock({ module }: { module: string }) {
   const groupsState = useModuleToolbarGroups(module);
+  const overridesTick = useSyncExternalStore(
+    uiButtonStyleStore.subscribe,
+    () => JSON.stringify(uiButtonStyleStore.getOverrides()),
+    () => JSON.stringify(uiButtonStyleStore.getOverrides())
+  );
+  const { bgUsageMap, textUsageMap } = useMemo(
+    () => buildModuleColorUsageMaps(module),
+    [module, overridesTick]
+  );
 
   const addGroup = () => {
     const raw = uiButtonStyleStore.getLayout().groupsByModule?.[module];
@@ -453,7 +575,16 @@ function ModuleToolbarBlock({ module }: { module: string }) {
             {group.buttonIds.map((bid) => {
               const def = getUiButtonDef(bid);
               if (!def) return null;
-              return <ButtonRow key={bid} def={def} module={module} currentGroupId={group.id} />;
+              return (
+                <ButtonRow
+                  key={bid}
+                  def={def}
+                  module={module}
+                  currentGroupId={group.id}
+                  bgUsageMap={bgUsageMap}
+                  textUsageMap={textUsageMap}
+                />
+              );
             })}
             {group.buttonIds.length === 0 ? (
               <p className="text-[10px] text-muted-foreground px-1">（此群組尚無按鈕，請從其他群組移入）</p>
@@ -494,6 +625,8 @@ export function ToolbarButtonStyleSection() {
           全部重設
         </Button>
       </div>
+
+      <ToolbarButtonIconsPanel />
 
       <ToolbarWidthControl />
 

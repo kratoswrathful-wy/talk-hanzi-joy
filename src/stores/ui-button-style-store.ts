@@ -95,6 +95,70 @@ function migrateNeutralOverride(o: OverridesState): OverridesState {
   return next;
 }
 
+/** 舊版多 id 合併為單一設定（後者覆寫前者＝個別頁優先於總表） */
+const MERGE_SOURCE_ORDER: Record<string, string[]> = {
+  cases_mark_delivered: ["cases_list_mark_delivered", "cases_detail_mark_delivered"],
+  cases_slack: ["cases_list_slack", "cases_detail_slack"],
+  cases_copy: ["cases_list_copy_row", "cases_detail_copy_page"],
+  cases_gen_fees: ["cases_list_gen_fees"],
+  cases_inquiry_message: ["cases_detail_inquiry_message"],
+};
+
+function mergeOverridesFromLegacySources(src: OverridesState, fromIds: string[]): ButtonOverride | null {
+  const order = [...fromIds].reverse();
+  let merged: ButtonOverride = {};
+  for (const fid of order) {
+    const o = src[fid];
+    if (o) merged = { ...merged, ...o };
+  }
+  return Object.keys(merged).length > 0 ? merged : null;
+}
+
+function migrateMergedToolbarButtons(ov: OverridesState): OverridesState {
+  const src = { ...ov };
+  let next = { ...ov };
+  for (const [toId, fromIds] of Object.entries(MERGE_SOURCE_ORDER)) {
+    for (const fid of fromIds) {
+      delete next[fid];
+    }
+    if (next[toId]) continue;
+    const merged = mergeOverridesFromLegacySources(src, fromIds);
+    if (merged) next[toId] = merged;
+  }
+  return next;
+}
+
+function remapLayoutGroupsButtonIds(
+  gbm: Record<string, ModuleToolbarGroupsState> | undefined
+): Record<string, ModuleToolbarGroupsState> | undefined {
+  if (!gbm) return gbm;
+  const idMap: Record<string, string> = {
+    cases_list_mark_delivered: "cases_mark_delivered",
+    cases_detail_mark_delivered: "cases_mark_delivered",
+    cases_list_slack: "cases_slack",
+    cases_detail_slack: "cases_slack",
+    cases_list_copy_row: "cases_copy",
+    cases_detail_copy_page: "cases_copy",
+    cases_list_gen_fees: "cases_gen_fees",
+    cases_detail_inquiry_message: "cases_inquiry_message",
+  };
+  const next: Record<string, ModuleToolbarGroupsState> = {};
+  for (const [mod, state] of Object.entries(gbm)) {
+    const seen = new Set<string>();
+    const groups = state.groups.map((g) => ({
+      ...g,
+      buttonIds: g.buttonIds.flatMap((id) => {
+        const nid = idMap[id] ?? id;
+        if (seen.has(nid)) return [];
+        seen.add(nid);
+        return [nid];
+      }),
+    }));
+    next[mod] = { groups };
+  }
+  return next;
+}
+
 function migrateLoaded(raw: unknown): { overrides: OverridesState; layout: UiToolbarLayout } {
   if (!raw || typeof raw !== "object") {
     return { overrides: {}, layout: { ...DEFAULT_LAYOUT, groupsByModule: buildDefaultGroupsByModule() } };
@@ -106,22 +170,26 @@ function migrateLoaded(raw: unknown): { overrides: OverridesState; layout: UiToo
 
   if (o.v === 3 && o.overrides && typeof o.overrides === "object") {
     ov = migrateNeutralOverride(o.overrides as OverridesState);
+    ov = migrateMergedToolbarButtons(ov);
     const l = o.layout && typeof o.layout === "object" ? (o.layout as Partial<UiToolbarLayout>) : {};
     const w = typeof l.widthRem === "number" && l.widthRem > 0 ? l.widthRem : DEFAULT_LAYOUT.widthRem;
-    const gbm = l.groupsByModule && typeof l.groupsByModule === "object"
+    let gbm = l.groupsByModule && typeof l.groupsByModule === "object"
       ? (l.groupsByModule as Record<string, ModuleToolbarGroupsState>)
       : buildDefaultGroupsByModule();
+    gbm = remapLayoutGroupsButtonIds(gbm) ?? gbm;
     lay = {
       widthRem: w,
       groupsByModule: gbm,
     };
   } else if (o.v === 2 && o.overrides && typeof o.overrides === "object") {
     ov = migrateNeutralOverride(o.overrides as OverridesState);
+    ov = migrateMergedToolbarButtons(ov);
     const l = o.layout && typeof o.layout === "object" ? (o.layout as Partial<UiToolbarLayout>) : {};
     const w = typeof l.widthRem === "number" && l.widthRem > 0 ? l.widthRem : DEFAULT_LAYOUT.widthRem;
     lay = { widthRem: w, groupsByModule: buildDefaultGroupsByModule() };
   } else if (!("v" in o) && typeof raw === "object") {
     ov = migrateNeutralOverride(raw as OverridesState);
+    ov = migrateMergedToolbarButtons(ov);
   }
 
   const mergedGroups: Record<string, ModuleToolbarGroupsState> = {};
@@ -200,7 +268,8 @@ function appearanceExtras(
       return {
         style: {
           ...widthStyle,
-          ...(colors.bgColor !== "transparent" ? { backgroundColor: colors.bgColor } : {}),
+          /** 必須寫入底色（含 transparent），否則 shadcn Button 預設 bg-primary 會透出 */
+          backgroundColor: colors.bgColor,
           color: colors.textColor,
         } as CSSProperties,
         className: cn(

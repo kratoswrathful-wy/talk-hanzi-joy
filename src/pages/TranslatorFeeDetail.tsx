@@ -53,6 +53,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
+import { UiToolbarButtonIcon } from "@/lib/ui-button-icon-render";
+import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   DropdownMenu,
@@ -204,6 +206,9 @@ export default function TranslatorFeeDetail() {
   const [currentRole, setCurrentRole] = useState<UserRole>("pm");
   const { isAdmin: authIsAdmin, profile: authProfile, roles: authRoles } = useAuth();
   const authIsExecutive = authRoles.some((r) => r.role === "executive");
+
+  const uiFeesDetailCopy = useToolbarButtonUiProps("fees_detail_copy_page");
+  const lbFeesDetailCopy = useUiButtonLabel("fees_detail_copy_page") ?? "複製本頁";
 
   // Comments — initialize from feeData
   const [comments, setComments] = useState<CommentEntry[]>(() =>
@@ -1605,9 +1610,9 @@ export default function TranslatorFeeDetail() {
               <TooltipTrigger asChild>
                 <span>
                   <Button
-                    variant="outline"
                     size="sm"
-                    className={MODULE_TOOLBAR_BTN}
+                    className={uiFeesDetailCopy.className}
+                    style={uiFeesDetailCopy.style}
                     disabled={!isDraft}
                     onClick={() => {
                       if (isNavigationBlocked) {
@@ -1635,7 +1640,8 @@ export default function TranslatorFeeDetail() {
                       navigate(`/fees/${draft.id}`, { state: { autoFocusTitle: true } });
                     }}
                   >
-                    複製本頁
+                    <UiToolbarButtonIcon uiButtonId="fees_detail_copy_page" />
+                    {lbFeesDetailCopy}
                   </Button>
                 </span>
               </TooltipTrigger>

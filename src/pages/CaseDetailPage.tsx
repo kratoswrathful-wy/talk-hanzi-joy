@@ -18,6 +18,7 @@ import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
 import { UiToolbarButtonIcon } from "@/lib/ui-button-icon-render";
 import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import { CreateWithTemplateButton } from "@/components/CreateWithTemplateButton";
+import { copyCaseInquiryMessageToClipboard } from "@/lib/copy-case-inquiry-message";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MultilineInput } from "@/components/ui/multiline-input";
@@ -1139,10 +1140,10 @@ export default function CaseDetailPage() {
   const uiTaskComplete = useToolbarButtonUiProps("cases_detail_task_complete");
   const uiFeedbackDone = useToolbarButtonUiProps("cases_detail_feedback_done");
   const uiFeedbackOpen = useToolbarButtonUiProps("cases_detail_feedback_open");
-  const uiMarkDeliveredDetail = useToolbarButtonUiProps("cases_detail_mark_delivered");
-  const uiInquiryMsg = useToolbarButtonUiProps("cases_detail_inquiry_message");
-  const uiSlackDetail = useToolbarButtonUiProps("cases_detail_slack");
-  const uiCopyPage = useToolbarButtonUiProps("cases_detail_copy_page");
+  const uiMarkDeliveredDetail = useToolbarButtonUiProps("cases_mark_delivered");
+  const uiInquiryMsg = useToolbarButtonUiProps("cases_inquiry_message");
+  const uiSlackDetail = useToolbarButtonUiProps("cases_slack");
+  const uiCopyPage = useToolbarButtonUiProps("cases_copy");
 
   const lbDecline = useUiButtonLabel("cases_detail_decline") ?? "無法承接";
   const lbRevertToDraft = useUiButtonLabel("cases_detail_revert_to_draft") ?? "收回為草稿";
@@ -1155,11 +1156,11 @@ export default function CaseDetailPage() {
   const lbFinalizeAssign = useUiButtonLabel("cases_detail_finalize_assign") ?? "確定指派";
   const lbTaskComplete = useUiButtonLabel("cases_detail_task_complete") ?? "任務完成";
   const lbFeedbackDone = useUiButtonLabel("cases_detail_feedback_done") ?? "處理完畢";
-  const lbMarkDelivered = useUiButtonLabel("cases_detail_mark_delivered") ?? "交件完畢";
+  const lbMarkDelivered = useUiButtonLabel("cases_mark_delivered") ?? "交件完畢";
   const lbFeedbackOpen = useUiButtonLabel("cases_detail_feedback_open") ?? "處理回饋";
-  const lbInquiryMsg = useUiButtonLabel("cases_detail_inquiry_message") ?? "詢案訊息";
-  const lbSlackDetail = useUiButtonLabel("cases_detail_slack") ?? "Slack 詢案";
-  const lbCopyPage = useUiButtonLabel("cases_detail_copy_page") ?? "複製本頁";
+  const lbInquiryMsg = useUiButtonLabel("cases_inquiry_message") ?? "詢案訊息";
+  const lbSlackDetail = useUiButtonLabel("cases_slack") ?? "Slack 詢案";
+  const lbCopyPage = useUiButtonLabel("cases_copy") ?? "複製本頁";
 
   /** BlockNote 必須收到陣列；異常 JSON 曾導致編輯器拋錯→整頁黑屏 */
   const safeBodyContent = useMemo(() => {
@@ -1612,7 +1613,7 @@ export default function CaseDetailPage() {
               style={uiMarkDeliveredDetail.style}
               onClick={handleDelivered}
             >
-              <UiToolbarButtonIcon uiButtonId="cases_detail_mark_delivered" />
+              <UiToolbarButtonIcon uiButtonId="cases_mark_delivered" />
               {lbMarkDelivered}
             </Button>
           ) : isDelivered && isPmOrAbove ? (
@@ -1629,122 +1630,88 @@ export default function CaseDetailPage() {
       </div>
       </div>
 
-      {/* 圖示 + 更換圖示（緊靠圖示右、標題上）+ 標題／狀態；右側與詢案／複製同行（PM+） */}
+      {/* 圖示左欄；右欄由上而下：詢案／Slack／複製（靠右）、狀態列、標題（全寬） */}
       {isPmOrAbove ? (
-        <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-2">
-          <div className="flex gap-3 min-w-0 flex-1 items-start">
+        <div className="flex gap-3 w-full min-w-0 items-start">
+          <div className="shrink-0 w-[126px] flex flex-col items-start gap-2">
             {caseData.iconUrl ? (
               <img
                 src={caseData.iconUrl}
                 alt="案件圖示"
-                className="w-[126px] h-[126px] rounded-md object-cover shrink-0 border border-border"
+                className="w-[126px] h-[126px] rounded-md object-cover border border-border"
               />
             ) : null}
-            <div className="min-w-0 flex-1 flex flex-col gap-1.5">
-              {isManager && (
-                <CaseIconUploader
-                  caseId={caseData.id}
-                  currentIconUrl={caseData.iconUrl || null}
-                  onUploaded={(url) => save({ iconUrl: url })}
-                  onRemoved={() => save({ iconUrl: "" })}
-                />
+            {isManager && (
+              <CaseIconUploader
+                caseId={caseData.id}
+                currentIconUrl={caseData.iconUrl || null}
+                onUploaded={(url) => save({ iconUrl: url })}
+                onRemoved={() => save({ iconUrl: "" })}
+              />
+            )}
+          </div>
+          <div className="min-w-0 flex-1 flex flex-col gap-2 w-full">
+            <div className="flex flex-wrap justify-end gap-2 w-full">
+              <Button
+                size="sm"
+                className={uiInquiryMsg.className}
+                style={uiInquiryMsg.style}
+                onClick={() => {
+                  const title = caseData?.title || "（無標題）";
+                  const url = `${window.location.origin}/cases/${id}`;
+                  copyCaseInquiryMessageToClipboard(title, url);
+                }}
+              >
+                <UiToolbarButtonIcon uiButtonId="cases_inquiry_message" />
+                {lbInquiryMsg}
+              </Button>
+              {caseData && (
+                <Button
+                  size="sm"
+                  className={uiSlackDetail.className}
+                  style={uiSlackDetail.style}
+                  onClick={() => setInquirySlackOpen(true)}
+                >
+                  <UiToolbarButtonIcon uiButtonId="cases_slack" />
+                  <span className="text-xs font-medium leading-tight">{lbSlackDetail}</span>
+                </Button>
               )}
+              <Button
+                size="sm"
+                className={uiCopyPage.className}
+                style={uiCopyPage.style}
+                onClick={handleDuplicate}
+              >
+                <UiToolbarButtonIcon uiButtonId="cases_copy" />
+                {lbCopyPage}
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 w-full">
+              <CaseStatusBadge status={caseData.status} />
+              {isInquiry && !caseData.multiCollab && (
+                <span className="text-xs text-muted-foreground">
+                  譯者若可承接，請直接點選右上角的「承接本案」
+                </span>
+              )}
+              {caseData.multiCollab && isInquiry && (
+                <span className="text-xs text-muted-foreground">
+                  譯者若可承接，請直接於表格中可承接的橫列勾選「確認承接」。
+                </span>
+              )}
+              {caseData.multiCollab && isDispatched && (
+                <span className="text-xs text-muted-foreground">
+                  譯者完成任務後，請直接勾選「任務完成」。
+                </span>
+              )}
+            </div>
+            <div className="w-full min-w-0">
               <TitleInput
                 key={caseData.id}
                 value={caseData.title}
                 onSave={(v) => save({ title: v })}
                 autoFocusSelect={autoFocusTitle}
               />
-              <div className="flex flex-wrap items-center gap-2 pl-3">
-                <CaseStatusBadge status={caseData.status} />
-                {isInquiry && !caseData.multiCollab && (
-                  <span className="text-xs text-muted-foreground">
-                    譯者若可承接，請直接點選右上角的「承接本案」
-                  </span>
-                )}
-                {caseData.multiCollab && isInquiry && (
-                  <span className="text-xs text-muted-foreground">
-                    譯者若可承接，請直接於表格中可承接的橫列勾選「確認承接」。
-                  </span>
-                )}
-                {caseData.multiCollab && isDispatched && (
-                  <span className="text-xs text-muted-foreground">
-                    譯者完成任務後，請直接勾選「任務完成」。
-                  </span>
-                )}
-              </div>
             </div>
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
-            <Button
-              size="sm"
-              className={uiInquiryMsg.className}
-              style={uiInquiryMsg.style}
-              onClick={() => {
-                const origin = window.location.origin;
-                const title = caseData?.title || "（無標題）";
-                const url = `${origin}/cases/${id}`;
-                const plainText = `請問這件可以做嗎？\n${title}\n${url}`;
-                const html = `請問這件可以做嗎？<br><a href="${url}">${title}</a>`;
-                const clip = (window as any).ClipboardItem;
-                if (clip && navigator.clipboard?.write) {
-                  navigator.clipboard
-                    .write([
-                      new clip({
-                        "text/plain": new Blob([plainText], { type: "text/plain" }),
-                        "text/html": new Blob([html], { type: "text/html" }),
-                      }),
-                    ])
-                    .then(() => toast({ description: "已複製詢案訊息至剪貼簿" }))
-                    .catch(() => {
-                      navigator.clipboard
-                        .writeText(plainText)
-                        .then(() => toast({ description: "已複製詢案訊息至剪貼簿" }))
-                        .catch(() =>
-                          toast({
-                            title: "複製失敗",
-                            description: "請手動複製內容後再貼到 Slack",
-                            variant: "destructive",
-                          })
-                        );
-                    });
-                } else {
-                  navigator.clipboard
-                    .writeText(plainText)
-                    .then(() => toast({ description: "已複製詢案訊息至剪貼簿" }))
-                    .catch(() =>
-                      toast({
-                        title: "複製失敗",
-                        description: "請手動複製內容後再貼到 Slack",
-                        variant: "destructive",
-                      })
-                    );
-                }
-              }}
-            >
-              <UiToolbarButtonIcon uiButtonId="cases_detail_inquiry_message" />
-              {lbInquiryMsg}
-            </Button>
-            {caseData && (
-              <Button
-                size="sm"
-                className={uiSlackDetail.className}
-                style={uiSlackDetail.style}
-                onClick={() => setInquirySlackOpen(true)}
-              >
-                <UiToolbarButtonIcon uiButtonId="cases_detail_slack" />
-                <span className="text-xs font-medium leading-tight">{lbSlackDetail}</span>
-              </Button>
-            )}
-            <Button
-              size="sm"
-              className={uiCopyPage.className}
-              style={uiCopyPage.style}
-              onClick={handleDuplicate}
-            >
-              <UiToolbarButtonIcon uiButtonId="cases_detail_copy_page" />
-              {lbCopyPage}
-            </Button>
           </div>
         </div>
       ) : (
@@ -1756,13 +1723,7 @@ export default function CaseDetailPage() {
               className="w-[126px] h-[126px] rounded-md object-cover shrink-0 border border-border"
             />
           )}
-          <div className="min-w-0 flex-1 flex flex-col justify-start gap-1.5 pt-0.5">
-            <TitleInput
-              key={caseData.id}
-              value={caseData.title}
-              onSave={(v) => save({ title: v })}
-              autoFocusSelect={autoFocusTitle}
-            />
+          <div className="min-w-0 flex-1 flex flex-col justify-start gap-1.5 pt-0.5 w-full">
             <div className="flex flex-wrap items-center gap-2 pl-3">
               <CaseStatusBadge status={caseData.status} />
               {isInquiry && !caseData.multiCollab && (
@@ -1781,6 +1742,12 @@ export default function CaseDetailPage() {
                 </span>
               )}
             </div>
+            <TitleInput
+              key={caseData.id}
+              value={caseData.title}
+              onSave={(v) => save({ title: v })}
+              autoFocusSelect={autoFocusTitle}
+            />
           </div>
         </div>
       )}

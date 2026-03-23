@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { parseCssColorToHex } from "@/lib/css-color";
 import { Check, Pipette, Plus, X } from "lucide-react";
 
 interface ColorPickerProps {
@@ -24,8 +25,10 @@ interface ColorPickerProps {
   onRemoveCustomColor?: (color: string) => void;
   /** Map of uppercase hex color → list of option labels using it */
   colorUsageMap?: Record<string, string[]>;
-  /** When provided, show a "預設值（白）" button that calls this callback */
+  /** When provided, show a "預設值（…）" button that calls this callback */
   onResetDefault?: () => void;
+  /** 顯示在「恢復預設值」括號內，例如色號或「透明」 */
+  resetDefaultLabel?: string;
 }
 
 function hsvToHex(h: number, s: number, v: number): string {
@@ -124,9 +127,11 @@ export default function ColorPicker({
   onRemoveCustomColor,
   colorUsageMap = {},
   onResetDefault,
+  resetDefaultLabel,
 }: ColorPickerProps) {
-  const [hsv, setHsv] = useState<[number, number, number]>(() => hexToHsv(value || "#FF0000"));
-  const [hexInput, setHexInput] = useState(value || "#FF0000");
+  const initialHex = parseCssColorToHex(value || "#FFFFFF");
+  const [hsv, setHsv] = useState<[number, number, number]>(() => hexToHsv(initialHex));
+  const [hexInput, setHexInput] = useState(initialHex);
   const [showWheel, setShowWheel] = useState(false);
   const [deleteColorConfirm, setDeleteColorConfirm] = useState<string | null>(null);
 
@@ -276,7 +281,7 @@ export default function ColorPicker({
               <ColorSwatch
                 key={c}
                 color={c}
-                selected={value === c}
+                selected={valueHex === c.toUpperCase()}
                 labels={getLabels(c)}
                 onSelect={() => {
                   onChange(c);
@@ -320,7 +325,8 @@ export default function ColorPicker({
               className="text-xs flex-1"
               onClick={onResetDefault}
             >
-              恢復預設值（白）
+              恢復預設值
+              {resetDefaultLabel != null && resetDefaultLabel !== "" ? ` (${resetDefaultLabel})` : ""}
             </Button>
           )}
           <Button

@@ -1,7 +1,5 @@
-import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { StatusStyleSection } from "@/components/settings/StatusStyleSection";
 import { NoteSelectSection } from "@/components/settings/NoteSelectSection";
 import { BillingChannelSection } from "@/components/settings/BillingChannelSection";
@@ -14,7 +12,6 @@ import { ClientPricingSection } from "@/components/settings/ClientPricingSection
 import { DispatchRouteSection } from "@/components/settings/DispatchRouteSection";
 import { IconLibrarySection } from "@/components/settings/IconLibrarySection";
 import { TranslatorTierSection } from "@/components/settings/TranslatorTierSection";
-import { TranslatorNotesSection } from "@/components/settings/TranslatorNotesSection";
 import { OpsIncidentsSection } from "@/components/settings/OpsIncidentsSection";
 
 export default function SettingsPage() {
@@ -65,25 +62,8 @@ export default function SettingsPage() {
         <BillingChannelSection />
       </div>
 
-      {canViewSection("translator_tiers") && (
-        <>
-          <TranslatorNotesSection />
-          <TranslatorTierSection />
-        </>
-      )}
+      {canViewSection("translator_tiers") && <TranslatorTierSection />}
 
-      {isAdmin && (
-        <Alert>
-          <AlertTitle>Slack 已移至個人檔案</AlertTitle>
-          <AlertDescription className="mt-1 text-sm">
-            連結 Slack、承接／無法承接通知與 Slack 詢案說明請至{" "}
-            <Link to="/profile" className="font-medium text-primary underline underline-offset-4">
-              個人檔案
-            </Link>
-            。
-          </AlertDescription>
-        </Alert>
-      )}
       {isAdmin && <OpsIncidentsSection />}
     </div>
   );

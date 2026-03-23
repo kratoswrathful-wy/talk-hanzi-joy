@@ -42,6 +42,7 @@ import { InquirySlackDialog } from "@/components/InquirySlackDialog";
 import { needsDuplicateSortDialog, DEFAULT_DUPLICATE_SORT } from "@/lib/case-title-duplicate";
 import type { CaseDuplicateSort } from "@/stores/case-store";
 import { DuplicateCaseSortDialog } from "@/components/DuplicateCaseSortDialog";
+import { copyCaseInquiryMessageToClipboard } from "@/lib/copy-case-inquiry-message";
 
 function getTodayYYMMDD(): string {
   const now = new Date();
@@ -519,14 +520,16 @@ export default function CasesPage() {
     [checkPerm]
   );
 
-  const uiListMarkDelivered = useToolbarButtonUiProps("cases_list_mark_delivered");
-  const uiListSlack = useToolbarButtonUiProps("cases_list_slack");
-  const uiListCopyRow = useToolbarButtonUiProps("cases_list_copy_row");
-  const uiListGenFees = useToolbarButtonUiProps("cases_list_gen_fees");
-  const lbMarkDelivered = useUiButtonLabel("cases_list_mark_delivered") ?? "交件完畢";
-  const lbSlack = useUiButtonLabel("cases_list_slack") ?? "Slack 詢案";
-  const lbCopyRow = useUiButtonLabel("cases_list_copy_row") ?? "複製本單";
-  const lbGenFees = useUiButtonLabel("cases_list_gen_fees") ?? "產生費用單";
+  const uiMarkDelivered = useToolbarButtonUiProps("cases_mark_delivered");
+  const uiSlack = useToolbarButtonUiProps("cases_slack");
+  const uiCopy = useToolbarButtonUiProps("cases_copy");
+  const uiGenFees = useToolbarButtonUiProps("cases_gen_fees");
+  const uiInquiryMsg = useToolbarButtonUiProps("cases_inquiry_message");
+  const lbMarkDelivered = useUiButtonLabel("cases_mark_delivered") ?? "交件完畢";
+  const lbSlack = useUiButtonLabel("cases_slack") ?? "Slack 詢案";
+  const lbCopy = useUiButtonLabel("cases_copy") ?? "複製本頁";
+  const lbGenFees = useUiButtonLabel("cases_gen_fees") ?? "產生費用單";
+  const lbInquiryMsg = useUiButtonLabel("cases_inquiry_message") ?? "詢案訊息";
 
   // Register cases module with global undo store
   useEffect(() => {
@@ -856,72 +859,89 @@ export default function CasesPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">案件管理</h1>
         {isAdmin && (
-          <CreateWithTemplateButton
-            module="cases"
-            onCreate={handleCreate}
-            label="新增案件"
-            uiButtonId="cases_add"
-          />
-        )}
-        {/* 交件完畢 button — PM+ only */}
-        {isAdmin && rowSelection.selectedCount > 0 && (
-          <Button
-            size="sm"
-            className={uiListMarkDelivered.className}
-            style={uiListMarkDelivered.style}
-            onClick={handleMarkDelivered}
-          >
-            <UiToolbarButtonIcon uiButtonId="cases_list_mark_delivered" />
-            {lbMarkDelivered}
-          </Button>
-        )}
-        {isAdmin && rowSelection.selectedCount > 0 && (
-          <Button
-            size="sm"
-            className={uiListSlack.className}
-            style={uiListSlack.style}
-            onClick={() => setInquirySlackOpen(true)}
-          >
-            <UiToolbarButtonIcon uiButtonId="cases_list_slack" />
-            {lbSlack}
-          </Button>
-        )}
-        {rowSelection.selectedCount > 0 && isAdmin && (
           <>
+            <Button
+              size="sm"
+              className={uiInquiryMsg.className}
+              style={uiInquiryMsg.style}
+              disabled={rowSelection.selectedCount !== 1}
+              onClick={() => {
+                const cid = Array.from(rowSelection.selectedIds)[0];
+                const c = cases.find((x) => x.id === cid);
+                const t = c?.title || "（無標題）";
+                const url = `${window.location.origin}/cases/${cid}`;
+                copyCaseInquiryMessageToClipboard(t, url);
+              }}
+            >
+              <UiToolbarButtonIcon uiButtonId="cases_inquiry_message" />
+              {lbInquiryMsg}
+            </Button>
+            {rowSelection.selectedCount > 0 && (
+              <Button
+                size="sm"
+                className={uiSlack.className}
+                style={uiSlack.style}
+                onClick={() => setInquirySlackOpen(true)}
+              >
+                <UiToolbarButtonIcon uiButtonId="cases_slack" />
+                {lbSlack}
+              </Button>
+            )}
             {rowSelection.selectedCount === 1 && (
               <Button
                 size="sm"
-                className={uiListCopyRow.className}
-                style={uiListCopyRow.style}
+                className={uiCopy.className}
+                style={uiCopy.style}
                 onClick={() => {
                   const id = Array.from(rowSelection.selectedIds)[0];
                   beginDuplicate(id);
                 }}
               >
-                <UiToolbarButtonIcon uiButtonId="cases_list_copy_row" />
-                {lbCopyRow}
+                <UiToolbarButtonIcon uiButtonId="cases_copy" />
+                {lbCopy}
               </Button>
             )}
-            <Button
-              size="sm"
-              className={uiListGenFees.className}
-              style={uiListGenFees.style}
-              onClick={handleGenerateFees}
-            >
-              <UiToolbarButtonIcon uiButtonId="cases_list_gen_fees" />
-              {lbGenFees}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 text-muted-foreground hover:text-destructive"
-              onClick={() => setShowDeleteConfirm(true)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            <CreateWithTemplateButton
+              module="cases"
+              onCreate={handleCreate}
+              label="新增案件"
+              uiButtonId="cases_add"
+            />
+            {rowSelection.selectedCount > 0 && (
+              <Button
+                size="sm"
+                className={uiMarkDelivered.className}
+                style={uiMarkDelivered.style}
+                onClick={handleMarkDelivered}
+              >
+                <UiToolbarButtonIcon uiButtonId="cases_mark_delivered" />
+                {lbMarkDelivered}
+              </Button>
+            )}
+            {rowSelection.selectedCount > 0 && (
+              <>
+                <Button
+                  size="sm"
+                  className={uiGenFees.className}
+                  style={uiGenFees.style}
+                  onClick={handleGenerateFees}
+                >
+                  <UiToolbarButtonIcon uiButtonId="cases_gen_fees" />
+                  {lbGenFees}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                  onClick={() => setShowDeleteConfirm(true)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </>
+            )}
           </>
         )}
       </div>
