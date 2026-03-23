@@ -1765,7 +1765,7 @@ export default function CaseDetailPage() {
         <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-1.5">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-destructive">無法承接紀錄</p>
-            {isDispatched && isPmOrAbove && (
+            {isPmOrAbove && (
               <Button
                 variant="ghost"
                 size="sm"

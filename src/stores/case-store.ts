@@ -599,6 +599,7 @@ function clearDuplicateFields(data: Partial<CaseRecord>): Partial<CaseRecord> {
     trackChanges: [],
     caseReferenceMaterials: [],
     sourceFiles: [],
+    declineRecords: [],
   };
 }
 

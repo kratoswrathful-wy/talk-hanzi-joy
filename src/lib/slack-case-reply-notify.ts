@@ -157,13 +157,34 @@ export async function maybeSendTranslatorCaseReplySlack(params: {
   const failed = results.filter((r) => !r.ok);
   const anyOk = results.some((r) => r.ok);
 
+  /** Slack users.lookupByEmail — email not in workspace or not a full member */
+  const isSlackUserLookupFailure = (err?: string) => {
+    const e = (err ?? "").toLowerCase();
+    return e === "users_not_found" || e === "user_not_found";
+  };
+
+  const failedLookupOnly =
+    failed.length > 0 && failed.every((f) => isSlackUserLookupFailure(f.error));
+
   if (failed.length > 0) {
-    toast({
-      title: anyOk ? "Slack 通知部分失敗" : "Slack 通知未送出",
-      description: failed.map((f) => `${f.email}(${f.error ?? "?"})`).join("；"),
-      variant: "destructive",
-    });
-    if (!anyOk) return;
+    if (failedLookupOnly) {
+      // 設定問題，不是譯者操作失敗；案件「承接／無法承接」已寫入
+      const emails = failed.map((f) => f.email).join("、");
+      toast({
+        title: anyOk ? "部分派案端無法在 Slack 收到通知" : "無法以 Slack 通知派案端",
+        description: anyOk
+          ? `以下信箱在 Slack 工作區找不到對應成員：${emails}。其餘收件人已收到。請 PM／執行長使用與 Slack 相同的 email，或由管理員將成員加入工作區。`
+          : `以下信箱在 Slack 工作區找不到對應成員：${emails}。請 PM／執行長使用與 Slack 相同的 email，或由管理員將成員加入工作區。您在案件上的操作已記錄。`,
+      });
+      if (!anyOk) return;
+    } else {
+      toast({
+        title: anyOk ? "Slack 通知部分失敗" : "Slack 通知未送出",
+        description: failed.map((f) => `${f.email}(${f.error ?? "?"})`).join("；"),
+        variant: "destructive",
+      });
+      if (!anyOk) return;
+    }
   }
 
   if (anyOk) {

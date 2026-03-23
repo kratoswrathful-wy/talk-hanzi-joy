@@ -17,10 +17,16 @@ async function slackApi(token: string, method: string, body?: Record<string, unk
  * PM／Executive 收件人：必須已在 App 內「連結 Slack」（user_slack_meta）、
  * 且未關閉 receive_translator_case_reply_slack_dms；排除寄件者。
  */
-async function resolveCaseReplyRecipientEmails(
+type CaseReplyRecipient = { email: string; slackUserId: string | null };
+
+/**
+ * PM／Executive 收件人：已連結 Slack（user_slack_meta 含 slack_user_id）、開啟接收通知等。
+ * 優先回傳 DB 內的 Slack user id，避免僅依 profiles.email 做 lookupByEmail（與 Slack 帳號 email 不一致時失敗）。
+ */
+async function resolveCaseReplyRecipients(
   supabase: ReturnType<typeof createClient>,
   senderEmail: string | undefined,
-): Promise<string[]> {
+): Promise<CaseReplyRecipient[]> {
   const { data: roleRows, error: roleErr } = await supabase
     .from("user_roles")
     .select("user_id")
@@ -34,18 +40,22 @@ async function resolveCaseReplyRecipientEmails(
 
   const { data: linkedRows, error: linkErr } = await supabase
     .from("user_slack_meta")
-    .select("user_id")
+    .select("user_id, slack_user_id")
     .in("user_id", pmExecIds);
 
   if (linkErr || !linkedRows?.length) {
     return [];
   }
 
+  const slackIdByUserId = new Map<string, string>();
+  for (const r of linkedRows as { user_id: string; slack_user_id: string | null }[]) {
+    if (r.slack_user_id) slackIdByUserId.set(r.user_id, r.slack_user_id);
+  }
+
   const linkedIdSet = new Set(linkedRows.map((r: { user_id: string }) => r.user_id));
 
   const { data: profs, error: profErr } = await supabase
     .from("profiles")
-    // Must match DB column receive_translator_case_reply_slack_dms (see src/lib/profile-columns.ts)
     .select("id, email, receive_translator_case_reply_slack_dms")
     .in("id", [...linkedIdSet]);
 
@@ -55,7 +65,7 @@ async function resolveCaseReplyRecipientEmails(
 
   const senderLower = (senderEmail || "").trim().toLowerCase();
 
-  const out: string[] = [];
+  const out: CaseReplyRecipient[] = [];
   for (const p of profs as {
     id: string;
     email: string;
@@ -66,10 +76,18 @@ async function resolveCaseReplyRecipientEmails(
     const em = String(p.email || "").trim().toLowerCase();
     if (!em) continue;
     if (senderLower && em === senderLower) continue;
-    out.push(em);
+    out.push({
+      email: em,
+      slackUserId: slackIdByUserId.get(p.id) ?? null,
+    });
   }
 
-  return [...new Set(out)];
+  const seen = new Set<string>();
+  return out.filter((r) => {
+    if (seen.has(r.email)) return false;
+    seen.add(r.email);
+    return true;
+  });
 }
 
 Deno.serve(async (req) => {
@@ -154,10 +172,12 @@ Deno.serve(async (req) => {
       });
     }
 
+    let caseReplyRecipients: CaseReplyRecipient[] | null = null;
     let uniqueEmails: string[];
 
     if (caseReplyNotification) {
-      uniqueEmails = await resolveCaseReplyRecipientEmails(supabase, user.email ?? undefined);
+      caseReplyRecipients = await resolveCaseReplyRecipients(supabase, user.email ?? undefined);
+      uniqueEmails = caseReplyRecipients.map((r) => r.email);
     } else {
       const recipientEmails: string[] = Array.isArray(body.recipient_emails) ? body.recipient_emails : [];
       uniqueEmails = [...new Set(recipientEmails.map((e) => String(e).trim().toLowerCase()))].filter(Boolean);
@@ -176,18 +196,30 @@ Deno.serve(async (req) => {
 
     const results: { email: string; ok: boolean; error?: string }[] = [];
 
+    const byEmail = caseReplyRecipients
+      ? new Map(caseReplyRecipients.map((r) => [r.email, r] as const))
+      : null;
+
     for (const email of uniqueEmails) {
-      const lookup = await fetch(
-        `https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      const lu = await lookup.json();
-      if (!lu.ok || !lu.user?.id) {
-        results.push({ email, ok: false, error: lu.error || "user_not_found" });
-        continue;
+      let slackMemberId: string | null = null;
+      if (byEmail) {
+        slackMemberId = byEmail.get(email)?.slackUserId ?? null;
       }
 
-      const open = await slackApi(token, "conversations.open", { users: lu.user.id });
+      if (!slackMemberId) {
+        const lookup = await fetch(
+          `https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        const lu = await lookup.json();
+        if (!lu.ok || !lu.user?.id) {
+          results.push({ email, ok: false, error: lu.error || "user_not_found" });
+          continue;
+        }
+        slackMemberId = lu.user.id as string;
+      }
+
+      const open = await slackApi(token, "conversations.open", { users: slackMemberId });
       if (!open.ok || !open.channel?.id) {
         results.push({ email, ok: false, error: open.error || "open_dm_failed" });
         continue;
