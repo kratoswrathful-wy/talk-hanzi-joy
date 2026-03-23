@@ -46,6 +46,11 @@ async function ensureLoaded() {
 }
 
 supabase.auth.onAuthStateChange((event, session) => {
+  // Keep `loaded` true so realtime handlers (profiles → loadAssignees) keep working
+  if (event === "TOKEN_REFRESHED") {
+    return;
+  }
+
   loaded = false;
   if (loadTimer) clearTimeout(loadTimer);
 
@@ -54,7 +59,6 @@ supabase.auth.onAuthStateChange((event, session) => {
     return;
   }
 
-  // Token refresh does not change user; reloading all settings on every refresh can overload login / tab focus
   if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
     loadTimer = setTimeout(() => {
       void loadAllSettings();

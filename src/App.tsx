@@ -58,8 +58,8 @@ function SettingsAccessDenied() {
               前往個人檔案
             </Link>
             <span className="text-muted-foreground"> · </span>
-            <Link to="/fees" className="text-primary underline underline-offset-4">
-              返回費用管理
+            <Link to="/cases" className="text-primary underline underline-offset-4">
+              返回案件管理
             </Link>
           </p>
         </AlertDescription>
@@ -112,7 +112,7 @@ function AuthenticatedRoutes() {
   return (
     <AppLayout>
       <Routes>
-        <Route path="/" element={<Navigate to="/fees" replace />} />
+        <Route path="/" element={<Navigate to="/cases" replace />} />
         <Route path="/cases" element={<CasesPage />} />
         <Route path="/cases/:id" element={<CaseDetailPage />} />
         <Route path="/fees" element={<TranslatorFees />} />
