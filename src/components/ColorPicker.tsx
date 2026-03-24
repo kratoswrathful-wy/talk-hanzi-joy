@@ -281,7 +281,7 @@ export default function ColorPicker({
               <ColorSwatch
                 key={c}
                 color={c}
-                selected={valueHex === c.toUpperCase()}
+                selected={currentHex === c.toUpperCase()}
                 labels={getLabels(c)}
                 onSelect={() => {
                   onChange(c);
