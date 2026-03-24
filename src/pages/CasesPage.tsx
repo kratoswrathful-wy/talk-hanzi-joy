@@ -1044,9 +1044,18 @@ export default function CasesPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
-      {/* 第一行：標題 + 流程按鈕（批次交件、單筆流程）；譯者僅見此列與流程按鈕 */}
+      {/* 第一行：新增案件（PM+）→ 標題 → 流程按鈕（批次交件、單筆流程）；譯者僅見標題與流程按鈕 */}
       <div className="space-y-2">
         <div className="flex w-full flex-wrap items-center gap-2">
+          {isPmOrAbove && (
+            <CreateWithTemplateButton
+              module="cases"
+              onCreate={handleCreate}
+              label="新增案件"
+              size="sm"
+              uiButtonId="cases_add"
+            />
+          )}
           <h1 className="text-2xl font-semibold tracking-tight shrink-0">案件管理</h1>
           {canShowMarkDeliveredBulk ? (
             <Button
@@ -1084,13 +1093,6 @@ export default function CasesPage() {
         {/* 第二行：操作按鈕（PM+）；譯者不渲染此列，版面與先前一致 */}
         {isPmOrAbove ? (
           <div className="flex w-full flex-wrap items-center gap-2">
-            <CreateWithTemplateButton
-              module="cases"
-              onCreate={handleCreate}
-              label="新增案件"
-              size="sm"
-              uiButtonId="cases_add"
-            />
             <Button
               size="sm"
               className={uiInquiryMsg.className}
