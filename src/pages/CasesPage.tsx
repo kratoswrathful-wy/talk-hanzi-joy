@@ -1044,9 +1044,10 @@ export default function CasesPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
-      {/* 第一行：新增案件（PM+）→ 標題 → 流程按鈕（批次交件、單筆流程）；譯者僅見標題與流程按鈕 */}
+      {/* 第一行：標題 → 新增案件（PM+）→ 流程按鈕（批次交件、單筆流程）；譯者僅見標題與流程按鈕 */}
       <div className="space-y-2">
         <div className="flex w-full flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight shrink-0">案件管理</h1>
           {isPmOrAbove && (
             <CreateWithTemplateButton
               module="cases"
@@ -1056,7 +1057,6 @@ export default function CasesPage() {
               uiButtonId="cases_add"
             />
           )}
-          <h1 className="text-2xl font-semibold tracking-tight shrink-0">案件管理</h1>
           {canShowMarkDeliveredBulk ? (
             <Button
               size="sm"
