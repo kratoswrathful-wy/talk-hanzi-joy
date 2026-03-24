@@ -693,8 +693,9 @@ export default function CasesPage() {
 
   const handleFlowRevertRevision = useCallback(() => {
     if (!selectedSingleCase) return;
-    if (selectedSingleCase.multiCollab && selectedSingleCase.collabRows.length > 0) {
-      const updatedRows = selectedSingleCase.collabRows.map((r) => ({ ...r, taskCompleted: false, delivered: false }));
+    const rows = selectedSingleCase.collabRows ?? [];
+    if (selectedSingleCase.multiCollab && rows.length > 0) {
+      const updatedRows = rows.map((r) => ({ ...r, taskCompleted: false, delivered: false }));
       caseStore.update(selectedSingleCase.id, { status: "dispatched" as CaseStatus, collabRows: updatedRows });
     } else {
       caseStore.update(selectedSingleCase.id, { status: "dispatched" as CaseStatus });
@@ -739,8 +740,9 @@ export default function CasesPage() {
 
   const handleFlowMarkDelivered = useCallback(() => {
     if (!selectedSingleCase) return;
-    if (selectedSingleCase.multiCollab && selectedSingleCase.collabRows.length > 0) {
-      const updatedRows = selectedSingleCase.collabRows.map((r) => ({ ...r, delivered: true }));
+    const rows = selectedSingleCase.collabRows ?? [];
+    if (selectedSingleCase.multiCollab && rows.length > 0) {
+      const updatedRows = rows.map((r) => ({ ...r, delivered: true }));
       caseStore.update(selectedSingleCase.id, { status: "delivered" as CaseStatus, collabRows: updatedRows });
     } else {
       caseStore.update(selectedSingleCase.id, { status: "delivered" as CaseStatus });

@@ -78,5 +78,6 @@ export function UiToolbarButtonIcon({
   }
 
   const Cmp = LUCIDE_BY_NAME[parsed.name];
+  if (!Cmp) return null;
   return <Cmp className={className ?? ICON_CLASS} style={style} />;
 }

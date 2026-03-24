@@ -503,6 +503,56 @@ export function useToolbarButtonUiProps(id: string): { style: CSSProperties; cla
   }, [id, toolbarKey]);
 }
 
+/** 案件總表「單筆流程」工具列：一次訂閱，避免同時掛 14 個 useToolbarButtonUiProps + 14 個 useUiButtonLabel 造成執行期問題 */
+export const CASES_LIST_FLOW_DETAIL_BUTTON_IDS = [
+  "cases_detail_decline",
+  "cases_detail_revert_to_draft",
+  "cases_detail_cancel_dispatch",
+  "cases_detail_revert_revision",
+  "cases_detail_revert_to_feedback",
+  "cases_detail_delete_draft",
+  "cases_detail_publish",
+  "cases_detail_accept_case",
+  "cases_detail_finalize_assign",
+  "cases_detail_task_complete",
+  "cases_detail_feedback_done",
+  "cases_mark_delivered",
+  "cases_detail_feedback_open",
+] as const;
+
+export type CasesListFlowDetailToolbarUi = {
+  propsById: Record<string, { style: CSSProperties; className: string }>;
+  labelById: Record<string, string>;
+};
+
+export function useCasesListFlowDetailToolbarUi(): CasesListFlowDetailToolbarUi {
+  const toolbarKey = useSyncExternalStore(
+    uiButtonStyleStore.subscribe,
+    () =>
+      JSON.stringify({
+        o: uiButtonStyleStore.getOverrides(),
+        l: uiButtonStyleStore.getLayout(),
+      }),
+    () =>
+      JSON.stringify({
+        o: uiButtonStyleStore.getOverrides(),
+        l: uiButtonStyleStore.getLayout(),
+      })
+  );
+  return useMemo(() => {
+    const widthRem = uiButtonStyleStore.getLayout().widthRem;
+    const propsById: Record<string, { style: CSSProperties; className: string }> = {};
+    const labelById: Record<string, string> = {};
+    for (const id of CASES_LIST_FLOW_DETAIL_BUTTON_IDS) {
+      const def = getUiButtonDef(id);
+      const colors = getUiButtonColors(id);
+      propsById[id] = appearanceExtras(def, colors, widthRem);
+      labelById[id] = getUiButtonLabel(id);
+    }
+    return { propsById, labelById };
+  }, [toolbarKey]);
+}
+
 /** id 為空時不訂閱、回傳 null（給可選範本按鈕等） */
 export function useToolbarButtonUiPropsMaybe(
   id: string | undefined
