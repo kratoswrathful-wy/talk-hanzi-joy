@@ -13,6 +13,55 @@ async function slackApi(token: string, method: string, body?: Record<string, unk
   return res.json();
 }
 
+/** Slack users.info — 取得該成員在 Slack 端登記的主信箱（需 users:read / users:read.email） */
+async function getSlackUserPrimaryEmail(
+  token: string,
+  slackUserId: string,
+): Promise<string | null> {
+  const r = await slackApi(token, "users.info", { user: slackUserId });
+  if (!r.ok || !r.user?.profile) return null;
+  const em = (r.user.profile as { email?: string }).email;
+  if (!em || typeof em !== "string") return null;
+  const t = em.trim().toLowerCase();
+  return t || null;
+}
+
+/**
+ * 先以 DB 的 slack_user_id 開 DM；失敗時用 users.info 取「同一成員」的 Slack 主信箱，
+ * 再以 lookupByEmail 驗證回傳的 user id 與 slack_user_id 一致才重試。
+ * 不使用 TMS profiles.email，避免同工作區多帳號時誤送。
+ */
+async function sendDmWithSlackIdFirstOrVerifiedEmailFallback(
+  token: string,
+  primarySlackUserId: string,
+  message: string,
+  notificationFallback: string,
+): Promise<
+  | { ok: true; slack_user_id_used: string; used_slack_email_fallback: boolean }
+  | { ok: false; error: string }
+> {
+  const first = await openDmAndPostMessage(token, primarySlackUserId, message, notificationFallback);
+  if (first.ok) {
+    return { ok: true, slack_user_id_used: primarySlackUserId, used_slack_email_fallback: false };
+  }
+  const slackEmail = await getSlackUserPrimaryEmail(token, primarySlackUserId);
+  if (!slackEmail) {
+    return { ok: false, error: `${first.stage}:${first.error}` };
+  }
+  const lu = await lookupSlackUserIdByEmail(token, slackEmail);
+  if (!lu.ok) {
+    return { ok: false, error: `${first.stage}:${first.error};fallback_lookup:${lu.error}` };
+  }
+  if (lu.userId !== primarySlackUserId) {
+    return { ok: false, error: "slack_email_lookup_mismatch" };
+  }
+  const retry = await openDmAndPostMessage(token, lu.userId, message, notificationFallback);
+  if (retry.ok) {
+    return { ok: true, slack_user_id_used: primarySlackUserId, used_slack_email_fallback: true };
+  }
+  return { ok: false, error: `${first.stage}:${first.error};retry:${retry.stage}:${retry.error}` };
+}
+
 async function lookupSlackUserIdByEmail(
   token: string,
   email: string,
@@ -58,8 +107,9 @@ async function openDmAndPostMessage(
 }
 
 /**
- * 承接／無法承接：目標優先使用 OAuth 寫入的 Slack user id（與 profiles.email 是否一致無關）。
- * 只有在 open/post 失敗時，才依 profiles.email 做備援 lookupByEmail 重試。
+ * 承接／無法承接：目標優先使用 OAuth 寫入的 Slack user id。
+ * open/post 失敗時的備援：僅使用 users.info(slack_user_id) 取得之 Slack 主信箱做 lookup，
+ * 且必須與 slack_user_id 為同一人後才重試（見 sendDmWithSlackIdFirstOrVerifiedEmailFallback）。
  */
 type CaseReplyRecipient = {
   userId: string;
@@ -217,7 +267,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    const results: { email: string; ok: boolean; error?: string }[] = [];
+    const results: {
+      email: string;
+      ok: boolean;
+      error?: string;
+      slack_user_id_used?: string;
+      used_slack_email_fallback?: boolean;
+    }[] = [];
 
     if (caseReplyNotification) {
       const caseReplyRecipients = await resolveCaseReplyRecipients(supabase, user.id);
@@ -239,17 +295,21 @@ Deno.serve(async (req) => {
           results.push({ email: rec.profileEmail, ok: false, error: "slack_user_id_missing" });
           continue;
         }
-        const sent = await openDmAndPostMessage(token, primarySlackUserId, message, notificationFallback);
-        if (sent.ok) {
-          results.push({ email: rec.profileEmail, ok: true });
-        } else {
-          // 承接／無法承接：不使用 profiles.email 備援，避免同工作區內兩個 Slack 帳號時，
-          // lookupByEmail(TMS 信箱) 將訊息送到錯誤成員（與 OAuth 寫入的 slack_user_id 不一致）。
+        const dm = await sendDmWithSlackIdFirstOrVerifiedEmailFallback(
+          token,
+          primarySlackUserId,
+          message,
+          notificationFallback,
+        );
+        if (dm.ok) {
           results.push({
             email: rec.profileEmail,
-            ok: false,
-            error: `${sent.stage}:${sent.error}`,
+            ok: true,
+            slack_user_id_used: dm.slack_user_id_used,
+            used_slack_email_fallback: dm.used_slack_email_fallback,
           });
+        } else {
+          results.push({ email: rec.profileEmail, ok: false, error: dm.error });
         }
       }
     } else {
@@ -291,13 +351,22 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          const sent = await openDmAndPostMessage(token, slackUserId, message, notificationFallback);
-          if (!sent.ok) {
-            results.push({ email, ok: false, error: `${sent.stage}:${sent.error}` });
-            continue;
+          const dm = await sendDmWithSlackIdFirstOrVerifiedEmailFallback(
+            token,
+            slackUserId,
+            message,
+            notificationFallback,
+          );
+          if (dm.ok) {
+            results.push({
+              email,
+              ok: true,
+              slack_user_id_used: dm.slack_user_id_used,
+              used_slack_email_fallback: dm.used_slack_email_fallback,
+            });
+          } else {
+            results.push({ email, ok: false, error: dm.error });
           }
-
-          results.push({ email, ok: true });
         }
       } else {
         const recipientEmails: string[] = Array.isArray(body.recipient_emails) ? body.recipient_emails : [];

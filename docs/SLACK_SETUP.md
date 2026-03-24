@@ -47,7 +47,7 @@ supabase db push
 
 - 譯者在 **個人檔案** 同一區塊可編輯「承接」「無法承接」訊息在 **案件連結後** 的自訂文字（留空則用系統預設）；需按 **儲存變更** 寫入資料庫。
 - 在 **案件頁** 完成「承接本案」或「無法承接」並成功送出後，若已連結 Slack，系統會以 **該譯者的 Slack 身分** 私訊派案端。
-- **收件人條件（派案端）**：角色為 **PM 或 Executive**，且已在 **個人檔案連結 Slack**（`user_slack_meta` 必須有 OAuth 寫入的 **`slack_user_id`**），並開啟 **接收「承接／無法承接」自動 Slack 私訊**。**私訊目的地優先使用**該成員已登錄的 Slack user id（即連結 Slack 時授權帳號在該工作區的成員 id）；若 open/post 失敗，才會以 `profiles.email -> users.lookupByEmail` 做備援重試。故系統註冊信箱與 Slack 帳號信箱不同仍可能可用（前提是 slack_user_id 可正常開啟／送出）。若未連結 Slack 或 DB 無 `slack_user_id`，該收件人不會列入通知。
+- **收件人條件（派案端）**：角色為 **PM 或 Executive**，且已在 **個人檔案連結 Slack**（`user_slack_meta` 必須有 OAuth 寫入的 **`slack_user_id`**），並開啟 **接收「承接／無法承接」自動 Slack 私訊**。**私訊目的地優先使用**該成員已登錄的 Slack user id（即連結 Slack 時授權帳號在該工作區的成員 id）；若 open/post 失敗，備援為 **`users.info(slack_user_id)` 取得 Slack 主信箱 → `users.lookupByEmail`**，且僅當解析出的成員 id **與** `slack_user_id` **一致** 時才重試，**不會**用 TMS `profiles.email` 備援（避免同工作區多帳號時誤送）。API 回應可含 `slack_user_id_used`、`used_slack_email_fallback`。若未連結 Slack 或 DB 無 `slack_user_id`，該收件人不會列入通知。
 - **無法承接** 時：Slack 訊息為多行敘述——第 1 行為 **案件連結**（顯示為標題）＋連結後自訂文字；若案件頁表單有填 **建議期限**，第 2 行為「格式化後的期限」＋第 2 行自訂後綴（預設句可改）；若有填 **可承接字數**，第 3 行為「`{字數} 字`」＋第 3 行自訂後綴；若有填 **補充說明**，再以單獨一行送出（對應個人檔預覽第 4 行佔位）。個人檔「即時預覽」以 `<案件標題>`、`<所輸入的建議期限>` 等佔位說明結構。
 
 ## 4. 訊息格式
