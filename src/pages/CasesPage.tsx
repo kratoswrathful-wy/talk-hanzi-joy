@@ -1,6 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { TableFooterStats, type NumericColumnConfig } from "@/components/TableFooterStats";
 import { Plus, GripVertical, ExternalLink, Trash2, Copy, FileText, CheckSquare, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { MultilineInput } from "@/components/ui/multiline-input";
+import DateTimePicker from "@/components/DateTimePicker";
 import { CreateWithTemplateButton } from "@/components/CreateWithTemplateButton";
 import { useAuth } from "@/hooks/use-auth";
 import { DeadlineProximityIcon } from "@/components/DeadlineProximityIcon";
@@ -39,7 +43,7 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { undoStore } from "@/stores/undo-store";
 import { useTableContextMenu, TableContextMenuOverlay, type ContextMenuItem } from "@/components/TableContextMenu";
 import { InquirySlackDialog } from "@/components/InquirySlackDialog";
-import { needsDuplicateSortDialog, DEFAULT_DUPLICATE_SORT } from "@/lib/case-title-duplicate";
+import { needsDuplicateSortDialog, DEFAULT_DUPLICATE_SORT, findDuplicateTitleCase } from "@/lib/case-title-duplicate";
 import type { CaseDuplicateSort } from "@/stores/case-store";
 import { DuplicateCaseSortDialog } from "@/components/DuplicateCaseSortDialog";
 import { copyMultipleCaseInquiryMessagesToClipboard } from "@/lib/copy-case-inquiry-message";
@@ -500,7 +504,9 @@ export default function CasesPage() {
   const cases = useCases();
   const casesReady = useCaseStoreReady();
   const allFees = useFees();
-  const { isAdmin, user, profile } = useAuth();
+  const { user, profile, primaryRole } = useAuth();
+  const isPmOrAbove = primaryRole === "pm" || primaryRole === "executive";
+  const isTranslatorRole = primaryRole === "member";
   const { checkPerm } = usePermissions();
   const tableViews = useCaseTableViews(user?.id, profile?.display_name || "");
   const { activeView } = tableViews;
@@ -513,6 +519,23 @@ export default function CasesPage() {
     () => visibleFees.filter((c) => rowSelection.selectedIds.has(c.id)),
     [visibleFees, rowSelection.selectedIds]
   );
+
+  /** 與案件個別頁相同：僅在「任務完成」或「回饋處理完畢」時顯示交件完畢（PM／執行長） */
+  const canShowMarkDeliveredBulk = useMemo(() => {
+    if (!isPmOrAbove || rowSelection.selectedCount < 2) return false;
+    for (const id of rowSelection.selectedIds) {
+      const c = cases.find((x) => x.id === id);
+      if (!c) return false;
+      if (c.status !== "task_completed" && c.status !== "feedback_completed") return false;
+    }
+    return true;
+  }, [isPmOrAbove, rowSelection.selectedIds, rowSelection.selectedCount, cases]);
+
+  const selectedSingleCase = useMemo(() => {
+    if (rowSelection.selectedCount !== 1) return null;
+    const id = Array.from(rowSelection.selectedIds)[0];
+    return cases.find((c) => c.id === id) ?? null;
+  }, [rowSelection.selectedCount, rowSelection.selectedIds, cases]);
 
   const visibleFieldKeys = caseFieldMetas.map((f) => f.key);
   const permittedFieldKeys = useMemo(() =>
@@ -634,6 +657,150 @@ export default function CasesPage() {
     rowSelection.deselectAll();
     setShowDeleteConfirm(false);
   }, [rowSelection, cases]);
+
+  const [declineOpen, setDeclineOpen] = useState(false);
+  const [declineProposedDeadline, setDeclineProposedDeadline] = useState<string | null>(null);
+  const [declineAvailableCount, setDeclineAvailableCount] = useState("");
+  const [declineMessage, setDeclineMessage] = useState("");
+  const [deleteDraftFlowOpen, setDeleteDraftFlowOpen] = useState(false);
+
+  const assertPublishUniqueTitle = useCallback((c: CaseRecord) => {
+    const dup = findDuplicateTitleCase(c.id, c.title, caseStore.getAll());
+    if (!dup) return true;
+    const t = dup.title.trim();
+    toast({ title: "無法公布", description: `已有其他案件使用相同標題「${t}」。請先修改標題。`, variant: "destructive" });
+    return false;
+  }, []);
+
+  const handleFlowPublishSingle = useCallback(() => {
+    if (!selectedSingleCase) return;
+    if (!assertPublishUniqueTitle(selectedSingleCase)) return;
+    caseStore.update(selectedSingleCase.id, { status: "inquiry" as CaseStatus });
+    toast({ title: "案件已公布" });
+  }, [selectedSingleCase, assertPublishUniqueTitle]);
+
+  const handleFlowRevertToDraft = useCallback(() => {
+    if (!selectedSingleCase) return;
+    caseStore.update(selectedSingleCase.id, { status: "draft" as CaseStatus });
+    toast({ title: "已收回為草稿" });
+  }, [selectedSingleCase]);
+
+  const handleFlowCancelDispatch = useCallback(() => {
+    if (!selectedSingleCase) return;
+    caseStore.update(selectedSingleCase.id, { status: "inquiry" as CaseStatus });
+    toast({ title: "已取消指派" });
+  }, [selectedSingleCase]);
+
+  const handleFlowRevertRevision = useCallback(() => {
+    if (!selectedSingleCase) return;
+    if (selectedSingleCase.multiCollab && selectedSingleCase.collabRows.length > 0) {
+      const updatedRows = selectedSingleCase.collabRows.map((r) => ({ ...r, taskCompleted: false, delivered: false }));
+      caseStore.update(selectedSingleCase.id, { status: "dispatched" as CaseStatus, collabRows: updatedRows });
+    } else {
+      caseStore.update(selectedSingleCase.id, { status: "dispatched" as CaseStatus });
+    }
+    toast({ title: "已退回修正" });
+  }, [selectedSingleCase]);
+
+  const handleFlowRevertToFeedback = useCallback(() => {
+    if (!selectedSingleCase) return;
+    caseStore.update(selectedSingleCase.id, { status: "feedback" as CaseStatus });
+    toast({ title: "已退回處理" });
+  }, [selectedSingleCase]);
+
+  const handleFlowAcceptCase = useCallback(() => {
+    if (!selectedSingleCase) return;
+    const displayName = profile?.display_name || "";
+    const currentTranslators = selectedSingleCase.translator || [];
+    const updatedTranslators = currentTranslators.includes(displayName)
+      ? currentTranslators
+      : [...currentTranslators, displayName];
+    caseStore.update(selectedSingleCase.id, { status: "dispatched" as CaseStatus, translator: updatedTranslators });
+    toast({ title: "已承接本案" });
+  }, [selectedSingleCase, profile]);
+
+  const handleFlowFinalizeAssign = useCallback(() => {
+    if (!selectedSingleCase) return;
+    caseStore.update(selectedSingleCase.id, { status: "dispatched" as CaseStatus });
+    toast({ title: "已確定指派" });
+  }, [selectedSingleCase]);
+
+  const handleFlowTaskComplete = useCallback(() => {
+    if (!selectedSingleCase) return;
+    caseStore.update(selectedSingleCase.id, { status: "task_completed" as CaseStatus });
+    toast({ title: "任務已完成" });
+  }, [selectedSingleCase]);
+
+  const handleFlowFeedbackComplete = useCallback(() => {
+    if (!selectedSingleCase) return;
+    caseStore.update(selectedSingleCase.id, { status: "feedback_completed" as CaseStatus });
+    toast({ title: "回饋處理完畢" });
+  }, [selectedSingleCase]);
+
+  const handleFlowMarkDelivered = useCallback(() => {
+    if (!selectedSingleCase) return;
+    if (selectedSingleCase.multiCollab && selectedSingleCase.collabRows.length > 0) {
+      const updatedRows = selectedSingleCase.collabRows.map((r) => ({ ...r, delivered: true }));
+      caseStore.update(selectedSingleCase.id, { status: "delivered" as CaseStatus, collabRows: updatedRows });
+    } else {
+      caseStore.update(selectedSingleCase.id, { status: "delivered" as CaseStatus });
+    }
+    toast({ title: "已交件完畢" });
+  }, [selectedSingleCase]);
+
+  const handleFlowFeedbackOpen = useCallback(() => {
+    if (!selectedSingleCase) return;
+    caseStore.update(selectedSingleCase.id, { status: "feedback" as CaseStatus });
+    toast({ title: "處理回饋中" });
+  }, [selectedSingleCase]);
+
+  const handleDeclineConfirm = useCallback(() => {
+    if (!selectedSingleCase) return;
+    const displayName = profile?.display_name || profile?.email || "";
+    const record: import("@/data/case-types").DeclineRecord = {
+      id: crypto.randomUUID(),
+      translator: displayName,
+      proposedDeadline: declineProposedDeadline || undefined,
+      availableCount: declineAvailableCount ? Number(declineAvailableCount) : undefined,
+      message: declineMessage.trim() || undefined,
+      createdAt: new Date().toISOString(),
+    };
+    const existing = selectedSingleCase.declineRecords || [];
+    caseStore.update(selectedSingleCase.id, { declineRecords: [...existing, record] });
+    const caseId = selectedSingleCase.id;
+    const caseTitle = selectedSingleCase.title || "";
+    const slackDecline = {
+      proposedDeadline: declineProposedDeadline || undefined,
+      availableCount: declineAvailableCount ? Number(declineAvailableCount) : undefined,
+      message: declineMessage.trim() || undefined,
+    };
+    setDeclineOpen(false);
+    setDeclineProposedDeadline(null);
+    setDeclineAvailableCount("");
+    setDeclineMessage("");
+    toast({ title: "已記錄無法承接" });
+    if (user?.id) {
+      void maybeSendTranslatorCaseReplySlack({
+        userId: user.id,
+        slackMessageDefaults: profile?.slack_message_defaults,
+        caseId,
+        caseTitle,
+        kind: "decline",
+        decline: slackDecline,
+      });
+    }
+  }, [selectedSingleCase, profile, declineProposedDeadline, declineAvailableCount, declineMessage, user]);
+
+  const handleDeleteDraftFlow = useCallback(async () => {
+    if (!selectedSingleCase) return;
+    const id = selectedSingleCase.id;
+    const snap = { ...selectedSingleCase };
+    await caseStore.remove(id);
+    undoStore.pushDelete("cases", [snap], "刪除案件");
+    rowSelection.deselectAll();
+    setDeleteDraftFlowOpen(false);
+    toast({ title: "已刪除案件" });
+  }, [selectedSingleCase, rowSelection]);
 
   const runCasesDuplicate = useCallback(
     async (id: string, sort: CaseDuplicateSort) => {
@@ -783,7 +950,7 @@ export default function CasesPage() {
       },
     });
     // 交件完畢 — PM+ only
-    if (isAdmin) {
+    if (isPmOrAbove) {
       items.push({
         key: "markDelivered",
         label: "交件完畢",
@@ -792,7 +959,7 @@ export default function CasesPage() {
       });
     }
     return items;
-  }, [rowSelection.selectedIds, isAdmin, handleMarkDelivered, beginDuplicate]);
+  }, [rowSelection.selectedIds, isPmOrAbove, handleMarkDelivered, beginDuplicate]);
 
   // Ordered visible columns
   const hiddenSet = new Set(activeView.hiddenColumns || []);
@@ -872,43 +1039,53 @@ export default function CasesPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
-      <div className="flex flex-wrap items-center gap-3 justify-between w-full">
-        <div className="flex flex-wrap items-center gap-3 min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight">案件管理</h1>
-          {isAdmin && (
-            <>
-              <CreateWithTemplateButton
-                module="cases"
-                onCreate={handleCreate}
-                label="新增案件"
-                uiButtonId="cases_add"
-              />
-              {rowSelection.selectedCount > 0 && (
-                <Button
-                  size="sm"
-                  className={uiMarkDelivered.className}
-                  style={uiMarkDelivered.style}
-                  onClick={handleMarkDelivered}
-                >
-                  <UiToolbarButtonIcon uiButtonId="cases_mark_delivered" />
-                  {lbMarkDelivered}
-                </Button>
-              )}
-              {rowSelection.selectedCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9 text-muted-foreground hover:text-destructive"
-                  onClick={() => setShowDeleteConfirm(true)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-            </>
+      <div className="flex w-full flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-semibold tracking-tight shrink-0">案件管理</h1>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          {isPmOrAbove && (
+            <CreateWithTemplateButton
+              module="cases"
+              onCreate={handleCreate}
+              label="新增案件"
+              size="sm"
+              uiButtonId="cases_add"
+            />
           )}
+          {canShowMarkDeliveredBulk ? (
+            <Button
+              size="sm"
+              className={uiMarkDelivered.className}
+              style={uiMarkDelivered.style}
+              onClick={handleMarkDelivered}
+            >
+              <UiToolbarButtonIcon uiButtonId="cases_mark_delivered" />
+              {lbMarkDelivered}
+            </Button>
+          ) : null}
+          {rowSelection.selectedCount === 1 && selectedSingleCase ? (
+            <CasesListSingleCaseFlowButtons
+              caseData={selectedSingleCase}
+              profile={profile}
+              isPmOrAbove={isPmOrAbove}
+              isTranslatorRole={isTranslatorRole}
+              onOpenDecline={() => setDeclineOpen(true)}
+              onRevertToDraft={handleFlowRevertToDraft}
+              onCancelDispatch={handleFlowCancelDispatch}
+              onRevertRevision={handleFlowRevertRevision}
+              onRevertToFeedback={handleFlowRevertToFeedback}
+              onOpenDeleteDraft={() => setDeleteDraftFlowOpen(true)}
+              onPublish={handleFlowPublishSingle}
+              onAcceptCase={handleFlowAcceptCase}
+              onFinalizeAssign={handleFlowFinalizeAssign}
+              onTaskComplete={handleFlowTaskComplete}
+              onFeedbackComplete={handleFlowFeedbackComplete}
+              onMarkDelivered={handleFlowMarkDelivered}
+              onFeedbackOpen={handleFlowFeedbackOpen}
+            />
+          ) : null}
         </div>
-        {isAdmin && (
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+        {isPmOrAbove ? (
+          <div className="flex shrink-0 flex-wrap items-center gap-2 sm:ml-auto">
             <Button
               size="sm"
               className={uiInquiryMsg.className}
@@ -952,8 +1129,18 @@ export default function CasesPage() {
               <UiToolbarButtonIcon uiButtonId="cases_gen_fees" />
               {lbGenFees}
             </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+              disabled={rowSelection.selectedCount === 0}
+              onClick={() => setShowDeleteConfirm(true)}
+              title="刪除選取案件"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Filter/Sort/View toolbar */}
@@ -1136,6 +1323,81 @@ export default function CasesPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteSelected}>確定刪除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteDraftFlowOpen} onOpenChange={setDeleteDraftFlowOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>確定刪除</AlertDialogTitle>
+            <AlertDialogDescription>此操作無法復原，確定要刪除此案件嗎？</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleDeleteDraftFlow()}>確定刪除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={declineOpen}
+        onOpenChange={(v) => {
+          if (!v) {
+            setDeclineOpen(false);
+            setDeclineProposedDeadline(null);
+            setDeclineAvailableCount("");
+            setDeclineMessage("");
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>無法承接</AlertDialogTitle>
+            <AlertDialogDescription>
+              以下三項皆為選填（0–3 項），填完後按確認即可。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 px-1">
+            <div className="space-y-1.5">
+              <Label className="text-sm">按照此字數和內容，期限延到何時你可以接案？</Label>
+              <DateTimePicker value={declineProposedDeadline} onChange={setDeclineProposedDeadline} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">如果交期無法變動，請問你大約可以做多少字？</Label>
+              <Input
+                type="number"
+                placeholder="字數"
+                value={declineAvailableCount}
+                onChange={(e) => setDeclineAvailableCount(e.target.value)}
+                className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm">請問你是否有其他情況或派案提議想說明？</Label>
+              <MultilineInput
+                placeholder="請輸入…"
+                value={declineMessage}
+                onChange={(e) => setDeclineMessage(e.target.value)}
+                minRows={2}
+                maxRows={5}
+              />
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setDeclineOpen(false);
+                setDeclineProposedDeadline(null);
+                setDeclineAvailableCount("");
+                setDeclineMessage("");
+              }}
+            >
+              取消
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeclineConfirm} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              確認
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
