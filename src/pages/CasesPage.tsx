@@ -1044,52 +1044,53 @@ export default function CasesPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-4">
-      {/* 單一左側橫列：標題 → 新增／流程／PM 五顆操作，勿用 flex-1 + ml-auto 分成左右兩欄 */}
-      <div className="flex w-full flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight shrink-0">案件管理</h1>
-        {isPmOrAbove && (
-          <CreateWithTemplateButton
-            module="cases"
-            onCreate={handleCreate}
-            label="新增案件"
-            size="sm"
-            uiButtonId="cases_add"
-          />
-        )}
-        {canShowMarkDeliveredBulk ? (
-          <Button
-            size="sm"
-            className={uiMarkDelivered.className}
-            style={uiMarkDelivered.style}
-            onClick={handleMarkDelivered}
-          >
-            <UiToolbarButtonIcon uiButtonId="cases_mark_delivered" />
-            {lbMarkDelivered}
-          </Button>
-        ) : null}
-        {rowSelection.selectedCount === 1 && selectedSingleCase ? (
-          <CasesListSingleCaseFlowButtons
-            caseData={selectedSingleCase}
-            profile={profile}
-            isPmOrAbove={isPmOrAbove}
-            isTranslatorRole={isTranslatorRole}
-            onOpenDecline={() => setDeclineOpen(true)}
-            onRevertToDraft={handleFlowRevertToDraft}
-            onCancelDispatch={handleFlowCancelDispatch}
-            onRevertRevision={handleFlowRevertRevision}
-            onRevertToFeedback={handleFlowRevertToFeedback}
-            onOpenDeleteDraft={() => setDeleteDraftFlowOpen(true)}
-            onPublish={handleFlowPublishSingle}
-            onAcceptCase={handleFlowAcceptCase}
-            onFinalizeAssign={handleFlowFinalizeAssign}
-            onTaskComplete={handleFlowTaskComplete}
-            onFeedbackComplete={handleFlowFeedbackComplete}
-            onMarkDelivered={handleFlowMarkDelivered}
-            onFeedbackOpen={handleFlowFeedbackOpen}
-          />
-        ) : null}
+      {/* 第一行：標題 + 流程按鈕（批次交件、單筆流程）；譯者僅見此列與流程按鈕 */}
+      <div className="space-y-2">
+        <div className="flex w-full flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight shrink-0">案件管理</h1>
+          {canShowMarkDeliveredBulk ? (
+            <Button
+              size="sm"
+              className={uiMarkDelivered.className}
+              style={uiMarkDelivered.style}
+              onClick={handleMarkDelivered}
+            >
+              <UiToolbarButtonIcon uiButtonId="cases_mark_delivered" />
+              {lbMarkDelivered}
+            </Button>
+          ) : null}
+          {rowSelection.selectedCount === 1 && selectedSingleCase ? (
+            <CasesListSingleCaseFlowButtons
+              caseData={selectedSingleCase}
+              profile={profile}
+              isPmOrAbove={isPmOrAbove}
+              isTranslatorRole={isTranslatorRole}
+              onOpenDecline={() => setDeclineOpen(true)}
+              onRevertToDraft={handleFlowRevertToDraft}
+              onCancelDispatch={handleFlowCancelDispatch}
+              onRevertRevision={handleFlowRevertRevision}
+              onRevertToFeedback={handleFlowRevertToFeedback}
+              onOpenDeleteDraft={() => setDeleteDraftFlowOpen(true)}
+              onPublish={handleFlowPublishSingle}
+              onAcceptCase={handleFlowAcceptCase}
+              onFinalizeAssign={handleFlowFinalizeAssign}
+              onTaskComplete={handleFlowTaskComplete}
+              onFeedbackComplete={handleFlowFeedbackComplete}
+              onMarkDelivered={handleFlowMarkDelivered}
+              onFeedbackOpen={handleFlowFeedbackOpen}
+            />
+          ) : null}
+        </div>
+        {/* 第二行：操作按鈕（PM+）；譯者不渲染此列，版面與先前一致 */}
         {isPmOrAbove ? (
-          <>
+          <div className="flex w-full flex-wrap items-center gap-2">
+            <CreateWithTemplateButton
+              module="cases"
+              onCreate={handleCreate}
+              label="新增案件"
+              size="sm"
+              uiButtonId="cases_add"
+            />
             <Button
               size="sm"
               className={uiInquiryMsg.className}
@@ -1143,7 +1144,7 @@ export default function CasesPage() {
             >
               <Trash2 className="h-4 w-4" />
             </Button>
-          </>
+          </div>
         ) : null}
       </div>
 
