@@ -61,22 +61,25 @@ import { CommentContent } from "@/components/comments/CommentContent";
 import { CommentInput } from "@/components/comments/CommentInput";
 
 function StatusBadge({ status }: { status: ClientInvoiceStatus }) {
-  const labelStyles = useLabelStyles();
-  const styleMap: Record<ClientInvoiceStatus, { bgColor: string; textColor: string }> = {
-    pending: labelStyles.invoicePending,
-    partial_collected: labelStyles.invoicePartial,
-    collected: labelStyles.invoicePaid,
+  const { options: statusLabelOptions } = useSelectOptions("statusLabel");
+  const statusLabelOptionIdMap: Record<ClientInvoiceStatus, string> = {
+    pending: "sl-invoice-pending",
+    partial_collected: "sl-invoice-partial",
+    collected: "sl-invoice-paid",
   };
-  const colors = styleMap[status];
+  const opt = statusLabelOptions.find((o) => o.id === statusLabelOptionIdMap[status]);
+  const bgColor = opt?.color || "#6B7280";
+  const textColor = opt?.textColor || "#FFFFFF";
+  const label = opt?.label || clientInvoiceStatusLabels[status];
   return (
     <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
       <span className="cursor-default">
         <Badge
           variant="default"
           className="border"
-          style={{ backgroundColor: colors.bgColor, color: colors.textColor, borderColor: colors.bgColor }}
+          style={{ backgroundColor: bgColor, color: textColor, borderColor: bgColor }}
         >
-          {clientInvoiceStatusLabels[status]}
+          {label}
         </Badge>
       </span>
     </TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip></TooltipProvider>

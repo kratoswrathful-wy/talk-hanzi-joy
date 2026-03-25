@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { useClientInvoices, clientInvoiceStore } from "@/hooks/use-client-invoice-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useRowSelection } from "@/hooks/use-row-selection";
-import { useSelectOptions, getStatusLabelStyle } from "@/stores/select-options-store";
+import { useSelectOptions } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { type ClientInvoiceStatus, clientInvoiceStatusLabels } from "@/data/client-invoice-types";
 import { type ClientInvoice } from "@/data/client-invoice-types";
@@ -47,19 +47,25 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 function StatusBadge({ status }: { status: ClientInvoiceStatus }) {
-  useSelectOptions("statusLabel");
-  const labelMap: Record<string, string> = { pending: "待收款", partial_collected: "部份收款", collected: "收款完畢" };
-  const label = labelMap[status] || status;
-  const colors = getStatusLabelStyle(label);
+  const { options: statusLabelOptions } = useSelectOptions("statusLabel");
+  const statusLabelOptionIdMap: Record<ClientInvoiceStatus, string> = {
+    pending: "sl-invoice-pending",
+    partial_collected: "sl-invoice-partial",
+    collected: "sl-invoice-paid",
+  };
+  const opt = statusLabelOptions.find((o) => o.id === statusLabelOptionIdMap[status]);
+  const bgColor = opt?.color || "#6B7280";
+  const textColor = opt?.textColor || "#FFFFFF";
+  const label = opt?.label || clientInvoiceStatusLabels[status];
   return (
     <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
       <span className="cursor-default">
         <Badge
           variant="default"
           className="text-xs whitespace-nowrap border"
-          style={{ backgroundColor: colors.bgColor, color: colors.textColor, borderColor: colors.bgColor }}
+          style={{ backgroundColor: bgColor, color: textColor, borderColor: bgColor }}
         >
-          {clientInvoiceStatusLabels[status]}
+          {label}
         </Badge>
       </span>
     </TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip></TooltipProvider>
@@ -120,6 +126,16 @@ export default function ClientInvoicesPage() {
   const { getTwdRate } = useCurrencies();
   const fees = useFees();
   const { options: clientOptions } = useSelectOptions("client");
+  const { options: statusLabelOptions } = useSelectOptions("statusLabel");
+
+  const statusOptionsList = useMemo(() => {
+    const optById = new Map(statusLabelOptions.map((o) => [o.id, o]));
+    return [
+      { value: "pending", label: optById.get("sl-invoice-pending")?.label ?? clientInvoiceStatusLabels.pending },
+      { value: "partial_collected", label: optById.get("sl-invoice-partial")?.label ?? clientInvoiceStatusLabels.partial_collected },
+      { value: "collected", label: optById.get("sl-invoice-paid")?.label ?? clientInvoiceStatusLabels.collected },
+    ];
+  }, [statusLabelOptions]);
 
   const getInvoiceTotal = useCallback((feeIds: string[]) => {
     return feeIds.reduce((sum, fid) => {
@@ -569,11 +585,7 @@ export default function ClientInvoicesPage() {
         hiddenColumns={activeView.hiddenColumns || []}
         onToggleColumn={tableViews.toggleColumnVisibility}
         fieldMetasList={clientInvoiceFieldMetas}
-        statusOptionsList={[
-          { value: "pending", label: "待收款" },
-          { value: "partial_collected", label: "部份收款" },
-          { value: "collected", label: "收款完畢" },
-        ]}
+        statusOptionsList={statusOptionsList}
         selectedIds={[...rowSelection.selectedIds]}
         onPinTop={tableViews.pinTop}
         onPinBottom={tableViews.pinBottom}
