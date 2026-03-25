@@ -22,7 +22,6 @@ import {
 import { useInvoice, invoiceStore, useInvoicesLoaded } from "@/hooks/use-invoice-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useSelectOptions } from "@/stores/select-options-store";
-import { useLabelStyles } from "@/stores/label-style-store";
 import { type InvoiceStatus, type PaymentRecord, invoiceStatusLabels } from "@/data/invoice-types";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useInvoices } from "@/hooks/use-invoice-store";
@@ -60,22 +59,25 @@ import { CommentContent } from "@/components/comments/CommentContent";
 import { CommentInput } from "@/components/comments/CommentInput";
 
 function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
-  const labelStyles = useLabelStyles();
-  const styleMap: Record<InvoiceStatus, { bgColor: string; textColor: string }> = {
-    pending: labelStyles.invoicePending,
-    partial: labelStyles.invoicePartial,
-    paid: labelStyles.invoicePaid,
+  const { options: statusLabelOptions } = useSelectOptions("statusLabel");
+  const statusLabelOptionIdMap: Record<InvoiceStatus, string> = {
+    pending: "sl-invoice-pending",
+    partial: "sl-invoice-partial",
+    paid: "sl-invoice-paid",
   };
-  const colors = styleMap[status];
+  const opt = statusLabelOptions.find((o) => o.id === statusLabelOptionIdMap[status]);
+  const bgColor = opt?.color || "#6B7280";
+  const textColor = opt?.textColor || "#FFFFFF";
+  const label = opt?.label || invoiceStatusLabels[status];
   return (
     <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
       <span className="cursor-default">
         <Badge
           variant="default"
           className="border"
-          style={{ backgroundColor: colors.bgColor, color: colors.textColor, borderColor: colors.bgColor }}
+          style={{ backgroundColor: bgColor, color: textColor, borderColor: bgColor }}
         >
-          {invoiceStatusLabels[status]}
+          {label}
         </Badge>
       </span>
     </TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip></TooltipProvider>

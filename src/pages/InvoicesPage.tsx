@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { useInvoices, invoiceStore } from "@/hooks/use-invoice-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useRowSelection } from "@/hooks/use-row-selection";
-import { useSelectOptions, selectOptionsStore, getStatusLabelStyle } from "@/stores/select-options-store";
+import { useSelectOptions, selectOptionsStore } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { type InvoiceStatus, invoiceStatusLabels } from "@/data/invoice-types";
 import { type Invoice } from "@/data/invoice-types";
@@ -51,19 +51,25 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
-  useSelectOptions("statusLabel");
-  const labelMap: Record<string, string> = { pending: "待付款", partial: "部份付款", paid: "已付款" };
-  const label = labelMap[status] || status;
-  const colors = getStatusLabelStyle(label);
+  const { options: statusLabelOptions } = useSelectOptions("statusLabel");
+  const statusLabelOptionIdMap: Record<InvoiceStatus, string> = {
+    pending: "sl-invoice-pending",
+    partial: "sl-invoice-partial",
+    paid: "sl-invoice-paid",
+  };
+  const opt = statusLabelOptions.find((o) => o.id === statusLabelOptionIdMap[status]);
+  const bgColor = opt?.color || "#6B7280";
+  const textColor = opt?.textColor || "#FFFFFF";
+  const label = opt?.label || invoiceStatusLabels[status];
   return (
     <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
       <span className="cursor-default">
         <Badge
           variant="default"
           className="text-xs whitespace-nowrap border"
-          style={{ backgroundColor: colors.bgColor, color: colors.textColor, borderColor: colors.bgColor }}
+          style={{ backgroundColor: bgColor, color: textColor, borderColor: bgColor }}
         >
-          {invoiceStatusLabels[status]}
+          {label}
         </Badge>
       </span>
     </TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip></TooltipProvider>
@@ -118,6 +124,16 @@ export default function InvoicesPage() {
   );
   const fees = useFees();
   const { options: assigneeOptions } = useSelectOptions("assignee");
+  const { options: statusLabelOptions } = useSelectOptions("statusLabel");
+
+  const statusOptionsList = useMemo(() => {
+    const optById = new Map(statusLabelOptions.map((o) => [o.id, o]));
+    return [
+      { value: "pending", label: optById.get("sl-invoice-pending")?.label ?? invoiceStatusLabels.pending },
+      { value: "partial", label: optById.get("sl-invoice-partial")?.label ?? invoiceStatusLabels.partial },
+      { value: "paid", label: optById.get("sl-invoice-paid")?.label ?? invoiceStatusLabels.paid },
+    ];
+  }, [statusLabelOptions]);
 
   useEffect(() => {
     selectOptionsStore.loadAssignees();
@@ -508,11 +524,7 @@ export default function InvoicesPage() {
         hiddenColumns={activeView.hiddenColumns || []}
         onToggleColumn={tableViews.toggleColumnVisibility}
         fieldMetasList={invoiceFieldMetas}
-        statusOptionsList={[
-          { value: "pending", label: "待付款" },
-          { value: "partial", label: "部份付款" },
-          { value: "paid", label: "已付款" },
-        ]}
+        statusOptionsList={statusOptionsList}
         selectedIds={[...rowSelection.selectedIds]}
         onPinTop={tableViews.pinTop}
         onPinBottom={tableViews.pinBottom}

@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, type TranslatorFee, defaultClientInfo } from "@/data/fee-mock-data";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
-import { selectOptionsStore, PRESET_COLORS, CONTACT_DEFAULT_COLOR } from "@/stores/select-options-store";
+import { selectOptionsStore, PRESET_COLORS, CONTACT_DEFAULT_COLOR, useSelectOptions } from "@/stores/select-options-store";
 import { currencyStore } from "@/stores/currency-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 
@@ -186,6 +186,7 @@ export default function TranslatorFeeDetail() {
   const feesLoaded = useFeesLoaded();
   const allInvoices = useInvoices();
   const allClientInvoices = useClientInvoices();
+  const { options: statusLabelOptions } = useSelectOptions("statusLabel");
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -1843,10 +1844,26 @@ export default function TranslatorFeeDetail() {
                 {(() => {
                   const inv = linkedTranslatorInvoices.length > 0 ? allInvoices.find((i) => i.id === linkedTranslatorInvoices[0].id) : null;
                   if (!inv) return <Tooltip><TooltipTrigger asChild><span className="text-sm text-muted-foreground cursor-default">尚未請款</span></TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip>;
-                  const labelMap: Record<string, string> = { pending: "待付款", partial: "部份付款", paid: "已付款" };
+                  const statusLabelOptionIdMap: Record<string, string> = {
+                    pending: "sl-invoice-pending",
+                    partial: "sl-invoice-partial",
+                    paid: "sl-invoice-paid",
+                  };
+                  const opt = statusLabelOptions.find((o) => o.id === statusLabelOptionIdMap[inv.status as string]);
+                  const bgColor = opt?.color || "#6B7280";
+                  const textColor = opt?.textColor || "#FFFFFF";
+                  const label = opt?.label || (inv.status as string);
                   return (
                     <Tooltip><TooltipTrigger asChild>
-                      <span className="cursor-default"><Badge variant="outline" className="text-xs">{labelMap[inv.status] || inv.status}</Badge></span>
+                      <span className="cursor-default">
+                        <Badge
+                          variant="default"
+                          className="text-xs whitespace-nowrap border"
+                          style={{ backgroundColor: bgColor, color: textColor, borderColor: bgColor }}
+                        >
+                          {label}
+                        </Badge>
+                      </span>
                     </TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip>
                   );
                 })()}
@@ -1859,10 +1876,26 @@ export default function TranslatorFeeDetail() {
                 {(() => {
                   const inv = linkedClientInvoices.length > 0 ? allClientInvoices.find((i) => i.id === linkedClientInvoices[0].id) : null;
                   if (!inv) return <Tooltip><TooltipTrigger asChild><span className="text-sm text-muted-foreground cursor-default">尚未請款</span></TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip>;
-                  const labelMap: Record<string, string> = { pending: "待收款", partial: "部份到帳", paid: "全額收齊" };
+                  const statusLabelOptionIdMap: Record<string, string> = {
+                    pending: "sl-invoice-pending",
+                    partial_collected: "sl-invoice-partial",
+                    collected: "sl-invoice-paid",
+                  };
+                  const opt = statusLabelOptions.find((o) => o.id === statusLabelOptionIdMap[inv.status as string]);
+                  const bgColor = opt?.color || "#6B7280";
+                  const textColor = opt?.textColor || "#FFFFFF";
+                  const label = opt?.label || (inv.status as string);
                   return (
                     <Tooltip><TooltipTrigger asChild>
-                      <span className="cursor-default"><Badge variant="outline" className="text-xs">{labelMap[inv.status] || inv.status}</Badge></span>
+                      <span className="cursor-default">
+                        <Badge
+                          variant="default"
+                          className="text-xs whitespace-nowrap border"
+                          style={{ backgroundColor: bgColor, color: textColor, borderColor: bgColor }}
+                        >
+                          {label}
+                        </Badge>
+                      </span>
                     </TooltipTrigger><TooltipContent className="text-xs">自動填入</TooltipContent></Tooltip>
                   );
                 })()}
