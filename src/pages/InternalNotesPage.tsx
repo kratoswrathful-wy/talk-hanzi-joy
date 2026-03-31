@@ -835,7 +835,13 @@ export default function InternalNotesPage() {
                   className={cn("border-b border-border/40 transition-colors hover:bg-muted/30 cursor-pointer", isSelected && "bg-primary/5")}
                   onClick={() => navigate(`/internal-notes/${note.id}`)}
                 >
-                  <td className="w-[40px] px-2 py-1.5 text-center" onClick={(e) => e.stopPropagation()}>
+                  <td
+                    className="w-[40px] px-2 py-1.5 text-center"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      rowSelection.handleClick(note.id, e as unknown as React.MouseEvent);
+                    }}
+                  >
                     <Checkbox checked={isSelected} onCheckedChange={() => rowSelection.handleClick(note.id, { ctrlKey: true } as any)} className="mx-auto" />
                   </td>
                   {orderedCols.map((col) => (

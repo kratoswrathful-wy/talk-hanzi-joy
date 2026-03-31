@@ -1216,7 +1216,13 @@ function FeeRow({
           isSelected ? "bg-primary/5" : "hover:bg-secondary/50"
         )}
       >
-        <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+        <td
+          className="px-2 py-3 text-center"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelect(fee.id, e as unknown as React.MouseEvent);
+          }}
+        >
           <Checkbox
             checked={isSelected}
             onCheckedChange={() => {}}

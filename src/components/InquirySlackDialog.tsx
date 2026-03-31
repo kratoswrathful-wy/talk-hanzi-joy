@@ -34,24 +34,26 @@ import {
 import { getTimezoneInfo } from "@/data/timezone-options";
 import { getEnvironment } from "@/lib/environment";
 import {
-  buildWorkloadCountByDisplayName,
-  type CaseRowForWorkload,
+  buildWorkloadCountByDisplayNameTranslatorReviewerOnly,
+  type CaseRowForWorkloadTranslatorReviewerOnly,
 } from "@/lib/inquiry-slack-workload";
 import { Link } from "react-router-dom";
 import { caseStore } from "@/stores/case-store";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useSelectOptions } from "@/stores/select-options-store";
 
 export type RecipientRow = {
   userId: string;
   /** Trimmed profile display_name; used to match cases.translator / reviewer */
   profileDisplayNameTrimmed: string;
   displayName: string;
+  avatarUrl: string | null;
   email: string | null;
   timezone: string | null;
   statusMessage: string | null;
 };
 
-type SortMode = "name" | "workload";
-type SortDir = "asc" | "desc";
+type SortMode = "workload" | "name" | "custom";
 
 export function InquirySlackDialog({
   open,
@@ -73,7 +75,15 @@ export function InquirySlackDialog({
   const [searchQuery, setSearchQuery] = useState("");
   const [hideSelf, setHideSelf] = useState(true);
   const [sortMode, setSortMode] = useState<SortMode>("workload");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  const { options: assigneeOptions } = useSelectOptions("assignee");
+  const customOrderIndexByEmail = useMemo(() => {
+    const m = new Map<string, number>();
+    assigneeOptions.forEach((o, idx) => {
+      if (o.email) m.set(o.email, idx);
+    });
+    return m;
+  }, [assigneeOptions]);
 
   const messagePreview = useMemo(() => {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -85,7 +95,6 @@ export function InquirySlackDialog({
     setSearchQuery("");
     setHideSelf(true);
     setSortMode("workload");
-    setSortDir("desc");
   }, [open]);
 
   useEffect(() => {
@@ -114,7 +123,7 @@ export function InquirySlackDialog({
         supabase.from("user_roles").select("user_id"),
         supabase
           .from("cases")
-          .select("translator, reviewer, collab_rows, updated_at")
+          .select("translator, reviewer, updated_at")
           .eq("env", env)
           .gte("updated_at", cutoffIso),
       ]);
@@ -124,7 +133,9 @@ export function InquirySlackDialog({
       if (casesRes.error) {
         console.error(casesRes.error);
       }
-      const wMap = buildWorkloadCountByDisplayName((casesRes.data || []) as CaseRowForWorkload[]);
+      const wMap = buildWorkloadCountByDisplayNameTranslatorReviewerOnly(
+        (casesRes.data || []) as CaseRowForWorkloadTranslatorReviewerOnly[]
+      );
       setWorkloadByName(wMap);
 
       if (roleErr) {
@@ -144,7 +155,7 @@ export function InquirySlackDialog({
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, email, display_name, timezone, status_message")
+        .select("id, email, display_name, avatar_url, timezone, status_message")
         .in("id", userIds)
         .order("display_name", { ascending: true });
 
@@ -164,6 +175,7 @@ export function InquirySlackDialog({
           userId: p.id,
           profileDisplayNameTrimmed,
           displayName: profileDisplayNameTrimmed || p.email || "（無名稱）",
+          avatarUrl: p.avatar_url || null,
           email: p.email ?? null,
           timezone: p.timezone ?? null,
           statusMessage: p.status_message ?? null,
@@ -233,15 +245,31 @@ export function InquirySlackDialog({
       const aLocked = lockedUserIds.has(a.userId);
       const bLocked = lockedUserIds.has(b.userId);
       if (aLocked !== bLocked) return aLocked ? -1 : 1;
+
+      const aChecked = selectedUserIds.has(a.userId);
+      const bChecked = selectedUserIds.has(b.userId);
+      if (aChecked !== bChecked) return aChecked ? -1 : 1;
+
       if (sortMode === "name") {
-        const cmp = a.displayName.localeCompare(b.displayName, "zh-Hant");
-        return sortDir === "asc" ? cmp : -cmp;
+        return a.displayName.localeCompare(b.displayName, "zh-Hant", { sensitivity: "base" });
       }
+
+      if (sortMode === "custom") {
+        const aEmail = a.email ?? "";
+        const bEmail = b.email ?? "";
+        const aIdx = customOrderIndexByEmail.get(aEmail) ?? 999999;
+        const bIdx = customOrderIndexByEmail.get(bEmail) ?? 999999;
+        if (aIdx !== bIdx) return aIdx - bIdx;
+        return a.displayName.localeCompare(b.displayName, "zh-Hant", { sensitivity: "base" });
+      }
+
+      // workload (default): desc by workload30, then name
       const cmp = a.workload30 - b.workload30;
-      return sortDir === "asc" ? cmp : -cmp;
+      if (cmp !== 0) return -cmp;
+      return a.displayName.localeCompare(b.displayName, "zh-Hant", { sensitivity: "base" });
     });
     return copy;
-  }, [afterSearch, lockedUserIds, sortMode, sortDir]);
+  }, [afterSearch, lockedUserIds, sortMode, selectedUserIds, customOrderIndexByEmail]);
 
   const selectableInView = useMemo(
     () => visibleRows.filter((r): r is (typeof r & { email: string }) => !!r.email),
@@ -431,17 +459,9 @@ export function InquirySlackDialog({
                   <SelectValue placeholder="排序" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="name">字母（顯示名稱）</SelectItem>
-                  <SelectItem value="workload">近期案量（30 天）</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={sortDir} onValueChange={(v) => setSortDir(v as SortDir)}>
-                <SelectTrigger className="w-[100px] h-9 text-xs">
-                  <SelectValue placeholder="方向" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="asc">升序</SelectItem>
-                  <SelectItem value="desc">降序</SelectItem>
+                  <SelectItem value="workload">近 30 天內案量</SelectItem>
+                  <SelectItem value="name">姓名字母</SelectItem>
+                  {isAdmin && <SelectItem value="custom">自訂</SelectItem>}
                 </SelectContent>
               </Select>
               <div className="flex items-center gap-2">
@@ -556,6 +576,13 @@ export function InquirySlackDialog({
                             : "cursor-pointer hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                         }`}
                       >
+                        <Avatar className="h-7 w-7 shrink-0">
+                          {r.avatarUrl ? (
+                            <AvatarImage src={r.avatarUrl} alt={r.displayName} />
+                          ) : (
+                            <AvatarFallback>{r.displayName.slice(0, 1) || "—"}</AvatarFallback>
+                          )}
+                        </Avatar>
                         <Checkbox
                           checked={locked || selectedUserIds.has(r.userId)}
                           disabled={!canSend || locked}

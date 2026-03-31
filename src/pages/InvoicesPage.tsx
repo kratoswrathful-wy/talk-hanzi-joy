@@ -605,7 +605,13 @@ export default function InvoicesPage() {
                   )}
                   onClick={() => navigate(`/invoices/${inv.id}`)}
                 >
-                  <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                  <td
+                    className="px-2 py-3 text-center"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      rowSelection.handleClick(inv.id, e as unknown as React.MouseEvent);
+                    }}
+                  >
                     <Checkbox
                       checked={isSelected}
                       onCheckedChange={() => {}}

@@ -50,6 +50,7 @@ import { copyMultipleCaseInquiryMessagesToClipboard } from "@/lib/copy-case-inqu
 import { CasesListSingleCaseFlowButtons } from "@/components/cases/CasesListSingleCaseFlowButtons";
 import { toast } from "@/hooks/use-toast";
 import { maybeSendTranslatorCaseReplySlack } from "@/lib/slack-case-reply-notify";
+import { OptionLabelBadge } from "@/components/OptionLabelBadge";
 
 function getTodayYYMMDD(): string {
   const now = new Date();
@@ -466,19 +467,19 @@ const allColumnDefs: ColumnDef[] = [
     key: "client",
     label: "客戶",
     minWidth: 90,
-    render: (c) => <span className="text-sm text-muted-foreground truncate">{c.client || "—"}</span>,
+    render: (c) => <OptionLabelBadge fieldKey="client" value={c.client || ""} />,
   },
   {
     key: "dispatchRoute",
     label: "派案途徑",
     minWidth: 90,
-    render: (c) => <span className="text-sm text-muted-foreground truncate">{c.dispatchRoute || "—"}</span>,
+    render: (c) => <OptionLabelBadge fieldKey="dispatchRoute" value={c.dispatchRoute || ""} />,
   },
   {
     key: "contact",
     label: "聯絡人",
     minWidth: 100,
-    render: (c) => <span className="text-sm text-muted-foreground truncate">{c.contact || "—"}</span>,
+    render: (c) => <OptionLabelBadge fieldKey="contact" value={c.contact || ""} />,
   },
   {
     key: "keyword",
@@ -1271,7 +1272,10 @@ export default function CasesPage() {
                     isSelected && "bg-primary/5"
                   )}
                 >
-                  <td className="w-[40px] px-2 py-1.5 text-center">
+                  <td
+                    className="w-[40px] px-2 py-1.5 text-center"
+                    onClick={(e) => rowSelection.handleClick(c.id, e as unknown as React.MouseEvent)}
+                  >
                     <Checkbox
                       checked={isSelected}
                       onCheckedChange={() => rowSelection.handleClick(c.id, { ctrlKey: true } as any)}

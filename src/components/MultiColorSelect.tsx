@@ -8,6 +8,14 @@ import AssigneeTag from "@/components/AssigneeTag";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useSelectOptions, selectOptionsStore, type SelectOption, PRESET_COLORS } from "@/stores/select-options-store";
 import { useLabelStyles } from "@/stores/label-style-store";
@@ -22,7 +30,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { pinSelectedAssigneesToTop, sortSelectedAssigneeOptions } from "@/lib/assignee-option-order";
+import { sortSelectedAssigneeOptions } from "@/lib/assignee-option-order";
+import { buildWorkloadCountByDisplayNameTranslatorReviewerOnly } from "@/lib/inquiry-slack-workload";
+import { useAuth } from "@/hooks/use-auth";
+import { useCases } from "@/hooks/use-case-store";
 
 function getColorUsageMap(options: { color: string; label: string }[]): Record<string, string[]> {
   const map: Record<string, string[]> = {};
@@ -70,11 +81,45 @@ export default function MultiColorSelect({
   const renameInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  const { isAdmin } = useAuth();
+  const cases = useCases();
+
+  type AssigneeSortMode = "workload" | "name" | "custom";
+  const [assigneeSortMode, setAssigneeSortMode] = useState<AssigneeSortMode>("custom");
+  const [assigneeWorkloadByLabel, setAssigneeWorkloadByLabel] = useState<Map<string, number> | null>(null);
+
   useEffect(() => { if (addingNew) newInputRef.current?.focus(); }, [addingNew]);
   useEffect(() => { if (renamingOptionId) renameInputRef.current?.focus(); }, [renamingOptionId]);
   useEffect(() => {
-    if (open) { setSearchQuery(""); setTimeout(() => searchInputRef.current?.focus(), 50); }
-  }, [open]);
+    if (!open) return;
+    setSearchQuery("");
+    setTimeout(() => searchInputRef.current?.focus(), 50);
+
+    if (fieldKey === "assignee") {
+      setAssigneeSortMode(isAdmin ? "custom" : "workload");
+      setAssigneeWorkloadByLabel(null);
+    }
+  }, [open, fieldKey, isAdmin]);
+
+  useEffect(() => {
+    if (!open || fieldKey !== "assignee") return;
+    if (assigneeSortMode !== "workload") return;
+    if (assigneeWorkloadByLabel) return;
+
+    // Compute once per open session (avoid live re-sorting while menu stays open).
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+    const cutoffMs = cutoff.getTime();
+    const recentCases = cases.filter((c) => {
+      const ms = Date.parse(c.updatedAt);
+      return !Number.isNaN(ms) && ms >= cutoffMs;
+    });
+
+    const wMap = buildWorkloadCountByDisplayNameTranslatorReviewerOnly(
+      recentCases.map((c) => ({ translator: c.translator, reviewer: c.reviewer }))
+    );
+    setAssigneeWorkloadByLabel(wMap);
+  }, [open, fieldKey, assigneeSortMode, assigneeWorkloadByLabel, cases]);
 
   const selectedOptions = useMemo(() => {
     const sel = options.filter((o) => values.includes(o.label));
@@ -88,8 +133,34 @@ export default function MultiColorSelect({
 
   const displayOptions = useMemo(() => {
     if (fieldKey !== "assignee") return filteredOptions;
-    return pinSelectedAssigneesToTop(options, filteredOptions, values);
-  }, [fieldKey, options, filteredOptions, values]);
+    const selectedSet = new Set(values);
+    const pinned = filteredOptions.filter((o) => selectedSet.has(o.label));
+    const rest = filteredOptions.filter((o) => !selectedSet.has(o.label));
+
+    const sortByName = (arr: SelectOption[]) =>
+      [...arr].sort((a, b) => a.label.localeCompare(b.label, "zh-Hant", { sensitivity: "base" }));
+
+    const sortByWorkload = (arr: SelectOption[]) => {
+      const map = assigneeWorkloadByLabel;
+      const get = (label: string) => map?.get(label.trim()) ?? 0;
+      return [...arr].sort((a, b) => {
+        const diff = get(b.label) - get(a.label);
+        if (diff !== 0) return diff;
+        return a.label.localeCompare(b.label, "zh-Hant", { sensitivity: "base" });
+      });
+    };
+
+    const sortByCustom = (arr: SelectOption[]) => arr; // keep member sort_order order from `options`
+
+    const sortArr = (arr: SelectOption[]) => {
+      if (assigneeSortMode === "name") return sortByName(arr);
+      if (assigneeSortMode === "workload") return sortByWorkload(arr);
+      return sortByCustom(arr);
+    };
+
+    // Checked items pinned to top; each group uses the chosen sort mode.
+    return [...sortArr(pinned), ...sortArr(rest)];
+  }, [fieldKey, filteredOptions, values, assigneeSortMode, assigneeWorkloadByLabel]);
 
   const handleToggle = (opt: SelectOption) => {
     if (values.includes(opt.label)) {
@@ -181,6 +252,31 @@ export default function MultiColorSelect({
               </div>
             </div>
 
+            {/* Assignee sorting mode (Slack-like) */}
+            {fieldKey === "assignee" && (
+              <div className="px-2 pb-1 pt-1 border-b border-border/60">
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={assigneeSortMode}
+                    onValueChange={(v) => {
+                      const next = v as AssigneeSortMode;
+                      setAssigneeSortMode(next);
+                      if (next === "workload") setAssigneeWorkloadByLabel(null);
+                    }}
+                  >
+                    <SelectTrigger className="w-[180px] h-8 text-xs">
+                      <SelectValue placeholder="排序" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="workload">近 30 天內案量</SelectItem>
+                      <SelectItem value="name">姓名字母</SelectItem>
+                      {isAdmin && <SelectItem value="custom">自訂</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
             {/* Options */}
             <div className="max-h-[330px] overflow-y-auto p-1">
               {displayOptions.map((opt) => {
@@ -195,12 +291,18 @@ export default function MultiColorSelect({
                       )}
                       onClick={() => handleToggle(opt)}
                     >
-                      <div className={cn(
-                        "h-4 w-4 rounded border flex items-center justify-center shrink-0",
-                        isChecked ? "bg-primary border-primary" : "border-muted-foreground/40"
-                      )}>
-                        {isChecked && <Check className="h-3 w-3 text-primary-foreground" />}
-                      </div>
+                      {isAssignee ? (
+                        <div className="shrink-0">
+                          <Checkbox checked={isChecked} className="h-4 w-4 pointer-events-none" />
+                        </div>
+                      ) : (
+                        <div className={cn(
+                          "h-4 w-4 rounded border flex items-center justify-center shrink-0",
+                          isChecked ? "bg-primary border-primary" : "border-muted-foreground/40"
+                        )}>
+                          {isChecked && <Check className="h-3 w-3 text-primary-foreground" />}
+                        </div>
+                      )}
                       {isAssignee ? (
                         <AssigneeTag label={opt.label} avatarUrl={opt.avatarUrl} />
                       ) : (

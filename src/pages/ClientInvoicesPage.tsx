@@ -14,7 +14,6 @@ import { useClientInvoices, clientInvoiceStore } from "@/hooks/use-client-invoic
 import { useFees } from "@/hooks/use-fee-store";
 import { useRowSelection } from "@/hooks/use-row-selection";
 import { useSelectOptions } from "@/stores/select-options-store";
-import { useLabelStyles } from "@/stores/label-style-store";
 import { type ClientInvoiceStatus, clientInvoiceStatusLabels } from "@/data/client-invoice-types";
 import { type ClientInvoice } from "@/data/client-invoice-types";
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
@@ -45,6 +44,7 @@ import { cn } from "@/lib/utils";
 import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { OptionLabelBadge } from "@/components/OptionLabelBadge";
 
 function StatusBadge({ status }: { status: ClientInvoiceStatus }) {
   const { options: statusLabelOptions } = useSelectOptions("statusLabel");
@@ -190,9 +190,7 @@ export default function ClientInvoicesPage() {
       key: "client",
       label: "客戶",
       minWidth: 100,
-      render: (inv) => (
-        <span className="text-sm truncate">{inv.client || <span className="text-muted-foreground italic">未指定</span>}</span>
-      ),
+      render: (inv) => <OptionLabelBadge fieldKey="client" value={inv.client || ""} emptyText="未指定" />,
     },
     {
       key: "status",
@@ -665,7 +663,13 @@ export default function ClientInvoicesPage() {
                   )}
                   onClick={() => navigate(`/client-invoices/${inv.id}`)}
                 >
-                  <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                  <td
+                    className="px-2 py-3 text-center"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      rowSelection.handleClick(inv.id, e as unknown as React.MouseEvent);
+                    }}
+                  >
                     <Checkbox
                       checked={isSelected}
                       onCheckedChange={() => {}}

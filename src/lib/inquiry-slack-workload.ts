@@ -33,3 +33,25 @@ export function buildWorkloadCountByDisplayName(cases: CaseRowForWorkload[]): Ma
   }
   return map;
 }
+
+export interface CaseRowForWorkloadTranslatorReviewerOnly {
+  translator?: unknown;
+  reviewer?: unknown;
+}
+
+/**
+ * translator+reviewer-only workload (NO collab_rows).
+ * Keeps the same "trim + count each occurrence" behavior.
+ */
+export function buildWorkloadCountByDisplayNameTranslatorReviewerOnly(
+  cases: CaseRowForWorkloadTranslatorReviewerOnly[]
+): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const row of cases) {
+    const t = row.translator;
+    const translators = Array.isArray(t) ? t : t != null && t !== "" ? [t] : [];
+    for (const x of translators) bump(map, x);
+    bump(map, row.reviewer);
+  }
+  return map;
+}
