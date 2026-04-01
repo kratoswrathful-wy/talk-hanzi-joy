@@ -740,6 +740,11 @@ export default function TranslatorFees() {
   const orderedCols = activeView.columnOrder
     .map((key) => columnDefs.find((c) => c.key === key))
     .filter((c): c is ColumnDef => !!c && !hiddenSet.has(c.key));
+  for (const col of columnDefs) {
+    if (!activeView.columnOrder.includes(col.key) && !hiddenSet.has(col.key)) {
+      orderedCols.push(col);
+    }
+  }
 
   const totalWidth = orderedCols.reduce((s, c) => s + (activeView.columnWidths[c.key] ?? 100), 0) + 140;
 

@@ -1630,18 +1630,16 @@ export default function CaseDetailPage() {
       </div>
       </div>
 
-      {/* 圖示左欄；右欄由上而下：詢案／Slack／複製（靠右）、狀態列、標題（全寬） */}
+      {/* 圖示左欄（僅有圖時固定寬）；無圖時上傳器在右欄頂列靠左，狀態／標題貼齊全寬左緣 */}
       {isPmOrAbove ? (
-        <div className={cn("flex w-full min-w-0 items-start", (caseData.iconUrl || isManager) ? "gap-3" : "")}>
-          {(caseData.iconUrl || isManager) && (
+        <div className={cn("flex w-full min-w-0 items-start", caseData.iconUrl ? "gap-3" : "")}>
+          {caseData.iconUrl ? (
             <div className="shrink-0 w-[126px] flex flex-col items-start gap-2">
-              {caseData.iconUrl ? (
-                <img
-                  src={caseData.iconUrl}
-                  alt="案件圖示"
-                  className="w-[126px] h-[126px] rounded-md object-cover border border-border"
-                />
-              ) : null}
+              <img
+                src={caseData.iconUrl}
+                alt="案件圖示"
+                className="w-[126px] h-[126px] rounded-md object-cover border border-border"
+              />
               {isManager && (
                 <CaseIconUploader
                   caseId={caseData.id}
@@ -1651,42 +1649,54 @@ export default function CaseDetailPage() {
                 />
               )}
             </div>
-          )}
+          ) : null}
           <div className="min-w-0 flex-1 flex flex-col gap-2 w-full">
-            <div className="flex flex-wrap justify-end gap-2 w-full">
-              <Button
-                size="sm"
-                className={uiInquiryMsg.className}
-                style={uiInquiryMsg.style}
-                onClick={() => {
-                  const title = caseData?.title || "（無標題）";
-                  const url = `${window.location.origin}/cases/${id}`;
-                  copyCaseInquiryMessageToClipboard(title, url);
-                }}
-              >
-                <UiToolbarButtonIcon uiButtonId="cases_inquiry_message" />
-                {lbInquiryMsg}
-              </Button>
-              {caseData && (
+            <div className="flex flex-wrap items-start justify-between gap-2 w-full">
+              <div className="shrink-0 min-w-0">
+                {isManager && !caseData.iconUrl ? (
+                  <CaseIconUploader
+                    caseId={caseData.id}
+                    currentIconUrl={caseData.iconUrl || null}
+                    onUploaded={(url) => save({ iconUrl: url })}
+                    onRemoved={() => save({ iconUrl: "" })}
+                  />
+                ) : null}
+              </div>
+              <div className="flex flex-wrap justify-end gap-2 min-w-0">
                 <Button
                   size="sm"
-                  className={uiSlackDetail.className}
-                  style={uiSlackDetail.style}
-                  onClick={() => setInquirySlackOpen(true)}
+                  className={uiInquiryMsg.className}
+                  style={uiInquiryMsg.style}
+                  onClick={() => {
+                    const title = caseData?.title || "（無標題）";
+                    const url = `${window.location.origin}/cases/${id}`;
+                    copyCaseInquiryMessageToClipboard(title, url);
+                  }}
                 >
-                  <UiToolbarButtonIcon uiButtonId="cases_slack" />
-                  <span className="text-xs font-medium leading-tight">{lbSlackDetail}</span>
+                  <UiToolbarButtonIcon uiButtonId="cases_inquiry_message" />
+                  {lbInquiryMsg}
                 </Button>
-              )}
-              <Button
-                size="sm"
-                className={uiCopyPage.className}
-                style={uiCopyPage.style}
-                onClick={handleDuplicate}
-              >
-                <UiToolbarButtonIcon uiButtonId="cases_copy" />
-                {lbCopyPage}
-              </Button>
+                {caseData && (
+                  <Button
+                    size="sm"
+                    className={uiSlackDetail.className}
+                    style={uiSlackDetail.style}
+                    onClick={() => setInquirySlackOpen(true)}
+                  >
+                    <UiToolbarButtonIcon uiButtonId="cases_slack" />
+                    <span className="text-xs font-medium leading-tight">{lbSlackDetail}</span>
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  className={uiCopyPage.className}
+                  style={uiCopyPage.style}
+                  onClick={handleDuplicate}
+                >
+                  <UiToolbarButtonIcon uiButtonId="cases_copy" />
+                  {lbCopyPage}
+                </Button>
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 w-full">
               <CaseStatusBadge status={caseData.status} />
@@ -1726,7 +1736,7 @@ export default function CaseDetailPage() {
             />
           )}
           <div className="min-w-0 flex-1 flex flex-col justify-start gap-1.5 pt-0.5 w-full">
-            <div className="flex flex-wrap items-center gap-2 pl-3">
+            <div className={cn("flex flex-wrap items-center gap-2", caseData.iconUrl && "pl-3")}>
               <CaseStatusBadge status={caseData.status} />
               {isInquiry && !caseData.multiCollab && (
                 <span className="text-xs text-muted-foreground">

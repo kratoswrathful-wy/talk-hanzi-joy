@@ -976,6 +976,11 @@ export default function CasesPage() {
   const orderedCols = activeView.columnOrder
     .map((key) => allColumnDefs.find((c) => c.key === key))
     .filter((c): c is ColumnDef => !!c && !hiddenSet.has(c.key));
+  for (const col of allColumnDefs) {
+    if (!activeView.columnOrder.includes(col.key) && !hiddenSet.has(col.key)) {
+      orderedCols.push(col);
+    }
+  }
   const totalWidth = orderedCols.reduce((s, c) => s + (activeView.columnWidths[c.key] ?? 100), 0) + 60;
 
   // Marquee selection
