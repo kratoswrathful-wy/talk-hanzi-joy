@@ -49,6 +49,7 @@ import { cn } from "@/lib/utils";
 import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { TableHorizontalScrollButtons } from "@/components/TableHorizontalScrollButtons";
 
 function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
   const { options: statusLabelOptions } = useSelectOptions("statusLabel");
@@ -532,6 +533,8 @@ export default function InvoicesPage() {
         pinnedTop={activeView.pinnedTop || []}
         pinnedBottom={activeView.pinnedBottom || []}
       />
+
+      <TableHorizontalScrollButtons containerRef={tableContainerRef} />
 
       <motion.div
         ref={tableContainerRef}

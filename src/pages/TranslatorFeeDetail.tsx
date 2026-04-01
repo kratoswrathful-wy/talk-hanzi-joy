@@ -1949,7 +1949,6 @@ export default function TranslatorFeeDetail() {
                         {internalNoteUrl ? (
                           <a
                             href={internalNoteUrl}
-                            target="_blank"
                             rel="noopener noreferrer"
                             className="flex items-center h-10 w-full rounded-md border border-input bg-secondary/50 px-3 text-sm text-primary underline underline-offset-2 hover:text-primary/80 transition-colors cursor-pointer opacity-60"
                           >
@@ -1974,12 +1973,12 @@ export default function TranslatorFeeDetail() {
                 <Label className="text-xs text-muted-foreground">客戶案件單連結</Label>
                 {(() => {
                   const link = clientInfo.clientCaseLink || { url: "", label: "" };
-                  const locked = isFinalized || clientInfo.reconciled || linkedClientInvoices.length > 0;
+                  const locked = clientInfo.reconciled || linkedClientInvoices.length > 0;
 
                   if (link.url) {
                     return (
                       <div className="flex items-center gap-2 h-10 min-w-0">
-                        <a href={link.url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline underline-offset-2 hover:text-primary/80 truncate">
+                        <a href={link.url} rel="noopener noreferrer" className="text-sm text-primary underline underline-offset-2 hover:text-primary/80 truncate">
                           {link.label || link.url}
                         </a>
                         <FeeCopyButton value={link.url} />

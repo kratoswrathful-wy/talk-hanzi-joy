@@ -45,6 +45,7 @@ import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-st
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { OptionLabelBadge } from "@/components/OptionLabelBadge";
+import { TableHorizontalScrollButtons } from "@/components/TableHorizontalScrollButtons";
 
 function StatusBadge({ status }: { status: ClientInvoiceStatus }) {
   const { options: statusLabelOptions } = useSelectOptions("statusLabel");
@@ -79,19 +80,22 @@ import { currencyStore } from "@/stores/currency-store";
 const formatCurrency = (n: number, code = "TWD") =>
   `${code} ${n.toLocaleString("zh-TW", { minimumFractionDigits: 0 })}`;
 
-/** Compute a single fee's revenue in its original client currency */
-function getFeeRevenueTwd(fee: any): number {
+function getFeeRevenueOriginal(fee: any): { amount: number; currency: string } {
   const ci = fee.clientInfo as any;
-  if (!ci?.clientTaskItems) return 0;
-  if (ci.notFirstFee) return 0;
+  if (!ci?.clientTaskItems) return { amount: 0, currency: "TWD" };
+  if (ci.notFirstFee) return { amount: 0, currency: "TWD" };
   const amount = ci.clientTaskItems.reduce(
     (s: number, i: any) => s + Number(i.unitCount || 0) * Number(i.clientPrice || 0), 0
   );
   const clientOpts = selectOptionsStore.getSortedOptions("client");
   const clientOpt = clientOpts.find((o: any) => o.label === ci.client);
-  const cur = clientOpt?.currency || "TWD";
-  const rate = currencyStore.getTwdRate(cur);
-  return amount * rate;
+  const currency = clientOpt?.currency || "TWD";
+  return { amount, currency };
+}
+
+function getFeeRevenueTwd(fee: any): number {
+  const { amount, currency } = getFeeRevenueOriginal(fee);
+  return amount * currencyStore.getTwdRate(currency);
 }
 const creatorNameCache = new Map<string, string>();
 
@@ -144,6 +148,21 @@ export default function ClientInvoicesPage() {
       return sum + getFeeRevenueTwd(fee);
     }, 0);
   }, [fees]);
+
+  const getInvoiceTotalOriginal = useCallback((inv: ClientInvoice) => {
+    if (inv.isRecordOnly) {
+      return { amount: inv.recordAmount || 0, currency: inv.recordCurrency || "TWD" };
+    }
+    const clientOpt = clientOptions.find((o) => o.label === inv.client);
+    const currency = clientOpt?.currency || "TWD";
+    const amount = inv.feeIds.reduce((sum, fid) => {
+      const fee = fees.find((f) => f.id === fid);
+      if (!fee) return sum;
+      const r = getFeeRevenueOriginal(fee);
+      return sum + r.amount;
+    }, 0);
+    return { amount, currency };
+  }, [fees, clientOptions]);
 
   const tableViews = useClientInvoiceTableViews(user?.id);
   const { activeView } = tableViews;
@@ -221,19 +240,6 @@ export default function ClientInvoicesPage() {
       render: (inv) => <span className="text-sm tabular-nums">{inv.feeIds.length}</span>,
     },
     {
-      key: "totalAmount",
-      label: "應收總額",
-      minWidth: 80,
-      render: (inv, total) => {
-        const rawAmount = inv.isRecordOnly ? (inv.recordAmount || 0) : total;
-        const cur = inv.isRecordOnly ? (inv.recordCurrency || "TWD") : "TWD";
-        const twdAmount = cur !== "TWD" ? rawAmount * getTwdRate(cur) : rawAmount;
-        const displayText = formatCurrency(Math.round(twdAmount), "TWD");
-        const tooltipText = inv.isRecordOnly && cur !== "TWD" ? `原幣值 ${formatCurrency(rawAmount, cur)}（匯率 1 ${cur} = ${getTwdRate(cur)} TWD）` : "自動計算";
-        return <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild><span className="text-sm tabular-nums cursor-default">{displayText}</span></TooltipTrigger><TooltipContent className="text-xs">{tooltipText}</TooltipContent></Tooltip></TooltipProvider>;
-      },
-    },
-    {
       key: "recordCurrency",
       label: "幣別",
       minWidth: 60,
@@ -242,14 +248,76 @@ export default function ClientInvoicesPage() {
       ),
     },
     {
+      key: "receiptTotalOriginal",
+      label: "收款總額",
+      minWidth: 90,
+      render: (inv) => {
+        const { amount: totalOriginal, currency } = getInvoiceTotalOriginal(inv);
+        const paid = inv.payments.reduce(
+          (s: number, p: any) =>
+            s + (p.type === "full" ? (p.noFee ? totalOriginal : (p.amount || 0)) : (p.amount || 0)),
+          0
+        );
+        return paid > 0 ? (
+          <span className="text-sm tabular-nums">{formatCurrency(paid, currency)}</span>
+        ) : (
+          <span className="text-sm text-muted-foreground">—</span>
+        );
+      },
+    },
+    {
+      key: "receiptTotalTwd",
+      label: "換算新台幣",
+      minWidth: 90,
+      render: (inv) => {
+        const { amount: totalOriginal, currency } = getInvoiceTotalOriginal(inv);
+        const paid = inv.payments.reduce(
+          (s: number, p: any) =>
+            s + (p.type === "full" ? (p.noFee ? totalOriginal : (p.amount || 0)) : (p.amount || 0)),
+          0
+        );
+        if (paid <= 0) return <span className="text-sm text-muted-foreground">—</span>;
+        const twd = Math.round(paid * getTwdRate(currency));
+        return (
+          <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
+            <span className="text-sm tabular-nums cursor-default">{formatCurrency(twd, "TWD")}</span>
+          </TooltipTrigger><TooltipContent className="text-xs">
+            {currency !== "TWD" ? `匯率 1 ${currency} = ${getTwdRate(currency)} TWD` : "自動計算"}
+          </TooltipContent></Tooltip></TooltipProvider>
+        );
+      },
+    },
+    {
       key: "serviceFee",
       label: "手續費",
       minWidth: 80,
-      render: (inv, total) => {
-        const t = inv.isRecordOnly ? (inv.recordAmount || 0) : total;
-        const paid = inv.payments.reduce((s: number, p: any) => s + (p.type === "full" ? (p.noFee ? t : (p.amount || 0)) : (p.amount || 0)), 0);
-        const fee = inv.status === "collected" && paid < t ? t - paid : 0;
-        return <span className={cn("text-sm tabular-nums", fee > 0 && "text-destructive")}>{fee > 0 ? formatCurrency(fee) : "—"}</span>;
+      render: (inv) => {
+        const { amount: totalOriginal, currency } = getInvoiceTotalOriginal(inv);
+        const paid = inv.payments.reduce(
+          (s: number, p: any) =>
+            s + (p.type === "full" ? (p.noFee ? totalOriginal : (p.amount || 0)) : (p.amount || 0)),
+          0
+        );
+        if (inv.status !== "collected") return <span className="text-sm text-muted-foreground">-</span>;
+        const fee = Math.max(0, totalOriginal - paid);
+        return <span className="text-sm tabular-nums text-destructive">{formatCurrency(fee, currency)}</span>;
+      },
+    },
+    {
+      key: "netReceived",
+      label: "實收金額",
+      minWidth: 90,
+      render: (inv) => {
+        const { amount: totalOriginal, currency } = getInvoiceTotalOriginal(inv);
+        const paid = inv.payments.reduce(
+          (s: number, p: any) =>
+            s + (p.type === "full" ? (p.noFee ? totalOriginal : (p.amount || 0)) : (p.amount || 0)),
+          0
+        );
+        if (inv.status !== "collected") return <span className="text-sm text-muted-foreground">-</span>;
+        const fee = Math.max(0, totalOriginal - paid);
+        const net = Math.max(0, paid - fee);
+        return <span className="text-sm tabular-nums font-medium text-success">{formatCurrency(net, currency)}</span>;
       },
     },
     {
@@ -592,6 +660,8 @@ export default function ClientInvoicesPage() {
         pinnedBottom={activeView.pinnedBottom || []}
       />
 
+      <TableHorizontalScrollButtons containerRef={tableContainerRef} />
+
       <motion.div
         ref={tableContainerRef}
         initial={{ opacity: 0 }}
@@ -651,7 +721,6 @@ export default function ClientInvoicesPage() {
           </thead>
           <tbody>
             {visibleInvoices.map((inv) => {
-              const total = getInvoiceTotal(inv.feeIds);
               const isSelected = rowSelection.selectedIds.has(inv.id);
               return (
                 <tr
@@ -686,7 +755,7 @@ export default function ClientInvoicesPage() {
                         col.key !== "title" && col.key !== "note" && "text-center"
                       )}
                     >
-                      {col.render(inv, total)}
+                      {col.render(inv, getInvoiceTotal(inv.feeIds))}
                     </td>
                   ))}
                 </tr>
@@ -706,17 +775,46 @@ export default function ClientInvoicesPage() {
             columnWidths={activeView.columnWidths}
             numericColumns={[
               { key: "feeCount", getValue: (inv: ClientInvoice) => inv.feeIds.length, isCurrency: false },
-              { key: "totalAmount", getValue: (inv: ClientInvoice) => {
-                const rawAmount = inv.isRecordOnly ? (inv.recordAmount || 0) : getInvoiceTotal(inv.feeIds);
-                const cur = inv.isRecordOnly ? (inv.recordCurrency || "TWD") : "TWD";
-                return cur !== "TWD" ? rawAmount * getTwdRate(cur) : rawAmount;
+              { key: "receiptTotalOriginal", getValue: (inv: ClientInvoice) => {
+                const { amount: totalOriginal, currency } = getInvoiceTotalOriginal(inv);
+                const paid = inv.payments.reduce(
+                  (s: number, p: any) =>
+                    s + (p.type === "full" ? (p.noFee ? totalOriginal : (p.amount || 0)) : (p.amount || 0)),
+                  0
+                );
+                return paid * getTwdRate(currency);
+              }},
+              { key: "receiptTotalTwd", getValue: (inv: ClientInvoice) => {
+                const { amount: totalOriginal, currency } = getInvoiceTotalOriginal(inv);
+                const paid = inv.payments.reduce(
+                  (s: number, p: any) =>
+                    s + (p.type === "full" ? (p.noFee ? totalOriginal : (p.amount || 0)) : (p.amount || 0)),
+                  0
+                );
+                return paid * getTwdRate(currency);
               }},
               { key: "serviceFee", getValue: (inv: ClientInvoice) => {
-                const rawAmount = inv.isRecordOnly ? (inv.recordAmount || 0) : getInvoiceTotal(inv.feeIds);
-                const cur = inv.isRecordOnly ? (inv.recordCurrency || "TWD") : "TWD";
-                const t = cur !== "TWD" ? rawAmount * getTwdRate(cur) : rawAmount;
-                const paid = inv.payments.reduce((s: number, p: any) => s + (p.type === "full" ? ((p as any).noFee ? t : (p.amount || 0)) : (p.amount || 0)), 0);
-                return inv.status === "collected" && paid < t ? t - paid : 0;
+                if (inv.status !== "collected") return 0;
+                const { amount: totalOriginal, currency } = getInvoiceTotalOriginal(inv);
+                const paid = inv.payments.reduce(
+                  (s: number, p: any) =>
+                    s + (p.type === "full" ? (p.noFee ? totalOriginal : (p.amount || 0)) : (p.amount || 0)),
+                  0
+                );
+                const fee = Math.max(0, totalOriginal - paid);
+                return fee * getTwdRate(currency);
+              }},
+              { key: "netReceived", getValue: (inv: ClientInvoice) => {
+                if (inv.status !== "collected") return 0;
+                const { amount: totalOriginal, currency } = getInvoiceTotalOriginal(inv);
+                const paid = inv.payments.reduce(
+                  (s: number, p: any) =>
+                    s + (p.type === "full" ? (p.noFee ? totalOriginal : (p.amount || 0)) : (p.amount || 0)),
+                  0
+                );
+                const fee = Math.max(0, totalOriginal - paid);
+                const net = Math.max(0, paid - fee);
+                return net * getTwdRate(currency);
               }},
             ]}
             data={visibleInvoices}

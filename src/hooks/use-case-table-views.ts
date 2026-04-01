@@ -29,7 +29,7 @@ export const caseFieldMetas: FieldMeta[] = [
   // (1.3) Case list extra filters/sorts
   { key: "client", label: "客戶", type: "select" },
   { key: "dispatchRoute", label: "派案途徑", type: "select" },
-  { key: "contact", label: "聯絡人", type: "text" },
+  { key: "contact", label: "聯絡人", type: "select" },
   { key: "keyword", label: "關鍵字", type: "text" },
   { key: "clientPoNumber", label: "客戶 PO#", type: "text" },
   

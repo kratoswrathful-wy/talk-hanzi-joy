@@ -17,6 +17,7 @@ import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
+import { TableHorizontalScrollButtons } from "@/components/TableHorizontalScrollButtons";
 import { useRowSelection } from "@/hooks/use-row-selection";
 import { usePermissions } from "@/hooks/use-permissions";
 import ColorSelect from "@/components/ColorSelect";
@@ -782,6 +783,8 @@ export default function InternalNotesPage() {
         pinnedTop={activeView.pinnedTop || []}
         pinnedBottom={activeView.pinnedBottom || []}
       />
+
+      <TableHorizontalScrollButtons containerRef={tableContainerRef} />
 
       <motion.div
         ref={tableContainerRef}

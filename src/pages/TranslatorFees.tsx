@@ -14,6 +14,7 @@ import { useTableViews, fieldMetas } from "@/hooks/use-table-views";
 import { FilterSortToolbar } from "@/components/fees/FilterSortToolbar";
 import { InlineEditCell } from "@/components/fees/InlineEditCell";
 import { useUndoRedo, type UndoEntry } from "@/hooks/use-undo-redo";
+import { TableHorizontalScrollButtons } from "@/components/TableHorizontalScrollButtons";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { getStatusLabelStyle, FEE_STATUS_LABEL_MAP, useSelectOptions as useSelectOpts } from "@/stores/select-options-store";
 import { InvoiceActions } from "@/components/InvoiceActions";
@@ -183,8 +184,15 @@ const allColumnDefs: ColumnDef[] = [
     minWidth: 70,
     managerOnly: true,
     render: (f, { editable, lockedTooltip, onCommit }) => (
-      <InlineEditCell value={f.clientInfo?.contact || ""} type="text" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("contact", v)}>
-        <span className="truncate text-sm text-muted-foreground">{f.clientInfo?.contact || "—"}</span>
+      <InlineEditCell
+        value={f.clientInfo?.contact || ""}
+        type="colorSelect"
+        fieldKey="contact"
+        editable={editable}
+        lockedTooltip={lockedTooltip}
+        onCommit={(v) => onCommit("contact", v)}
+      >
+        <OptionLabelBadge fieldKey="contact" value={f.clientInfo?.contact || ""} />
       </InlineEditCell>
     ),
   },
@@ -556,16 +564,25 @@ export default function TranslatorFees() {
   const navigate = useNavigate();
   const fees = useFees();
   const { primaryRole, isAdmin, profile, user } = useAuth();
-  const { canViewSection } = usePermissions();
+  const { canViewSection, checkPerm } = usePermissions();
   const [currentRole, setCurrentRole] = useState<UserRole>(isAdmin ? "pm" : "assignee");
   const isManager = isAdmin;
   const canCreateFee = isAdmin || canViewSection("create_fee");
 
-  const visibleFieldKeys = allColumnDefs
-    .filter((c) => !c.managerOnly || isManager)
-    .map((c) => c.key);
+  const permittedFieldKeys = useMemo(
+    () =>
+      allColumnDefs
+        .filter((c) => !c.managerOnly || isManager)
+        .filter((c) => checkPerm("fee_management", `table_field_${c.key}`, "view"))
+        .map((c) => c.key),
+    [checkPerm, isManager]
+  );
 
-  const columnDefs = allColumnDefs.filter((c) => !c.managerOnly || isManager);
+  const visibleFieldKeys = allColumnDefs.filter((c) => !c.managerOnly || isManager).map((c) => c.key);
+
+  const columnDefs = allColumnDefs
+    .filter((c) => !c.managerOnly || isManager)
+    .filter((c) => checkPerm("fee_management", `table_field_${c.key}`, "view"));
 
   const tableViews = useTableViews(user?.id);
   const { activeView } = tableViews;
@@ -980,7 +997,7 @@ export default function TranslatorFees() {
         onRenameView={tableViews.renameView}
         onReorderViews={tableViews.reorderViews}
         visibleFieldKeys={visibleFieldKeys}
-        permittedFieldKeys={visibleFieldKeys}
+        permittedFieldKeys={permittedFieldKeys}
         selectedCount={rowSelection.selectedCount}
         hiddenColumns={activeView.hiddenColumns || []}
         onToggleColumn={tableViews.toggleColumnVisibility}
@@ -991,6 +1008,8 @@ export default function TranslatorFees() {
         pinnedTop={activeView.pinnedTop || []}
         pinnedBottom={activeView.pinnedBottom || []}
       />
+
+      <TableHorizontalScrollButtons containerRef={tableContainerRef} />
 
       <motion.div
         ref={tableContainerRef}

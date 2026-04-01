@@ -432,11 +432,11 @@ export default function ClientInvoiceDetailPage() {
     );
   }
 
-  // If record-only, the total is the recordAmount (in original currency)
+  // If record-only, totals are recordAmount in recordCur. Otherwise, totals are in clientCurrency.
   const recordCur = invoice.isRecordOnly ? (invoice.recordCurrency || clientCurrency) : clientCurrency;
-  const total = invoice.isRecordOnly ? (invoice.recordAmount || 0) : feeTotalTwd;
+  const totalOriginal = invoice.isRecordOnly ? (invoice.recordAmount || 0) : (feeTotalsByCurrency.get(clientCurrency) || 0);
   const recordTwdRate = getTwdRate(recordCur);
-  const totalInTwd = invoice.isRecordOnly && recordCur !== "TWD" ? total * recordTwdRate : null;
+  const totalInTwd = recordCur === "TWD" ? Math.round(totalOriginal) : Math.round(totalOriginal * recordTwdRate);
 
   const isCollected = invoice.status === "collected";
   const editable = isAdmin && !isCollected;
@@ -444,13 +444,13 @@ export default function ClientInvoiceDetailPage() {
   // Calculate paid so far
   const paidSoFar = invoice.payments.reduce((sum, p) => {
     if (p.type === "full") {
-      return sum + (p.noFee ? total : (p.amount || 0));
+      return sum + (p.noFee ? totalOriginal : (p.amount || 0));
     }
     return sum + (p.amount || 0);
   }, 0);
-  const remaining = Math.max(0, total - paidSoFar);
-  const hasFees = paidSoFar > 0 && paidSoFar < total;
-  const serviceFee = hasFees ? total - paidSoFar : 0;
+  const remaining = Math.max(0, totalOriginal - paidSoFar);
+  const serviceFee = Math.max(0, totalOriginal - paidSoFar);
+  const netReceived = Math.max(0, paidSoFar - serviceFee);
 
   const handleRemoveFee = () => {
     if (removeFeeId) {
@@ -512,7 +512,7 @@ export default function ClientInvoiceDetailPage() {
   // Full payment dialog confirm
   const handleFullPayConfirm = () => {
     const noFee = fullPayNoFee;
-    const amount = noFee ? total : parseFloat(fullPayAmount);
+    const amount = noFee ? totalOriginal : parseFloat(fullPayAmount);
     if (!noFee && (isNaN(amount) || amount <= 0)) {
       toast.error("請輸入有效金額");
       return;
@@ -550,8 +550,8 @@ export default function ClientInvoiceDetailPage() {
       toast.error("請輸入有效金額");
       return;
     }
-    if (amount + paidSoFar > total) {
-      setAmountTooHighMsg(`輸入金額過高，已收金額加上本次收款合計超出應收總額 ${formatCurrency(total)}，請調整金額。`);
+    if (amount + paidSoFar > totalOriginal) {
+      setAmountTooHighMsg(`輸入金額過高，已收金額加上本次收款合計超出應收總額 ${formatCurrency(totalOriginal, recordCur)}，請調整金額。`);
       return;
     }
     const now = new Date().toISOString();
@@ -563,7 +563,7 @@ export default function ClientInvoiceDetailPage() {
     };
     const newPayments = [...invoice.payments, payment];
     const newPaidTotal = paidSoFar + amount;
-    const shouldClose = partialPayClose || newPaidTotal >= total;
+    const shouldClose = partialPayClose || newPaidTotal >= totalOriginal;
     const newStatus: ClientInvoiceStatus = shouldClose ? "collected" : "partial_collected";
     clientInvoiceStore.updateInvoice(invoice.id, {
       status: newStatus,
@@ -912,31 +912,19 @@ export default function ClientInvoiceDetailPage() {
                   <TableRow>
                     <TableCell className="text-left">
                       <span className="text-muted-foreground text-sm">
-                        {invoice.isRecordOnly ? "純請款紀錄" : "應收總額 (TWD)"}
+                        {invoice.isRecordOnly ? "純請款紀錄" : "換算新台幣"}
                       </span>
                     </TableCell>
                     <TableCell className="text-center">
                       <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-                        <span className="font-semibold tabular-nums cursor-default">{formatCurrency(total, invoice.isRecordOnly ? recordCur : "TWD")}</span>
-                      </TooltipTrigger><TooltipContent className="text-xs">自動計算</TooltipContent></Tooltip></TooltipProvider>
+                        <span className="font-semibold tabular-nums cursor-default">{formatCurrency(totalInTwd, "TWD")}</span>
+                      </TooltipTrigger><TooltipContent className="text-xs">
+                        {recordCur !== "TWD" ? `匯率 1 ${recordCur} = ${recordTwdRate} TWD` : "自動計算"}
+                      </TooltipContent></Tooltip></TooltipProvider>
                     </TableCell>
                     {editable && !invoice.isRecordOnly && <TableCell />}
                     {invoice.isRecordOnly && editable && <TableCell />}
                   </TableRow>
-                  {/* TWD conversion row when record-only and non-TWD currency */}
-                  {totalInTwd !== null && (
-                    <TableRow>
-                      <TableCell className="text-left">
-                        <span className="text-muted-foreground text-sm">換算新台幣</span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-                          <span className="font-semibold tabular-nums cursor-default">{formatCurrency(totalInTwd, "TWD")}</span>
-                        </TooltipTrigger><TooltipContent className="text-xs">匯率 1 {recordCur} = {recordTwdRate} TWD</TooltipContent></Tooltip></TooltipProvider>
-                      </TableCell>
-                      {editable && <TableCell />}
-                    </TableRow>
-                  )}
                   {/* Show remaining / service fee info when partially or fully collected */}
                   {invoice.status !== "pending" && paidSoFar > 0 && (
                     <>
@@ -962,18 +950,30 @@ export default function ClientInvoiceDetailPage() {
                           {invoice.isRecordOnly && editable && <TableCell />}
                         </TableRow>
                       )}
-                      {invoice.status === "collected" && paidSoFar < total && (
-                        <TableRow>
-                          <TableCell className="text-left">
-                            <span className="text-muted-foreground text-sm">手續費</span>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <span className="font-semibold tabular-nums text-destructive">{formatCurrency(total - paidSoFar, recordCur)}</span>
-                          </TableCell>
-                          {editable && !invoice.isRecordOnly && <TableCell />}
-                          {invoice.isRecordOnly && editable && <TableCell />}
-                        </TableRow>
-                      )}
+                      <TableRow>
+                        <TableCell className="text-left">
+                          <span className="text-muted-foreground text-sm">手續費</span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className="font-semibold tabular-nums text-destructive">
+                            {invoice.status === "collected" ? formatCurrency(serviceFee, recordCur) : "—"}
+                          </span>
+                        </TableCell>
+                        {editable && !invoice.isRecordOnly && <TableCell />}
+                        {invoice.isRecordOnly && editable && <TableCell />}
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="text-left">
+                          <span className="text-muted-foreground text-sm">實收金額</span>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className={cn("font-semibold tabular-nums", invoice.status === "collected" ? "text-success" : "text-muted-foreground")}>
+                            {invoice.status === "collected" ? formatCurrency(netReceived, recordCur) : "—"}
+                          </span>
+                        </TableCell>
+                        {editable && !invoice.isRecordOnly && <TableCell />}
+                        {invoice.isRecordOnly && editable && <TableCell />}
+                      </TableRow>
                     </>
                   )}
                 </TableFooter>
@@ -1058,9 +1058,9 @@ export default function ClientInvoiceDetailPage() {
             {/* Payment records */}
             {invoice.payments.map((p, idx) => {
               const paidUpToHere = invoice.payments.slice(0, idx + 1).reduce(
-                (s, pp) => s + (pp.type === "full" ? (pp.noFee ? total : (pp.amount || 0)) : (pp.amount || 0)), 0
+                (s, pp) => s + (pp.type === "full" ? (pp.noFee ? totalOriginal : (pp.amount || 0)) : (pp.amount || 0)), 0
               );
-              const remainingAfter = total - paidUpToHere;
+              const remainingAfter = totalOriginal - paidUpToHere;
               return (
                 <div key={p.id} className="flex items-center gap-2 text-sm">
                   <span className="text-muted-foreground">收款時間：</span>

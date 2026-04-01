@@ -25,6 +25,7 @@ const fieldToStoreKey: Record<string, string> = {
   // internal notes: creator is stored/displayed as human-readable name
   creator: "assignee",
   client: "client",
+  contact: "contact",
   status: "status",
   dispatchRoute: "dispatchRoute",
   category: "caseCategory",

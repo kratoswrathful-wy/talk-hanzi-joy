@@ -1632,24 +1632,26 @@ export default function CaseDetailPage() {
 
       {/* 圖示左欄；右欄由上而下：詢案／Slack／複製（靠右）、狀態列、標題（全寬） */}
       {isPmOrAbove ? (
-        <div className="flex gap-3 w-full min-w-0 items-start">
-          <div className="shrink-0 w-[126px] flex flex-col items-start gap-2">
-            {caseData.iconUrl ? (
-              <img
-                src={caseData.iconUrl}
-                alt="案件圖示"
-                className="w-[126px] h-[126px] rounded-md object-cover border border-border"
-              />
-            ) : null}
-            {isManager && (
-              <CaseIconUploader
-                caseId={caseData.id}
-                currentIconUrl={caseData.iconUrl || null}
-                onUploaded={(url) => save({ iconUrl: url })}
-                onRemoved={() => save({ iconUrl: "" })}
-              />
-            )}
-          </div>
+        <div className={cn("flex w-full min-w-0 items-start", (caseData.iconUrl || isManager) ? "gap-3" : "")}>
+          {(caseData.iconUrl || isManager) && (
+            <div className="shrink-0 w-[126px] flex flex-col items-start gap-2">
+              {caseData.iconUrl ? (
+                <img
+                  src={caseData.iconUrl}
+                  alt="案件圖示"
+                  className="w-[126px] h-[126px] rounded-md object-cover border border-border"
+                />
+              ) : null}
+              {isManager && (
+                <CaseIconUploader
+                  caseId={caseData.id}
+                  currentIconUrl={caseData.iconUrl || null}
+                  onUploaded={(url) => save({ iconUrl: url })}
+                  onRemoved={() => save({ iconUrl: "" })}
+                />
+              )}
+            </div>
+          )}
           <div className="min-w-0 flex-1 flex flex-col gap-2 w-full">
             <div className="flex flex-wrap justify-end gap-2 w-full">
               <Button

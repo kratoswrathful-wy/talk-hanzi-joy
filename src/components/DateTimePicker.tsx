@@ -459,8 +459,57 @@ export default function DateTimePicker({
     }
   };
 
-  const handleDateKeyDown = makeRollingKeyHandler(dateRolling, setDateError, validateDate, timeRef);
+  const baseDateKeyDown = makeRollingKeyHandler(dateRolling, setDateError, validateDate, timeRef);
   const handleTimeKeyDown = makeRollingKeyHandler(timeRolling, setTimeError, validateTime);
+
+  const moveDateByArrowKey = (key: string) => {
+    if (!open) return false;
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(key)) return false;
+
+    const y = parseInt(yearInput) || displayMonth.getFullYear();
+    const mm = parseInt(dateRolling.padded.slice(0, 2));
+    const dd = parseInt(dateRolling.padded.slice(2, 4));
+    const current = new Date(y, Math.max(0, (mm || (displayMonth.getMonth() + 1)) - 1), dd || 1);
+
+    const firstOfMonth = new Date(displayMonth.getFullYear(), displayMonth.getMonth(), 1);
+    const monIndex = (firstOfMonth.getDay() + 6) % 7; // Monday=0..Sunday=6
+    const gridStart = addDays(firstOfMonth, -monIndex);
+    const grid = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
+
+    let idx = grid.findIndex((d) => isSameDay(d, current));
+    if (idx < 0) idx = 0;
+    const row = Math.floor(idx / 7);
+    const col = idx % 7;
+
+    let nextIdx = idx;
+    if (key === "ArrowLeft") nextIdx = col === 0 ? idx + 6 : idx - 1;
+    if (key === "ArrowRight") nextIdx = col === 6 ? idx - 6 : idx + 1;
+    if (key === "ArrowUp") nextIdx = row === 0 ? idx + 35 : idx - 7;
+    if (key === "ArrowDown") nextIdx = row === 5 ? idx - 35 : idx + 7;
+
+    const next = grid[Math.max(0, Math.min(41, nextIdx))];
+    const ny = next.getFullYear();
+    const nm = next.getMonth() + 1;
+    const nd = next.getDate();
+    setYearInput(String(ny));
+    const mmdd = String(nm).padStart(2, "0") + String(nd).padStart(2, "0");
+    dateRolling.reset(mmdd);
+    setDateError(false);
+    setDisplayMonth(next);
+
+    const iso = buildIso(String(ny), mmdd, timeRolling.padded);
+    onChange(iso);
+    return true;
+  };
+
+  const handleDateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (moveDateByArrowKey(e.key)) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    baseDateKeyDown(e);
+  };
 
   const handleDateBlur = () => {
     if (validateDate() && yearInput) commitAll();

@@ -19,9 +19,11 @@ export const clientInvoiceFieldMetas: FieldMeta[] = [
   { key: "billingChannel", label: "請款管道", type: "select" },
   { key: "isRecordOnly", label: "純請款紀錄", type: "checkbox" },
   { key: "feeCount", label: "費用數", type: "computed" },
-  { key: "totalAmount", label: "應收總額", type: "computed" },
   { key: "recordCurrency", label: "幣別", type: "select" },
+  { key: "receiptTotalOriginal", label: "收款總額", type: "computed" },
+  { key: "receiptTotalTwd", label: "換算新台幣", type: "computed" },
   { key: "serviceFee", label: "手續費", type: "computed" },
+  { key: "netReceived", label: "實收金額", type: "computed" },
   { key: "expectedCollectionDate", label: "預計收款時間", type: "date" },
   { key: "actualCollectionDate", label: "實際收款時間", type: "date" },
   { key: "transferDate", label: "匯款日期", type: "date" },
@@ -41,11 +43,34 @@ function getFieldValue(
     case "client": return inv.client;
     case "status": return inv.status;
     case "feeCount": return inv.feeIds.length;
+    // Backward-compat for old saved views (column removed from UI)
     case "totalAmount": return feeTotal ? feeTotal(inv.feeIds) : 0;
+    case "receiptTotalOriginal": {
+      const total = inv.isRecordOnly ? (inv.recordAmount || 0) : (feeTotal ? feeTotal(inv.feeIds) : 0);
+      return inv.payments.reduce(
+        (s: number, p: any) => s + (p.type === "full" ? (p.noFee ? total : (p.amount || 0)) : (p.amount || 0)),
+        0
+      );
+    }
+    case "receiptTotalTwd": {
+      // For list filtering/sorting we don't have currency context here; keep same numeric as receiptTotalOriginal.
+      // Page-level rendering/footer is responsible for currency conversion.
+      const total = inv.isRecordOnly ? (inv.recordAmount || 0) : (feeTotal ? feeTotal(inv.feeIds) : 0);
+      return inv.payments.reduce(
+        (s: number, p: any) => s + (p.type === "full" ? (p.noFee ? total : (p.amount || 0)) : (p.amount || 0)),
+        0
+      );
+    }
     case "serviceFee": {
       const total = inv.isRecordOnly ? (inv.recordAmount || 0) : (feeTotal ? feeTotal(inv.feeIds) : 0);
       const paid = inv.payments.reduce((s: number, p: any) => s + (p.type === "full" ? (p.noFee ? total : (p.amount || 0)) : (p.amount || 0)), 0);
       return inv.status === "collected" && paid < total ? total - paid : 0;
+    }
+    case "netReceived": {
+      const total = inv.isRecordOnly ? (inv.recordAmount || 0) : (feeTotal ? feeTotal(inv.feeIds) : 0);
+      const paid = inv.payments.reduce((s: number, p: any) => s + (p.type === "full" ? (p.noFee ? total : (p.amount || 0)) : (p.amount || 0)), 0);
+      const fee = inv.status === "collected" ? Math.max(0, total - paid) : 0;
+      return inv.status === "collected" ? Math.max(0, paid - fee) : 0;
     }
     case "billingChannel": return inv.billingChannel || "";
     case "isRecordOnly": return !!inv.isRecordOnly;
@@ -133,8 +158,9 @@ function compareItems(
 const defaultColumnOrder = clientInvoiceFieldMetas.map((f) => f.key);
 const defaultColumnWidths: Record<string, number> = {
   title: 220, invoiceNumber: 140, client: 150, status: 100, billingChannel: 100, isRecordOnly: 100,
-  feeCount: 80, totalAmount: 120, recordCurrency: 80,
-  serviceFee: 100, expectedCollectionDate: 130, actualCollectionDate: 130,
+  feeCount: 80, recordCurrency: 80,
+  receiptTotalOriginal: 120, receiptTotalTwd: 120, serviceFee: 100, netReceived: 120,
+  expectedCollectionDate: 130, actualCollectionDate: 130,
   transferDate: 120, note: 200, createdBy: 100, createdAt: 120,
 };
 const defaultHiddenColumns = ["createdBy", "transferDate", "isRecordOnly", "recordCurrency"];

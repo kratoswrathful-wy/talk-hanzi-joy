@@ -25,7 +25,7 @@ export const fieldMetas: FieldMeta[] = [
   { key: "feeUnitCount", label: "稿費單位數", type: "number" },
   { key: "feeUnitPrice", label: "稿費單價", type: "number" },
   { key: "client", label: "客戶", type: "select" },
-  { key: "contact", label: "聯絡人", type: "text" },
+  { key: "contact", label: "聯絡人", type: "select" },
   { key: "clientCaseId", label: "關鍵字", type: "text" },
   { key: "clientPoNumber", label: "客戶 PO#", type: "text" },
   { key: "dispatchRoute", label: "派案途徑", type: "select" },

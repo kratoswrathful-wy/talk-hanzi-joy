@@ -139,6 +139,7 @@ const PERMISSION_MODULES: PermissionModule[] = [
       { key: "fee_list_create", label: "新增費用", type: "both", attribute: "按鈕" },
       { key: "fee_list_delete", label: "刪除費用", type: "both", attribute: "按鈕" },
       { key: "fee_list_viewDraft", label: "檢視草稿", type: "view" },
+      { key: "table_field_clientInvoiceStatus", label: "客戶請款狀態", type: "both", attribute: "欄位" },
     ],
     detailSections: [
       {
