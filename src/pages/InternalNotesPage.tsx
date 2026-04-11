@@ -3,6 +3,7 @@
  */
 import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from "react";
 import { applyEditLogFieldChange, type BurstMap } from "@/lib/edit-log-coalesce";
+import { filterEditLogsInternalNote } from "@/lib/edit-log-permission-filter";
 import { TableFooterStats } from "@/components/TableFooterStats";
 import { toast } from "sonner";
 import { Plus, ExternalLink, Trash2, GripVertical } from "lucide-react";
@@ -153,6 +154,10 @@ function NoteDetailView({
   };
   const { profile } = useAuth();
   const { checkPerm } = usePermissions();
+  const visibleNoteEditLogs = useMemo(
+    () => filterEditLogsInternalNote(note.editLogs ?? [], checkPerm),
+    [note.editLogs, checkPerm]
+  );
   const [invalidateOpen, setInvalidateOpen] = useState(false);
   const [invalidateReason, setInvalidateReason] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -286,14 +291,14 @@ function NoteDetailView({
       </Field>
 
       {note.editLogStartedAt &&
-        (note.editLogs?.length ?? 0) > 0 &&
-        checkPerm("internal_notes", "inotes_detail_title", "view") && (
+        visibleNoteEditLogs.length > 0 &&
+        (
           <>
             <Separator />
             <div className="space-y-2">
               <Label className="text-sm font-medium">變更紀錄</Label>
               <div className="space-y-2">
-                {(note.editLogs ?? []).map((entry) => (
+                {visibleNoteEditLogs.map((entry) => (
                   <div key={entry.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs space-y-0.5">
                     <div className="flex flex-wrap gap-x-4 gap-y-0.5">
                       <span><span className="text-muted-foreground">變更者：</span>{entry.changedBy}</span>

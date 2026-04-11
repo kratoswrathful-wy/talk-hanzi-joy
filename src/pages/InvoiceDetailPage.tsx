@@ -27,6 +27,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useInvoices } from "@/hooks/use-invoice-store";
 import { supabase } from "@/integrations/supabase/client";
 import { applyEditLogFieldChange, type BurstMap, type SimplePersistedLog } from "@/lib/edit-log-coalesce";
+import { filterEditLogsTranslatorInvoice } from "@/lib/edit-log-permission-filter";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -164,6 +165,11 @@ export default function InvoiceDetailPage() {
   const burstMapRef = useRef<BurstMap>({});
   const invoiceRefForUnmount = useRef(invoice);
   invoiceRefForUnmount.current = invoice;
+
+  const visibleEditLog = useMemo(
+    () => filterEditLogsTranslatorInvoice(editLog, checkPerm),
+    [editLog, checkPerm]
+  );
 
   // Creator name resolution
   const [creatorName, setCreatorName] = useState(invoice?.createdBy || "");
@@ -723,13 +729,13 @@ export default function InvoiceDetailPage() {
         </div>
 
         {/* Edit History */}
-        {editLog.length > 0 && (
+        {visibleEditLog.length > 0 && (
           <>
             <Separator />
             <div className="space-y-3">
               <Label className="text-sm font-medium">變更紀錄</Label>
               <div className="space-y-2">
-                {editLog.map((entry) => (
+                {visibleEditLog.map((entry) => (
                   <div key={entry.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs space-y-0.5">
                     <div className="flex flex-wrap gap-x-4 gap-y-0.5">
                       <span><span className="text-muted-foreground">變更者：</span>{entry.changedBy}</span>

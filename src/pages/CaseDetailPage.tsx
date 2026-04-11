@@ -71,6 +71,7 @@ import { getUserTimezone } from "@/lib/format-timestamp";
 import { getTimezoneInfo } from "@/data/timezone-options";
 import type { InternalNote } from "@/hooks/use-internal-notes-table-views";
 import { applyEditLogFieldChange, type BurstMap } from "@/lib/edit-log-coalesce";
+import { filterEditLogsCase } from "@/lib/edit-log-permission-filter";
 
 import CollaborationTable from "@/components/CollaborationTable";
 import { InquirySlackDialog } from "@/components/InquirySlackDialog";
@@ -896,6 +897,11 @@ export default function CaseDetailPage() {
   const [inquirySlackOpen, setInquirySlackOpen] = useState(false);
   const { primaryRole: currentRole, profile, user } = useAuth();
   const { checkPerm } = usePermissions();
+  const caseEditLogsFiltered = useMemo(
+    () => (caseData?.edit_logs ? filterEditLogsCase(caseData.edit_logs, checkPerm) : []),
+    [caseData?.edit_logs, checkPerm]
+  );
+
   const caseEditBurstRef = useRef<BurstMap>({});
   const isManager = currentRole === "pm" || currentRole === "executive";
   const pendingNavigateRef = useRef<(() => void) | null>(null);
@@ -2568,14 +2574,14 @@ export default function CaseDetailPage() {
       </div>
 
       {caseData.changeLogEnabledAt &&
-        (caseData.edit_logs?.length ?? 0) > 0 &&
-        checkPerm("case_management", "case_detail_title", "view") && (
+        caseEditLogsFiltered.length > 0 &&
+        (
           <>
             <Separator />
             <div className="space-y-3">
               <Label className="text-sm font-medium">變更紀錄</Label>
               <div className="space-y-2">
-                {(caseData.edit_logs ?? []).map((entry) => (
+                {caseEditLogsFiltered.map((entry) => (
                   <div key={entry.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs space-y-0.5">
                     <div className="flex flex-wrap gap-x-4 gap-y-0.5">
                       <span><span className="text-muted-foreground">變更者：</span>{entry.changedBy}</span>

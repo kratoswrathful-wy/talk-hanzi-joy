@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, type TranslatorFee, type EditLog, type FeeEditLogPhases, defaultClientInfo } from "@/data/fee-mock-data";
 import { applyEditLogFieldChange, type BurstMap, type SimplePersistedLog } from "@/lib/edit-log-coalesce";
+import { filterEditLogsFeeDetail } from "@/lib/edit-log-permission-filter";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
 import { selectOptionsStore, PRESET_COLORS, CONTACT_DEFAULT_COLOR, useSelectOptions } from "@/stores/select-options-store";
 import { currencyStore } from "@/stores/currency-store";
@@ -66,7 +67,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 
 type UserRole = "assignee" | "pm" | "executive";
 const roleLabels: Record<UserRole, string> = {
@@ -247,6 +248,10 @@ export default function TranslatorFeeDetail() {
   const burstMapRef = useRef<BurstMap>({});
   const phasesRef = useRef<FeeEditLogPhases | undefined>(undefined);
   const snapshotRef = useRef<{ taskItems: FeeTaskItem[]; title: string; assignee: string; internalNote: string } | null>(null);
+  const filteredFeeEditLog = useMemo(
+    () => filterEditLogsFeeDetail(editLog, checkPerm),
+    [editLog, checkPerm]
+  );
   const hasBeenSubmittedRef = useRef(feeData?.status === "finalized");
   const [duplicateDialogStep, setDuplicateDialogStep] = useState<null | "choose" | "assignRole" | "confirmSwap">(null);
   const [disableOption12A, setDisableOption12A] = useState(false);
@@ -2429,17 +2434,14 @@ export default function TranslatorFeeDetail() {
 
         {/* Edit History */}
         {(() => {
-          const clientInfoKeywords = ["客戶", "聯絡人", "案號", "PO", "硬碟", "對帳", "費率", "請款", "同一案件", "主要營收", "營收", "利潤", "客戶端"];
-          const isClientLog = (desc: string) => clientInfoKeywords.some((kw) => desc.includes(kw));
-          const filteredEditLog = isManager ? editLog : editLog.filter((e) => !isClientLog(e.description));
-          if (filteredEditLog.length === 0) return null;
+          if (filteredFeeEditLog.length === 0) return null;
           return (
             <>
               <Separator />
               <div className="space-y-3">
                 <Label className="text-sm font-medium">變更紀錄</Label>
                 <div className="space-y-2">
-                  {filteredEditLog.map((entry) => (
+                  {filteredFeeEditLog.map((entry) => (
                     <div key={entry.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs space-y-0.5">
                       <div className="flex flex-wrap gap-x-4 gap-y-0.5">
                         <span><span className="text-muted-foreground">變更者：</span>{entry.changedBy}</span>

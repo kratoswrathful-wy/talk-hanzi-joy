@@ -3,6 +3,7 @@ import { TableFooterStats, type NumericColumnConfig } from "@/components/TableFo
 import { Plus, ChevronDown, MessageSquare, History, GripVertical, ExternalLink, Trash2, FileText, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
+import { filterFeeListEditLogs } from "@/lib/edit-log-permission-filter";
 import { motion, AnimatePresence } from "framer-motion";
 import { type TranslatorFee, type FeeStatus } from "@/data/fee-mock-data";
 import { Badge } from "@/components/ui/badge";
@@ -66,10 +67,6 @@ const managerOnlyFields = new Set([
   "clientRevenue", "profit", "internalNote",
 ]);
 
-const clientInfoLogKeywords = [
-  "客戶", "聯絡人", "案號", "PO", "硬碟", "對帳", "費率", "請款",
-  "同一案件", "主要營收", "營收", "利潤", "客戶端",
-];
 
 import { formatDateTz as formatDate } from "@/lib/format-timestamp";
 
@@ -1441,7 +1438,7 @@ function FeeRow({
               >
                 <div className="px-5 py-4 bg-muted/20 border-b border-border">
                   {expanded === "notes" && <NotesPanel fee={fee} />}
-                  {expanded === "editLog" && <EditLogPanel fee={fee} currentRole={currentRole} />}
+                  {expanded === "editLog" && <EditLogPanel fee={fee} />}
                 </div>
               </motion.div>
             </td>
@@ -1476,15 +1473,13 @@ function NotesPanel({ fee }: { fee: TranslatorFee }) {
   );
 }
 
-function isClientInfoLog(action: string): boolean {
-  return clientInfoLogKeywords.some((kw) => action.includes(kw));
-}
 
-function EditLogPanel({ fee, currentRole }: { fee: TranslatorFee; currentRole: UserRole }) {
-  const isManager = currentRole === "pm" || currentRole === "executive";
-  const filteredLogs = isManager
-    ? fee.editLogs
-    : fee.editLogs.filter((log) => !isClientInfoLog(`${log.field} ${log.oldValue} → ${log.newValue}`));
+function EditLogPanel({ fee }: { fee: TranslatorFee }) {
+  const { checkPerm } = usePermissions();
+  const filteredLogs = useMemo(
+    () => filterFeeListEditLogs(fee.editLogs, checkPerm),
+    [fee.editLogs, checkPerm]
+  );
 
   return (
     <div className="space-y-2">
