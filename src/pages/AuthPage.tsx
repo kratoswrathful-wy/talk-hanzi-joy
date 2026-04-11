@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
@@ -306,16 +306,14 @@ export default function AuthPage() {
           <div className="mt-4 space-y-1 text-sm text-muted-foreground">
             <div className="flex items-center justify-between">
               {isLogin ? (
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="keepLoggedIn"
-                    checked={keepLoggedIn}
-                    onCheckedChange={(checked) => setKeepLoggedIn(checked === true)}
-                  />
-                  <Label htmlFor="keepLoggedIn" className="cursor-pointer text-sm font-normal">
-                    保持登入
-                  </Label>
-                </div>
+                <LabeledCheckbox
+                  id="keepLoggedIn"
+                  checked={keepLoggedIn}
+                  onCheckedChange={setKeepLoggedIn}
+                  labelClassName="text-sm font-normal"
+                >
+                  保持登入
+                </LabeledCheckbox>
               ) : <div />}
               <div>
                 {isLogin ? "還沒有帳號？" : "已有帳號？"}{" "}

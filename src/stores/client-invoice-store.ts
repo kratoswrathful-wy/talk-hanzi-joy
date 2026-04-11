@@ -1,4 +1,4 @@
-import type { ClientInvoice, ClientInvoiceStatus, ClientPaymentRecord } from "@/data/client-invoice-types";
+import type { ClientInvoice, ClientInvoiceAdjustmentLine, ClientInvoiceStatus, ClientPaymentRecord } from "@/data/client-invoice-types";
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
@@ -30,6 +30,7 @@ interface DbClientInvoice {
   record_amount: number;
   expected_collection_date: string | null;
   actual_collection_date: string | null;
+  adjustment_lines?: unknown;
 }
 
 function dbToApp(row: DbClientInvoice, feeIds: string[]): ClientInvoice {
@@ -52,7 +53,19 @@ function dbToApp(row: DbClientInvoice, feeIds: string[]): ClientInvoice {
     billingChannel: (row as any).billing_channel || undefined,
     expectedCollectionDate: row.expected_collection_date || undefined,
     actualCollectionDate: row.actual_collection_date || undefined,
+    adjustmentLines: parseAdjustmentLines((row as any).adjustment_lines),
   };
+}
+
+function parseAdjustmentLines(raw: unknown): ClientInvoiceAdjustmentLine[] | undefined {
+  if (!raw || !Array.isArray(raw)) return undefined;
+  const out: ClientInvoiceAdjustmentLine[] = [];
+  for (const x of raw as any[]) {
+    if (x && typeof x.id === "string" && (x.operation === "add" || x.operation === "subtract") && typeof x.amount === "number" && typeof x.currency === "string") {
+      out.push({ id: x.id, operation: x.operation, amount: x.amount, currency: x.currency });
+    }
+  }
+  return out.length ? out : undefined;
 }
 
 function generateDefaultTitle(client: string): string {
@@ -195,7 +208,7 @@ export const clientInvoiceStore = {
     return newInvoice;
   },
 
-  updateInvoice: (id: string, updates: Partial<Pick<ClientInvoice, "status" | "transferDate" | "note" | "title" | "invoiceNumber" | "payments" | "isRecordOnly" | "recordAmount" | "recordCurrency" | "billingChannel" | "expectedCollectionDate" | "actualCollectionDate">> & Record<string, any>) => {
+  updateInvoice: (id: string, updates: Partial<Pick<ClientInvoice, "status" | "transferDate" | "note" | "title" | "invoiceNumber" | "payments" | "isRecordOnly" | "recordAmount" | "recordCurrency" | "billingChannel" | "expectedCollectionDate" | "actualCollectionDate" | "adjustmentLines">> & Record<string, any>) => {
     invoices = invoices.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv));
     notify();
 
@@ -214,6 +227,7 @@ export const clientInvoiceStore = {
     if (updates.billingChannel !== undefined) dbUpdates.billing_channel = updates.billingChannel;
     if (updates.expectedCollectionDate !== undefined) dbUpdates.expected_collection_date = updates.expectedCollectionDate || null;
     if (updates.actualCollectionDate !== undefined) dbUpdates.actual_collection_date = updates.actualCollectionDate || null;
+    if (updates.adjustmentLines !== undefined) dbUpdates.adjustment_lines = updates.adjustmentLines ?? [];
 
     if (Object.keys(dbUpdates).length > 0) {
       supabase

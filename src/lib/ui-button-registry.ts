@@ -264,6 +264,16 @@ export const UI_BUTTON_REGISTRY: UiButtonDef[] = [
     appearance: "outline",
   },
   {
+    id: "fees_batch_finalize",
+    label: "開立稿費條",
+    module: "費用管理",
+    locations: ["費用總表"],
+    description: "選取一筆或多筆費用後批次開立稿費條",
+    defaultBg: "hsl(240 6% 16%)",
+    defaultText: "hsl(0 0% 98%)",
+    appearance: "outline",
+  },
+  {
     id: "fees_detail_copy_page",
     label: "複製本頁",
     module: "費用管理",

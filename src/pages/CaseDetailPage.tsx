@@ -25,7 +25,7 @@ import { MultilineInput } from "@/components/ui/multiline-input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Checkbox } from "@/components/ui/checkbox";
+import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import { caseStore } from "@/hooks/use-case-store";
 import type { CaseDuplicateSort } from "@/stores/case-store";
 import {
@@ -1977,18 +1977,20 @@ export default function CaseDetailPage() {
       {/* Multi-collab checkbox - below deadlines, PM+ only */}
       {isPmOrAbove && (
         <div className="flex items-center gap-2">
-          <Checkbox
+          <LabeledCheckbox
             id="multiCollab"
             checked={caseData.multiCollab}
             disabled={caseData.multiCollab}
             onCheckedChange={(v) => {
-              if (!!v) {
+              if (v) {
                 setCollabCountInput("");
                 setCollabCountDialogOpen(true);
               }
             }}
-          />
-          <Label htmlFor="multiCollab" className="text-sm cursor-pointer">多人協作/分批交件</Label>
+            labelClassName="text-sm"
+          >
+            多人協作/分批交件
+          </LabeledCheckbox>
           {caseData.multiCollab && isPmOrAbove && (
             <Button
               variant="ghost"
@@ -2394,14 +2396,14 @@ export default function CaseDetailPage() {
           {(() => {
             const canUseClientQForm = isPmOrAbove || isCurrentUserTranslator;
             return canUseClientQForm ? (
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="clientQuestionForm"
-                  checked={caseData.clientQuestionForm ?? false}
-                  onCheckedChange={(v) => save({ clientQuestionForm: !!v })}
-                />
-                <Label htmlFor="clientQuestionForm" className="text-sm cursor-pointer">有填寫客戶提問表單</Label>
-              </div>
+              <LabeledCheckbox
+                id="clientQuestionForm"
+                checked={caseData.clientQuestionForm ?? false}
+                onCheckedChange={(v) => save({ clientQuestionForm: v })}
+                labelClassName="text-sm"
+              >
+                有填寫客戶提問表單
+              </LabeledCheckbox>
             ) : null;
           })()}
           {questionTools.map((entry, idx) => (
@@ -2869,21 +2871,23 @@ export default function CaseDetailPage() {
               const isSelected = collabCancelSelectedRows.has(row.id);
               const isFull = collabCancelSelectedRows.size >= targetCount && !isSelected;
               return (
-                <label key={row.id} className={cn("flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer", isFull && "opacity-50 cursor-not-allowed")}>
-                  <Checkbox
-                    checked={isSelected}
-                    disabled={isFull}
-                    onCheckedChange={(v) => {
-                      const next = new Set(collabCancelSelectedRows);
-                      if (v) next.add(row.id);
-                      else next.delete(row.id);
-                      setCollabCancelSelectedRows(next);
-                    }}
-                  />
+                <LabeledCheckbox
+                  key={row.id}
+                  checked={isSelected}
+                  disabled={isFull}
+                  onCheckedChange={(v) => {
+                    const next = new Set(collabCancelSelectedRows);
+                    if (v) next.add(row.id);
+                    else next.delete(row.id);
+                    setCollabCancelSelectedRows(next);
+                  }}
+                  labelClassName={cn("px-2 py-1.5 rounded hover:bg-muted/50", isFull && "opacity-50 cursor-not-allowed")}
+                  labelWrap
+                >
                   <span className="text-sm">
                     第 {idx + 1} 列{row.segment ? `：${row.segment}` : ""}{row.translator ? ` — ${row.translator}` : ""}
                   </span>
-                </label>
+                </LabeledCheckbox>
               );
             })}
           </div>

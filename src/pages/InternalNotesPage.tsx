@@ -10,7 +10,7 @@ import { ApplyTemplateButton } from "@/components/ApplyTemplateButton";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
+import { TableRowSelectCheckbox } from "@/components/ui/checkbox-patterns";
 import { Input } from "@/components/ui/input";
 import { MultilineInput } from "@/components/ui/multiline-input";
 import { Separator } from "@/components/ui/separator";
@@ -802,8 +802,14 @@ export default function InternalNotesPage() {
         <table style={{ minWidth: totalWidth }} className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40">
-              <th className="w-[40px] px-2 py-2.5 text-center">
-                <Checkbox checked={rowSelection.isAllSelected} onCheckedChange={(checked) => { if (checked) rowSelection.selectAll(); else rowSelection.deselectAll(); }} className="mx-auto" />
+              <th
+                className="w-[40px] px-2 py-2.5 text-center cursor-pointer select-none"
+                onClick={() => {
+                  if (rowSelection.isAllSelected) rowSelection.deselectAll();
+                  else rowSelection.selectAll();
+                }}
+              >
+                <TableRowSelectCheckbox checked={rowSelection.isAllSelected} aria-label="全選" />
               </th>
               {orderedCols.map((col) => (
                 <th
@@ -839,13 +845,13 @@ export default function InternalNotesPage() {
                   onClick={() => navigate(`/internal-notes/${note.id}`)}
                 >
                   <td
-                    className="w-[40px] px-2 py-1.5 text-center"
+                    className="w-[40px] px-2 py-1.5 text-center cursor-pointer select-none"
                     onClick={(e) => {
                       e.stopPropagation();
                       rowSelection.handleClick(note.id, e as unknown as React.MouseEvent);
                     }}
                   >
-                    <Checkbox checked={isSelected} onCheckedChange={() => rowSelection.handleClick(note.id, { ctrlKey: true } as any)} className="mx-auto" />
+                    <TableRowSelectCheckbox checked={isSelected} aria-label="選取列" />
                   </td>
                   {orderedCols.map((col) => (
                     <td key={col.key} style={{ width: activeView.columnWidths[col.key] ?? 100, maxWidth: activeView.columnWidths[col.key] ?? 100 }} className={cn("px-3 py-1.5 overflow-hidden", col.key !== "title" && col.key !== "note" && "text-center")}>

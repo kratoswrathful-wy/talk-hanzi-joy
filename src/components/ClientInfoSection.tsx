@@ -11,7 +11,7 @@ import { useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import ColorSelect from "@/components/ColorSelect";
 import {
@@ -335,30 +335,34 @@ export default function ClientInfoSection({
               })()}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className="flex items-center gap-1.5">
-                    <Checkbox
+                  <span className="inline-flex">
+                    <LabeledCheckbox
                       id="reconciled"
                       checked={clientInfo.reconciled}
                       disabled={isInClientInvoice || !clientInfo.client}
-                      onCheckedChange={(checked) => update("reconciled", !!checked)}
-                    />
-                    <Label htmlFor="reconciled" className={`text-xs cursor-pointer whitespace-nowrap ${isInClientInvoice || !clientInfo.client ? 'text-muted-foreground/50' : ''}`}>對帳完成</Label>
-                  </div>
+                      onCheckedChange={(checked) => update("reconciled", checked)}
+                      labelClassName={isInClientInvoice || !clientInfo.client ? "opacity-70" : undefined}
+                    >
+                      對帳完成
+                    </LabeledCheckbox>
+                  </span>
                 </TooltipTrigger>
                 {!clientInfo.client && <TooltipContent>客戶欄為空白，無法對帳</TooltipContent>}
                 {clientInfo.client && isInClientInvoice && <TooltipContent>此費用已列入客戶請款單，無法修改對帳狀態</TooltipContent>}
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className="flex items-center gap-1.5">
-                    <Checkbox
+                  <span className="inline-flex">
+                    <LabeledCheckbox
                       id="invoiced"
                       checked={clientInfo.invoiced || isInClientInvoice}
                       disabled={isInClientInvoice || !clientInfo.reconciled}
-                      onCheckedChange={(checked) => update("invoiced", !!checked)}
-                    />
-                    <Label htmlFor="invoiced" className={`text-xs cursor-pointer whitespace-nowrap ${isInClientInvoice || !clientInfo.reconciled ? 'text-muted-foreground/50' : ''}`}>請款完成</Label>
-                  </div>
+                      onCheckedChange={(checked) => update("invoiced", checked)}
+                      labelClassName={isInClientInvoice || !clientInfo.reconciled ? "opacity-70" : undefined}
+                    >
+                      請款完成
+                    </LabeledCheckbox>
+                  </span>
                 </TooltipTrigger>
                 {!clientInfo.reconciled && !isInClientInvoice && <TooltipContent>尚未對帳完成，無法請款</TooltipContent>}
                 {isInClientInvoice && <TooltipContent>此費用已列入客戶請款單，不得修改請款狀態</TooltipContent>}
@@ -388,23 +392,23 @@ export default function ClientInfoSection({
           <div className="flex items-center justify-between">
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex items-center gap-2">
-                  <Checkbox
+                <span className="inline-flex max-w-[min(100%,28rem)]">
+                  <LabeledCheckbox
                     id="sameCase"
                     checked={clientInfo.sameCase}
                     disabled={!canEdit || clientInfo.reconciled}
+                    labelWrap
                     onCheckedChange={(checked) => {
                       if (!checked && clientInfo.sameCase) {
                         setShowUncheckWarning(true);
                       } else {
-                        update("sameCase", !!checked);
+                        update("sameCase", checked);
                       }
                     }}
-                  />
-                  <Label htmlFor="sameCase" className="text-xs cursor-pointer whitespace-nowrap">
+                  >
                     費用群組（勾選後系統會自動以「相關案件」相同者判定群組所屬費用）
-                  </Label>
-                </div>
+                  </LabeledCheckbox>
+                </span>
               </TooltipTrigger>
               {clientInfo.reconciled && <TooltipContent>已對帳完成，不得修改營收內容</TooltipContent>}
             </Tooltip>
@@ -430,11 +434,13 @@ export default function ClientInfoSection({
           {clientInfo.sameCase && (
             <>
               <div className="space-y-0.5">
-                <div className="flex items-center gap-2 ml-6">
-                  <Checkbox
+                <div className="ml-6">
+                  <LabeledCheckbox
                     id="isFirstFee"
                     checked={clientInfo.isFirstFee}
                     disabled={isFirstFeeDisabled || clientInfo.reconciled}
+                    labelWrap
+                    labelClassName={isFirstFeeDisabled ? "opacity-70" : undefined}
                     onCheckedChange={(checked) => {
                       if (checked) {
                         const hasExisting = currentInternalNote && allFees.some(
@@ -446,29 +452,23 @@ export default function ClientInfoSection({
                           return;
                         }
                       }
-                      update("isFirstFee", !!checked);
+                      update("isFirstFee", checked);
                     }}
-                  />
-                  <Label
-                    htmlFor="isFirstFee"
-                    className={`text-xs cursor-pointer ${isFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
                   >
                     為主要營收紀錄（於總表列入營收統計）
-                  </Label>
+                  </LabeledCheckbox>
                 </div>
-                <div className="flex items-center gap-2 ml-6">
-                  <Checkbox
+                <div className="ml-6">
+                  <LabeledCheckbox
                     id="notFirstFee"
                     checked={clientInfo.notFirstFee}
                     disabled={notFirstFeeDisabled || clientInfo.reconciled}
-                    onCheckedChange={(checked) => update("notFirstFee", !!checked)}
-                  />
-                  <Label
-                    htmlFor="notFirstFee"
-                    className={`text-xs cursor-pointer ${notFirstFeeDisabled ? "text-muted-foreground/50" : ""}`}
+                    labelWrap
+                    labelClassName={notFirstFeeDisabled ? "opacity-70" : undefined}
+                    onCheckedChange={(checked) => update("notFirstFee", checked)}
                   >
                     非主要營收紀錄（於總表不列入營收統計）
-                  </Label>
+                  </LabeledCheckbox>
                 </div>
               </div>
 

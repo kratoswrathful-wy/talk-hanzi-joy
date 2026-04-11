@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Checkbox } from "@/components/ui/checkbox";
+import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import {
   type TableFilter, type TableSort, type TableView, type FilterOperator,
   type FieldMeta, type FilterGroup, type LogicOperator,
@@ -382,14 +382,15 @@ export function FilterSortToolbar({
             <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground mb-2">顯示屬性</p>
               {allFields.map((f) => (
-                <label key={f.key} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-muted cursor-pointer text-xs">
-                  <Checkbox
-                    checked={!hiddenSet.has(f.key)}
-                    onCheckedChange={() => onToggleColumn(f.key)}
-                    className="h-3.5 w-3.5"
-                  />
+                <LabeledCheckbox
+                  key={f.key}
+                  checked={!hiddenSet.has(f.key)}
+                  onCheckedChange={() => onToggleColumn(f.key)}
+                  className="h-3.5 w-3.5"
+                  labelClassName="py-1 px-1 rounded hover:bg-muted w-full"
+                >
                   {f.label}
-                </label>
+                </LabeledCheckbox>
               ))}
             </div>
           </PopoverContent>

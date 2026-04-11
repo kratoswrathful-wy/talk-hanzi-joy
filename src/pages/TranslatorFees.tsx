@@ -8,6 +8,7 @@ import { type TranslatorFee, type FeeStatus } from "@/data/fee-mock-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { TableRowSelectCheckbox } from "@/components/ui/checkbox-patterns";
 import { useFees, feeStore } from "@/hooks/use-fee-store";
 import { useRowSelection } from "@/hooks/use-row-selection";
 import { useTableViews, fieldMetas } from "@/hooks/use-table-views";
@@ -41,7 +42,6 @@ import AssigneeTag from "@/components/AssigneeTag";
 import { supabase } from "@/integrations/supabase/client";
 import { getFieldLock, getMultiSelectFieldLock, type FeeFieldLockContext } from "@/lib/fee-field-locks";
 import { currencyStore } from "@/stores/currency-store";
-import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
 import {
   fetchNoFeeByEmails,
   getFinalizeEligibility,
@@ -612,9 +612,11 @@ export default function TranslatorFees() {
   const uiFeesAdd = useToolbarButtonUiProps("fees_add");
   const uiFeesTranslatorInv = useToolbarButtonUiProps("fees_translator_invoice");
   const uiFeesClientInv = useToolbarButtonUiProps("fees_client_invoice");
+  const uiFeesBatchFinalize = useToolbarButtonUiProps("fees_batch_finalize");
   const lbFeesAdd = useUiButtonLabel("fees_add") ?? "新增費用";
   const lbFeesTranslatorInv = useUiButtonLabel("fees_translator_invoice") ?? "譯者請款";
   const lbFeesClientInv = useUiButtonLabel("fees_client_invoice") ?? "客戶請款";
+  const lbFeesBatchFinalize = useUiButtonLabel("fees_batch_finalize") ?? "開立稿費條";
 
   // Build lock context for a fee (linked invoices)
   const getLockContext = useCallback((fee: TranslatorFee): FeeFieldLockContext => {
@@ -1008,14 +1010,15 @@ export default function TranslatorFees() {
                 <span>
                   <Button
                     size="sm"
-                    className={MODULE_TOOLBAR_BTN}
+                    className={uiFeesBatchFinalize.className}
+                    style={uiFeesBatchFinalize.style}
                     disabled={rowSelection.selectedCount === 0 || finalizeLoading}
                     onClick={() => void handleBatchFinalize()}
                   >
                     {finalizeLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin shrink-0" />
                     ) : null}
-                    開立稿費條
+                    {lbFeesBatchFinalize}
                   </Button>
                 </span>
               </TooltipTrigger>
@@ -1107,15 +1110,14 @@ export default function TranslatorFees() {
           <thead>
             <tr className="border-b border-border bg-muted/40">
               {/* Select-all checkbox */}
-              <th className="w-[40px] px-2 py-2.5 text-center">
-                <Checkbox
-                  checked={rowSelection.isAllSelected}
-                  onCheckedChange={(checked) => {
-                    if (checked) rowSelection.selectAll();
-                    else rowSelection.deselectAll();
-                  }}
-                  className="mx-auto"
-                />
+              <th
+                className="w-[40px] px-2 py-2.5 text-center cursor-pointer select-none"
+                onClick={() => {
+                  if (rowSelection.isAllSelected) rowSelection.deselectAll();
+                  else rowSelection.selectAll();
+                }}
+              >
+                <TableRowSelectCheckbox checked={rowSelection.isAllSelected} aria-label="全選" />
               </th>
               {orderedCols.map((col) => (
                 <th
@@ -1365,18 +1367,13 @@ function FeeRow({
         )}
       >
         <td
-          className="px-2 py-3 text-center"
+          className="px-2 py-3 text-center cursor-pointer select-none"
           onClick={(e) => {
             e.stopPropagation();
             onSelect(fee.id, e as unknown as React.MouseEvent);
           }}
         >
-          <Checkbox
-            checked={isSelected}
-            onCheckedChange={() => {}}
-            onClick={(e) => onSelect(fee.id, e as unknown as React.MouseEvent)}
-            className="mx-auto"
-          />
+          <TableRowSelectCheckbox checked={isSelected} aria-label="選取列" />
         </td>
         {orderedCols.map((col) => {
           const { editable, lockedTooltip } = getEditable(col.key);

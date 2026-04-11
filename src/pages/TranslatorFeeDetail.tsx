@@ -27,7 +27,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ColorSelect from "@/components/ColorSelect";
@@ -2228,25 +2228,24 @@ export default function TranslatorFeeDetail() {
               {isManager && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="flex items-center gap-1.5 relative">
-                      <Checkbox
+                    <span className="inline-flex">
+                      <LabeledCheckbox
                         id="rateConfirmed"
                         checked={isNoFeeTranslator ? true : clientInfo.rateConfirmed}
                         disabled={isFinalized || isNoFeeTranslator || linkedTranslatorInvoices.length > 0 || !assignee}
                         onCheckedChange={(checked) => {
-                          const updated = { ...clientInfo, rateConfirmed: !!checked };
+                          const updated = { ...clientInfo, rateConfirmed: checked };
                           setClientInfo(updated);
                           if (id) feeStore.updateFee(id, { clientInfo: updated });
-                          // When checking rateConfirmed, show finalize prompt
                           if (checked && !isNoFeeTranslator) {
                             setShowFinalizePrompt(true);
-                            // Focus the confirm button after render
                             setTimeout(() => finalizePromptRef.current?.focus(), 100);
                           }
                         }}
-                      />
-                      <Label htmlFor="rateConfirmed" className="text-xs cursor-pointer whitespace-nowrap">費率無誤</Label>
-                    </div>
+                      >
+                        費率無誤
+                      </LabeledCheckbox>
+                    </span>
                   </TooltipTrigger>
                   {!assignee && <TooltipContent>譯者欄為空白，無法確認費率</TooltipContent>}
                   {assignee && isFinalized && <TooltipContent>已向譯者開立稿費條，不得修改稿費費率確認狀態</TooltipContent>}

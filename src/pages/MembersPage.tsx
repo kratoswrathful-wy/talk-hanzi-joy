@@ -9,8 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -444,16 +443,14 @@ export default function MembersPage() {
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {canEditNoFee && (
-                          <div className="flex items-center gap-1.5">
-                            <Checkbox
-                              id={`no-fee-${member.email}`}
-                              checked={member.no_fee}
-                              onCheckedChange={(checked) => handleToggleNoFee(member.email, !!checked)}
-                            />
-                            <Label htmlFor={`no-fee-${member.email}`} className="text-xs cursor-pointer text-muted-foreground">
-                              不開單
-                            </Label>
-                          </div>
+                          <LabeledCheckbox
+                            id={`no-fee-${member.email}`}
+                            checked={member.no_fee}
+                            onCheckedChange={(checked) => handleToggleNoFee(member.email, checked)}
+                            labelClassName="text-muted-foreground"
+                          >
+                            不開單
+                          </LabeledCheckbox>
                         )}
                         {canFreeze && (
                           <Tooltip>

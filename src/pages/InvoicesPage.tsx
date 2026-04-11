@@ -8,7 +8,7 @@ import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { TableRowSelectCheckbox } from "@/components/ui/checkbox-patterns";
 import { Input } from "@/components/ui/input";
 import { useInvoices, invoiceStore } from "@/hooks/use-invoice-store";
 import { useFees } from "@/hooks/use-fee-store";
@@ -558,15 +558,14 @@ export default function InvoicesPage() {
         <table style={{ minWidth: totalWidth }} className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40">
-              <th className="w-[40px] px-2 py-2.5 text-center">
-                <Checkbox
-                  checked={rowSelection.isAllSelected}
-                  onCheckedChange={(checked) => {
-                    if (checked) rowSelection.selectAll();
-                    else rowSelection.deselectAll();
-                  }}
-                  className="mx-auto"
-                />
+              <th
+                className="w-[40px] px-2 py-2.5 text-center cursor-pointer select-none"
+                onClick={() => {
+                  if (rowSelection.isAllSelected) rowSelection.deselectAll();
+                  else rowSelection.selectAll();
+                }}
+              >
+                <TableRowSelectCheckbox checked={rowSelection.isAllSelected} aria-label="全選" />
               </th>
               {orderedCols.map((col) => (
                 <th
@@ -609,18 +608,13 @@ export default function InvoicesPage() {
                   onClick={() => navigate(`/invoices/${inv.id}`)}
                 >
                   <td
-                    className="px-2 py-3 text-center"
+                    className="px-2 py-3 text-center cursor-pointer select-none"
                     onClick={(e) => {
                       e.stopPropagation();
                       rowSelection.handleClick(inv.id, e as unknown as React.MouseEvent);
                     }}
                   >
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={() => {}}
-                      onClick={(e) => rowSelection.handleClick(inv.id, e as unknown as React.MouseEvent)}
-                      className="mx-auto"
-                    />
+                    <TableRowSelectCheckbox checked={isSelected} aria-label="選取列" />
                   </td>
                   {orderedCols.map((col) => (
                     <td

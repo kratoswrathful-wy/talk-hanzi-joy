@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -24,7 +25,7 @@ import { useSelectOptions } from "@/stores/select-options-store";
 import { useFees } from "@/hooks/use-fee-store";
 import { useLabelStyles } from "@/stores/label-style-store";
 import { useCurrencies } from "@/stores/currency-store";
-import { type ClientInvoiceStatus, type ClientPaymentRecord, clientInvoiceStatusLabels } from "@/data/client-invoice-types";
+import { type ClientInvoiceAdjustmentLine, type ClientInvoiceStatus, type ClientPaymentRecord, clientInvoiceStatusLabels } from "@/data/client-invoice-types";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useClientInvoices } from "@/hooks/use-client-invoice-store";
 import { supabase } from "@/integrations/supabase/client";
@@ -244,6 +245,12 @@ export default function ClientInvoiceDetailPage() {
   const [editRecordCurrency, setEditRecordCurrency] = useState("TWD");
   const [amountTooHighMsg, setAmountTooHighMsg] = useState<string | null>(null);
 
+  // 請款額調整 dialog
+  const [showAdjustmentDialog, setShowAdjustmentDialog] = useState(false);
+  const [adjOperation, setAdjOperation] = useState<"add" | "subtract">("add");
+  const [adjCurrency, setAdjCurrency] = useState("TWD");
+  const [adjAmount, setAdjAmount] = useState("");
+
   // Comments
   const [comments, setComments] = useState<CommentEntry[]>([]);
   const [commentDraft, setCommentDraft] = useState("");
@@ -410,6 +417,19 @@ export default function ClientInvoiceDetailPage() {
     return clientOpt?.currency || "TWD";
   }, [clientOptions, invoice?.client]);
 
+  /** 調整列合計，換算為客戶幣別金額（與 feeTotalsByCurrency 同層相加） */
+  const adjustmentSumInClientCurrency = useMemo(() => {
+    if (!invoice) return 0;
+    const lines = invoice.adjustmentLines || [];
+    let s = 0;
+    for (const line of lines) {
+      const sign = line.operation === "add" ? 1 : -1;
+      const twd = line.amount * getTwdRate(line.currency) * sign;
+      s += twd / getTwdRate(clientCurrency);
+    }
+    return s;
+  }, [invoice, invoice?.adjustmentLines, clientCurrency, getTwdRate]);
+
   // Buffered title input
   const [localTitle, setLocalTitle] = useState(invoice?.title || "");
   const [localInvoiceNumber, setLocalInvoiceNumber] = useState(invoice?.invoiceNumber || "");
@@ -432,9 +452,11 @@ export default function ClientInvoiceDetailPage() {
     );
   }
 
-  // If record-only, totals are recordAmount in recordCur. Otherwise, totals are in clientCurrency.
+  // If record-only, totals are recordAmount in recordCur. Otherwise, fee totals in clientCurrency + 請款額調整
   const recordCur = invoice.isRecordOnly ? (invoice.recordCurrency || clientCurrency) : clientCurrency;
-  const totalOriginal = invoice.isRecordOnly ? (invoice.recordAmount || 0) : (feeTotalsByCurrency.get(clientCurrency) || 0);
+  const totalOriginal = invoice.isRecordOnly
+    ? (invoice.recordAmount || 0)
+    : (feeTotalsByCurrency.get(clientCurrency) || 0) + adjustmentSumInClientCurrency;
   const recordTwdRate = getTwdRate(recordCur);
   const totalInTwd = recordCur === "TWD" ? Math.round(totalOriginal) : Math.round(totalOriginal * recordTwdRate);
 
@@ -578,17 +600,6 @@ export default function ClientInvoiceDetailPage() {
     toast.success(shouldClose ? "已記錄收款完畢" : "已記錄部份收款");
   };
 
-  // Record-only checkbox handler
-  const handleRecordOnlyCheck = () => {
-    if (invoice.isRecordOnly) return;
-    setRecordAmountInput("");
-    setRecordCurrencyInput((() => {
-      const clientOpt = clientOptions.find((o) => o.label === invoice.client);
-      return clientOpt?.currency || "TWD";
-    })());
-    setShowRecordAmountDialog(true);
-  };
-
   const handleRecordAmountConfirm = () => {
     const amount = parseFloat(recordAmountInput);
     if (isNaN(amount) || amount <= 0) {
@@ -623,6 +634,30 @@ export default function ClientInvoiceDetailPage() {
     });
     setShowEditRecordDialog(false);
     toast.success("已更新請款紀錄");
+  };
+
+  const handleAdjustmentConfirm = () => {
+    const amount = parseFloat(adjAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("請輸入有效金額");
+      return;
+    }
+    const line: ClientInvoiceAdjustmentLine = {
+      id: crypto.randomUUID(),
+      operation: adjOperation,
+      amount,
+      currency: adjCurrency,
+    };
+    const next = [...(invoice.adjustmentLines || []), line];
+    clientInvoiceStore.updateInvoice(invoice.id, { adjustmentLines: next });
+    setShowAdjustmentDialog(false);
+    setAdjAmount("");
+    toast.success("已新增費用調整");
+  };
+
+  const removeAdjustmentLine = (lineId: string) => {
+    const next = (invoice.adjustmentLines || []).filter((l) => l.id !== lineId);
+    clientInvoiceStore.updateInvoice(invoice.id, { adjustmentLines: next });
   };
 
   const handleNoteChange = (newNote: string) => {
@@ -743,27 +778,8 @@ export default function ClientInvoiceDetailPage() {
           {/* Fields: two columns */}
           <div className="grid gap-5">
             <div className="grid grid-cols-2 gap-4">
-              {/* Left: 純請款紀錄 checkbox + 請款管道 */}
+              {/* Left: 請款管道（純請款紀錄改由舊資料保留，不再提供勾選建立） */}
               <div className="flex items-center h-10 gap-3">
-                <div className="flex items-center gap-2">
-                  {(() => {
-                    const hasFeeEntries = invoice.feeIds.length > 0;
-                    const disabled = !!invoice.isRecordOnly || isCollected || hasFeeEntries;
-                    const checkbox = (
-                      <Checkbox
-                        checked={!!invoice.isRecordOnly}
-                        onCheckedChange={() => handleRecordOnlyCheck()}
-                        disabled={disabled}
-                      />
-                    );
-                    return hasFeeEntries && !invoice.isRecordOnly ? (
-                      <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-                        <span className="flex items-center">{checkbox}</span>
-                      </TooltipTrigger><TooltipContent className="text-xs">已有費用收錄</TooltipContent></Tooltip></TooltipProvider>
-                    ) : checkbox;
-                  })()}
-                  <span className="text-sm">純請款紀錄</span>
-                </div>
                 <Select
                   value={invoice.billingChannel || ""}
                   onValueChange={(v) => clientInvoiceStore.updateInvoice(invoice.id, { billingChannel: v })}
@@ -808,7 +824,7 @@ export default function ClientInvoiceDetailPage() {
                 <DateOnlyPicker
                   value={invoice.expectedCollectionDate}
                   onChange={(v) => clientInvoiceStore.updateInvoice(invoice.id, { expectedCollectionDate: v })}
-                  disabled={isCollected}
+                  disabled={!isAdmin}
                 />
               </div>
               <div className="grid gap-1.5">
@@ -816,7 +832,7 @@ export default function ClientInvoiceDetailPage() {
                 <DateOnlyPicker
                   value={invoice.actualCollectionDate}
                   onChange={(v) => clientInvoiceStore.updateInvoice(invoice.id, { actualCollectionDate: v })}
-                  disabled={isCollected}
+                  disabled={!isAdmin}
                 />
               </div>
             </div>
@@ -881,7 +897,30 @@ export default function ClientInvoiceDetailPage() {
                         </TableRow>
                       );
                     })}
-                    {linkedFees.length === 0 && (
+                    {(invoice.adjustmentLines || []).map((line) => (
+                      <TableRow key={line.id}>
+                        <TableCell className="text-sm font-medium text-muted-foreground">費用調整</TableCell>
+                        <TableCell className="text-center text-sm tabular-nums">
+                          <span className={line.operation === "subtract" ? "text-destructive" : "text-foreground"}>
+                            {line.operation === "subtract" ? "−" : "+"}
+                            {formatCurrency(line.amount, line.currency)}
+                          </span>
+                        </TableCell>
+                        {editable && (
+                          <TableCell className="text-center">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              onClick={() => removeAdjustmentLine(line.id)}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    ))}
+                    {linkedFees.length === 0 && (invoice.adjustmentLines || []).length === 0 && (
                       <TableRow>
                         <TableCell colSpan={editable ? 3 : 2} className="text-center py-8 text-muted-foreground">
                           尚未收錄任何費用
@@ -891,7 +930,7 @@ export default function ClientInvoiceDetailPage() {
                   </>
                 )}
               </TableBody>
-              {(linkedFees.length > 0 || invoice.isRecordOnly) && (
+              {(linkedFees.length > 0 || invoice.isRecordOnly || (invoice.adjustmentLines?.length ?? 0) > 0) && (
                 <TableFooter>
                   {/* Show original currency sum row when non-record-only and multi-currency */}
                   {!invoice.isRecordOnly && feeTotalsByCurrency.size > 0 && (
@@ -982,7 +1021,7 @@ export default function ClientInvoiceDetailPage() {
 
             {/* Action row: + left, 收款 right */}
             <div className="flex items-center justify-between">
-              <div>
+              <div className="flex items-center gap-2">
                 {editable && !invoice.isRecordOnly && availableFees.length > 0 && checkPerm("client_invoice", "cinv_detail_addFee", "edit") && (
                   <Popover open={addFeeOpen} onOpenChange={(open) => {
                     setAddFeeOpen(open);
@@ -1022,8 +1061,40 @@ export default function ClientInvoiceDetailPage() {
                       >
                         加入 {selectedAddFees.length > 0 ? `(${selectedAddFees.length})` : ""}
                       </Button>
+                      <Separator />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          setAddFeeOpen(false);
+                          setAdjCurrency(clientCurrency);
+                          setAdjOperation("add");
+                          setAdjAmount("");
+                          setShowAdjustmentDialog(true);
+                        }}
+                      >
+                        請款額調整
+                      </Button>
                     </PopoverContent>
                   </Popover>
+                )}
+                {editable && !invoice.isRecordOnly && checkPerm("client_invoice", "cinv_detail_addFee", "edit") && availableFees.length === 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7"
+                    onClick={() => {
+                      setAdjCurrency(clientCurrency);
+                      setAdjOperation("add");
+                      setAdjAmount("");
+                      setShowAdjustmentDialog(true);
+                    }}
+                  >
+                    請款額調整
+                  </Button>
                 )}
               </div>
               {!isCollected && isAdmin && checkPerm("client_invoice", "cinv_detail_payFull", "edit") && (
@@ -1167,16 +1238,16 @@ export default function ClientInvoiceDetailPage() {
               <div className="space-y-3">
                 <p>請輸入實收金額，差額視為手續費：</p>
                 <p className="text-sm">目前剩餘應收總額：<span className="font-semibold">{formatCurrency(remaining)}</span></p>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    checked={fullPayNoFee}
-                    onCheckedChange={(checked) => {
-                      setFullPayNoFee(!!checked);
-                      if (checked) setFullPayAmount("");
-                    }}
-                  />
-                  <span className="text-sm">無手續費全額收齊</span>
-                </div>
+                <LabeledCheckbox
+                  checked={fullPayNoFee}
+                  onCheckedChange={(checked) => {
+                    setFullPayNoFee(checked);
+                    if (checked) setFullPayAmount("");
+                  }}
+                  labelClassName="items-center"
+                >
+                  無手續費全額收齊
+                </LabeledCheckbox>
                 {!fullPayNoFee && (
                   <Input
                     type="number"
@@ -1216,13 +1287,11 @@ export default function ClientInvoiceDetailPage() {
                   autoFocus
                   onKeyDown={(e) => { if (e.key === "Enter") handlePartialPayConfirm(); }}
                 />
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    checked={partialPayClose}
-                    onCheckedChange={(checked) => setPartialPayClose(!!checked)}
-                  />
-                  <span className="text-sm">收款完畢</span>
-                  <span className="text-xs text-muted-foreground">將請款單結案，差額視為手續費</span>
+                <div className="space-y-1">
+                  <LabeledCheckbox checked={partialPayClose} onCheckedChange={setPartialPayClose} labelClassName="items-center">
+                    收款完畢
+                  </LabeledCheckbox>
+                  <p className="text-xs text-muted-foreground pl-6">將請款單結案，差額視為手續費</p>
                 </div>
               </div>
             </AlertDialogDescription>
@@ -1230,6 +1299,53 @@ export default function ClientInvoiceDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handlePartialPayConfirm}>確定</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showAdjustmentDialog} onOpenChange={setShowAdjustmentDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>請款額調整</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-foreground">
+                <div className="grid gap-1.5">
+                  <Label className="text-xs text-muted-foreground">加／減</Label>
+                  <Select value={adjOperation} onValueChange={(v) => setAdjOperation(v as "add" | "subtract")}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="add">增加應收</SelectItem>
+                      <SelectItem value="subtract">減少應收</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label className="text-xs text-muted-foreground">幣別</Label>
+                  <select
+                    value={adjCurrency}
+                    onChange={(e) => setAdjCurrency(e.target.value)}
+                    className="h-9 rounded-md border border-input bg-background px-2 text-sm w-full"
+                  >
+                    {currencies.map((c) => (
+                      <option key={c.id} value={c.code}>{c.code}</option>
+                    ))}
+                  </select>
+                </div>
+                <Input
+                  type="number"
+                  value={adjAmount}
+                  onChange={(e) => setAdjAmount(e.target.value)}
+                  placeholder="金額"
+                  className="w-full"
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === "Enter") handleAdjustmentConfirm(); }}
+                />
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleAdjustmentConfirm}>確定</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

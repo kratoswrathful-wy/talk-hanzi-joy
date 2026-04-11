@@ -4,7 +4,7 @@ import { ArrowLeft, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
 import { pageTemplateStore, usePageTemplates, PAGE_MODULE_LABELS } from "@/stores/page-template-store";
@@ -89,12 +89,14 @@ function FieldValueEditor({
 
     case "boolean":
       return (
-        <div className="flex items-center gap-2 pt-1">
-          <Checkbox
+        <div className="pt-1">
+          <LabeledCheckbox
             checked={!!value}
-            onCheckedChange={(v) => onChange(!!v)}
-          />
-          <span className="text-sm text-muted-foreground">啟用</span>
+            onCheckedChange={(v) => onChange(v)}
+            labelClassName="text-muted-foreground"
+          >
+            啟用
+          </LabeledCheckbox>
         </div>
       );
 
@@ -252,18 +254,14 @@ export default function PageTemplateEditorPage() {
                   const isEnabled = enabledFields.has(field.key);
                   return (
                     <div key={field.key} className="space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <Checkbox
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <LabeledCheckbox
                           id={`field-${field.key}`}
                           checked={isEnabled}
                           onCheckedChange={() => toggleField(field.key)}
-                        />
-                        <Label
-                          htmlFor={`field-${field.key}`}
-                          className="text-sm cursor-pointer"
                         >
                           {field.label}
-                        </Label>
+                        </LabeledCheckbox>
                         <span className="text-[10px] text-muted-foreground">
                           {field.type === "single-select" || field.type === "person"
                             ? "選項"

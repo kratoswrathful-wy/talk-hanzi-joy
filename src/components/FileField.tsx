@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
+import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -390,16 +390,14 @@ export default function FileField({ value, onChange, externalAdd, addButtonRef }
                 ) : (
                   <div className="space-y-0.5 max-h-48 overflow-y-auto">
                     {commonLinks.map((link) => (
-                      <label
+                      <LabeledCheckbox
                         key={link.id}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-secondary/30 cursor-pointer"
+                        checked={existingUrls.has(link.url)}
+                        onCheckedChange={() => toggleCommonLink(link)}
+                        labelClassName="px-2 py-1.5 rounded-md hover:bg-secondary/30 w-full"
                       >
-                        <Checkbox
-                          checked={existingUrls.has(link.url)}
-                          onCheckedChange={() => toggleCommonLink(link)}
-                        />
-                        <span className="text-sm truncate flex-1">{link.name}</span>
-                      </label>
+                        <span className="text-sm truncate block">{link.name}</span>
+                      </LabeledCheckbox>
                     ))}
                   </div>
                 )}

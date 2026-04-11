@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -494,45 +495,42 @@ export function InquirySlackDialog({
                   全選
                 </label>
               </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="inquiry-slack-deselect-all"
-                  disabled={selectableInView.length === 0}
-                  checked={noVisibleSelected}
-                  onCheckedChange={(c) => {
-                    if (c === true) {
-                      setSelectedUserIds((prev) => {
-                        const n = new Set(prev);
-                        for (const r of selectableInView) {
-                          if (!lockedUserIds.has(r.userId)) n.delete(r.userId);
-                        }
-                        return n;
-                      });
-                    } else {
-                      setSelectedUserIds((prev) => {
-                        const n = new Set(prev);
-                        for (const r of selectableInView) {
-                          if (!lockedUserIds.has(r.userId)) n.add(r.userId);
-                        }
-                        return n;
-                      });
-                    }
-                  }}
-                  className="h-4 w-4"
-                />
-                <label htmlFor="inquiry-slack-deselect-all" className="text-xs text-muted-foreground cursor-pointer select-none">
-                  取消全選
-                </label>
-              </div>
+              <LabeledCheckbox
+                disabled={selectableInView.length === 0}
+                checked={noVisibleSelected}
+                onCheckedChange={(c) => {
+                  if (c) {
+                    setSelectedUserIds((prev) => {
+                      const n = new Set(prev);
+                      for (const r of selectableInView) {
+                        if (!lockedUserIds.has(r.userId)) n.delete(r.userId);
+                      }
+                      return n;
+                    });
+                  } else {
+                    setSelectedUserIds((prev) => {
+                      const n = new Set(prev);
+                      for (const r of selectableInView) {
+                        if (!lockedUserIds.has(r.userId)) n.add(r.userId);
+                      }
+                      return n;
+                    });
+                  }
+                }}
+                className="h-4 w-4"
+                labelClassName="text-xs text-muted-foreground select-none"
+              >
+                取消全選
+              </LabeledCheckbox>
               <div className="flex items-center gap-2 ml-auto">
-                <Checkbox
-                  id="inquiry-slack-hide-self"
+                <LabeledCheckbox
                   checked={hideSelf}
-                  onCheckedChange={(c) => setHideSelf(c === true)}
-                />
-                <label htmlFor="inquiry-slack-hide-self" className="text-xs text-muted-foreground cursor-pointer select-none">
+                  onCheckedChange={setHideSelf}
+                  className="h-4 w-4"
+                  labelClassName="text-xs text-muted-foreground select-none"
+                >
                   隱藏自己
-                </label>
+                </LabeledCheckbox>
               </div>
             </div>
 

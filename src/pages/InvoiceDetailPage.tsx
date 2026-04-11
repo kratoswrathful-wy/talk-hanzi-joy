@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Checkbox } from "@/components/ui/checkbox";
+import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import {
   Popover,
   PopoverContent,
@@ -669,18 +669,23 @@ export default function InvoiceDetailPage() {
                       {availableFees.map((f) => {
                         const fTotal = f.taskItems.reduce((s: number, i: any) => s + i.unitCount * i.unitPrice, 0);
                         return (
-                          <label key={f.id} className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-accent cursor-pointer text-sm">
-                            <Checkbox
-                              checked={selectedAddFees.includes(f.id)}
-                              onCheckedChange={(checked) => {
-                                setSelectedAddFees((prev) =>
-                                  checked ? [...prev, f.id] : prev.filter((x) => x !== f.id)
-                                );
-                              }}
-                            />
-                            <span className="flex-1 truncate">{f.title || "未命名"}</span>
-                            <span className="text-muted-foreground tabular-nums">{formatCurrency(fTotal)}</span>
-                          </label>
+                          <LabeledCheckbox
+                            key={f.id}
+                            checked={selectedAddFees.includes(f.id)}
+                            onCheckedChange={(checked) => {
+                              setSelectedAddFees((prev) =>
+                                checked ? [...prev, f.id] : prev.filter((x) => x !== f.id)
+                              );
+                            }}
+                            labelClassName="rounded px-2 py-1.5 hover:bg-accent w-full items-center"
+                            labelWrap
+                            className="shrink-0 mt-0.5"
+                          >
+                            <span className="flex w-full min-w-0 items-center gap-2 text-sm">
+                              <span className="flex-1 truncate">{f.title || "未命名"}</span>
+                              <span className="text-muted-foreground tabular-nums shrink-0">{formatCurrency(fTotal)}</span>
+                            </span>
+                          </LabeledCheckbox>
                         );
                       })}
                     </div>

@@ -2,8 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { GripVertical, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import { LabeledCheckbox } from "@/components/ui/checkbox-patterns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -198,16 +197,14 @@ export function TranslatorNotesSection() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <Checkbox
-                        id={`no-fee-${member.email}`}
-                        checked={member.no_fee}
-                        onCheckedChange={(checked) => handleToggleNoFee(member.email, !!checked)}
-                      />
-                      <Label htmlFor={`no-fee-${member.email}`} className="text-xs cursor-pointer text-muted-foreground">
-                        不開單譯者
-                      </Label>
-                    </div>
+                    <LabeledCheckbox
+                      id={`no-fee-${member.email}`}
+                      checked={member.no_fee}
+                      onCheckedChange={(checked) => handleToggleNoFee(member.email, checked)}
+                      labelClassName="text-muted-foreground"
+                    >
+                      不開單譯者
+                    </LabeledCheckbox>
                     <Button
                       variant="ghost"
                       size="icon"

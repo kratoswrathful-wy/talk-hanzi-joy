@@ -14,6 +14,14 @@ export interface ClientPaymentRecord {
   timestamp: string;
 }
 
+/** 請款額調整列（加／減於應收總額） */
+export interface ClientInvoiceAdjustmentLine {
+  id: string;
+  operation: "add" | "subtract";
+  amount: number;
+  currency: string;
+}
+
 export interface ClientInvoice {
   id: string;
   title: string;
@@ -33,4 +41,6 @@ export interface ClientInvoice {
   billingChannel?: string;
   expectedCollectionDate?: string;
   actualCollectionDate?: string;
+  /** 請款額調整（費用調整列） */
+  adjustmentLines?: ClientInvoiceAdjustmentLine[];
 }
