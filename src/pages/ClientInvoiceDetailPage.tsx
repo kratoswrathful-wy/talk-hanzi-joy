@@ -244,9 +244,9 @@ export default function ClientInvoiceDetailPage() {
   const [editRecordCurrency, setEditRecordCurrency] = useState("TWD");
   const [amountTooHighMsg, setAmountTooHighMsg] = useState<string | null>(null);
 
-  // 請款額調整 dialog
+  // 請款額調整 dialog（set_target：依目前合計自動加／減一筆至目標金額）
   const [showAdjustmentDialog, setShowAdjustmentDialog] = useState(false);
-  const [adjOperation, setAdjOperation] = useState<"add" | "subtract">("add");
+  const [adjOperation, setAdjOperation] = useState<"set_target" | "add" | "subtract">("set_target");
   const [adjCurrency, setAdjCurrency] = useState("TWD");
   const [adjAmount, setAdjAmount] = useState("");
 
@@ -453,9 +453,12 @@ export default function ClientInvoiceDetailPage() {
 
   // If record-only, totals are recordAmount in recordCur. Otherwise, fee totals in clientCurrency + 請款額調整
   const recordCur = invoice.isRecordOnly ? (invoice.recordCurrency || clientCurrency) : clientCurrency;
+  /** 非純紀錄時與 totalOriginal 相同：客戶幣費用小計 + 調整列換算合計（請款額調整「設為特定數額」用） */
+  const adjustmentDialogCurrentTotal =
+    (feeTotalsByCurrency.get(clientCurrency) || 0) + adjustmentSumInClientCurrency;
   const totalOriginal = invoice.isRecordOnly
     ? (invoice.recordAmount || 0)
-    : (feeTotalsByCurrency.get(clientCurrency) || 0) + adjustmentSumInClientCurrency;
+    : adjustmentDialogCurrentTotal;
   const recordTwdRate = getTwdRate(recordCur);
   const totalInTwd = recordCur === "TWD" ? Math.round(totalOriginal) : Math.round(totalOriginal * recordTwdRate);
 
@@ -636,6 +639,47 @@ export default function ClientInvoiceDetailPage() {
   };
 
   const handleAdjustmentConfirm = () => {
+    const rateClient = getTwdRate(clientCurrency);
+    const rateAdj = getTwdRate(adjCurrency);
+    const rateRatio = rateAdj / rateClient;
+
+    if (adjOperation === "set_target") {
+      const targetAmount = parseFloat(adjAmount);
+      if (isNaN(targetAmount) || targetAmount <= 0) {
+        toast.error("請輸入有效的目標金額");
+        return;
+      }
+      const currentTotal =
+        (feeTotalsByCurrency.get(clientCurrency) || 0) + adjustmentSumInClientCurrency;
+      const targetInClient = (targetAmount * rateAdj) / rateClient;
+      const delta = targetInClient - currentTotal;
+      const EPS = 1e-6;
+      if (Math.abs(delta) < EPS) {
+        toast.info("請款總額已是該金額，無需新增調整");
+        setShowAdjustmentDialog(false);
+        setAdjAmount("");
+        return;
+      }
+      const operation: "add" | "subtract" = delta > 0 ? "add" : "subtract";
+      const amountLine = Math.abs(delta) / rateRatio;
+      if (!Number.isFinite(amountLine) || amountLine <= 0) {
+        toast.error("無法計算調整金額");
+        return;
+      }
+      const line: ClientInvoiceAdjustmentLine = {
+        id: crypto.randomUUID(),
+        operation,
+        amount: amountLine,
+        currency: adjCurrency,
+      };
+      const next = [...(invoice.adjustmentLines || []), line];
+      clientInvoiceStore.updateInvoice(invoice.id, { adjustmentLines: next });
+      setShowAdjustmentDialog(false);
+      setAdjAmount("");
+      toast.success("已新增費用調整");
+      return;
+    }
+
     const amount = parseFloat(adjAmount);
     if (isNaN(amount) || amount <= 0) {
       toast.error("請輸入有效金額");
@@ -1074,7 +1118,7 @@ export default function ClientInvoiceDetailPage() {
                         onClick={() => {
                           setAddFeeOpen(false);
                           setAdjCurrency(clientCurrency);
-                          setAdjOperation("add");
+                          setAdjOperation("set_target");
                           setAdjAmount("");
                           setShowAdjustmentDialog(true);
                         }}
@@ -1092,7 +1136,7 @@ export default function ClientInvoiceDetailPage() {
                     className="h-7"
                     onClick={() => {
                       setAdjCurrency(clientCurrency);
-                      setAdjOperation("add");
+                      setAdjOperation("set_target");
                       setAdjAmount("");
                       setShowAdjustmentDialog(true);
                     }}
@@ -1314,10 +1358,14 @@ export default function ClientInvoiceDetailPage() {
             <AlertDialogDescription asChild>
               <div className="space-y-3 text-foreground">
                 <div className="grid gap-1.5">
-                  <Label className="text-xs text-muted-foreground">加／減</Label>
-                  <Select value={adjOperation} onValueChange={(v) => setAdjOperation(v as "add" | "subtract")}>
+                  <Label className="text-xs text-muted-foreground">方式</Label>
+                  <Select
+                    value={adjOperation}
+                    onValueChange={(v) => setAdjOperation(v as "set_target" | "add" | "subtract")}
+                  >
                     <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="set_target">設為特定數額</SelectItem>
                       <SelectItem value="add">增加應收</SelectItem>
                       <SelectItem value="subtract">減少應收</SelectItem>
                     </SelectContent>
@@ -1335,15 +1383,33 @@ export default function ClientInvoiceDetailPage() {
                     ))}
                   </select>
                 </div>
-                <Input
-                  type="number"
-                  value={adjAmount}
-                  onChange={(e) => setAdjAmount(e.target.value)}
-                  placeholder="金額"
-                  className="w-full"
-                  autoFocus
-                  onKeyDown={(e) => { if (e.key === "Enter") handleAdjustmentConfirm(); }}
-                />
+                {adjOperation === "set_target" && (
+                  <p className="text-xs text-muted-foreground">
+                    目前合計（客戶幣）：{" "}
+                    <span className="font-medium text-foreground tabular-nums">
+                      {formatCurrency(adjustmentDialogCurrentTotal, clientCurrency)}
+                    </span>
+                  </p>
+                )}
+                <div className="grid gap-1.5">
+                  <Label className="text-xs text-muted-foreground">
+                    {adjOperation === "set_target" ? "目標請款總額" : "金額"}
+                  </Label>
+                  <Input
+                    type="number"
+                    value={adjAmount}
+                    onChange={(e) => setAdjAmount(e.target.value)}
+                    placeholder={adjOperation === "set_target" ? "欲達成的請款總額" : "金額"}
+                    className="w-full"
+                    autoFocus
+                    onKeyDown={(e) => { if (e.key === "Enter") handleAdjustmentConfirm(); }}
+                  />
+                </div>
+                {adjOperation === "set_target" && (
+                  <p className="text-[11px] text-muted-foreground leading-snug">
+                    將依幣別匯率換算後，自動新增一筆「增加應收」或「減少應收」，使合計等於上方輸入之金額。
+                  </p>
+                )}
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
