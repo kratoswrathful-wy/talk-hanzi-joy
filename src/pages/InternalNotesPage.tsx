@@ -2,6 +2,7 @@
  * 內部註記 — full table view with FilterSortToolbar matching fee management pattern.
  */
 import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from "react";
+import { applyEditLogFieldChange, type BurstMap } from "@/lib/edit-log-coalesce";
 import { TableFooterStats } from "@/components/TableFooterStats";
 import { toast } from "sonner";
 import { Plus, ExternalLink, Trash2, GripVertical } from "lucide-react";
@@ -135,6 +136,8 @@ function NoteDetailView({
   onDelete: () => void;
 }) {
   const navigate = useNavigate();
+  const noteLeaveRef = useRef(note);
+  noteLeaveRef.current = note;
 
   const handleCopyLinkMessage = async () => {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -149,6 +152,7 @@ function NoteDetailView({
     }
   };
   const { profile } = useAuth();
+  const { checkPerm } = usePermissions();
   const [invalidateOpen, setInvalidateOpen] = useState(false);
   const [invalidateReason, setInvalidateReason] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -165,6 +169,16 @@ function NoteDetailView({
   const lbInvalidate = useUiButtonLabel("internal_notes_invalidate") ?? "本註記已失效";
 
   const comments = note.comments || [];
+
+  /** 建立者首次離開詳情頁後才啟用變更紀錄 */
+  useEffect(() => {
+    return () => {
+      const n = noteLeaveRef.current;
+      if (!n?.id || n.editLogStartedAt) return;
+      if (!profile?.display_name || n.creator !== profile.display_name) return;
+      internalNotesStore.update(n.id, { editLogStartedAt: new Date().toISOString() });
+    };
+  }, [note.id, profile?.display_name]);
 
   const handleInvalidate = () => {
     onUpdate({
@@ -270,6 +284,28 @@ function NoteDetailView({
       <Field label="建立時間">
         <span className="text-sm">{new Date(note.createdAt).toLocaleString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}</span>
       </Field>
+
+      {note.editLogStartedAt &&
+        (note.editLogs?.length ?? 0) > 0 &&
+        checkPerm("internal_notes", "inotes_detail_title", "view") && (
+          <>
+            <Separator />
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">變更紀錄</Label>
+              <div className="space-y-2">
+                {(note.editLogs ?? []).map((entry) => (
+                  <div key={entry.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs space-y-0.5">
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                      <span><span className="text-muted-foreground">變更者：</span>{entry.changedBy}</span>
+                      <span><span className="text-muted-foreground">變更內容：</span>{entry.description}</span>
+                      <span><span className="text-muted-foreground">變更時間：</span>{entry.timestamp}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
 
       <Field label="性質">
         <ColorSelect fieldKey="noteNature" value={note.noteType} onValueChange={(v) => onUpdate({ noteType: v })} />
@@ -550,7 +586,7 @@ function NewNoteDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
 /* ── Main page ── */
 export default function InternalNotesPage() {
   const notes = useInternalNotes();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { checkPerm } = usePermissions();
   const { noteId: routeNoteId } = useParams<{ noteId?: string }>();
   const navigate = useNavigate();
@@ -570,6 +606,62 @@ export default function InternalNotesPage() {
   }, [searchParams, notes, navigate, setSearchParams]);
 
   const selectedNote = routeNoteId ? notes.find((n) => n.id === routeNoteId) : undefined;
+
+  const noteBurstRef = useRef<BurstMap>({});
+  useEffect(() => {
+    noteBurstRef.current = {};
+  }, [selectedNote?.id]);
+
+  const handleNoteUpdate = useCallback(
+    (updates: Partial<InternalNote>) => {
+      const nid = routeNoteId;
+      if (!nid) return;
+      const prev = internalNotesStore.getAll().find((n) => n.id === nid);
+      if (!prev) return;
+      const NOTE_SKIP = new Set(["editLogs", "editLogStartedAt", "comments", "createdAt"]);
+      let merged: Partial<InternalNote> = { ...updates };
+      if (prev.editLogStartedAt && profile) {
+        let logs = [...(prev.editLogs || [])];
+        let burst = noteBurstRef.current;
+        const author = profile.display_name || profile.email || "系統";
+        const ser = (v: unknown) =>
+          typeof v === "string" || typeof v === "number" || typeof v === "boolean" ? v : JSON.stringify(v ?? null);
+        for (const key of Object.keys(updates)) {
+          if (NOTE_SKIP.has(key)) continue;
+          const ov = (prev as any)[key];
+          const nv = (updates as any)[key];
+          if (nv === undefined) continue;
+          if (JSON.stringify(ov) === JSON.stringify(nv)) continue;
+          const label = internalNotesFieldMetas.find((m) => m.key === key)?.label || key;
+          const { nextLogs, nextBurstMap } = applyEditLogFieldChange({
+            fieldKey: key,
+            oldValue: ser(ov),
+            newValue: ser(nv),
+            now: Date.now(),
+            author,
+            formatTimestamp: (d) =>
+              d.toLocaleString("zh-TW", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              }),
+            fieldLabel: label,
+            existingLogs: logs,
+            burstMap: burst,
+          });
+          logs = nextLogs;
+          burst = nextBurstMap;
+        }
+        noteBurstRef.current = burst;
+        merged = { ...merged, editLogs: logs };
+      }
+      internalNotesStore.update(nid, merged);
+    },
+    [routeNoteId, profile]
+  );
 
   const tableViews = useInternalNotesTableViews(user?.id);
   const { activeView } = tableViews;
@@ -728,7 +820,7 @@ export default function InternalNotesPage() {
     return (
       <NoteDetailView
         note={selectedNote}
-        onUpdate={(updates) => internalNotesStore.update(selectedNote.id, updates)}
+        onUpdate={handleNoteUpdate}
         onBack={() => navigate("/internal-notes")}
         onDelete={() => { internalNotesStore.remove(selectedNote.id); navigate("/internal-notes"); }}
       />

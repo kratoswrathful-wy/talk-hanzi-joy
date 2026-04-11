@@ -591,6 +591,9 @@ export default function TranslatorFees() {
     .filter((c) => !c.managerOnly || isManager)
     .filter((c) => checkPerm("fee_management", `table_field_${c.key}`, "view"));
 
+  const canViewBatchFinalize = checkPerm("fee_management", "fee_list_batchFinalize", "view");
+  const canEditBatchFinalize = checkPerm("fee_management", "fee_list_batchFinalize", "edit");
+
   const tableViews = useTableViews(user?.id);
   const { activeView } = tableViews;
 
@@ -1005,27 +1008,31 @@ export default function TranslatorFees() {
               </Tooltip>
             )}
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span>
-                  <Button
-                    size="sm"
-                    className={uiFeesBatchFinalize.className}
-                    style={uiFeesBatchFinalize.style}
-                    disabled={rowSelection.selectedCount === 0 || finalizeLoading}
-                    onClick={() => void handleBatchFinalize()}
-                  >
-                    {finalizeLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin shrink-0" />
-                    ) : null}
-                    {lbFeesBatchFinalize}
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              {rowSelection.selectedCount === 0 && (
-                <TooltipContent>請先選取項目</TooltipContent>
-              )}
-            </Tooltip>
+            {canViewBatchFinalize && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button
+                      size="sm"
+                      className={uiFeesBatchFinalize.className}
+                      style={uiFeesBatchFinalize.style}
+                      disabled={!canEditBatchFinalize || rowSelection.selectedCount === 0 || finalizeLoading}
+                      onClick={() => void handleBatchFinalize()}
+                    >
+                      {finalizeLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                      ) : null}
+                      {lbFeesBatchFinalize}
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {!canEditBatchFinalize ? (
+                  <TooltipContent>無使用權限</TooltipContent>
+                ) : rowSelection.selectedCount === 0 ? (
+                  <TooltipContent>請先選取項目</TooltipContent>
+                ) : null}
+              </Tooltip>
+            )}
 
             {/* Delete button */}
             {(() => {

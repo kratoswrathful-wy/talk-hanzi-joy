@@ -2,6 +2,7 @@
  * Internal Notes store with DB persistence via Lovable Cloud.
  */
 import type { InternalNote } from "@/hooks/use-internal-notes-table-views";
+import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
@@ -43,6 +44,8 @@ function dbToApp(row: any): InternalNote {
     invalidatedBy: row.invalidated_by ?? undefined,
     invalidatedAt: row.invalidated_at ?? undefined,
     invalidationReason: row.invalidation_reason ?? undefined,
+    editLogs: Array.isArray(row.edit_logs) ? (row.edit_logs as SimplePersistedLog[]) : undefined,
+    editLogStartedAt: row.edit_log_started_at ?? undefined,
   };
 }
 
@@ -66,6 +69,8 @@ function appToDb(note: Partial<InternalNote>): Record<string, any> {
   if (note.invalidatedBy !== undefined) m.invalidated_by = note.invalidatedBy;
   if (note.invalidatedAt !== undefined) m.invalidated_at = note.invalidatedAt;
   if (note.invalidationReason !== undefined) m.invalidation_reason = note.invalidationReason;
+  if (note.editLogs !== undefined) m.edit_logs = note.editLogs;
+  if (note.editLogStartedAt !== undefined) m.edit_log_started_at = note.editLogStartedAt;
   return m;
 }
 

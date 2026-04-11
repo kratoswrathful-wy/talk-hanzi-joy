@@ -187,7 +187,7 @@ export function InvoiceActions({ selectedFees, onDone }: InvoiceActionsProps) {
 
     let count = 0;
     for (const [translator, feeIds] of byTranslator) {
-      const inv = await invoiceStore.createInvoice(translator, feeIds);
+      const inv = await invoiceStore.createInvoice(translator, feeIds, { editLogFromCreation: true });
       if (inv) count++;
     }
 

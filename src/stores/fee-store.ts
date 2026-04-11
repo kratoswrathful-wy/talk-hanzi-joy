@@ -1,4 +1,4 @@
-import { type TranslatorFee, type ClientInfo, defaultClientInfo } from "@/data/fee-mock-data";
+import { type TranslatorFee, type ClientInfo, type FeeEditLogPhases, defaultClientInfo } from "@/data/fee-mock-data";
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
@@ -28,10 +28,30 @@ interface DbFee {
   client_info: any;
   notes: any;
   edit_logs: any;
+  edit_log_phases: unknown;
   created_by: string | null;
   created_at: string;
+  updated_at: string;
   finalized_by: string | null;
   finalized_at: string | null;
+}
+
+function parseEditLogPhases(row: DbFee): FeeEditLogPhases | undefined {
+  const raw =
+    row.edit_log_phases && typeof row.edit_log_phases === "object" && !Array.isArray(row.edit_log_phases)
+      ? { ...(row.edit_log_phases as FeeEditLogPhases) }
+      : {};
+  const ci = row.client_info as ClientInfo | undefined;
+  if (!raw.basic && row.status === "finalized" && row.title?.trim() && row.assignee) {
+    raw.basic = row.finalized_at || row.created_at;
+  }
+  if (!raw.revenue && ci?.reconciled) {
+    raw.revenue = row.updated_at;
+  }
+  if (!raw.task && ci?.rateConfirmed) {
+    raw.task = row.updated_at;
+  }
+  return Object.keys(raw).length ? raw : undefined;
 }
 
 function dbToApp(row: DbFee): TranslatorFee {
@@ -46,6 +66,7 @@ function dbToApp(row: DbFee): TranslatorFee {
     clientInfo: row.client_info ? (row.client_info as ClientInfo) : { ...defaultClientInfo },
     notes: Array.isArray(row.notes) ? row.notes : [],
     editLogs: Array.isArray(row.edit_logs) ? row.edit_logs : [],
+    editLogPhases: parseEditLogPhases(row),
     createdBy: row.created_by || "",
     createdAt: row.created_at,
     finalizedBy: row.finalized_by || undefined,
@@ -64,6 +85,7 @@ function appToDb(fee: Partial<TranslatorFee>): Record<string, any> {
   if (fee.clientInfo !== undefined) m.client_info = fee.clientInfo;
   if (fee.notes !== undefined) m.notes = fee.notes;
   if (fee.editLogs !== undefined) m.edit_logs = fee.editLogs;
+  if (fee.editLogPhases !== undefined) m.edit_log_phases = fee.editLogPhases;
   if (fee.finalizedBy !== undefined) m.finalized_by = fee.finalizedBy;
   if (fee.finalizedAt !== undefined) m.finalized_at = fee.finalizedAt;
   return m;

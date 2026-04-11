@@ -1,4 +1,5 @@
 import type { Invoice, InvoiceStatus, PaymentRecord } from "@/data/invoice-types";
+import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
 import { createPollFallback } from "@/lib/realtime-poll";
@@ -27,6 +28,8 @@ interface DbInvoice {
   created_at: string;
   updated_at: string;
   payments: any;
+  edit_log_started_at?: string | null;
+  edit_logs?: SimplePersistedLog[] | null;
 }
 
 function dbToApp(row: DbInvoice, feeIds: string[]): Invoice {
@@ -42,6 +45,8 @@ function dbToApp(row: DbInvoice, feeIds: string[]): Invoice {
     updatedAt: row.updated_at,
     feeIds,
     payments: Array.isArray(row.payments) ? row.payments : [],
+    editLogStartedAt: row.edit_log_started_at || undefined,
+    edit_logs: Array.isArray(row.edit_logs) ? row.edit_logs : undefined,
   };
 }
 
@@ -136,13 +141,18 @@ export const invoiceStore = {
     return { error: null };
   },
 
-  createInvoice: async (translator: string, feeIds: string[]): Promise<Invoice | null> => {
+  createInvoice: async (
+    translator: string,
+    feeIds: string[],
+    opts?: { editLogFromCreation?: boolean }
+  ): Promise<Invoice | null> => {
     const uid = await getUserId();
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const title = generateDefaultTitle(translator);
     const env = getEnvironment();
 
+    const started = opts?.editLogFromCreation ? now : undefined;
     const newInvoice: Invoice = {
       id,
       title,
@@ -154,6 +164,7 @@ export const invoiceStore = {
       updatedAt: now,
       feeIds,
       payments: [],
+      ...(started ? { editLogStartedAt: started } : {}),
     };
 
     invoices = [newInvoice, ...invoices];
@@ -167,6 +178,7 @@ export const invoiceStore = {
       note: "",
       created_by: uid,
       env,
+      ...(started ? { edit_log_started_at: started } : {}),
     } as any);
 
     if (error) {
@@ -185,7 +197,7 @@ export const invoiceStore = {
     return newInvoice;
   },
 
-  updateInvoice: (id: string, updates: Partial<Pick<Invoice, "status" | "transferDate" | "note" | "title" | "payments">> & Record<string, any>) => {
+  updateInvoice: (id: string, updates: Partial<Pick<Invoice, "status" | "transferDate" | "note" | "title" | "payments" | "editLogStartedAt">> & Record<string, any>) => {
     invoices = invoices.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv));
     notify();
 
@@ -197,6 +209,7 @@ export const invoiceStore = {
     if (updates.payments !== undefined) dbUpdates.payments = updates.payments;
     if (updates.comments !== undefined) dbUpdates.comments = updates.comments;
     if (updates.edit_logs !== undefined) dbUpdates.edit_logs = updates.edit_logs;
+    if (updates.editLogStartedAt !== undefined) dbUpdates.edit_log_started_at = updates.editLogStartedAt || null;
 
     if (Object.keys(dbUpdates).length > 0) {
       supabase

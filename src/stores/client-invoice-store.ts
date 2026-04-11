@@ -31,6 +31,7 @@ interface DbClientInvoice {
   expected_collection_date: string | null;
   actual_collection_date: string | null;
   adjustment_lines?: unknown;
+  edit_log_started_at?: string | null;
 }
 
 function dbToApp(row: DbClientInvoice, feeIds: string[]): ClientInvoice {
@@ -54,6 +55,7 @@ function dbToApp(row: DbClientInvoice, feeIds: string[]): ClientInvoice {
     expectedCollectionDate: row.expected_collection_date || undefined,
     actualCollectionDate: row.actual_collection_date || undefined,
     adjustmentLines: parseAdjustmentLines((row as any).adjustment_lines),
+    editLogStartedAt: (row as any).edit_log_started_at || undefined,
   };
 }
 
@@ -158,13 +160,18 @@ export const clientInvoiceStore = {
     return { error: null };
   },
 
-  createInvoice: async (client: string, feeIds: string[]): Promise<ClientInvoice | null> => {
+  createInvoice: async (
+    client: string,
+    feeIds: string[],
+    opts?: { editLogFromCreation?: boolean }
+  ): Promise<ClientInvoice | null> => {
     const uid = await getUserId();
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     const title = generateDefaultTitle(client);
     const env = getEnvironment();
 
+    const started = opts?.editLogFromCreation ? now : undefined;
     const newInvoice: ClientInvoice = {
       id,
       title,
@@ -177,6 +184,7 @@ export const clientInvoiceStore = {
       updatedAt: now,
       feeIds,
       payments: [],
+      ...(started ? { editLogStartedAt: started } : {}),
     };
 
     invoices = [newInvoice, ...invoices];
@@ -190,6 +198,7 @@ export const clientInvoiceStore = {
       note: "",
       created_by: uid,
       env,
+      ...(started ? { edit_log_started_at: started } : {}),
     } as any);
 
     if (error) {
@@ -208,7 +217,7 @@ export const clientInvoiceStore = {
     return newInvoice;
   },
 
-  updateInvoice: (id: string, updates: Partial<Pick<ClientInvoice, "status" | "transferDate" | "note" | "title" | "invoiceNumber" | "payments" | "isRecordOnly" | "recordAmount" | "recordCurrency" | "billingChannel" | "expectedCollectionDate" | "actualCollectionDate" | "adjustmentLines">> & Record<string, any>) => {
+  updateInvoice: (id: string, updates: Partial<Pick<ClientInvoice, "status" | "transferDate" | "note" | "title" | "invoiceNumber" | "payments" | "isRecordOnly" | "recordAmount" | "recordCurrency" | "billingChannel" | "expectedCollectionDate" | "actualCollectionDate" | "adjustmentLines" | "editLogStartedAt">> & Record<string, any>) => {
     invoices = invoices.map((inv) => (inv.id === id ? { ...inv, ...updates } : inv));
     notify();
 
@@ -228,6 +237,7 @@ export const clientInvoiceStore = {
     if (updates.expectedCollectionDate !== undefined) dbUpdates.expected_collection_date = updates.expectedCollectionDate || null;
     if (updates.actualCollectionDate !== undefined) dbUpdates.actual_collection_date = updates.actualCollectionDate || null;
     if (updates.adjustmentLines !== undefined) dbUpdates.adjustment_lines = updates.adjustmentLines ?? [];
+    if (updates.editLogStartedAt !== undefined) dbUpdates.edit_log_started_at = updates.editLogStartedAt || null;
 
     if (Object.keys(dbUpdates).length > 0) {
       supabase

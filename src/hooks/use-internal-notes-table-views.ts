@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { getStatusSortIndex } from "@/stores/select-options-store";
+import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import {
   type TableFilter, type TableSort, type TableView, type FilterGroup,
   type FilterOperator, type FieldMeta, type LogicOperator,
@@ -42,6 +43,10 @@ export interface InternalNote {
   invalidatedBy?: string;
   invalidatedAt?: string;
   invalidationReason?: string;
+  /** 變更紀錄 */
+  editLogs?: SimplePersistedLog[];
+  /** 建立者首次離開詳情後才寫入變更紀錄 */
+  editLogStartedAt?: string;
 }
 
 export const internalNotesFieldMetas: FieldMeta[] = [

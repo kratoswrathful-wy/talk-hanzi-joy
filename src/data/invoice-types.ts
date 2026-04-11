@@ -1,3 +1,5 @@
+import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
+
 export type InvoiceStatus = "pending" | "partial" | "paid";
 
 export const invoiceStatusLabels: Record<InvoiceStatus, string> = {
@@ -27,4 +29,8 @@ export interface Invoice {
   feeIds: string[];
   /** Payment records */
   payments: PaymentRecord[];
+  /** 非 null 時才寫入變更紀錄 */
+  editLogStartedAt?: string;
+  /** 變更紀錄（jsonb） */
+  edit_logs?: SimplePersistedLog[];
 }

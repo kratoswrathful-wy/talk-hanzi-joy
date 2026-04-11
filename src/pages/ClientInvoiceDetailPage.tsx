@@ -28,6 +28,7 @@ import { type ClientInvoiceAdjustmentLine, type ClientInvoiceStatus, type Client
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useClientInvoices } from "@/hooks/use-client-invoice-store";
 import { supabase } from "@/integrations/supabase/client";
+import { applyEditLogFieldChange, type BurstMap, type SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -132,21 +133,7 @@ interface CommentEntry {
   timestamp: string;
 }
 
-interface EditLogEntry {
-  id: string;
-  changedBy: string;
-  description: string;
-  timestamp: string;
-}
-
-interface PendingChange {
-  field: string;
-  oldValue: string;
-  newValue: string;
-  changedAt: number;
-}
-
-const COMMIT_DELAY_MS = 5 * 60 * 1000;
+type EditLogEntry = SimplePersistedLog;
 
 const fieldLabels: Record<string, string> = {
   title: "標題",
@@ -263,9 +250,11 @@ export default function ClientInvoiceDetailPage() {
     }
   }, [autoFocusTitle]);
 
-  // Edit history
+  // Edit history（即時寫入 + 五分鐘內回到錨點則撤銷）
   const [editLog, setEditLog] = useState<EditLogEntry[]>([]);
-  const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
+  const burstMapRef = useRef<BurstMap>({});
+  const invoiceRefForUnmount = useRef(invoice);
+  invoiceRefForUnmount.current = invoice;
 
   // Creator name
   const [creatorName, setCreatorName] = useState(invoice?.createdBy || "");
@@ -294,65 +283,49 @@ export default function ClientInvoiceDetailPage() {
     const rawEditLogs = (invoice as any).edit_logs;
     if (Array.isArray(rawEditLogs)) {
       setEditLog(rawEditLogs.map((l: any) => ({
-        id: l.id, changedBy: l.changedBy, description: l.description, timestamp: l.timestamp,
+        id: l.id,
+        changedBy: l.changedBy,
+        description: l.description,
+        timestamp: l.timestamp,
+        fieldKey: l.fieldKey,
       })));
     }
+    burstMapRef.current = {};
   }, [invoice?.id]);
 
-  // Pending changes commit logic
+  /** 建立者首次離開本頁後才開始記錄（總表批次建立已帶 editLogStartedAt 者除外） */
   useEffect(() => {
-    if (pendingChanges.length === 0) return;
-    const timer = setInterval(() => {
-      const now = Date.now();
-      const ready = pendingChanges.filter((c) => now - c.changedAt >= COMMIT_DELAY_MS);
-      if (ready.length > 0) {
-        const authorName = profile?.display_name || profile?.email || "系統";
-        const newEntries = ready.map((c) => ({
-          id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          changedBy: authorName,
-          description: `${fieldLabels[c.field] || c.field} ${c.oldValue} → ${c.newValue}`,
-          timestamp: formatTimestamp(new Date(c.changedAt)),
-        }));
-        setEditLog((prev) => [...prev, ...newEntries]);
-        setPendingChanges((prev) => prev.filter((c) => now - c.changedAt < COMMIT_DELAY_MS));
-        if (id) {
-          const allLogs = [...editLog, ...newEntries];
-          clientInvoiceStore.updateInvoice(id, { edit_logs: allLogs } as any);
-        }
-      }
-    }, 10000);
-    return () => clearInterval(timer);
-  }, [pendingChanges, editLog, id, profile]);
+    return () => {
+      const inv = invoiceRefForUnmount.current;
+      const uid = user?.id;
+      if (!id || !inv || !uid || inv.createdBy !== uid || inv.editLogStartedAt) return;
+      clientInvoiceStore.updateInvoice(id, { editLogStartedAt: new Date().toISOString() });
+    };
+  }, [id, user?.id]);
 
   const trackChange = useCallback((field: string, oldValue: string, newValue: string) => {
     if (oldValue === newValue) return;
-    setPendingChanges((prev) => {
-      const existing = prev.findIndex((c) => c.field === field);
-      if (existing >= 0) {
-        const updated = [...prev];
-        updated[existing] = { ...updated[existing], newValue, changedAt: Date.now() };
-        return updated;
-      }
-      return [...prev, { field, oldValue, newValue, changedAt: Date.now() }];
-    });
-  }, []);
-
-  const forceCommitPending = useCallback(() => {
-    if (pendingChanges.length === 0) return;
+    if (!invoiceRefForUnmount.current?.editLogStartedAt) return;
     const authorName = profile?.display_name || profile?.email || "系統";
-    const newEntries = pendingChanges.map((c) => ({
-      id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      changedBy: authorName,
-      description: `${fieldLabels[c.field] || c.field} ${c.oldValue} → ${c.newValue}`,
-      timestamp: formatTimestamp(new Date(c.changedAt)),
-    }));
-    const allLogs = [...editLog, ...newEntries];
-    setEditLog(allLogs);
-    setPendingChanges([]);
-    if (id) {
-      clientInvoiceStore.updateInvoice(id, { edit_logs: allLogs } as any);
-    }
-  }, [pendingChanges, editLog, id, profile]);
+    setEditLog((prev) => {
+      const { nextLogs, nextBurstMap } = applyEditLogFieldChange({
+        fieldKey: field,
+        oldValue,
+        newValue,
+        now: Date.now(),
+        author: authorName,
+        formatTimestamp,
+        fieldLabel: fieldLabels[field] || field,
+        existingLogs: prev,
+        burstMap: burstMapRef.current,
+      });
+      burstMapRef.current = nextBurstMap;
+      if (id) clientInvoiceStore.updateInvoice(id, { edit_logs: nextLogs } as any);
+      return nextLogs;
+    });
+  }, [id, profile]);
+
+  const forceCommitPending = useCallback(() => {}, []);
 
   // Available fees (not linked to any client invoice)
   const allLinkedFeeIds = useMemo(() => {
@@ -1204,7 +1177,7 @@ export default function ClientInvoiceDetailPage() {
           </div>
 
           {/* Edit History */}
-          {(editLog.length > 0 || pendingChanges.length > 0) && (
+          {editLog.length > 0 && (
             <>
               <Separator />
               <div className="space-y-3">
@@ -1216,16 +1189,6 @@ export default function ClientInvoiceDetailPage() {
                         <span><span className="text-muted-foreground">變更者：</span>{entry.changedBy}</span>
                         <span><span className="text-muted-foreground">變更內容：</span>{entry.description}</span>
                         <span><span className="text-muted-foreground">變更時間：</span>{entry.timestamp}</span>
-                      </div>
-                    </div>
-                  ))}
-                  {pendingChanges.map((change, idx) => (
-                    <div key={`pending-${idx}`} className="rounded-md border border-dashed border-border bg-secondary/15 px-3 py-2 text-xs space-y-0.5 opacity-60">
-                      <div className="flex flex-wrap gap-x-4 gap-y-0.5 italic">
-                        <span><span className="text-muted-foreground">變更者：</span>{profile?.display_name || profile?.email || "使用者"}</span>
-                        <span><span className="text-muted-foreground">變更內容：</span>{fieldLabels[change.field] || change.field} {change.oldValue} → {change.newValue}</span>
-                        <span><span className="text-muted-foreground">變更時間：</span>{formatTimestamp(new Date(change.changedAt))}</span>
-                        <span className="text-muted-foreground">（未滿 5 分鐘，尚未正式紀錄）</span>
                       </div>
                     </div>
                   ))}

@@ -70,6 +70,7 @@ import { internalNotesStore, useInternalNotes } from "@/stores/internal-notes-st
 import { getUserTimezone } from "@/lib/format-timestamp";
 import { getTimezoneInfo } from "@/data/timezone-options";
 import type { InternalNote } from "@/hooks/use-internal-notes-table-views";
+import { applyEditLogFieldChange, type BurstMap } from "@/lib/edit-log-coalesce";
 
 import CollaborationTable from "@/components/CollaborationTable";
 import { InquirySlackDialog } from "@/components/InquirySlackDialog";
@@ -813,6 +814,47 @@ function caseDetailLoadTimeoutPromise(): Promise<never> {
 
 type CaseDetailLocationState = { autoFocusTitle?: boolean; duplicateExpectedTitle?: string };
 
+const CASE_LOG_SKIP_KEYS = new Set<string>([
+  "updatedAt",
+  "edit_logs",
+  "changeLogEnabledAt",
+  "comments",
+  "internalComments",
+  "inquirySlackRecords",
+]);
+
+const CASE_FIELD_LABELS: Partial<Record<keyof CaseRecord, string>> = {
+  title: "標題",
+  status: "狀態",
+  client: "客戶",
+  contact: "聯絡人",
+  keyword: "關鍵字",
+  clientPoNumber: "客戶 PO",
+  clientCaseLink: "客戶案件單連結",
+  dispatchRoute: "派案來源",
+  category: "類型",
+  workType: "工作類型",
+  workGroups: "工作群組",
+  processNote: "處理備註",
+  billingUnit: "計費單位",
+  unitCount: "數量",
+  inquiryNote: "詢價備註",
+  translator: "譯者",
+  translationDeadline: "翻譯交期",
+  reviewer: "審稿人員",
+  reviewDeadline: "審稿交期",
+  executionTool: "執行工具",
+  toolFieldValues: "工具欄位",
+  tools: "工具",
+  questionTools: "題目工具",
+  deliveryMethod: "交件方式",
+  bodyContent: "案件說明",
+  multiCollab: "多人協作",
+  collabRows: "協作列",
+  declineRecords: "婉拒紀錄",
+  collabCount: "協作人數",
+};
+
 export default function CaseDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -854,6 +896,7 @@ export default function CaseDetailPage() {
   const [inquirySlackOpen, setInquirySlackOpen] = useState(false);
   const { primaryRole: currentRole, profile, user } = useAuth();
   const { checkPerm } = usePermissions();
+  const caseEditBurstRef = useRef<BurstMap>({});
   const isManager = currentRole === "pm" || currentRole === "executive";
   const pendingNavigateRef = useRef<(() => void) | null>(null);
 
@@ -985,13 +1028,51 @@ export default function CaseDetailPage() {
       });
   }, [caseData?.createdBy]);
 
-  const save = useCallback((partial: Partial<CaseRecord>) => {
-    setCaseData((prev) => {
-      if (!prev) return prev;
-      caseStore.update(prev.id, partial);
-      return { ...prev, ...partial };
-    });
-  }, []);
+  useEffect(() => {
+    caseEditBurstRef.current = {};
+  }, [id]);
+
+  const save = useCallback(
+    (partial: Partial<CaseRecord>) => {
+      setCaseData((prev) => {
+        if (!prev) return prev;
+        let merged: Partial<CaseRecord> = partial;
+        if (prev.changeLogEnabledAt && profile) {
+          const author = profile.display_name || profile.email || "系統";
+          let logs = [...(prev.edit_logs || [])];
+          let burst = caseEditBurstRef.current;
+          const ser = (v: unknown) =>
+            typeof v === "string" || typeof v === "number" || typeof v === "boolean" ? v : JSON.stringify(v ?? null);
+          for (const key of Object.keys(partial) as (keyof CaseRecord)[]) {
+            if (CASE_LOG_SKIP_KEYS.has(key as string)) continue;
+            const oldV = prev[key];
+            const newV = partial[key];
+            if (newV === undefined) continue;
+            if (JSON.stringify(oldV) === JSON.stringify(newV)) continue;
+            const label = CASE_FIELD_LABELS[key] ?? String(key);
+            const { nextLogs, nextBurstMap } = applyEditLogFieldChange({
+              fieldKey: String(key),
+              oldValue: ser(oldV),
+              newValue: ser(newV),
+              now: Date.now(),
+              author,
+              formatTimestamp: (d) => formatTimestamp(d),
+              fieldLabel: label,
+              existingLogs: logs,
+              burstMap: burst,
+            });
+            logs = nextLogs;
+            burst = nextBurstMap;
+          }
+          caseEditBurstRef.current = burst;
+          merged = { ...partial, edit_logs: logs };
+        }
+        caseStore.update(prev.id, merged);
+        return { ...prev, ...merged };
+      });
+    },
+    [profile]
+  );
 
   /* ── Tool helpers ── */
   const tools: ToolEntry[] = useMemo(() =>
@@ -1041,10 +1122,10 @@ export default function CaseDetailPage() {
       if (!prev) return prev;
       const current = getEffectiveTools(prev);
       const next = updater(current);
-      caseStore.update(prev.id, { tools: next });
+      save({ tools: next });
       return { ...prev, tools: next };
     });
-  }, []);
+  }, [save]);
 
   const updateTool = (idx: number, updates: Partial<ToolEntry>) => {
     patchTools((current) => current.map((t, i) => (i === idx ? mergeToolEntryUpdates(t, updates) : t)));
@@ -1066,10 +1147,10 @@ export default function CaseDetailPage() {
       if (!prev) return prev;
       const current = getEffectiveQuestionTools(prev);
       const next = updater(current);
-      caseStore.update(prev.id, { questionTools: next });
+      save({ questionTools: next });
       return { ...prev, questionTools: next };
     });
-  }, []);
+  }, [save]);
 
   const updateQuestionTool = (idx: number, updates: Partial<ToolEntry>) => {
     patchQuestionTools((current) => current.map((t, i) => (i === idx ? mergeToolEntryUpdates(t, updates) : t)));
@@ -2485,6 +2566,28 @@ export default function CaseDetailPage() {
         <span>建立者：{creatorName || "—"}</span>
         <span>建立時間：{formatTimestamp(new Date(caseData.createdAt))}</span>
       </div>
+
+      {caseData.changeLogEnabledAt &&
+        (caseData.edit_logs?.length ?? 0) > 0 &&
+        checkPerm("case_management", "case_detail_title", "view") && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">變更紀錄</Label>
+              <div className="space-y-2">
+                {(caseData.edit_logs ?? []).map((entry) => (
+                  <div key={entry.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs space-y-0.5">
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                      <span><span className="text-muted-foreground">變更者：</span>{entry.changedBy}</span>
+                      <span><span className="text-muted-foreground">變更內容：</span>{entry.description}</span>
+                      <span><span className="text-muted-foreground">變更時間：</span>{entry.timestamp}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
 
       <Separator />
 

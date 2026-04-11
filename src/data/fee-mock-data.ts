@@ -68,6 +68,15 @@ export interface EditLog {
   oldValue: string;
   newValue: string;
   timestamp: string;
+  /** 與 applyEditLogFieldChange 對齊之欄位鍵（舊資料可無） */
+  fieldKey?: string;
+}
+
+/** 稿費變更紀錄分段啟用時間（ISO） */
+export interface FeeEditLogPhases {
+  basic?: string;
+  revenue?: string;
+  task?: string;
 }
 
 export interface TranslatorFee {
@@ -81,6 +90,8 @@ export interface TranslatorFee {
   clientInfo?: ClientInfo;
   notes: Note[];
   editLogs: EditLog[];
+  /** 各段變更紀錄開始時間（jsonb） */
+  editLogPhases?: FeeEditLogPhases;
   createdBy: string;
   createdAt: string;
   finalizedBy?: string;

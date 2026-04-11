@@ -1,5 +1,6 @@
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
+import { usePermissions } from "@/hooks/use-permissions";
 import { ArrowLeft, Plus, X, Loader2, FileText, Copy, Check } from "lucide-react";
 import { CommentContent } from "@/components/comments/CommentContent";
 import { CommentInput } from "@/components/comments/CommentInput";
@@ -9,7 +10,8 @@ import { ApplyTemplateButton } from "@/components/ApplyTemplateButton";
 
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
-import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, type TranslatorFee, defaultClientInfo } from "@/data/fee-mock-data";
+import { type FeeTaskItem, type TaskType, type BillingUnit, type FeeStatus, type ClientInfo, type TranslatorFee, type EditLog, type FeeEditLogPhases, defaultClientInfo } from "@/data/fee-mock-data";
+import { applyEditLogFieldChange, type BurstMap, type SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { defaultPricingStore } from "@/stores/default-pricing-store";
 import { selectOptionsStore, PRESET_COLORS, CONTACT_DEFAULT_COLOR, useSelectOptions } from "@/stores/select-options-store";
 import { currencyStore } from "@/stores/currency-store";
@@ -133,20 +135,6 @@ function FeeCaseLinkInput({ onSave, defaultLabel }: { onSave: (v: { url: string;
 }
 
 
-interface EditLogEntry {
-  id: string;
-  changedBy: string;
-  description: string;
-  timestamp: string;
-}
-
-interface PendingChange {
-  field: string;
-  oldValue: string;
-  newValue: string;
-  changedAt: number; // Date.now()
-}
-
 interface CommentEntry {
   id: string;
   author: string;
@@ -160,9 +148,36 @@ interface CommentEntry {
 import { formatTimestamp24h } from "@/lib/format-timestamp";
 const formatTimestamp = (date: Date | string) => formatTimestamp24h(date);
 
-const mentionUsers = ["王小明", "李美玲", "張大偉", "陳雅婷"];
+function feeEditLogsToSimple(logs: EditLog[]): SimplePersistedLog[] {
+  return logs.map((l) => ({
+    id: l.id,
+    changedBy: l.author,
+    description: l.field ? `${l.field} ${l.oldValue} → ${l.newValue}` : l.newValue,
+    timestamp: formatTimestamp(l.timestamp),
+    fieldKey: l.fieldKey || l.field || undefined,
+  }));
+}
 
-const COMMIT_DELAY_MS = 5 * 60 * 1000; // 5 minutes
+function simpleToFeeEditLogs(logs: SimplePersistedLog[]): EditLog[] {
+  return logs.map((e) => ({
+    id: e.id,
+    author: e.changedBy,
+    field: e.fieldKey ?? "",
+    oldValue: "",
+    newValue: e.description,
+    timestamp: new Date().toISOString(),
+    fieldKey: e.fieldKey,
+  }));
+}
+
+/** 欄位敘述字串 → 分段（與 editLogPhases gate 對應） */
+function inferFeeFieldPhase(field: string): keyof FeeEditLogPhases {
+  if (/項目|任務類型|計費|單價|單位數|新增任務|刪除任務/.test(field)) return "task";
+  if (/客戶|聯絡人|對帳/.test(field)) return "revenue";
+  return "basic";
+}
+
+const mentionUsers = ["王小明", "李美玲", "張大偉", "陳雅婷"];
 
 const fieldLabels: Record<string, string> = {
   taskType: "任務類型",
@@ -206,7 +221,9 @@ export default function TranslatorFeeDetail() {
   const [notionUrlInput, setNotionUrlInput] = useState(internalNoteUrl || "");
   const [currentRole, setCurrentRole] = useState<UserRole>("pm");
   const { isAdmin: authIsAdmin, profile: authProfile, roles: authRoles } = useAuth();
+  const { checkPerm } = usePermissions();
   const authIsExecutive = authRoles.some((r) => r.role === "executive");
+  const canFinalizeFeeEdit = checkPerm("fee_management", "fee_detail_finalize", "edit");
 
   const uiFeesDetailCopy = useToolbarButtonUiProps("fees_detail_copy_page");
   const lbFeesDetailCopy = useUiButtonLabel("fees_detail_copy_page") ?? "複製本頁";
@@ -225,11 +242,10 @@ export default function TranslatorFeeDetail() {
   const [creatorName, setCreatorName] = useState(feeData?.createdBy || "");
   const [clientInfo, setClientInfo] = useState<ClientInfo>(feeData?.clientInfo ?? { ...defaultClientInfo });
 
-  // Edit history tracking — initialize from feeData
-  const [editLog, setEditLog] = useState<EditLogEntry[]>(() =>
-    (feeData?.editLogs ?? []).map((l) => ({ id: l.id, changedBy: l.author, description: l.field ? `${l.field} ${l.oldValue} → ${l.newValue}` : l.newValue, timestamp: formatTimestamp(l.timestamp) }))
-  );
-  const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
+  // Edit history（即時寫入 + burst 內回到錨點則撤銷）
+  const [editLog, setEditLog] = useState<SimplePersistedLog[]>(() => feeEditLogsToSimple(feeData?.editLogs ?? []));
+  const burstMapRef = useRef<BurstMap>({});
+  const phasesRef = useRef<FeeEditLogPhases | undefined>(undefined);
   const snapshotRef = useRef<{ taskItems: FeeTaskItem[]; title: string; assignee: string; internalNote: string } | null>(null);
   const hasBeenSubmittedRef = useRef(feeData?.status === "finalized");
   const [duplicateDialogStep, setDuplicateDialogStep] = useState<null | "choose" | "assignRole" | "confirmSwap">(null);
@@ -316,9 +332,15 @@ export default function TranslatorFeeDetail() {
     setClientInfo(feeData.clientInfo ?? { ...defaultClientInfo });
     // creatorName is resolved separately via the UUID→displayName effect below
     setComments((feeData.notes ?? []).map((n) => ({ id: n.id, author: n.author, content: n.text, timestamp: formatTimestamp(n.createdAt) })));
-    setEditLog((feeData.editLogs ?? []).map((l) => ({ id: l.id, changedBy: l.author, description: l.field ? `${l.field} ${l.oldValue} → ${l.newValue}` : l.newValue, timestamp: formatTimestamp(l.timestamp) })));
+    setEditLog(feeEditLogsToSimple(feeData.editLogs ?? []));
+    burstMapRef.current = {};
+    phasesRef.current = feeData.editLogPhases;
     hasBeenSubmittedRef.current = feeData.status === "finalized";
   }, [feeData?.id, feeData?.status]);
+
+  useEffect(() => {
+    phasesRef.current = feeData?.editLogPhases;
+  }, [feeData?.editLogPhases]);
 
   // Load assignees from DB on mount
   useEffect(() => {
@@ -415,56 +437,34 @@ export default function TranslatorFeeDetail() {
     };
   }, [isNavigationBlocked, needsRoleAssignment]);
 
-  // Commit pending changes that have persisted for 5+ minutes
-  useEffect(() => {
-    if (pendingChanges.length === 0) return;
-    const timer = setInterval(() => {
-      const now = Date.now();
-      const ready = pendingChanges.filter((c) => now - c.changedAt >= COMMIT_DELAY_MS);
-      if (ready.length > 0) {
-        setEditLog((prev) => {
-          const newEntries = ready.map((c) => ({
-            id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            changedBy: roleLabels[currentRole],
-            description: `${c.field} ${c.oldValue} → ${c.newValue}`,
-            timestamp: formatTimestamp(new Date(c.changedAt)),
-          }));
-          const updated = [...prev, ...newEntries];
-          // Sync to store
-          if (id) {
-            feeStore.updateFee(id, {
-              editLogs: updated.map((e) => ({ id: e.id, field: "", oldValue: "", newValue: e.description, author: e.changedBy, timestamp: e.timestamp })),
-            });
-          }
-          return updated;
+  const trackChange = useCallback(
+    (field: string, oldValue: string | number, newValue: string | number) => {
+      if (!hasBeenSubmittedRef.current || String(oldValue) === String(newValue)) return;
+      const phase = inferFeeFieldPhase(field);
+      const phases = phasesRef.current;
+      if (phase === "basic" && !phases?.basic) return;
+      if (phase === "revenue" && !phases?.revenue) return;
+      if (phase === "task" && !phases?.task) return;
+      const authorName = roleLabels[currentRole];
+      setEditLog((prev) => {
+        const { nextLogs, nextBurstMap } = applyEditLogFieldChange({
+          fieldKey: field,
+          oldValue,
+          newValue,
+          now: Date.now(),
+          author: authorName,
+          formatTimestamp,
+          fieldLabel: fieldLabels[field as keyof typeof fieldLabels] || field,
+          existingLogs: prev,
+          burstMap: burstMapRef.current,
         });
-        setPendingChanges((prev) => prev.filter((c) => !ready.includes(c)));
-        // Update snapshot to reflect committed values
-        snapshotRef.current = {
-          taskItems: [...taskItems],
-          title: feeData?.title ?? "",
-          assignee: feeData?.assignee ?? "",
-          internalNote,
-        };
-      }
-    }, 10000); // check every 10 seconds
-    return () => clearInterval(timer);
-  }, [pendingChanges, taskItems, internalNote, feeData]);
-
-  const trackChange = useCallback((field: string, oldValue: string | number, newValue: string | number) => {
-    if (!hasBeenSubmittedRef.current || String(oldValue) === String(newValue)) return;
-    setPendingChanges((prev) => {
-      const existing = prev.find((c) => c.field === field);
-      if (existing) {
-        // If reverted to original, remove the pending change
-        if (String(existing.oldValue) === String(newValue)) {
-          return prev.filter((c) => c.field !== field);
-        }
-        return prev.map((c) => c.field === field ? { ...c, newValue: String(newValue), changedAt: Date.now() } : c);
-      }
-      return [...prev, { field, oldValue: String(oldValue), newValue: String(newValue), changedAt: Date.now() }];
-    });
-  }, []);
+        burstMapRef.current = nextBurstMap;
+        if (id) feeStore.updateFee(id, { editLogs: simpleToFeeEditLogs(nextLogs) });
+        return nextLogs;
+      });
+    },
+    [currentRole, id]
+  );
 
   if (!feeData) {
     if (!feesLoaded) {
@@ -537,10 +537,7 @@ export default function TranslatorFeeDetail() {
       return updated;
     });
     if (hasBeenSubmittedRef.current) {
-      setPendingChanges((prev) => [
-        ...prev,
-        { field: "新增任務項目", oldValue: "-", newValue: "新項目已新增", changedAt: Date.now() },
-      ]);
+      trackChange("新增任務項目", "-", "新項目已新增");
     }
   };
 
@@ -548,10 +545,7 @@ export default function TranslatorFeeDetail() {
     if (hasBeenSubmittedRef.current) {
       const removedItem = taskItems.find((i) => i.id === itemId);
       if (removedItem) {
-        setPendingChanges((prev) => [
-          ...prev,
-          { field: "刪除任務項目", oldValue: `${removedItem.taskType}`, newValue: "已刪除", changedAt: Date.now() },
-        ]);
+        trackChange("刪除任務項目", `${removedItem.taskType}`, "已刪除");
       }
     }
     setTaskItems((prev) => {
@@ -569,27 +563,9 @@ export default function TranslatorFeeDetail() {
   };
 
   const handleSubmit = () => {
-    // Force-commit all pending changes immediately
-    if (pendingChanges.length > 0) {
-      const newEntries = pendingChanges.map((c) => ({
-        id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        changedBy: roleLabels[currentRole],
-        description: `${c.field} ${c.oldValue} → ${c.newValue}`,
-        timestamp: formatTimestamp(new Date(c.changedAt)),
-      }));
-      setEditLog((prev) => {
-        const updated = [...prev, ...newEntries];
-        if (id) {
-          feeStore.updateFee(id, {
-            editLogs: updated.map((e) => ({ id: e.id, field: "", oldValue: "", newValue: e.description, author: e.changedBy, timestamp: e.timestamp })),
-          });
-        }
-        return updated;
-      });
-      setPendingChanges([]);
-    }
+    const nowIso = new Date().toISOString();
+    let mergedPhases: FeeEditLogPhases | undefined = feeData.editLogPhases;
 
-    // Take snapshot on first submit
     if (!hasBeenSubmittedRef.current) {
       snapshotRef.current = {
         taskItems: [...taskItems],
@@ -598,24 +574,12 @@ export default function TranslatorFeeDetail() {
         internalNote,
       };
       hasBeenSubmittedRef.current = true;
+      if (title.trim() && assignee) {
+        mergedPhases = { ...mergedPhases, basic: nowIso };
+        phasesRef.current = mergedPhases;
+      }
     } else {
-      // Log status change (finalize) after first submission
-      const statusEntry = {
-        id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        changedBy: roleLabels[currentRole],
-        description: `狀態 草稿 → 開立完成`,
-        timestamp: formatTimestamp(new Date()),
-      };
-      setEditLog((prev) => {
-        const updated = [...prev, statusEntry];
-        if (id) {
-          feeStore.updateFee(id, {
-            editLogs: updated.map((e) => ({ id: e.id, field: "", oldValue: "", newValue: e.description, author: e.changedBy, timestamp: e.timestamp })),
-          });
-        }
-        return updated;
-      });
-      // Update snapshot after force-commit
+      trackChange("狀態", "草稿", "開立完成");
       snapshotRef.current = {
         taskItems: [...taskItems],
         title: feeData.title,
@@ -624,27 +588,17 @@ export default function TranslatorFeeDetail() {
       };
     }
     setStatus("finalized");
-    if (id) feeStore.updateFee(id, { status: "finalized" });
+    if (id) {
+      feeStore.updateFee(id, {
+        status: "finalized",
+        ...(mergedPhases !== feeData.editLogPhases ? { editLogPhases: mergedPhases } : {}),
+      });
+    }
   };
 
   const handleRecall = () => {
-    // Log status change (recall) — always log after first submission
     if (hasBeenSubmittedRef.current) {
-      const statusEntry = {
-        id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        changedBy: roleLabels[currentRole],
-        description: `狀態 開立完成 → 草稿`,
-        timestamp: formatTimestamp(new Date()),
-      };
-      setEditLog((prev) => {
-        const updated = [...prev, statusEntry];
-        if (id) {
-          feeStore.updateFee(id, {
-            editLogs: updated.map((e) => ({ id: e.id, field: "", oldValue: "", newValue: e.description, author: e.changedBy, timestamp: e.timestamp })),
-          });
-        }
-        return updated;
-      });
+      trackChange("狀態", "開立完成", "草稿");
     }
     setStatus("draft");
     if (id) feeStore.updateFee(id, { status: "draft" });
@@ -1738,7 +1692,7 @@ export default function TranslatorFeeDetail() {
                   <Button
                     size="sm"
                     className={MODULE_TOOLBAR_BTN}
-                    disabled={!isNoFeeTranslator && !clientInfo.rateConfirmed}
+                    disabled={!canFinalizeFeeEdit || (!isNoFeeTranslator && !clientInfo.rateConfirmed)}
                     onClick={() => {
                       if (!assignee) {
                         toast.error("請先選擇譯者，才能開立稿費條。");
@@ -1751,7 +1705,8 @@ export default function TranslatorFeeDetail() {
                   </Button>
                 </span>
               </TooltipTrigger>
-              {!isNoFeeTranslator && !clientInfo.rateConfirmed && <TooltipContent>請先勾選「費率無誤」</TooltipContent>}
+              {!canFinalizeFeeEdit && <TooltipContent>無開立稿費條權限</TooltipContent>}
+              {canFinalizeFeeEdit && !isNoFeeTranslator && !clientInfo.rateConfirmed && <TooltipContent>請先勾選「費率無誤」</TooltipContent>}
             </Tooltip>
           )}
           {canRecall && (
@@ -2084,8 +2039,20 @@ export default function TranslatorFeeDetail() {
               <ClientInfoSection
                 clientInfo={clientInfo}
                 onChange={(info) => {
+                  const prev = clientInfo;
+                  let mergedPhases = feeData.editLogPhases;
+                  if (!prev.reconciled && info.reconciled && !mergedPhases?.revenue) {
+                    const ts = new Date().toISOString();
+                    mergedPhases = { ...mergedPhases, revenue: ts };
+                    phasesRef.current = mergedPhases;
+                  }
                   setClientInfo(info);
-                  if (id) feeStore.updateFee(id, { clientInfo: info });
+                  if (id) {
+                    feeStore.updateFee(id, {
+                      clientInfo: info,
+                      ...(mergedPhases !== feeData.editLogPhases ? { editLogPhases: mergedPhases } : {}),
+                    });
+                  }
                 }}
                 canEdit={canEdit}
                 translatorTotal={totalAmount}
@@ -2172,7 +2139,7 @@ export default function TranslatorFeeDetail() {
                         <DropdownMenuItem
                           onClick={async () => {
                             if (!id) return;
-                            const inv = await invoiceStore.createInvoice(assignee, [id]);
+                            const inv = await invoiceStore.createInvoice(assignee, [id], { editLogFromCreation: true });
                             if (inv) {
                               toast.success("已收錄至稿費請款單");
                               setShowInvoiceNavPrompt({ type: 'translator', invoiceId: inv.id });
@@ -2235,9 +2202,20 @@ export default function TranslatorFeeDetail() {
                         disabled={isFinalized || isNoFeeTranslator || linkedTranslatorInvoices.length > 0 || !assignee}
                         onCheckedChange={(checked) => {
                           const updated = { ...clientInfo, rateConfirmed: checked };
+                          let mergedPhases = feeData.editLogPhases;
+                          if (!clientInfo.rateConfirmed && checked && !mergedPhases?.task) {
+                            const ts = new Date().toISOString();
+                            mergedPhases = { ...mergedPhases, task: ts };
+                            phasesRef.current = mergedPhases;
+                          }
                           setClientInfo(updated);
-                          if (id) feeStore.updateFee(id, { clientInfo: updated });
-                          if (checked && !isNoFeeTranslator) {
+                          if (id) {
+                            feeStore.updateFee(id, {
+                              clientInfo: updated,
+                              ...(mergedPhases !== feeData.editLogPhases ? { editLogPhases: mergedPhases } : {}),
+                            });
+                          }
+                          if (checked && !isNoFeeTranslator && canFinalizeFeeEdit) {
                             setShowFinalizePrompt(true);
                             setTimeout(() => finalizePromptRef.current?.focus(), 100);
                           }
@@ -2256,7 +2234,7 @@ export default function TranslatorFeeDetail() {
           </div>
 
           {/* Finalize prompt after rate confirmation */}
-          {showFinalizePrompt && isDraft && isManager && (
+          {showFinalizePrompt && isDraft && isManager && canFinalizeFeeEdit && (
             <div ref={finalizePromptContainerRef} className="flex items-center gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
               <span className="text-xs text-foreground">是否直接向譯者開立稿費條？（按空白鍵或點選按鈕開立，或點選畫面任意處取消）</span>
               <Button
@@ -2449,13 +2427,12 @@ export default function TranslatorFeeDetail() {
           <span>建立時間：{formattedDate}</span>
         </div>
 
-        {/* Edit History — only show when there are committed or pending entries */}
+        {/* Edit History */}
         {(() => {
           const clientInfoKeywords = ["客戶", "聯絡人", "案號", "PO", "硬碟", "對帳", "費率", "請款", "同一案件", "主要營收", "營收", "利潤", "客戶端"];
           const isClientLog = (desc: string) => clientInfoKeywords.some((kw) => desc.includes(kw));
           const filteredEditLog = isManager ? editLog : editLog.filter((e) => !isClientLog(e.description));
-          const filteredPending = isManager ? pendingChanges : pendingChanges.filter((c) => !isClientLog(c.field));
-          if (filteredEditLog.length === 0 && filteredPending.length === 0) return null;
+          if (filteredEditLog.length === 0) return null;
           return (
             <>
               <Separator />
@@ -2468,16 +2445,6 @@ export default function TranslatorFeeDetail() {
                         <span><span className="text-muted-foreground">變更者：</span>{entry.changedBy}</span>
                         <span><span className="text-muted-foreground">變更內容：</span>{entry.description}</span>
                         <span><span className="text-muted-foreground">變更時間：</span>{entry.timestamp}</span>
-                      </div>
-                    </div>
-                  ))}
-                  {filteredPending.map((change, idx) => (
-                    <div key={`pending-${idx}`} className="rounded-md border border-dashed border-border bg-secondary/15 px-3 py-2 text-xs space-y-0.5 opacity-60">
-                      <div className="flex flex-wrap gap-x-4 gap-y-0.5 italic">
-                        <span><span className="text-muted-foreground">變更者：</span>{roleLabels[currentRole]}</span>
-                        <span><span className="text-muted-foreground">變更內容：</span>{change.field} {change.oldValue} → {change.newValue}</span>
-                        <span><span className="text-muted-foreground">變更時間：</span>{formatTimestamp(new Date(change.changedAt))}</span>
-                        <span className="text-muted-foreground">（未滿 5 分鐘，尚未正式紀錄）</span>
                       </div>
                     </div>
                   ))}

@@ -19,6 +19,7 @@ import { feeStore } from "@/stores/fee-store";
 import { invoiceStore } from "@/stores/invoice-store";
 import { clientInvoiceStore } from "@/stores/client-invoice-store";
 import type { CaseRecord, CaseStatus, ToolEntry } from "@/data/case-types";
+import type { SimplePersistedLog } from "@/lib/edit-log-coalesce";
 import { createPollFallback } from "@/lib/realtime-poll";
 import { getAuthenticatedUser } from "@/lib/auth-ready";
 
@@ -162,6 +163,8 @@ function fromDb(row: any): CaseRecord {
     createdAt: row.created_at,
     inquirySlackRecords: Array.isArray(row.inquiry_slack_records) ? row.inquiry_slack_records : [],
     updatedAt: row.updated_at,
+    edit_logs: Array.isArray(row.edit_logs) ? (row.edit_logs as SimplePersistedLog[]) : undefined,
+    changeLogEnabledAt: row.change_log_enabled_at ?? undefined,
   };
 }
 
@@ -235,6 +238,8 @@ function toDb(c: Partial<CaseRecord>): Record<string, any> {
   if (c.iconUrl !== undefined) map.icon_url = c.iconUrl;
   if (c.createdBy !== undefined) map.created_by = c.createdBy;
   if (c.inquirySlackRecords !== undefined) map.inquiry_slack_records = c.inquirySlackRecords;
+  if (c.edit_logs !== undefined) map.edit_logs = c.edit_logs;
+  if (c.changeLogEnabledAt !== undefined) map.change_log_enabled_at = c.changeLogEnabledAt;
   return map;
 }
 
@@ -360,15 +365,26 @@ async function create(partial: Partial<CaseRecord>): Promise<CaseRecord | null> 
 }
 
 async function update(id: string, partial: Partial<CaseRecord>) {
-  const mapped = toDb(partial);
+  const prev = getById(id);
+  let merged: Partial<CaseRecord> = partial;
+  if (
+    prev &&
+    partial.status === "dispatched" &&
+    prev.status !== "dispatched" &&
+    !prev.changeLogEnabledAt
+  ) {
+    merged = { ...partial, changeLogEnabledAt: new Date().toISOString() };
+  }
+
+  const mapped = toDb(merged);
   mapped.updated_at = new Date().toISOString();
 
   // Optimistic update BEFORE DB write to prevent poll/realtime from overwriting
   const updatedAt = mapped.updated_at;
-  cases = cases.map((c) => (c.id === id ? { ...c, ...partial, updatedAt } : c));
+  cases = cases.map((c) => (c.id === id ? { ...c, ...merged, updatedAt } : c));
 
   // Merge with existing pending updates instead of replacing to avoid losing concurrent writes
-  pendingUpdates.set(id, { ...pendingUpdates.get(id), ...partial });
+  pendingUpdates.set(id, { ...pendingUpdates.get(id), ...merged });
   inFlightCount.set(id, (inFlightCount.get(id) || 0) + 1);
 
   // If a delayed cleanup was scheduled, cancel it because we have a new write.

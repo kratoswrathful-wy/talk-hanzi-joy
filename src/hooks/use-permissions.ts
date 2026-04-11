@@ -181,7 +181,7 @@ export function usePermissions() {
       }
       // 費用管理 - 列表欄位：member 預設限制
       if (moduleKey === "fee_management" && primaryRole === "member") {
-        if (itemKey === "table_field_clientInvoiceStatus") return false;
+        if (itemKey === "table_field_clientInvoiceStatus" || itemKey === "fee_list_batchFinalize") return false;
       }
       return true;
     }
@@ -193,6 +193,7 @@ export function usePermissions() {
         const memberRestrictedItems = ["case_fee_generate_button", "case_fee_warning", "case_fee_badges", "case_detail_client", "case_detail_contact", "case_detail_keyword", "case_draft_publish_prompt"];
         if (memberRestrictedItems.includes(itemKey)) return false;
       }
+      if (moduleKey === "fee_management" && primaryRole === "member" && itemKey === "fee_list_batchFinalize") return false;
       return true;
     }
     return itemPerm[permType] ?? true;

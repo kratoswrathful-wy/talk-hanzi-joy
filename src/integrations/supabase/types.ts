@@ -54,10 +54,12 @@ export type Database = {
           common_info: Json
           common_links: Json | null
           contact: string
+          change_log_enabled_at: string | null
           created_at: string
           created_by: string | null
           custom_guidelines_url: Json
           decline_records: Json
+          edit_logs: Json
           delivery_method: string
           delivery_method_files: Json | null
           dispatch_route: string | null
@@ -119,10 +121,12 @@ export type Database = {
           common_info?: Json
           common_links?: Json | null
           contact?: string
+          change_log_enabled_at?: string | null
           created_at?: string
           created_by?: string | null
           custom_guidelines_url?: Json
           decline_records?: Json
+          edit_logs?: Json
           delivery_method?: string
           delivery_method_files?: Json | null
           dispatch_route?: string | null
@@ -184,10 +188,12 @@ export type Database = {
           common_info?: Json
           common_links?: Json | null
           contact?: string
+          change_log_enabled_at?: string | null
           created_at?: string
           created_by?: string | null
           custom_guidelines_url?: Json
           decline_records?: Json
+          edit_logs?: Json
           delivery_method?: string
           delivery_method_files?: Json | null
           dispatch_route?: string | null
@@ -284,6 +290,7 @@ export type Database = {
           edit_logs: Json
           env: string
           expected_collection_date: string | null
+          edit_log_started_at: string | null
           id: string
           invoice_number: string
           is_record_only: boolean
@@ -307,6 +314,7 @@ export type Database = {
           edit_logs?: Json
           env?: string
           expected_collection_date?: string | null
+          edit_log_started_at?: string | null
           id?: string
           invoice_number?: string
           is_record_only?: boolean
@@ -330,6 +338,7 @@ export type Database = {
           edit_logs?: Json
           env?: string
           expected_collection_date?: string | null
+          edit_log_started_at?: string | null
           id?: string
           invoice_number?: string
           is_record_only?: boolean
@@ -350,6 +359,7 @@ export type Database = {
           client_info: Json | null
           created_at: string
           created_by: string | null
+          edit_log_phases: Json
           edit_logs: Json
           env: string
           finalized_at: string | null
@@ -368,6 +378,7 @@ export type Database = {
           client_info?: Json | null
           created_at?: string
           created_by?: string | null
+          edit_log_phases?: Json
           edit_logs?: Json
           env?: string
           finalized_at?: string | null
@@ -386,6 +397,7 @@ export type Database = {
           client_info?: Json | null
           created_at?: string
           created_by?: string | null
+          edit_log_phases?: Json
           edit_logs?: Json
           env?: string
           finalized_at?: string | null
@@ -440,6 +452,8 @@ export type Database = {
           created_at: string
           created_by: string | null
           creator: string
+          edit_log_started_at: string | null
+          edit_logs: Json
           env: string
           file_name: string
           id: string
@@ -465,6 +479,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           creator?: string
+          edit_log_started_at?: string | null
+          edit_logs?: Json
           env?: string
           file_name?: string
           id?: string
@@ -490,6 +506,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           creator?: string
+          edit_log_started_at?: string | null
+          edit_logs?: Json
           env?: string
           file_name?: string
           id?: string
@@ -584,6 +602,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           edit_logs: Json
+          edit_log_started_at: string | null
           env: string
           id: string
           note: string
@@ -599,6 +618,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           edit_logs?: Json
+          edit_log_started_at?: string | null
           env?: string
           id?: string
           note?: string
@@ -614,6 +634,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           edit_logs?: Json
+          edit_log_started_at?: string | null
           env?: string
           id?: string
           note?: string

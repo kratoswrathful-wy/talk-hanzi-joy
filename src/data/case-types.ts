@@ -123,4 +123,8 @@ export interface CaseRecord {
    * for this case). Used to lock checkboxes and prevent re-sending.
    */
   inquirySlackRecords: string[];
+  /** 變更紀錄（jsonb） */
+  edit_logs?: import("@/lib/edit-log-coalesce").SimplePersistedLog[];
+  /** 非空時才寫入變更紀錄（指派完成後啟用） */
+  changeLogEnabledAt?: string;
 }

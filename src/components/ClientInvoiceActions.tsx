@@ -162,7 +162,7 @@ export function ClientInvoiceActions({ selectedFees, onDone }: ClientInvoiceActi
 
     let count = 0;
     for (const [client, feeIds] of byClient) {
-      const inv = await clientInvoiceStore.createInvoice(client, feeIds);
+      const inv = await clientInvoiceStore.createInvoice(client, feeIds, { editLogFromCreation: true });
       if (inv) count++;
     }
 

@@ -43,4 +43,6 @@ export interface ClientInvoice {
   actualCollectionDate?: string;
   /** 請款額調整（費用調整列） */
   adjustmentLines?: ClientInvoiceAdjustmentLine[];
+  /** 非 null 時才寫入變更紀錄（建立後首次離開頁面，或自總表建立即啟用） */
+  editLogStartedAt?: string;
 }
