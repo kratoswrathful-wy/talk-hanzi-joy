@@ -1,6 +1,6 @@
 import { useNavigate, Link } from "react-router-dom";
 import { TableFooterStats, type NumericColumnConfig } from "@/components/TableFooterStats";
-import { Plus, ChevronDown, MessageSquare, History, GripVertical, ExternalLink, Trash2, FileText } from "lucide-react";
+import { Plus, ChevronDown, MessageSquare, History, GripVertical, ExternalLink, Trash2, FileText, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
 import { motion, AnimatePresence } from "framer-motion";
@@ -41,6 +41,12 @@ import AssigneeTag from "@/components/AssigneeTag";
 import { supabase } from "@/integrations/supabase/client";
 import { getFieldLock, getMultiSelectFieldLock, type FeeFieldLockContext } from "@/lib/fee-field-locks";
 import { currencyStore } from "@/stores/currency-store";
+import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
+import {
+  fetchNoFeeByEmails,
+  getFinalizeEligibility,
+  resolveAssigneeEmail,
+} from "@/lib/fee-finalize-eligibility";
 
 const feeStatusLabels: Record<FeeStatus, string> = {
   draft: "草稿",
@@ -691,6 +697,46 @@ export default function TranslatorFees() {
   const [showDeleteValidation, setShowDeleteValidation] = useState(false);
   const [deleteValidationIssues, setDeleteValidationIssues] = useState<{ feeId: string; title: string; reason: string }[]>([]);
 
+  // Batch finalize (開立稿費條)
+  const [finalizeLoading, setFinalizeLoading] = useState(false);
+  const [showFinalizeResult, setShowFinalizeResult] = useState(false);
+  const [finalizeSuccessItems, setFinalizeSuccessItems] = useState<{ feeId: string; title: string }[]>([]);
+  const [finalizeFailureItems, setFinalizeFailureItems] = useState<{ feeId: string; title: string; reason: string }[]>([]);
+
+  const handleBatchFinalize = useCallback(async () => {
+    if (!isManager || rowSelection.selectedCount === 0) return;
+    setFinalizeLoading(true);
+    try {
+      await selectOptionsStore.loadAssignees();
+      const assigneeOptions = selectOptionsStore.getField("assignee").options;
+      const selectedFees = visibleFees.filter((f) => rowSelection.selectedIds.has(f.id));
+      const emails = selectedFees
+        .map((f) => resolveAssigneeEmail(f.assignee || "", assigneeOptions))
+        .filter((e) => e.trim().length > 0);
+      const noFeeByEmail = await fetchNoFeeByEmails(emails);
+
+      const success: { feeId: string; title: string }[] = [];
+      const failures: { feeId: string; title: string; reason: string }[] = [];
+
+      for (const fee of selectedFees) {
+        const title = fee.title || "未命名稿費單";
+        const el = getFinalizeEligibility(fee, { assigneeOptions, noFeeByEmail });
+        if (el.ok === false) {
+          failures.push({ feeId: fee.id, title, reason: el.reason });
+          continue;
+        }
+        feeStore.updateFee(fee.id, { status: "finalized" });
+        success.push({ feeId: fee.id, title });
+      }
+
+      setFinalizeSuccessItems(success);
+      setFinalizeFailureItems(failures);
+      setShowFinalizeResult(true);
+    } finally {
+      setFinalizeLoading(false);
+    }
+  }, [isManager, rowSelection.selectedCount, rowSelection.selectedIds, visibleFees]);
+
   const handleDeleteSelected = useCallback(() => {
     const ids = Array.from(rowSelection.selectedIds);
     for (const id of ids) {
@@ -957,6 +1003,27 @@ export default function TranslatorFees() {
               </Tooltip>
             )}
 
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    size="sm"
+                    className={MODULE_TOOLBAR_BTN}
+                    disabled={rowSelection.selectedCount === 0 || finalizeLoading}
+                    onClick={() => void handleBatchFinalize()}
+                  >
+                    {finalizeLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                    ) : null}
+                    開立稿費條
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {rowSelection.selectedCount === 0 && (
+                <TooltipContent>請先選取項目</TooltipContent>
+              )}
+            </Tooltip>
+
             {/* Delete button */}
             {(() => {
               const deleteReason = getDeleteDisabledReason();
@@ -1183,6 +1250,62 @@ export default function TranslatorFees() {
                     </li>
                   ))}
                 </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>關閉</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showFinalizeResult} onOpenChange={setShowFinalizeResult}>
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle>開立稿費條結果</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4 text-foreground">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">成功開立</p>
+                  {finalizeSuccessItems.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">（無）</p>
+                  ) : (
+                    <ul className="list-disc pl-5 space-y-1.5 max-h-40 overflow-y-auto">
+                      {finalizeSuccessItems.map((item) => (
+                        <li key={item.feeId} className="text-sm">
+                          <Link
+                            to={`/fees/${item.feeId}`}
+                            className="text-primary hover:underline font-medium"
+                            onClick={() => setShowFinalizeResult(false)}
+                          >
+                            {item.title}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">未成功開立</p>
+                  {finalizeFailureItems.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">（無）</p>
+                  ) : (
+                    <ul className="list-disc pl-5 space-y-1.5 max-h-40 overflow-y-auto">
+                      {finalizeFailureItems.map((item) => (
+                        <li key={item.feeId} className="text-sm">
+                          <Link
+                            to={`/fees/${item.feeId}`}
+                            className="text-primary hover:underline font-medium"
+                            onClick={() => setShowFinalizeResult(false)}
+                          >
+                            {item.title}
+                          </Link>
+                          <span className="text-muted-foreground ml-1">— {item.reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
