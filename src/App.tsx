@@ -26,6 +26,7 @@ import ToolManagementPage from "@/pages/ToolManagementPage";
 import PageTemplateEditorPage from "@/pages/PageTemplateEditorPage";
 import FieldReferencePage from "@/pages/FieldReferencePage";
 import InternalNotesPage from "@/pages/InternalNotesPage";
+import CatToolPage from "@/pages/CatToolPage";
 import NotFound from "./pages/NotFound";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
@@ -131,6 +132,7 @@ function AuthenticatedRoutes() {
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/members" element={<MembersPage />} />
         <Route path="/permissions" element={<PermissionsPage />} />
+        <Route path="/cat" element={<CatToolPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AppLayout>

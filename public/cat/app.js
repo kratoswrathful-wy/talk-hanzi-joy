@@ -1,0 +1,5956 @@
+// TM：js/tm-utils.js ｜ XLIFF 標籤：js/xliff-tag-pipeline.js ｜ XLIFF 匯入：js/xliff-import.js
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const Xliff = window.CatToolXliffTags;
+    const XliffImport = window.CatToolXliffImport;
+    if (!Xliff) {
+        console.error('my-cat-tool：請在 index.html 於 app.js 之前載入 js/xliff-tag-pipeline.js');
+    }
+    if (!XliffImport) {
+        console.error('my-cat-tool：請在 index.html 於 app.js 之前載入 js/xliff-import.js');
+    }
+
+    // 本檔案結構：(1) 畫面上元件的參照 (2) 共用小工具 (3) 畫面切換與資料載入 (4) 各功能區塊與事件
+    // ---- DOM Elements ----
+    // --- 導覽與版面（側欄、切換畫面） ---
+    const navItems = document.querySelectorAll('.nav-item');
+    const viewSections = document.querySelectorAll('.view-section');
+    
+    // Sidebar Toggle
+    const sidebar = document.getElementById('sidebar');
+    const btnToggleSidebar = document.getElementById('btnToggleSidebar');
+
+    btnToggleSidebar.addEventListener('click', () => {
+        sidebar.classList.toggle('collapsed');
+    });
+
+    // --- 儀表板 ---
+    const statProjects = document.getElementById('statProjects');
+    const statTMs = document.getElementById('statTMs');
+    const statTBs = document.getElementById('statTBs');
+    const recentFilesList = document.getElementById('recentFilesList');
+    // --- 專案清單與專案內頁 ---
+    const projectsTableBody = document.getElementById('projectsTableBody');
+    const projectsSelectAll = document.getElementById('projectsSelectAll');
+    const projectsSelectAllLabel = document.getElementById('projectsSelectAllLabel');
+    const btnProjectsDeleteSelected = document.getElementById('btnProjectsDeleteSelected');
+    const filesListBody = document.getElementById('filesListBody');
+    const projectFilesSelectAll = document.getElementById('projectFilesSelectAll');
+    // --- TM 清單與 TM 內頁 ---
+    const tmList = document.getElementById('tmList');
+    const tmListSelectAll = document.getElementById('tmListSelectAll');
+    const tmListSelectAllLabel = document.getElementById('tmListSelectAllLabel');
+    const btnTmListDeleteSelected = document.getElementById('btnTmListDeleteSelected');
+    // --- TB 術語庫與術語表內頁 ---
+    const tbList = document.getElementById('tbList');
+    const tbListSelectAll = document.getElementById('tbListSelectAll');
+    const tbListSelectAllLabel = document.getElementById('tbListSelectAllLabel');
+    const btnTbListDeleteSelected = document.getElementById('btnTbListDeleteSelected');
+    const tbSearchInput = document.getElementById('tbSearchInput');
+    let lastProjectsList = [];
+    let lastTmListItems = [];
+    let lastTbListItems = [];
+    const tbTermSearchInput = document.getElementById('tbTermSearchInput');
+    const tbTermsList = document.getElementById('tbTermsList');
+    const tbTermSelectAll = document.getElementById('tbTermSelectAll');
+    const tbTermSelectAllLabel = document.getElementById('tbTermSelectAllLabel');
+    const btnTbDeleteSelected = document.getElementById('btnTbDeleteSelected');
+    const tbTermCount = document.getElementById('tbTermCount');
+    const tbChangeLog = document.getElementById('tbChangeLog');
+    const btnTbChangeLogExpand = document.getElementById('btnTbChangeLogExpand');
+    let tbChangeLogShowAll = false;
+
+    const dashboardChangeLog = document.getElementById('dashboardChangeLog');
+    const btnDashboardChangeLogExpand = document.getElementById('btnDashboardChangeLogExpand');
+    let dashboardChangeLogShowAll = false;
+
+    const projectsChangeLog = document.getElementById('projectsChangeLog');
+    const btnProjectsChangeLogExpand = document.getElementById('btnProjectsChangeLogExpand');
+    let projectsChangeLogShowAll = false;
+
+    const projectDetailChangeLog = document.getElementById('projectDetailChangeLog');
+    const btnProjectDetailChangeLogExpand = document.getElementById('btnProjectDetailChangeLogExpand');
+    let projectDetailChangeLogShowAll = false;
+
+    const tmListChangeLog = document.getElementById('tmListChangeLog');
+    const btnTmListChangeLogExpand = document.getElementById('btnTmListChangeLogExpand');
+    let tmListChangeLogShowAll = false;
+
+    const tmDetailChangeLog = document.getElementById('tmDetailChangeLog');
+    const btnTmDetailChangeLogExpand = document.getElementById('btnTmDetailChangeLogExpand');
+    let tmDetailChangeLogShowAll = false;
+
+    const tbListChangeLog = document.getElementById('tbListChangeLog');
+    const btnTbListChangeLogExpand = document.getElementById('btnTbListChangeLogExpand');
+    let tbListChangeLogShowAll = false;
+    const tbTermEditModal = document.getElementById('tbTermEditModal');
+    const btnCloseTbTermEdit = document.getElementById('btnCloseTbTermEdit');
+    const btnCancelTbTermEdit = document.getElementById('btnCancelTbTermEdit');
+    const btnSaveTbTermEdit = document.getElementById('btnSaveTbTermEdit');
+    const tbTermEditSource = document.getElementById('tbTermEditSource');
+    const tbTermEditTarget = document.getElementById('tbTermEditTarget');
+    const tbTermEditNote = document.getElementById('tbTermEditNote');
+    let lastTbTerms = [];
+    let currentEditingTermIndex = -1;
+    // --- 編輯器與翻譯畫面 ---
+    const sidePanelWidthResizer = document.getElementById('sidePanelWidthResizer');
+    const sidePanel = document.querySelector('.editor-side-panel');
+    const segmentsContainer = document.getElementById('segmentsContainer');
+
+    // Project Detail Header
+    const detailProjectName = document.getElementById('detailProjectName');
+    const btnBackToProjects = document.getElementById('btnBackToProjects');
+    
+    // --- 彈窗（命名、TB Excel 匯入、檔案匯入精靈等） ---
+    const namingModal = document.getElementById('namingModal');
+    const namingModalTitle = document.getElementById('namingModalTitle');
+    const namingModalLabel = document.getElementById('namingModalLabel');
+    const namingModalInput = document.getElementById('namingModalInput');
+    const btnNamingModalConfirm = document.getElementById('btnNamingModalConfirm');
+    const btnCloseNamingModal = document.getElementById('btnCloseNamingModal');
+
+    // TB Detail header & controls
+    const btnBackToTbs = document.getElementById('btnBackToTbs');
+    const detailTbName = document.getElementById('detailTbName');
+    const tbTypeManual = document.getElementById('tbTypeManual');
+    const tbTypeOnline = document.getElementById('tbTypeOnline');
+    const btnTbAddTerm = document.getElementById('btnTbAddTerm');
+    const btnTbImportFile = document.getElementById('btnTbImportFile');
+    const btnTbImportOnline = document.getElementById('btnTbImportOnline');
+    const tbExcelImportModal = document.getElementById('tbExcelImportModal');
+    const tbExcelSheetList = document.getElementById('tbExcelSheetList');
+    const tbExcelSelectAll = document.getElementById('tbExcelSelectAll');
+    const tbExcelSelectAllLabel = document.getElementById('tbExcelSelectAllLabel');
+    const tbExcelSheetSelect = document.getElementById('tbExcelSheetSelect');
+    const tbExcelUseSameConfig = document.getElementById('tbExcelUseSameConfig');
+    const tbExcelSourceCol = document.getElementById('tbExcelSourceCol');
+    const tbExcelTargetCol = document.getElementById('tbExcelTargetCol');
+    const tbExcelNoteCols = document.getElementById('tbExcelNoteCols');
+    const tbExcelCreatorCol = document.getElementById('tbExcelCreatorCol');
+    const tbExcelCreatedAtCol = document.getElementById('tbExcelCreatedAtCol');
+    const tbExcelRowsRange = document.getElementById('tbExcelRowsRange');
+    const tbExcelImportError = document.getElementById('tbExcelImportError');
+    const btnCloseTbExcelImport = document.getElementById('btnCloseTbExcelImport');
+    const btnCancelTbExcelImport = document.getElementById('btnCancelTbExcelImport');
+    const btnConfirmTbExcelImport = document.getElementById('btnConfirmTbExcelImport');
+    const tbImportInput = document.getElementById('tbImportInput');
+    let currentTbId = null;
+
+    const wizardOverlay = document.getElementById('wizardOverlay');
+    const wizardStep1 = document.getElementById('wizardStep1');
+    const wizardStep2 = document.getElementById('wizardStep2');
+    const btnCloseWizard = document.getElementById('btnCloseWizard');
+    const sourceFileInput = document.getElementById('sourceFileInput');
+    const sheetList = document.getElementById('sheetList');
+    const selectAllSheets = document.getElementById('selectAllSheets');
+    const btnWizBack1 = document.getElementById('btnWizBack1');
+    const btnWizFinish = document.getElementById('btnWizFinish');
+
+    const configSourceCol = document.getElementById('configSourceCol');
+    const configTargetCol = document.getElementById('configTargetCol');
+    const configIdCol = document.getElementById('configIdCol');
+    const configExtraCol = document.getElementById('configExtraCol');
+    const configDirection = document.getElementById('configDirection');
+    const configRows = document.getElementById('configRows');
+    
+    // Pro Editor Elements
+    const btnExitEditor = document.getElementById('btnExitEditor');
+    const editorFileName = document.getElementById('editorFileName');
+    const gridBody = document.getElementById('gridBody');
+    const progressFill = document.getElementById('progressFill');
+    const exportBtn = document.getElementById('exportBtn');
+    const viewSettingsModal = document.getElementById('viewSettingsModal');
+    const btnSortMenu = document.getElementById('btnSortMenu');
+    const sortDropdown = document.getElementById('sortDropdown');
+    const btnCloseViewSettings = document.getElementById('btnCloseViewSettings');
+    const colSettingsListContainer = document.getElementById('colSettingsListContainer');
+    const btnSaveViewSettings = document.getElementById('btnSaveViewSettings');
+    const btnResetViewSettings = document.getElementById('btnResetViewSettings');
+
+    const btnShortcuts = document.getElementById('btnShortcuts');
+    const shortcutsModal = document.getElementById('shortcutsModal');
+    const btnCloseShortcuts = document.getElementById('btnCloseShortcuts');
+    
+    if (btnShortcuts) {
+        btnShortcuts.addEventListener('click', () => shortcutsModal.classList.remove('hidden'));
+        btnCloseShortcuts.addEventListener('click', () => shortcutsModal.classList.add('hidden'));
+    }
+
+    // ---- 將原文複製到譯文 / 清除譯文（單一 + 批次）----
+
+    /**
+     * 對指定 segment 套用操作（'copy-source' 或 'clear'），同步更新 DOM 與 DB。
+     * - copy-source：同步複製 sourceText 與 sourceTags
+     * - clear：清除 targetText 及 targetTags
+     */
+    async function applySegmentTextOp(seg, rowEl, op) {
+        if (!seg || isDynamicForbidden(seg) || seg.isLockedUser) return;
+
+        const newText = op === 'copy-source' ? seg.sourceText : '';
+        if (op === 'copy-source') {
+            seg.targetTags = (seg.sourceTags || []).map(t => ({ ...t }));
+        } else {
+            seg.targetTags = [];
+        }
+        seg.targetText = newText;
+
+        if (rowEl) {
+            const editor = rowEl.querySelector('.grid-textarea');
+            if (editor) {
+                editor.innerHTML = buildTaggedHtml(newText, seg.targetTags || seg.sourceTags || []);
+                updateTagColors(rowEl, newText);
+            }
+            // 若變為未確認，清除確認樣式
+            if (seg.status === 'confirmed') {
+                seg.status = 'unconfirmed';
+                const si = rowEl.querySelector('.status-icon');
+                if (si) si.classList.remove('done');
+                rowEl.style.backgroundColor = '';
+                await DBService.updateSegmentStatus(seg.id, 'unconfirmed');
+            }
+        }
+        await DBService.updateSegmentTarget(seg.id, newText, { targetTags: seg.targetTags });
+        updateProgress();
+    }
+
+    async function runTextOpOnSelection(op) {
+        // 凍結選取的句段 ID 清單，避免操作過程中被 focusin 等事件修改
+        const targetIds = new Set(selectedRowIds);
+        isBatchOpInProgress = true;
+        try {
+            if (targetIds.size > 0) {
+                // 批次：套用至所有選取句段，透過 data-seg-id 精確定位行
+                for (const seg of currentSegmentsList) {
+                    if (targetIds.has(seg.id)) {
+                        const rowEl = document.querySelector(`.grid-data-row[data-seg-id="${seg.id}"]`);
+                        await applySegmentTextOp(seg, rowEl, op);
+                    }
+                }
+            } else {
+                // 單一：套用至目前 active 句段
+                const activeRow = document.querySelector('.grid-data-row.active-row');
+                if (!activeRow) return;
+                const segId = parseInt(activeRow.dataset.segId);
+                const seg = currentSegmentsList.find(s => s.id === segId);
+                await applySegmentTextOp(seg, activeRow, op);
+            }
+        } finally {
+            isBatchOpInProgress = false;
+        }
+    }
+
+    const btnCopySourceToTarget = document.getElementById('btnCopySourceToTarget');
+    if (btnCopySourceToTarget) {
+        btnCopySourceToTarget.addEventListener('mousedown', (e) => e.preventDefault());
+        btnCopySourceToTarget.addEventListener('click', () => runTextOpOnSelection('copy-source'));
+    }
+
+    const btnClearTarget = document.getElementById('btnClearTarget');
+    if (btnClearTarget) {
+        btnClearTarget.addEventListener('mousedown', (e) => e.preventDefault());
+        btnClearTarget.addEventListener('click', () => runTextOpOnSelection('clear'));
+    }
+
+    // 標籤展開/收起按鈕
+    const btnTagCollapse = document.getElementById('btnTagCollapse');
+    if (btnTagCollapse) {
+        btnTagCollapse.addEventListener('click', () => {
+            tagsExpanded = !tagsExpanded;
+            const editorGrid = document.getElementById('editorGrid');
+            if (editorGrid) {
+                editorGrid.classList.toggle('tags-expanded', tagsExpanded);
+                editorGrid.classList.toggle('tags-collapsed', !tagsExpanded);
+            }
+            btnTagCollapse.title = tagsExpanded ? '收起標籤 (Ctrl+Shift+T)' : '展開標籤 (Ctrl+Shift+T)';
+        });
+    }
+
+    // 標籤群組插入模式切換按鈕
+    const btnTagGroupMode = document.getElementById('btnTagGroupMode');
+    if (btnTagGroupMode) {
+        btnTagGroupMode.addEventListener('click', () => {
+            tagGroupInsertMode = !tagGroupInsertMode;
+            localStorage.setItem('tagGroupInsertMode', tagGroupInsertMode ? 'group' : 'single');
+            btnTagGroupMode.classList.toggle('active', tagGroupInsertMode);
+                btnTagGroupMode.title = tagGroupInsertMode
+                    ? '標籤群組插入：已停用（F8 固定插入單一 tag）'
+                    : '標籤群組插入：已停用（F8 固定插入單一 tag）';
+        });
+    }
+
+    // --- Change Log Helpers ---
+    function getCurrentUserName() {
+        return localStorage.getItem('localCatUserProfile') || 'Unknown User';
+    }
+
+    /** 將 ISO 時間字串轉成台灣格式（年/月/日 時:分）供變更紀錄顯示用 */
+    function formatDateForLog(iso) {
+        try {
+            const d = new Date(iso);
+            return isNaN(d.getTime()) ? iso : d.toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        } catch (_) { return iso; }
+    }
+
+    /**
+     * 將變更紀錄陣列渲染成 HTML 列表並更新展開按鈕。
+     * @param {Object} opts - { listEl, expandBtn, display, totalCount, showAll, formatEntry(entry)=>string }
+     */
+    function renderChangeLogList(opts) {
+        const { listEl, expandBtn, display, totalCount, showAll, formatEntry } = opts;
+        if (!listEl) return;
+        const emptyHtml = '<li style="color:#64748b;">尚無變更紀錄</li>';
+        if (!display || display.length === 0) {
+            listEl.innerHTML = emptyHtml;
+        } else {
+            listEl.innerHTML = display.map(e => '<li style="margin-bottom:0.2rem;">' + (formatEntry(e).replace(/</g, '&lt;')) + '</li>').join('');
+        }
+        if (listEl.style) listEl.style.maxHeight = showAll ? '300px' : '120px';
+        if (expandBtn) {
+            expandBtn.textContent = showAll ? '只看最近 20 筆' : '展開全部紀錄';
+            expandBtn.style.visibility = (totalCount != null && totalCount <= 20) ? 'hidden' : 'visible';
+        }
+    }
+
+    function makeBaseLogEntry(action, scope, overrides) {
+        const base = {
+            by: getCurrentUserName(),
+            at: new Date().toISOString(),
+            action: action || '',
+            scope: scope || ''
+        };
+        return { ...base, ...(overrides || {}) };
+    }
+
+    async function appendProjectChangeLog(projectId, entry) {
+        if (!projectId || !DBService || !DBService.projects) return;
+        const project = await DBService.projects.get(projectId);
+        if (!project) return;
+        const log = Array.isArray(project.changeLog) ? project.changeLog.slice() : [];
+        log.push(entry);
+        await DBService.projects.update(projectId, { changeLog: log, lastModified: new Date().toISOString() });
+    }
+
+    async function appendTMChangeLog(tmId, entry) {
+        if (!tmId || !DBService || !DBService.tms) return;
+        const tm = await DBService.tms.get(tmId);
+        if (!tm) return;
+        const log = Array.isArray(tm.changeLog) ? tm.changeLog.slice() : [];
+        log.push(entry);
+        await DBService.tms.update(tmId, { changeLog: log, lastModified: new Date().toISOString() });
+    }
+
+    async function appendTBChangeLog(tbId, entry) {
+        if (!tbId || !DBService || !DBService.tbs) return;
+        const tb = await DBService.tbs.get(tbId);
+        if (!tb) return;
+        const log = Array.isArray(tb.changeLog) ? tb.changeLog.slice() : [];
+        log.push(entry);
+        await DBService.tbs.update(tbId, { changeLog: log, lastModified: new Date().toISOString() });
+    }
+
+    // User Profile Feature
+    const btnUserProfile = document.getElementById('btnUserProfile');
+    if (btnUserProfile) {
+        btnUserProfile.addEventListener('click', () => {
+            const currentName = localStorage.getItem('localCatUserProfile') || '';
+            openNamingModal('setUserProfile', '設定使用者名稱', '請輸入您的名字 (將用於 TM 寫入紀錄)', null, currentName);
+        });
+        
+        // Initial setup
+        const startName = localStorage.getItem('localCatUserProfile');
+        if (startName) document.getElementById('displayUserName').textContent = startName;
+    }
+
+    // Editor Tabs
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const panelContents = document.querySelectorAll('.panel-content');
+
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            tabBtns.forEach(b => b.classList.remove('active'));
+            panelContents.forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(btn.getAttribute('data-tab')).classList.add('active');
+        });
+    });
+
+    // 右欄：追蹤修訂區 ↔ 底部資訊區（Pointer 拖曳，位移與滑鼠一致）
+    const catPanelResizerBottom = document.getElementById('catPanelResizerBottom');
+    const livePanelFooter = document.getElementById('livePanelFooter');
+    let ptrCatBottom = null;
+    if (catPanelResizerBottom && livePanelFooter) {
+        const endCatBottom = (e) => {
+            if (ptrCatBottom && e.pointerId === ptrCatBottom.pid) {
+                try { catPanelResizerBottom.releasePointerCapture(e.pointerId); } catch (_) {}
+                ptrCatBottom = null;
+                document.body.style.cursor = '';
+            }
+        };
+        catPanelResizerBottom.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            const tabCAT = document.getElementById('tabCAT');
+            ptrCatBottom = {
+                pid: e.pointerId,
+                startY: e.clientY,
+                startFooterH: livePanelFooter.offsetHeight,
+                startTabCatH: tabCAT ? tabCAT.clientHeight : 0,
+                startTrackH: catTrackChangePanel ? catTrackChangePanel.getBoundingClientRect().height : 0
+            };
+            catPanelResizerBottom.setPointerCapture(e.pointerId);
+            document.body.style.cursor = 'ns-resize';
+        });
+        catPanelResizerBottom.addEventListener('pointermove', (e) => {
+            if (!ptrCatBottom || e.pointerId !== ptrCatBottom.pid) return;
+            e.preventDefault();
+            const panel = document.querySelector('.editor-side-panel');
+            if (!panel) return;
+            const tabs = panel.querySelector('.panel-tabs');
+            const tabBarH = tabs ? tabs.offsetHeight : 0;
+            const rz = catPanelResizerBottom.offsetHeight || 6;
+            const minFooter = 80;
+            const minCatBlock = 130;
+            const inner = panel.clientHeight - tabBarH;
+            const maxFooter = Math.max(minFooter, inner - rz - minCatBlock);
+            const dy = e.clientY - ptrCatBottom.startY;
+            let nh = ptrCatBottom.startFooterH - dy;
+            nh = Math.min(maxFooter, Math.max(minFooter, nh));
+            livePanelFooter.style.height = `${nh}px`;
+            /* 同步調整「追蹤修訂區」高度，使「比對↔追蹤」分界線不隨底部分割條移動 */
+            const tabCAT = document.getElementById('tabCAT');
+            if (tabCAT && catTrackChangePanel && ptrCatBottom.startTabCatH > 0) {
+                const rzTop = catPanelResizerTop ? (catPanelResizerTop.offsetHeight || 6) : 6;
+                const minConcord = 48;
+                const minTrack = 56;
+                const newTabH = tabCAT.clientHeight;
+                const deltaTab = newTabH - ptrCatBottom.startTabCatH;
+                let newTrackH = ptrCatBottom.startTrackH + deltaTab;
+                const maxTrack = Math.max(minTrack, newTabH - minConcord - rzTop);
+                newTrackH = Math.min(maxTrack, Math.max(minTrack, newTrackH));
+                catTrackChangePanel.style.height = `${newTrackH}px`;
+            }
+        });
+        catPanelResizerBottom.addEventListener('pointerup', endCatBottom);
+        catPanelResizerBottom.addEventListener('pointercancel', endCatBottom);
+    }
+
+    const catPanelResizerTop = document.getElementById('catPanelResizerTop');
+    const catTrackChangePanel = document.getElementById('catTrackChangePanel');
+    let ptrCatTop = null;
+    if (catPanelResizerTop && catTrackChangePanel) {
+        const endCatTop = (e) => {
+            if (ptrCatTop && e.pointerId === ptrCatTop.pid) {
+                try { catPanelResizerTop.releasePointerCapture(e.pointerId); } catch (_) {}
+                ptrCatTop = null;
+                document.body.style.cursor = '';
+            }
+        };
+        catPanelResizerTop.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            ptrCatTop = {
+                pid: e.pointerId,
+                startY: e.clientY,
+                startH: catTrackChangePanel.getBoundingClientRect().height
+            };
+            catPanelResizerTop.setPointerCapture(e.pointerId);
+            document.body.style.cursor = 'ns-resize';
+        });
+        catPanelResizerTop.addEventListener('pointermove', (e) => {
+            if (!ptrCatTop || e.pointerId !== ptrCatTop.pid) return;
+            e.preventDefault();
+            const tab = document.getElementById('tabCAT');
+            if (!tab) return;
+            const minConcord = 48;
+            const minTrack = 56;
+            const rz = catPanelResizerTop.offsetHeight || 6;
+            const maxTrack = Math.max(minTrack, tab.clientHeight - minConcord - rz);
+            const dy = e.clientY - ptrCatTop.startY;
+            // 與底部拖條一致：+dy 在 flex 側欄曾與手感相反，改為 −dy
+            let nh = ptrCatTop.startH - dy;
+            nh = Math.min(maxTrack, Math.max(minTrack, nh));
+            catTrackChangePanel.style.height = `${nh}px`;
+        });
+        catPanelResizerTop.addEventListener('pointerup', endCatTop);
+        catPanelResizerTop.addEventListener('pointercancel', endCatTop);
+    }
+
+    const tmSearchResultsEl = document.getElementById('tmSearchResults');
+    if (tmSearchResultsEl) {
+        tmSearchResultsEl.addEventListener('click', (e) => {
+            const btn = e.target.closest('.cat-dup-toggle');
+            if (!btn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const wrap = btn.closest('.result-block');
+            const panel = wrap && wrap.querySelector('.cat-tm-dupes-panel');
+            if (!panel) return;
+            const hidden = panel.classList.toggle('hidden');
+            btn.textContent = hidden ? '▶' : '▼';
+            btn.setAttribute('aria-expanded', hidden ? 'false' : 'true');
+        });
+    }
+
+    // ---- App State ----
+    let colSettings = [];
+
+    let activeView = 'viewDashboard';
+    let currentProjectId = null;
+    let currentFileId = null;
+    let workspaceNoteDraftTimer = null;
+    let workspaceNoteRenameTargetId = null;
+    let namingActionContext = null;
+
+    // Repetition Confirmation Mode: 'after' | 'all' | 'none'
+    let repMode = localStorage.getItem('catToolRepMode') || 'after';
+    // Sync radio in view settings when modal opens
+    const repModeRadio = () => document.querySelector(`input[name="repMode"][value="${repMode}"]`);
+    if (repModeRadio()) repModeRadio().checked = true;
+    document.querySelectorAll('input[name="repMode"]').forEach(r => {
+        r.addEventListener('change', () => {
+            repMode = r.value;
+            localStorage.setItem('catToolRepMode', repMode);
+        });
+    });
+
+    // Apply rep mode to all segments button
+    const btnApplyRepMode = document.getElementById('btnApplyRepMode');
+    if (btnApplyRepMode) {
+        btnApplyRepMode.addEventListener('click', () => {
+            currentSegmentsList.forEach(s => {
+                s.repModeSeg = repMode;
+            });
+            renderEditorSegments();
+            alert(`已將重複句段模式「${repMode === 'after' ? '確認其後' : repMode === 'all' ? '確認全部' : '停用'}」套用至所有句段。`);
+        });
+    } 
+
+    // Extractor State
+    let excelWorkbook = null;
+    /** 供 Console 診斷用（見 docs/TEST_XLSX_RICH_TEXT.md）；非公開 API */
+    if (typeof window !== 'undefined') {
+        window.__CAT_GET_EXCEL_WORKBOOK = () => excelWorkbook;
+    }
+    let excelRawBuffer = null;
+    let originalFileName = '';
+    let excelDataBySheet = {};
+    let debounceTimer = null;
+
+    // --- Sort State ---
+    const sortColSelect = document.getElementById('sortColSelect');
+    const sortOrderSelect = document.getElementById('sortOrderSelect');
+
+    function applySorting() {
+        if(!currentSegmentsList || currentSegmentsList.length === 0) return;
+        const colId = sortColSelect.value;
+        const orderValue = sortOrderSelect.value; // 'asc', 'desc', 'len-asc', 'len-desc', 'text-asc', 'text-desc'
+        
+        currentSegmentsList.sort((a, b) => {
+            let valA, valB;
+            if (colId === 'col-id') {
+                valA = a.globalId || a.rowIdx; valB = b.globalId || b.rowIdx;
+            } else if (colId.startsWith('col-key-')) {
+                const kIdx = parseInt(colId.replace('col-key-', ''), 10);
+                valA = a.keys && a.keys[kIdx] ? a.keys[kIdx].toString() : '';
+                valB = b.keys && b.keys[kIdx] ? b.keys[kIdx].toString() : '';
+            } else if (colId === 'col-source') {
+                valA = a.sourceText || ''; valB = b.sourceText || '';
+            } else if (colId === 'col-target') {
+                valA = a.targetText || ''; valB = b.targetText || '';
+            }
+
+            if (colId === 'col-source' || colId === 'col-target') {
+                if (orderValue === 'len-asc') return valA.length - valB.length;
+                if (orderValue === 'len-desc') return valB.length - valA.length;
+                if (orderValue === 'text-asc') return valA.localeCompare(valB);
+                if (orderValue === 'text-desc') return valB.localeCompare(valA);
+            } else {
+                if (orderValue === 'asc') return valA > valB ? 1 : (valA < valB ? -1 : 0);
+                if (orderValue === 'desc') return valA < valB ? 1 : (valA > valB ? -1 : 0);
+            }
+            return 0;
+        });
+        renderEditorSegments();
+    }
+
+    if (sortColSelect && sortOrderSelect) {
+        sortColSelect.addEventListener('change', () => {
+            const val = sortColSelect.value;
+            sortOrderSelect.innerHTML = '';
+            if (val === 'col-source' || val === 'col-target') {
+                sortOrderSelect.innerHTML = `
+                    <option value="len-asc">長短 (短到長)</option>
+                    <option value="len-desc">長短 (長到短)</option>
+                    <option value="text-asc">文字 (升序)</option>
+                    <option value="text-desc">文字 (降序)</option>
+                `;
+            } else {
+                sortOrderSelect.innerHTML = `
+                    <option value="asc">升序 (Asc)</option>
+                    <option value="desc">降序 (Desc)</option>
+                `;
+            }
+            applySorting();
+        });
+        sortOrderSelect.addEventListener('change', applySorting);
+    }
+
+    if (btnSortMenu && sortDropdown) {
+        btnSortMenu.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sortDropdown.classList.toggle('show');
+        });
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#sortDropdown')) {
+                sortDropdown.classList.remove('show');
+            }
+        });
+    }
+
+    // --- Init ---
+    await loadDashboardData();
+
+    // ==========================================
+    // ROUTER
+    // ==========================================
+    function switchView(targetView) {
+        activeView = targetView;
+        navItems.forEach(nav => {
+            if(nav.getAttribute('data-view') === targetView) nav.classList.add('active');
+            else nav.classList.remove('active');
+        });
+        viewSections.forEach(sec => sec.classList.add('hidden'));
+        document.getElementById(targetView).classList.remove('hidden');
+    }
+
+    navItems.forEach(item => {
+        item.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const targetView = item.getAttribute('data-view');
+            const viewEditorEl = document.getElementById('viewEditor');
+            const inEditor = !!(currentFileId && viewEditorEl && !viewEditorEl.classList.contains('hidden'));
+            if (inEditor) {
+                const ok = await ensureWorkspaceNoteLeaveResolved();
+                if (!ok) return;
+                currentFileId = null;
+                currentSegmentsList = [];
+                if (gridBody) gridBody.innerHTML = '';
+                window.ActiveTmCache = [];
+                window.ActiveTbTerms = [];
+                sidebar.classList.remove('collapsed');
+            }
+            switchView(targetView);
+
+            if(targetView === 'viewDashboard') await loadDashboardData();
+            if(targetView === 'viewProjects') await loadProjectsList();
+            if(targetView === 'viewTM') await loadTMList();
+            if(targetView === 'viewTB') await loadTBList();
+        });
+    });
+
+    window.addEventListener('beforeunload', (e) => {
+        const noteInput = document.getElementById('editorWorkspaceNoteInput');
+        const viewEditorEl = document.getElementById('viewEditor');
+        if (!currentFileId || !noteInput || !viewEditorEl || viewEditorEl.classList.contains('hidden')) return;
+        if (!(noteInput.value || '').trim()) return;
+        e.preventDefault();
+        e.returnValue = '';
+    });
+    window.addEventListener('pagehide', () => {
+        const noteInput = document.getElementById('editorWorkspaceNoteInput');
+        if (!currentFileId || !noteInput) return;
+        clearTimeout(workspaceNoteDraftTimer);
+        DBService.updateFile(currentFileId, { workspaceNoteDraft: noteInput.value }).catch(() => {});
+    });
+
+    // ==========================================
+    // DATA LOADERS
+    // ==========================================
+    async function loadDashboardData() {
+        const ps = await DBService.getProjects();
+        const tms = await DBService.getTMs();
+        const tbs = await DBService.getTBs();
+        statProjects.textContent = ps.length;
+        statTMs.textContent = tms.length;
+        statTBs.textContent = tbs.length;
+
+        // 最近使用的檔案（依 lastModified 由新到舊取前 10 筆）
+        if (recentFilesList) {
+            const recentFiles = await DBService.getRecentFiles(10);
+            recentFilesList.innerHTML = '';
+            if (!recentFiles.length) {
+                recentFilesList.innerHTML = '<div style="color:#64748b; font-size:0.9rem;">尚未有任何檔案。</div>';
+            } else {
+                recentFiles.forEach(f => {
+                    const row = document.createElement('div');
+                    row.className = 'list-item-row';
+                    row.innerHTML = `
+                        <div class="list-item-info" data-file-id="${f.id}">
+                            <div class="project-title">${f.name}</div>
+                            <div class="project-meta">最後使用時間：${new Date(f.lastModified).toLocaleString()}</div>
+                        </div>
+                    `;
+                    recentFilesList.appendChild(row);
+                });
+                // 點擊最近檔案直接開啟對應專案與檔案
+                recentFilesList.querySelectorAll('.list-item-info').forEach(el => {
+                    el.addEventListener('click', async () => {
+                        const fileId = parseInt(el.getAttribute('data-file-id'));
+                        const file = await DBService.getFile(fileId);
+                        if (!file) return;
+                        await openProjectDetail(file.projectId);
+                        await openEditor(fileId);
+                    });
+                });
+            }
+        }
+
+        if (dashboardChangeLog) {
+            const logsProjects = await DBService.getModuleLogs('projects', 0);
+            const logsTm = await DBService.getModuleLogs('tm', 0);
+            const logsTb = await DBService.getModuleLogs('tb', 0);
+            const merged = [...logsProjects, ...logsTm, ...logsTb].sort((a, b) => new Date(b.at) - new Date(a.at));
+            const display = dashboardChangeLogShowAll ? merged : merged.slice(0, 20);
+            renderChangeLogList({
+                listEl: dashboardChangeLog,
+                expandBtn: btnDashboardChangeLogExpand,
+                display,
+                totalCount: merged.length,
+                showAll: dashboardChangeLogShowAll,
+                formatEntry: (e) => {
+                    const at = formatDateForLog(e.at || '');
+                    const who = (e.by || '').trim() || '—';
+                    const name = e.entityName || '';
+                    const action = e.action || '';
+                    const module = e.module || '';
+                    return `[${module}] ${name} ${action}；${who}，${at}`;
+                }
+            });
+        }
+    }
+
+    // --- Projects CRUD (表格 + 勾選 + 刪除所選) ---
+    function syncProjectsSelectAllLabel() {
+        if (!projectsTableBody || !projectsSelectAll) return;
+        const cbs = projectsTableBody.querySelectorAll('.project-row-cb');
+        const total = cbs.length;
+        const checked = Array.from(cbs).filter(cb => cb.checked).length;
+        projectsSelectAll.checked = total > 0 && checked === total;
+        if (projectsSelectAllLabel) projectsSelectAllLabel.textContent = projectsSelectAll.checked ? '取消全選' : '全選';
+    }
+
+    async function loadProjectsList() {
+        if (!projectsTableBody) return;
+        const projects = await DBService.getProjects();
+        lastProjectsList = projects;
+        projectsTableBody.innerHTML = '';
+        if (projects.length === 0) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td colspan="5" style="padding:0.75rem; color:#64748b; font-size:0.9rem;">目前沒有專案，請點擊「新增專案」建立。</td>';
+            projectsTableBody.appendChild(tr);
+            syncProjectsSelectAllLabel();
+        } else {
+            projects.forEach((p, idx) => {
+            const tr = document.createElement('tr');
+            const nameEsc = (p.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            tr.innerHTML = `
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="project-row-cb" data-id="${p.id}"></td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;">${idx + 1}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;">
+                    <button class="link-btn resource-name" data-id="${p.id}" style="background:none;border:none;padding:0;color:var(--primary-color);cursor:pointer;text-decoration:underline;">${nameEsc}</button>
+                </td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.85rem; color:#64748b;">${new Date(p.lastModified || p.createdAt).toLocaleString()}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; white-space:nowrap;">
+                    <button class="secondary-btn btn-sm rename-btn" data-id="${p.id}" data-name="${(p.name || '').replace(/"/g, '&quot;')}">更名</button>
+                </td>
+            `;
+            projectsTableBody.appendChild(tr);
+            });
+            syncProjectsSelectAllLabel();
+
+            projectsTableBody.querySelectorAll('.resource-name').forEach(btn => {
+            btn.addEventListener('click', () => openProjectDetail(parseInt(btn.getAttribute('data-id'))));
+        });
+            projectsTableBody.querySelectorAll('.rename-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = parseInt(btn.getAttribute('data-id'));
+                    const name = (btn.getAttribute('data-name') || '').replace(/&quot;/g, '"');
+                    openNamingModal('renameProject', '專案更名', '新專案名稱', id, name);
+            });
+        });
+        }
+
+        if (projectsChangeLog) {
+            const logs = await DBService.getModuleLogs('projects', 0);
+            const ordered = logs.sort((a, b) => new Date(b.at) - new Date(a.at));
+            const display = projectsChangeLogShowAll ? ordered : ordered.slice(0, 20);
+            renderChangeLogList({
+                listEl: projectsChangeLog,
+                expandBtn: btnProjectsChangeLogExpand,
+                display,
+                totalCount: ordered.length,
+                showAll: projectsChangeLogShowAll,
+                formatEntry: (e) => {
+                    const at = formatDateForLog(e.at || '');
+                    const who = (e.by || '').trim() || '—';
+                    const name = e.entityName || '';
+                    const action = e.action || '';
+                    return `${name} ${action}；${who}，${at}`;
+                }
+            });
+        }
+
+    }
+
+    if (projectsTableBody) {
+        projectsTableBody.addEventListener('change', (e) => {
+            if (e.target.matches('.project-row-cb')) syncProjectsSelectAllLabel();
+        });
+    }
+    if (projectsSelectAll && projectsTableBody) {
+        projectsSelectAll.addEventListener('change', () => {
+            const checked = projectsSelectAll.checked;
+            projectsTableBody.querySelectorAll('.project-row-cb').forEach(cb => { cb.checked = checked; });
+            syncProjectsSelectAllLabel();
+        });
+    }
+    if (btnProjectsDeleteSelected) {
+    btnProjectsDeleteSelected.addEventListener('click', async () => {
+            if (!projectsTableBody) return;
+            const checkedIds = Array.from(projectsTableBody.querySelectorAll('.project-row-cb:checked'))
+                .map(cb => parseInt(cb.getAttribute('data-id'), 10))
+                .filter(n => !isNaN(n));
+        if (checkedIds.length === 0) {
+                alert('請先勾選要刪除的專案。');
+                return;
+            }
+            if (!confirm(`確定要刪除所選的 ${checkedIds.length} 個專案及其所有檔案與翻譯嗎？`)) return;
+        for (const id of checkedIds) {
+            const proj = await DBService.getProject(id);
+            await DBService.deleteProject(id);
+            const entry = makeBaseLogEntry('delete', 'project', {
+                entityId: id,
+                entityName: proj && proj.name ? proj.name : `Project #${id}`
+            });
+            await DBService.addModuleLog('projects', entry);
+        }
+            await loadProjectsList();
+        });
+    }
+
+    // --- Project Detail (Files CRUD) ---
+    async function openProjectDetail(projectId) {
+        currentProjectId = projectId;
+        const p = await DBService.getProject(projectId);
+        if(!p) return switchView('viewProjects');
+        detailProjectName.textContent = p.name;
+        switchView('viewProjectDetail');
+        await updateProjectDetailChangeLog(p);
+        await loadFilesList();
+        await loadProjectTms(p);
+    }
+
+    btnBackToProjects.addEventListener('click', () => switchView('viewProjects'));
+
+    async function loadProjectTms(project) {
+        const tms = await DBService.getTMs();
+        const projectTmListBody = document.getElementById('projectTmListBody');
+        if (!projectTmListBody) return;
+        
+        if (tms.length === 0) {
+            projectTmListBody.innerHTML = '<tr><td colspan="4" style="padding:0.75rem; color:#64748b;">系統中目前沒有任何翻譯記憶庫。請至 TM 管理頁面新增。</td></tr>';
+            return;
+        }
+
+        const readTms = new Set(project.readTms || []);
+        const writeTms = new Set(project.writeTms || []);
+
+        projectTmListBody.innerHTML = '';
+        tms.forEach(tm => {
+            const tr = document.createElement('tr');
+            const nameEsc = (tm.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const isRead = readTms.has(tm.id);
+            const isWrite = writeTms.has(tm.id);
+            tr.innerHTML = `
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${tm.id}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="tm-link" data-id="${tm.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a></td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="checkbox" class="tm-read-cb" data-id="${tm.id}" ${isRead ? 'checked' : ''}> Read</label></td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="checkbox" class="tm-write-cb" data-id="${tm.id}" ${isWrite ? 'checked' : ''}> Write</label></td>
+            `;
+            projectTmListBody.appendChild(tr);
+        });
+
+        projectTmListBody.querySelectorAll('.tm-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const id = parseInt(link.getAttribute('data-id'));
+                openTmDetail(id);
+                navItems.forEach(n => n.classList.remove('active'));
+                const navTm = document.querySelector('.nav-item[data-view="viewTM"]');
+                if (navTm) navTm.classList.add('active');
+            });
+        });
+    }
+
+    document.getElementById('btnSaveProjectTms').addEventListener('click', async () => {
+        if(!currentProjectId) return;
+        const project = await DBService.getProject(currentProjectId) || {};
+        const prevRead = new Set(project.readTms || []);
+        const prevWrite = new Set(project.writeTms || []);
+        
+        const readTms = [];
+        const writeTms = [];
+        document.querySelectorAll('.tm-read-cb:checked').forEach(cb => readTms.push(parseInt(cb.getAttribute('data-id'))));
+        document.querySelectorAll('.tm-write-cb:checked').forEach(cb => writeTms.push(parseInt(cb.getAttribute('data-id'))));
+        
+        await DBService.updateProjectTMs(currentProjectId, readTms, writeTms);
+
+        const nextRead = new Set(readTms);
+        const nextWrite = new Set(writeTms);
+        const allIds = new Set([...prevRead, ...prevWrite, ...nextRead, ...nextWrite]);
+        const diffs = [];
+        allIds.forEach(id => {
+            const before = (prevRead.has(id) ? 'read' : '') + (prevWrite.has(id) ? 'write' : '');
+            const after = (nextRead.has(id) ? 'read' : '') + (nextWrite.has(id) ? 'write' : '');
+            if (before === after) return;
+            const extra = { from: before || 'none', to: after || 'none', tmId: id };
+            const action = after === 'none' ? 'detach' : before === 'none' ? 'attach' : 'update';
+            diffs.push({ id, action, extra });
+        });
+        if (diffs.length) {
+            for (const d of diffs) {
+                const entry = makeBaseLogEntry(d.action, 'project-tm', {
+                    entityId: d.id,
+                    entityName: `TM #${d.id}`,
+                    extra: d.extra
+                });
+                await appendProjectChangeLog(currentProjectId, entry);
+                await DBService.addModuleLog('projects', entry);
+            }
+            const summary = makeBaseLogEntry('update', 'project-tm', {
+                entityId: currentProjectId,
+                entityName: project.name || `Project #${currentProjectId}`,
+                extra: { changes: diffs.length }
+            });
+            await DBService.addModuleLog('projects', summary);
+        }
+        alert('翻譯記憶庫設定已儲存！');
+    });
+
+    if (projectFilesSelectAll && filesListBody) {
+        projectFilesSelectAll.addEventListener('change', () => {
+            const checked = projectFilesSelectAll.checked;
+            filesListBody.querySelectorAll('.project-file-row-cb').forEach(cb => { cb.checked = checked; });
+            syncProjectFilesSelectAll();
+        });
+    }
+    if (filesListBody) {
+        filesListBody.addEventListener('change', (e) => {
+            if (e.target.matches('.project-file-row-cb')) syncProjectFilesSelectAll();
+        });
+    }
+
+    async function loadFilesList() {
+        if(!currentProjectId || !filesListBody) return;
+        const files = await DBService.getFiles(currentProjectId);
+        filesListBody.innerHTML = '';
+        if(files.length === 0) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td colspan="6" style="padding:0.75rem; color:#64748b;">此專案內尚無檔案。請點擊上方按鈕匯入檔案。</td>';
+            filesListBody.appendChild(tr);
+            await loadWorkspaceNotesList();
+            return;
+        }
+
+        files.forEach(f => {
+            const tr = document.createElement('tr');
+            const nameEsc = (f.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const modStr = f.lastModified ? new Date(f.lastModified).toLocaleString('zh-TW') : '—';
+            const isMqxliff = (f.name || '').toLowerCase().endsWith('.mqxliff');
+            const roleLabels = { 'T_ALLOW_R1': 'T (R1 - ✓ )', 'T_DENY_R1': 'T (R1 - ✖)', 'T': 'T (R1 - ✓ )', R1: 'Reviewer 1', R2: 'Reviewer 2' };
+            const roleStr = isMqxliff && f.defaultMqRole ? (roleLabels[f.defaultMqRole] || f.defaultMqRole) : (isMqxliff ? '—' : '');
+            tr.setAttribute('data-file-id', f.id);
+            tr.innerHTML = `
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="project-file-row-cb" data-id="${f.id}"></td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${f.id}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="edit-file-btn" data-id="${f.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a></td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:80px;">${roleStr}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;">${modStr}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><button type="button" class="danger-btn btn-sm delete-file-btn" data-id="${f.id}">刪除</button></td>
+            `;
+            filesListBody.appendChild(tr);
+        });
+
+        filesListBody.querySelectorAll('.edit-file-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => { e.preventDefault(); openEditor(parseInt(btn.getAttribute('data-id'))); });
+        });
+        filesListBody.querySelectorAll('.delete-file-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const id = parseInt(btn.getAttribute('data-id'));
+                if (isNaN(id)) return;
+                if(confirm('確定要從專案移除此檔案並刪除所有翻譯資料嗎？')) {
+                    const file = await DBService.getFile(id);
+                    await DBService.deleteFile(id);
+                    const entry = makeBaseLogEntry('delete', 'project-file', {
+                        entityId: id,
+                        entityName: file && file.name ? file.name : `File #${id}`
+                    });
+                    if (currentProjectId) {
+                        await appendProjectChangeLog(currentProjectId, entry);
+                        await DBService.addModuleLog('projects', entry);
+                    }
+                    await loadFilesList();
+                }
+            });
+        });
+        syncProjectFilesSelectAll();
+        await loadWorkspaceNotesList();
+    }
+
+    function syncProjectWorkspaceNotesSelectAll() {
+        const sel = document.getElementById('projectWorkspaceNotesSelectAll');
+        const btn = document.getElementById('btnProjectWorkspaceNotesDeleteSelected');
+        const tbody = document.getElementById('projectWorkspaceNotesBody');
+        if (!sel || !tbody) return;
+        const cbs = tbody.querySelectorAll('.project-workspace-note-cb');
+        const total = cbs.length;
+        const checked = Array.from(cbs).filter(cb => cb.checked).length;
+        sel.checked = total > 0 && checked === total;
+        if (btn) btn.style.display = checked > 0 ? 'inline-block' : 'none';
+    }
+
+    /** 專案內「工作筆記」存檔列表（與編輯器離開時保留筆記連動） */
+    async function loadWorkspaceNotesList() {
+        const tbody = document.getElementById('projectWorkspaceNotesBody');
+        if (!tbody || !currentProjectId) return;
+        let notes = [];
+        try {
+            notes = await DBService.getWorkspaceNotesByProject(currentProjectId);
+        } catch (err) {
+            console.error(err);
+            tbody.innerHTML = '<tr><td colspan="7" style="padding:0.75rem; color:#b91c1c;">無法載入筆記列表（請確認資料庫已升級）。</td></tr>';
+            syncProjectWorkspaceNotesSelectAll();
+            return;
+        }
+        tbody.innerHTML = '';
+        if (!notes.length) {
+            tbody.innerHTML = '<tr><td colspan="7" style="padding:0.75rem; color:#64748b;">尚無已存檔的工作筆記。</td></tr>';
+            syncProjectWorkspaceNotesSelectAll();
+            return;
+        }
+        notes.forEach(n => {
+            const tr = document.createElement('tr');
+            const titleEsc = normalizeWorkspaceNoteTitle(n.displayTitle).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const byEsc = (n.createdBy || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const at = n.savedAt ? new Date(n.savedAt).toLocaleString('zh-TW', { hour12: false }) : '—';
+            tr.innerHTML = `
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="project-workspace-note-cb" data-id="${n.id}"></td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;">${n.id}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.85rem;">
+                    <button type="button" class="project-workspace-note-preview" data-id="${n.id}" style="background:none;border:none;padding:0;color:var(--primary-color);text-decoration:underline;cursor:pointer;text-align:left;font-size:inherit;">${titleEsc}</button>
+                </td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;">${n.fileId}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;">${byEsc}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;">${at}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;">
+                    <button type="button" class="secondary-btn btn-sm project-workspace-note-rename" data-id="${n.id}">更名</button>
+                    <button type="button" class="danger-btn btn-sm project-workspace-note-del" data-id="${n.id}">刪除</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        tbody.querySelectorAll('.project-workspace-note-cb').forEach(cb => {
+            cb.addEventListener('change', () => syncProjectWorkspaceNotesSelectAll());
+        });
+        tbody.querySelectorAll('.project-workspace-note-preview').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const id = parseInt(btn.getAttribute('data-id'), 10);
+                if (Number.isNaN(id)) return;
+                const row = await DBService.getWorkspaceNote(id);
+                const titEl = document.getElementById('workspaceNoteReadTitle');
+                const bodyEl = document.getElementById('workspaceNoteReadBody');
+                const modal = document.getElementById('workspaceNoteReadModal');
+                const titleText = row ? normalizeWorkspaceNoteTitle(row.displayTitle) : '筆記預覽';
+                const bodyText = row && row.content != null ? String(row.content) : '';
+                if (titEl) titEl.textContent = titleText;
+                if (bodyEl) bodyEl.textContent = bodyText || '（無內容）';
+                if (modal) modal.classList.remove('hidden');
+            });
+        });
+        tbody.querySelectorAll('.project-workspace-note-rename').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const id = parseInt(btn.getAttribute('data-id'), 10);
+                if (Number.isNaN(id)) return;
+                const row = await DBService.getWorkspaceNote(id);
+                workspaceNoteRenameTargetId = id;
+                const renameIn = document.getElementById('workspaceNoteRenameInput');
+                const renameModal = document.getElementById('workspaceNoteRenameModal');
+                if (renameIn) renameIn.value = row ? normalizeWorkspaceNoteTitle(row.displayTitle) : '';
+                if (renameModal) renameModal.classList.remove('hidden');
+            });
+        });
+        tbody.querySelectorAll('.project-workspace-note-del').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const id = parseInt(btn.getAttribute('data-id'), 10);
+                if (Number.isNaN(id)) return;
+                if (!confirm('確定刪除此筆筆記紀錄？')) return;
+                await DBService.deleteWorkspaceNote(id);
+                await loadWorkspaceNotesList();
+            });
+        });
+        syncProjectWorkspaceNotesSelectAll();
+    }
+
+    (function initProjectWorkspaceNotesTableChrome() {
+        const selAll = document.getElementById('projectWorkspaceNotesSelectAll');
+        const btnDel = document.getElementById('btnProjectWorkspaceNotesDeleteSelected');
+        const tbodyHost = document.getElementById('projectWorkspaceNotesBody');
+        if (!selAll || !tbodyHost) return;
+        selAll.addEventListener('change', () => {
+            tbodyHost.querySelectorAll('.project-workspace-note-cb').forEach(cb => { cb.checked = selAll.checked; });
+            syncProjectWorkspaceNotesSelectAll();
+        });
+        if (btnDel) {
+            btnDel.addEventListener('click', async () => {
+                const ids = Array.from(tbodyHost.querySelectorAll('.project-workspace-note-cb:checked'))
+                    .map(cb => parseInt(cb.getAttribute('data-id'), 10))
+                    .filter(id => !Number.isNaN(id));
+                if (!ids.length) return;
+                if (!confirm(`確定刪除所選 ${ids.length} 筆筆記？`)) return;
+                for (const id of ids) await DBService.deleteWorkspaceNote(id);
+                await loadWorkspaceNotesList();
+            });
+        }
+    })();
+
+    (function initWorkspaceNoteReadRenameModals() {
+        document.getElementById('btnWorkspaceNoteReadClose')?.addEventListener('click', () => {
+            document.getElementById('workspaceNoteReadModal')?.classList.add('hidden');
+        });
+        document.getElementById('btnWorkspaceNoteRenameCancel')?.addEventListener('click', () => {
+            workspaceNoteRenameTargetId = null;
+            document.getElementById('workspaceNoteRenameModal')?.classList.add('hidden');
+        });
+        document.getElementById('btnWorkspaceNoteRenameSave')?.addEventListener('click', async () => {
+            const id = workspaceNoteRenameTargetId;
+            const inp = document.getElementById('workspaceNoteRenameInput');
+            if (!id || !inp) return;
+            const t = normalizeWorkspaceNoteTitle(inp.value.trim());
+            try {
+                await DBService.updateWorkspaceNote(id, { displayTitle: t });
+            } catch (e) {
+                console.error(e);
+                alert('更名失敗');
+                return;
+            }
+            workspaceNoteRenameTargetId = null;
+            document.getElementById('workspaceNoteRenameModal')?.classList.add('hidden');
+            await loadWorkspaceNotesList();
+        });
+    })();
+
+    async function updateProjectDetailChangeLog(project) {
+        if (!projectDetailChangeLog) return;
+        const log = Array.isArray(project && project.changeLog) ? project.changeLog : [];
+        const ordered = log.slice().sort((a, b) => new Date(b.at) - new Date(a.at));
+        const display = projectDetailChangeLogShowAll ? ordered : ordered.slice(0, 20);
+        renderChangeLogList({
+            listEl: projectDetailChangeLog,
+            expandBtn: btnProjectDetailChangeLogExpand,
+            display,
+            totalCount: ordered.length,
+            showAll: projectDetailChangeLogShowAll,
+            formatEntry: (e) => {
+                const at = formatDateForLog(e.at || '');
+                const who = (e.by || '').trim() || '—';
+                const action = e.action || '';
+                return `${action}；${who}，${at}`;
+            }
+        });
+    }
+
+    function syncProjectFilesSelectAll() {
+        if (!filesListBody || !projectFilesSelectAll) return;
+        const cbs = filesListBody.querySelectorAll('.project-file-row-cb');
+        const total = cbs.length;
+        const checked = Array.from(cbs).filter(cb => cb.checked).length;
+        projectFilesSelectAll.checked = total > 0 && checked === total;
+    }
+
+    // --- TMs & TBs CRUD (表格列表 + 勾選 + 刪除所選) ---
+    // itemsOverride: 可選，傳入時使用此陣列取代從 DB 載入（用於 TB 搜尋篩選）
+    async function baseResourceList(loaderMethod, deleteMethod, listContainerElement, itemsOverride) {
+        const items = itemsOverride !== undefined ? itemsOverride : await DBService[loaderMethod]();
+        if (loaderMethod === 'getTMs') lastTmListItems = items;
+        listContainerElement.innerHTML = '';
+        if (items.length === 0) {
+            const emptyRow = document.createElement('tr');
+            emptyRow.innerHTML = `<td colspan="5" style="padding:0.75rem; border:1px solid #e2e8f0; color:#64748b; font-size:0.9rem;">${itemsOverride !== undefined ? '沒有符合搜尋條件的術語庫。' : '目前沒有資料。'}</td>`;
+            listContainerElement.appendChild(emptyRow);
+            if (loaderMethod === 'getTMs' && syncTmListSelectAllLabel) syncTmListSelectAllLabel();
+            if (loaderMethod === 'getTBs' && syncTbListSelectAllLabel) syncTbListSelectAllLabel();
+            return;
+        }
+
+        items.forEach(it => {
+            const tr = document.createElement('tr');
+            const nameEsc = (it.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            tr.innerHTML = `
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="resource-row-cb" data-id="${it.id}"></td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${it.id}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;">
+                    <button class="link-btn resource-name" data-id="${it.id}" style="background:none;border:none;padding:0;color:var(--primary-color);cursor:pointer;text-decoration:underline;">${nameEsc}</button>
+                </td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.85rem; color:#64748b;">${new Date(it.createdAt).toLocaleDateString()}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; white-space:nowrap;">
+                    <button class="secondary-btn btn-sm manage-btn" data-id="${it.id}">更名</button>
+                </td>
+            `;
+            listContainerElement.appendChild(tr);
+        });
+
+        const openDetail = (id) => {
+            if (loaderMethod === 'getTMs') openTmDetail(id);
+            else if (loaderMethod === 'getTBs') openTbDetail(id);
+        };
+
+        listContainerElement.querySelectorAll('.resource-name').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = parseInt(btn.getAttribute('data-id'));
+                if (!isNaN(id)) openDetail(id);
+            });
+        });
+
+        listContainerElement.querySelectorAll('.manage-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = parseInt(btn.getAttribute('data-id'));
+                if (!isNaN(id)) openDetail(id);
+            });
+        });
+
+        if (loaderMethod === 'getTMs' && syncTmListSelectAllLabel) syncTmListSelectAllLabel();
+        if (loaderMethod === 'getTBs' && syncTbListSelectAllLabel) syncTbListSelectAllLabel();
+    }
+
+    function syncTmListSelectAllLabel() {
+        if (!tmList || !tmListSelectAll) return;
+        const cbs = tmList.querySelectorAll('.resource-row-cb');
+        const total = cbs.length;
+        const checked = Array.from(cbs).filter(cb => cb.checked).length;
+        tmListSelectAll.checked = total > 0 && checked === total;
+        if (tmListSelectAllLabel) tmListSelectAllLabel.textContent = tmListSelectAll.checked ? '取消全選' : '全選';
+    }
+    function syncTbListSelectAllLabel() {
+        if (!tbList || !tbListSelectAll) return;
+        const cbs = tbList.querySelectorAll('.resource-row-cb');
+        const total = cbs.length;
+        const checked = Array.from(cbs).filter(cb => cb.checked).length;
+        tbListSelectAll.checked = total > 0 && checked === total;
+        if (tbListSelectAllLabel) tbListSelectAllLabel.textContent = tbListSelectAll.checked ? '取消全選' : '全選';
+    }
+
+    async function loadTMList() {
+        await baseResourceList('getTMs', 'deleteTM', tmList);
+        if (tmListChangeLog) {
+            const logs = await DBService.getModuleLogs('tm', 0);
+            const ordered = logs.sort((a, b) => new Date(b.at) - new Date(a.at));
+            const display = tmListChangeLogShowAll ? ordered : ordered.slice(0, 20);
+            renderChangeLogList({
+                listEl: tmListChangeLog,
+                expandBtn: btnTmListChangeLogExpand,
+                display,
+                totalCount: ordered.length,
+                showAll: tmListChangeLogShowAll,
+                formatEntry: (e) => {
+                    const at = formatDateForLog(e.at || '');
+                    const who = (e.by || '').trim() || '—';
+                    const name = e.entityName || '';
+                    const action = e.action || '';
+                    return `${name} ${action}；${who}，${at}`;
+                }
+            });
+        }
+    }
+
+    if (tmList) {
+        tmList.addEventListener('change', (e) => {
+            if (e.target.matches('.resource-row-cb')) syncTmListSelectAllLabel();
+        });
+    }
+    if (tmListSelectAll && tmList) {
+        tmListSelectAll.addEventListener('change', () => {
+            const checked = tmListSelectAll.checked;
+            tmList.querySelectorAll('.resource-row-cb').forEach(cb => { cb.checked = checked; });
+            syncTmListSelectAllLabel();
+        });
+    }
+    if (btnTmListDeleteSelected) {
+        btnTmListDeleteSelected.addEventListener('click', async () => {
+            if (!tmList) return;
+            const checkedIds = Array.from(tmList.querySelectorAll('.resource-row-cb:checked'))
+                .map(cb => parseInt(cb.getAttribute('data-id'), 10))
+                .filter(n => !isNaN(n));
+            if (checkedIds.length === 0) {
+                alert('請先勾選要刪除的 TM。');
+                return;
+            }
+            if (!confirm(`確定要刪除所選的 ${checkedIds.length} 個翻譯記憶庫嗎？`)) return;
+            for (const id of checkedIds) {
+                const tm = await DBService.getTM(id);
+                await DBService.deleteTM(id);
+                const entry = makeBaseLogEntry('delete', 'tm', {
+                    entityId: id,
+                    entityName: tm && tm.name ? tm.name : `TM #${id}`
+                });
+                await DBService.addModuleLog('tm', entry);
+            }
+            await loadTMList();
+        });
+    }
+
+    if (tbList) {
+        tbList.addEventListener('change', (e) => {
+            if (e.target.matches('.resource-row-cb')) syncTbListSelectAllLabel();
+        });
+    }
+    if (tbListSelectAll && tbList) {
+        tbListSelectAll.addEventListener('change', () => {
+            const checked = tbListSelectAll.checked;
+            tbList.querySelectorAll('.resource-row-cb').forEach(cb => { cb.checked = checked; });
+            syncTbListSelectAllLabel();
+        });
+    }
+    if (btnTbListDeleteSelected) {
+        btnTbListDeleteSelected.addEventListener('click', async () => {
+            if (!tbList) return;
+            const checkedIds = Array.from(tbList.querySelectorAll('.resource-row-cb:checked'))
+                .map(cb => parseInt(cb.getAttribute('data-id'), 10))
+                .filter(n => !isNaN(n));
+            if (checkedIds.length === 0) {
+                alert('請先勾選要刪除的術語庫。');
+                return;
+            }
+            if (!confirm(`確定要刪除所選的 ${checkedIds.length} 個術語庫嗎？`)) return;
+            for (const id of checkedIds) {
+                const tb = await DBService.getTB(id);
+                await DBService.deleteTB(id);
+                const entry = makeBaseLogEntry('delete', 'tb', {
+                    entityId: id,
+                    entityName: tb && tb.name ? tb.name : `TB #${id}`,
+                    extra: { termCount: Array.isArray(tb && tb.terms) ? tb.terms.length : 0 }
+                });
+                await DBService.addModuleLog('tb', entry);
+            }
+            await loadTBList();
+        });
+    }
+
+    async function applyTbListFilter() {
+        const q = (tbSearchInput && tbSearchInput.value.trim()) || '';
+        const filtered = q
+            ? lastTbListItems.filter(t => (t.name || '').toLowerCase().includes(q.toLowerCase()))
+            : lastTbListItems;
+        await baseResourceList('getTBs', 'deleteTB', tbList, filtered);
+    }
+
+    async function loadTBList() {
+        lastTbListItems = await DBService.getTBs();
+        await applyTbListFilter();
+        if (tbListChangeLog) {
+            const logs = await DBService.getModuleLogs('tb', 0);
+            const ordered = logs.sort((a, b) => new Date(b.at) - new Date(a.at));
+            const display = tbListChangeLogShowAll ? ordered : ordered.slice(0, 20);
+            renderChangeLogList({
+                listEl: tbListChangeLog,
+                expandBtn: btnTbListChangeLogExpand,
+                display,
+                totalCount: ordered.length,
+                showAll: tbListChangeLogShowAll,
+                formatEntry: (e) => {
+                    const at = formatDateForLog(e.at || '');
+                    const who = (e.by || '').trim() || '—';
+                    const name = e.entityName || '';
+                    const action = e.action || '';
+                    return `${name} ${action}；${who}，${at}`;
+                }
+            });
+        }
+    }
+
+    if (tbSearchInput) {
+        tbSearchInput.addEventListener('input', () => applyTbListFilter());
+    }
+
+    // --- TB DETAIL (性質與入口按鈕) ---
+    function applyTbTypeUI(tb) {
+        const type = tb.sourceType || 'manual';
+        const locked = !!tb.sourceTypeLocked;
+
+        if (tbTypeManual && tbTypeOnline) {
+            tbTypeManual.checked = type === 'manual';
+            tbTypeOnline.checked = type === 'online';
+            tbTypeManual.disabled = locked;
+            tbTypeOnline.disabled = locked;
+        }
+
+        if (btnTbAddTerm) btnTbAddTerm.style.display = (type === 'manual') ? '' : 'none';
+        if (btnTbImportFile) btnTbImportFile.style.display = (type === 'manual') ? '' : 'none';
+        if (btnTbImportOnline) btnTbImportOnline.style.display = (type === 'online') ? '' : 'none';
+    }
+
+    if (btnBackToTbs) {
+        btnBackToTbs.addEventListener('click', () => {
+            switchView('viewTB');
+        });
+    }
+
+    async function openTbDetail(tbId) {
+        const tb = await DBService.getTB(tbId);
+        if (!tb) return;
+        currentTbId = tbId;
+        tbChangeLogShowAll = false;
+        if (detailTbName) detailTbName.textContent = tb.name || `TB #${tbId}`;
+        applyTbTypeUI(tb);
+        switchView('viewTbDetail');
+        await loadTbTermsList();
+    }
+
+    function matchTermSearch(term, q) {
+        if (!q) return true;
+        const k = q.toLowerCase();
+        const s = (term.source || '').toLowerCase();
+        const t = (term.target || '').toLowerCase();
+        const n = (term.note || '').toLowerCase();
+        return s.includes(k) || t.includes(k) || n.includes(k);
+    }
+
+    function syncTbTermSelectAllLabel() {
+        if (!tbTermsList || !tbTermSelectAll) return;
+        const cbs = tbTermsList.querySelectorAll('.tb-term-row-cb');
+        const total = cbs.length;
+        const checked = Array.from(cbs).filter(cb => cb.checked).length;
+        tbTermSelectAll.checked = total > 0 && checked === total;
+        if (tbTermSelectAllLabel) tbTermSelectAllLabel.textContent = tbTermSelectAll.checked ? '取消全選' : '全選';
+    }
+
+    async function updateTbDetailInfoBlock() {
+        if (!currentTbId || !tbTermCount || !tbChangeLog) return;
+        const tb = await DBService.getTB(currentTbId);
+        const terms = (tb && tb.terms) ? tb.terms : [];
+        const log = Array.isArray(tb && tb.changeLog) ? tb.changeLog : [];
+        tbTermCount.textContent = String(terms.length);
+        const recent = log.slice(-20).reverse();
+        const displayLog = tbChangeLogShowAll ? [...log].reverse() : recent;
+        renderChangeLogList({
+            listEl: tbChangeLog,
+            expandBtn: btnTbChangeLogExpand,
+            display: displayLog,
+            totalCount: log.length,
+            showAll: tbChangeLogShowAll,
+            formatEntry: (entry) => {
+                const by = (entry.by || '').trim() || '—';
+                const at = formatDateForLog(entry.at || '');
+                const nums = Array.isArray(entry.termNumbers) ? entry.termNumbers : [];
+                const numStr = nums.length ? '編號 ' + nums.join(', ') : '';
+                const actionStr = entry.action === 'add'
+                    ? '已新增'
+                    : entry.action === 'delete'
+                        ? '已刪除'
+                        : entry.action === 'change'
+                            ? '已變更'
+                            : '';
+                let baseText = numStr + (actionStr ? ' ' + actionStr : '');
+                if (entry.action === 'delete' && entry.extra && Array.isArray(entry.extra.terms)) {
+                    const count = entry.extra.terms.length;
+                    baseText += count ? `（共 ${count} 筆）` : '';
+                }
+                return baseText + '；' + by + '，' + at;
+            }
+        });
+    }
+
+    async function loadTbTermsList() {
+        if (!tbTermsList || !currentTbId) return;
+        let tb = await DBService.getTB(currentTbId);
+        let terms = (tb && tb.terms) ? tb.terms : [];
+        const nextTermNumber = typeof tb.nextTermNumber === 'number' ? tb.nextTermNumber : 1;
+        const needsMigration = terms.length > 0 && terms.some(t => typeof t.termNumber !== 'number');
+        if (needsMigration) {
+            terms = terms.map((t, i) => ({ ...t, termNumber: i + 1 }));
+            await DBService.updateTB(currentTbId, { terms, nextTermNumber: terms.length + 1 });
+            tb = await DBService.getTB(currentTbId);
+            terms = (tb && tb.terms) ? tb.terms : [];
+        }
+        lastTbTerms = terms;
+        const q = (tbTermSearchInput && tbTermSearchInput.value.trim()) || '';
+        const withIndex = terms.map((t, i) => [t, i]).filter(([t]) => matchTermSearch(t, q));
+
+        tbTermsList.innerHTML = '';
+        if (withIndex.length === 0) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td colspan="6" style="padding:0.75rem; color:#64748b; font-size:0.9rem;">${q ? '沒有符合搜尋條件的術語。' : '尚無術語，請使用上方「新增術語」或「匯入檔案」加入。'}</td>`;
+            tbTermsList.appendChild(tr);
+            if (syncTbTermSelectAllLabel) syncTbTermSelectAllLabel();
+            updateTbDetailInfoBlock();
+            return;
+        }
+
+        withIndex.forEach(([term, idx]) => {
+            const tr = document.createElement('tr');
+            tr.setAttribute('data-term-index', idx);
+            const num = typeof term.termNumber === 'number' ? String(term.termNumber) : '—';
+            const src = (term.source || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const tgt = (term.target || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const note = (term.note || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').substring(0, 80);
+            tr.innerHTML = `
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="tb-term-row-cb" data-term-index="${idx}"></td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${num}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:200px; overflow:hidden; text-overflow:ellipsis;" title="${src}">${src || '—'}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:200px; overflow:hidden; text-overflow:ellipsis;" title="${tgt}">${tgt || '—'}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:180px; overflow:hidden; text-overflow:ellipsis; font-size:0.85rem; color:#64748b;" title="${(term.note || '').replace(/</g, '&lt;')}">${note || '—'}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; white-space:nowrap;">
+                    <button type="button" class="secondary-btn btn-sm tb-term-edit-btn" data-term-index="${idx}">編輯</button>
+                </td>
+            `;
+            tbTermsList.appendChild(tr);
+        });
+        if (syncTbTermSelectAllLabel) syncTbTermSelectAllLabel();
+
+        tbTermsList.querySelectorAll('.tb-term-edit-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const idx = parseInt(btn.getAttribute('data-term-index'), 10);
+                if (isNaN(idx) || idx < 0 || idx >= lastTbTerms.length) return;
+                currentEditingTermIndex = idx;
+                const t = lastTbTerms[idx];
+                if (tbTermEditSource) tbTermEditSource.value = t.source || '';
+                if (tbTermEditTarget) tbTermEditTarget.value = t.target || '';
+                if (tbTermEditNote) tbTermEditNote.value = t.note || '';
+                if (tbTermEditModal) tbTermEditModal.classList.remove('hidden');
+            });
+        });
+        updateTbDetailInfoBlock();
+    }
+
+    if (tbTermSearchInput) tbTermSearchInput.addEventListener('input', () => loadTbTermsList());
+
+    if (tbTermsList) {
+        tbTermsList.addEventListener('change', (e) => {
+            if (e.target.matches('.tb-term-row-cb')) syncTbTermSelectAllLabel();
+        });
+    }
+    if (tbTermSelectAll && tbTermsList) {
+        tbTermSelectAll.addEventListener('change', () => {
+            const checked = tbTermSelectAll.checked;
+            tbTermsList.querySelectorAll('.tb-term-row-cb').forEach(cb => { cb.checked = checked; });
+            syncTbTermSelectAllLabel();
+        });
+    }
+    if (btnTbChangeLogExpand) {
+        btnTbChangeLogExpand.addEventListener('click', () => {
+            tbChangeLogShowAll = !tbChangeLogShowAll;
+            updateTbDetailInfoBlock();
+        });
+    }
+    if (btnTbDeleteSelected) {
+        btnTbDeleteSelected.addEventListener('click', async () => {
+            if (!currentTbId || !tbTermsList) return;
+            const checked = Array.from(tbTermsList.querySelectorAll('.tb-term-row-cb:checked'))
+                .map(cb => parseInt(cb.getAttribute('data-term-index'), 10))
+                .filter(n => !isNaN(n) && n >= 0 && n < lastTbTerms.length);
+            if (checked.length === 0) {
+                alert('請先勾選要刪除的術語。');
+                return;
+            }
+            if (!confirm(`確定要刪除所選的 ${checked.length} 筆術語？`)) return;
+            const toDelete = checked.map(i => lastTbTerms[i]).filter(Boolean);
+            const termNumbers = toDelete.filter(t => typeof t.termNumber === 'number').map(t => t.termNumber);
+            const deletedSnapshot = toDelete.map(t => ({
+                termNumber: t.termNumber,
+                source: t.source || '',
+                target: t.target || '',
+                note: t.note || ''
+            }));
+            const next = lastTbTerms.filter((_, i) => !checked.includes(i));
+            const tb = await DBService.getTB(currentTbId);
+            const changeLog = Array.isArray(tb && tb.changeLog) ? tb.changeLog.slice() : [];
+            const userName = getCurrentUserName();
+            const entry = makeBaseLogEntry('delete', 'tb-term', {
+                termNumbers,
+                extra: { terms: deletedSnapshot }
+            });
+            changeLog.push(entry);
+            await DBService.updateTB(currentTbId, { terms: next, changeLog });
+            lastTbTerms = next;
+            await loadTbTermsList();
+        });
+    }
+
+    function closeTbTermEditModal() {
+        if (tbTermEditModal) tbTermEditModal.classList.add('hidden');
+        currentEditingTermIndex = -1;
+    }
+
+    if (btnCloseTbTermEdit) btnCloseTbTermEdit.addEventListener('click', closeTbTermEditModal);
+    if (btnCancelTbTermEdit) btnCancelTbTermEdit.addEventListener('click', closeTbTermEditModal);
+
+    if (btnSaveTbTermEdit) {
+        btnSaveTbTermEdit.addEventListener('click', async () => {
+            const src = (tbTermEditSource && tbTermEditSource.value.trim()) || '';
+            const tgt = (tbTermEditTarget && tbTermEditTarget.value.trim()) || '';
+            const note = (tbTermEditNote && tbTermEditNote.value.trim()) || '';
+            const userName = localStorage.getItem('localCatUserProfile') || 'Unknown User';
+            const now = new Date().toISOString();
+            const tb = await DBService.getTB(currentTbId);
+            const updated = (tb && tb.terms) ? tb.terms.slice() : [];
+            const nextNum = typeof (tb && tb.nextTermNumber) === 'number' ? tb.nextTermNumber : 1;
+            const changeLog = Array.isArray(tb && tb.changeLog) ? tb.changeLog.slice() : [];
+            if (currentEditingTermIndex < 0) {
+                updated.push({ source: src, target: tgt, note, termNumber: nextNum, createdBy: userName, createdAt: now });
+                changeLog.push(makeBaseLogEntry('add', 'tb-term', { termNumbers: [nextNum] }));
+                await DBService.updateTB(currentTbId, { terms: updated, nextTermNumber: nextNum + 1, changeLog });
+            } else if (currentEditingTermIndex < updated.length) {
+                const termNumber = updated[currentEditingTermIndex].termNumber;
+                updated[currentEditingTermIndex] = { ...updated[currentEditingTermIndex], source: src, target: tgt, note };
+                changeLog.push(makeBaseLogEntry('change', 'tb-term', { termNumbers: typeof termNumber === 'number' ? [termNumber] : [] }));
+                await DBService.updateTB(currentTbId, { terms: updated, changeLog });
+            } else { closeTbTermEditModal(); return; }
+            lastTbTerms = updated;
+            closeTbTermEditModal();
+            await loadTbTermsList();
+        });
+    }
+
+    if (btnTbAddTerm) {
+        btnTbAddTerm.addEventListener('click', () => {
+            if (!currentTbId) return;
+            currentEditingTermIndex = -1;
+            if (tbTermEditSource) tbTermEditSource.value = '';
+            if (tbTermEditTarget) tbTermEditTarget.value = '';
+            if (tbTermEditNote) tbTermEditNote.value = '';
+            if (tbTermEditModal) tbTermEditModal.classList.remove('hidden');
+        });
+    }
+
+    // 解析欄位字串，例如 "C-E, G" -> [2,3,4,6]
+    function parseTbColumnList(str) {
+        if (!str) return [];
+        const cleaned = str.toUpperCase().replace(/\s+/g, '');
+        if (!cleaned) return [];
+        const parts = cleaned.split(',');
+        const cols = new Set();
+        const letterToIndex = (s) => {
+            let r = 0;
+            for (let i = 0; i < s.length; i++) r = r * 26 + (s.charCodeAt(i) - 64);
+            return r - 1;
+        };
+        parts.forEach(p => {
+            if (!p || p === '#') return; // '#' 不當成實際欄位，由呼叫端另行處理
+            if (p.includes('-')) {
+                const [a, b] = p.split('-');
+                if (!a || !b) return;
+                const start = letterToIndex(a);
+                const end = letterToIndex(b);
+                const lo = Math.min(start, end);
+                const hi = Math.max(start, end);
+                for (let i = lo; i <= hi; i++) cols.add(i);
+            } else {
+                cols.add(letterToIndex(p));
+            }
+        });
+        return Array.from(cols).sort((a, b) => a - b);
+    }
+
+    function parseTbSingleColumn(str) {
+        const cols = parseTbColumnList(str);
+        return cols.length ? cols[0] : -1;
+    }
+
+    function parseTbDate(value) {
+        if (!value) return null;
+        const trimmed = String(value).trim();
+        if (!trimmed) return null;
+        const d = new Date(trimmed);
+        if (isNaN(d.getTime())) return null;
+        // 轉成台北時間的 ISO-like 字串 (24h)
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        const ss = String(d.getSeconds()).padStart(2, '0');
+        return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
+    }
+
+    let tbExcelPendingFile = null;
+    let tbExcelSheetNames = [];
+    let tbExcelConfigs = {};      // { sheetName: { sourceCol,targetCol,noteCols,creatorCol,createdAtCol,rowsRange } }
+    let tbExcelActiveSheet = null;
+
+    // 設定右側表單為指定工作表的設定（供下拉與 sync 使用）
+    function setTbExcelActiveSheet(name) {
+        if (!name || !tbExcelConfigs[name]) return;
+        tbExcelActiveSheet = name;
+        const cfg = tbExcelConfigs[name];
+        if (tbExcelSourceCol) tbExcelSourceCol.value = cfg.sourceCol || '';
+        if (tbExcelTargetCol) tbExcelTargetCol.value = cfg.targetCol || '';
+        if (tbExcelNoteCols) tbExcelNoteCols.value = cfg.noteCols || '';
+        if (tbExcelCreatorCol) tbExcelCreatorCol.value = cfg.creatorCol || '';
+        if (tbExcelCreatedAtCol) tbExcelCreatedAtCol.value = cfg.createdAtCol || '';
+        if (tbExcelRowsRange) tbExcelRowsRange.value = cfg.rowsRange || '2-';
+    }
+
+    // 全選邏輯：依左側勾選數更新「全選」勾選與標籤（全選→顯示「取消全選」，未全選→顯示「全選」）
+    function syncTbExcelSelectAllLabel() {
+        if (!tbExcelSheetList || !tbExcelSelectAll || !tbExcelSelectAllLabel) return;
+        const cbs = tbExcelSheetList.querySelectorAll('.tb-excel-sheet-cb');
+        const total = cbs.length;
+        const checked = Array.from(cbs).filter(cb => cb.checked).length;
+        tbExcelSelectAll.checked = total > 0 && checked === total;
+        tbExcelSelectAllLabel.textContent = tbExcelSelectAll.checked ? '取消全選' : '全選';
+    }
+
+    // 右側下拉選單：僅顯示左側已勾選的工作表，並隨勾選即時增減選項
+    function syncTbExcelDropdownFromCheckboxes() {
+        if (!tbExcelSheetList || !tbExcelSheetSelect) return;
+        const checkedNames = Array.from(tbExcelSheetList.querySelectorAll('.tb-excel-sheet-cb'))
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
+        const currentVal = tbExcelSheetSelect.value;
+        tbExcelSheetSelect.innerHTML = '';
+        checkedNames.forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            tbExcelSheetSelect.appendChild(opt);
+        });
+        if (checkedNames.length) {
+            const keepVal = checkedNames.includes(currentVal) ? currentVal : checkedNames[0];
+            tbExcelSheetSelect.value = keepVal;
+            setTbExcelActiveSheet(keepVal);
+        } else {
+            tbExcelActiveSheet = null;
+        }
+    }
+
+    // 全選／下拉同步：僅綁定一次，避免重複註冊
+    if (tbExcelSheetList) {
+        tbExcelSheetList.addEventListener('change', (e) => {
+            if (!e.target.matches('.tb-excel-sheet-cb')) return;
+            syncTbExcelSelectAllLabel();
+            syncTbExcelDropdownFromCheckboxes();
+        });
+    }
+    if (tbExcelSelectAll && tbExcelSheetList) {
+        tbExcelSelectAll.addEventListener('change', () => {
+            const checked = tbExcelSelectAll.checked;
+            tbExcelSheetList.querySelectorAll('.tb-excel-sheet-cb').forEach(cb => { cb.checked = checked; });
+            syncTbExcelSelectAllLabel();
+            syncTbExcelDropdownFromCheckboxes();
+        });
+    }
+    if (tbExcelSheetSelect) {
+        tbExcelSheetSelect.addEventListener('change', () => {
+            if (tbExcelActiveSheet && tbExcelConfigs[tbExcelActiveSheet]) {
+                tbExcelConfigs[tbExcelActiveSheet] = {
+                    sourceCol: tbExcelSourceCol ? tbExcelSourceCol.value.trim() : '',
+                    targetCol: tbExcelTargetCol ? tbExcelTargetCol.value.trim() : '',
+                    noteCols: tbExcelNoteCols ? tbExcelNoteCols.value.trim() : '',
+                    creatorCol: tbExcelCreatorCol ? tbExcelCreatorCol.value.trim() : '',
+                    createdAtCol: tbExcelCreatedAtCol ? tbExcelCreatedAtCol.value.trim() : '',
+                    rowsRange: tbExcelRowsRange ? tbExcelRowsRange.value.trim() : ''
+                };
+            }
+            setTbExcelActiveSheet(tbExcelSheetSelect.value);
+        });
+    }
+    if (tbExcelUseSameConfig && tbExcelSheetSelect) {
+        tbExcelUseSameConfig.addEventListener('change', () => {
+            tbExcelSheetSelect.disabled = tbExcelUseSameConfig.checked;
+        });
+    }
+
+    if (btnTbImportFile && tbImportInput) {
+        btnTbImportFile.addEventListener('click', () => {
+            if (!currentTbId) {
+                alert('請先選擇要管理的術語庫。');
+                return;
+            }
+            tbImportInput.value = '';
+            tbImportInput.click();
+        });
+
+        tbImportInput.addEventListener('change', (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (ext !== 'xlsx' && ext !== 'tbx' && ext !== 'sdltbx' && ext !== 'csv') {
+                alert('不支援的匯入格式，請使用 xlsx / tbx / sdltbx / csv。');
+                tbImportInput.value = '';
+                return;
+            }
+            if (ext === 'xlsx') {
+                tbExcelPendingFile = file;
+                if (tbExcelImportModal) {
+                    if (tbExcelImportError) tbExcelImportError.textContent = '';
+                    // 讀取工作表並偵測有內容的
+                    file.arrayBuffer().then(buffer => {
+                        const workbook = XLSX.read(buffer, { type: 'array' });
+                        const names = workbook.SheetNames || [];
+                        tbExcelSheetNames = [];
+                        tbExcelConfigs = {};
+                        tbExcelActiveSheet = null;
+                        if (tbExcelSheetList) tbExcelSheetList.innerHTML = '';
+                        names.forEach((name, idx) => {
+                            tbExcelSheetNames.push(name);
+                            tbExcelConfigs[name] = {
+                                sourceCol: 'A',
+                                targetCol: 'B',
+                                noteCols: '',
+                                creatorCol: '',
+                                createdAtCol: '',
+                                rowsRange: '2-'
+                            };
+                            if (tbExcelSheetList) {
+                                const rowEl = document.createElement('div');
+                                rowEl.style.display = 'flex';
+                                rowEl.style.alignItems = 'center';
+                                rowEl.style.padding = '2px 0';
+                                rowEl.innerHTML = `
+                                    <label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;">
+                                        <input type="checkbox" class="tb-excel-sheet-cb" value="${name}" checked>
+                                        <span>${name}</span>
+                                    </label>
+                                `;
+                                tbExcelSheetList.appendChild(rowEl);
+                            }
+                        });
+                        if (!tbExcelSheetNames.length) {
+                            alert('此 Excel 檔案中沒有任何工作表。');
+                            tbImportInput.value = '';
+                            return;
+                        }
+
+                        if (tbExcelUseSameConfig) tbExcelUseSameConfig.checked = false;
+                        if (tbExcelSheetSelect) tbExcelSheetSelect.disabled = false;
+                        syncTbExcelSelectAllLabel();
+                        syncTbExcelDropdownFromCheckboxes();
+                        setTbExcelActiveSheet(tbExcelSheetSelect ? tbExcelSheetSelect.value : tbExcelSheetNames[0]);
+                        tbExcelImportModal.classList.remove('hidden');
+                    }).catch(err => {
+                        console.error('TB Excel read error', err);
+                        alert('讀取 Excel 檔案失敗：' + err.message);
+                        tbImportInput.value = '';
+                    });
+                }
+            } else {
+                alert('目前僅實作 xlsx 匯入，其他格式將在之後支援。');
+            }
+        });
+    }
+
+    if (tbExcelImportModal) {
+        const closeTbExcelModal = () => {
+            tbExcelImportModal.classList.add('hidden');
+            tbExcelPendingFile = null;
+            tbExcelSheetNames = [];
+            tbExcelConfigs = {};
+            tbExcelActiveSheet = null;
+            tbImportInput.value = '';
+        };
+        if (btnCloseTbExcelImport) btnCloseTbExcelImport.addEventListener('click', closeTbExcelModal);
+        if (btnCancelTbExcelImport) btnCancelTbExcelImport.addEventListener('click', closeTbExcelModal);
+        // 使用 modal 上的事件委派，確保「開始匯入」點擊一定會被處理
+        tbExcelImportModal.addEventListener('click', (e) => {
+            if (!e.target.closest('#btnConfirmTbExcelImport')) return;
+            e.preventDefault();
+            console.log('TB Excel 開始匯入 已點擊');
+            const errEl = document.getElementById('tbExcelImportError');
+            const srcColEl = document.getElementById('tbExcelSourceCol');
+            const tgtColEl = document.getElementById('tbExcelTargetCol');
+            if (errEl) errEl.textContent = '處理中…';
+            const runImport = async () => {
+            try {
+                    console.log('runImport 開始');
+                    if (typeof DBService.updateTB !== 'function') {
+                        console.log('runImport 提早結束: DBService.updateTB 未定義');
+                        const msg = 'DBService.updateTB 未定義，請強制重新整理 (Ctrl+Shift+R) 後再試。';
+                        if (errEl) errEl.textContent = msg;
+                        else alert(msg);
+                        return;
+                    }
+                    const msgNoFileOrTb = '無法匯入：尚未選擇檔案或術語庫，請關閉視窗後重新從術語庫詳情頁操作。';
+                    if (!tbExcelPendingFile || !currentTbId) {
+                        console.log('runImport 提早結束: 無檔案或術語庫', { hasFile: !!tbExcelPendingFile, currentTbId });
+                        if (errEl) { errEl.textContent = msgNoFileOrTb; errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+                        else alert(msgNoFileOrTb);
+                        return;
+                    }
+                    const msgNoCols = '無法取得原文／譯文欄位，請關閉視窗後重新選擇檔案再試。';
+                    if (!srcColEl || !tgtColEl) {
+                        console.log('runImport 提早結束: 無原文/譯文欄位');
+                        if (errEl) { errEl.textContent = msgNoCols; errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+                        else alert(msgNoCols);
+                        return;
+                    }
+
+            const sheetCheckboxes = tbExcelSheetList ? Array.from(tbExcelSheetList.querySelectorAll('.tb-excel-sheet-cb')) : [];
+                const selectedSheets = sheetCheckboxes.filter(cb => cb.checked).map(cb => cb.value);
+                if (!selectedSheets.length) {
+                    console.log('runImport 提早結束: 未勾選任何工作表');
+                    if (errEl) errEl.textContent = '請至少勾選一個要匯入的工作表。';
+                    return;
+                }
+
+                // 目前畫面上的設定先寫回「右側下拉選單所選的工作表」的 config（僅此一個，其餘用已儲存）
+                const activeSheetFromDropdown = tbExcelSheetSelect && tbExcelSheetSelect.value ? tbExcelSheetSelect.value : tbExcelActiveSheet;
+                const useSameConfig = !!(tbExcelUseSameConfig && tbExcelUseSameConfig.checked);
+                if (activeSheetFromDropdown && tbExcelConfigs[activeSheetFromDropdown]) {
+                    tbExcelConfigs[activeSheetFromDropdown] = {
+                        sourceCol: srcColEl.value.trim(),
+                        targetCol: tgtColEl.value.trim(),
+                        noteCols: tbExcelNoteCols ? tbExcelNoteCols.value.trim() : '',
+                        creatorCol: tbExcelCreatorCol ? tbExcelCreatorCol.value.trim() : '',
+                        createdAtCol: tbExcelCreatedAtCol ? tbExcelCreatedAtCol.value.trim() : '',
+                        rowsRange: tbExcelRowsRange ? tbExcelRowsRange.value.trim() : ''
+                    };
+                }
+
+                // 未勾選「使用同樣設定」時：每個要匯入的工作表都必須已有欄位設定（使用者需切換至該工作表設定過）
+                if (!useSameConfig) {
+                    for (const name of selectedSheets) {
+                        if (name === activeSheetFromDropdown) continue;
+                        const stored = tbExcelConfigs[name] || {};
+                        const src = (stored.sourceCol || '').trim();
+                        const tgt = (stored.targetCol || '').trim();
+                        if (!src || !tgt) {
+                            if (errEl) errEl.textContent = `請在右側切換至工作表「${name}」並設定原文／譯文欄位後再匯入。`;
+                            return;
+                        }
+                    }
+                }
+
+                // 針對每一個要匯入的工作表：勾選「使用同樣設定」時全部用表單值，否則僅目前下拉選中的用表單值、其餘用已儲存 config
+                const formCfg = {
+                    sourceCol: srcColEl.value.trim(),
+                    targetCol: tgtColEl.value.trim(),
+                    noteCols: tbExcelNoteCols ? tbExcelNoteCols.value.trim() : '',
+                    creatorCol: tbExcelCreatorCol ? tbExcelCreatorCol.value.trim() : '',
+                    createdAtCol: tbExcelCreatedAtCol ? tbExcelCreatedAtCol.value.trim() : '',
+                    rowsRange: tbExcelRowsRange ? tbExcelRowsRange.value.trim() : ''
+                };
+                const sheetConfigs = {};
+                for (const name of selectedSheets) {
+                    const isActiveSheet = (name === activeSheetFromDropdown);
+                    const cfg = (useSameConfig || isActiveSheet) ? formCfg : (tbExcelConfigs[name] || {});
+                    const srcColStr = (cfg.sourceCol || '').trim();
+                    const tgtColStr = (cfg.targetCol || '').trim();
+                    if (!srcColStr || !tgtColStr) {
+                        console.log('runImport 提早結束: 工作表原文/譯文為空', name);
+                        if (errEl) errEl.textContent = `工作表「${name}」的原文/譯文欄位為必填。`;
+                        return;
+                    }
+                    const srcIdx = parseTbSingleColumn(srcColStr);
+                    const tgtIdx = parseTbSingleColumn(tgtColStr);
+                    if (srcIdx < 0 || tgtIdx < 0) {
+                        console.log('runImport 提早結束: 欄位格式錯誤', name, srcColStr, tgtColStr);
+                        if (errEl) errEl.textContent = `工作表「${name}」的原文/譯文欄位格式錯誤，請輸入欄位代號，例如 A 或 B。`;
+                        return;
+                    }
+                    sheetConfigs[name] = {
+                        srcIdx,
+                        tgtIdx,
+                        noteIdxs: parseTbColumnList(cfg.noteCols || ''),
+                        includeSheetName: (cfg.noteCols || '').includes('#'),
+                        creatorIdx: parseTbSingleColumn(cfg.creatorCol || ''),
+                        createdAtIdx: parseTbSingleColumn(cfg.createdAtCol || ''),
+                        rowsRangeStr: (cfg.rowsRange || '2-').trim()
+                    };
+                }
+                if (selectedSheets.length > 1) {
+                    selectedSheets.forEach(name => {
+                        const c = sheetConfigs[name];
+                        if (c) console.log('runImport sheetConfigs[' + name + ']', { srcIdx: c.srcIdx, tgtIdx: c.tgtIdx });
+                    });
+                }
+
+                console.log('runImport 通過檢查，即將讀取 Excel');
+                try {
+                    const buffer = await tbExcelPendingFile.arrayBuffer();
+                    console.log('runImport 已取得 arrayBuffer，長度:', buffer.byteLength);
+                    const workbook = XLSX.read(buffer, { type: 'array' });
+                    console.log('runImport 已解析 workbook，工作表:', workbook.SheetNames && workbook.SheetNames.length);
+                    const newTerms = [];
+                    const scanStats = []; // 每個工作表的掃描統計，用於除錯
+                    const userName = localStorage.getItem('localCatUserProfile') || 'Unknown User';
+                    const parseRowRange = (str) => {
+                        const cleaned = (str || '').replace(/\s+/g, '');
+                        if (!cleaned) return { start: 2, end: Infinity };
+                        if (cleaned.includes('-')) {
+                            const [a, b] = cleaned.split('-');
+                            const start = a ? parseInt(a, 10) : 2;
+                            const end = b ? parseInt(b, 10) : Infinity;
+                            return { start, end };
+                        }
+                        const v = parseInt(cleaned, 10);
+                        if (isNaN(v)) return { start: 2, end: Infinity };
+                        return { start: v, end: v };
+                    };
+                    for (const sheetName of selectedSheets) {
+                        const cfg = sheetConfigs[sheetName];
+                        if (!cfg) continue;
+                        const rowRange = parseRowRange(cfg.rowsRangeStr || '2-');
+                        const sheet = workbook.Sheets[sheetName];
+                        if (!sheet) {
+                            console.warn('TB Excel 匯入：找不到工作表', JSON.stringify(sheetName), 'workbook 內工作表:', (workbook.SheetNames || []).map(s => JSON.stringify(s)));
+                            continue;
+                        }
+                        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+                        if (!rows.length) continue;
+                        const startRow = Math.max(0, rowRange.start - 1); // 1-based 轉 0-based，允許從第 1 列開始
+                        const endRow = isFinite(rowRange.end) ? rowRange.end - 1 : rows.length - 1;
+                        let inRange = 0;
+                        let withContent = 0;
+
+                        for (let r = startRow; r < rows.length && r <= endRow; r++) {
+                            inRange++;
+                            const row = rows[r] || [];
+                            const source = String(row[cfg.srcIdx] ?? '').trim();
+                            const target = String(row[cfg.tgtIdx] ?? '').trim();
+                            // 若原文與譯文皆空白才略過；只要任一有內容就匯入
+                            if (!source && !target) continue;
+                            withContent++;
+
+                            let noteLines = [];
+                            cfg.noteIdxs.forEach(idx => {
+                                const v = String(row[idx] ?? '').trim();
+                                if (v) noteLines.push(v);
+                            });
+                            if (cfg.includeSheetName) {
+                                noteLines.push(sheetName);
+                            }
+                            const note = noteLines.join('\n');
+
+                            let creator = cfg.creatorIdx >= 0 ? String(row[cfg.creatorIdx] ?? '').trim() : '';
+                            if (!creator) creator = userName;
+
+                            let createdAt = cfg.createdAtIdx >= 0 ? parseTbDate(row[cfg.createdAtIdx]) : null;
+                            if (!createdAt) createdAt = parseTbDate(new Date()) || '';
+
+                            newTerms.push({
+                                source,
+                                target,
+                                note,
+                                createdBy: creator,
+                                createdAt
+                            });
+                        }
+                        scanStats.push({ sheet: sheetName, inRange, withContent });
+                    }
+
+                    if (!newTerms.length) {
+                        console.log('runImport 提早結束: 無可匯入資料列', scanStats);
+                        const hint = '未找到可匯入的資料列（原文欄與譯文欄至少需有一欄有內容）。請確認：匯入列數是否正確（例如無標題列請用 1-，有標題列請用 2-）、原文／譯文欄位（如 A、B）是否對應到有資料的欄。';
+                        if (errEl) errEl.textContent = hint;
+                        else alert(hint);
+                        return;
+                    }
+
+                    console.log('runImport 已解析出', newTerms.length, '筆，即將讀取術語庫');
+                    const tb = await DBService.getTB(currentTbId);
+                    console.log('runImport 已取得術語庫，即將 updateTB');
+                    const oldTerms = tb && tb.terms ? tb.terms : [];
+
+                    // 以「除建立者與建立時間以外的欄位」作為去重 key
+                    const makeKey = (t) => {
+                        return JSON.stringify({
+                            source: (t.source || '').trim(),
+                            target: (t.target || '').trim(),
+                            note: (t.note || '').trim()
+                        });
+                    };
+
+                    const existingKeys = new Set(oldTerms.map(makeKey));
+                    const addedKeys = new Set();
+                    const filteredNew = [];
+                    for (const t of newTerms) {
+                        const k = makeKey(t);
+                        if (existingKeys.has(k) || addedKeys.has(k)) continue;
+                        addedKeys.add(k);
+                        filteredNew.push(t);
+                    }
+
+                    if (!filteredNew.length) {
+                        if (errEl) errEl.textContent = '所有資料列皆與現有術語重複，未新增任何術語。';
+                        return;
+                    }
+
+                    let nextNum = typeof tb.nextTermNumber === 'number' ? tb.nextTermNumber : 1;
+                    filteredNew.forEach(t => {
+                        t.termNumber = nextNum++;
+                    });
+                    const merged = oldTerms.concat(filteredNew);
+                    const changeLog = Array.isArray(tb.changeLog) ? tb.changeLog.slice() : [];
+                    changeLog.push({
+                        by: userName,
+                        at: new Date().toISOString(),
+                        action: 'add',
+                        termNumbers: filteredNew.map(t => t.termNumber)
+                    });
+                    const updatePayload = {
+                        terms: merged,
+                        nextTermNumber: nextNum,
+                        changeLog,
+                        sourceType: tb && tb.sourceType ? tb.sourceType : 'manual',
+                        sourceTypeLocked: true,
+                        lastModified: new Date().toISOString()
+                    };
+                    const updatePromise = DBService.updateTB(currentTbId, updatePayload);
+                    const timeoutMs = 60000;
+                    const timeoutPromise = new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('寫入術語庫逾時（60 秒），請重試或減少單次匯入筆數')), timeoutMs)
+                    );
+                    await Promise.race([updatePromise, timeoutPromise]);
+
+                    console.log('runImport 寫入 DB 完成，即將關閉視窗');
+                    closeTbExcelModal();
+                    alert(`匯入完成，共加入 ${filteredNew.length} 筆術語（已自動略過重複內容）。`);
+                    await loadTbTermsList();
+                } catch (err) {
+                    console.error('TB xlsx import error (內層)', err);
+                    if (errEl) errEl.textContent = '匯入失敗：' + err.message;
+                }
+                } catch (outerErr) {
+                    console.error('TB Excel 開始匯入錯誤 (外層)', outerErr);
+                    if (errEl) errEl.textContent = '匯入時發生錯誤：' + (outerErr && outerErr.message);
+                    else alert('匯入時發生錯誤：' + (outerErr && outerErr.message));
+                }
+            };
+            runImport().catch(err => {
+                console.error('TB Excel 匯入未捕捉錯誤 (Promise.catch)', err);
+                const el = document.getElementById('tbExcelImportError');
+                if (el) el.textContent = '匯入時發生錯誤：' + (err && err.message);
+                else alert('匯入時發生錯誤：' + (err && err.message));
+            });
+        });
+    }
+
+    if (tbTypeManual && tbTypeOnline) {
+        const onTypeChange = async (e) => {
+            if (!currentTbId) return;
+            const tb = await DBService.getTB(currentTbId);
+            if (!tb || tb.sourceTypeLocked) {
+                // 還原勾選狀態
+                applyTbTypeUI(tb || {});
+                return;
+            }
+            const newType = e.target.value === 'online' ? 'online' : 'manual';
+            await DBService.updateTB(currentTbId, { sourceType: newType });
+            const newTb = await DBService.getTB(currentTbId);
+            applyTbTypeUI(newTb || { sourceType: newType });
+        };
+        tbTypeManual.addEventListener('change', onTypeChange);
+        tbTypeOnline.addEventListener('change', onTypeChange);
+    }
+
+    // --- TM DETAIL MANAGER ---
+    let currentTmId = null;
+    const btnBackToTms = document.getElementById('btnBackToTms');
+    const btnImportTmFile = document.getElementById('btnImportTmFile');
+    const tmImportInput = document.getElementById('tmImportInput');
+    const detailTmName = document.getElementById('detailTmName');
+    const tmSegmentCount = document.getElementById('tmSegmentCount');
+    const tmSegmentsListBody = document.getElementById('tmSegmentsListBody');
+    const tmSegmentsSelectAll = document.getElementById('tmSegmentsSelectAll');
+    const btnClearTmSegments = document.getElementById('btnClearTmSegments');
+
+    if(btnBackToTms) btnBackToTms.addEventListener('click', () => switchView('viewTM'));
+
+    async function openTmDetail(tmId) {
+        currentTmId = tmId;
+        const tm = await DBService.getTM(tmId);
+        if(!tm) return switchView('viewTM');
+        detailTmName.textContent = tm.name;
+        switchView('viewTmDetail');
+        await loadTmSegments();
+        await updateTmDetailChangeLog(tm);
+    }
+
+    async function loadTmSegments() {
+        if(!currentTmId || !tmSegmentsListBody) return;
+        const segments = await DBService.getTMSegments(currentTmId);
+        tmSegmentCount.textContent = segments.length;
+        tmSegmentsListBody.innerHTML = '';
+        if(segments.length === 0) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td colspan="4" style="padding:0.75rem; color:#64748b;">此記憶庫尚無內容。</td>';
+            tmSegmentsListBody.appendChild(tr);
+            return;
+        }
+        segments.forEach(seg => {
+            const tr = document.createElement('tr');
+            const src = (seg.sourceText || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const tgt = (seg.targetText || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            tr.innerHTML = `
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="tm-segment-row-cb" data-id="${seg.id}"></td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${seg.id}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:280px; overflow:hidden; text-overflow:ellipsis;" title="${src}">${src || '—'}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:280px; overflow:hidden; text-overflow:ellipsis;" title="${tgt}">${tgt || '—'}</td>
+            `;
+            tmSegmentsListBody.appendChild(tr);
+        });
+        syncTmSegmentsSelectAll();
+    }
+
+    async function updateTmDetailChangeLog(tm) {
+        if (!tmDetailChangeLog) return;
+        const log = Array.isArray(tm && tm.changeLog) ? tm.changeLog : [];
+        const ordered = log.slice().sort((a, b) => new Date(b.at) - new Date(a.at));
+        const display = tmDetailChangeLogShowAll ? ordered : ordered.slice(0, 20);
+        renderChangeLogList({
+            listEl: tmDetailChangeLog,
+            expandBtn: btnTmDetailChangeLogExpand,
+            display,
+            totalCount: ordered.length,
+            showAll: tmDetailChangeLogShowAll,
+            formatEntry: (e) => {
+                const at = formatDateForLog(e.at || '');
+                const who = (e.by || '').trim() || '—';
+                const action = e.action || '';
+                return `${action}；${who}，${at}`;
+            }
+        });
+    }
+
+    function syncTmSegmentsSelectAll() {
+        if (!tmSegmentsListBody || !tmSegmentsSelectAll) return;
+        const cbs = tmSegmentsListBody.querySelectorAll('.tm-segment-row-cb');
+        const total = cbs.length;
+        const checked = Array.from(cbs).filter(cb => cb.checked).length;
+        tmSegmentsSelectAll.checked = total > 0 && checked === total;
+    }
+
+    if (tmSegmentsSelectAll && tmSegmentsListBody) {
+        tmSegmentsSelectAll.addEventListener('change', () => {
+            const checked = tmSegmentsSelectAll.checked;
+            tmSegmentsListBody.querySelectorAll('.tm-segment-row-cb').forEach(cb => { cb.checked = checked; });
+            syncTmSegmentsSelectAll();
+        });
+    }
+    if (tmSegmentsListBody) {
+        tmSegmentsListBody.addEventListener('change', (e) => {
+            if (e.target.matches('.tm-segment-row-cb')) syncTmSegmentsSelectAll();
+        });
+    }
+
+    if (btnDashboardChangeLogExpand && dashboardChangeLog) {
+        btnDashboardChangeLogExpand.addEventListener('click', async () => {
+            dashboardChangeLogShowAll = !dashboardChangeLogShowAll;
+            await loadDashboardData();
+        });
+    }
+
+    if (btnProjectsChangeLogExpand && projectsChangeLog) {
+        btnProjectsChangeLogExpand.addEventListener('click', async () => {
+            projectsChangeLogShowAll = !projectsChangeLogShowAll;
+            await loadProjectsList();
+        });
+    }
+
+    if (btnProjectDetailChangeLogExpand && projectDetailChangeLog) {
+        btnProjectDetailChangeLogExpand.addEventListener('click', async () => {
+            if (!currentProjectId) return;
+            const p = await DBService.getProject(currentProjectId);
+            await updateProjectDetailChangeLog(p);
+        });
+    }
+
+    if (btnTmListChangeLogExpand && tmListChangeLog) {
+        btnTmListChangeLogExpand.addEventListener('click', async () => {
+            tmListChangeLogShowAll = !tmListChangeLogShowAll;
+            await loadTMList();
+        });
+    }
+
+    if (btnTmDetailChangeLogExpand && tmDetailChangeLog) {
+        btnTmDetailChangeLogExpand.addEventListener('click', async () => {
+            if (!currentTmId) return;
+            const tm = await DBService.getTM(currentTmId);
+            await updateTmDetailChangeLog(tm);
+        });
+    }
+
+    if (btnTbListChangeLogExpand && tbListChangeLog) {
+        btnTbListChangeLogExpand.addEventListener('click', async () => {
+            tbListChangeLogShowAll = !tbListChangeLogShowAll;
+            await loadTBList();
+        });
+    }
+
+    if(btnClearTmSegments) {
+        btnClearTmSegments.addEventListener('click', async () => {
+            if(!currentTmId) return;
+            if(confirm('確定要清空此記憶庫中所有的句段嗎？此動作無法復原！')) {
+                const existing = await DBService.getTMSegments(currentTmId);
+                const total = existing.length;
+                await DBService.tmSegments.where('tmId').equals(currentTmId).delete();
+                await DBService.tms.update(currentTmId, { lastModified: new Date().toISOString() });
+                if (total > 0) {
+                    const entry = makeBaseLogEntry('delete', 'tm-segment', {
+                        entityId: currentTmId,
+                        entityName: `TM #${currentTmId}`,
+                        extra: { cleared: total }
+                    });
+                    await appendTMChangeLog(currentTmId, entry);
+                    await DBService.addModuleLog('tm', entry);
+                }
+                await loadTmSegments();
+                alert('記憶庫已清空。');
+            }
+        });
+    }
+
+    if(btnImportTmFile) {
+        btnImportTmFile.addEventListener('click', () => tmImportInput.click());
+    }
+
+    if(tmImportInput) {
+        tmImportInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if(!file || !currentTmId) return;
+
+            const ext = file.name.split('.').pop().toLowerCase();
+            const startStr = '正在匯入資料，請稍候...\\n';
+            let parsedSegments = [];
+
+            try {
+                if (ext === 'tmx') {
+                    const text = await file.text();
+                    const parser = new DOMParser();
+                    const xmlDoc = parser.parseFromString(text, 'text/xml');
+                    
+                    const tuNodes = xmlDoc.getElementsByTagName('tu');
+                    for(let i=0; i<tuNodes.length; i++) {
+                        const tu = tuNodes[i];
+                        const tuvNodes = tu.getElementsByTagName('tuv');
+                        if(tuvNodes.length >= 2) {
+                            // Basic assumption: 1st is source, 2nd is target
+                            const sourceSeg = tuvNodes[0].getElementsByTagName('seg')[0];
+                            const targetSeg = tuvNodes[1].getElementsByTagName('seg')[0];
+                            if(sourceSeg && targetSeg) {
+                                const creator = localStorage.getItem('localCatUserProfile') || 'Unknown User';
+                                const ts = new Date().toLocaleString();
+                                const changeMsg = `${ts} - ${creator} (以檔案匯入) 建立`;
+
+                                parsedSegments.push({
+                                    tmId: currentTmId,
+                                    sourceText: sourceSeg.textContent || '',
+                                    targetText: targetSeg.textContent || '',
+                                    key: '',
+                                    prevSegment: '',
+                                    nextSegment: '',
+                                    writtenFile: '',
+                                    writtenProject: '',
+                                    createdBy: `${creator} (以檔案匯入)`,
+                                    changeLog: [changeMsg],
+                                    createdAt: new Date().toISOString(),
+                                    lastModified: new Date().toISOString()
+                                });
+                            }
+                        }
+                    }
+                } else if (['xlsx', 'xls', 'csv'].includes(ext)) {
+                    // Reuse SheetJS from window.XLSX if available
+                    if (typeof XLSX === 'undefined') throw new Error('Excel 解析模組尚未載入');
+                    
+                    const arrBuffer = await file.arrayBuffer();
+                    const workbook = XLSX.read(arrBuffer, { type: 'array' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                    
+                    // Simple assume Source is Col 0, Target is Col 1, Key is Col 2, Prev is Col 3, Next is Col 4. Skip header row 0.
+                    for(let i=1; i<jsonData.length; i++) {
+                        const row = jsonData[i];
+                        if(row && row.length >= 2 && row[0] && String(row[0]).trim() !== '') {
+                            const creator = localStorage.getItem('localCatUserProfile') || 'Unknown User';
+                            const ts = new Date().toLocaleString();
+                            const changeMsg = `${ts} - ${creator} (以檔案匯入) 建立`;
+
+                            parsedSegments.push({
+                                tmId: currentTmId,
+                                sourceText: String(row[0]),
+                                targetText: String(row[1] || ''),
+                                key: String(row[2] || ''),
+                                prevSegment: String(row[3] || ''),
+                                nextSegment: String(row[4] || ''),
+                                writtenFile: '',
+                                writtenProject: '',
+                                createdBy: `${creator} (以檔案匯入)`,
+                                changeLog: [changeMsg],
+                                createdAt: new Date().toISOString(),
+                                lastModified: new Date().toISOString()
+                            });
+                        }
+                    }
+                } else {
+                    alert('不支援的檔案格式。');
+                    return;
+                }
+
+                if (parsedSegments.length > 0) {
+                    await DBService.bulkAddTMSegments(parsedSegments);
+                    await DBService.tms.update(currentTmId, { lastModified: new Date().toISOString() });
+                    const entry = makeBaseLogEntry('create', 'tm-segment', {
+                        entityId: currentTmId,
+                        entityName: `TM #${currentTmId}`,
+                        extra: { imported: parsedSegments.length, fileName: file.name, ext }
+                    });
+                    await appendTMChangeLog(currentTmId, entry);
+                    await DBService.addModuleLog('tm', entry);
+                    alert(`匯入成功！共匯入 ${parsedSegments.length} 筆句段。`);
+                    await loadTmSegments();
+                } else {
+                    alert('未能從檔案中讀取到有效的句段。');
+                }
+
+            } catch (err) {
+                console.error('TM Import Error:', err);
+                alert('匯入失敗：' + err.message);
+            } finally {
+                tmImportInput.value = '';
+            }
+        });
+    }
+
+    // ==========================================
+    // NAMING MODAL (Generic for Projects, TMs, TBs)
+    // ==========================================
+    document.getElementById('btnCreateProjectModal').addEventListener('click', () => openNamingModal('createProject', '新增專案', '專案名稱'));
+    document.getElementById('btnCreateTMModal').addEventListener('click', () => openNamingModal('createTM', '新增翻譯記憶庫 (TM)', 'TM 名稱'));
+    document.getElementById('btnCreateTBModal').addEventListener('click', () => openNamingModal('createTB', '新增術語庫 (TB)', 'TB 名稱'));
+    btnCloseNamingModal.addEventListener('click', () => namingModal.classList.add('hidden'));
+
+    function openNamingModal(action, title, label, idArg = null, defaultName = '') {
+        namingActionContext = { action, idArg };
+        namingModalTitle.textContent = title;
+        namingModalLabel.textContent = label;
+        namingModalInput.value = defaultName;
+        namingModal.classList.remove('hidden');
+        namingModalInput.focus();
+    }
+
+    btnNamingModalConfirm.addEventListener('click', async () => {
+        const val = namingModalInput.value.trim();
+        if(!val) return alert('請輸入名稱');
+        
+        const { action, idArg } = namingActionContext;
+        if (action === 'createProject') {
+            const id = await DBService.createProject(val);
+            const entry = makeBaseLogEntry('create', 'project', {
+                entityId: id,
+                entityName: val
+            });
+            await appendProjectChangeLog(id, entry);
+            await DBService.addModuleLog('projects', entry);
+        } else if (action === 'renameProject') {
+            const old = await DBService.getProject(idArg);
+            await DBService.updateProjectName(idArg, val);
+            const entry = makeBaseLogEntry('rename', 'project', {
+                entityId: idArg,
+                entityName: val,
+                extra: {
+                    oldName: old && old.name ? old.name : ''
+                }
+            });
+            await appendProjectChangeLog(idArg, entry);
+            await DBService.addModuleLog('projects', entry);
+        } else if (action === 'createTM') {
+            const id = await DBService.createTM(val);
+            const entry = makeBaseLogEntry('create', 'tm', {
+                entityId: id,
+                entityName: val
+            });
+            await appendTMChangeLog(id, entry);
+            await DBService.addModuleLog('tm', entry);
+        } else if (action === 'createTB') {
+            const id = await DBService.createTB(val);
+            const entry = makeBaseLogEntry('create', 'tb', {
+                entityId: id,
+                entityName: val
+            });
+            await appendTBChangeLog(id, entry);
+            await DBService.addModuleLog('tb', entry);
+        }
+        else if (action === 'setUserProfile') {
+            localStorage.setItem('localCatUserProfile', val);
+            document.getElementById('displayUserName').textContent = val;
+        }
+
+        namingModal.classList.add('hidden');
+        if(action.includes('Project')) await loadProjectsList();
+        if(action === 'createTM') await loadTMList();
+        if(action === 'createTB') await loadTBList();
+    });
+
+    // ==========================================
+    // FILE IMPORT WIZARD
+    // ==========================================
+    document.getElementById('btnAddFileModal').addEventListener('click', () => {
+        wizardOverlay.classList.remove('hidden');
+        showWizardStep('wizardStep1');
+        sourceFileInput.value = '';
+    });
+
+    btnCloseWizard.addEventListener('click', () => wizardOverlay.classList.add('hidden'));
+
+    function showWizardStep(stepId) {
+        [wizardStep1, wizardStep2].forEach(el => el.classList.add('hidden'));
+        document.getElementById(stepId).classList.remove('hidden');
+    }
+
+    sourceFileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        originalFileName = file.name;
+        const lowerName = file.name.toLowerCase();
+
+        const isExcel = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls');
+        const isXliffLike = lowerName.endsWith('.xlf') || lowerName.endsWith('.xliff') || lowerName.endsWith('.mqxliff') || lowerName.endsWith('.sdlxliff');
+
+        if (isExcel) {
+        const reader = new FileReader();
+            reader.onload = (ev) => {
+                excelRawBuffer = ev.target.result;
+            const data = new Uint8Array(excelRawBuffer);
+            excelWorkbook = XLSX.read(data, { type: 'array' });
+            
+            sheetList.innerHTML = '';
+            excelWorkbook.SheetNames.forEach(name => {
+                excelDataBySheet[name] = XLSX.utils.sheet_to_json(excelWorkbook.Sheets[name], { header: 1, defval: '' });
+                const lbl = document.createElement('label');
+                lbl.innerHTML = `<input type="checkbox" class="sheet-checkbox" value="${name}" checked> <span>${name}</span>`;
+                sheetList.appendChild(lbl);
+                lbl.style.display = 'block'; lbl.style.marginBottom = '0.5rem';
+            });
+
+            const checkboxes = document.querySelectorAll('.sheet-checkbox');
+                selectAllSheets.addEventListener('change', (evt) => checkboxes.forEach(cb => cb.checked = evt.target.checked));
+            checkboxes.forEach(cb => cb.addEventListener('change', () => selectAllSheets.checked = Array.from(checkboxes).every(c => c.checked)));
+
+            showWizardStep('wizardStep2');
+        };
+        reader.readAsArrayBuffer(file);
+        } else if (isXliffLike) {
+            const isMqxliff = lowerName.endsWith('.mqxliff');
+            if (isMqxliff) {
+                const role = await showMqRoleModal({ hideWizardFirst: true });
+                if (role === null) { wizardOverlay.classList.remove('hidden'); sourceFileInput.value = ''; return; }
+                try {
+                    if (!XliffImport || typeof XliffImport.handleXliffLikeImport !== 'function') {
+                        throw new Error('XLIFF 匯入模組未載入（js/xliff-import.js）');
+                    }
+                    await XliffImport.handleXliffLikeImport(xliffImportCtx(), file, role);
+                } catch (err) {
+                    console.error(err);
+                    alert('匯入 XLIFF 檔案時發生錯誤：' + (err.message || err));
+                } finally {
+                    sourceFileInput.value = '';
+                }
+            } else {
+                try {
+                    if (!XliffImport || typeof XliffImport.handleXliffLikeImport !== 'function') {
+                        throw new Error('XLIFF 匯入模組未載入（js/xliff-import.js）');
+                    }
+                    await XliffImport.handleXliffLikeImport(xliffImportCtx(), file);
+                } catch (err) {
+                    console.error(err);
+                    alert('匯入 XLIFF 檔案時發生錯誤：' + (err.message || err));
+                } finally {
+                    sourceFileInput.value = '';
+                }
+            }
+        } else {
+            alert('目前僅支援 Excel (.xlsx/.xls) 以及 XLIFF (.xlf/.xliff/.mqxliff/.sdlxliff) 檔案。');
+            sourceFileInput.value = '';
+        }
+    });
+
+    btnWizBack1.addEventListener('click', () => {
+        sourceFileInput.value = '';
+        showWizardStep('wizardStep1');
+    });
+
+    /** 顯示 mqxliff 身分選擇視窗，回傳選中的 'T'|'R1'|'R2'，取消則回傳 null。opts.hideWizardFirst: 匯入時先隱藏 wizard；opts.defaultRole: 預設選中的身分 */
+    function showMqRoleModal(opts = {}) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('mqRoleModal');
+            const btnConfirm = document.getElementById('btnMqRoleConfirm');
+            const btnClose = document.getElementById('btnCloseMqRoleModal');
+            const validRoles = ['T_ALLOW_R1', 'T_DENY_R1', 'R1', 'R2'];
+            // Backward compat: old 'T' maps to 'T_ALLOW_R1'
+            const normalizedDefault = opts.defaultRole === 'T' ? 'T_ALLOW_R1' : opts.defaultRole;
+            const defaultRole = validRoles.includes(normalizedDefault) ? normalizedDefault : 'T_ALLOW_R1';
+            document.querySelectorAll('input[name="mqRoleChoice"]').forEach(r => { r.checked = (r.value === defaultRole); });
+            if (opts.hideWizardFirst && wizardOverlay) wizardOverlay.classList.add('hidden');
+            const finish = (val) => {
+                modal.classList.add('hidden');
+                document.removeEventListener('keydown', onEsc);
+                resolve(val);
+            };
+            const onEsc = (e) => { if (e.key === 'Escape') finish(null); };
+            modal.classList.remove('hidden');
+            document.addEventListener('keydown', onEsc);
+            const handler = () => {
+                const checked = document.querySelector('input[name="mqRoleChoice"]:checked');
+                finish(checked ? checked.value : 'T_ALLOW_R1');
+            };
+            btnConfirm.onclick = handler;
+            btnClose.onclick = () => finish(null);
+            modal.onclick = (e) => { if (e.target === modal) finish(null); };
+        });
+    }
+
+    /** 舊版自動產生的筆記標題（顯示改為「未命名」） */
+    function isLegacyAutoWorkspaceNoteTitle(s) {
+        if (s == null || typeof s !== 'string') return false;
+        const t = s.trim();
+        return /^檔案 #\d+，/.test(t) || /^File #\d+,/.test(t);
+    }
+
+    /** 空白或舊自動標題 →「未命名」 */
+    function normalizeWorkspaceNoteTitle(raw) {
+        const t = String(raw ?? '').trim();
+        if (!t || isLegacyAutoWorkspaceNoteTitle(t)) return '未命名';
+        return t;
+    }
+
+    /**
+     * 開啟編輯器前：草稿為空且專案有已存筆記時，於清單畫面顯示蓋板。
+     * @returns {Promise<null|{ noteId: number|null }>} null = 使用者取消開檔；noteId null = 不掛載
+     */
+    function showWorkspaceNoteMountModal({ notes }) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('workspaceNoteMountModal');
+            const sel = document.getElementById('workspaceNoteMountSelect');
+            const preview = document.getElementById('workspaceNoteMountPreview');
+            const btnOpen = document.getElementById('btnWorkspaceNoteMountOpen');
+            const btnCancel = document.getElementById('btnWorkspaceNoteMountCancel');
+            const btnClose = document.getElementById('btnCloseWorkspaceNoteMountModal');
+            if (!modal || !sel || !preview || !btnOpen || !btnCancel) {
+                resolve({ noteId: null });
+                return;
+            }
+            const byId = new Map(notes.map(n => [n.id, n]));
+            sel.innerHTML = '';
+            const optNone = document.createElement('option');
+            optNone.value = '';
+            optNone.textContent = '不掛載筆記，直接開啟編輯器';
+            sel.appendChild(optNone);
+            for (const n of notes) {
+                const o = document.createElement('option');
+                o.value = String(n.id);
+                const title = normalizeWorkspaceNoteTitle(n.displayTitle);
+                const at = n.savedAt ? new Date(n.savedAt).toLocaleString('zh-TW', { hour12: false }) : '—';
+                o.textContent = `${title}（檔案 ID ${n.fileId}，${at}）`;
+                sel.appendChild(o);
+            }
+            const refreshPreview = () => {
+                const v = sel.value;
+                if (!v) {
+                    preview.textContent = '（不掛載：工作筆記欄將為空白，可於編輯器中自行輸入。）';
+                    return;
+                }
+                const nid = parseInt(v, 10);
+                const n = byId.get(nid);
+                const body = n && n.content != null ? String(n.content) : '';
+                preview.textContent = body.length > 12000
+                    ? body.slice(0, 12000) + '\n…（僅預覽前 12000 字）'
+                    : body || '（無內容）';
+            };
+            sel.onchange = refreshPreview;
+            refreshPreview();
+            modal.classList.remove('hidden');
+            const cleanupHandlers = () => {
+                sel.onchange = null;
+                modal.onclick = null;
+                btnOpen.onclick = null;
+                btnCancel.onclick = null;
+                if (btnClose) btnClose.onclick = null;
+            };
+            const finish = (val) => {
+                modal.classList.add('hidden');
+                document.removeEventListener('keydown', onEsc);
+                cleanupHandlers();
+                resolve(val);
+            };
+            const onEsc = (e) => { if (e.key === 'Escape') finish(null); };
+            document.addEventListener('keydown', onEsc);
+            btnOpen.onclick = () => {
+                const v = sel.value;
+                if (!v) {
+                    finish({ noteId: null });
+                    return;
+                }
+                const nid = parseInt(v, 10);
+                finish(Number.isNaN(nid) ? { noteId: null } : { noteId: nid });
+            };
+            const cancel = () => finish(null);
+            btnCancel.onclick = cancel;
+            if (btnClose) btnClose.onclick = cancel;
+            modal.onclick = (e) => { if (e.target === modal) cancel(); };
+        });
+    }
+
+    // ==========================================
+    // XLIFF 匯入：js/xliff-import.js（window.CatToolXliffImport）
+    // 標籤佔位：js/xliff-tag-pipeline.js（window.CatToolXliffTags）
+    // 【CRITICAL】匯出策略：docs/XLIFF_TAG_EXPORT.md、.cursor/rules/xliff-tag-export.mdc
+    // ==========================================
+    function xliffImportCtx() {
+        return {
+            Xliff,
+            DBService,
+            currentProjectId,
+            wizardOverlay,
+            makeBaseLogEntry,
+            appendProjectChangeLog,
+            loadFilesList
+        };
+    }
+
+    function colLetterToIndex(str) { let r=0; for(let i=0; i<str.length; i++) r = r*26 + str.charCodeAt(i) - 64; return r-1; }
+    function parseColumnString(str) {
+        if (!str || !str.trim()) return [];
+        const parts = str.toUpperCase().replace(/\s/g, '').split(',');
+        const s = new Set();
+        parts.forEach(p => {
+            if(p.includes('-')) {
+                const [st, en] = p.split('-');
+                if(st && en) { const min=Math.min(colLetterToIndex(st), colLetterToIndex(en)); const max=Math.max(colLetterToIndex(st), colLetterToIndex(en)); for(let i=min; i<=max; i++) s.add(i); }
+                else if(st) s.add(colLetterToIndex(st));
+            } else s.add(colLetterToIndex(p));
+        });
+        return Array.from(s).sort((a,b)=>a-b);
+    }
+    function parseRowString(str) {
+        const c = str.replace(/\s/g, ''); if (!c) return { start: 1, end: Infinity };
+        if(c.includes('-')) { const [st, en] = c.split('-'); return { start: st ? parseInt(st)-1 : 0, end: en ? parseInt(en)-1 : Infinity }; }
+        const i = parseInt(c)-1; return { start: i, end: i };
+    }
+
+    let extractedSegmentsBackup = [];
+
+    btnWizFinish.addEventListener('click', async () => {
+        try {
+            const sCols = parseColumnString(configSourceCol.value);
+            const tCols = parseColumnString(configTargetCol.value);
+            const idCols = parseColumnString(configIdCol.value);
+            const extCols = parseColumnString(configExtraCol.value);
+            const rRange = parseRowString(configRows.value);
+            const dir = configDirection.value;
+            const extraDelimiter = '\n';
+
+            if(!sCols.length || !tCols.length) throw new Error('必填欄位未填寫');
+            if(sCols.length !== tCols.length) throw new Error('原文與譯文欄位數量不一致');
+            if(idCols.length > 1) throw new Error('String Key 欄位僅允許輸入單一欄位，不支援多個欄');
+            const selSheets = Array.from(document.querySelectorAll('.sheet-checkbox')).filter(c=>c.checked).map(c=>c.value);
+            if(!selSheets.length) throw new Error('請勾選至少一個工作表');
+
+            extractedSegmentsBackup = [];
+            selSheets.forEach(sheetName => {
+                const data = excelDataBySheet[sheetName];
+                const rawSheet = excelWorkbook ? excelWorkbook.Sheets[sheetName] : null;
+                const endR = Math.min(rRange.end, data.length-1);
+                if (dir === 'top-down') {
+                    for(let c=0; c<sCols.length; c++) for(let r = rRange.start; r <= endR; r++) extractSegmentIntoBackup(data, sheetName, r, sCols[c], tCols[c], idCols, extCols, extraDelimiter, rawSheet);
+                } else {
+                    for(let r = rRange.start; r <= endR; r++) for(let c=0; c<sCols.length; c++) extractSegmentIntoBackup(data, sheetName, r, sCols[c], tCols[c], idCols, extCols, extraDelimiter, rawSheet);
+                }
+            });
+
+            btnWizFinish.disabled = true; btnWizFinish.textContent = '處理中...';
+            const fId = await DBService.createFile(currentProjectId, originalFileName, excelRawBuffer);
+            const entry = makeBaseLogEntry('create', 'project-file', {
+                entityId: fId,
+                entityName: originalFileName
+            });
+            if (currentProjectId) {
+                await appendProjectChangeLog(currentProjectId, entry);
+                await DBService.addModuleLog('projects', entry);
+            }
+            const mappedSegments = extractedSegmentsBackup.map((s, idx) => ({ ...s, fileId: fId, globalId: idx + 1 }));
+            await DBService.addSegments(mappedSegments);
+
+            wizardOverlay.classList.add('hidden');
+            excelWorkbook = null; excelRawBuffer = null; excelDataBySheet = {}; extractedSegmentsBackup = [];
+            await loadFilesList();
+        } catch(e) { alert('匯入失敗: ' + e.message); } finally { btnWizFinish.disabled = false; btnWizFinish.textContent = '匯入檔案'; }
+    });
+
+    function extractSegmentIntoBackup(data, sheetName, r, sC, tC, idCols, extCols, extraDelimiter, rawSheet) {
+        if(!data[r]) return;
+        const srcText = data[r][sC] !== undefined ? String(data[r][sC]).trim() : '';
+        const tgtText = data[r][tC] !== undefined ? String(data[r][tC]).trim() : '';
+        
+        // Single column Key Parsing
+        let idVal = idCols.length === 1 && data[r][idCols[0]] !== undefined ? String(data[r][idCols[0]]).trim() : '';
+
+        // Multi-column Extra Parsing
+        let extVals = [];
+        for(let i=0; i<extCols.length; i++) {
+            const eVal = data[r][extCols[i]];
+            if (eVal !== undefined && String(eVal).trim() !== '') {
+                extVals.push(String(eVal).trim());
+            }
+        }
+        let extVal = extVals.join(extraDelimiter);
+
+        let locked = false, finalSrc = srcText;
+        if(srcText==='' && tgtText==='') { locked = true; finalSrc = '（原文檔本列空白）'; }
+        if(locked || srcText !== '') {
+            // Rich Text：原文欄、譯文欄分別偵測；匯出時 baseRprXml 以譯文儲存格為優先
+            let sourceTags = null;
+            let targetTags = null;
+            let baseRprXml = '';
+            let finalTgt = tgtText;
+            const XlsxRich = window.CatToolXlsxRichTags;
+            if (!locked && XlsxRich && rawSheet) {
+                try {
+                    const srcCellRef = XLSX.utils.encode_cell({ r, c: sC });
+                    const tgtCellRef = XLSX.utils.encode_cell({ r, c: tC });
+                    const srcCell = rawSheet[srcCellRef];
+                    const tgtCell = rawSheet[tgtCellRef];
+                    const srcRich = srcCell ? XlsxRich.extractCellRichTags(srcCell) : null;
+                    const tgtRich = tgtCell ? XlsxRich.extractCellRichTags(tgtCell) : null;
+                    if (srcRich) {
+                        finalSrc = srcRich.text;
+                        sourceTags = srcRich.tags;
+                    }
+                    if (tgtRich) {
+                        finalTgt = tgtRich.text;
+                        targetTags = tgtRich.tags;
+                    }
+                    if (tgtRich) {
+                        baseRprXml = tgtRich.baseRprXml || '';
+                    } else if (srcRich) {
+                        baseRprXml = srcRich.baseRprXml || '';
+                    }
+                    if (srcRich && !tgtRich) {
+                        targetTags = [];
+                    }
+                } catch (err) {
+                    console.warn('xlsx rich tag 萃取失敗（row', r, 'col', sC, '）', err);
+                }
+            }
+            const seg = {
+                sheetName, rowIdx: r, colSrc: sC, colTgt: tC,
+                idValue: idVal, extraValue: extVal,
+                sourceText: finalSrc, targetText: finalTgt,
+                isLocked: locked,
+                isLockedSystem: locked,
+                isLockedUser: false,
+                status: 'unconfirmed'
+            };
+            const hasSrcTags = sourceTags && sourceTags.length;
+            const hasTgtTags = targetTags && targetTags.length;
+            if (hasSrcTags || hasTgtTags) {
+                if (hasSrcTags) seg.sourceTags = sourceTags;
+                if (hasTgtTags) {
+                    seg.targetTags = targetTags;
+                } else if (hasSrcTags) {
+                    seg.targetTags = [];
+                }
+                seg.baseRprXml = baseRprXml;
+            }
+            extractedSegmentsBackup.push(seg);
+        }
+    }
+
+    // ==========================================
+    // PRO EDITOR ENGINE
+    // ==========================================
+    let currentSegmentsList = [];
+    let editorUndoStack = [];
+    let editorRedoStack = [];
+    let editorUndoEditStart = {};
+    let currentFileFormat = 'excel'; // 'excel' | 'xliff' | 'mqxliff' | 'sdlxliff'
+    let currentMqConfirmationRole = 'T_ALLOW_R1'; // mqxliff 用的目前確認身分
+    let currentFileDefaultMqRole = null; // 匯入時儲存的預設身分，用於字數/句段統計基準
+
+    // 禁止編輯核心判斷：以 role 等級與句段 originalRole 計算是否禁止
+    // 規則（角色等級：T < R1 < R2）：
+    //   ‧ R2 確認句段：只有 R2 session 可編輯，其餘均禁止
+    //   ‧ R1 確認句段：T_ALLOW_R1 / R1 / R2 可編輯，T_DENY_R1 禁止
+    //   ‧ T  確認句段：所有 session 均可編輯
+    //   ‧ 無 originalRole + mq:locked：任何 session 均禁止（匯入時即已鎖定）
+    //   ‧ 無 originalRole + 無 mq:locked：所有 session 均可編輯
+    function computeForbiddenForRole(seg, role) {
+        const effectiveRole = (role === 'T') ? 'T_ALLOW_R1' : (role || 'T_ALLOW_R1');
+        if (seg.originalRole === 'R2') return effectiveRole !== 'R2';
+        if (seg.originalRole === 'R1') return !['T_ALLOW_R1', 'R1', 'R2'].includes(effectiveRole);
+        if (seg.originalRole === 'T') return false;
+        // originalRole 為 null：只有 mq:locked 才禁止（匯入時即已鎖定）
+        return !!seg.isLockedSystem;
+    }
+
+    // 字數/句段統計基準：以「預設身分（匯入時選定）第一次開啟」的非禁止句段為準，不受當前 session 影響
+    function isBaselineForbidden(seg) {
+        if (currentFileFormat !== 'mqxliff') return !!seg.isLockedSystem;
+        return computeForbiddenForRole(seg, currentFileDefaultMqRole);
+    }
+
+    // 將 session role 轉換為實際寫入句段的 confirmationRole（T_ALLOW_R1/T_DENY_R1 → 'T'）
+    function getSessionConfirmRole() {
+        const r = currentMqConfirmationRole || 'T_ALLOW_R1';
+        if (r === 'T_ALLOW_R1' || r === 'T_DENY_R1' || r === 'T') return 'T';
+        return r; // 'R1' | 'R2'
+    }
+
+    // 禁止編輯工具提示：區分「身分權限不足」與「匯入時即已鎖定」
+    function getForbiddenTooltip(seg) {
+        if (!seg.originalRole && seg.isLockedSystem) return '禁止編輯：匯入時即已鎖定';
+        return '禁止編輯：目前身分權限不允許編輯';
+    }
+
+    // 判斷句段是否「禁止編輯」（依當前 session 身分動態判斷）
+    function isDynamicForbidden(seg) {
+        if (currentFileFormat !== 'mqxliff') return !!seg.isLockedSystem;
+        return computeForbiddenForRole(seg, currentMqConfirmationRole);
+    }
+
+    // 計算句段在目前 session 下應使用的 confirmationRole
+    function resolveConfirmationRole(seg) {
+        if (seg.originalRole) {
+            // T_ALLOW_R1 允許以 T 身分覆寫 R1 確認
+            if ((currentMqConfirmationRole === 'T_ALLOW_R1' || currentMqConfirmationRole === 'T_DENY_R1') && seg.originalRole === 'R1') {
+                return 'T';
+            }
+            return seg.originalRole; // 其他情況保留原檔身分
+        }
+        return getSessionConfirmRole();
+    }
+
+    async function openEditor(fileId) {
+        currentFileId = fileId;
+        editorUndoStack = [];
+        editorRedoStack = [];
+        editorUndoEditStart = {};
+        const file = await DBService.getFile(fileId);
+        if(!file) return alert('檔案不存在');
+        
+        editorFileName.textContent = file.name;
+        currentSegmentsList = await DBService.getSegmentsByFile(fileId);
+
+        // 推斷目前檔案格式，供狀態與樣式判斷使用
+        const lowerName = (file.name || '').toLowerCase();
+        if (lowerName.endsWith('.mqxliff')) currentFileFormat = 'mqxliff';
+        else if (lowerName.endsWith('.sdlxliff')) currentFileFormat = 'sdlxliff';
+        else if (lowerName.endsWith('.xlf') || lowerName.endsWith('.xliff')) currentFileFormat = 'xliff';
+        else currentFileFormat = 'excel';
+
+        // 設定統計基準身分（用 defaultMqRole；非 mqxliff 則為 null）
+        currentFileDefaultMqRole = currentFileFormat === 'mqxliff'
+            ? (file.defaultMqRole === 'T' ? 'T_ALLOW_R1' : (file.defaultMqRole || 'T_ALLOW_R1'))
+            : null;
+
+        // mqxliff：每次開啟都詢問當次作業身分，預設為匯入時選擇的身分
+        if (currentFileFormat === 'mqxliff') {
+            // Backward compat: old 'T' maps to 'T_ALLOW_R1'
+            const rawDefault = file.defaultMqRole === 'T' ? 'T_ALLOW_R1' : (file.defaultMqRole || 'T_ALLOW_R1');
+            const importDefault = rawDefault;
+            const role = await showMqRoleModal({ defaultRole: importDefault });
+            if (role === null) return; // 使用者取消，不開啟編輯器
+            currentMqConfirmationRole = role;
+            if (!file.defaultMqRole) {
+                await DBService.updateFile(fileId, { defaultMqRole: role });
+                file.defaultMqRole = role;
+            }
+        }
+
+        // 設定／顯示 mqxliff 作業中身分圖示（篩選圖示正下方，與周遭圖示同大）
+        const mqRoleIcon = document.getElementById('mqRoleIcon');
+        const sfCellModeRow2 = document.getElementById('sfCellModeRow2');
+        if (mqRoleIcon) {
+            if (currentFileFormat === 'mqxliff') {
+                mqRoleIcon.style.display = '';
+                if (sfCellModeRow2) sfCellModeRow2.classList.remove('mq-role-hidden');
+                const role = currentMqConfirmationRole || 'T_ALLOW_R1';
+                const roleLabels = {
+                    'T_ALLOW_R1': 'T（允許編輯 R1 確認）',
+                    'T_DENY_R1': 'T（不允許編輯 R1 確認）',
+                    'T': 'T（譯者）',
+                    'R1': 'R1',
+                    'R2': 'R2'
+                };
+                mqRoleIcon.title = `作業中身分：${roleLabels[role] || role}`;
+                if (role === 'R1') mqRoleIcon.innerHTML = '✓+';
+                else if (role === 'R2') mqRoleIcon.innerHTML = '✓✓';
+                else                 mqRoleIcon.innerHTML = '✓';
+            } else {
+                mqRoleIcon.style.display = 'none';
+                if (sfCellModeRow2) sfCellModeRow2.classList.add('mq-role-hidden');
+            }
+        }
+
+        // 草稿為空且專案有已存筆記：清單畫面蓋板詢問是否掛載（可選專案內任一筆記）
+        const draftEmptyForMount = !String(file.workspaceNoteDraft || '').trim();
+        if (draftEmptyForMount && file.projectId) {
+            try {
+                const projectNotesForMount = await DBService.getWorkspaceNotesByProject(file.projectId);
+                if (projectNotesForMount.length) {
+                    const pick = await showWorkspaceNoteMountModal({ notes: projectNotesForMount });
+                    if (pick === null) return;
+                    if (pick.noteId != null && !Number.isNaN(pick.noteId)) {
+                        const noteRow = await DBService.getWorkspaceNote(pick.noteId);
+                        const mounted = noteRow && noteRow.content != null ? String(noteRow.content) : '';
+                        await DBService.updateFile(fileId, { workspaceNoteDraft: mounted });
+                        file.workspaceNoteDraft = mounted;
+                    }
+                }
+            } catch (err) {
+                console.warn('掛載筆記蓋板失敗', err);
+            }
+        }
+        
+        // --- LOAD PROJECT TM CACHE ---
+        window.ActiveTmCache = [];
+        window.ActiveWriteTms = [];
+        const project = await DBService.getProject(file.projectId);
+        if (project && project.readTms && project.readTms.length > 0) {
+            for (const tmId of project.readTms) {
+                const tm = await DBService.getTM(tmId);
+                const tmName = tm ? tm.name : `TM #${tmId}`;
+                const segs = await DBService.getTMSegments(tmId);
+                // Stamp each segment with its source TM id + name
+                segs.forEach(s => { s._tmId = tmId; s.tmName = tmName; });
+                window.ActiveTmCache.push(...segs);
+            }
+        }
+        if (project && project.writeTms) window.ActiveWriteTms = project.writeTms;
+
+        // --- LOAD ALL TB TERMS FOR CAT PANEL ---
+        window.ActiveTbTerms = [];
+        const allTbs = await DBService.getTBs();
+        for (const tb of allTbs) {
+            const full = await DBService.getTB(tb.id);
+            const terms = (full && full.terms) ? full.terms : [];
+            terms.forEach(t => {
+                if (t && ((t.source && t.source.trim()) || (t.target && t.target.trim())))
+                    window.ActiveTbTerms.push({
+                        source: (t.source || '').trim(),
+                        target: (t.target || '').trim(),
+                        note: (t.note || '').trim(),
+                        tbName: tb.name || `TB #${tb.id}`
+                    });
+            });
+        }
+        
+        // Dynamic Key Columns Setup & Legacy Migration
+        let maxKeys = 0;
+        currentSegmentsList.forEach((seg, i) => {
+            if (!seg.globalId) seg.globalId = i + 1; // Seamless legacy fix
+            
+            if (!seg.keys && seg.idValue) {
+                let lines = seg.idValue.split('\n');
+                seg.keys = lines.map(l => l.replace(/^String Key \d+: /, '').trim());
+            } else if (!seg.keys) {
+                seg.keys = [];
+            }
+            if(seg.keys && seg.keys.length > maxKeys) maxKeys = seg.keys.length;
+        });
+
+        const defaultCols = [];
+        defaultCols.push({ id: 'col-id', name: 'ID', visible: true, width: '50px' });
+        for(let i=0; i<maxKeys; i++) {
+            defaultCols.push({ id: `col-key-${i}`, name: `Key`, visible: true, width: '100px' });
+        }
+        defaultCols.push({ id: 'col-source', name: '原文 (Source)', visible: true, width: '1fr' });
+        defaultCols.push({ id: 'col-target', name: '譯文 (Target)', visible: true, width: '1fr' });
+        defaultCols.push({ id: 'col-extra', name: '額外資訊', visible: true, width: '100px' });
+        defaultCols.push({ id: 'col-repetition', name: '重複', visible: true, width: '35px' });
+        defaultCols.push({ id: 'col-match', name: '相符度', visible: true, width: '35px' });
+        defaultCols.push({ id: 'col-status', name: '狀態', visible: true, width: '35px' });
+
+        const savedData = JSON.parse(localStorage.getItem('catToolColSettings')) || [];
+        const savedColIds = savedData.map(c => c.id);
+        const savedMap = new Map(savedData.map(c => [c.id, c]));
+
+        colSettings = defaultCols.sort((a,b) => {
+            let idxA = savedColIds.indexOf(a.id);
+            let idxB = savedColIds.indexOf(b.id);
+            if(idxA === -1 && idxB === -1) return 0;
+            if(idxA === -1) return 1;
+            if(idxB === -1) return -1;
+            return idxA - idxB;
+        });
+
+        colSettings.forEach(c => {
+            if(savedMap.has(c.id)) {
+                c.visible = savedMap.get(c.id).visible;
+                const savedW = savedMap.get(c.id).width;
+                if(savedW && (savedW.includes('minmax') || (savedW.endsWith('px') && savedW !== '150px'))) {
+                    c.width = savedW;
+                }
+            }
+        });
+
+        // Initialize grid headers
+        const gridHeaderRow = document.getElementById('gridHeaderRow');
+        gridHeaderRow.innerHTML = '';
+        colSettings.forEach((c, index) => {
+            const cell = document.createElement('div');
+            cell.className = 'grid-header-cell';
+            cell.setAttribute('data-col-id', c.id);
+            
+            // Rename Key 1 -> Key
+            if (c.name === 'Key 1') c.name = 'Key';
+            cell.textContent = c.name;
+            
+            // Status, Match, and Repetition don't have resizers and are fixed/sticky
+            if (c.id !== 'col-status' && c.id !== 'col-match' && c.id !== 'col-repetition') {
+                const resizer = document.createElement('div');
+                resizer.className = 'col-resizer';
+                resizer.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    
+                    const activeColsList = colSettings.filter(cx => cx.visible);
+                    const otherColsObj = activeColsList.filter(cx => cx.id !== 'col-status');
+                    
+                    const visibleIndex = otherColsObj.findIndex(cx => cx.id === c.id);
+                    const nextCol = visibleIndex >= 0 && visibleIndex < otherColsObj.length - 1 ? otherColsObj[visibleIndex + 1] : null;
+
+                    // 如果右側是「重複」欄，就不要提供拖曳調整，避免影響重複欄寬度
+                    if (nextCol && nextCol.id === 'col-repetition') return;
+
+                    if (!nextCol) return;
+
+                    let startX = e.clientX;
+                    const leftCell = cell;
+                    const rightCell = gridHeaderRow.querySelector(`.grid-header-cell[data-col-id="${nextCol.id}"]`);
+                    if (!leftCell || !rightCell) return;
+                    
+                    let startWidthLeft = leftCell.offsetWidth;
+                    let startWidthRight = rightCell.offsetWidth;
+
+                    const onMove = (ev) => {
+                        let deltaX = ev.clientX - startX;
+                        
+                        let minLeft = c.id.startsWith('col-key') || c.id === 'col-extra' ? 120 : (c.id === 'col-source' || c.id === 'col-target' ? 200 : 50);
+                        let minRight = nextCol.id.startsWith('col-key') || nextCol.id === 'col-extra' ? 120 : (nextCol.id === 'col-source' || nextCol.id === 'col-target' ? 200 : 50);
+                        
+                        if (startWidthLeft + deltaX < minLeft) deltaX = minLeft - startWidthLeft;
+                        if (startWidthRight - deltaX < minRight) deltaX = startWidthRight - minRight;
+                        
+                        let newWidthLeft = startWidthLeft + deltaX;
+                        let newWidthRight = startWidthRight - deltaX;
+                        
+                        c.width = `minmax(${minLeft}px, ${newWidthLeft}fr)`;
+                        nextCol.width = `minmax(${minRight}px, ${newWidthRight}fr)`;
+                        applyColSettings();
+                    };
+                    const onUp = () => {
+                        document.removeEventListener('mousemove', onMove);
+                        document.removeEventListener('mouseup', onUp);
+                        resizer.classList.remove('is-resizing');
+                        localStorage.setItem('catToolColSettings', JSON.stringify(colSettings));
+                    };
+                    resizer.classList.add('is-resizing');
+                    document.addEventListener('mousemove', onMove);
+                    document.addEventListener('mouseup', onUp);
+                });
+                cell.appendChild(resizer);
+            }
+
+            // set styles directly to avoid grid flash
+            cell.style.order = index;
+            cell.style.display = c.visible ? '' : 'none';
+            gridHeaderRow.appendChild(cell);
+        });
+        
+        applyColSettings();
+
+        // Populate Sort Columns
+        if (sortColSelect) {
+            sortColSelect.innerHTML = '';
+            colSettings.forEach(c => {
+                if (['col-id', 'col-source', 'col-target'].includes(c.id) || c.id.startsWith('col-key-')) {
+                    const opt = document.createElement('option');
+                    opt.value = c.id;
+                    opt.textContent = c.name;
+                    sortColSelect.appendChild(opt);
+                }
+            });
+            sortColSelect.value = 'col-id'; // default
+            const e = new Event('change');
+            sortColSelect.dispatchEvent(e);
+        }
+
+        // Remove active class from Nav Items and show Editor View specifically
+        navItems.forEach(n => n.classList.remove('active'));
+        viewSections.forEach(sec => sec.classList.add('hidden'));
+        document.getElementById('viewEditor').classList.remove('hidden');
+        sidebar.classList.add('collapsed');
+
+        const workspaceNoteEl = document.getElementById('editorWorkspaceNoteInput');
+        if (workspaceNoteEl) {
+            const fileLatest = await DBService.getFile(fileId);
+            workspaceNoteEl.value = fileLatest && fileLatest.workspaceNoteDraft != null
+                ? String(fileLatest.workspaceNoteDraft)
+                : '';
+        }
+
+        renderEditorSegments();
+    }
+
+    btnExitEditor.addEventListener('click', async () => {
+        const ok = await ensureWorkspaceNoteLeaveResolved();
+        if (!ok) return;
+        currentFileId = null;
+        currentSegmentsList = [];
+        gridBody.innerHTML = '';
+        window.ActiveTmCache = [];
+        window.ActiveTbTerms = [];
+        sidebar.classList.remove('collapsed');
+        openProjectDetail(currentProjectId);
+    });
+
+    // --- PRE-TRANSLATE LOGIC ---
+    const preTranslateModal = document.getElementById('preTranslateModal');
+    const btnClosePreTranslate = document.getElementById('btnClosePreTranslate');
+    const btnCancelPreTranslate = document.getElementById('btnCancelPreTranslate');
+    const btnRunPreTranslate = document.getElementById('btnRunPreTranslate');
+    const ptScopeSelectedText = document.getElementById('ptScopeSelectedText');
+    const ptScopeSelected = document.getElementById('ptScopeSelected');
+    const ptThreshold = document.getElementById('ptThreshold');
+    const ptOverwrite = document.getElementById('ptOverwrite');
+    const ptAutoConfirm = document.getElementById('ptAutoConfirm');
+    const btnPreTranslate = document.getElementById('btnPreTranslate');
+
+    if (btnPreTranslate) {
+        btnPreTranslate.addEventListener('click', () => {
+            if (activeView !== 'viewEditor') return;
+            
+            if (selectedRowIds.size > 0) {
+                ptScopeSelected.disabled = false;
+                ptScopeSelectedText.style.color = 'inherit';
+                ptScopeSelectedText.textContent = `選取的句段 (${selectedRowIds.size} 筆)`;
+            } else {
+                ptScopeSelected.disabled = true;
+                ptScopeSelectedText.style.color = '#64748b';
+                ptScopeSelectedText.textContent = `選取的句段 (無選取)`;
+                document.querySelector('input[name="ptScope"][value="all"]').checked = true;
+            }
+
+            preTranslateModal.classList.remove('hidden');
+        });
+    }
+
+    if (btnClosePreTranslate) btnClosePreTranslate.addEventListener('click', () => preTranslateModal.classList.add('hidden'));
+    if (btnCancelPreTranslate) btnCancelPreTranslate.addEventListener('click', () => preTranslateModal.classList.add('hidden'));
+    
+    if (btnRunPreTranslate) {
+        btnRunPreTranslate.addEventListener('click', async () => {
+            const scope = document.querySelector('input[name="ptScope"]:checked').value;
+            const threshold = parseInt(ptThreshold.value) || 100;
+            const overwrite = ptOverwrite.checked;
+            const autoConfirm = ptAutoConfirm.checked;
+
+            btnRunPreTranslate.disabled = true;
+            btnRunPreTranslate.textContent = '處理中...';
+
+            try {
+                const affectedSegments = scope === 'selected' 
+                    ? currentSegmentsList.filter(s => selectedRowIds.has(s.id))
+                    : currentSegmentsList;
+                
+                let applyCount = 0;
+                for (const seg of affectedSegments) {
+                    if (seg.isLocked) continue;
+                    if (!overwrite && seg.targetText.trim() !== '') continue;
+
+                    let bestMatch = null;
+                    let bestScore = 0;
+
+                    if (window.ActiveTmCache && window.ActiveTmCache.length > 0) {
+                        for (const tms of window.ActiveTmCache) {
+                            const sim = calculateSimilarity(seg.sourceText, tms.sourceText);
+                            if (sim > bestScore) {
+                                bestScore = sim;
+                                bestMatch = tms;
+                            }
+                            if (bestScore === 101) break; 
+                        }
+                    }
+
+                    if (bestMatch && bestScore >= threshold) {
+                        seg.targetText = bestMatch.targetText;
+                        seg.matchValue = bestScore.toString();
+                        if (autoConfirm && bestScore >= 100) {
+                            seg.status = 'confirmed';
+                        }
+                        await DBService.updateSegmentTarget(seg.id, seg.targetText, { matchValue: seg.matchValue });
+                        applyCount++;
+                    }
+                }
+                
+                alert(`預先翻譯完成！共更新 ${applyCount} 個句段。`);
+                preTranslateModal.classList.add('hidden');
+                renderEditorSegments();
+                updateProgress();
+            } catch (e) {
+                console.error(e);
+                alert('預先翻譯過程中發生錯誤');
+            } finally {
+                btnRunPreTranslate.disabled = false;
+                btnRunPreTranslate.textContent = '開始套用';
+            }
+        });
+    }
+
+    // ==========================================
+    // Side panel width drag-resize
+    if (sidePanelWidthResizer && sidePanel && segmentsContainer) {
+        let isResizingSide = false;
+        let startXSide = 0;
+        let startWidthSide = 0;
+        sidePanelWidthResizer.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            isResizingSide = true;
+            startXSide = e.clientX;
+            startWidthSide = sidePanel.offsetWidth;
+            document.body.style.cursor = 'ew-resize';
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizingSide) return;
+            const delta = startXSide - e.clientX;
+            let newWidth = startWidthSide + delta;
+            const minWidth = 260;
+            const maxWidth = 600;
+            if (newWidth < minWidth) newWidth = minWidth;
+            if (newWidth > maxWidth) newWidth = maxWidth;
+            sidePanel.style.width = `${newWidth}px`;
+        });
+        document.addEventListener('mouseup', () => {
+            if (!isResizingSide) return;
+            isResizingSide = false;
+            document.body.style.cursor = '';
+        });
+    }
+
+    // ADVANCED SEARCH & FILTER ENGINE
+    // ==========================================
+    let sfMode = 'search'; // 'search' or 'filter'
+    let sfUseRegexChecked = false;
+    let sfSearchMatches = [];
+    let sfActiveMatchIdx = -1;
+    let sfFilterGroups = []; // [{ op: 'AND'/'OR', term, scopes, isRegex, isInvert, statuses, tms }]
+    let sfPresets = JSON.parse(localStorage.getItem('catToolSfPresets') || '{}');
+    let lastEditedRowIdx = null; // Track cursor position
+    let selectedRowIds = new Set(); // Track selected segment IDs
+    let lastSelectedRowIdx = null; // Track last clicked for Shift-select
+    let isBatchOpInProgress = false; // 批次操作進行中時，阻止 focusin 清除選取狀態
+    
+    // UI Elements
+    const sfInput = document.getElementById('sfInput');
+    const sfModeSearch = document.getElementById('sfModeSearch');
+    const sfModeFilter = document.getElementById('sfModeFilter');
+    const btnToggleAdvancedSF = document.getElementById('btnToggleAdvancedSF');
+    const sfAdvancedPanel = document.getElementById('sfAdvancedPanel');
+    const sfUseRegex = document.getElementById('sfUseRegex');
+    const sfActionsSearch = document.getElementById('sfActionsSearch');
+    const sfActionsFilter = document.getElementById('sfActionsFilter');
+    const btnSfPrev = document.getElementById('btnSfPrev');
+    const btnSfNext = document.getElementById('btnSfNext');
+    const sfMatchCount = document.getElementById('sfMatchCount');
+    const btnSfInvert = document.getElementById('btnSfInvert');
+    const btnSfOptionsPopover = document.getElementById('btnSfOptionsPopover');
+    const sfOptionsPopover = document.getElementById('sfOptionsPopover');
+    const sfReplaceInput = document.getElementById('sfReplaceInput');
+    const btnSfReplaceThis = document.getElementById('btnSfReplaceThis');
+    const btnSfReplaceAll = document.getElementById('btnSfReplaceAll');
+    
+    // Toggles
+    btnToggleAdvancedSF.addEventListener('click', () => {
+        sfAdvancedPanel.classList.toggle('hidden');
+        const isHidden = sfAdvancedPanel.classList.contains('hidden');
+        btnToggleAdvancedSF.textContent = isHidden ? '▼' : '▲';
+        // 當進階篩選啟動時，鎖定為「篩選」模式
+        if (!isHidden) {
+            sfMode = 'filter';
+            sfModeFilter.classList.add('active');
+            sfModeSearch.classList.remove('active');
+            runSearchAndFilter();
+        }
+    });
+    sfModeSearch.addEventListener('click', () => {
+        // 進階篩選開啟時，強制維持在「篩選」模式
+        if (!sfAdvancedPanel.classList.contains('hidden')) {
+            sfMode = 'filter';
+            sfModeFilter.classList.add('active');
+            sfModeSearch.classList.remove('active');
+            return;
+        }
+        if (sfMode === 'search') { sfModeFilter.click(); return; } // Toggle behavior
+        sfMode = 'search'; sfModeSearch.classList.add('active'); sfModeFilter.classList.remove('active');
+        runSearchAndFilter();
+    });
+    sfModeFilter.addEventListener('click', () => {
+        // 進階篩選開啟時，維持在「篩選」模式且不做切換邏輯
+        if (!sfAdvancedPanel.classList.contains('hidden')) {
+            sfMode = 'filter';
+            sfModeFilter.classList.add('active');
+            sfModeSearch.classList.remove('active');
+            runSearchAndFilter();
+            return;
+        }
+        if (sfMode === 'filter') { sfModeSearch.click(); return; } // Toggle behavior
+        sfMode = 'filter'; sfModeFilter.classList.add('active'); sfModeSearch.classList.remove('active');
+        runSearchAndFilter();
+    });
+    sfUseRegex.addEventListener('change', (e) => { sfUseRegexChecked = e.target.checked; runSearchAndFilter(); });
+    btnSfInvert.addEventListener('click', () => {
+        if (btnSfInvert.classList.contains('sf-invert-disabled')) return;
+        btnSfInvert.classList.toggle('active'); runSearchAndFilter();
+    });
+    if (btnSfOptionsPopover && sfOptionsPopover) {
+        btnSfOptionsPopover.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sfOptionsPopover.classList.toggle('hidden');
+        });
+        document.addEventListener('click', (e) => {
+            if (!sfOptionsPopover.classList.contains('hidden') && !sfOptionsPopover.contains(e.target) && e.target !== btnSfOptionsPopover) {
+                sfOptionsPopover.classList.add('hidden');
+            }
+        });
+    }
+    document.querySelectorAll('.sf-scope-cb, .sf-status-cb').forEach(cb => cb.addEventListener('change', runSearchAndFilter));
+    document.getElementById('sfTmMatch').addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(runSearchAndFilter, 300);
+    });
+    
+    sfInput.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(runSearchAndFilter, 300);
+    });
+
+    // 標籤群組插入模式：預設開啟（一次插入所有相鄰缺漏標籤）
+    let tagGroupInsertMode = localStorage.getItem('tagGroupInsertMode') !== 'single'; // default: group
+
+    // 標籤展開/收起：預設收起
+    let tagsExpanded = false;
+
+    /**
+     * F8 插入規則：
+     * - 無論如何都只插入「下一個缺漏 tag」（單一 tag）。
+     * - 只有在「有選取文字」且「下一個缺漏為 open，並且其 close 也同樣缺漏」時，
+     *   才在選取範圍前後插入一對 open/close。
+     * - 有選取且下一個是 standalone（或 close 等非成對情況）→ 用該單一 tag 取代選取文字。
+     * - 插入後游標不會跳到句尾。
+     */
+    function insertNextMissingTag(editorDiv, seg) {
+        const sourceTags = seg.sourceTags || [];
+        if (!sourceTags.length) return;
+
+        const currentText = extractTextFromEditor(editorDiv) || seg.targetText || '';
+        const presentPhs = new Set((currentText.match(/\{\/?\d+\}/g) || []));
+
+        // 找出所有缺漏標籤（依 ph 是否存在）
+        const missingTags = sourceTags.filter(t => !presentPhs.has(t.ph));
+        if (!missingTags.length) return;
+
+        // 選出「下一個」缺漏：用 num 最小；同 num 優先 open
+        const firstMissing = missingTags.reduce(
+            (a, b) => a.num < b.num ? a : (a.num === b.num && a.type === 'open' ? a : b)
+        );
+
+        const sel = window.getSelection();
+        const hasSelection = sel && !sel.isCollapsed && editorDiv.contains(sel.anchorNode);
+
+        const openTag = (firstMissing.type === 'open') ? firstMissing : null;
+        const closeTag = openTag
+            ? (sourceTags.find(t => t.pairNum === openTag.pairNum && t.type === 'close') || null)
+            : null;
+
+        const shouldWrapSelection = hasSelection
+            && openTag
+            && closeTag
+            && !presentPhs.has(closeTag.ph); // close 也缺漏才包覆
+
+        // 取得目前游標/選取的 range
+        const range = sel && sel.rangeCount > 0 && editorDiv.contains(sel.anchorNode)
+            ? sel.getRangeAt(0)
+            : (() => { const r = document.createRange(); r.selectNodeContents(editorDiv); r.collapse(false); return r; })();
+
+        if (shouldWrapSelection) {
+            const closeSpan = buildTagSpan(closeTag);
+            const openSpan = buildTagSpan(openTag);
+
+            // 在選取起點插入 open
+            const startRange = range.cloneRange();
+            startRange.collapse(true);
+            startRange.insertNode(openSpan);
+
+            // 在選取終點插入 close
+            const endRange = range.cloneRange();
+            endRange.collapse(false);
+            endRange.insertNode(closeSpan);
+
+            // 移動游標到 close 後
+            const newRange = document.createRange();
+            newRange.setStartAfter(closeSpan);
+            newRange.collapse(true);
+            if (sel) { sel.removeAllRanges(); sel.addRange(newRange); }
+        } else {
+            const tagToInsert = firstMissing;
+            const span = buildTagSpan(tagToInsert);
+
+            // 若有選取文字，則取代選取範圍
+            if (hasSelection) range.deleteContents();
+            range.insertNode(span);
+
+            // 移動游標到插入後
+            const newRange = document.createRange();
+            newRange.setStartAfter(span);
+            newRange.collapse(true);
+            if (sel) { sel.removeAllRanges(); sel.addRange(newRange); }
+        }
+
+        // 更新 targetText / 顏色 / 下一步提示
+        seg.targetText = extractTextFromEditor(editorDiv);
+        const row = editorDiv.closest('.grid-data-row');
+        updateTagColors(row, seg.targetText);
+        DBService.updateSegmentTarget(seg.id, seg.targetText).catch(console.error);
+        refreshTagNextHighlight(row);
+    }
+
+    /** 建立單個標籤的 span 元素（用於游標插入）。 */
+    function buildTagSpan(tag) {
+        const span = document.createElement('span');
+        const color = (tag.type === 'open' || tag.type === 'close')
+            ? TAG_PAIR_COLORS[(tag.pairNum - 1) % TAG_PAIR_COLORS.length] : undefined;
+        span.className = 'rt-tag' + (tag.type === 'open' ? ' rt-tag-s' : tag.type === 'close' ? ' rt-tag-e' : '');
+        span.setAttribute('data-ph', tag.ph);
+        span.setAttribute('data-pair', tag.pairNum);
+        span.contentEditable = 'false';
+        if (color) span.style.setProperty('--tag-color', color);
+        span.innerHTML = `<span class="tag-num">${tag.num}</span><span class="tag-content">${escapeHtml(tag.display)}</span>`;
+        return span;
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.key.toLowerCase() === 'f') {
+            e.preventDefault();
+            sfInput.focus();
+        }
+        // Ctrl+Shift+A for Select All Segments
+        if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'a') {
+            e.preventDefault();
+            selectedRowIds.clear();
+            currentSegmentsList.forEach(s => { if (!isDynamicForbidden(s) && !s.isLockedUser) selectedRowIds.add(s.id); });
+            document.querySelectorAll('.grid-data-row').forEach(r => {
+                const rId = parseInt(r.dataset.segId);
+                if (selectedRowIds.has(rId)) r.classList.add('selected-row');
+                else r.classList.remove('selected-row');
+            });
+        }
+        // F8: 插入下一個缺漏標籤（只插單一 tag；有選取且下一個可成對才包一對）
+        if (e.key === 'F8' && currentFileId && !e.ctrlKey) {
+            e.preventDefault();
+
+            const sel = window.getSelection();
+            let activeEditor = document.activeElement;
+            if (!(activeEditor && activeEditor.classList && activeEditor.classList.contains('grid-textarea'))) {
+                const anchor = sel && sel.anchorNode ? (sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode) : null;
+                activeEditor = anchor && anchor.closest ? anchor.closest('.grid-textarea') : null;
+            }
+
+            if (activeEditor && activeEditor.contentEditable !== 'false') {
+                const activeRow = activeEditor.closest('.grid-data-row');
+                if (!activeRow) return;
+                const segId = parseInt(activeRow.dataset.segId);
+                const seg = currentSegmentsList.find(s => s.id === segId);
+                if (seg) insertNextMissingTag(activeEditor, seg);
+            }
+        }
+        // Ctrl+F8：清除譯文中的所有標籤
+        if (e.ctrlKey && e.key === 'F8' && currentFileId) {
+            e.preventDefault();
+
+            const sel = window.getSelection();
+            let activeEditor = document.activeElement;
+            if (!(activeEditor && activeEditor.classList && activeEditor.classList.contains('grid-textarea'))) {
+                const anchor = sel && sel.anchorNode ? (sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode) : null;
+                activeEditor = anchor && anchor.closest ? anchor.closest('.grid-textarea') : null;
+            }
+
+            if (activeEditor && activeEditor.contentEditable !== 'false') {
+                const activeRow = activeEditor.closest('.grid-data-row');
+                if (!activeRow) return;
+                const segId = parseInt(activeRow.dataset.segId);
+                const seg = currentSegmentsList.find(s => s.id === segId);
+                if (seg) {
+                    const stripped = seg.targetText.replace(/\{\/?\d+\}/g, '');
+                    seg.targetText = stripped;
+                    activeEditor.innerHTML = buildTaggedHtml(stripped, seg.targetTags || seg.sourceTags || []);
+                    updateTagColors(activeRow, stripped);
+                    refreshTagNextHighlight(activeRow);
+                    DBService.updateSegmentTarget(seg.id, stripped).catch(console.error);
+                }
+            }
+        }
+        // Ctrl+Insert：將原文複製到譯文
+        if (e.ctrlKey && e.key === 'Insert' && currentFileId) {
+            e.preventDefault();
+            runTextOpOnSelection('copy-source');
+        }
+        // Ctrl+Delete：清除譯文
+        if (e.ctrlKey && e.key === 'Delete' && currentFileId) {
+            e.preventDefault();
+            runTextOpOnSelection('clear');
+        }
+        // Ctrl+Shift+T: 切換標籤展開/收起
+        if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 't') {
+            e.preventDefault();
+            tagsExpanded = !tagsExpanded;
+            const editorGrid = document.getElementById('editorGrid');
+            if (editorGrid) {
+                editorGrid.classList.toggle('tags-expanded', tagsExpanded);
+                editorGrid.classList.toggle('tags-collapsed', !tagsExpanded);
+            }
+            const tagToggleBtn = document.getElementById('btnTagCollapse');
+            if (tagToggleBtn) tagToggleBtn.title = tagsExpanded ? '收起標籤 (Ctrl+Shift+T)' : '展開標籤 (Ctrl+Shift+T)';
+        }
+        // Editor-wide undo/redo (譯文) when focus is in editor area
+        if (currentFileId && currentSegmentsList.length) {
+            const inEditor = document.getElementById('viewEditor')?.contains(document.activeElement);
+            if (inEditor && e.ctrlKey && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                applyEditorUndo();
+            } else if (inEditor && e.ctrlKey && e.key.toLowerCase() === 'y') {
+                e.preventDefault();
+                applyEditorRedo();
+            }
+        }
+    });
+
+    btnSfNext.addEventListener('click', () => {
+        if(sfSearchMatches.length === 0) return;
+        sfActiveMatchIdx = (sfActiveMatchIdx + 1) % sfSearchMatches.length;
+        updateMatchHighlightFocus();
+    });
+    btnSfPrev.addEventListener('click', () => {
+        if(sfSearchMatches.length === 0) return;
+        sfActiveMatchIdx = (sfActiveMatchIdx - 1 + sfSearchMatches.length) % sfSearchMatches.length;
+        updateMatchHighlightFocus();
+    });
+
+    // Core Evaluator
+    function evaluateSegment(seg, term, scopes, isRegex, isInvert, statuses, tmVal) {
+        let textMatch = false;
+        
+        if (!term) textMatch = true;
+        else {
+             let regex;
+             try {
+                 regex = isRegex ? new RegExp(term, 'gi') : null;
+             } catch(e) { return false; } // Invalid regex
+             
+             const checkMatch = (str) => {
+                 if(!str) return false;
+                 return isRegex ? regex.test(str) : str.toLowerCase().includes(term.toLowerCase());
+             };
+
+             // 搜尋時同時比對展開版（{N} 還原為實際標籤內容）
+             const expandTags = (text, tags) => {
+                 if (!tags || !tags.length) return text;
+                 const map = {};
+                 tags.forEach(t => { map[t.ph] = t.display || t.ph; });
+                 return text.replace(/\{\/?\d+\}/g, m => map[m] !== undefined ? map[m] : m);
+             };
+             const srcExpanded = expandTags(seg.sourceText || '', seg.sourceTags);
+             const tgtExpanded = expandTags(seg.targetText || '', seg.targetTags || seg.sourceTags);
+             if(scopes.includes('source') && (checkMatch(seg.sourceText || '') || checkMatch(srcExpanded))) textMatch = true;
+             if(scopes.includes('target') && (checkMatch(seg.targetText || '') || checkMatch(tgtExpanded))) textMatch = true;
+             if(scopes.includes('extra') && checkMatch(seg.extraValue || '')) textMatch = true;
+             if(scopes.includes('keys') && seg.keys) {
+                 for (let k of seg.keys) if (checkMatch(k || '')) { textMatch = true; break; }
+             }
+        }
+        
+        if (term && isInvert && sfMode === 'filter') textMatch = !textMatch;
+
+        let statusMatch = true;
+        if(statuses.length > 0) {
+            statusMatch = false;
+            const isConfirmed = seg.status === 'confirmed';
+            const isEmpty = !seg.targetText || !seg.targetText.trim();
+            if(statuses.includes('empty') && isEmpty) statusMatch = true;
+            if(statuses.includes('not_empty') && !isEmpty) statusMatch = true;
+            if(statuses.includes('confirmed') && isConfirmed) statusMatch = true;
+            if(statuses.includes('unconfirmed') && !isConfirmed) statusMatch = true;
+            if(statuses.includes('locked') && seg.isLocked) statusMatch = true;
+            if(statuses.includes('unlocked') && !seg.isLocked) statusMatch = true;
+        }
+
+        let tmMatch = true;
+        if(tmVal && tmVal.trim() !== '') {
+            // Check if segment has any TM match result >= required
+            let highestTm = 0;
+            // Mock: If seg has results array, find max. Default mock to 85.
+            highestTm = seg.tmMatch || 0; // fallback
+
+            const v = tmVal.trim();
+            tmMatch = false; // default false
+            if(v.startsWith('-')) {
+                // -x (x and below)
+                const max = parseInt(v.substring(1));
+                if (!isNaN(max) && highestTm <= max) tmMatch = true;
+            } else if (v.endsWith('-')) {
+                // y- (y and above)
+                const min = parseInt(v.substring(0, v.length-1));
+                if (!isNaN(min) && highestTm >= min) tmMatch = true;
+            } else if (v.includes('-')) {
+                // x-y (x to y)
+                const parts = v.split('-');
+                if(parts.length === 2) {
+                    const min = parseInt(parts[0]);
+                    const max = parseInt(parts[1]);
+                    if (!isNaN(min) && !isNaN(max) && highestTm >= min && highestTm <= max) tmMatch = true;
+                }
+            } else {
+                // Exact match (or consider it single number)
+                const exact = parseInt(v);
+                if (!isNaN(exact) && highestTm === exact) tmMatch = true;
+            }
+        }
+
+        return textMatch && statusMatch && tmMatch;
+    }
+
+    function runSearchAndFilter() {
+        if (!currentSegmentsList.length) return;
+        
+        if (btnSfInvert) {
+            if (sfMode === 'search') btnSfInvert.classList.add('sf-invert-disabled');
+            else btnSfInvert.classList.remove('sf-invert-disabled');
+        }
+
+        sfSearchMatches = [];
+        sfActiveMatchIdx = -1;
+        
+        const term = sfInput.value;
+        const scopes = Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map(cb => cb.value);
+        const statuses = Array.from(document.querySelectorAll('.sf-status-cb:checked')).map(cb => cb.value);
+        const tmVal = document.getElementById('sfTmMatch').value;
+        const isInvert = btnSfInvert.classList.contains('active');
+        
+        const rows = document.querySelectorAll('.grid-data-row');
+        
+        currentSegmentsList.forEach((seg, idx) => {
+            const row = rows[idx];
+            if(!row) return;
+
+            let r_groupMatch = true;
+            
+            const hasUiFilter = (term || statuses.length > 0 || tmVal || isInvert);
+            const isEvalMatch = evaluateSegment(seg, term, scopes, sfUseRegexChecked, isInvert, statuses, tmVal);
+            
+            let r_finalMatch = true;
+            if (sfFilterGroups.length > 0) {
+                if (!hasUiFilter) {
+                    r_finalMatch = evaluateSegment(seg, sfFilterGroups[0].term, sfFilterGroups[0].scopes, sfFilterGroups[0].isRegex, sfFilterGroups[0].isInvert, sfFilterGroups[0].statuses, sfFilterGroups[0].tmVal);
+                    for(let i=1; i<sfFilterGroups.length; i++) {
+                        const g = sfFilterGroups[i];
+                        const m = evaluateSegment(seg, g.term, g.scopes, g.isRegex, g.isInvert, g.statuses, g.tmVal);
+                        if (g.op === 'AND') r_finalMatch = r_finalMatch && m;
+                        if (g.op === 'OR')  r_finalMatch = r_finalMatch || m;
+                    }
+                } else {
+                    r_finalMatch = isEvalMatch;
+                    for(let i=0; i<sfFilterGroups.length; i++) {
+                        const g = sfFilterGroups[i];
+                        const m = evaluateSegment(seg, g.term, g.scopes, g.isRegex, g.isInvert, g.statuses, g.tmVal);
+                        if (g.op === 'AND') r_finalMatch = r_finalMatch && m;
+                        if (g.op === 'OR')  r_finalMatch = r_finalMatch || m;
+                    }
+                }
+            } else {
+                r_finalMatch = hasUiFilter ? isEvalMatch : true;
+            }
+
+            // Filter Mode hiding
+            if (sfMode === 'filter') {
+                row.style.display = r_finalMatch ? '' : 'none';
+            } else {
+                row.style.display = '';
+            }
+
+            // Highlighting resetting
+            row.querySelectorAll('.col-source, .col-extra, .col-id, [class^="col-key-"]').forEach(cell => {
+                cell.innerHTML = cell.innerHTML.replace(/<mark class="search-match[^>]*>|<\/mark>/g, '');
+            });
+            // Reset target contenteditable: rebuild from stored text to remove old marks
+            const targetEditor = row.querySelector('.grid-textarea');
+            if (targetEditor) {
+                const currentText = seg.targetText || '';
+                targetEditor.innerHTML = buildTaggedHtml(currentText, seg.targetTags || seg.sourceTags || []);
+            }
+
+            // --- Apply Highlighting ---
+            // Build a list of highlight requests for this row
+            const highlightRequests = [];
+            
+            if (term && (sfMode === 'search' ? r_finalMatch : r_finalMatch)) {
+                highlightRequests.push({ term, scopes, isRegex: sfUseRegexChecked, bg: null }); 
+            }
+            if (r_finalMatch || sfMode === 'search') {
+                sfFilterGroups.forEach(g => {
+                    if(g.term) highlightRequests.push({ term: g.term, scopes: g.scopes, isRegex: g.isRegex, bg: g.color });
+                });
+            }
+
+            if (highlightRequests.length > 0) {
+                const highlightCell = (cellSelector, rawText, isTextarea, segIdx, fieldKey) => {
+                    // For target: highlight directly in contenteditable (no separate backdrop)
+                    const cell = isTextarea ? row.querySelector('.grid-textarea') : row.querySelector(cellSelector);
+                    if(!cell || !rawText) return;
+                    
+                    let newHtml = rawText;
+                    let matchFoundInCell = false;
+
+                    // Apply each request sequentially
+                    highlightRequests.forEach(req => {
+                        if(!req.scopes.includes(isTextarea ? 'target' : cellSelector.replace('.col-', ''))) {
+                            if (cellSelector.startsWith('.col-key-') && req.scopes.includes('keys')) { /* valid */ }
+                            else return;
+                        }
+                        
+                        let regexObj = null;
+                        if(req.isRegex) {
+                            try { regexObj = new RegExp("(" + req.term + ")", 'gi'); } catch(e){}
+                        }
+
+                        if (req.isRegex && regexObj) {
+                            if(regexObj.test(rawText)) matchFoundInCell = true;
+                            const styleStr = req.bg ? ` style="background-color:${req.bg};"` : '';
+                            newHtml = newHtml.replace(regexObj, `<mark class="search-match"${styleStr}>$1</mark>`);
+                            regexObj.lastIndex = 0;
+                        } else {
+                            const lTerm = req.term.toLowerCase();
+                            if(rawText.toLowerCase().indexOf(lTerm) !== -1) {
+                                matchFoundInCell = true;
+                                const escapedRaw = isTextarea ? rawText : rawText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                                const escapedTerm = req.term.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                                const escReg = new RegExp(`(${escapedTerm.replace(/[.*+?^$\\{}()|[\\]\\\\]/g, '\\$&')})`, 'gi');
+                                const styleStr = req.bg ? ` style="background-color:${req.bg};"` : '';
+                                newHtml = newHtml.replace(escReg, `<mark class="search-match"${styleStr}>$1</mark>`);
+                            }
+                        }
+                    });
+
+                    if(matchFoundInCell) {
+                        cell.innerHTML = newHtml;
+                        cell.querySelectorAll('.search-match').forEach(m => {
+                            sfSearchMatches.push({ 
+                                markEl: m, 
+                                rowEl: row,
+                                isTextarea: isTextarea,
+                                textareaEl: isTextarea ? row.querySelector('.grid-textarea') : null,
+                                segIdx: segIdx,
+                                fieldKey: fieldKey
+                            });
+                        });
+                    }
+                };
+
+                highlightCell('.col-source', seg.sourceText, false, idx, 'source');
+                highlightCell('.col-extra', seg.extraValue || '', false, idx, 'extra');
+                highlightCell('.col-target', seg.targetText, true, idx, 'target');
+                if(seg.keys) {
+                    for(let k=0; k<seg.keys.length; k++) highlightCell(`.col-key-${k}`, seg.keys[k], false, idx, 'key-' + k);
+                }
+            }
+        });
+
+        sfMatchCount.textContent = sfSearchMatches.length > 0 ? `1 / ${sfSearchMatches.length}` : `0 / 0`;
+        if(sfSearchMatches.length > 0) {
+            sfActiveMatchIdx = 0;
+            updateMatchHighlightFocus();
+        } else {
+            sfMatchCount.textContent = `0 / 0`;
+        }
+    }
+
+    function updateMatchHighlightFocus() {
+        document.querySelectorAll('mark.search-match-active').forEach(m => m.classList.remove('search-match-active'));
+        if(sfSearchMatches.length === 0 || sfActiveMatchIdx === -1) return;
+        
+        sfMatchCount.textContent = `${sfActiveMatchIdx + 1} / ${sfSearchMatches.length}`;
+        const match = sfSearchMatches[sfActiveMatchIdx];
+        
+        match.markEl.classList.add('search-match-active');
+        
+        if (match.isTextarea && match.textareaEl) {
+            match.textareaEl.focus();
+        }
+        
+        match.rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function getSegmentFieldText(seg, segIdx, fieldKey) {
+        const row = document.querySelectorAll('.grid-data-row')[segIdx];
+        if (fieldKey === 'target' && row) {
+            const ta = row.querySelector('.grid-textarea');
+            if (ta) return extractTextFromEditor(ta);
+        }
+        if (fieldKey === 'source') return seg.sourceText || '';
+        if (fieldKey === 'extra') return seg.extraValue || '';
+        if (fieldKey.startsWith('key-')) {
+            const k = parseInt(fieldKey.replace('key-', ''), 10);
+            return (seg.keys && seg.keys[k]) || '';
+        }
+        return '';
+    }
+
+    function pushEditorUndo(segmentId, oldTarget, newTarget) {
+        if (oldTarget === newTarget) return;
+        editorUndoStack.push({ segmentId, oldTarget, newTarget });
+        editorRedoStack.length = 0;
+    }
+
+    function applyEditorUndo() {
+        const entry = editorUndoStack.pop();
+        if (!entry) return;
+        const segIdx = currentSegmentsList.findIndex(s => s.id === entry.segmentId);
+        if (segIdx === -1) return;
+        const seg = currentSegmentsList[segIdx];
+        seg.targetText = entry.oldTarget;
+        const row = document.querySelectorAll('.grid-data-row')[segIdx];
+        if (row) {
+            const ta = row.querySelector('.grid-textarea');
+            if (ta) {
+                ta.innerHTML = buildTaggedHtml(entry.oldTarget, seg.targetTags || seg.sourceTags || []);
+                updateTagColors(row, entry.oldTarget);
+                if (editorUndoEditStart[seg.id] !== undefined) editorUndoEditStart[seg.id] = entry.oldTarget;
+            }
+        }
+        if (seg.id) DBService.updateSegmentTarget(seg.id, entry.oldTarget).catch(console.error);
+        editorRedoStack.push({ segmentId: entry.segmentId, oldTarget: entry.newTarget, newTarget: entry.oldTarget });
+    }
+
+    function applyEditorRedo() {
+        const entry = editorRedoStack.pop();
+        if (!entry) return;
+        const segIdx = currentSegmentsList.findIndex(s => s.id === entry.segmentId);
+        if (segIdx === -1) return;
+        const seg = currentSegmentsList[segIdx];
+        seg.targetText = entry.newTarget;
+        const row = document.querySelectorAll('.grid-data-row')[segIdx];
+        if (row) {
+            const ta = row.querySelector('.grid-textarea');
+            if (ta) {
+                ta.innerHTML = buildTaggedHtml(entry.newTarget, seg.targetTags || seg.sourceTags || []);
+                updateTagColors(row, entry.newTarget);
+                if (editorUndoEditStart[seg.id] !== undefined) editorUndoEditStart[seg.id] = entry.newTarget;
+            }
+        }
+        if (seg.id) DBService.updateSegmentTarget(seg.id, entry.newTarget).catch(console.error);
+        editorUndoStack.push({ segmentId: entry.segmentId, oldTarget: entry.newTarget, newTarget: entry.oldTarget });
+    }
+
+    function setSegmentFieldText(seg, segIdx, fieldKey, newText) {
+        const row = document.querySelectorAll('.grid-data-row')[segIdx];
+        if (fieldKey === 'target') {
+            seg.targetText = newText;
+            if (row) {
+                const ta = row.querySelector('.grid-textarea');
+                if (ta) {
+                    ta.innerHTML = buildTaggedHtml(newText, seg.targetTags || seg.sourceTags || []);
+                    updateTagColors(row, newText);
+                }
+            }
+            if (seg.id) DBService.updateSegmentTarget(seg.id, newText).catch(console.error);
+            return;
+        }
+        if (fieldKey === 'source') seg.sourceText = newText;
+        else if (fieldKey === 'extra') seg.extraValue = newText;
+        else if (fieldKey.startsWith('key-')) {
+            const k = parseInt(fieldKey.replace('key-', ''), 10);
+            if (!seg.keys) seg.keys = [];
+            seg.keys[k] = newText;
+        }
+        if (row) {
+            const cell = row.querySelector('.col-' + fieldKey);
+            if (cell && !cell.querySelector('textarea')) cell.textContent = newText;
+        }
+    }
+
+    function doReplaceInText(text, searchTerm, replaceTerm, isRegex, firstOnly) {
+        if (!text || searchTerm === '') return text;
+        if (isRegex) {
+            try {
+                const regex = new RegExp(searchTerm, firstOnly ? 'i' : 'g');
+                return text.replace(regex, replaceTerm);
+            } catch(e) { return text; }
+        }
+        const lower = searchTerm.toLowerCase();
+        if (firstOnly) {
+            const idx = text.toLowerCase().indexOf(lower);
+            if (idx === -1) return text;
+            return text.substring(0, idx) + replaceTerm + text.substring(idx + searchTerm.length);
+        }
+        let result = text;
+        let pos = 0;
+        for (;;) {
+            const idx = result.toLowerCase().indexOf(lower, pos);
+            if (idx === -1) break;
+            result = result.substring(0, idx) + replaceTerm + result.substring(idx + searchTerm.length);
+            pos = idx + replaceTerm.length;
+        }
+        return result;
+    }
+
+    function findNextTargetMatchIndex(fromIdx) {
+        if (!sfSearchMatches.length) return -1;
+        for (let i = fromIdx; i < sfSearchMatches.length; i++) {
+            if (sfSearchMatches[i].fieldKey === 'target') return i;
+        }
+        for (let i = 0; i < fromIdx; i++) {
+            if (sfSearchMatches[i].fieldKey === 'target') return i;
+        }
+        return -1;
+    }
+
+    function performReplaceThis() {
+        const term = sfInput.value;
+        const replaceTerm = sfReplaceInput ? sfReplaceInput.value : '';
+        if (!term || !currentSegmentsList.length) return;
+        if (sfSearchMatches.length === 0) return;
+        let idx = sfActiveMatchIdx < 0 ? 0 : sfActiveMatchIdx;
+
+        // 先對齊到目前或之後「譯文欄」的符合項目（不管鎖定與否）
+        let match = sfSearchMatches[idx];
+        if (match.fieldKey !== 'target') {
+            idx = findNextTargetMatchIndex(idx + 1);
+            if (idx < 0) return;
+            match = sfSearchMatches[idx];
+        }
+
+        const seg = currentSegmentsList[match.segIdx];
+        if (!seg) return;
+
+        // 若目前命中在鎖定句段中：不做取代，只把焦點移到下一個譯文命中
+        if (seg.isLocked) {
+            const nextIdx = findNextTargetMatchIndex(idx + 1);
+            sfActiveMatchIdx = nextIdx >= 0 ? nextIdx : idx; // 若沒有下一個，就留在原處
+            updateMatchHighlightFocus();
+            return;
+        }
+
+        let text = getSegmentFieldText(seg, match.segIdx, 'target');
+        const newText = doReplaceInText(text, term, replaceTerm, sfUseRegexChecked, true);
+        if (newText === text) return;
+        pushEditorUndo(seg.id, text, newText);
+        setSegmentFieldText(seg, match.segIdx, 'target', newText);
+        runSearchAndFilter();
+        if (sfSearchMatches.length > 0) {
+            // 重新從第一個譯文命中開始走，確保不會跳過同一句段中的其他相符項目
+            const firstTargetIdx = findNextTargetMatchIndex(0);
+            sfActiveMatchIdx = firstTargetIdx >= 0 ? firstTargetIdx : 0;
+            updateMatchHighlightFocus();
+        }
+    }
+
+    function performReplaceAll() {
+        const term = sfInput.value;
+        const replaceTerm = sfReplaceInput ? sfReplaceInput.value : '';
+        if (!term || !currentSegmentsList.length) return;
+        const rows = document.querySelectorAll('.grid-data-row');
+        const hasSelection = selectedRowIds && selectedRowIds.size > 0;
+        let replacedCount = 0;
+        currentSegmentsList.forEach((seg, segIdx) => {
+            if (seg.isLocked) return;
+            const row = rows[segIdx];
+            if (hasSelection && !selectedRowIds.has(seg.id)) return;
+            if (!hasSelection && row && row.style.display === 'none') return;
+            let text = getSegmentFieldText(seg, segIdx, 'target');
+            const newText = doReplaceInText(text, term, replaceTerm, sfUseRegexChecked, false);
+            if (newText !== text) {
+                pushEditorUndo(seg.id, text, newText);
+                setSegmentFieldText(seg, segIdx, 'target', newText);
+                replacedCount++;
+            }
+        });
+        runSearchAndFilter();
+        if (replacedCount > 0) updateProgress();
+    }
+
+    if (btnSfReplaceThis) btnSfReplaceThis.addEventListener('click', performReplaceThis);
+    if (btnSfReplaceAll) btnSfReplaceAll.addEventListener('click', performReplaceAll);
+
+    // --- Advanced Groups & Presets ---
+    const sfActiveGroupsContainer = document.getElementById('sfActiveGroupsContainer');
+    const btnAddFilterGroup = document.getElementById('btnAddFilterGroup');
+    const btnSaveFilterPreset = document.getElementById('btnSaveFilterPreset');
+    const sfPresetsSelect = document.getElementById('sfPresetsSelect');
+    function getRandomGroupColor() {
+        let h;
+        // avoid 30-60 (orange/yellow used by active UI search) and extremely dark colors
+        do { h = Math.floor(Math.random() * 360); } while (h >= 30 && h <= 60);
+        return `hsl(${h}, 70%, 85%)`;
+    }
+
+    const scopeNames = { 'source':'原文', 'target':'譯文', 'keys':'Key', 'extra':'額外資訊' };
+    const statusNames = { 'empty':'空白', 'not_empty':'非空白', 'confirmed':'已確認', 'unconfirmed':'未確認', 'locked':'鎖定', 'unlocked':'未鎖定' };
+
+    function renderFilterGroups() {
+        sfActiveGroupsContainer.innerHTML = '';
+        if(sfFilterGroups.length === 0) {
+            sfActiveGroupsContainer.style.display = 'none';
+            return;
+        }
+        sfActiveGroupsContainer.style.display = 'flex';
+        sfFilterGroups.forEach((g, idx) => {
+            const chip = document.createElement('div');
+            chip.className = 'sf-group-chip';
+            if(g.color) { 
+                chip.style.backgroundColor = g.color; 
+                chip.style.borderColor = g.color; 
+                chip.style.color = '#1e293b'; 
+            }
+            
+            const opHtml = `<div class="sf-group-op" title="點擊切換"><span>${g.op === 'AND' ? '且' : '或'}</span></div>`;
+            
+            let strPart = g.term ? `${g.isInvert ? '(不包含) ' : ''}字串「${g.term}」 / 搜尋範圍：${g.scopes.map(s => scopeNames[s]||s).join('、')}` : '';
+            if (g.isInvert && !g.term) strPart = '(不包含) 全部字串';
+            
+            let statusPartText = g.statuses.length ? g.statuses.map(s => statusNames[s]||s).join('、') : '無';
+            let tmPartText = g.tmVal ? g.tmVal + '' : '無';
+            let statusTmPart = `句段狀態：${statusPartText} / 翻譯記憶相符度：${tmPartText}`;
+
+            chip.innerHTML = `
+                ${opHtml}
+                <div class="sf-group-content">
+                    ${strPart ? `<div>${strPart}</div>` : ''}
+                    <div>${statusTmPart}</div>
+                </div>
+                <div class="sf-group-del" title="移除">✖</div>
+            `;
+
+            chip.querySelector('.sf-group-op').addEventListener('click', () => {
+                g.op = g.op === 'AND' ? 'OR' : 'AND';
+                renderFilterGroups(); runSearchAndFilter();
+            });
+            chip.querySelector('.sf-group-del').addEventListener('click', () => {
+                sfFilterGroups.splice(idx, 1);
+                renderFilterGroups(); runSearchAndFilter();
+            });
+
+            sfActiveGroupsContainer.appendChild(chip);
+        });
+    }
+
+    function clearUIFilters() {
+        sfInput.value = '';
+        document.querySelectorAll('.sf-status-cb').forEach(c => c.checked = false);
+        document.getElementById('sfTmMatch').value = '';
+        btnSfInvert.classList.remove('active');
+        // keep scopes & regex as they are settings
+    }
+
+    btnAddFilterGroup.addEventListener('click', () => {
+        sfFilterGroups.push({
+            op: 'AND',
+            term: sfInput.value,
+            scopes: Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map(cb => cb.value),
+            isRegex: sfUseRegexChecked,
+            isInvert: btnSfInvert.classList.contains('active'),
+            statuses: Array.from(document.querySelectorAll('.sf-status-cb:checked')).map(cb => cb.value),
+            tmVal: document.getElementById('sfTmMatch').value,
+            color: getRandomGroupColor()
+        });
+        clearUIFilters();
+        if(sfMode !== 'filter') document.getElementById('sfModeFilter').click(); // Auto switch to filter mode
+        else { renderFilterGroups(); runSearchAndFilter(); }
+    });
+
+    function loadPresetsSelect() {
+        sfPresetsSelect.innerHTML = '<option value="">-- 我的最愛 --</option>';
+        Object.keys(sfPresets).forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name; opt.textContent = name;
+            sfPresetsSelect.appendChild(opt);
+        });
+    }
+    
+    btnSaveFilterPreset.addEventListener('click', () => {
+        const name = prompt('請輸入常用篩選與搜尋組合名稱：');
+        if(!name) return;
+        sfPresets[name] = {
+            groups: JSON.parse(JSON.stringify(sfFilterGroups)),
+            current: {
+                term: sfInput.value,
+                scopes: Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map(cb => cb.value),
+                isRegex: sfUseRegexChecked,
+                isInvert: btnSfInvert.classList.contains('active'),
+                statuses: Array.from(document.querySelectorAll('.sf-status-cb:checked')).map(cb => cb.value),
+                tmVal: document.getElementById('sfTmMatch').value,
+            }
+        };
+        localStorage.setItem('catToolSfPresets', JSON.stringify(sfPresets));
+        loadPresetsSelect();
+    });
+
+    sfPresetsSelect.addEventListener('change', (e) => {
+        const name = e.target.value;
+        if(!name || !sfPresets[name]) return;
+        const p = sfPresets[name];
+        
+        // ensure backwards compatibility for missing color code in old presets
+        sfFilterGroups = JSON.parse(JSON.stringify(p.groups)).map(g => {
+            if(!g.color) g.color = getRandomGroupColor();
+            return g;
+        });
+        
+        sfInput.value = p.current.term;
+        document.getElementById('sfTmMatch').value = p.current.tmVal || '';
+
+        sfUseRegexChecked = p.current.isRegex;
+        document.getElementById('sfUseRegex').checked = sfUseRegexChecked;
+        if (p.current.isInvert) btnSfInvert.classList.add('active'); else btnSfInvert.classList.remove('active');
+        
+        document.querySelectorAll('.sf-scope-cb').forEach(c => c.checked = p.current.scopes.includes(c.value));
+        document.querySelectorAll('.sf-status-cb').forEach(c => c.checked = p.current.statuses.includes(c.value));
+        
+        document.getElementById('sfModeFilter').click();
+        renderFilterGroups();
+        runSearchAndFilter();
+        e.target.value = ''; // reset DDL
+    });
+
+
+
+    const btnSfClearNav = document.getElementById('btnSfClearNav');
+    if (btnSfClearNav) {
+        btnSfClearNav.addEventListener('click', () => {
+            clearUIFilters();
+            sfFilterGroups = [];
+            renderFilterGroups();
+            if (sfMode !== 'search') {
+                sfMode = 'search'; sfModeSearch.classList.add('active'); sfModeFilter.classList.remove('active');
+            }
+            runSearchAndFilter();
+            if (lastEditedRowIdx !== null) {
+                const rows = document.querySelectorAll('.grid-data-row');
+                const targetRow = rows[lastEditedRowIdx];
+                if (targetRow) {
+                    const txt = targetRow.querySelector('.grid-textarea');
+                    if (txt && txt.contentEditable !== 'false') { txt.focus(); targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+                }
+            }
+        });
+    }
+
+    loadPresetsSelect();
+
+    // Helper: propagate repetition confirmation
+    async function propagateRepetition(seg, segIndex) {
+        const mode = seg.repModeSeg || repMode;
+        if (mode === 'none' || !seg.repetitionType) return;
+
+        const src = seg.sourceText;
+        const tgt = seg.targetText;
+
+        for (let j = 0; j < currentSegmentsList.length; j++) {
+            if (j === segIndex) continue;
+            const other = currentSegmentsList[j];
+            const otherLocked = !!(isDynamicForbidden(other) || other.isLockedUser);
+            if (otherLocked || other.sourceText !== src) continue;
+
+            if (mode === 'after' && j <= segIndex) continue; // only after
+            // mode === 'all': process everyone
+
+            other.targetText = tgt;
+            other.status = 'confirmed';
+            if (currentFileFormat === 'mqxliff') {
+                other.confirmationRole = resolveConfirmationRole(other);
+            }
+            await DBService.updateSegmentTarget(other.id, tgt);
+            await DBService.updateSegmentStatus(other.id, 'confirmed', currentFileFormat === 'mqxliff' && other.confirmationRole ? { confirmationRole: other.confirmationRole } : {});
+            await syncSegmentToWriteTmsOnConfirm(other, j);
+
+            // Update DOM if row exists
+            const rows = document.querySelectorAll('.grid-data-row');
+            if (rows[j]) {
+                const ta = rows[j].querySelector('.grid-textarea');
+                if (ta) {
+                    ta.innerHTML = buildTaggedHtml(tgt, other.targetTags || other.sourceTags || []);
+                    updateTagColors(rows[j], tgt);
+                }
+                const si = rows[j].querySelector('.status-icon');
+                if (si) {
+                    si.classList.add('done');
+                    if (currentFileFormat === 'mqxliff') {
+                        const r = other.confirmationRole || 'T';
+                        if (r === 'R1') {
+                            si.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
+                        } else if (r === 'R2') {
+                            si.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
+                        } else {
+                            si.innerHTML = '&#10003;';
+                        }
+                    }
+                }
+                if (!isDynamicForbidden(other) && !other.isLockedUser) rows[j].style.backgroundColor = '#f0fdf4';
+            }
+        }
+        updateProgress();
+    }
+
+    /** 整份檔案工作筆記：即時 debounce 寫入 files.workspaceNoteDraft */
+    (function initEditorWorkspaceNoteBar() {
+        const noteInput = document.getElementById('editorWorkspaceNoteInput');
+        if (!noteInput) return;
+        noteInput.addEventListener('input', () => {
+            if (!currentFileId) return;
+            clearTimeout(workspaceNoteDraftTimer);
+            workspaceNoteDraftTimer = setTimeout(() => {
+                DBService.updateFile(currentFileId, { workspaceNoteDraft: noteInput.value }).catch(console.error);
+            }, 400);
+        });
+    })();
+
+    /**
+     * 離開編輯器前處理筆記：空白則清除草稿；有內容則蓋版詢問是否寫入專案筆記列表。
+     * @returns {Promise<boolean>} true = 可繼續離開；false = 使用者取消
+     */
+    async function ensureWorkspaceNoteLeaveResolved() {
+        const noteInput = document.getElementById('editorWorkspaceNoteInput');
+        if (!currentFileId || !noteInput) return true;
+        clearTimeout(workspaceNoteDraftTimer);
+        await DBService.updateFile(currentFileId, { workspaceNoteDraft: noteInput.value }).catch(() => {});
+        const text = (noteInput.value || '').trim();
+        if (!text) {
+            await DBService.updateFile(currentFileId, { workspaceNoteDraft: '' }).catch(() => {});
+            return true;
+        }
+        return await new Promise((resolve) => {
+            const modal = document.getElementById('workspaceNoteLeaveModal');
+            const preview = document.getElementById('workspaceNoteLeavePreview');
+            const titleInput = document.getElementById('workspaceNoteTitleInput');
+            const btnSave = document.getElementById('btnWorkspaceNoteLeaveSave');
+            const btnDiscard = document.getElementById('btnWorkspaceNoteLeaveDiscard');
+            const btnCancel = document.getElementById('btnWorkspaceNoteLeaveCancel');
+            if (!modal || !preview || !btnSave || !btnDiscard || !btnCancel) {
+                resolve(true);
+                return;
+            }
+            if (titleInput) {
+                const perFile = localStorage.getItem(`catWorkspaceNoteTitle_file_${currentFileId}`);
+                const lastG = localStorage.getItem('catWorkspaceNoteTitle_last');
+                titleInput.value = perFile || lastG || '';
+            }
+            preview.textContent = noteInput.value.length > 12000
+                ? noteInput.value.slice(0, 12000) + '\n…（僅預覽前 12000 字；存檔仍為全文）'
+                : noteInput.value;
+            modal.classList.remove('hidden');
+            const cleanup = () => {
+                modal.classList.add('hidden');
+                btnSave.onclick = null;
+                btnDiscard.onclick = null;
+                btnCancel.onclick = null;
+            };
+            btnCancel.onclick = () => { cleanup(); resolve(false); };
+            btnDiscard.onclick = async () => {
+                try {
+                    await DBService.updateFile(currentFileId, { workspaceNoteDraft: '' });
+                } catch (_) {}
+                noteInput.value = '';
+                cleanup();
+                resolve(true);
+            };
+            btnSave.onclick = async () => {
+                const creator = localStorage.getItem('localCatUserProfile') || 'Unknown User';
+                const savedAt = new Date().toISOString();
+                const displayTitle = normalizeWorkspaceNoteTitle(titleInput ? titleInput.value.trim() : '');
+                try {
+                    localStorage.setItem('catWorkspaceNoteTitle_last', displayTitle);
+                    localStorage.setItem(`catWorkspaceNoteTitle_file_${currentFileId}`, displayTitle);
+                    await DBService.addWorkspaceNote({
+                        projectId: currentProjectId,
+                        fileId: currentFileId,
+                        displayTitle,
+                        content: noteInput.value,
+                        createdBy: creator,
+                        savedAt
+                    });
+                    await DBService.updateFile(currentFileId, { workspaceNoteDraft: '' });
+                } catch (err) {
+                    console.error(err);
+                    alert('無法儲存筆記（請確認瀏覽器資料庫已升級至 v6）。');
+                    cleanup();
+                    resolve(false);
+                    return;
+                }
+                noteInput.value = '';
+                cleanup();
+                resolve(true);
+            };
+        });
+    }
+
+    /** 多選時 Ctrl+Enter：批次確認所選句段（略過鎖定／禁止），並寫入 TM／重複傳播。capture 先於 textarea。 */
+    document.addEventListener('keydown', (e) => {
+        if (!e.ctrlKey || e.key !== 'Enter' || !currentFileId) return;
+        const viewEditor = document.getElementById('viewEditor');
+        if (!viewEditor || viewEditor.classList.contains('hidden')) return;
+        if (!selectedRowIds || selectedRowIds.size <= 1) return;
+        e.preventDefault();
+        e.stopPropagation();
+        (async () => {
+            const indices = [];
+            currentSegmentsList.forEach((s, idx) => {
+                if (selectedRowIds.has(s.id) && !isDynamicForbidden(s) && !s.isLockedUser) indices.push(idx);
+            });
+            indices.sort((a, b) => a - b);
+            for (const i of indices) {
+                const seg = currentSegmentsList[i];
+                if (seg.status !== 'confirmed') {
+                    seg.status = 'confirmed';
+                    if (currentFileFormat === 'mqxliff') seg.confirmationRole = resolveConfirmationRole(seg);
+                    const extra = currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {};
+                    await DBService.updateSegmentStatus(seg.id, seg.status, extra);
+                }
+                await syncSegmentToWriteTmsOnConfirm(seg, i);
+                if (seg.repetitionType) await propagateRepetition(seg, i);
+            }
+            updateProgress();
+            renderEditorSegments();
+            const ar = document.querySelector('.grid-data-row.active-row');
+            const aid = ar ? parseInt(ar.dataset.segId, 10) : null;
+            const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
+            if (activeSeg) renderLiveTmMatches(activeSeg);
+        })();
+    }, true);
+
+    // ==========================================
+    // TAG EDITOR HELPERS
+    // ==========================================
+
+    const TAG_PAIR_COLORS = [
+        '#2563eb','#d97706','#16a34a','#dc2626',
+        '#7c3aed','#0891b2','#c2410c','#15803d'
+    ];
+
+    function escapeHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    /**
+     * 將含 {N}/{/N} 佔位符的純文字 + tags 陣列轉為 contenteditable innerHTML。
+     * isSource=true 時不加 contenteditable="true"（唯讀原文欄使用）。
+     */
+    function buildTaggedHtml(text, tags, isSource) {
+        if (!text) return '';
+        if (!tags || !tags.length) {
+            return escapeHtml(text).replace(/\n/g, '<br>');
+        }
+        const tagMap = {};
+        const pairColorMap = {};
+        let pairColorIdx = 0;
+        tags.forEach(t => {
+            tagMap[t.ph] = t;
+            if ((t.type === 'open' || t.type === 'close') && !(t.pairNum in pairColorMap)) {
+                pairColorMap[t.pairNum] = TAG_PAIR_COLORS[pairColorIdx++ % TAG_PAIR_COLORS.length];
+            }
+        });
+
+        let html = '';
+        const parts = text.split(/(\{\/?\d+\})/);
+        for (const part of parts) {
+            const tag = tagMap[part];
+            if (tag) {
+                const color = (tag.type === 'open' || tag.type === 'close')
+                    ? pairColorMap[tag.pairNum] : undefined;
+                const colorStyle = color ? `--tag-color:${color};` : '';
+                const cls = 'rt-tag' +
+                    (tag.type === 'open' ? ' rt-tag-s' : tag.type === 'close' ? ' rt-tag-e' : '');
+                html += `<span class="${cls}" data-ph="${escapeHtml(tag.ph)}" data-pair="${tag.pairNum}" style="${colorStyle}" contenteditable="false">`;
+                html += `<span class="tag-num">${tag.num}</span>`;
+                html += `<span class="tag-content">${escapeHtml(tag.display)}</span>`;
+                html += `</span>`;
+            } else {
+                html += escapeHtml(part).replace(/\n/g, '<br>');
+            }
+        }
+        return html;
+    }
+
+    /**
+     * 從 contenteditable div 提取純文字（含 {N} 佔位符），忽略 <mark> 等裝飾元素。
+     */
+    function extractTextFromEditor(editorDiv) {
+        let text = '';
+        for (const node of editorDiv.childNodes) {
+            if (node.nodeType === 3) {
+                text += node.nodeValue;
+            } else if (node.nodeType === 1) {
+                if (node.tagName === 'BR') {
+                    text += '\n';
+                } else if (node.classList && node.classList.contains('rt-tag')) {
+                    text += node.getAttribute('data-ph') || '';
+                } else {
+                    text += extractTextFromEditor(node);
+                }
+            }
+        }
+        return text;
+    }
+
+    function normalizeXmlForSig(xml) {
+        return String(xml ?? '')
+            .trim()
+            .replace(/\s+/g, ' ');
+    }
+
+    function buildTagTokenSequence(tags, text) {
+        const tagByPh = {};
+        const openByPairNum = new Map();   // pairNum -> open tag
+        const closeByPairNum = new Map();  // pairNum -> close tag
+        (tags || []).forEach(t => {
+            if (!t || !t.ph) return;
+            tagByPh[t.ph] = t;
+            if (t.type === 'open') openByPairNum.set(t.pairNum, t);
+            if (t.type === 'close') closeByPairNum.set(t.pairNum, t);
+        });
+
+        const phSeq = String(text ?? '').match(/\{\/?\d+\}/g) || [];
+        const phSet = new Set(phSeq);
+
+        /** token: { kind: 'pair'|'standalone', sig, openPh?, closePh?, ph? } */
+        const tokens = [];
+        for (const ph of phSeq) {
+            const t = tagByPh[ph];
+            if (!t) continue;
+            if (t.type === 'open') {
+                const openTag = openByPairNum.get(t.pairNum) || t;
+                const closeTag = closeByPairNum.get(t.pairNum) || null;
+                const closePh = closeTag ? closeTag.ph : '';
+                const hasClose = closeTag && phSet.has(closePh);
+
+                // 成對 token 的簽名：open + close xml（close 缺失會加上 ::INCOMPLETE）
+                const sigBase = normalizeXmlForSig(openTag.xml) + '||' + normalizeXmlForSig(closeTag ? closeTag.xml : '');
+                const sig = hasClose ? sigBase : (sigBase + '::INCOMPLETE');
+
+                tokens.push({
+                    kind: 'pair',
+                    sig,
+                    openPh: openTag.ph,
+                    closePh,
+                    pairNum: openTag.pairNum
+                });
+            } else if (t.type === 'standalone') {
+                const sig = normalizeXmlForSig(t.xml);
+                tokens.push({ kind: 'standalone', sig, ph: t.ph });
+            }
+            // close 類型不獨立計數；由 open 計數一次 token
+        }
+
+        return tokens;
+    }
+
+    /**
+     * 重新比對標籤顏色：
+     * - 用 xml（簽名）+ token 次數，決定來源端紅（缺少匹配）與目標端橘（多出匹配）。
+     * - 正確的 token 顯示淡藍（tag-present）。
+     * - tag-next（F8 下一步）由 refreshTagNextHighlight 負責疊加較深藍。
+     */
+    function updateTagColors(row, targetText) {
+        if (!row) return;
+
+        const segId = parseInt(row.dataset.segId, 10);
+        const seg = currentSegmentsList.find(s => s && s.id === segId);
+        if (!seg) return;
+
+        const sourceEditor = row.querySelector('.col-source .rt-editor');
+        const targetEditor = row.querySelector('.col-target .rt-editor');
+        if (!sourceEditor || !targetEditor) return;
+
+        const sourceTags = seg.sourceTags || [];
+        const sourceText = seg.sourceText || '';
+
+        const effectiveTargetTags = (seg.targetTags && seg.targetTags.length > 0)
+            ? seg.targetTags
+            : (seg.sourceTags || []);
+
+        const tgtText = (targetText !== undefined && targetText !== null) ? targetText : (seg.targetText || '');
+
+        // 清掉舊的比對結果類別，但保留 tag-next（由 refreshTagNextHighlight 再疊回）
+        const clearClasses = (el) => {
+            el.querySelectorAll('.rt-tag').forEach(span => {
+                span.classList.remove('tag-present');
+                span.classList.remove('tag-missing');
+                span.classList.remove('tag-extra');
+            });
+        };
+        clearClasses(sourceEditor);
+        clearClasses(targetEditor);
+
+        const sourceTokens = buildTagTokenSequence(sourceTags, sourceText);
+        const targetTokens = buildTagTokenSequence(effectiveTargetTags, tgtText);
+
+        const countBySig = (tokens) => {
+            const m = new Map();
+            tokens.forEach(tok => {
+                m.set(tok.sig, (m.get(tok.sig) || 0) + 1);
+            });
+            return m;
+        };
+
+        // 1) Source 端：拿 target token 去「逐次配對」決定 present/missing
+        const targetRemaining = countBySig(targetTokens);
+        sourceTokens.forEach(tok => {
+            const n = targetRemaining.get(tok.sig) || 0;
+            if (n > 0) {
+                tok.status = 'present';
+                targetRemaining.set(tok.sig, n - 1);
+            } else {
+                tok.status = 'missing';
+            }
+        });
+
+        // 2) Target 端：拿 source token 去配對，沒配到的就是 extra
+        const sourceRemaining = countBySig(sourceTokens);
+        targetTokens.forEach(tok => {
+            const n = sourceRemaining.get(tok.sig) || 0;
+            if (n > 0) {
+                tok.status = 'present';
+                sourceRemaining.set(tok.sig, n - 1);
+            } else {
+                tok.status = 'extra';
+            }
+        });
+
+        // 快速索引 DOM spans by data-ph
+        const buildSpanByPh = (editorEl) => {
+            const map = new Map();
+            editorEl.querySelectorAll('.rt-tag').forEach(span => {
+                const ph = span.getAttribute('data-ph');
+                if (ph) map.set(ph, span);
+            });
+            return map;
+        };
+        const sourceSpanByPh = buildSpanByPh(sourceEditor);
+        const targetSpanByPh = buildSpanByPh(targetEditor);
+
+        // 套用 Source 標籤顏色
+        sourceTokens.forEach(tok => {
+            if (tok.kind === 'pair') {
+                const openSpan = sourceSpanByPh.get(tok.openPh);
+                const closeSpan = tok.closePh ? sourceSpanByPh.get(tok.closePh) : null;
+                if (openSpan) {
+                    openSpan.classList.add(tok.status === 'present' ? 'tag-present' : 'tag-missing');
+                }
+                if (closeSpan) {
+                    closeSpan.classList.add(tok.status === 'present' ? 'tag-present' : 'tag-missing');
+                }
+            } else if (tok.kind === 'standalone') {
+                const span = sourceSpanByPh.get(tok.ph);
+                if (span) span.classList.add(tok.status === 'present' ? 'tag-present' : 'tag-missing');
+            }
+        });
+
+        // 套用 Target 標籤顏色
+        targetTokens.forEach(tok => {
+            if (tok.kind === 'pair') {
+                const openSpan = targetSpanByPh.get(tok.openPh);
+                const closeSpan = tok.closePh ? targetSpanByPh.get(tok.closePh) : null;
+                if (openSpan) {
+                    openSpan.classList.add(tok.status === 'extra' ? 'tag-extra' : 'tag-present');
+                }
+                if (closeSpan) {
+                    closeSpan.classList.add(tok.status === 'extra' ? 'tag-extra' : 'tag-present');
+                }
+            } else if (tok.kind === 'standalone') {
+                const span = targetSpanByPh.get(tok.ph);
+                if (span) span.classList.add(tok.status === 'extra' ? 'tag-extra' : 'tag-present');
+            }
+        });
+    }
+
+    function getF8NextInsertPlan(editorDiv, seg) {
+        const sourceTags = seg.sourceTags || [];
+        if (!sourceTags.length) return null;
+
+        const currentText = extractTextFromEditor(editorDiv) || seg.targetText || '';
+        const presentPhs = new Set((currentText.match(/\{\/?\d+\}/g) || []));
+
+        const missingTags = sourceTags.filter(t => !presentPhs.has(t.ph));
+        if (!missingTags.length) return null;
+
+        const firstMissing = missingTags.reduce(
+            (a, b) => a.num < b.num ? a : (a.num === b.num && a.type === 'open' ? a : b)
+        );
+
+        const sel = window.getSelection();
+        const hasSelection = sel && !sel.isCollapsed && editorDiv.contains(sel.anchorNode);
+
+        const openTag = (firstMissing.type === 'open') ? firstMissing : null;
+        const closeTag = openTag
+            ? (sourceTags.find(t => t.pairNum === openTag.pairNum && t.type === 'close') || null)
+            : null;
+
+        const shouldWrap = hasSelection
+            && openTag
+            && closeTag
+            && !presentPhs.has(closeTag.ph);
+
+        if (shouldWrap) {
+            return { mode: 'wrap', openTag, closeTag, highlightPhs: [openTag.ph, closeTag.ph] };
+        }
+        return { mode: hasSelection ? 'replace' : 'insert', tag: firstMissing, highlightPhs: [firstMissing.ph] };
+    }
+
+    function refreshTagNextHighlight(row) {
+        if (!row) return;
+        const segId = parseInt(row.dataset.segId, 10);
+        const seg = currentSegmentsList.find(s => s && s.id === segId);
+        if (!seg) return;
+
+        const sourceEditor = row.querySelector('.col-source .rt-editor');
+        const targetEditor = row.querySelector('.col-target .rt-editor');
+        if (!sourceEditor || !targetEditor) return;
+
+        // 清掉舊的 tag-next（避免上一個句段留底）
+        document.querySelectorAll('.col-source .rt-tag.tag-next').forEach(span => span.classList.remove('tag-next'));
+
+        // 只有當游標在編輯區內時才疊加
+        // 用 contains 避免不同瀏覽器/節點造成 activeElement 不是 editor 本體
+        const focusedInEditor = targetEditor.contains(document.activeElement);
+        const sel = window.getSelection();
+        const selectionInside = sel && sel.anchorNode && targetEditor.contains(sel.anchorNode);
+        if (!focusedInEditor && !selectionInside) return;
+        if (targetEditor.getAttribute('contenteditable') === 'false') return;
+
+        const plan = getF8NextInsertPlan(targetEditor, seg);
+        if (!plan || !plan.highlightPhs || !plan.highlightPhs.length) return;
+
+        const spanByPh = new Map();
+        sourceEditor.querySelectorAll('.rt-tag').forEach(span => {
+            const ph = span.getAttribute('data-ph');
+            if (ph) spanByPh.set(ph, span);
+        });
+
+        plan.highlightPhs.forEach(ph => {
+            const span = spanByPh.get(ph);
+            if (span) span.classList.add('tag-next');
+        });
+    }
+
+    function renderEditorSegments() {
+        gridBody.innerHTML = '';
+
+        // 初始化 editorGrid 的標籤展開/收起 class
+        const editorGrid = document.getElementById('editorGrid');
+        if (editorGrid) {
+            editorGrid.classList.toggle('tags-expanded', tagsExpanded);
+            editorGrid.classList.toggle('tags-collapsed', !tagsExpanded);
+        }
+        
+        // Phase 4.10: Repetition detection
+        const sourceMap = new Map();
+        currentSegmentsList.forEach(s => {
+            if (!s.sourceText) return;
+            if (!sourceMap.has(s.sourceText)) {
+                sourceMap.set(s.sourceText, 'first');
+                s.repetitionType = 'first';
+            } else {
+                s.repetitionType = 'duplicate';
+            }
+        });
+        // If only one occurs, it's not a repetition
+        const sourceCounts = {};
+        currentSegmentsList.forEach(s => { if(s.sourceText) sourceCounts[s.sourceText] = (sourceCounts[s.sourceText]||0)+1; });
+        currentSegmentsList.forEach(s => { if(s.sourceText && sourceCounts[s.sourceText] === 1) s.repetitionType = null; });
+
+        // 依 ID 排序，計算相同內容句段的出現序號 (第幾次/共幾次)
+        const sourceToSegs = {};
+        currentSegmentsList.forEach(s => {
+            if (!s.sourceText || !s.repetitionType) return;
+            if (!sourceToSegs[s.sourceText]) sourceToSegs[s.sourceText] = [];
+            sourceToSegs[s.sourceText].push(s);
+        });
+        Object.keys(sourceToSegs).forEach(st => {
+            const list = sourceToSegs[st];
+            list.sort((a, b) => (a.id || 0) - (b.id || 0));
+            list.forEach((s, idx) => {
+                s.repetitionIndex = idx + 1;
+                s.repetitionTotal = list.length;
+            });
+        });
+
+        const fragment = document.createDocumentFragment();
+
+        currentSegmentsList.forEach((seg, i) => {
+            seg.rowIdx = i; // Ensure old files have rowIdx explicitly attached for evaluateSegment logic
+
+            const row = document.createElement('div');
+            // Dynamic system-lock for T_DENY_R1 session: R1-confirmed segments become forbidden
+            const effectiveLockedSystem = isDynamicForbidden(seg); // isDynamicForbidden incorporates isLockedSystem + role override
+            const effectiveLocked = !!(effectiveLockedSystem || seg.isLockedUser);
+            let lockedClass = '';
+            if (effectiveLockedSystem) lockedClass = 'locked-system';
+            else if (seg.isLockedUser) lockedClass = 'locked-user';
+            row.className = `grid-data-row ${lockedClass}`;
+            row.dataset.segId = seg.id;
+            if (effectiveLockedSystem) row.title = getForbiddenTooltip(seg);
+            else if (seg.isLockedUser) row.title = '句段鎖定中，請解除鎖定後再編輯';
+            
+            // Activate row on focus; also update selection to this segment only
+            row.addEventListener('focusin', () => {
+                document.querySelectorAll('.grid-data-row').forEach(r => r.classList.remove('active-row'));
+                row.classList.add('active-row');
+                lastEditedRowIdx = seg.rowIdx;
+                // 選取狀態更新原則：
+                // 只有在使用者主動切換到新目標時才更新選取，以下情況跳過：
+                // 1. 批次操作進行中（isBatchOpInProgress）
+                // 2. 目前句段已在多選清單中（焦點由 DOM 操作觸發，非使用者點擊新目標）
+                // 這確保批次操作、快速鍵等不會破壞選取狀態
+                const isAlreadyInMultiSelect = selectedRowIds.has(seg.id) && selectedRowIds.size > 1;
+                if (!isBatchOpInProgress && !isAlreadyInMultiSelect) {
+                    selectedRowIds.clear();
+                    selectedRowIds.add(seg.id);
+                    document.querySelectorAll('.grid-data-row').forEach(r => {
+                        const rId = parseInt(r.dataset.segId);
+                        if (selectedRowIds.has(rId)) r.classList.add('selected-row');
+                        else r.classList.remove('selected-row');
+                    });
+                }
+                renderLiveTmMatches(seg);
+                renderSegmentComments(seg);
+                refreshTagNextHighlight(row);
+            });
+
+            const isConfirmed = seg.status === 'confirmed';
+            const isSelected = selectedRowIds.has(seg.id);
+            if (isSelected) row.classList.add('selected-row');
+            // 已確認套淡綠底，但鎖定/禁止句段保留其本身底色（灰/橘）不覆蓋
+            if (isConfirmed && !effectiveLocked) {
+                row.style.backgroundColor = '#f0fdf4';
+                row.classList.add('row-bg-confirmed');
+            }
+
+            let rowInnerContent = '';
+            rowInnerContent += `<div class="col-id" title="點擊選取 (Ctrl: 單獨加減, Shift: 連續選取)" data-idx="${i}" data-id="${seg.id}">${seg.globalId || (seg.rowIdx+1)}</div>`;
+            const maxKeys = colSettings.filter(c => c.id.startsWith('col-key-')).length;
+            for(let k=0; k<maxKeys; k++) {
+                const keyText = seg.keys && seg.keys[k] ? seg.keys[k] : '';
+                // Rename Key 1 logic: CSS class stays the same but UI name in colSettings is handled in the header loop
+                rowInnerContent += `<div class="col-key-${k}" style="padding:0.5rem; border-right:1px solid #e2e8f0; word-break:break-all; font-size:0.85rem; color:var(--text-main);">${keyText}</div>`;
+            }
+            const sourceHtml = buildTaggedHtml(seg.sourceText, seg.sourceTags || [], true);
+            rowInnerContent += `<div class="col-source"><div class="rt-editor" contenteditable="false">${sourceHtml}</div></div>`;
+            const targetHtml = buildTaggedHtml(seg.targetText, seg.targetTags || seg.sourceTags || []);
+            rowInnerContent += `<div class="col-target" style="position:relative;">
+                <div class="rt-editor grid-textarea" contenteditable="${effectiveLocked ? 'false' : 'true'}" spellcheck="false">${targetHtml}</div>
+            </div>`;
+            rowInnerContent += `<div class="col-extra" style="padding:0.5rem; font-size:0.8rem; color:#2563eb; word-break:break-all;">${seg.extraValue || ''}</div>`;
+            
+            // New Columns: Repetition and Match
+            // repModeSeg defaults to global repMode
+            if (seg.repModeSeg === undefined) seg.repModeSeg = repMode;
+            const effectiveRepMode = seg.repModeSeg;
+            let repIcon = '';
+            let repTitle = '';
+            if (seg.repetitionType) {
+                const repNum = (seg.repetitionIndex != null && seg.repetitionTotal != null) ? `${seg.repetitionIndex}/${seg.repetitionTotal}` : '';
+                if (effectiveRepMode === 'after') {
+                    repIcon = '<span style="display:flex;flex-direction:column;align-items:center;line-height:1;">&#x25BC;</span>';
+                    repTitle = '確認其後的重複句段';
+                } else if (effectiveRepMode === 'all') {
+                    repIcon = '<span style="display:flex;flex-direction:column;align-items:center;line-height:1;">&#x21F3;</span>';
+                    repTitle = '確認整個檔案中所有重複句段';
+                } else {
+                    repIcon = '<span style="display:flex;flex-direction:column;align-items:center;line-height:1;"><span style="color:red;">&#x2715;</span></span>';
+                    repTitle = '停用重複句段連動確認';
+                }
+                if (repNum) repIcon = `<span style="font-size:0.7rem;color:var(--text-light);">${repNum}</span>` + repIcon;
+            }
+            rowInnerContent += `<div class="col-repetition" data-seg-idx="${i}" style="cursor:${seg.repetitionType ? 'pointer' : 'default'}; font-size:0.8rem; user-select:none; flex-direction:column;" title="${repTitle}">${repIcon}</div>`;
+
+            let matchStyle = '';
+            if (seg.matchValue) {
+                const mv = parseInt(seg.matchValue);
+                // 100% 以上都顯示綠色，70–99 顯示橘色
+                if (mv >= 100) matchStyle = 'background: #dcfce7;'; // Light green
+                else if (mv >= 70) matchStyle = 'background: #ffedd5;'; // Light orange
+            }
+            rowInnerContent += `<div class="col-match" style="${matchStyle}">${seg.matchValue || ''}</div>`;
+
+            // 狀態欄：mqxliff 顯示 T/R1/R2 圖示，其它格式顯示綠點
+            let statusCellHtml = '';
+            if (currentFileFormat === 'mqxliff') {
+                const role = seg.confirmationRole || 'T';
+                let symbolHtml = '';
+                if (isConfirmed) {
+                    if (role === 'R1') {
+                        symbolHtml = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
+                    } else if (role === 'R2') {
+                        symbolHtml = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
+                    } else {
+                        symbolHtml = '&#10003;';
+                    }
+                }
+                statusCellHtml = `<span class="status-icon status-icon-mq ${isConfirmed ? 'done' : ''}" data-role="${seg.confirmationRole || ''}" style="cursor:pointer;" title="Ctrl+Enter/點擊 確認狀態">${symbolHtml}</span>`;
+            } else {
+                statusCellHtml = `<span class="status-icon ${isConfirmed ? 'done' : ''}" style="cursor:pointer;" title="Ctrl+Enter/點擊 確認狀態"></span>`;
+            }
+            rowInnerContent += `<div class="col-status">${statusCellHtml}</div>`;
+            row.innerHTML = rowInnerContent;
+            
+            const targetInput = row.querySelector('.grid-textarea');
+            const statusIcon = row.querySelector('.status-icon');
+
+            // Initialise tag colour state for this row
+            updateTagColors(row, seg.targetText);
+
+            colSettings.forEach((c, index) => {
+                const cell = row.querySelector(`.${c.id}`);
+                if (cell) {
+                    cell.style.order = index;
+                    cell.style.display = c.visible ? '' : 'none';
+                }
+            });
+
+            if(!effectiveLocked) {
+                
+                // ID Click Selection Logic
+                const idCell = row.querySelector('.col-id');
+                if (idCell) {
+                    // ID セルクリック時はフォーカス移動を防ぎ focusin による選取上書きを回避
+                    idCell.addEventListener('mousedown', (e) => e.preventDefault());
+                    idCell.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        // Ctrl click - toggle individual
+                        if (e.ctrlKey || e.metaKey) {
+                            if (selectedRowIds.has(seg.id)) selectedRowIds.delete(seg.id);
+                            else selectedRowIds.add(seg.id);
+                            lastSelectedRowIdx = i;
+                        } 
+                        // Shift click - range selection (extends from last anchor, clears previous)
+                        else if (e.shiftKey && lastSelectedRowIdx !== null) {
+                            selectedRowIds.clear();
+                            const start = Math.min(lastSelectedRowIdx, i);
+                            const end = Math.max(lastSelectedRowIdx, i);
+                            for (let j = start; j <= end; j++) {
+                                const s = currentSegmentsList[j];
+                                if (!isDynamicForbidden(s) && !s.isLockedUser) selectedRowIds.add(s.id);
+                            }
+                        } 
+                        // Normal click - clear and select one
+                        else {
+                            selectedRowIds.clear();
+                            selectedRowIds.add(seg.id);
+                            lastSelectedRowIdx = i;
+                            // 清除其他列的 active-row 樣式，並解除編輯焦點
+                            document.querySelectorAll('.grid-data-row').forEach(r => r.classList.remove('active-row'));
+                            const focused = document.activeElement;
+                            if (focused && focused.classList.contains('grid-textarea')) focused.blur();
+                        }
+
+                        // Ctrl / Shift 點擊後：若原 active-row 不在新選取中，一併清除
+                        if (e.ctrlKey || e.metaKey || e.shiftKey) {
+                            const activeRow = document.querySelector('.grid-data-row.active-row');
+                            if (activeRow) {
+                                const activeSegId = parseInt(activeRow.dataset.segId);
+                                if (!selectedRowIds.has(activeSegId)) {
+                                    activeRow.classList.remove('active-row');
+                                    const focused = document.activeElement;
+                                    if (focused && focused.classList.contains('grid-textarea')) focused.blur();
+                                }
+                            }
+                        }
+                        
+                        // Render visually using data-seg-id
+                        document.querySelectorAll('.grid-data-row').forEach(r => {
+                            const rId = parseInt(r.dataset.segId);
+                            if (selectedRowIds.has(rId)) r.classList.add('selected-row');
+                            else r.classList.remove('selected-row');
+                        });
+                    });
+                }
+
+                let targetDebounceTimer;
+                targetInput.addEventListener('focus', () => {
+                    editorUndoEditStart[seg.id] = seg.targetText;
+                    refreshTagNextHighlight(row);
+                });
+                targetInput.addEventListener('input', async () => {
+                    const newVal = extractTextFromEditor(targetInput);
+                    seg.targetText = newVal;
+
+                    // Update source tag colours (blue=present, red=missing)
+                    updateTagColors(row, newVal);
+                    refreshTagNextHighlight(row);
+                    
+                    // Unconfirm immediately if edited and was confirmed
+                    if (seg.status === 'confirmed') {
+                        seg.status = 'unconfirmed';
+                        statusIcon.classList.remove('done');
+                        row.style.backgroundColor = '';
+                        await DBService.updateSegmentStatus(seg.id, seg.status);
+                    }
+
+                    updateProgress();
+                    clearTimeout(targetDebounceTimer);
+                    targetDebounceTimer = setTimeout(async () => {
+                        const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
+                        if (oldVal !== newVal) {
+                            pushEditorUndo(seg.id, oldVal, newVal);
+                            editorUndoEditStart[seg.id] = newVal;
+                        }
+                        await DBService.updateSegmentTarget(seg.id, newVal);
+                    }, 500);
+                });
+
+                // 游標位置/選取改變時，更新「F8 下一步」的深藍高亮
+                targetInput.addEventListener('mouseup', () => refreshTagNextHighlight(row));
+                targetInput.addEventListener('keyup', () => refreshTagNextHighlight(row));
+                targetInput.addEventListener('blur', () => refreshTagNextHighlight(row));
+
+                // Intercept paste：
+                // - 若是從本工具的欄位複製（含 .rt-tag span），保留這些標籤節點，確保匯出時仍可還原 tag
+                // - 其他來源則去除格式，僅貼上純文字
+                targetInput.addEventListener('paste', (e) => {
+                    e.preventDefault();
+                    const cd = e.clipboardData || window.clipboardData;
+                    if (!cd) return;
+
+                    const html = cd.getData('text/html');
+                    if (html && html.includes('class="rt-tag"')) {
+                        // 來自本編輯器（或相容結構）的貼上：保留 rt-tag span，以便 extractTextFromEditor 轉回 {N} 佔位符
+                        document.execCommand('insertHTML', false, html);
+                        return;
+                    }
+
+                    const plain = cd.getData('text/plain');
+                    if (plain) {
+                        document.execCommand('insertText', false, plain);
+                    }
+                });
+
+                // Ctrl+Enter logic
+                targetInput.addEventListener('keydown', async (e) => {
+                    if (e.ctrlKey && e.key === 'Enter') {
+                        e.preventDefault();
+                        if (seg.status !== 'confirmed') {
+                            seg.status = 'confirmed';
+                            statusIcon.classList.add('done');
+                            if (!effectiveLocked) row.style.backgroundColor = '#f0fdf4';
+                            if (currentFileFormat === 'mqxliff') {
+                                seg.confirmationRole = resolveConfirmationRole(seg);
+                            }
+                            if (currentFileFormat === 'mqxliff') {
+                                const role = seg.confirmationRole || 'T';
+                                if (role === 'R1') {
+                                    statusIcon.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
+                                } else if (role === 'R2') {
+                                    statusIcon.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
+                                    } else {
+                                    statusIcon.innerHTML = '&#10003;';
+                                }
+                            }
+                            await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
+                            updateProgress();
+                        }
+                        if (seg.status === 'confirmed') {
+                            await syncSegmentToWriteTmsOnConfirm(seg, i);
+                        }
+                        
+                        // Repetition propagation on Ctrl+Enter
+                        if (seg.repetitionType) {
+                            await propagateRepetition(seg, i);
+                        }
+
+                        const nextRow = row.nextElementSibling;
+                        if(nextRow) {
+                            const nextEditor = nextRow.querySelector('.grid-textarea');
+                            if(nextEditor && nextEditor.contentEditable !== 'false') nextEditor.focus();
+                        }
+                    } else if (e.ctrlKey && e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        const prevRow = row.previousElementSibling;
+                        if(prevRow) {
+                            const prevEditor = prevRow.querySelector('.grid-textarea');
+                            if(prevEditor && prevEditor.contentEditable !== 'false') prevEditor.focus();
+                        }
+                    } else if (e.ctrlKey && e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        const nextRow = row.nextElementSibling;
+                        if(nextRow) {
+                            const nextEditor = nextRow.querySelector('.grid-textarea');
+                            if(nextEditor && nextEditor.contentEditable !== 'false') nextEditor.focus();
+                        }
+                    } else if (e.ctrlKey && e.key >= '1' && e.key <= '9') {
+                        // Phase 4.9: CAT Shortcuts
+                        e.preventDefault();
+                        const idx = parseInt(e.key) - 1;
+                        const matchItems = document.querySelectorAll('#tmSearchResults .result-item');
+                        if (matchItems[idx]) {
+                            matchItems[idx].click();
+                            // Optional: Highlight effect? click() already handles the substitution
+                        }
+                    }
+                });
+
+                // Click on repetition icon to cycle mode for this segment
+                const repCell = row.querySelector('.col-repetition');
+                if (repCell && seg.repetitionType) {
+                    repCell.addEventListener('click', (ev) => {
+                        ev.stopPropagation();
+                        const modes = ['after', 'all', 'none'];
+                        const curIdx = modes.indexOf(seg.repModeSeg || repMode);
+                        seg.repModeSeg = modes[(curIdx + 1) % 3];
+                        // Re-render just this cell icon
+                        const icons = {
+                            after: '<span style="display:flex;flex-direction:column;align-items:center;line-height:1;">&#x25BC;</span>',
+                            all:   '<span style="display:flex;flex-direction:column;align-items:center;line-height:1;">&#x21F3;</span>',
+                            none:  '<span style="display:flex;flex-direction:column;align-items:center;line-height:1;"><span style="color:red;">&#x2715;</span></span>'
+                        };
+                        const titles = { after: '確認其後的重複句段', all: '確認整個檔案中所有重複句段', none: '停用重複句段連動確認' };
+                        const repNum = (seg.repetitionIndex != null && seg.repetitionTotal != null) ? `<span style="font-size:0.7rem;color:var(--text-light);">${seg.repetitionIndex}/${seg.repetitionTotal}</span>` : '';
+                        repCell.innerHTML = repNum ? repNum + icons[seg.repModeSeg] : icons[seg.repModeSeg];
+                        repCell.title = titles[seg.repModeSeg];
+                    });
+                }
+
+                // Click icon to toggle
+                statusIcon.addEventListener('click', async () => {
+                    seg.status = seg.status === 'confirmed' ? 'unconfirmed' : 'confirmed';
+                    if (seg.status === 'confirmed') {
+                        statusIcon.classList.add('done');
+                        if (!effectiveLocked) row.style.backgroundColor = '#f0fdf4';
+                        if (currentFileFormat === 'mqxliff') {
+                            seg.confirmationRole = resolveConfirmationRole(seg);
+                        }
+                        if (currentFileFormat === 'mqxliff') {
+                            const role = seg.confirmationRole || 'T';
+                            if (role === 'R1') {
+                                statusIcon.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
+                            } else if (role === 'R2') {
+                                statusIcon.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
+                            } else {
+                                statusIcon.innerHTML = '&#10003;';
+                            }
+                        }
+                    } else {
+                        statusIcon.classList.remove('done');
+                        if (currentFileFormat === 'mqxliff') {
+                            statusIcon.innerHTML = '';
+                        }
+                        row.style.backgroundColor = '';
+                    }
+                    await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
+
+                    if (seg.status === 'confirmed') {
+                        await syncSegmentToWriteTmsOnConfirm(seg, i);
+                    }
+                    // Repetition propagation on confirm
+                    if (seg.status === 'confirmed' && seg.repetitionType) {
+                        await propagateRepetition(seg, i);
+                    }
+                    updateProgress();
+                });
+            }
+            fragment.appendChild(row);
+        });
+
+        gridBody.appendChild(fragment);
+        updateProgress();
+    }
+
+    /**
+     * 句段確認時：若專案寫入 TM 中尚無相同原文，則新增一筆（已存在則不覆寫）。
+     */
+    /**
+     * 句段已確認時同步至「寫入 TM」（第 6 點前暫以 sourceText 對應同一 TU）。
+     * 新建：只寫建立者／時間，changeLog 為 []。
+     * 已存在且譯文相同：不動。
+     * 已存在且譯文不同：更新譯文並 append 結構化 targetUpdate（含舊／新譯供追蹤修訂顯示）。
+     */
+    async function syncSegmentToWriteTmsOnConfirm(seg, rowIdx) {
+        if (!seg || seg.status !== 'confirmed') return;
+        if (!window.ActiveWriteTms || window.ActiveWriteTms.length === 0) return;
+        let i = typeof rowIdx === 'number' ? rowIdx : currentSegmentsList.indexOf(seg);
+        if (i < 0) i = currentSegmentsList.findIndex(s => s.id === seg.id);
+        if (i < 0) return;
+        const creator = localStorage.getItem('localCatUserProfile') || 'Unknown User';
+        const prjEl = document.getElementById('detailProjectName');
+        const fEl = document.getElementById('editorFileName');
+        const prjName = prjEl ? prjEl.textContent : '';
+        const fName = fEl ? fEl.textContent : '';
+        const prevS = i > 0 ? currentSegmentsList[i - 1].sourceText : '';
+        const nextS = i < currentSegmentsList.length - 1 ? currentSegmentsList[i + 1].sourceText : '';
+        const key = seg.keys && seg.keys.length > 0 ? seg.keys[0] : '';
+        const metaBase = {
+            key,
+            prevSegment: prevS,
+            nextSegment: nextS,
+            writtenFile: fName,
+            writtenProject: prjName,
+            createdBy: creator
+        };
+        for (const rawTmId of window.ActiveWriteTms) {
+            const tmId = Number(rawTmId);
+            const tmRow = await DBService.getTM(tmId);
+            const tmName = tmRow ? tmRow.name : `TM #${tmId}`;
+            const existing = await DBService.tmSegments.where('tmId').equals(tmId).toArray();
+            const match = existing.find(tms => tms.sourceText === seg.sourceText);
+            if (!match) {
+                const newId = await DBService.addTMSegment(tmId, seg.sourceText, seg.targetText, {
+                    ...metaBase,
+                    changeLog: []
+                });
+                const full = await DBService.tmSegments.get(newId);
+                if (full) {
+                    const dupCache = window.ActiveTmCache.some(t => t.id === full.id || (t._tmId === tmId && t.sourceText === seg.sourceText));
+                    if (!dupCache) {
+                        window.ActiveTmCache.push({
+                            ...full,
+                            _tmId: tmId,
+                            tmName
+                        });
+                    }
+                }
+            } else {
+                if (match.targetText === seg.targetText) continue;
+                const prevLog = Array.isArray(match.changeLog) ? [...match.changeLog] : [];
+                prevLog.push({
+                    kind: 'targetUpdate',
+                    at: new Date().toISOString(),
+                    by: creator,
+                    oldTarget: match.targetText,
+                    newTarget: seg.targetText
+                });
+                await DBService.updateTMSegment(match.id, seg.targetText, { changeLog: prevLog });
+                window.ActiveTmCache.forEach(tms => {
+                    if (tms.id === match.id || (tms._tmId === tmId && tms.sourceText === seg.sourceText)) {
+                        tms.targetText = seg.targetText;
+                        tms.changeLog = prevLog;
+                        tms.lastModified = new Date().toISOString();
+                    }
+                });
+            }
+        }
+    }
+
+    function updateCatTrackPanelContent() {
+        const el = document.getElementById('liveTrackChangeContent');
+        if (!el) return;
+        const seg = window.currentCatFooterSeg;
+        const matches = window.currentTmMatches;
+        if (!seg) {
+            el.innerHTML = '<span style="color:#94a3b8;font-size:0.75rem;">選取句段以顯示原文對照。</span>';
+            return;
+        }
+        if (!matches || matches.length === 0) {
+            el.innerHTML = '<span style="color:#94a3b8;font-size:0.75rem;">無 TM / 片段列可比對時無法顯示追蹤修訂。</span>';
+            return;
+        }
+        const sel = typeof window.catPanelSelectedIndex === 'number' ? window.catPanelSelectedIndex : 0;
+        const idx = Math.max(0, Math.min(sel, matches.length - 1));
+        const m = matches[idx];
+        if (!m || (m.type !== 'TM' && m.type !== 'Fragment')) {
+            el.innerHTML = '<span style="color:#94a3b8;font-size:0.75rem;">請選取類型為 TM 或 Frg 的列以顯示原文對照。</span>';
+            return;
+        }
+        if (typeof window.buildTmTrackChangeStackHtml === 'function') {
+            el.innerHTML = window.buildTmTrackChangeStackHtml(seg.sourceText || '', m.sourceText || '');
+        }
+    }
+
+    function formatCatTmChangeLogForFooter(changeLog) {
+        if (!changeLog || !changeLog.length) return '<span style="color:#94a3b8;">無</span>';
+        const parts = [];
+        for (const cl of changeLog) {
+            if (typeof cl === 'string') {
+                parts.push(`<div class="tm-changelog-line">• ${cl.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`);
+                continue;
+            }
+            if (cl && cl.kind === 'targetUpdate') {
+                const at = cl.at ? new Date(cl.at).toLocaleString('zh-TW', { hour12: false }) : '';
+                const by = (cl.by || '').replace(/</g, '&lt;');
+                const diff = typeof window.buildTmTargetRevisionDiffHtml === 'function'
+                    ? window.buildTmTargetRevisionDiffHtml(cl.oldTarget || '', cl.newTarget || '')
+                    : '';
+                parts.push(`<div class="tm-changelog-entry"><div class="tm-changelog-meta">${at} — ${by}</div><div class="tm-changelog-diff">${diff}</div></div>`);
+            }
+        }
+        if (!parts.length) return '<span style="color:#94a3b8;">無</span>';
+        const sep = '<hr class="cat-footer-divider cat-footer-divider--sub" />';
+        return parts.map(p => `<div class="cat-footer-changelog-block">${p}</div>`).join(sep);
+    }
+
+    // --- Live TM Match Rendering ---
+    async function renderLiveTmMatches(seg) {
+        const searchResultsDOM = document.getElementById('tmSearchResults');
+        const footerDOM = document.getElementById('liveFooterContent');
+        if (!searchResultsDOM || !footerDOM) return;
+
+        const hasTm = window.ActiveTmCache && window.ActiveTmCache.length > 0;
+        const hasTb = window.ActiveTbTerms && window.ActiveTbTerms.length > 0;
+        if (!seg.isLocked && (hasTm || hasTb)) {
+            let matches = [];
+            if (hasTm) {
+                const rawTm = [];
+            window.ActiveTmCache.forEach(tms => {
+                const sim = calculateSimilarity(seg.sourceText, tms.sourceText);
+                if (sim >= 50) {
+                        rawTm.push({ ...tms, score: sim, type: 'TM' });
+                    } else if (tms.sourceText && tms.sourceText.length >= 2 && seg.sourceText.includes(tms.sourceText)) {
+                        rawTm.push({ ...tms, score: 'S', type: 'Fragment' });
+                    }
+                });
+                const bySource = new Map();
+                const fragOrNonTm = [];
+                for (const m of rawTm) {
+                    if (m.type !== 'TM') {
+                        fragOrNonTm.push(m);
+                        continue;
+                    }
+                    const k = m.sourceText;
+                    if (!bySource.has(k)) bySource.set(k, []);
+                    bySource.get(k).push(m);
+                }
+                const collapsedTm = [];
+                for (const arr of bySource.values()) {
+                    arr.sort((a, b) => {
+                        const ta = new Date(a.lastModified || a.createdAt || 0).getTime();
+                        const tb = new Date(b.lastModified || b.createdAt || 0).getTime();
+                        return tb - ta;
+                    });
+                    const primary = { ...arr[0] };
+                    if (arr.length > 1) primary._dupes = arr.slice(1);
+                    collapsedTm.push(primary);
+                }
+                matches.push(...collapsedTm, ...fragOrNonTm);
+            }
+            if (hasTb) {
+                const src = (seg.sourceText || '').trim();
+                window.ActiveTbTerms.forEach(term => {
+                    const termSrc = term.source || '';
+                    if (!termSrc) return;
+                    if (src === termSrc || src.includes(termSrc)) {
+                        matches.push({
+                            type: 'TB',
+                            sourceText: term.source,
+                            targetText: term.target,
+                            tbName: term.tbName,
+                            note: term.note,
+                            score: 100
+                        });
+                    }
+                });
+            }
+
+            matches.sort((a, b) => {
+                const order = { TM: 0, TB: 1, Fragment: 2 };
+                const oa = order[a.type] ?? 2;
+                const ob = order[b.type] ?? 2;
+                if (oa !== ob) return oa - ob;
+                if (a.type === 'TM' && b.type === 'TM' && typeof a.score === 'number' && typeof b.score === 'number')
+                    return b.score - a.score;
+                    return 0;
+            });
+
+            if (matches.length > 0) {
+                window.currentTmMatches = matches;
+                window.catPanelSelectedIndex = 0;
+                window.currentCatFooterSeg = seg;
+
+                const renderFooter = (m) => {
+                    const escFoot = (s) => String(s ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const fSeg = window.currentCatFooterSeg;
+                    let footerHtml = '';
+                    if (m.type === 'TB') {
+                        footerHtml += `<div class="cat-footer-section">
+                            <div style="font-size:0.8rem;">
+                            <strong>術語庫：</strong>${escFoot(m.tbName || 'N/A')}<br>
+                            ${m.note ? `<strong>備註：</strong>${escFoot(m.note)}<br>` : ''}
+                        </div>
+                        </div>`;
+                    } else {
+                        footerHtml += '<div class="cat-footer-block-wrap">';
+                        if (fSeg && fSeg.repetitionType && (fSeg.repetitionTotal || 0) > 1) {
+                            footerHtml += `<p class="cat-footer-rep-hint">此原文在檔案中重複 ${fSeg.repetitionTotal} 次。比對表若 TM 內同原文僅有一筆記憶則顯示一列；若有多筆同原文 TU，該列右側會出現 <strong style="color:#334155;">▶</strong> 可展開檢視。</p>`;
+                        }
+                        footerHtml += `<div class="cat-footer-section cat-footer-tm-meta">
+                            <div><strong>TM 名稱：</strong>${escFoot(m.tmName || 'N/A')}</div>
+                            ${m.key ? `<div><strong>Key：</strong>${escFoot(m.key)}</div>` : ''}
+                            <div><strong>寫入檔案：</strong>${escFoot(m.writtenFile || 'N/A')}</div>
+                        </div>`;
+                        footerHtml += `<div class="cat-footer-section cat-footer-context">
+                            <div class="cat-footer-context-inner">
+                                <div><strong>上一句</strong><br>${escFoot(m.prevSegment || '')}</div>
+                                <hr class="cat-footer-divider cat-footer-divider--sub" />
+                                <div><strong>下一句</strong><br>${escFoot(m.nextSegment || '')}</div>
+                            </div>
+                        </div>`;
+                        footerHtml += `<div class="cat-footer-section cat-footer-audit">
+                            <div><strong>建立者：</strong>${escFoot(m.createdBy || 'N/A')}</div>
+                            <div><strong>建立時間：</strong>${m.createdAt ? escFoot(new Date(m.createdAt).toLocaleString('zh-TW', { hour12: false })) : 'N/A'}</div>
+                            <hr class="cat-footer-divider cat-footer-divider--before-changelog" />
+                            <div><strong>更新紀錄</strong></div>
+                            <div class="cat-footer-changelog">${formatCatTmChangeLogForFooter(m.changeLog)}</div>
+                        </div>`;
+                        footerHtml += '</div>';
+                    }
+                    footerDOM.innerHTML = footerHtml;
+                };
+
+                const headerHtml = `
+                    <div class="result-table-header">
+                        <div class="result-header-cell">#</div>
+                        <div class="result-header-cell">原文</div>
+                        <div class="result-header-cell result-header-cell--pct" aria-hidden="true">&nbsp;</div>
+                        <div class="result-header-cell">譯文</div>
+                    </div>
+                `;
+
+                const rowsHtml = matches.slice(0, 9).map((m, idx) => {
+                    const isFragment = m.type === 'Fragment';
+                    const isTb = m.type === 'TB';
+                    let scoreInner = '';
+                    let scoreBg = '';
+                    if (isTb) {
+                        scoreInner = '<span class="result-pct-main">TB</span>';
+                        scoreBg = 'background:#fef9c3;';
+                    } else if (isFragment) {
+                        scoreInner = '<span class="result-pct-main">Frg</span>';
+                    } else if (typeof m.score === 'number') {
+                        const mv = m.score;
+                        if (mv >= 100) scoreBg = 'background:#dcfce7;';
+                        else if (mv >= 70) scoreBg = 'background:#ffedd5;';
+                        const pct = `${Math.round(mv)}%`;
+                        const dupBtn = (m._dupes && m._dupes.length)
+                            ? `<button type="button" class="cat-dup-toggle" aria-expanded="false" title="同原文其他 TM 紀錄"><span aria-hidden="true">▶</span></button>`
+                            : '';
+                        scoreInner = `<span class="result-pct-row"><span class="result-pct-main">${pct}</span>${dupBtn}</span>`;
+                    }
+                    const dupPanel = (m._dupes && m._dupes.length) ? `
+                    <div class="cat-tm-dupes-panel hidden">
+                        ${m._dupes.map(d => {
+                            const tStr = d.lastModified || d.createdAt ? new Date(d.lastModified || d.createdAt).toLocaleString('zh-TW', { hour12: false }) : '';
+                            const tnm = (d.tmName || '').replace(/</g, '&lt;');
+                            const tt = (d.targetText || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                            return `<div class="cat-tm-dupe-line"><strong>${tnm}</strong> · ${tStr}<br>譯文：${tt}</div>`;
+                        }).join('')}
+                    </div>` : '';
+                    const isSelected = idx === window.catPanelSelectedIndex;
+                    const tgtEsc = m.targetText.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+                    return `
+                    <div class="result-block">
+                    <div class="result-item${isSelected ? ' result-item--selected' : ''}" data-index="${idx}"
+                         onclick="handleCatResultClick(this, ${idx})"
+                         ondblclick="handleCatResultApply(this, '${m.type}', \`${tgtEsc}\`, ${m.type === 'TM' ? m.score : 'undefined'}, ${idx})">
+                        <div class="result-cell result-cell--index">${idx + 1}</div>
+                        <div class="result-cell result-cell--source">${m.sourceText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+                        <div class="result-cell result-cell--score" style="${scoreBg}">${scoreInner}</div>
+                        <div class="result-cell result-cell--target">${m.targetText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+                            </div>
+                    ${dupPanel}
+                    </div>
+                    `;
+                }).join('');
+
+                searchResultsDOM.innerHTML = headerHtml + rowsHtml;
+
+                window.updateCatPanelSelection = function () {
+                    const sel = typeof window.catPanelSelectedIndex === 'number' ? window.catPanelSelectedIndex : 0;
+                    const container = document.getElementById('tmSearchResults');
+                    if (container) {
+                        const list = container.querySelectorAll('.result-block');
+                        list.forEach((block, i) => {
+                            const item = block.querySelector('.result-item');
+                            if (item) {
+                                if (i === sel) item.classList.add('result-item--selected');
+                                else item.classList.remove('result-item--selected');
+                            }
+                        });
+                    }
+                    if (window.currentTmMatches && window.currentTmMatches[sel] && window.currentTmRenderFooter)
+                        window.currentTmRenderFooter(window.currentTmMatches[sel]);
+                    updateCatTrackPanelContent();
+                };
+
+                renderFooter(matches[window.catPanelSelectedIndex]);
+                window.currentTmRenderFooter = renderFooter;
+                updateCatTrackPanelContent();
+            } else {
+                searchResultsDOM.innerHTML = '<div style="padding: 1rem; color: #64748b; font-size: 0.9rem; text-align: center;">無相符 TM／TB 紀錄</div>';
+                footerDOM.innerHTML = '無相關中繼資料。';
+                const trackEl = document.getElementById('liveTrackChangeContent');
+                if (trackEl) trackEl.innerHTML = '<span style="color:#94a3b8;font-size:0.75rem;">無 TM / 片段列可比對時無法顯示追蹤修訂。</span>';
+            }
+        } else {
+            searchResultsDOM.innerHTML = '<div style="padding: 1rem; color: #64748b; font-size: 0.9rem; text-align: center;">' + (seg.isLocked ? '此句段已鎖定' : '目前未掛載 TM 或術語庫，或請先選取句段') + '</div>';
+            footerDOM.innerHTML = '請選取句段以檢視詳細資訊。';
+            const trackEl = document.getElementById('liveTrackChangeContent');
+            if (trackEl) trackEl.innerHTML = '<span style="color:#94a3b8;font-size:0.75rem;">選取句段以顯示原文對照。</span>';
+        }
+    }
+
+    // 單擊：選取該列（外框 + 下方中繼／追蹤修訂）
+    window.handleCatResultClick = function(el, matchIndex) {
+        const idx = typeof matchIndex === 'number' ? matchIndex : parseInt(matchIndex, 10);
+        if (!isNaN(idx) && idx >= 0) {
+            window.catPanelSelectedIndex = idx;
+            if (typeof window.updateCatPanelSelection === 'function') window.updateCatPanelSelection();
+        }
+    };
+
+    // 雙擊：套用該列的譯文至目前句段
+    window.handleCatResultApply = function(el, type, text, score, matchIndex) {
+        const activeRow = document.querySelector('.grid-data-row.active-row');
+        if (!activeRow) return;
+        const textarea = activeRow.querySelector('.grid-textarea');
+        if (!textarea) return;
+        const rowIdx = Array.from(document.querySelectorAll('.grid-data-row')).indexOf(activeRow);
+        if (rowIdx < 0 || !currentSegmentsList[rowIdx]) return;
+        const seg = currentSegmentsList[rowIdx];
+        const oldTarget = seg.targetText;
+
+        let newTarget;
+        if (type === 'TM') {
+            newTarget = text;
+            textarea.innerHTML = buildTaggedHtml(text, seg.targetTags || seg.sourceTags || []);
+            updateTagColors(activeRow, text);
+        } else {
+            // For TB/fragment: insert at current cursor position via execCommand
+            newTarget = text;
+            textarea.focus();
+            document.execCommand('insertText', false, text);
+            newTarget = extractTextFromEditor(textarea);
+        }
+        seg.targetText = newTarget;
+        editorUndoEditStart[seg.id] = newTarget;
+        pushEditorUndo(seg.id, oldTarget, newTarget);
+        const updatePayload = type === 'TM' && score !== undefined && score !== 'undefined'
+            ? { matchValue: String(score) }
+            : undefined;
+        if (updatePayload) seg.matchValue = updatePayload.matchValue;
+        DBService.updateSegmentTarget(seg.id, newTarget, updatePayload).catch(console.error);
+
+        if (type === 'TM' && score !== undefined && score !== 'undefined') {
+                const matchCell = activeRow.querySelector('.col-match');
+                if (matchCell) {
+                    const mv = parseInt(score);
+                    matchCell.style.background = mv >= 100 ? '#dcfce7' : (mv >= 70 ? '#ffedd5' : '');
+                    matchCell.textContent = String(score);
+                }
+        }
+
+        textarea.focus();
+        el.style.opacity = 0.5;
+        setTimeout(() => el.style.opacity = 1, 300);
+    };
+    
+    // Alt+上/下：在右側 CAT 比對列表中移動選取
+    document.addEventListener('keydown', function catPanelArrowKey(e) {
+        if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+        const viewEditor = document.getElementById('viewEditor');
+        if (!viewEditor || viewEditor.classList.contains('hidden')) return;
+        const matches = window.currentTmMatches;
+        if (!matches || matches.length === 0) return;
+        const maxIdx = matches.length - 1;
+        const cur = typeof window.catPanelSelectedIndex === 'number' ? window.catPanelSelectedIndex : 0;
+        if (e.key === 'ArrowDown') {
+            window.catPanelSelectedIndex = Math.min(cur + 1, maxIdx);
+        } else {
+            window.catPanelSelectedIndex = Math.max(0, cur - 1);
+        }
+        e.preventDefault();
+        if (typeof window.updateCatPanelSelection === 'function') window.updateCatPanelSelection();
+    });
+
+    // Grid Level Context Menu for Batch Actions (確認 / 鎖定)
+    let contextMenu = null;
+    gridBody.addEventListener('contextmenu', (e) => {
+        const targetRow = e.target.closest('.grid-data-row');
+        if (!targetRow) return;
+        
+        let targetId = Number(targetRow.querySelector('.col-id').getAttribute('data-id'));
+        
+        // 若點到未選取列，改為只選這一列
+        if (!selectedRowIds.has(targetId)) {
+            selectedRowIds.clear();
+            selectedRowIds.add(targetId);
+            document.querySelectorAll('.grid-data-row').forEach(r => r.classList.remove('selected-row'));
+            targetRow.classList.add('selected-row');
+        }
+
+        e.preventDefault();
+        
+        if (contextMenu) contextMenu.remove();
+        
+        contextMenu = document.createElement('div');
+        contextMenu.className = 'context-menu';
+        contextMenu.style.left = `${e.pageX}px`;
+        contextMenu.style.top = `${e.pageY}px`;
+
+        // anyUserLocked：有手動鎖定（才能解除）; anyEffectiveLocked：有任何鎖定; anyUnlocked：有非完全鎖定的句段（可供手動鎖定）
+        const anyUserLocked = currentSegmentsList.some(s => selectedRowIds.has(s.id) && s.isLockedUser);
+        const anyEffectiveLocked = currentSegmentsList.some(s => selectedRowIds.has(s.id) && (isDynamicForbidden(s) || s.isLockedUser));
+        const anyUnlocked = currentSegmentsList.some(s => selectedRowIds.has(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
+        
+        contextMenu.innerHTML = `
+            <div class="context-menu-item confirm" id="ctxBatchConfirm"><div class="icon"></div> 設定為「已確認」</div>
+            <div class="context-menu-item" id="ctxBatchUnconfirm"><div class="icon"></div> 設定為「未確認」</div>
+            <div class="context-menu-item" id="ctxLockSegments"${anyUnlocked ? '' : ' style="opacity:0.5;pointer-events:none;"'}><div class="icon"></div> 鎖定句段</div>
+            <div class="context-menu-item" id="ctxUnlockSegments"${anyUserLocked ? '' : ' style="opacity:0.5;pointer-events:none;"'}><div class="icon"></div> 解除鎖定</div>
+        `;
+        
+        document.body.appendChild(contextMenu);
+        
+        const closeMenu = () => { if(contextMenu) contextMenu.remove(); document.removeEventListener('click', closeMenu); };
+        document.addEventListener('click', closeMenu);
+
+        document.getElementById('ctxBatchConfirm').addEventListener('click', async () => {
+            const ids = Array.from(selectedRowIds);
+            const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
+            for (let s of toUpdate) {
+                s.status = 'confirmed';
+                if (currentFileFormat === 'mqxliff') {
+                    s.confirmationRole = resolveConfirmationRole(s);
+                }
+                await DBService.updateSegmentStatus(s.id, 'confirmed', currentFileFormat === 'mqxliff' && s.confirmationRole ? { confirmationRole: s.confirmationRole } : {});
+                const idx = currentSegmentsList.indexOf(s);
+                await syncSegmentToWriteTmsOnConfirm(s, idx >= 0 ? idx : 0);
+            }
+            renderEditorSegments();
+        });
+        
+        document.getElementById('ctxBatchUnconfirm').addEventListener('click', async () => {
+            const ids = Array.from(selectedRowIds);
+            const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
+            for (let s of toUpdate) {
+                s.status = 'unconfirmed';
+                await DBService.updateSegmentStatus(s.id, 'unconfirmed');
+            }
+            renderEditorSegments();
+        });
+
+        document.getElementById('ctxLockSegments').addEventListener('click', async () => {
+            const ids = Array.from(selectedRowIds);
+            const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
+            for (let s of toUpdate) {
+                s.isLockedUser = true;
+                await DBService.updateSegmentStatus(s.id, s.status || 'unconfirmed', { isLockedUser: true, isLocked: true });
+            }
+            renderEditorSegments();
+        });
+
+        document.getElementById('ctxUnlockSegments').addEventListener('click', async () => {
+            const ids = Array.from(selectedRowIds);
+            const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && s.isLockedUser);
+            for (let s of toUpdate) {
+                s.isLockedUser = false;
+                const stillLocked = !!s.isLockedSystem;
+                await DBService.updateSegmentStatus(s.id, s.status || 'unconfirmed', { isLockedUser: false, isLocked: stillLocked });
+            }
+            renderEditorSegments();
+        });
+    });
+
+    // 選取狀態只會在使用者主動切換選取目標時清除（ID 欄點擊或點入不在選取範圍中的編輯欄），
+    // 點擊按鈕、快速鍵或其他操作不會清除選取狀態。
+
+    function updateProgress() {
+        // 分母（總句段/字數）以預設身分的非禁止句段為準，不隨當次 session 變動
+        const baseline = currentSegmentsList.filter(s => !isBaselineForbidden(s));
+        const total = baseline.length;
+        // 分子（已確認）以目前 session 可見的非禁止且已確認句段計算
+        const sessionValid = currentSegmentsList.filter(s => !(isDynamicForbidden(s) || s.isLockedUser));
+        const translated = sessionValid.filter(s => s.status === 'confirmed').length;
+        
+        let totalChars = 0;
+        let confirmedChars = 0;
+        baseline.forEach(s => {
+            const len = s.sourceText.length;
+            totalChars += len;
+        });
+        sessionValid.forEach(s => {
+            if (s.status === 'confirmed') confirmedChars += s.sourceText.length;
+        });
+
+        document.getElementById('statusBarSegments').textContent = `${translated} / ${total}`;
+        document.getElementById('statusBarWords').textContent = `${confirmedChars} / ${totalChars}`;
+
+        if (progressFill) progressFill.style.width = total === 0 ? '0%' : `${(translated/total)*100}%`;
+    }
+
+    function renderSegmentComments(seg) {
+        const panel = document.getElementById('tabComments');
+        if (!panel) return;
+        if (!seg || !Array.isArray(seg.comments) || seg.comments.length === 0) {
+            panel.innerHTML = '<div style="padding:0.75rem; color:#64748b; font-size:0.9rem;">此句段目前沒有留言。</div>';
+            return;
+        }
+        panel.innerHTML = seg.comments.map(c => {
+            const creator = (c.creator || '').trim() || '（未指定）';
+            const time = (c.time || '').trim();
+            const header = time ? `${creator} / ${time}` : creator;
+            const safeText = (c.text || '').replace(/</g, '&lt;');
+            return `<div style="padding:0.5rem 0.75rem; border-bottom:1px solid #e2e8f0; font-size:0.85rem;">
+                <div style="color:#475569; margin-bottom:0.15rem;"><strong>${header}</strong></div>
+                <div style="white-space:pre-wrap; color:#0f172a;">${safeText}</div>
+            </div>`;
+        }).join('');
+    }
+
+    // ==========================================
+    // VIEW SETTINGS ENGINE
+    // ==========================================
+    function applyColSettings() {
+        const root = document.documentElement;
+        
+        const activeCols = colSettings.filter(c => c.visible);
+        const inactiveCols = colSettings.filter(c => !c.visible);
+        const statusCol = activeCols.find(c => c.id === 'col-status');
+        const otherCols = activeCols.filter(c => c.id !== 'col-status');
+        const finalCols = statusCol ? [...otherCols, statusCol] : otherCols;
+
+        const widths = finalCols.map(c => {
+            if (['col-status', 'col-match', 'col-repetition'].includes(c.id)) return '35px';
+            return c.width;
+        }).join(' ');
+        root.style.setProperty('--grid-cols', widths);
+
+        // Discard all resizers visibility globally then enable specifically for order
+        document.querySelectorAll('.col-resizer').forEach(r => r.style.display = 'none');
+
+        finalCols.forEach((c, index) => {
+            const header = document.querySelector(`.grid-header-cell[data-col-id="${c.id}"]`);
+            if(header) { 
+                header.style.order = index; 
+                header.style.display = ''; 
+                if (c.id !== 'col-status' && index < otherCols.length - 1) {
+                    const rs = header.querySelector('.col-resizer');
+                    if (rs) rs.style.display = 'block';
+                }
+            }
+        });
+        inactiveCols.forEach(c => {
+            const header = document.querySelector(`.grid-header-cell[data-col-id="${c.id}"]`);
+            if(header) { header.style.display = 'none'; }
+        });
+        
+        document.querySelectorAll('.grid-data-row').forEach(row => {
+            finalCols.forEach((c, index) => {
+                const cell = row.querySelector(`.${c.id}`);
+                if(cell) { cell.style.order = index; cell.style.display = ''; }
+            });
+            inactiveCols.forEach(c => {
+                const cell = row.querySelector(`.${c.id}`);
+                if(cell) { cell.style.display = 'none'; }
+            });
+        });
+    }
+
+    function renderColSettings() {
+        colSettingsListContainer.innerHTML = '';
+        colSettings.forEach((c, index) => {
+            const item = document.createElement('div');
+            item.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:0.5rem; background:white; border:1px solid #cbd5e1; border-radius:4px;';
+            const isStatus = c.id === 'col-status';
+            
+            item.innerHTML = `
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <span style="color:#94a3b8;">${isStatus ? '🔒' : '☰'}</span>
+                    <label style="display:flex; align-items:center; gap:0.5rem; margin:0; cursor:${isStatus ? 'not-allowed' : 'pointer'};">
+                        <input type="checkbox" ${c.visible ? 'checked' : ''} data-id="${c.id}" class="col-vis-toggle" ${isStatus ? 'disabled' : ''}>
+                        <span style="${isStatus ? 'color:#94a3b8;' : ''}">${c.name}</span>
+                    </label>
+                </div>
+                <div>
+                    <button class="icon-btn btn-sm move-up" ${index===0 || isStatus ? 'disabled' : ''} data-index="${index}">↑</button>
+                    <button class="icon-btn btn-sm move-down" ${index===colSettings.length-1 || isStatus ? 'disabled' : ''} data-index="${index}">↓</button>
+                </div>
+            `;
+            colSettingsListContainer.appendChild(item);
+        });
+
+        document.querySelectorAll('.col-vis-toggle').forEach(chk => {
+            chk.addEventListener('change', (e) => {
+                const col = colSettings.find(cs => cs.id === e.target.getAttribute('data-id'));
+                if(col) col.visible = e.target.checked;
+            });
+        });
+
+        document.querySelectorAll('.move-up').forEach(btn => btn.addEventListener('click', (e) => {
+            const i = parseInt(btn.getAttribute('data-index'));
+            [colSettings[i-1], colSettings[i]] = [colSettings[i], colSettings[i-1]];
+            renderColSettings();
+        }));
+        
+        document.querySelectorAll('.move-down').forEach(btn => btn.addEventListener('click', (e) => {
+            const i = parseInt(btn.getAttribute('data-index'));
+            [colSettings[i], colSettings[i+1]] = [colSettings[i+1], colSettings[i]];
+            renderColSettings();
+        }));
+    }
+
+    btnColSettings.addEventListener('click', () => {
+        renderColSettings();
+        viewSettingsModal.classList.remove('hidden');
+    });
+
+    btnCloseViewSettings.addEventListener('click', () => viewSettingsModal.classList.add('hidden'));
+    
+    btnSaveViewSettings.addEventListener('click', () => {
+        localStorage.setItem('catToolColSettings', JSON.stringify(colSettings));
+        applyColSettings();
+        viewSettingsModal.classList.add('hidden');
+    });
+
+    btnResetViewSettings.addEventListener('click', () => {
+        let maxKeys = 0;
+        currentSegmentsList.forEach(seg => { if(seg.keys && seg.keys.length > maxKeys) maxKeys = seg.keys.length; });
+        const defaultCols = [];
+        defaultCols.push({ id: 'col-id', name: 'ID', visible: true, width: '50px' });
+        for(let i=0; i<maxKeys; i++) {
+            defaultCols.push({ id: `col-key-${i}`, name: `Key`, visible: true, width: '100px' });
+        }
+        defaultCols.push({ id: 'col-source', name: '原文 (Source)', visible: true, width: '1fr' });
+        defaultCols.push({ id: 'col-target', name: '譯文 (Target)', visible: true, width: '1fr' });
+        defaultCols.push({ id: 'col-extra', name: '額外資訊', visible: true, width: '100px' });
+        defaultCols.push({ id: 'col-repetition', name: '重複', visible: true, width: '35px' });
+        defaultCols.push({ id: 'col-match', name: '相符度', visible: true, width: '35px' });
+        defaultCols.push({ id: 'col-status', name: '狀態', visible: true, width: '35px' });
+
+        colSettings = defaultCols;
+        renderColSettings();
+    });
+
+    // ==========================================
+    // EXPORT ENGINE 
+    // XLIFF 系列：window.CatToolXliffTags（js/xliff-tag-pipeline.js）
+    // ==========================================
+
+    function showExportTagWarning(tagIssues) {
+        return new Promise(resolve => {
+            const modal = document.getElementById('exportTagWarningModal');
+            const summaryEl = document.getElementById('exportTagWarningSummary');
+            const listEl = document.getElementById('exportTagWarningList');
+            const btnCancel = document.getElementById('exportTagWarningCancel');
+            const btnConfirm = document.getElementById('exportTagWarningConfirm');
+            if (!modal || !summaryEl || !listEl || !btnCancel || !btnConfirm) {
+                // 若找不到元件，退化成直接繼續匯出
+                resolve(true);
+                return;
+            }
+
+            summaryEl.textContent = `偵測到 ${tagIssues.length} 筆句段標籤可能有問題（缺少或多出標籤）。`;
+            listEl.innerHTML = '';
+            tagIssues.slice(0, 50).forEach(issue => {
+                const div = document.createElement('div');
+                const miss = issue.missing.length ? `缺少: ${issue.missing.join(', ')}` : '';
+                const extra = issue.extra.length ? `多出: ${issue.extra.join(', ')}` : '';
+                const parts = [miss, extra].filter(Boolean).join('；');
+                div.textContent = `句段 ${issue.label}: ${parts}`;
+                div.style.padding = '0.25rem 0';
+                listEl.appendChild(div);
+            });
+            if (tagIssues.length > 50) {
+                const more = document.createElement('div');
+                more.textContent = `…… 其餘 ${tagIssues.length - 50} 筆已略過顯示。`;
+                more.style.padding = '0.25rem 0';
+                more.style.color = '#64748b';
+                listEl.appendChild(more);
+            }
+
+            modal.classList.remove('hidden');
+
+            function cleanup(result) {
+                modal.classList.add('hidden');
+                btnCancel.removeEventListener('click', onCancel);
+                btnConfirm.removeEventListener('click', onConfirm);
+                resolve(result);
+            }
+            function onCancel() {
+                cleanup(false);
+            }
+            function onConfirm() {
+                cleanup(true);
+            }
+
+            btnCancel.addEventListener('click', onCancel);
+            btnConfirm.addEventListener('click', onConfirm);
+        });
+    }
+
+    exportBtn.addEventListener('click', async () => {
+        if (!currentFileId) return;
+        try {
+            exportBtn.disabled = true; exportBtn.textContent = '匯出中...';
+            const f    = await DBService.getFile(currentFileId);
+            const segs = await DBService.getSegmentsByFile(currentFileId);
+
+            const tagIssues = (Xliff && typeof Xliff.validateExportTags === 'function')
+                ? Xliff.validateExportTags(segs)
+                : [];
+            if (tagIssues.length) {
+                const proceed = await showExportTagWarning(tagIssues);
+                if (!proceed) return;
+            }
+
+            if (currentFileFormat === 'xliff' || currentFileFormat === 'mqxliff' || currentFileFormat === 'sdlxliff') {
+                if (!Xliff || typeof Xliff.exportXliffFamily !== 'function') {
+                    throw new Error('XLIFF 匯出模組未載入（請確認已載入 js/xliff-tag-pipeline.js）');
+                }
+                await Xliff.exportXliffFamily(f, segs, currentFileFormat);
+            } else {
+                // Excel 匯出：直接修改原工作簿以保留樣式與 Rich Text
+                const originalData = new Uint8Array(f.originalFileBuffer);
+                const wb = XLSX.read(originalData, { type: 'array' });
+                const XlsxRich = window.CatToolXlsxRichTags;
+
+                segs.forEach(s => {
+                    if (s.isLocked) return;
+                    const sheet = wb.Sheets[s.sheetName];
+                    if (!sheet) return;
+                    const cellRef = XLSX.utils.encode_cell({ r: s.rowIdx, c: s.colTgt });
+                    if (!sheet[cellRef]) sheet[cellRef] = { t: 's', v: '' };
+
+                    const hasTags = s.targetTags && s.targetTags.length > 0;
+                    if (hasTags && XlsxRich) {
+                        // 有 Rich Text tag：還原為 OOXML 富文字
+                        const tags = s.targetTags.length > 0 ? s.targetTags : (s.sourceTags || []);
+                        const richXml = XlsxRich.buildRichTextXml(
+                            s.targetText || '',
+                            tags,
+                            s.baseRprXml || ''
+                        );
+                        // 純文字備份值（去掉佔位符）
+                        const plainVal = (s.targetText || '').replace(/\{\/?\d+\}/g, '');
+                        sheet[cellRef].t = 's';
+                        sheet[cellRef].v = plainVal;
+                        sheet[cellRef].r = richXml;
+                        delete sheet[cellRef].h; // 清除 SheetJS 快取的 html
+                    } else {
+                        // 無 Rich Text tag：直接寫入純文字
+                        sheet[cellRef].t = 's';
+                        sheet[cellRef].v = s.targetText || '';
+                        sheet[cellRef].r = s.targetText || '';
+                        delete sheet[cellRef].h;
+                    }
+                });
+
+                XLSX.writeFile(wb, `Translated_${f.name}`);
+            }
+        } catch (e) {
+            alert('匯出發生錯誤: ' + e.message);
+        } finally {
+            exportBtn.disabled = false;
+            exportBtn.textContent = '匯出檔案';
+        }
+    });
+});

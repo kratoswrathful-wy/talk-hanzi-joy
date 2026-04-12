@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "typecheck": "tsc -b",
+    "sync:cat": "node scripts/sync-cat.mjs",
+    "prebuild": "npm run sync:cat",
     "build": "tsc -b && vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",

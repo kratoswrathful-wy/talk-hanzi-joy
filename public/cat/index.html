@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>專業版 本機 CAT 工具</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="lib/dexie.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-layout" id="appLayout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <button class="toggle-btn" id="btnToggleSidebar">☰</button>
+                <h2 class="sidebar-title">Local CAT</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-view="viewDashboard"><span class="nav-icon">📊</span><span class="nav-text">儀表板 (Dashboard)</span></a>
+                <a href="#" class="nav-item" data-view="viewProjects"><span class="nav-icon">📁</span><span class="nav-text">專案 (Projects)</span></a>
+                <a href="#" class="nav-item" data-view="viewTM"><span class="nav-icon">🧠</span><span class="nav-text">翻譯記憶庫 (TM)</span></a>
+                <a href="#" class="nav-item" data-view="viewTB"><span class="nav-icon">📘</span><span class="nav-text">術語庫 (TB)</span></a>
+            </nav>
+            <div class="sidebar-footer" id="btnUserProfile" style="cursor: pointer;" title="設定使用者名稱">
+                <span class="nav-icon">👤</span><span class="nav-text" id="displayUserName">未設定名稱</span>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- (Other views omitted for brevity in this snippet. We will combine them properly.) -->
+            <!-- VIEW: Dashboard -->
+            <section class="view-section active" id="viewDashboard" style="padding: 2rem; overflow-y: auto;">
+                <header class="view-header"><h1>儀表板</h1></header>
+                <div class="dashboard-stats">
+                    <div class="stat-card"><h3>專案數量</h3><div class="stat-value" id="statProjects">0</div></div>
+                    <div class="stat-card"><h3>自建 TM 數量</h3><div class="stat-value" id="statTMs">0</div></div>
+                    <div class="stat-card"><h3>自建 TB 數量</h3><div class="stat-value" id="statTBs">0</div></div>
+                </div>
+                <div id="dashboardChangeLogBlock" style="margin-top: 2rem;">
+                    <h2 style="font-size:1.1rem; color:#1e293b; margin:0 0 0.5rem 0;">最近變更</h2>
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem 1rem; font-size:0.9rem;">
+                        <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                            <strong>變更紀錄</strong>
+                            <button type="button" class="secondary-btn btn-sm" id="btnDashboardChangeLogExpand" style="font-size:0.8rem;">展開全部紀錄</button>
+                        </div>
+                        <ul id="dashboardChangeLog" style="margin:0.25rem 0 0 1.25rem; padding:0; max-height:120px; overflow-y:auto;"></ul>
+                    </div>
+                </div>
+                <div style="margin-top: 2rem;">
+                    <h2 style="font-size:1.1rem; color:#1e293b; margin:0 0 1rem 0;">最近使用的檔案</h2>
+                    <div id="recentFilesList" class="files-list">
+                        <!-- 由 JS 動態注入最近 10 個檔案 -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: Projects List -->
+            <section class="view-section hidden" id="viewProjects" style="padding: 2rem; overflow-y: auto;">
+                <header class="view-header" style="flex-direction:column; align-items:flex-start; gap:0.5rem;">
+                    <h1 class="page-title" style="margin:0; font-size:1.5rem; font-weight:700;">專案清單</h1>
+                    <div class="table-page-actions" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                        <button class="primary-btn btn-sm" id="btnCreateProjectModal">+ 新增專案</button>
+                        <button class="danger-btn btn-sm" id="btnProjectsDeleteSelected">刪除所選</button>
+                    </div>
+                </header>
+                <div id="projectsChangeLogBlock" style="margin:0.75rem 0;">
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem 1rem; font-size:0.9rem;">
+                        <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                            <strong>變更紀錄</strong>
+                            <button type="button" class="secondary-btn btn-sm" id="btnProjectsChangeLogExpand" style="font-size:0.8rem;">展開全部紀錄</button>
+                        </div>
+                        <ul id="projectsChangeLog" style="margin:0.25rem 0 0 1.25rem; padding:0; max-height:120px; overflow-y:auto;"></ul>
+                    </div>
+                </div>
+                <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px; margin-top:0.5rem;">
+                    <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.95rem;">
+                        <thead>
+                            <tr style="background:#f1f5f9;">
+                                <th style="text-align:center; padding:0.5rem; border:1px solid #e2e8f0; width:52px;">
+                                    <label style="display:flex; align-items:center; justify-content:center; cursor:pointer;" title="全選／取消全選">
+                                        <input type="checkbox" id="projectsSelectAll" aria-label="全選">
+                                    </label>
+                                </th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">最後修改</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:100px;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="projectsTableBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- VIEW: Project Detail (Files) -->
+            <section class="view-section hidden" id="viewProjectDetail" style="padding: 2rem; overflow-y: auto;">
+                <header class="view-header" style="flex-direction:column; align-items:flex-start; gap:0.5rem;">
+                    <button class="secondary-btn" id="btnBackToProjects">← 返回清單</button>
+                    <h1 id="detailProjectName" class="page-title" style="margin:0.5rem 0 0 0; font-size:1.5rem; font-weight:700;">專案名稱</h1>
+                    <div class="table-page-actions" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                        <button class="primary-btn btn-sm" id="btnAddFileModal">+ 匯入檔案</button>
+                    </div>
+                </header>
+                <div id="projectDetailChangeLogBlock" style="margin:0.75rem 0 1.0rem 0;">
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem 1rem; font-size:0.9rem;">
+                        <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                            <strong>變更紀錄</strong>
+                            <button type="button" class="secondary-btn btn-sm" id="btnProjectDetailChangeLogExpand" style="font-size:0.8rem;">展開全部紀錄</button>
+                        </div>
+                        <ul id="projectDetailChangeLog" style="margin:0.25rem 0 0 1.25rem; padding:0; max-height:120px; overflow-y:auto;"></ul>
+                    </div>
+                </div>
+                <div style="margin-bottom:1.5rem;">
+                    <h2 style="font-size:1.1rem; color:#1e293b; margin:0 0 0.5rem 0;">檔案清單</h2>
+                    <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
+                        <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                            <thead>
+                                <tr style="background:#f1f5f9;">
+                                    <th style="text-align:center; padding:0.5rem; border:1px solid #e2e8f0; width:52px;">
+                                        <label style="display:flex; align-items:center; justify-content:center; cursor:pointer;" title="全選／取消全選">
+                                            <input type="checkbox" id="projectFilesSelectAll" aria-label="全選">
+                                        </label>
+                                    </th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:80px;">預設身分</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">最後修改</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:90px;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="filesListBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div style="margin-bottom:1.5rem;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.5rem;">
+                        <h2 style="font-size:1.1rem; color:#1e293b; margin:0;">工作筆記（自編輯器存檔）</h2>
+                        <button type="button" class="danger-btn btn-sm" id="btnProjectWorkspaceNotesDeleteSelected" style="display:none;">刪除所選筆記</button>
+                    </div>
+                    <p style="font-size:0.85rem; color:#64748b; margin:0 0 0.5rem 0;">離開編輯器時可命名並保留筆記；點標題可預覽全文。</p>
+                    <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
+                        <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                            <thead>
+                                <tr style="background:#f1f5f9;">
+                                    <th style="text-align:center; padding:0.5rem; border:1px solid #e2e8f0; width:52px;">
+                                        <label style="display:flex; align-items:center; justify-content:center; cursor:pointer;" title="全選／取消全選">
+                                            <input type="checkbox" id="projectWorkspaceNotesSelectAll" aria-label="全選筆記">
+                                        </label>
+                                    </th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:56px;">ID</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">標題</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:72px;">檔案 ID</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:110px;">建立者</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:178px;">最後存檔時間</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:150px;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="projectWorkspaceNotesBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="project-tm-settings" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:1.5rem;">
+                    <h2 style="font-size:1.1rem; color:#1e293b; margin-top:0; margin-bottom:1rem; border-bottom:1px solid #e2e8f0; padding-bottom:0.5rem;">掛載的翻譯記憶庫 (TM)</h2>
+                    <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
+                        <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                            <thead>
+                                <tr style="background:#f1f5f9;">
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">讀取</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">寫入</th>
+                                </tr>
+                            </thead>
+                            <tbody id="projectTmListBody"></tbody>
+                        </table>
+                    </div>
+                    <div style="margin-top: 1rem; text-align: right;">
+                        <button class="primary-btn btn-sm" id="btnSaveProjectTms">儲存 TM 設定</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: TM Manager -->
+            <section class="view-section hidden" id="viewTM" style="padding: 2rem; overflow-y: auto;">
+                <header class="view-header" style="flex-direction:column; align-items:flex-start; gap:0.5rem;">
+                    <h1 class="page-title" style="margin:0; font-size:1.5rem; font-weight:700;">翻譯記憶庫 (TM) 管理</h1>
+                    <div class="table-page-actions" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                        <button class="primary-btn btn-sm" id="btnCreateTMModal">+ 新增 TM</button>
+                        <button class="danger-btn btn-sm" id="btnTmListDeleteSelected">刪除所選</button>
+                    </div>
+                </header>
+                <div id="tmListChangeLogBlock" style="margin:0.75rem 0;">
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem 1rem; font-size:0.9rem;">
+                        <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                            <strong>變更紀錄</strong>
+                            <button type="button" class="secondary-btn btn-sm" id="btnTmListChangeLogExpand" style="font-size:0.8rem;">展開全部紀錄</button>
+                        </div>
+                        <ul id="tmListChangeLog" style="margin:0.25rem 0 0 1.25rem; padding:0; max-height:120px; overflow-y:auto;"></ul>
+                    </div>
+                </div>
+                <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px; margin-top:0.5rem;">
+                    <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.95rem;">
+                        <thead>
+                            <tr style="background:#f1f5f9;">
+                                <th style="text-align:center; padding:0.5rem; border:1px solid #e2e8f0; width:52px;">
+                                    <label style="display:flex; align-items:center; justify-content:center; cursor:pointer;" title="全選／取消全選">
+                                        <input type="checkbox" id="tmListSelectAll" aria-label="全選">
+                                    </label>
+                                </th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">建立日期</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:100px;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tmList"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- VIEW: TM Detail -->
+            <section class="view-section hidden" id="viewTmDetail" style="padding: 2rem; overflow-y: auto;">
+                <header class="view-header" style="flex-direction:column; align-items:flex-start; gap:0.5rem;">
+                    <button class="secondary-btn" id="btnBackToTms">← 返回 TM 清單</button>
+                    <h1 id="detailTmName" class="page-title" style="margin:0.5rem 0 0 0; font-size:1.5rem; font-weight:700;">TM 名稱</h1>
+                    <div class="table-page-actions" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                        <input type="file" id="tmImportInput" accept=".xlsx,.xls,.csv,.tmx" style="display:none;">
+                        <button class="primary-btn btn-sm" id="btnImportTmFile">匯入檔案 (Excel/CSV/TMX)</button>
+                        <button class="danger-btn btn-sm" id="btnClearTmSegments">清空記憶庫</button>
+                    </div>
+                </header>
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:1rem; margin-bottom:1rem; font-size:0.9rem;">
+                    <strong>總句段數：</strong> <span id="tmSegmentCount">0</span>
+                </div>
+                <div id="tmDetailChangeLogBlock" style="margin:0 0 1rem 0;">
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem 1rem; font-size:0.9rem;">
+                        <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                            <strong>變更紀錄</strong>
+                            <button type="button" class="secondary-btn btn-sm" id="btnTmDetailChangeLogExpand" style="font-size:0.8rem;">展開全部紀錄</button>
+                        </div>
+                        <ul id="tmDetailChangeLog" style="margin:0.25rem 0 0 1.25rem; padding:0; max-height:120px; overflow-y:auto;"></ul>
+                    </div>
+                </div>
+                <div style="overflow:auto; max-height:50vh; border:1px solid #e2e8f0; border-radius:8px;">
+                    <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                        <thead>
+                            <tr style="background:#f1f5f9;">
+                                <th style="text-align:center; padding:0.5rem; border:1px solid #e2e8f0; width:52px;">
+                                    <label style="display:flex; align-items:center; justify-content:center; cursor:pointer;" title="全選／取消全選">
+                                        <input type="checkbox" id="tmSegmentsSelectAll" aria-label="全選">
+                                    </label>
+                                </th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">原文</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">譯文</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tmSegmentsListBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- VIEW: TB Manager -->
+            <section class="view-section hidden" id="viewTB" style="padding: 2rem; overflow-y: auto;">
+                <header class="view-header" style="flex-direction:column; align-items:flex-start; gap:0.5rem;">
+                    <h1 class="page-title" style="margin:0; font-size:1.5rem; font-weight:700;">術語庫 (TB) 管理</h1>
+                    <div class="table-page-actions" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                        <button class="primary-btn btn-sm" id="btnCreateTBModal">+ 新增 TB</button>
+                        <button class="danger-btn btn-sm" id="btnTbListDeleteSelected">刪除所選</button>
+                    </div>
+                </header>
+                <div id="tbListChangeLogBlock" style="margin:0.75rem 0;">
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem 1rem; font-size:0.9rem;">
+                        <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                            <strong>變更紀錄</strong>
+                            <button type="button" class="secondary-btn btn-sm" id="btnTbListChangeLogExpand" style="font-size:0.8rem;">展開全部紀錄</button>
+                        </div>
+                        <ul id="tbListChangeLog" style="margin:0.25rem 0 0 1.25rem; padding:0; max-height:120px; overflow-y:auto;"></ul>
+                    </div>
+                </div>
+                <div style="margin-top:0.5rem; margin-bottom:0.5rem;">
+                    <label for="tbSearchInput" style="font-size:0.9rem; color:#64748b;">搜尋術語庫名稱</label>
+                    <input type="text" id="tbSearchInput" placeholder="輸入名稱篩選…" style="padding:0.4rem 0.6rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.9rem; min-width:200px;">
+                </div>
+                <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
+                    <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.95rem;">
+                        <thead>
+                            <tr style="background:#f1f5f9;">
+                                <th style="text-align:center; padding:0.5rem; border:1px solid #e2e8f0; width:52px;">
+                                    <label style="display:flex; align-items:center; justify-content:center; cursor:pointer;" title="全選／取消全選">
+                                        <input type="checkbox" id="tbListSelectAll" aria-label="全選">
+                                    </label>
+                                </th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">建立日期</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:100px;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbList"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- VIEW: TB Detail -->
+            <section class="view-section hidden" id="viewTbDetail" style="padding: 2rem; overflow-y:auto;">
+                <header class="view-header">
+                    <button class="secondary-btn" id="btnBackToTbs">← 返回術語庫清單</button>
+                    <h1 id="detailTbName" class="page-title" style="display:block; margin:0.5rem 0 0 0; font-size:1.5rem; font-weight:700;">術語表名稱</h1>
+                </header>
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:1rem; margin-bottom:1rem; font-size:0.9rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
+                        <div><strong>術語表性質</strong></div>
+                        <div id="tbTypeSelector" style="display:flex; gap:1.5rem; font-size:0.9rem;">
+                            <label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;">
+                                <input type="radio" name="tbSourceType" id="tbTypeManual" value="manual">
+                                <span>離線手動維護</span>
+                            </label>
+                            <label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;">
+                                <input type="radio" name="tbSourceType" id="tbTypeOnline" value="online">
+                                <span>擷取線上表單</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div id="tbTypeHint" style="color:#64748b; font-size:0.85rem; margin-top:0.25rem;">
+                        在進行第一次操作前，可以自由切換上方選項；一旦有匯入或新增術語，將鎖定性質，不可再更改。
+                    </div>
+                </div>
+                <div id="tbDetailInfoBlock" style="margin-bottom:1rem; padding:0.75rem 1rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
+                    <div style="margin-bottom:0.5rem;"><strong>目前術語表總數：</strong><span id="tbTermCount">0</span>（有編號之術語筆數）</div>
+                    <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                        <strong>變更紀錄</strong>
+                        <button type="button" class="secondary-btn btn-sm" id="btnTbChangeLogExpand" style="font-size:0.8rem;">展開全部紀錄</button>
+                    </div>
+                    <ul id="tbChangeLog" style="margin:0.25rem 0 0 1.25rem; padding:0; max-height:120px; overflow-y:auto;"></ul>
+                </div>
+                <div style="margin-bottom:1rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
+                    <input type="file" id="tbImportInput" accept=".xlsx,.tbx,.sdltbx,.csv" style="display:none;">
+                    <button class="primary-btn btn-sm" id="btnTbAddTerm">+ 新增術語</button>
+                    <button class="primary-btn btn-sm" id="btnTbImportFile">匯入檔案 (Excel/TBX/CSV)</button>
+                    <button class="danger-btn btn-sm" id="btnTbDeleteSelected">刪除所選</button>
+                    <button class="secondary-btn btn-sm" id="btnTbImportOnline">擷取線上表單</button>
+                </div>
+                <div style="margin-bottom:1rem;">
+                    <label for="tbTermSearchInput" style="font-size:0.9rem; color:#64748b; margin-right:0.5rem;">搜尋術語（原文／譯文／備註）</label>
+                    <input type="text" id="tbTermSearchInput" placeholder="輸入關鍵字篩選…" style="padding:0.4rem 0.6rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.9rem; min-width:220px;">
+                </div>
+                <div style="overflow:auto; max-height:50vh; border:1px solid #e2e8f0; border-radius:8px;">
+                    <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                        <thead>
+                            <tr style="background:#f1f5f9;">
+                                <th style="text-align:center; padding:0.5rem; border:1px solid #e2e8f0; width:52px;">
+                                    <label style="display:flex; align-items:center; justify-content:center; cursor:pointer;" title="全選／取消全選">
+                                        <input type="checkbox" id="tbTermSelectAll" aria-label="全選">
+                                    </label>
+                                </th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">原文</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">譯文</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">備註</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:80px;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbTermsList"></tbody>
+                    </table>
+                </div>
+            </section>
+
+        <!-- TB 術語編輯 Modal -->
+        <div class="wizard-overlay hidden" id="tbTermEditModal">
+            <div class="wizard-modal" style="max-width:520px;">
+                <div class="wizard-header">
+                    <h3 style="margin:0; font-size:1.2rem;">編輯術語</h3>
+                    <button class="close-btn" id="btnCloseTbTermEdit">×</button>
+                </div>
+                <div class="wizard-body" style="display:flex; flex-direction:column; gap:0.75rem;">
+                    <label style="font-size:0.9rem;">原文</label>
+                    <input type="text" id="tbTermEditSource" placeholder="原文" style="padding:0.4rem 0.5rem; border:1px solid #cbd5e1; border-radius:6px;">
+                    <label style="font-size:0.9rem;">譯文</label>
+                    <input type="text" id="tbTermEditTarget" placeholder="譯文" style="padding:0.4rem 0.5rem; border:1px solid #cbd5e1; border-radius:6px;">
+                    <label style="font-size:0.9rem;">備註</label>
+                    <textarea id="tbTermEditNote" placeholder="備註（選填）" rows="3" style="padding:0.4rem 0.5rem; border:1px solid #cbd5e1; border-radius:6px; resize:vertical;"></textarea>
+                </div>
+                <div class="panel-footer" style="padding:1rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; background:#f8fafc;">
+                    <button type="button" class="secondary-btn" id="btnCancelTbTermEdit">取消</button>
+                    <button type="button" class="primary-btn" id="btnSaveTbTermEdit">儲存</button>
+                </div>
+            </div>
+        </div>
+
+            <!-- VIEW: Editor (Now a standard view section, not fullscreen overlay) -->
+            <section class="view-section hidden editor-view" id="viewEditor">
+                <!-- Editor Toolbar -->
+                <header class="editor-toolbar">
+                    <div class="toolbar-left">
+                        <button class="icon-btn" id="btnExitEditor" title="返回檔案清單">←</button>
+                        <span class="editor-file-title" id="editorFileName">檔案名稱</span>
+                    </div>
+                    <div class="toolbar-right" style="display:flex; align-items:center; gap:0.5rem;">
+                        <div class="dropdown-container">
+                            <button class="icon-btn" id="btnSortMenu" title="句段排序">📶</button>
+                            <div class="dropdown-menu" id="sortDropdown">
+                                <div>
+                                    <label>排序欄位</label>
+                                    <select id="sortColSelect">
+                                        <option value="col-id">ID</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>順序</label>
+                                    <select id="sortOrderSelect">
+                                        <option value="asc">升序 (Asc)</option>
+                                        <option value="desc">降序 (Desc)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <button id="btnCopySourceToTarget" class="icon-btn" title="將原文複製到譯文 (Ctrl+Insert)&#10;支援批次：選取多個句段後點擊" style="font-size:1rem;">⬇</button>
+                        <button id="btnClearTarget" class="icon-btn" title="清除譯文 (Ctrl+Delete)&#10;支援批次：選取多個句段後點擊" style="font-size:1rem;">✕</button>
+                        <button id="btnTagCollapse" class="icon-btn" title="展開標籤 (Ctrl+Shift+T)" style="font-size:0.8rem; font-family:monospace;">{…}</button>
+                        <button id="btnTagGroupMode" class="icon-btn active" title="標籤群組插入：已停用（F8 固定插入單一 tag）" style="font-size:0.8rem;">T⁺</button>
+                        <button id="btnShortcuts" class="icon-btn" title="快捷鍵設定">⌨️</button>
+                        <button id="btnColSettings" class="icon-btn" title="視圖設定">👁️</button>
+                        <button id="btnPreTranslate" class="primary-btn btn-sm">預先翻譯</button>
+                        <button id="exportBtn" class="success-btn btn-sm">匯出檔案</button>
+                    </div>
+                </header>
+
+                <!-- Editor Layout Wrapper -->
+                <div class="editor-layout-wrapper">
+                    <!-- Left: Data Grid + Search/Filter -->
+                    <div class="editor-grid-container" id="segmentsContainer">
+                        <!-- Search & Filter Bar (moved inside left pane) -->
+                        <div class="sf-container" id="sfContainer">
+                            <div class="sf-main-bar">
+                                <!-- 單一 grid：兩列從「尋找：/取代：」起與右側按鈕垂直對齊 -->
+                                <div class="sf-grid">
+                                    <!-- Row 1 -->
+                                    <div class="sf-cell sf-cell-mode">
+                                        <div class="sf-mode-toggle">
+                                            <button id="sfModeSearch" class="sf-mode-btn active" title="搜尋"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
+                                            <button id="sfModeFilter" class="sf-mode-btn" title="篩選"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></button>
+                                        </div>
+                                    </div>
+                                    <div class="sf-cell sf-cell-invert">
+                                        <button class="icon-btn btn-sm sf-invert-btn sf-invert-disabled" id="btnSfInvert" title="不包含" style="font-weight:bold; font-size:1rem;">¬</button>
+                                    </div>
+                                    <span class="sf-cell sf-cell-label">尋找：</span>
+                                    <div class="sf-cell sf-cell-input">
+                                        <input type="text" id="sfInput" class="sf-input" placeholder="對焦到此處 (Ctrl+F)" autocomplete="off">
+                                    </div>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfPrev" title="上一個符合項目">上一個</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfNext" title="下一個符合項目">下一個</button>
+                                    <button class="sf-cell icon-btn btn-sm sf-clear-nav-btn" id="btnSfClearNav" title="清除所有條件並回到最後編輯位置">✖</button>
+                                    <!-- Row 2 -->
+                                    <div class="sf-cell sf-cell-mode mq-role-hidden" id="sfCellModeRow2">
+                                        <button class="icon-btn btn-sm" id="btnToggleAdvancedSF" title="進階篩選">▼</button>
+                                        <span id="mqRoleIcon" class="mq-role-icon" style="display:none;" title="作業中身分：T">✓</span>
+                                    </div>
+                                    <div class="sf-cell sf-cell-invert">
+                                        <div class="sf-options-popover-wrap" style="position:relative;">
+                                            <button class="icon-btn btn-sm" id="btnSfOptionsPopover" title="搜尋範圍與選項">⋯</button>
+                                            <div class="sf-options-popover hidden" id="sfOptionsPopover">
+                                                <div class="sf-options-popover-inner">
+                                                    <label class="sf-options-row"><input type="checkbox" value="source" class="sf-scope-cb" checked> 原文</label>
+                                                    <label class="sf-options-row"><input type="checkbox" value="target" class="sf-scope-cb" checked> 譯文</label>
+                                                    <label class="sf-options-row"><input type="checkbox" value="keys" class="sf-scope-cb"> Key</label>
+                                                    <label class="sf-options-row"><input type="checkbox" value="extra" class="sf-scope-cb"> 額外資訊</label>
+                                                    <label class="sf-options-row"><input type="checkbox" id="sfUseRegex"> 使用正則表達式</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <span class="sf-cell sf-cell-label">取代：</span>
+                                    <div class="sf-cell sf-cell-input">
+                                        <input type="text" id="sfReplaceInput" class="sf-input sf-replace-input" placeholder="取代為…" autocomplete="off">
+                                    </div>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceThis" title="取代目前選取的搜尋目標；若無選取則跳到最近的下一個目標再取代。完成後會跳到下一個選取目標。">取代這個</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceAll" title="取代目前顯示的有效句段中所有搜尋目標。若有選取句段，則只取代選取句段內的所有搜尋目標。">取代全部</button>
+                                    <span id="sfMatchCount" class="sf-cell sf-match-count">0/0</span>
+                                </div>
+                            </div>
+
+                            <!-- Filter Groups & Active Presets (Always visible if active) -->
+                            <div class="sf-active-groups" id="sfActiveGroupsContainer" style="display:none;"></div>
+
+                            <!-- Advanced Panel (Hidden by default) -->
+                            <div class="sf-advanced-panel hidden" id="sfAdvancedPanel">
+                                <div class="sf-adv-section">
+                                    <strong>句段狀態</strong>
+                                    <div class="sf-adv-grid">
+                                        <label><input type="checkbox" class="sf-status-cb" value="empty"> 空白</label>
+                                        <label><input type="checkbox" class="sf-status-cb" value="not_empty"> 非空白</label>
+                                        <label><input type="checkbox" class="sf-status-cb" value="confirmed"> 已確認</label>
+                                        <label><input type="checkbox" class="sf-status-cb" value="unconfirmed"> 未確認</label>
+                                        <label><input type="checkbox" class="sf-status-cb" value="locked"> 鎖定</label>
+                                        <label><input type="checkbox" class="sf-status-cb" value="unlocked"> 未鎖定</label>
+                                    </div>
+                                </div>
+
+                                <div class="sf-adv-section" style="flex:1;">
+                                    <strong>翻譯記憶相符度 (%)</strong>
+                                    <div style="display:flex; align-items:center; gap:0.5rem; font-size: 0.85rem;" title="支援格式：-x (x含以下)、x-y (區間)、y- (y含以上)">
+                                        <input type="text" id="sfTmMatch" class="sf-input" placeholder="例: 80-100, -90, 85-" style="flex: none; width: 140px; padding: 0.2rem 0.4rem;">
+                                    </div>
+                                </div>
+
+                                <div class="sf-adv-actions">
+                                    <button class="primary-btn btn-sm" id="btnAddFilterGroup">加入篩選群組</button>
+                                    <button class="secondary-btn btn-sm" id="btnSaveFilterPreset">儲存常用組合</button>
+                                    <select id="sfPresetsSelect" class="sf-presets-select">
+                                        <option value="">-- 我的最愛 --</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid-viewport" id="editorGrid" style="flex: 1; overflow: auto; position: relative;">
+                            <!-- Grid Header -->
+                            <div class="grid-header-row" id="gridHeaderRow" style="position: sticky; top: 0; z-index: 20; min-width: min-content;">
+                                <!-- JS injected headers -->
+                            </div>
+                            <!-- Segments will be injected here as .grid-data-row -->
+                            <div class="grid-body" id="gridBody" style="min-width: min-content;"></div>
+                        </div>
+                        <div class="editor-segment-note-bar" id="editorWorkspaceNoteBar">
+                            <label for="editorWorkspaceNoteInput" class="editor-segment-note-label">工作筆記（整份檔案共用，不切換句段）</label>
+                            <textarea id="editorWorkspaceNoteInput" class="editor-segment-note-input" rows="3" placeholder="整份檔案的一般備註…（會自動暫存；離開時可選是否存成專案筆記檔）" autocomplete="off"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Vertical Resizer for side panel width -->
+                    <div id="sidePanelWidthResizer"></div>
+
+                    <!-- Right: Panels (TM, TB, QA) -->
+                    <aside class="editor-side-panel">
+                        <div class="panel-tabs">
+                            <button class="tab-btn active" data-tab="tabCAT">CAT</button>
+                            <button class="tab-btn" data-tab="tabChanges">Changes</button>
+                            <button class="tab-btn" data-tab="tabQA">QA</button>
+                            <button class="tab-btn" data-tab="tabComments">Comments</button>
+                        </div>
+                        
+                        <div class="panel-content active" id="tabCAT">
+                            <div class="concordance-search concordance-search-cat">
+                                <div class="search-results" id="tmSearchResults">
+                                    <div style="padding: 0.75rem; color: #64748b; font-size: 0.9rem; text-align: left;">
+                                        點擊句段以顯示 TM / 片段 / 術語比對結果。
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="catPanelResizerTop" class="cat-panel-resizer" title="拖曳調整追蹤修訂區高度">
+                                <div class="cat-panel-resizer-grip"></div>
+                            </div>
+                            <div id="catTrackChangePanel" class="cat-track-change-panel">
+                                <div id="liveTrackChangeContent" class="footer-meta cat-track-change-inner">選取句段與 TM / 片段列以顯示原文對照。</div>
+                            </div>
+                        </div>
+
+                        <div class="panel-content" id="tabChanges">Changes (WIP)</div>
+                        <div class="panel-content" id="tabQA">QA (WIP)</div>
+                        <div class="panel-content" id="tabComments">Comments (WIP)</div>
+                        
+                        <div id="catPanelResizerBottom" class="cat-panel-resizer" title="拖曳調整下方資訊區高度">
+                            <div class="cat-panel-resizer-grip"></div>
+                        </div>
+                        
+                        <div class="panel-footer" id="livePanelFooter" style="height: 220px; min-height: 120px; overflow-y: auto;">
+                            <div class="footer-meta" id="liveFooterContent">請選取句段以檢視詳細資訊。</div>
+                        </div>
+                    </aside>
+                </div>
+                
+                <!-- Editor Status Bar -->
+                <footer class="editor-status-bar" style="height:35px; border-top: 1px solid var(--border-color); background: #f8fafc; font-size:0.85rem; display:flex; align-items:center; padding: 0 1rem; color: var(--text-light); gap: 2rem;">
+                    <div style="position:relative; background:#e2e8f0; border-radius:4px; overflow:hidden; display:flex; align-items:center; padding:0 0.5rem; min-height:24px; min-width:250px;">
+                        <div id="progressFill" style="position:absolute; top:0; left:0; bottom:0; width:0%; background:var(--success-color); transition:width 0.3s ease; z-index:0;"></div>
+                        <div style="position:relative; z-index:1; display:flex; gap:1.5rem;">
+                            <div>句段：<span id="statusBarSegments" style="font-weight:600; color:var(--text-main);">0 / 0</span></div>
+                            <div>字數：<span id="statusBarWords" style="font-weight:600; color:var(--text-main);">0 / 0</span></div>
+                        </div>
+                    </div>
+                    <div style="flex:1; text-align:right;">快捷鍵: <kbd style="background:#e2e8f0; padding:2px 6px; border-radius:4px; color:#334155;">Ctrl+Enter</kbd> 確認句段並跳至下一行</div>
+                </footer>
+            </section>
+        </main>
+
+        <!-- --- MODALS (Hidden by default) --- -->
+        
+        <!-- Shortcuts Modal -->
+        <div class="wizard-overlay hidden" id="shortcutsModal">
+            <div class="wizard-modal" style="max-width: 400px;">
+                <div class="wizard-header">
+                    <h3 style="margin:0; font-size:1.25rem;">快捷鍵設定</h3>
+                    <button class="close-btn" id="btnCloseShortcuts">×</button>
+                </div>
+                <div class="wizard-body" style="display:flex; flex-direction:column; gap:0.75rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>確認/取消確認句段</span><input type="text" value="Ctrl + Enter" disabled style="width:120px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>跳到上一句段</span><input type="text" value="Ctrl + ↑" disabled style="width:120px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>跳到下一句段</span><input type="text" value="Ctrl + ↓" disabled style="width:120px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>全選句段</span><input type="text" value="Ctrl + Shift + A" disabled style="width:120px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
+                    </div>
+                    <hr style="border:none; border-top:1px solid #e2e8f0; margin:0.25rem 0;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>插入下一個缺漏標籤（或群組）</span><input type="text" value="F8" disabled style="width:120px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>切換標籤展開 / 收起</span><input type="text" value="Ctrl + Shift + T" disabled style="width:120px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>清除譯文中所有標籤</span><input type="text" value="Ctrl + F8" disabled style="width:120px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>將原文複製到譯文</span><input type="text" value="Ctrl + Insert" disabled style="width:120px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>清除譯文</span><input type="text" value="Ctrl + Delete" disabled style="width:120px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
+                    </div>
+                    <p style="font-size:0.8rem; color:#64748b; margin-top:1rem;">*此版本提供固定快捷鍵，未來將開放自訂。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- View Settings Modal -->
+        <div class="wizard-overlay hidden" id="viewSettingsModal">
+            <div class="wizard-modal" style="max-width: 400px;">
+                <div class="wizard-header">
+                    <h3 style="margin:0; font-size:1.25rem;">欄位視圖設定</h3>
+                    <button class="close-btn" id="btnCloseViewSettings">×</button>
+                </div>
+                <div class="wizard-body" style="display:flex; flex-direction:column; gap:0.75rem;">
+                    <!-- Repetition Settings -->
+                    <div style="padding: 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+                        <strong style="display:block; margin-bottom: 0.5rem; font-size: 0.9rem;">重複句段確認模式</strong>
+                        <div style="display:flex; flex-direction:column; gap: 0.4rem; font-size: 0.85rem;">
+                            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;" title="確認句段後，自動確認目前排列中位於其後的所有重複句段">
+                                <input type="radio" name="repMode" value="after" checked>
+                                <span style="font-size:1rem; width:24px; text-align:center; display:inline-flex; flex-direction:column; align-items:center; line-height:1;" title="確認其後的重複句段">▼</span>
+                                確認其後所有重複句段
+                            </label>
+                            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;" title="確認句段後，自動確認整個檔案中所有重複句段">
+                                <input type="radio" name="repMode" value="all">
+                                <span style="font-size:1rem; width:24px; text-align:center; display:inline-flex; flex-direction:column; align-items:center; line-height:1;" title="確認整個檔案中所有重複句段">⇳</span>
+                                確認整個檔案中所有重複句段
+                            </label>
+                            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;" title="停用重複句段連動確認功能">
+                                <input type="radio" name="repMode" value="none">
+                                <span style="font-size:1rem; width:24px; text-align:center; display:inline-flex; flex-direction:column; align-items:center; line-height:1;" title="停用重複句段連動確認"><span style="color:red; font-size:0.9rem;">✕</span></span>
+                                不確認任何重複句段
+                            </label>
+                        </div>
+                        <button class="secondary-btn btn-sm" id="btnApplyRepMode" style="margin-top: 0.5rem; width: 100%;">套用至所有句段</button>
+                    </div>
+
+                    <!-- Column Settings -->
+                    <div id="colSettingsListContainer" style="display:flex; flex-direction:column; gap:0.75rem;">
+                        <!-- Content injected via JS -->
+                    </div>
+                </div>
+                <div class="panel-footer" style="padding:1rem 2rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; background:#f8fafc;">
+                    <button class="secondary-btn" id="btnResetViewSettings">重設</button>
+                    <button class="primary-btn" id="btnSaveViewSettings">套用並關閉</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- mqxliff 預設確認身分選擇 -->
+        <div class="wizard-overlay hidden" id="mqRoleModal">
+            <div class="wizard-modal" style="max-width: 460px;">
+                <div class="wizard-header">
+                    <h2 style="margin:0; font-size:1.2rem;">選擇本次作業身分</h2>
+                    <button class="close-btn" id="btnCloseMqRoleModal">&times;</button>
+                </div>
+                <div class="wizard-body">
+                    <p style="margin:0 0 0.5rem 0; font-size:0.85rem; color:#ef4444; font-weight:600;">⚠ 請務必選擇與客戶指派相同的身分！！！</p>
+                    <p style="margin:0 0 1rem 0; font-size:0.85rem; color:#64748b;">原檔沒有確認紀錄的句段，在您第一次按確認時會使用此身分：</p>
+                    <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; padding:0.5rem 0.75rem; border:1px solid #cbd5e1; border-radius:6px;"><input type="radio" name="mqRoleChoice" value="T_ALLOW_R1" checked> <span><strong>T（允許編輯 R1 確認）</strong> <span style="color:#64748b; font-size:0.8rem;">— R1 確認句段可編輯</span></span></label>
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; padding:0.5rem 0.75rem; border:1px solid #cbd5e1; border-radius:6px;"><input type="radio" name="mqRoleChoice" value="T_DENY_R1"> <span><strong>T（不允許編輯 R1 確認）</strong> <span style="color:#64748b; font-size:0.8rem;">— R1 確認句段標示為禁止</span></span></label>
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; padding:0.5rem 0.75rem; border:1px solid #cbd5e1; border-radius:6px;"><input type="radio" name="mqRoleChoice" value="R1"> <span><strong>R1（Reviewer 1）</strong></span></label>
+                        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; padding:0.5rem 0.75rem; border:1px solid #cbd5e1; border-radius:6px;"><input type="radio" name="mqRoleChoice" value="R2"> <span><strong>R2（Reviewer 2）</strong></span></label>
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; margin-top:1.25rem;">
+                        <button id="btnMqRoleConfirm" class="primary-btn">確認</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 開啟編輯器前：是否掛載專案內已存工作筆記（清單畫面蓋板） -->
+        <div class="wizard-overlay hidden" id="workspaceNoteMountModal">
+            <div class="wizard-modal" style="max-width: 520px;">
+                <div class="wizard-header">
+                    <h2 style="margin:0; font-size:1.2rem;">掛載工作筆記</h2>
+                    <button type="button" class="close-btn" id="btnCloseWorkspaceNoteMountModal">&times;</button>
+                </div>
+                <div class="wizard-body">
+                    <p style="margin:0 0 0.75rem 0; font-size:0.88rem; color:#64748b;">
+                        此檔案目前沒有工作筆記草稿。可自專案內任一已存檔筆記掛載到編輯器，或選擇不掛載直接開啟。
+                    </p>
+                    <label for="workspaceNoteMountSelect" style="display:block; font-size:0.88rem; margin-bottom:0.35rem;"><strong>選擇筆記檔</strong></label>
+                    <select id="workspaceNoteMountSelect" style="width:100%; box-sizing:border-box; padding:0.5rem 0.55rem; margin-bottom:0.75rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.9rem;"></select>
+                    <p style="font-size:0.82rem; color:#64748b; margin:0 0 0.35rem 0;">內容預覽：</p>
+                    <pre id="workspaceNoteMountPreview" style="max-height:min(40vh, 220px); overflow-y:auto; font-size:0.82rem; line-height:1.45; margin:0 0 1rem 0; padding:0.65rem; border:1px solid #e2e8f0; border-radius:6px; background:#f8fafc; white-space:pre-wrap; word-break:break-word;"></pre>
+                    <div style="display:flex; justify-content:flex-end; gap:0.5rem; flex-wrap:wrap;">
+                        <button type="button" id="btnWorkspaceNoteMountCancel" class="secondary-btn">取消</button>
+                        <button type="button" id="btnWorkspaceNoteMountOpen" class="primary-btn">開啟編輯器</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Basic Naming Modal (Used for Project/TM/TB) -->
+        <div class="wizard-overlay hidden" id="namingModal">
+            <div class="wizard-modal" style="max-width: 400px;">
+                <div class="wizard-header">
+                    <h2 id="namingModalTitle" style="margin:0; font-size:1.2rem;">新增專案</h2>
+                    <button class="close-btn" id="btnCloseNamingModal">&times;</button>
+                </div>
+                <div class="wizard-body">
+                    <div class="control-group mb-2">
+                        <label id="namingModalLabel">名稱</label>
+                        <input type="text" id="namingModalInput" placeholder="請輸入名稱..." style="width:100%; box-sizing:border-box; padding:0.6rem;">
+                    </div>
+                    <div class="actions right mt-4" style="display:flex; justify-content:flex-end;">
+                        <button id="btnNamingModalConfirm" class="primary-btn">儲存</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Import File Wizard Modal (Unchanged structurally, just ensuring it's here) -->
+        <div class="wizard-overlay hidden" id="wizardOverlay">
+            <div class="wizard-modal">
+                <div class="wizard-header">
+                    <h2 style="margin:0; font-size:1.2rem;">新增檔案並設定匯入邏輯</h2>
+                    <button class="close-btn" id="btnCloseWizard">&times;</button>
+                </div>
+                <div class="wizard-body">
+                    <div class="wizard-step active" id="wizardStep1">
+                        <div class="upload-section" style="text-align:center; border:2px dashed #cbd5e1; padding:2rem; border-radius:8px;">
+                            <input type="file" id="sourceFileInput" accept=".xlsx,.xls,.xlf,.xliff,.mqxliff,.sdlxliff" style="display:none;" />
+                            <label for="sourceFileInput" style="cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:0.5rem; font-weight:600; color:#64748b;">
+                                <span style="font-size:2.5rem;">📁</span><span>點擊或拖曳上傳 Excel / XLIFF (.xlsx/.xls/.xlf/.xliff/.mqxliff/.sdlxliff)</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="wizard-step hidden" id="wizardStep2">
+                        <div style="display:flex; gap:2rem;">
+                            <div style="width:200px; border-right:1px solid #e2e8f0; padding-right:1rem;">
+                                <h4>選擇工作表</h4>
+                                <label><input type="checkbox" id="selectAllSheets" checked> <span>全選</span></label>
+                                <div id="sheetList" style="margin-top:0.5rem; max-height:200px; overflow-y:auto; font-size:0.9rem;"></div>
+                            </div>
+                            <div style="flex:1;">
+                                <div style="background:#eff6ff; padding:1rem; border-radius:8px; font-size:0.85rem; color:#1d4ed8; margin-bottom:1.5rem;">
+                                    <p style="margin:0;"><strong>輸入欄位格式說明：</strong>例如「A-C」代表 A, B, C 三欄連續。「A-C, E, F-H」代表匯入 A, B, C, E, F, G, H。<br>
+                                    <strong>注意：</strong>原文和譯文欄數必須相等。<br>
+                                    <strong>指定列數說明：</strong>例如「2-99」代表匯入第 2-99 列。「2-」代表第二列到底。</p>
+                                </div>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                                    <div style="display:flex; flex-direction:column; gap:0.25rem;"><label style="font-size:0.85rem; font-weight:600;">原文欄位 (例如: A-B)</label><input type="text" id="configSourceCol" value="B" style="padding:0.6rem; border:1px solid #cbd5e1; border-radius:4px;"></div>
+                                    <div style="display:flex; flex-direction:column; gap:0.25rem;"><label style="font-size:0.85rem; font-weight:600;">譯文欄位 (例如: C-D)</label><input type="text" id="configTargetCol" value="C" style="padding:0.6rem; border:1px solid #cbd5e1; border-radius:4px;"></div>
+                                    <div style="display:flex; flex-direction:column; gap:0.25rem;"><label style="font-size:0.85rem; font-weight:600;">String Key 欄位 (原ID，可留空)</label><input type="text" id="configIdCol" style="padding:0.6rem; border:1px solid #cbd5e1; border-radius:4px;"></div>
+                                    <div style="display:flex; flex-direction:column; gap:0.25rem;"><label style="font-size:0.85rem; font-weight:600;">額外資訊欄位 (可留空)</label><input type="text" id="configExtraCol" style="padding:0.6rem; border:1px solid #cbd5e1; border-radius:4px;"></div>
+                                    <div style="grid-column:1/-1; display:flex; flex-direction:column; gap:0.25rem;"><label style="font-size:0.85rem; font-weight:600;">匯入方向</label>
+                                        <select id="configDirection" style="padding:0.6rem; border:1px solid #cbd5e1; border-radius:4px;">
+                                            <option value="top-down">從上到下 (Top-to-Bottom)</option>
+                                            <option value="left-right">由左到右 (Left-to-Right)</option>
+                                        </select>
+                                    </div>
+                                    <div style="grid-column:1/-1; display:flex; flex-direction:column; gap:0.25rem;"><label style="font-size:0.85rem; font-weight:600;">指定列數</label><input type="text" id="configRows" placeholder="例如: 2-" value="2-" style="padding:0.6rem; border:1px solid #cbd5e1; border-radius:4px;"></div>
+                                </div>
+                                <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem;">
+                                    <button id="btnWizBack1" class="secondary-btn">取消重選</button>
+                                    <button id="btnWizFinish" class="success-btn">匯入檔案</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+
+        <!-- TB Excel Import Mapping Modal -->
+        <div class="wizard-overlay hidden" id="tbExcelImportModal">
+            <div class="wizard-modal" style="max-width: 640px;">
+                <div class="wizard-header">
+                    <h3 style="margin:0; font-size:1.2rem;">術語匯入 (Excel)</h3>
+                    <button class="close-btn" id="btnCloseTbExcelImport">×</button>
+                </div>
+                <div class="wizard-body" style="display:flex; flex-direction:row; gap:1.25rem; max-height:380px; overflow:hidden;">
+                    <div style="width:230px; border-right:1px solid #e2e8f0; padding-right:0.75rem;">
+                        <p style="font-size:0.85rem; color:#64748b; margin:0 0 0.25rem 0;">選擇要匯入的工作表：</p>
+                        <label style="display:flex; align-items:center; gap:0.25rem; font-size:0.85rem; font-weight:600; margin-bottom:0.25rem; border-bottom:1px solid #e2e8f0; padding-bottom:0.25rem;">
+                            <input type="checkbox" id="tbExcelSelectAll">
+                            <span id="tbExcelSelectAllLabel">全選</span>
+                        </label>
+                        <div id="tbExcelSheetList" style="max-height:260px; overflow-y:auto; font-size:0.85rem; padding-left:0.25rem;"></div>
+                    </div>
+                    <div style="flex:1; display:flex; flex-direction:column; gap:0.75rem; min-width:0;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+                            <div style="flex:1;">
+                                <label for="tbExcelSheetSelect" style="font-size:0.85rem; color:#64748b; display:block; margin-bottom:0.15rem;">工作表</label>
+                                <select id="tbExcelSheetSelect" style="width:100%; padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; font-size:0.9rem; min-width:0;"></select>
+                            </div>
+                            <label style="display:flex; align-items:center; gap:0.25rem; font-size:0.8rem; white-space:nowrap; margin-top:1.2rem;">
+                                <input type="checkbox" id="tbExcelUseSameConfig">
+                                <span>所有勾選工作表使用同樣設定</span>
+                            </label>
+                        </div>
+                        <div style="display:grid; grid-template-columns:150px minmax(0,1fr); row-gap:0.4rem; column-gap:0.75rem; align-items:center;">
+                            <label style="font-size:0.9rem; text-align:right;">原文欄 (必填)</label>
+                            <input type="text" id="tbExcelSourceCol" placeholder="例如: A" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
+
+                            <label style="font-size:0.9rem; text-align:right;">譯文欄 (必填)</label>
+                            <input type="text" id="tbExcelTargetCol" placeholder="例如: B" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
+
+                            <label style="font-size:0.9rem; text-align:right;">備註欄 (可多欄)</label>
+                            <input type="text" id="tbExcelNoteCols" placeholder="例如: C-E, G 或 C,#" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
+
+                            <label style="font-size:0.9rem; text-align:right;">建立者欄 (選填)</label>
+                            <input type="text" id="tbExcelCreatorCol" placeholder="例如: F" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
+
+                            <label style="font-size:0.9rem; text-align:right;">建立時間欄 (選填)</label>
+                            <input type="text" id="tbExcelCreatedAtCol" placeholder="例如: G" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
+
+                            <label style="font-size:0.9rem; text-align:right;">匯入列數</label>
+                            <input type="text" id="tbExcelRowsRange" placeholder="例如: 2- 或 2-99" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
+                        </div>
+                        <div style="font-size:0.8rem; color:#64748b; margin-top:0.1rem;">
+                            備註欄可輸入多欄，例如：<code>C-E, G, H-J</code>；會依欄位順序合併為多行備註。<br>
+                            若在備註欄輸入 <code>#</code>，會額外插入該列所屬的工作表名稱。<br>
+                            建立時間欄支援常見日期時間格式，例如：<br>
+                            <code>YYYY-MM-DD HH:mm:ss</code>、<code>YYYY/MM/DD HH:mm</code>、或 ISO 8601 (<code>2026-03-16T14:30:00</code>)。<br>
+                            若欄位為空或格式無法解析，將自動以匯入當下時間（台北時間，24 小時制）填入。
+                        </div>
+                        <div id="tbExcelImportError" style="font-size:0.8rem; color:#b91c1c; min-height:1.2em;"></div>
+                    </div>
+                </div>
+                <div class="panel-footer" style="padding:1rem 2rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; background:#f8fafc;">
+                    <button type="button" class="secondary-btn" id="btnCancelTbExcelImport">取消</button>
+                    <button type="button" class="primary-btn" id="btnConfirmTbExcelImport">開始匯入</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pre-Translate Modal -->
+        <div class="wizard-overlay hidden" id="preTranslateModal">
+            <div class="wizard-modal" style="max-width: 450px;">
+                <div class="wizard-header">
+                    <h3 style="margin:0; font-size:1.25rem;">預先翻譯 (Pre-translate)</h3>
+                    <button class="close-btn" id="btnClosePreTranslate">×</button>
+                </div>
+                <div class="wizard-body" style="display:flex; flex-direction:column; gap:1rem;">
+                    <div>
+                        <strong style="display:block; margin-bottom:0.5rem;">套用範圍</strong>
+                        <label style="display:block; margin-bottom:0.25rem;"><input type="radio" name="ptScope" value="all" checked> 全文</label>
+                        <label style="display:block;"><input type="radio" name="ptScope" value="selected" id="ptScopeSelected"> <span id="ptScopeSelectedText" style="color:#64748b;">選取的句段</span></label>
+                    </div>
+                    <div>
+                        <strong style="display:block; margin-bottom:0.5rem;">TM 相符度門檻 (%)</strong>
+                        <input type="number" id="ptThreshold" value="100" min="0" max="100" style="width:100px; padding:0.4rem; border:1px solid #cbd5e1; border-radius:4px;">
+                    </div>
+                    <div>
+                        <strong style="display:block; margin-bottom:0.5rem;">處理選項</strong>
+                        <label style="display:block; margin-bottom:0.25rem;"><input type="checkbox" id="ptOverwrite"> 覆蓋既有譯文（非空白譯文）</label>
+                        <label style="display:block;"><input type="checkbox" id="ptAutoConfirm" checked> 將 100% 以上相符的句段自動標示為「已確認」</label>
+                    </div>
+                </div>
+                <div class="panel-footer" style="padding:1rem 2rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; background:#f8fafc;">
+                    <button class="secondary-btn" id="btnCancelPreTranslate">取消</button>
+                    <button class="primary-btn" id="btnRunPreTranslate">開始套用</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 蓋版：置於 body 下層，避免版面流動導致錯位 -->
+    <div id="exportTagWarningModal" class="modal-overlay hidden">
+        <div class="modal-box" style="max-width:520px;">
+            <h3 style="margin-top:0;">標籤警告</h3>
+            <p id="exportTagWarningSummary"></p>
+            <div id="exportTagWarningList"
+                 style="max-height:200px;overflow-y:auto;font-size:0.85rem;
+                        border:1px solid #e2e8f0;border-radius:6px;padding:0.5rem;
+                        margin-bottom:1rem;"></div>
+            <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+                <button id="exportTagWarningCancel" class="btn-sm">取消（返回編輯）</button>
+                <button id="exportTagWarningConfirm" class="primary-btn btn-sm">繼續匯出</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="workspaceNoteLeaveModal" class="modal-overlay hidden">
+        <div class="modal-box" style="max-width:560px;">
+            <h3 style="margin-top:0;">是否保留這次筆記內容？</h3>
+            <label for="workspaceNoteTitleInput" style="display:block;font-size:0.88rem;margin-bottom:0.35rem;"><strong>筆記標題</strong>（顯示於專案列表，每次離開皆可修改）</label>
+            <input type="text" id="workspaceNoteTitleInput" maxlength="500" placeholder="為此筆記命名…" autocomplete="off"
+                   style="width:100%;box-sizing:border-box;padding:0.45rem 0.55rem;margin-bottom:0.85rem;border:1px solid #cbd5e1;border-radius:6px;font-size:0.9rem;">
+            <p style="font-size:0.88rem; color:#64748b; margin:0 0 0.35rem 0;">預覽（全文會存進專案筆記列表）：</p>
+            <pre id="workspaceNoteLeavePreview" style="max-height:200px;overflow-y:auto;font-size:0.82rem;line-height:1.45;margin:0 0 1rem 0;padding:0.65rem;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;white-space:pre-wrap;word-break:break-word;"></pre>
+            <div style="display:flex;gap:0.5rem;justify-content:flex-end;flex-wrap:wrap;">
+                <button type="button" id="btnWorkspaceNoteLeaveCancel" class="btn-sm">取消（留在編輯器）</button>
+                <button type="button" id="btnWorkspaceNoteLeaveDiscard" class="secondary-btn btn-sm">否，捨棄</button>
+                <button type="button" id="btnWorkspaceNoteLeaveSave" class="primary-btn btn-sm">是，存成專案筆記</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="workspaceNoteReadModal" class="modal-overlay hidden">
+        <div class="modal-box" style="max-width:560px;">
+            <h3 id="workspaceNoteReadTitle" style="margin-top:0; font-size:1.05rem;">筆記預覽</h3>
+            <pre id="workspaceNoteReadBody" readonly style="max-height:min(60vh,360px);overflow-y:auto;font-size:0.85rem;line-height:1.45;margin:0 0 1rem 0;padding:0.65rem;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;white-space:pre-wrap;word-break:break-word;"></pre>
+            <div style="display:flex;justify-content:flex-end;">
+                <button type="button" id="btnWorkspaceNoteReadClose" class="primary-btn btn-sm">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="workspaceNoteRenameModal" class="modal-overlay hidden">
+        <div class="modal-box" style="max-width:440px;">
+            <h3 style="margin-top:0;">筆記更名</h3>
+            <input type="text" id="workspaceNoteRenameInput" maxlength="500" style="width:100%;box-sizing:border-box;padding:0.45rem 0.55rem;margin-bottom:1rem;border:1px solid #cbd5e1;border-radius:6px;font-size:0.9rem;">
+            <div style="display:flex;gap:0.5rem;justify-content:flex-end;">
+                <button type="button" id="btnWorkspaceNoteRenameCancel" class="secondary-btn btn-sm">取消</button>
+                <button type="button" id="btnWorkspaceNoteRenameSave" class="primary-btn btn-sm">儲存</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="js/tm-utils.js"></script>
+    <script src="db.js"></script>
+    <script src="js/xliff-tag-pipeline.js"></script>
+    <script src="js/xliff-import.js"></script>
+    <script src="js/xlsx-rich-tags.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

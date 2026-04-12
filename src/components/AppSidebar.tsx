@@ -1,4 +1,4 @@
-import { Receipt, FileText, Settings, Users, User, Shield, Briefcase, Wrench, Table2, MessageSquareText } from "lucide-react";
+import { Receipt, FileText, Settings, Users, User, Shield, Briefcase, Wrench, Table2, MessageSquareText, Languages } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/use-auth";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -42,6 +42,7 @@ export function AppSidebar() {
     { title: "個人檔案", url: "/profile", icon: User },
     ...(isAdmin ? [{ title: "設定", url: "/settings", icon: Settings }] : []),
     ...(canViewFieldRef ? [{ title: "內部資料", url: "/field-reference", icon: Table2 }] : []),
+    { title: "CAT（建構中）", url: "/cat", icon: Languages },
   ];
 
   const initials = (profile?.display_name || profile?.email || user?.email || "?").slice(0, 2).toUpperCase();
