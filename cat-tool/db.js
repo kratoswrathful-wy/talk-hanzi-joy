@@ -24,6 +24,23 @@ db.version(6).stores({
     workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle'
 });
 
+// v7：語言別支援
+// - projects：新增 sourceLangs[]、targetLangs[]（專案支援的語言清單，非索引欄位，直接儲存）
+// - files：新增 sourceLang、targetLang（該檔案選用的語言對），originalSourceLang、originalTargetLang（XLIFF 原檔內建）
+// - tms：以多值陣列索引 *sourceLangs / *targetLangs 取代舊有單值欄位
+// - tbs：新增 *sourceLangs、*targetLangs 多值陣列索引
+// - tmSegments：新增 sourceLang、targetLang（寫入時對應的語言對）
+db.version(7).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, *changeLog, sourceLang, targetLang',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle'
+});
+
 // Helper Database Methods
 const DBService = {
     // ---- Module-level Logs ----
@@ -53,9 +70,11 @@ const DBService = {
     },
 
     // ---- Projects ----
-    async createProject(name) {
+    async createProject(name, sourceLangs = [], targetLangs = []) {
         return await db.projects.add({
             name: name || '未命名專案',
+            sourceLangs: sourceLangs || [],
+            targetLangs: targetLangs || [],
             createdAt: new Date().toISOString(),
             lastModified: new Date().toISOString(),
         });
@@ -64,6 +83,14 @@ const DBService = {
     async updateProjectName(projectId, newName) {
         return await db.projects.update(projectId, { 
             name: newName,
+            lastModified: new Date().toISOString()
+        });
+    },
+
+    async updateProjectLangs(projectId, sourceLangs, targetLangs) {
+        return await db.projects.update(projectId, {
+            sourceLangs: sourceLangs || [],
+            targetLangs: targetLangs || [],
             lastModified: new Date().toISOString()
         });
     },
@@ -98,11 +125,15 @@ const DBService = {
     },
 
     // ---- Files ----
-    async createFile(projectId, name, originalFileBuffer) {
+    async createFile(projectId, name, originalFileBuffer, sourceLang = '', targetLang = '', originalSourceLang = '', originalTargetLang = '') {
         const fileId = await db.files.add({
             projectId,
             name,
             originalFileBuffer, // Store ArrayBuffer to rebuild export
+            sourceLang: sourceLang || '',
+            targetLang: targetLang || '',
+            originalSourceLang: originalSourceLang || '',
+            originalTargetLang: originalTargetLang || '',
             createdAt: new Date().toISOString(),
             lastModified: new Date().toISOString(),
         });
@@ -233,12 +264,22 @@ const DBService = {
     },
 
     // ---- TM (Translation Memory) ----
-    async createTM(name) {
+    async createTM(name, sourceLangs = [], targetLangs = []) {
         return await db.tms.add({
             name: name || '未命名記憶庫',
+            sourceLangs: sourceLangs || [],
+            targetLangs: targetLangs || [],
             createdAt: new Date().toISOString(),
             lastModified: new Date().toISOString(),
             changeLog: []
+        });
+    },
+
+    async updateTMLangs(tmId, sourceLangs, targetLangs) {
+        return await db.tms.update(tmId, {
+            sourceLangs: sourceLangs || [],
+            targetLangs: targetLangs || [],
+            lastModified: new Date().toISOString()
         });
     },
     async getTMs() { return await db.tms.orderBy('lastModified').reverse().toArray(); },
@@ -262,6 +303,8 @@ const DBService = {
             writtenProject: meta.writtenProject || '',
             createdBy: meta.createdBy || 'Unknown User',
             changeLog: meta.changeLog != null ? meta.changeLog : [],
+            sourceLang: meta.sourceLang || '',
+            targetLang: meta.targetLang || '',
             createdAt: new Date().toISOString(),
             lastModified: new Date().toISOString()
         });
@@ -285,13 +328,23 @@ const DBService = {
     },
 
     // ---- TB (Termbase) ----
-    async createTB(name) {
+    async createTB(name, sourceLangs = [], targetLangs = []) {
         return await db.tbs.add({
             name: name || '未命名術語庫',
             terms: [],
             nextTermNumber: 1,
             changeLog: [],
+            sourceLangs: sourceLangs || [],
+            targetLangs: targetLangs || [],
             createdAt: new Date().toISOString(),
+            lastModified: new Date().toISOString()
+        });
+    },
+
+    async updateTBLangs(tbId, sourceLangs, targetLangs) {
+        return await db.tbs.update(tbId, {
+            sourceLangs: sourceLangs || [],
+            targetLangs: targetLangs || [],
             lastModified: new Date().toISOString()
         });
     },

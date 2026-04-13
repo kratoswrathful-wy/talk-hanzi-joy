@@ -16,8 +16,11 @@
      * @param {function} ctx.makeBaseLogEntry
      * @param {function} ctx.appendProjectChangeLog
      * @param {function} ctx.loadFilesList
+     * @param {string} [ctx.selectedSourceLang]  匯入前使用者從語言對選擇器選定的原文語言
+     * @param {string} [ctx.selectedTargetLang]  匯入前使用者從語言對選擇器選定的譯文語言
      * @param {File} file
      * @param {string} [defaultMqRole]  mqxliff 匯入時由 UI 選擇的身分，寫入檔案中繼
+     * @returns {Promise<{originalSourceLang:string, originalTargetLang:string}>}
      */
     async function handleXliffLikeImport(ctx, file, defaultMqRole) {
         const Xliff = ctx.Xliff;
@@ -27,7 +30,9 @@
             wizardOverlay,
             makeBaseLogEntry,
             appendProjectChangeLog,
-            loadFilesList
+            loadFilesList,
+            selectedSourceLang = '',
+            selectedTargetLang = ''
         } = ctx;
 
         if (!Xliff || typeof Xliff.extractTaggedText !== 'function') {
@@ -42,6 +47,11 @@
         if (parseError) {
             throw new Error('無法解析為有效的 XML / XLIFF 檔案');
         }
+
+        // 讀取原始檔的語言對（XLIFF <file> 元素屬性）
+        const fileNode = xml.getElementsByTagName('file')[0];
+        const originalSourceLang = fileNode ? (fileNode.getAttribute('source-language') || fileNode.getAttribute('xml:lang') || '') : '';
+        const originalTargetLang = fileNode ? (fileNode.getAttribute('target-language') || '') : '';
 
         const transUnits = Array.from(xml.getElementsByTagName('trans-unit'));
         if (!transUnits.length) {
@@ -192,7 +202,15 @@
         const encoder = new TextEncoder();
         const buffer = encoder.encode(text).buffer;
 
-        const fileId = await DBService.createFile(currentProjectId, file.name, buffer);
+        const fileId = await DBService.createFile(
+            currentProjectId,
+            file.name,
+            buffer,
+            selectedSourceLang,
+            selectedTargetLang,
+            originalSourceLang,
+            originalTargetLang
+        );
         if (defaultMqRole && (file.name || '').toLowerCase().endsWith('.mqxliff')) {
             await DBService.updateFile(fileId, { defaultMqRole });
         }
@@ -209,6 +227,7 @@
 
         if (wizardOverlay) wizardOverlay.classList.add('hidden');
         await loadFilesList();
+        return { originalSourceLang, originalTargetLang };
     }
 
     global.CatToolXliffImport = {

@@ -1,5 +1,81 @@
 // TM：js/tm-utils.js ｜ XLIFF 標籤：js/xliff-tag-pipeline.js ｜ XLIFF 匯入：js/xliff-import.js
 
+// =====================================================
+// LANG_OPTIONS：遵循 XLIFF / BCP 47 語言代碼規範
+// =====================================================
+const LANG_OPTIONS = [
+    { code: 'en',    label: 'EN — English' },
+    { code: 'en-US', label: 'EN-US — English (US)' },
+    { code: 'en-GB', label: 'EN-GB — English (UK)' },
+    { code: 'de',    label: 'DE — Deutsch' },
+    { code: 'de-DE', label: 'DE-DE — Deutsch (Deutschland)' },
+    { code: 'fr',    label: 'FR — Français' },
+    { code: 'fr-FR', label: 'FR-FR — Français (France)' },
+    { code: 'es',    label: 'ES — Español' },
+    { code: 'it',    label: 'IT — Italiano' },
+    { code: 'pt',    label: 'PT — Português' },
+    { code: 'pt-BR', label: 'PT-BR — Português (Brasil)' },
+    { code: 'nl',    label: 'NL — Nederlands' },
+    { code: 'pl',    label: 'PL — Polski' },
+    { code: 'ru',    label: 'RU — Русский' },
+    { code: 'ja',    label: 'JA — 日本語' },
+    { code: 'ja-JP', label: 'JA-JP — 日本語（日本）' },
+    { code: 'ko',    label: 'KO — 한국어' },
+    { code: 'ko-KR', label: 'KO-KR — 한국어（대한민국）' },
+    { code: 'zh-TW', label: 'ZH-TW — 繁體中文（台灣）' },
+    { code: 'zh-HK', label: 'ZH-HK — 繁體中文（香港）' },
+    { code: 'zh-CN', label: 'ZH-CN — 簡體中文（中國）' },
+    { code: 'zh',    label: 'ZH — 中文' },
+    { code: 'ar',    label: 'AR — العربية' },
+    { code: 'tr',    label: 'TR — Türkçe' },
+    { code: 'th',    label: 'TH — ภาษาไทย' },
+    { code: 'vi',    label: 'VI — Tiếng Việt' },
+    { code: 'id',    label: 'ID — Bahasa Indonesia' },
+    { code: 'ms',    label: 'MS — Bahasa Melayu' },
+];
+
+/** 語言代碼 → 顯示標籤（找不到就傳回代碼本身） */
+function langLabel(code) {
+    if (!code) return '—';
+    const opt = LANG_OPTIONS.find(o => o.code.toLowerCase() === code.toLowerCase());
+    return opt ? opt.label : code;
+}
+
+/** 渲染語言代碼為 badge HTML（供 innerHTML 插入） */
+function langBadgeHtml(codes, dir = '') {
+    if (!codes || !codes.length) return '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
+    const badges = codes.map(c =>
+        `<span style="display:inline-block; background:#e0f2fe; color:#0369a1; border-radius:4px; padding:1px 6px; font-size:0.78rem; white-space:nowrap; font-family:monospace;">${c.toUpperCase()}</span>`
+    ).join(' ');
+    return dir ? `<span style="color:#94a3b8; font-size:0.75rem;">${dir}</span> ${badges}` : badges;
+}
+
+/** 建立語言多選 UI（checkbox 列表），回傳 container element
+ *  @param {string[]} selected - 已選中的語言代碼
+ */
+function buildLangCheckboxes(selected = []) {
+    const container = document.createElement('div');
+    container.style.cssText = 'display:flex; flex-wrap:wrap; gap:0.35rem; max-height:140px; overflow-y:auto; padding:0.25rem; border:1px solid #e2e8f0; border-radius:6px; background:#f8fafc;';
+    LANG_OPTIONS.forEach(opt => {
+        const lbl = document.createElement('label');
+        lbl.style.cssText = 'display:inline-flex; align-items:center; gap:0.25rem; cursor:pointer; padding:0.2rem 0.4rem; border-radius:4px; font-size:0.82rem; white-space:nowrap; background:#fff; border:1px solid #e2e8f0;';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = opt.code;
+        cb.checked = selected.includes(opt.code);
+        cb.style.cursor = 'pointer';
+        lbl.appendChild(cb);
+        lbl.appendChild(document.createTextNode(opt.label));
+        container.appendChild(lbl);
+    });
+    return container;
+}
+
+/** 從 buildLangCheckboxes 回傳的 container 取得已勾選的代碼陣列 */
+function getCheckedLangs(container) {
+    return Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     const Xliff = window.CatToolXliffTags;
     const XliffImport = window.CatToolXliffImport;
@@ -744,19 +820,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         projectsTableBody.innerHTML = '';
         if (projects.length === 0) {
             const tr = document.createElement('tr');
-            tr.innerHTML = '<td colspan="5" style="padding:0.75rem; color:#64748b; font-size:0.9rem;">目前沒有專案，請點擊「新增專案」建立。</td>';
+            tr.innerHTML = '<td colspan="6" style="padding:0.75rem; color:#64748b; font-size:0.9rem;">目前沒有專案，請點擊「新增專案」建立。</td>';
             projectsTableBody.appendChild(tr);
             syncProjectsSelectAllLabel();
         } else {
             projects.forEach((p, idx) => {
             const tr = document.createElement('tr');
             const nameEsc = (p.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const projSrcLangs = p.sourceLangs || [];
+            const projTgtLangs = p.targetLangs || [];
+            const projLangHtml = (projSrcLangs.length || projTgtLangs.length)
+                ? `${langBadgeHtml(projSrcLangs)} <span style="color:#94a3b8;">→</span> ${langBadgeHtml(projTgtLangs)}`
+                : '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
             tr.innerHTML = `
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="project-row-cb" data-id="${p.id}"></td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;">${idx + 1}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;">
                     <button class="link-btn resource-name" data-id="${p.id}" style="background:none;border:none;padding:0;color:var(--primary-color);cursor:pointer;text-decoration:underline;">${nameEsc}</button>
                 </td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${projLangHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.85rem; color:#64748b;">${new Date(p.lastModified || p.createdAt).toLocaleString()}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; white-space:nowrap;">
                     <button class="secondary-btn btn-sm rename-btn" data-id="${p.id}" data-name="${(p.name || '').replace(/"/g, '&quot;')}">更名</button>
@@ -842,6 +924,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         const p = await DBService.getProject(projectId);
         if(!p) return switchView('viewProjects');
         detailProjectName.textContent = p.name;
+
+        // 顯示專案語言標籤
+        const langEl = document.getElementById('detailProjectLangs');
+        if (langEl) {
+            const srcLangs = p.sourceLangs || [];
+            const tgtLangs = p.targetLangs || [];
+            if (srcLangs.length || tgtLangs.length) {
+                langEl.innerHTML = `<span style="color:#64748b; font-size:0.82rem;">語言對：</span>${langBadgeHtml(srcLangs)} <span style="color:#94a3b8;">→</span> ${langBadgeHtml(tgtLangs)}`;
+            } else {
+                langEl.innerHTML = '<span style="color:#94a3b8; font-size:0.82rem;">（尚未設定語言對）</span>';
+            }
+        }
+
         switchView('viewProjectDetail');
         await updateProjectDetailChangeLog(p);
         await loadFilesList();
@@ -856,7 +951,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!projectTmListBody) return;
         
         if (tms.length === 0) {
-            projectTmListBody.innerHTML = '<tr><td colspan="4" style="padding:0.75rem; color:#64748b;">系統中目前沒有任何翻譯記憶庫。請至 TM 管理頁面新增。</td></tr>';
+            projectTmListBody.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">系統中目前沒有任何翻譯記憶庫。請至 TM 管理頁面新增。</td></tr>';
             return;
         }
 
@@ -869,9 +964,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             const nameEsc = (tm.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const isRead = readTms.has(tm.id);
             const isWrite = writeTms.has(tm.id);
+            const tmSrcLangs = tm.sourceLangs || [];
+            const tmTgtLangs = tm.targetLangs || [];
+            const tmLangHtml = (tmSrcLangs.length || tmTgtLangs.length)
+                ? `${langBadgeHtml(tmSrcLangs)} <span style="color:#94a3b8;">→</span> ${langBadgeHtml(tmTgtLangs)}`
+                : '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
             tr.innerHTML = `
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${tm.id}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="tm-link" data-id="${tm.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a></td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${tmLangHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="checkbox" class="tm-read-cb" data-id="${tm.id}" ${isRead ? 'checked' : ''}> Read</label></td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="checkbox" class="tm-write-cb" data-id="${tm.id}" ${isWrite ? 'checked' : ''}> Write</label></td>
             `;
@@ -954,7 +1055,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         filesListBody.innerHTML = '';
         if(files.length === 0) {
             const tr = document.createElement('tr');
-            tr.innerHTML = '<td colspan="6" style="padding:0.75rem; color:#64748b;">此專案內尚無檔案。請點擊上方按鈕匯入檔案。</td>';
+            tr.innerHTML = '<td colspan="7" style="padding:0.75rem; color:#64748b;">此專案內尚無檔案。請點擊上方按鈕匯入檔案。</td>';
             filesListBody.appendChild(tr);
             await loadWorkspaceNotesList();
             return;
@@ -967,11 +1068,30 @@ document.addEventListener('DOMContentLoaded', async () => {
             const isMqxliff = (f.name || '').toLowerCase().endsWith('.mqxliff');
             const roleLabels = { 'T_ALLOW_R1': 'T (R1 - ✓ )', 'T_DENY_R1': 'T (R1 - ✖)', 'T': 'T (R1 - ✓ )', R1: 'Reviewer 1', R2: 'Reviewer 2' };
             const roleStr = isMqxliff && f.defaultMqRole ? (roleLabels[f.defaultMqRole] || f.defaultMqRole) : (isMqxliff ? '—' : '');
+
+            // 語言對顯示（若原始檔語言對不同則附加提示）
+            const fileSrc = f.sourceLang || '';
+            const fileTgt = f.targetLang || '';
+            let fileLangHtml = '';
+            if (fileSrc || fileTgt) {
+                fileLangHtml = `${langBadgeHtml([fileSrc].filter(Boolean))} <span style="color:#94a3b8;">→</span> ${langBadgeHtml([fileTgt].filter(Boolean))}`;
+                const origSrc = f.originalSourceLang || '';
+                const origTgt = f.originalTargetLang || '';
+                const mismatch = (origSrc && origSrc.toLowerCase() !== fileSrc.toLowerCase()) ||
+                                 (origTgt && origTgt.toLowerCase() !== fileTgt.toLowerCase());
+                if (mismatch) {
+                    fileLangHtml += ` <span style="color:#f59e0b; font-size:0.75rem; cursor:help;" title="原始檔語言對：${origSrc} → ${origTgt}">⚠</span>`;
+                }
+            } else {
+                fileLangHtml = '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
+            }
+
             tr.setAttribute('data-file-id', f.id);
             tr.innerHTML = `
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="project-file-row-cb" data-id="${f.id}"></td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${f.id}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="edit-file-btn" data-id="${f.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a></td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${fileLangHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:80px;">${roleStr}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;">${modStr}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;"><button type="button" class="danger-btn btn-sm delete-file-btn" data-id="${f.id}">刪除</button></td>
@@ -1183,7 +1303,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         listContainerElement.innerHTML = '';
         if (items.length === 0) {
             const emptyRow = document.createElement('tr');
-            emptyRow.innerHTML = `<td colspan="5" style="padding:0.75rem; border:1px solid #e2e8f0; color:#64748b; font-size:0.9rem;">${itemsOverride !== undefined ? '沒有符合搜尋條件的術語庫。' : '目前沒有資料。'}</td>`;
+            emptyRow.innerHTML = `<td colspan="6" style="padding:0.75rem; border:1px solid #e2e8f0; color:#64748b; font-size:0.9rem;">${itemsOverride !== undefined ? '沒有符合搜尋條件的術語庫。' : '目前沒有資料。'}</td>`;
             listContainerElement.appendChild(emptyRow);
             if (loaderMethod === 'getTMs' && syncTmListSelectAllLabel) syncTmListSelectAllLabel();
             if (loaderMethod === 'getTBs' && syncTbListSelectAllLabel) syncTbListSelectAllLabel();
@@ -1193,12 +1313,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         items.forEach(it => {
             const tr = document.createElement('tr');
             const nameEsc = (it.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const srcLangs = it.sourceLangs || [];
+            const tgtLangs = it.targetLangs || [];
+            const langHtml = (srcLangs.length || tgtLangs.length)
+                ? `${langBadgeHtml(srcLangs)} <span style="color:#94a3b8;">→</span> ${langBadgeHtml(tgtLangs)}`
+                : '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
             tr.innerHTML = `
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="resource-row-cb" data-id="${it.id}"></td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${it.id}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;">
                     <button class="link-btn resource-name" data-id="${it.id}" style="background:none;border:none;padding:0;color:var(--primary-color);cursor:pointer;text-decoration:underline;">${nameEsc}</button>
                 </td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${langHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.85rem; color:#64748b;">${new Date(it.createdAt).toLocaleDateString()}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; white-space:nowrap;">
                     <button class="secondary-btn btn-sm manage-btn" data-id="${it.id}">更名</button>
@@ -2420,18 +2546,47 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // ==========================================
-    // NAMING MODAL (Generic for Projects, TMs, TBs)
+    // NAMING MODAL (Generic for Projects, TMs, TBs, Rename)
     // ==========================================
     document.getElementById('btnCreateProjectModal').addEventListener('click', () => openNamingModal('createProject', '新增專案', '專案名稱'));
     document.getElementById('btnCreateTMModal').addEventListener('click', () => openNamingModal('createTM', '新增翻譯記憶庫 (TM)', 'TM 名稱'));
     document.getElementById('btnCreateTBModal').addEventListener('click', () => openNamingModal('createTB', '新增術語庫 (TB)', 'TB 名稱'));
     btnCloseNamingModal.addEventListener('click', () => namingModal.classList.add('hidden'));
+    const btnCloseNamingModalFooter = document.getElementById('btnCloseNamingModalFooter');
+    if (btnCloseNamingModalFooter) btnCloseNamingModalFooter.addEventListener('click', () => namingModal.classList.add('hidden'));
 
-    function openNamingModal(action, title, label, idArg = null, defaultName = '') {
+    // 語言選擇容器參照（Modal 內部動態填入）
+    let _namingModalSrcLangsCb = null;
+    let _namingModalTgtLangsCb = null;
+
+    function openNamingModal(action, title, label, idArg = null, defaultName = '', existingEntity = null) {
         namingActionContext = { action, idArg };
         namingModalTitle.textContent = title;
         namingModalLabel.textContent = label;
         namingModalInput.value = defaultName;
+
+        const langSection = document.getElementById('namingModalLangSection');
+        const srcContainer = document.getElementById('namingModalSrcLangs');
+        const tgtContainer = document.getElementById('namingModalTgtLangs');
+        const needsLangs = ['createProject', 'createTM', 'createTB'].includes(action);
+
+        if (langSection) {
+            langSection.classList.toggle('hidden', !needsLangs);
+        }
+        if (needsLangs && srcContainer && tgtContainer) {
+            srcContainer.innerHTML = '';
+            tgtContainer.innerHTML = '';
+            const existingSrc = (existingEntity && existingEntity.sourceLangs) ? existingEntity.sourceLangs : [];
+            const existingTgt = (existingEntity && existingEntity.targetLangs) ? existingEntity.targetLangs : [];
+            _namingModalSrcLangsCb = buildLangCheckboxes(existingSrc);
+            _namingModalTgtLangsCb = buildLangCheckboxes(existingTgt);
+            srcContainer.appendChild(_namingModalSrcLangsCb);
+            tgtContainer.appendChild(_namingModalTgtLangsCb);
+        } else {
+            _namingModalSrcLangsCb = null;
+            _namingModalTgtLangsCb = null;
+        }
+
         namingModal.classList.remove('hidden');
         namingModalInput.focus();
     }
@@ -2441,8 +2596,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if(!val) return alert('請輸入名稱');
         
         const { action, idArg } = namingActionContext;
+        const srcLangs = _namingModalSrcLangsCb ? getCheckedLangs(_namingModalSrcLangsCb) : [];
+        const tgtLangs = _namingModalTgtLangsCb ? getCheckedLangs(_namingModalTgtLangsCb) : [];
+
         if (action === 'createProject') {
-            const id = await DBService.createProject(val);
+            const id = await DBService.createProject(val, srcLangs, tgtLangs);
             const entry = makeBaseLogEntry('create', 'project', {
                 entityId: id,
                 entityName: val
@@ -2462,7 +2620,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             await appendProjectChangeLog(idArg, entry);
             await DBService.addModuleLog('projects', entry);
         } else if (action === 'createTM') {
-            const id = await DBService.createTM(val);
+            const id = await DBService.createTM(val, srcLangs, tgtLangs);
             const entry = makeBaseLogEntry('create', 'tm', {
                 entityId: id,
                 entityName: val
@@ -2470,7 +2628,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             await appendTMChangeLog(id, entry);
             await DBService.addModuleLog('tm', entry);
         } else if (action === 'createTB') {
-            const id = await DBService.createTB(val);
+            const id = await DBService.createTB(val, srcLangs, tgtLangs);
             const entry = makeBaseLogEntry('create', 'tb', {
                 entityId: id,
                 entityName: val
@@ -2514,39 +2672,59 @@ document.addEventListener('DOMContentLoaded', async () => {
         const isExcel = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls');
         const isXliffLike = lowerName.endsWith('.xlf') || lowerName.endsWith('.xliff') || lowerName.endsWith('.mqxliff') || lowerName.endsWith('.sdlxliff');
 
+        // ---- 語言對選擇（匯入前必選）----
+        // 先取得目前專案的語言設定
+        const project = currentProjectId ? await DBService.getProject(currentProjectId) : null;
+        const projectSrcLangs = (project && project.sourceLangs) ? project.sourceLangs : [];
+        const projectTgtLangs = (project && project.targetLangs) ? project.targetLangs : [];
+
+        // 隱藏 wizard，顯示語言對選擇 Modal
+        if (wizardOverlay) wizardOverlay.classList.add('hidden');
+        const langChoice = await showFileLangModal(projectSrcLangs, projectTgtLangs);
+        if (langChoice === null) {
+            // 使用者取消 → 恢復 wizard step 1
+            if (wizardOverlay) wizardOverlay.classList.remove('hidden');
+            sourceFileInput.value = '';
+            return;
+        }
+        _importSelectedSrcLang = langChoice.sourceLang;
+        _importSelectedTgtLang = langChoice.targetLang;
+
         if (isExcel) {
-        const reader = new FileReader();
+            if (wizardOverlay) wizardOverlay.classList.remove('hidden');
+            const reader = new FileReader();
             reader.onload = (ev) => {
                 excelRawBuffer = ev.target.result;
-            const data = new Uint8Array(excelRawBuffer);
-            excelWorkbook = XLSX.read(data, { type: 'array' });
-            
-            sheetList.innerHTML = '';
-            excelWorkbook.SheetNames.forEach(name => {
-                excelDataBySheet[name] = XLSX.utils.sheet_to_json(excelWorkbook.Sheets[name], { header: 1, defval: '' });
-                const lbl = document.createElement('label');
-                lbl.innerHTML = `<input type="checkbox" class="sheet-checkbox" value="${name}" checked> <span>${name}</span>`;
-                sheetList.appendChild(lbl);
-                lbl.style.display = 'block'; lbl.style.marginBottom = '0.5rem';
-            });
+                const data = new Uint8Array(excelRawBuffer);
+                excelWorkbook = XLSX.read(data, { type: 'array' });
 
-            const checkboxes = document.querySelectorAll('.sheet-checkbox');
+                sheetList.innerHTML = '';
+                excelWorkbook.SheetNames.forEach(name => {
+                    excelDataBySheet[name] = XLSX.utils.sheet_to_json(excelWorkbook.Sheets[name], { header: 1, defval: '' });
+                    const lbl = document.createElement('label');
+                    lbl.innerHTML = `<input type="checkbox" class="sheet-checkbox" value="${name}" checked> <span>${name}</span>`;
+                    sheetList.appendChild(lbl);
+                    lbl.style.display = 'block'; lbl.style.marginBottom = '0.5rem';
+                });
+
+                const checkboxes = document.querySelectorAll('.sheet-checkbox');
                 selectAllSheets.addEventListener('change', (evt) => checkboxes.forEach(cb => cb.checked = evt.target.checked));
-            checkboxes.forEach(cb => cb.addEventListener('change', () => selectAllSheets.checked = Array.from(checkboxes).every(c => c.checked)));
+                checkboxes.forEach(cb => cb.addEventListener('change', () => selectAllSheets.checked = Array.from(checkboxes).every(c => c.checked)));
 
-            showWizardStep('wizardStep2');
-        };
-        reader.readAsArrayBuffer(file);
+                showWizardStep('wizardStep2');
+            };
+            reader.readAsArrayBuffer(file);
         } else if (isXliffLike) {
             const isMqxliff = lowerName.endsWith('.mqxliff');
             if (isMqxliff) {
-                const role = await showMqRoleModal({ hideWizardFirst: true });
-                if (role === null) { wizardOverlay.classList.remove('hidden'); sourceFileInput.value = ''; return; }
+                const role = await showMqRoleModal({ hideWizardFirst: false });
+                if (role === null) { sourceFileInput.value = ''; return; }
                 try {
                     if (!XliffImport || typeof XliffImport.handleXliffLikeImport !== 'function') {
                         throw new Error('XLIFF 匯入模組未載入（js/xliff-import.js）');
                     }
-                    await XliffImport.handleXliffLikeImport(xliffImportCtx(), file, role);
+                    const result = await XliffImport.handleXliffLikeImport(xliffImportCtx(), file, role);
+                    _checkXliffLangMismatch(result, langChoice);
                 } catch (err) {
                     console.error(err);
                     alert('匯入 XLIFF 檔案時發生錯誤：' + (err.message || err));
@@ -2558,7 +2736,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (!XliffImport || typeof XliffImport.handleXliffLikeImport !== 'function') {
                         throw new Error('XLIFF 匯入模組未載入（js/xliff-import.js）');
                     }
-                    await XliffImport.handleXliffLikeImport(xliffImportCtx(), file);
+                    const result = await XliffImport.handleXliffLikeImport(xliffImportCtx(), file);
+                    _checkXliffLangMismatch(result, langChoice);
                 } catch (err) {
                     console.error(err);
                     alert('匯入 XLIFF 檔案時發生錯誤：' + (err.message || err));
@@ -2571,6 +2750,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             sourceFileInput.value = '';
         }
     });
+
+    /** 比對 XLIFF 原始語言對與使用者選擇，若不符則跳出警告（但不阻止匯入） */
+    function _checkXliffLangMismatch(result, langChoice) {
+        if (!result || !langChoice) return;
+        const { originalSourceLang, originalTargetLang } = result;
+        if (!originalSourceLang && !originalTargetLang) return;
+        const srcMatch = !originalSourceLang || originalSourceLang.toLowerCase() === (langChoice.sourceLang || '').toLowerCase();
+        const tgtMatch = !originalTargetLang || originalTargetLang.toLowerCase() === (langChoice.targetLang || '').toLowerCase();
+        if (!srcMatch || !tgtMatch) {
+            const msg = [
+                '⚠ 語言對不符提示（檔案已成功匯入）',
+                '',
+                `原始檔內建語言對：${originalSourceLang || '—'} → ${originalTargetLang || '—'}`,
+                `本次任務語言對：${langChoice.sourceLang || '—'} → ${langChoice.targetLang || '—'}`,
+                '',
+                '系統將以任務設定為準進行 TM／TB 比對與寫入；匯出時原始語言對會從原始檔案還原，不受影響。'
+            ].join('\n');
+            alert(msg);
+        }
+    }
 
     btnWizBack1.addEventListener('click', () => {
         sourceFileInput.value = '';
@@ -2703,6 +2902,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 標籤佔位：js/xliff-tag-pipeline.js（window.CatToolXliffTags）
     // 【CRITICAL】匯出策略：docs/XLIFF_TAG_EXPORT.md、.cursor/rules/xliff-tag-export.mdc
     // ==========================================
+    // 用於傳給 xliffImportCtx() 的當前語言選擇（由 showFileLangModal 設定）
+    let _importSelectedSrcLang = '';
+    let _importSelectedTgtLang = '';
+
     function xliffImportCtx() {
         return {
             Xliff,
@@ -2711,8 +2914,59 @@ document.addEventListener('DOMContentLoaded', async () => {
             wizardOverlay,
             makeBaseLogEntry,
             appendProjectChangeLog,
-            loadFilesList
+            loadFilesList,
+            selectedSourceLang: _importSelectedSrcLang,
+            selectedTargetLang: _importSelectedTgtLang
         };
+    }
+
+    /**
+     * 彈出「語言對選擇」Modal，回傳 { sourceLang, targetLang } 或 null（取消）。
+     * @param {string[]} srcLangs - 專案支援的原文語言代碼
+     * @param {string[]} tgtLangs - 專案支援的譯文語言代碼
+     */
+    function showFileLangModal(srcLangs, tgtLangs) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('fileLangModal');
+            const srcSel = document.getElementById('fileLangSrcSelect');
+            const tgtSel = document.getElementById('fileLangTgtSelect');
+            const warnEl = document.getElementById('fileLangWarning');
+            const btnConfirm = document.getElementById('btnFileLangConfirm');
+            const btnCancel = document.getElementById('btnFileLangCancel');
+            const btnClose = document.getElementById('btnCloseFileLangModal');
+            if (!modal || !srcSel || !tgtSel) { resolve(null); return; }
+
+            // 填入選項（若專案沒有設定語言，顯示全部）
+            const buildOptions = (sel, codes) => {
+                sel.innerHTML = '';
+                const pool = codes && codes.length ? codes : LANG_OPTIONS.map(o => o.code);
+                pool.forEach(code => {
+                    const opt = document.createElement('option');
+                    opt.value = code;
+                    opt.textContent = langLabel(code);
+                    sel.appendChild(opt);
+                });
+            };
+            buildOptions(srcSel, srcLangs);
+            buildOptions(tgtSel, tgtLangs);
+
+            if (warnEl) warnEl.classList.add('hidden');
+            modal.classList.remove('hidden');
+
+            const cleanup = (val) => {
+                modal.classList.add('hidden');
+                btnConfirm.removeEventListener('click', onConfirm);
+                btnCancel.removeEventListener('click', onCancel);
+                if (btnClose) btnClose.removeEventListener('click', onCancel);
+                resolve(val);
+            };
+            const onConfirm = () => cleanup({ sourceLang: srcSel.value, targetLang: tgtSel.value });
+            const onCancel = () => cleanup(null);
+
+            btnConfirm.addEventListener('click', onConfirm);
+            btnCancel.addEventListener('click', onCancel);
+            if (btnClose) btnClose.addEventListener('click', onCancel);
+        });
     }
 
     function colLetterToIndex(str) { let r=0; for(let i=0; i<str.length; i++) r = r*26 + str.charCodeAt(i) - 64; return r-1; }
@@ -2766,7 +3020,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
 
             btnWizFinish.disabled = true; btnWizFinish.textContent = '處理中...';
-            const fId = await DBService.createFile(currentProjectId, originalFileName, excelRawBuffer);
+            const fId = await DBService.createFile(
+                currentProjectId, originalFileName, excelRawBuffer,
+                _importSelectedSrcLang, _importSelectedTgtLang
+            );
             const entry = makeBaseLogEntry('create', 'project-file', {
                 entityId: fId,
                 entityName: originalFileName
@@ -3012,23 +3269,49 @@ document.addEventListener('DOMContentLoaded', async () => {
         // --- LOAD PROJECT TM CACHE ---
         window.ActiveTmCache = [];
         window.ActiveWriteTms = [];
+        // 記錄當前檔案的語言對，供 TM 篩選及寫入使用
+        window.ActiveFileLangs = { sourceLang: file.sourceLang || '', targetLang: file.targetLang || '' };
         const project = await DBService.getProject(file.projectId);
         if (project && project.readTms && project.readTms.length > 0) {
             for (const tmId of project.readTms) {
                 const tm = await DBService.getTM(tmId);
                 const tmName = tm ? tm.name : `TM #${tmId}`;
                 const segs = await DBService.getTMSegments(tmId);
+                // 若檔案有設定語言對，則只保留語言對相符或未設語言的 TM 句段（向下相容）
+                const fileSrc = window.ActiveFileLangs.sourceLang;
+                const fileTgt = window.ActiveFileLangs.targetLang;
+                const filtered = (fileSrc || fileTgt)
+                    ? segs.filter(s => {
+                        const segSrc = s.sourceLang || '';
+                        const segTgt = s.targetLang || '';
+                        // 句段沒有語言標記（舊資料）→ 納入；有語言標記 → 必須相符
+                        if (!segSrc && !segTgt) return true;
+                        return segSrc.toLowerCase() === fileSrc.toLowerCase() &&
+                               segTgt.toLowerCase() === fileTgt.toLowerCase();
+                    })
+                    : segs;
                 // Stamp each segment with its source TM id + name
-                segs.forEach(s => { s._tmId = tmId; s.tmName = tmName; });
-                window.ActiveTmCache.push(...segs);
+                filtered.forEach(s => { s._tmId = tmId; s.tmName = tmName; });
+                window.ActiveTmCache.push(...filtered);
             }
         }
         if (project && project.writeTms) window.ActiveWriteTms = project.writeTms;
 
-        // --- LOAD ALL TB TERMS FOR CAT PANEL ---
+        // --- LOAD TB TERMS FOR CAT PANEL (依語言對篩選 TB) ---
         window.ActiveTbTerms = [];
         const allTbs = await DBService.getTBs();
+        const fileSrcLang = window.ActiveFileLangs.sourceLang;
+        const fileTgtLang = window.ActiveFileLangs.targetLang;
         for (const tb of allTbs) {
+            // 若 TB 有設定語言，只使用語言對相符的 TB；若未設定語言（舊資料）則不限
+            const tbSrcLangs = tb.sourceLangs || [];
+            const tbTgtLangs = tb.targetLangs || [];
+            const tbHasLangs = tbSrcLangs.length > 0 || tbTgtLangs.length > 0;
+            if (tbHasLangs && (fileSrcLang || fileTgtLang)) {
+                const srcOk = !tbSrcLangs.length || tbSrcLangs.some(c => c.toLowerCase() === fileSrcLang.toLowerCase());
+                const tgtOk = !tbTgtLangs.length || tbTgtLangs.some(c => c.toLowerCase() === fileTgtLang.toLowerCase());
+                if (!srcOk || !tgtOk) continue;
+            }
             const full = await DBService.getTB(tb.id);
             const terms = (full && full.terms) ? full.terms : [];
             terms.forEach(t => {
@@ -5190,20 +5473,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         const prevS = i > 0 ? currentSegmentsList[i - 1].sourceText : '';
         const nextS = i < currentSegmentsList.length - 1 ? currentSegmentsList[i + 1].sourceText : '';
         const key = seg.keys && seg.keys.length > 0 ? seg.keys[0] : '';
+        const fileLangs = window.ActiveFileLangs || {};
         const metaBase = {
             key,
             prevSegment: prevS,
             nextSegment: nextS,
             writtenFile: fName,
             writtenProject: prjName,
-            createdBy: creator
+            createdBy: creator,
+            sourceLang: fileLangs.sourceLang || '',
+            targetLang: fileLangs.targetLang || ''
         };
         for (const rawTmId of window.ActiveWriteTms) {
             const tmId = Number(rawTmId);
             const tmRow = await DBService.getTM(tmId);
             const tmName = tmRow ? tmRow.name : `TM #${tmId}`;
+            // 寫入時只比對同語言對的現有句段（向下相容：舊句段無語言標記者也納入比對）
             const existing = await DBService.tmSegments.where('tmId').equals(tmId).toArray();
-            const match = existing.find(tms => tms.sourceText === seg.sourceText);
+            const srcLang = metaBase.sourceLang.toLowerCase();
+            const tgtLang = metaBase.targetLang.toLowerCase();
+            const match = existing.find(tms => {
+                if (tms.sourceText !== seg.sourceText) return false;
+                if (!srcLang && !tgtLang) return true;
+                const segSrc = (tms.sourceLang || '').toLowerCase();
+                const segTgt = (tms.targetLang || '').toLowerCase();
+                if (!segSrc && !segTgt) return true;
+                return segSrc === srcLang && segTgt === tgtLang;
+            });
             if (!match) {
                 const newId = await DBService.addTMSegment(tmId, seg.sourceText, seg.targetText, {
                     ...metaBase,

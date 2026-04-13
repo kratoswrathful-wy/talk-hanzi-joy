@@ -86,6 +86,7 @@
                                 </th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:200px;">語言對</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">最後修改</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:100px;">操作</th>
                             </tr>
@@ -100,6 +101,7 @@
                 <header class="view-header" style="flex-direction:column; align-items:flex-start; gap:0.5rem;">
                     <button class="secondary-btn" id="btnBackToProjects">← 返回清單</button>
                     <h1 id="detailProjectName" class="page-title" style="margin:0.5rem 0 0 0; font-size:1.5rem; font-weight:700;">專案名稱</h1>
+                    <div id="detailProjectLangs" style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap; font-size:0.85rem; margin-top:0.2rem;"></div>
                     <div class="table-page-actions" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
                         <button class="primary-btn btn-sm" id="btnAddFileModal">+ 匯入檔案</button>
                     </div>
@@ -126,6 +128,7 @@
                                     </th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:130px;">語言對</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:80px;">預設身分</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">最後修改</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:90px;">操作</th>
@@ -170,6 +173,7 @@
                                 <tr style="background:#f1f5f9;">
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:200px;">語言對</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">讀取</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">寫入</th>
                                 </tr>
@@ -212,6 +216,7 @@
                                 </th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:220px;">語言對</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">建立日期</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:100px;">操作</th>
                             </tr>
@@ -296,6 +301,7 @@
                                 </th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:220px;">語言對</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">建立日期</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:100px;">操作</th>
                             </tr>
@@ -720,20 +726,63 @@
             </div>
         </div>
 
-        <!-- Basic Naming Modal (Used for Project/TM/TB) -->
+        <!-- Basic Naming Modal (Used for Project/TM/TB/rename) -->
         <div class="wizard-overlay hidden" id="namingModal">
-            <div class="wizard-modal" style="max-width: 400px;">
+            <div class="wizard-modal" style="max-width: 520px;">
                 <div class="wizard-header">
                     <h2 id="namingModalTitle" style="margin:0; font-size:1.2rem;">新增專案</h2>
                     <button class="close-btn" id="btnCloseNamingModal">&times;</button>
                 </div>
-                <div class="wizard-body">
-                    <div class="control-group mb-2">
-                        <label id="namingModalLabel">名稱</label>
-                        <input type="text" id="namingModalInput" placeholder="請輸入名稱..." style="width:100%; box-sizing:border-box; padding:0.6rem;">
+                <div class="wizard-body" style="display:flex; flex-direction:column; gap:0.75rem;">
+                    <div class="control-group">
+                        <label id="namingModalLabel" style="display:block; font-size:0.9rem; margin-bottom:0.3rem;">名稱</label>
+                        <input type="text" id="namingModalInput" placeholder="請輸入名稱..." style="width:100%; box-sizing:border-box; padding:0.6rem; border:1px solid #cbd5e1; border-radius:6px;">
                     </div>
-                    <div class="actions right mt-4" style="display:flex; justify-content:flex-end;">
+                    <!-- 語言選擇區（建立 Project / TM / TB 時顯示） -->
+                    <div id="namingModalLangSection" class="hidden">
+                        <div style="font-size:0.85rem; color:#64748b; margin-bottom:0.4rem;">語言選擇（可複選；不選表示不限語言）</div>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                            <div>
+                                <label style="display:block; font-size:0.88rem; font-weight:600; margin-bottom:0.3rem;">原文語言</label>
+                                <div id="namingModalSrcLangs"></div>
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:0.88rem; font-weight:600; margin-bottom:0.3rem;">譯文語言</label>
+                                <div id="namingModalTgtLangs"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                        <button type="button" id="btnCloseNamingModalFooter" class="secondary-btn">取消</button>
                         <button id="btnNamingModalConfirm" class="primary-btn">儲存</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 檔案匯入：語言對選擇 Modal -->
+        <div class="wizard-overlay hidden" id="fileLangModal">
+            <div class="wizard-modal" style="max-width: 440px;">
+                <div class="wizard-header">
+                    <h2 style="margin:0; font-size:1.2rem;">選擇此任務的語言對</h2>
+                    <button class="close-btn" id="btnCloseFileLangModal">&times;</button>
+                </div>
+                <div class="wizard-body" style="display:flex; flex-direction:column; gap:0.75rem;">
+                    <p style="margin:0; font-size:0.88rem; color:#64748b;">請從專案支援的語言中各選一種，組成本次匯入任務的翻譯方向。</p>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                        <div>
+                            <label style="display:block; font-size:0.88rem; font-weight:600; margin-bottom:0.3rem;">原文語言</label>
+                            <select id="fileLangSrcSelect" style="width:100%; padding:0.5rem 0.4rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.9rem;"></select>
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.88rem; font-weight:600; margin-bottom:0.3rem;">譯文語言</label>
+                            <select id="fileLangTgtSelect" style="width:100%; padding:0.5rem 0.4rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.9rem;"></select>
+                        </div>
+                    </div>
+                    <div id="fileLangWarning" class="hidden" style="padding:0.6rem 0.75rem; background:#fef9c3; border:1px solid #fde047; border-radius:6px; font-size:0.85rem; color:#713f12;"></div>
+                    <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                        <button type="button" id="btnFileLangCancel" class="secondary-btn">取消</button>
+                        <button type="button" id="btnFileLangConfirm" class="primary-btn">確定</button>
                     </div>
                 </div>
             </div>
