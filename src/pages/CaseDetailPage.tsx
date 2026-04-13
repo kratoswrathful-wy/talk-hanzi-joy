@@ -874,16 +874,8 @@ function serializeCaseFieldForLog(key: keyof CaseRecord, value: unknown): string
   if (key === "tools" || key === "questionTools") {
     const entries = value as ToolEntry[];
     if (!entries?.length) return "（空）";
-    return entries.map((t) => {
-      const parts: string[] = [];
-      if (t.tool) parts.push(t.tool);
-      const fv = t.fieldValues || {};
-      const fieldLabels = Object.fromEntries((t.fields || []).map((f) => [f.id, f.label]));
-      for (const [id, v] of Object.entries(fv)) {
-        if (v) parts.push(`${fieldLabels[id] || id}: ${v}`);
-      }
-      return parts.length ? parts.join(" / ") : "（未設定）";
-    }).join("、");
+    const names = entries.map((t) => t.tool).filter(Boolean);
+    return names.length ? names.join("、") : "（空）";
   }
   if (key === "collabRows") {
     const rows = value as CollabRow[];
@@ -1094,6 +1086,68 @@ export default function CaseDetailPage() {
             if (newV === undefined) continue;
             if (JSON.stringify(normDateForCompare(oldV)) === JSON.stringify(normDateForCompare(newV))) continue;
             const label = CASE_FIELD_LABELS[key] ?? String(key);
+
+            // Per-field diff for tool entries to avoid logging the entire tool state
+            if (key === "tools" || key === "questionTools") {
+              const oldEntries = (oldV as ToolEntry[]) || [];
+              const newEntries = (newV as ToolEntry[]) || [];
+              const newIds = new Set(newEntries.map((e) => e.id));
+              const oldIds = new Set(oldEntries.map((e) => e.id));
+              const addedIds = [...newIds].filter((id) => !oldIds.has(id));
+              const removedIds = [...oldIds].filter((id) => !newIds.has(id));
+              // Log added / removed tool entries as a structural change
+              if (addedIds.length || removedIds.length) {
+                const r = applyEditLogFieldChange({
+                  fieldKey: `${key}:structure`,
+                  oldValue: oldEntries.map((e) => e.tool).filter(Boolean).join("、") || "（空）",
+                  newValue: newEntries.map((e) => e.tool).filter(Boolean).join("、") || "（空）",
+                  now: Date.now(), author,
+                  formatTimestamp: (d) => formatTimestamp(d),
+                  fieldLabel: label,
+                  existingLogs: logs, burstMap: burst,
+                });
+                logs = r.nextLogs; burst = r.nextBurstMap;
+              }
+              // Log individual field value changes within matched entries
+              for (const newEntry of newEntries) {
+                const oldEntry = oldEntries.find((e) => e.id === newEntry.id);
+                if (!oldEntry) continue;
+                if (oldEntry.tool !== newEntry.tool) {
+                  const r = applyEditLogFieldChange({
+                    fieldKey: `${key}:${newEntry.id}:tool`,
+                    oldValue: oldEntry.tool || "（空）",
+                    newValue: newEntry.tool || "（空）",
+                    now: Date.now(), author,
+                    formatTimestamp: (d) => formatTimestamp(d),
+                    fieldLabel: label,
+                    existingLogs: logs, burstMap: burst,
+                  });
+                  logs = r.nextLogs; burst = r.nextBurstMap;
+                }
+                const fieldLabels = Object.fromEntries(
+                  (newEntry.fields || oldEntry.fields || []).map((f) => [f.id, f.label])
+                );
+                const oldFv = oldEntry.fieldValues || {};
+                const newFv = newEntry.fieldValues || {};
+                const allFieldIds = new Set([...Object.keys(oldFv), ...Object.keys(newFv)]);
+                for (const fieldId of allFieldIds) {
+                  if (oldFv[fieldId] === newFv[fieldId]) continue;
+                  const fieldLabel = fieldLabels[fieldId] || fieldId;
+                  const r = applyEditLogFieldChange({
+                    fieldKey: `${key}:${newEntry.id}:${fieldId}`,
+                    oldValue: oldFv[fieldId] || "（空）",
+                    newValue: newFv[fieldId] || "（空）",
+                    now: Date.now(), author,
+                    formatTimestamp: (d) => formatTimestamp(d),
+                    fieldLabel: `${label} (${newEntry.tool || "工具"}) ${fieldLabel}`,
+                    existingLogs: logs, burstMap: burst,
+                  });
+                  logs = r.nextLogs; burst = r.nextBurstMap;
+                }
+              }
+              continue;
+            }
+
             const { nextLogs, nextBurstMap } = applyEditLogFieldChange({
               fieldKey: String(key),
               oldValue: serializeCaseFieldForLog(key, oldV),
