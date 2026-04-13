@@ -822,6 +822,10 @@ const CASE_LOG_SKIP_KEYS = new Set<string>([
   "comments",
   "internalComments",
   "inquirySlackRecords",
+  // legacy fields kept in sync with workGroups — log via workGroups only
+  "workType",
+  "billingUnit",
+  "unitCount",
 ]);
 
 const CASE_FIELD_LABELS: Partial<Record<keyof CaseRecord, string>> = {
@@ -835,7 +839,7 @@ const CASE_FIELD_LABELS: Partial<Record<keyof CaseRecord, string>> = {
   dispatchRoute: "派案來源",
   category: "類型",
   workType: "工作類型",
-  workGroups: "工作群組",
+  workGroups: "工作類型",
   processNote: "處理備註",
   billingUnit: "計費單位",
   unitCount: "數量",
@@ -846,7 +850,7 @@ const CASE_FIELD_LABELS: Partial<Record<keyof CaseRecord, string>> = {
   reviewDeadline: "審稿交期",
   executionTool: "執行工具",
   toolFieldValues: "工具欄位",
-  tools: "工具",
+  tools: "執行工具",
   questionTools: "題目工具",
   deliveryMethod: "交件方式",
   bodyContent: "案件說明",
@@ -855,6 +859,35 @@ const CASE_FIELD_LABELS: Partial<Record<keyof CaseRecord, string>> = {
   declineRecords: "婉拒紀錄",
   collabCount: "協作人數",
 };
+
+function serializeCaseFieldForLog(key: keyof CaseRecord, value: unknown): string {
+  if (key === "workGroups") {
+    const groups = value as WorkGroup[];
+    if (!groups?.length) return "（空）";
+    return groups
+      .map((g) =>
+        [g.workType, g.billingUnit, g.unitCount != null ? `x${g.unitCount}` : ""]
+          .filter(Boolean)
+          .join(" ")
+      )
+      .join("、");
+  }
+  if (key === "tools" || key === "questionTools") {
+    const entries = value as ToolEntry[];
+    if (!entries?.length) return "（空）";
+    const names = entries.map((t) => t.tool).filter(Boolean);
+    return names.length ? names.join("、") : "（空）";
+  }
+  if (key === "collabRows") {
+    const rows = value as CollabRow[];
+    if (!rows?.length) return "（空）";
+    const translators = rows.map((r) => r.translator).filter(Boolean);
+    return `${rows.length} 列${translators.length ? `（${translators.join("、")}）` : ""}`;
+  }
+  if (key === "multiCollab") return value ? "啟用" : "停用";
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+  return JSON.stringify(value ?? null);
+}
 
 export default function CaseDetailPage() {
   const { id } = useParams();
@@ -1047,8 +1080,6 @@ export default function CaseDetailPage() {
           const author = profile.display_name || profile.email || "系統";
           let logs = [...(prev.edit_logs || [])];
           let burst = caseEditBurstRef.current;
-          const ser = (v: unknown) =>
-            typeof v === "string" || typeof v === "number" || typeof v === "boolean" ? v : JSON.stringify(v ?? null);
           for (const key of Object.keys(partial) as (keyof CaseRecord)[]) {
             if (CASE_LOG_SKIP_KEYS.has(key as string)) continue;
             const oldV = prev[key];
@@ -1058,8 +1089,8 @@ export default function CaseDetailPage() {
             const label = CASE_FIELD_LABELS[key] ?? String(key);
             const { nextLogs, nextBurstMap } = applyEditLogFieldChange({
               fieldKey: String(key),
-              oldValue: ser(oldV),
-              newValue: ser(newV),
+              oldValue: serializeCaseFieldForLog(key, oldV),
+              newValue: serializeCaseFieldForLog(key, newV),
               now: Date.now(),
               author,
               formatTimestamp: (d) => formatTimestamp(d),
