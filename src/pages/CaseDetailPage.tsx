@@ -858,12 +858,32 @@ const CASE_FIELD_LABELS: Partial<Record<keyof CaseRecord, string>> = {
   collabCount: "協作人數",
 };
 
+/** Normalize ISO date strings to canonical UTC so +00:00 and .000Z compare as equal */
+function normDateForCompare(v: unknown): unknown {
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v)) {
+    try { return new Date(v).toISOString(); } catch { /* fall through */ }
+  }
+  return v;
+}
+
 function serializeCaseFieldForLog(key: keyof CaseRecord, value: unknown): string {
+  // ISO date strings → human-readable
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    try { return formatTimestamp(value); } catch { return value; }
+  }
   if (key === "tools" || key === "questionTools") {
     const entries = value as ToolEntry[];
     if (!entries?.length) return "（空）";
-    const names = entries.map((t) => t.tool).filter(Boolean);
-    return names.length ? names.join("、") : "（空）";
+    return entries.map((t) => {
+      const parts: string[] = [];
+      if (t.tool) parts.push(t.tool);
+      const fv = t.fieldValues || {};
+      const fieldLabels = Object.fromEntries((t.fields || []).map((f) => [f.id, f.label]));
+      for (const [id, v] of Object.entries(fv)) {
+        if (v) parts.push(`${fieldLabels[id] || id}: ${v}`);
+      }
+      return parts.length ? parts.join(" / ") : "（未設定）";
+    }).join("、");
   }
   if (key === "collabRows") {
     const rows = value as CollabRow[];
@@ -1072,7 +1092,7 @@ export default function CaseDetailPage() {
             const oldV = prev[key];
             const newV = partial[key];
             if (newV === undefined) continue;
-            if (JSON.stringify(oldV) === JSON.stringify(newV)) continue;
+            if (JSON.stringify(normDateForCompare(oldV)) === JSON.stringify(normDateForCompare(newV))) continue;
             const label = CASE_FIELD_LABELS[key] ?? String(key);
             const { nextLogs, nextBurstMap } = applyEditLogFieldChange({
               fieldKey: String(key),
