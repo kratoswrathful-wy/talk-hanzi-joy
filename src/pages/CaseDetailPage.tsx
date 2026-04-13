@@ -822,10 +822,8 @@ const CASE_LOG_SKIP_KEYS = new Set<string>([
   "comments",
   "internalComments",
   "inquirySlackRecords",
-  // legacy fields kept in sync with workGroups — log via workGroups only
-  "workType",
-  "billingUnit",
-  "unitCount",
+  // log individual sub-fields (workType, billingUnit, unitCount) instead of the raw JSON blob
+  "workGroups",
 ]);
 
 const CASE_FIELD_LABELS: Partial<Record<keyof CaseRecord, string>> = {
@@ -861,17 +859,6 @@ const CASE_FIELD_LABELS: Partial<Record<keyof CaseRecord, string>> = {
 };
 
 function serializeCaseFieldForLog(key: keyof CaseRecord, value: unknown): string {
-  if (key === "workGroups") {
-    const groups = value as WorkGroup[];
-    if (!groups?.length) return "（空）";
-    return groups
-      .map((g) =>
-        [g.workType, g.billingUnit, g.unitCount != null ? `x${g.unitCount}` : ""]
-          .filter(Boolean)
-          .join(" ")
-      )
-      .join("、");
-  }
   if (key === "tools" || key === "questionTools") {
     const entries = value as ToolEntry[];
     if (!entries?.length) return "（空）";
