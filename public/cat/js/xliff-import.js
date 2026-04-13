@@ -63,6 +63,10 @@
         const lowerFileName = (file.name || '').toLowerCase();
         const isMqxliffFile = lowerFileName.endsWith('.mqxliff') ||
             !!xml.documentElement.lookupNamespaceURI('mq');
+        // sdlxliff：<g> 是文件結構包裝（SDL Studio 預設隱藏），使用 transparentG 模式
+        // 讓每行不顯示多餘的 <g>...</g> 標籤佔位符；匯出時由 _updateSdlxliffMrkContent 保留結構
+        const isSdlxliffFile = lowerFileName.endsWith('.sdlxliff');
+        const extractOpts = isSdlxliffFile ? { transparentG: true } : {};
 
         transUnits.forEach((tu, idx) => {
             const fallbackId = tu.getAttribute('id') || tu.getAttribute('resname') || tu.getAttribute('mq:unitId') || '';
@@ -70,9 +74,9 @@
             const targetNode = tu.getElementsByTagName('target')[0];
 
             const { text: sourceText, tags: sourceTags } = sourceNode
-                ? Xliff.extractTaggedText(sourceNode) : { text: '', tags: [] };
+                ? Xliff.extractTaggedText(sourceNode, extractOpts) : { text: '', tags: [] };
             const { text: targetText, tags: targetTags } = targetNode
-                ? Xliff.extractTaggedText(targetNode) : { text: '', tags: [] };
+                ? Xliff.extractTaggedText(targetNode, extractOpts) : { text: '', tags: [] };
 
             if (!sourceText && !targetText) return;
 

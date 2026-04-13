@@ -11,8 +11,15 @@
 
     /**
      * 解析 XML 節點內容，將行內標籤轉為 {N}/{/N} 佔位符。
+     *
+     * @param {Element} xmlNode
+     * @param {object} [opts]
+     * @param {boolean} [opts.transparentG=false]
+     *   true：將 <g> 視為透明容器（不建立佔位符），適用於 sdlxliff
+     *         ── SDL Trados 的 <g> 是文件結構包裝，翻譯者不需要看到它；
+     *            匯出時由 _updateSdlxliffMrkContent 保留原始 <g>/<mrk> 結構。
      */
-    function extractTaggedText(xmlNode) {
+    function extractTaggedText(xmlNode, { transparentG = false } = {}) {
         const tags = [];
         let counter = 0;
         const bptMap = {};
@@ -61,17 +68,22 @@
                     tags.push({ ph, xml, display, type: 'close', pairNum: num, num });
                     text += ph;
                 } else if (ln === 'g') {
-                    counter++;
-                    const num = counter;
-                    const ph = `{${num}}`;
-                    const phClose = `{/${num}}`;
-                    const openXml = shallowOpenXml(child);
-                    const closeXml = `</${child.tagName}>`;
-                    tags.push({ ph, xml: openXml, display: `<${child.tagName}>`, type: 'open', pairNum: num, num });
-                    text += ph;
-                    text += processNode(child);
-                    tags.push({ ph: phClose, xml: closeXml, display: `</${child.tagName}>`, type: 'close', pairNum: num, num });
-                    text += phClose;
+                    if (transparentG) {
+                        // sdlxliff 模式：<g> 為文件結構包裝，直接遞迴子節點，不建立佔位符
+                        text += processNode(child);
+                    } else {
+                        counter++;
+                        const num = counter;
+                        const ph = `{${num}}`;
+                        const phClose = `{/${num}}`;
+                        const openXml = shallowOpenXml(child);
+                        const closeXml = `</${child.tagName}>`;
+                        tags.push({ ph, xml: openXml, display: `<${child.tagName}>`, type: 'open', pairNum: num, num });
+                        text += ph;
+                        text += processNode(child);
+                        tags.push({ ph: phClose, xml: closeXml, display: `</${child.tagName}>`, type: 'close', pairNum: num, num });
+                        text += phClose;
+                    }
                 } else {
                     text += processNode(child);
                 }
@@ -381,6 +393,52 @@
         }
     }
 
+    /**
+     * sdlxliff 專用：保留 <g> 和 <mrk mtype="seg"> 的原有結構，只更新 mrk 的文字內容。
+     * @returns {boolean} true 表示已處理；false 表示無 mrk，呼叫方需 fallback。
+     */
+    function _updateSdlxliffMrkContent(xmlDoc, tu, targetNode, seg, tags) {
+        const allMrk = Array.from(targetNode.getElementsByTagName('mrk'));
+        const mrkSegs = allMrk.filter(m => m.getAttribute('mtype') === 'seg');
+        if (mrkSegs.length === 0) return false;
+
+        // 計算要填入 mrk 的文字內容：先去掉最外層的 <g> 佔位符 wrapper
+        let content = seg.targetText || '';
+        const gOpenTag = (tags || []).find(t =>
+            t && t.type === 'open' && typeof t.xml === 'string' && /^<g\b/i.test(t.xml.trim())
+        );
+        if (gOpenTag) {
+            const n = gOpenTag.num;
+            const gRe = new RegExp(`^\\{${n}\\}([\\s\\S]*)\\{\\/${n}\\}$`);
+            const m = content.match(gRe);
+            if (m) content = m[1].trim();
+        }
+
+        // 還原剩餘的內嵌標籤（ph、bpt/ept 等）
+        const repaired = normalizeLegacyEncodedTagText(content, seg.sourceTags || []);
+        let restored = replacePlaceholders(repaired, tags, seg.sourceTags || []);
+        if (/&lt;it\b/i.test(restored)) {
+            restored = replaceEncodedItWithSourceXml(restored, orderedInlineSourceTags(seg.sourceTags || []));
+        }
+        restored = prepareRestoredFragmentForXmlParse(restored);
+
+        if (mrkSegs.length === 1) {
+            const mrk = mrkSegs[0];
+            while (mrk.firstChild) mrk.removeChild(mrk.firstChild);
+            if (restored.trim()) {
+                setXmlTargetContent(xmlDoc, mrk, restored, { tuId: tu.getAttribute('id') || '' });
+            }
+            return true;
+        }
+
+        // 多個 mrk（一個 TU 包含多個句段）：全部清空，譯文放入第一個 mrk
+        mrkSegs.forEach(mrk => { while (mrk.firstChild) mrk.removeChild(mrk.firstChild); });
+        if (restored.trim()) {
+            setXmlTargetContent(xmlDoc, mrkSegs[0], restored, { tuId: tu.getAttribute('id') || '' });
+        }
+        return true;
+    }
+
     async function exportXliffFamily(f, segs, format) {
         const decoder = new TextDecoder('utf-8');
         const xmlText = decoder.decode(f.originalFileBuffer);
@@ -395,8 +453,16 @@
         const mqNsUri = xmlDoc.documentElement.lookupNamespaceURI('mq') || 'memoQ';
         const sdlNsUri = xmlDoc.documentElement.lookupNamespaceURI('sdl') || 'http://sdl.com/FileTypes/SdlXliff/1.0';
 
+        // 修正：以 idValue（原始 TU id 屬性，sdlxliff 為 UUID）為主鍵建立查找表，
+        // 並同時保留 globalId（整數）作為向下相容鍵。
+        // 原本只用 globalId 導致 sdlxliff UUID id 永遠無法對應句段，譯文全部遺失。
         const segByTuId = new Map();
-        segs.forEach(s => segByTuId.set(String(s.globalId ?? s.rowIdx + 1), s));
+        segs.forEach(s => {
+            if (s.idValue && String(s.idValue).trim()) {
+                segByTuId.set(String(s.idValue).trim(), s);
+            }
+            segByTuId.set(String(s.globalId ?? s.rowIdx + 1), s);
+        });
 
         transUnits.forEach((tu) => {
             const tuId = tu.getAttribute('id');
@@ -450,7 +516,15 @@
                 targetNode.setAttribute('state', stateVal);
             }
 
-            setXmlTargetContent(xmlDoc, targetNode, restoredXml, { tuId: tu.getAttribute('id') || '' });
+            // sdlxliff：保留 <g>/<mrk> 結構，只更新 mrk 內容；其他格式直接替換整個 target 內容
+            if (format === 'sdlxliff') {
+                const handled = _updateSdlxliffMrkContent(xmlDoc, tu, targetNode, seg, tags);
+                if (!handled) {
+                    setXmlTargetContent(xmlDoc, targetNode, restoredXml, { tuId: tu.getAttribute('id') || '' });
+                }
+            } else {
+                setXmlTargetContent(xmlDoc, targetNode, restoredXml, { tuId: tu.getAttribute('id') || '' });
+            }
         });
 
         const serializer = new XMLSerializer();
