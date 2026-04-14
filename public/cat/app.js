@@ -359,6 +359,82 @@ document.addEventListener('DOMContentLoaded', async () => {
         return localStorage.getItem('localCatUserProfile') || 'Unknown User';
     }
 
+    // --- TMS 身分橋接 ---
+    /** 將 TMS 傳入的身分資料套用到 CAT 工具的 UI。 */
+    function applyTmsIdentityToUI(payload) {
+        const { displayName, email, avatarUrl, role } = payload || {};
+
+        // 更新 localStorage（讓 getCurrentUserName() 等全部呼叫點自動生效）
+        if (displayName) localStorage.setItem('localCatUserProfile', displayName);
+
+        // 更新左下角顯示名稱
+        const nameEl = document.getElementById('displayUserName');
+        if (nameEl && displayName) nameEl.textContent = displayName;
+
+        // 更新 title tooltip
+        const profileBtn = document.getElementById('btnUserProfile');
+        if (profileBtn) profileBtn.title = '個人資訊（由 TMS 管理）';
+
+        // 替換 👤 emoji 為頭像圖片（有 avatarUrl 時）
+        const avatarEl = document.getElementById('userAvatarIcon');
+        if (avatarEl) {
+            if (avatarUrl) {
+                avatarEl.innerHTML = `<img src="${avatarUrl}" alt="${displayName || ''}"
+                    style="width:1.4em;height:1.4em;border-radius:50%;object-fit:cover;vertical-align:middle;">`;
+            } else {
+                avatarEl.textContent = '👤';
+            }
+        }
+
+        // 填寫卡片內容
+        const cardAvatar = document.getElementById('tmsCardAvatar');
+        if (cardAvatar) {
+            cardAvatar.innerHTML = avatarUrl
+                ? `<img src="${avatarUrl}" alt="${displayName || ''}" style="width:64px;height:64px;object-fit:cover;">`
+                : '👤';
+        }
+        const cardName = document.getElementById('tmsCardName');
+        if (cardName) cardName.textContent = displayName || '—';
+        const cardEmail = document.getElementById('tmsCardEmail');
+        if (cardEmail) cardEmail.textContent = email || '';
+        const cardRole = document.getElementById('tmsCardRole');
+        if (cardRole) {
+            const roleLabel = { member: '成員', pm: '專案經理', executive: '主管' }[role] || role || '—';
+            cardRole.textContent = roleLabel;
+        }
+
+        window._tmsManagedIdentity = true;
+    }
+
+    /** 顯示 TMS 個人資訊唯讀卡片。 */
+    function showTmsProfileCard() {
+        const card = document.getElementById('tmsProfileCard');
+        if (card) card.style.display = 'flex';
+    }
+
+    // 關閉 TMS 個人資訊卡片（點按鈕或點背景）
+    const tmsProfileCard = document.getElementById('tmsProfileCard');
+    const btnCloseTmsCard = document.getElementById('btnCloseTmsProfileCard');
+    if (tmsProfileCard) {
+        tmsProfileCard.addEventListener('click', (e) => {
+            if (e.target === tmsProfileCard) tmsProfileCard.style.display = 'none';
+        });
+    }
+    if (btnCloseTmsCard) {
+        btnCloseTmsCard.addEventListener('click', () => {
+            if (tmsProfileCard) tmsProfileCard.style.display = 'none';
+        });
+    }
+
+    // postMessage 接收器：接收來自 TMS（父框架）的身分資訊
+    window.addEventListener('message', (event) => {
+        // 安全性驗證：只接受來自父框架且同源的訊息
+        if (event.source !== window.parent) return;
+        if (event.origin !== window.location.origin) return;
+        if (!event.data || event.data.type !== 'TMS_IDENTITY') return;
+        applyTmsIdentityToUI(event.data.payload);
+    });
+
     /** 將 ISO 時間字串轉成台灣格式（年/月/日 時:分）供變更紀錄顯示用 */
     function formatDateForLog(iso) {
         try {
@@ -428,13 +504,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnUserProfile = document.getElementById('btnUserProfile');
     if (btnUserProfile) {
         btnUserProfile.addEventListener('click', () => {
-            const currentName = localStorage.getItem('localCatUserProfile') || '';
-            openNamingModal('setUserProfile', '設定使用者名稱', '請輸入您的名字 (將用於 TM 寫入紀錄)', null, currentName);
+            if (window._tmsManagedIdentity) {
+                // TMS 模式：顯示唯讀個人資訊卡
+                showTmsProfileCard();
+            } else {
+                // Standalone 模式：開啟名稱設定 modal（原有行為）
+                const currentName = localStorage.getItem('localCatUserProfile') || '';
+                openNamingModal('setUserProfile', '設定使用者名稱', '請輸入您的名字 (將用於 TM 寫入紀錄)', null, currentName);
+            }
         });
-        
-        // Initial setup
+
+        // Initial setup（standalone 模式下若已設定名稱，顯示於左下角）
         const startName = localStorage.getItem('localCatUserProfile');
-        if (startName) document.getElementById('displayUserName').textContent = startName;
+        if (startName && !window._tmsManagedIdentity) {
+            document.getElementById('displayUserName').textContent = startName;
+        }
     }
 
     // Editor Tabs
