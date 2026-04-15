@@ -239,6 +239,79 @@ export type Database = {
         }
         Relationships: []
       }
+      cat_assignments: {
+        Row: {
+          id: string
+          case_id: string
+          translator_user_id: string
+          source_file_name: string
+          source_file_storage_path: string
+          source_lang: string
+          target_lang: string
+          deadline: string | null
+          notes: string | null
+          status: string
+          created_by: string | null
+          created_at: string
+          updated_at: string
+          env: string
+        }
+        Insert: {
+          id?: string
+          case_id: string
+          translator_user_id: string
+          source_file_name: string
+          source_file_storage_path: string
+          source_lang?: string
+          target_lang?: string
+          deadline?: string | null
+          notes?: string | null
+          status?: string
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+          env?: string
+        }
+        Update: {
+          id?: string
+          case_id?: string
+          translator_user_id?: string
+          source_file_name?: string
+          source_file_storage_path?: string
+          source_lang?: string
+          target_lang?: string
+          deadline?: string | null
+          notes?: string | null
+          status?: string
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+          env?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_assignments_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_assignments_translator_user_id_fkey"
+            columns: ["translator_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_assignments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       client_invoice_fees: {
         Row: {
           client_invoice_id: string

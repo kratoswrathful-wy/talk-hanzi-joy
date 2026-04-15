@@ -426,14 +426,185 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // postMessage 接收器：接收來自 TMS（父框架）的身分資訊
+    // postMessage 接收器：接收來自 TMS（父框架）的身分與指派資訊
     window.addEventListener('message', (event) => {
         // 安全性驗證：只接受來自父框架且同源的訊息
         if (event.source !== window.parent) return;
         if (event.origin !== window.location.origin) return;
-        if (!event.data || event.data.type !== 'TMS_IDENTITY') return;
-        applyTmsIdentityToUI(event.data.payload);
+        if (!event.data) return;
+
+        if (event.data.type === 'TMS_IDENTITY') {
+            applyTmsIdentityToUI(event.data.payload);
+        } else if (event.data.type === 'TMS_ASSIGNMENTS') {
+            const assignments = (event.data.payload && event.data.payload.assignments) || [];
+            window._tmsAssignments = assignments;
+            renderTmsAssignmentsPanel(assignments);
+        } else if (event.data.type === 'TMS_FILE_URL') {
+            // 一次性：由 openTmsAssignment 的 Promise 監聽器處理，此處無需額外動作
+        }
     });
+
+    // ─── TMS 指派任務面板 ────────────────────────────────────────────────────────
+
+    const tmsAssignmentsPanel = document.getElementById('tmsAssignmentsPanel');
+    const tmsAssignmentsList  = document.getElementById('tmsAssignmentsList');
+    const tmsAssignmentsBadge = document.getElementById('tmsAssignmentsBadge');
+    const tmsPanelChevron     = document.getElementById('tmsPanelChevron');
+    const btnToggleTmsPanel   = document.getElementById('btnToggleTmsPanel');
+    let tmsPanelCollapsed = false;
+
+    if (btnToggleTmsPanel) {
+        btnToggleTmsPanel.addEventListener('click', () => {
+            tmsPanelCollapsed = !tmsPanelCollapsed;
+            if (tmsAssignmentsList) tmsAssignmentsList.style.display = tmsPanelCollapsed ? 'none' : '';
+            if (tmsPanelChevron) tmsPanelChevron.textContent = tmsPanelCollapsed ? '▼' : '▲';
+        });
+    }
+
+    const STATUS_LABELS_TMS = {
+        assigned: '待開始',
+        in_progress: '翻譯中',
+        completed: '已完成',
+        cancelled: '已取消'
+    };
+
+    function renderTmsAssignmentsPanel(assignments) {
+        if (!tmsAssignmentsPanel || !tmsAssignmentsList) return;
+
+        const active = assignments.filter(a => a.status !== 'cancelled');
+
+        // 隱藏/顯示整個面板
+        tmsAssignmentsPanel.style.display = active.length === 0 ? 'none' : '';
+
+        // 更新徽章
+        if (tmsAssignmentsBadge) {
+            if (active.length > 0) {
+                tmsAssignmentsBadge.textContent = String(active.length);
+                tmsAssignmentsBadge.style.display = '';
+            } else {
+                tmsAssignmentsBadge.style.display = 'none';
+            }
+        }
+
+        if (active.length === 0) return;
+
+        tmsAssignmentsList.innerHTML = active.map(a => {
+            const statusLabel = STATUS_LABELS_TMS[a.status] || a.status;
+            const statusColor = a.status === 'in_progress' ? '#2563eb' : a.status === 'completed' ? '#16a34a' : '#6b7280';
+            const deadlineStr = a.deadline
+                ? new Date(a.deadline).toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+                : '';
+            return `
+                <div class="tms-assign-card" data-assign-id="${a.id}" style="background:#fff; border:1px solid #e5e7eb; border-radius:6px; padding:.45rem .55rem; font-size:.78rem; line-height:1.4;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:.3rem; margin-bottom:.25rem;">
+                        <span style="font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;" title="${a.source_file_name}">${a.source_file_name}</span>
+                        <span style="white-space:nowrap; font-size:.7rem; font-weight:600; padding:.1rem .4rem; border-radius:999px; background:${statusColor}1a; color:${statusColor};">${statusLabel}</span>
+                    </div>
+                    <div style="color:#6b7280; font-size:.72rem; margin-bottom:.3rem;">${a.source_lang} → ${a.target_lang}${deadlineStr ? ' · ' + deadlineStr : ''}</div>
+                    ${a.status !== 'completed' ? `<button class="btn-open-tms-assign" data-assign-id="${a.id}" style="width:100%; padding:.25rem .4rem; font-size:.72rem; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:4px; cursor:pointer;">📂 開啟任務</button>` : ''}
+                </div>
+            `;
+        }).join('');
+
+        // 綁定「開啟任務」按鈕
+        tmsAssignmentsList.querySelectorAll('.btn-open-tms-assign').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const assignId = btn.getAttribute('data-assign-id');
+                const assignment = (window._tmsAssignments || []).find(a => a.id === assignId);
+                if (assignment) openTmsAssignment(assignment);
+            });
+        });
+    }
+
+    /**
+     * 從 TMS 下載並匯入指派的原始檔，然後向父框架回報狀態。
+     * @param {object} assignment - cat_assignments 記錄
+     */
+    async function openTmsAssignment(assignment) {
+        // 1. 向父框架請求 signed URL
+        const signedUrlResult = await new Promise((resolve) => {
+            const handler = (event) => {
+                if (event.origin !== window.location.origin) return;
+                if (event.data?.type !== 'TMS_FILE_URL') return;
+                if (event.data?.payload?.assignmentId !== assignment.id) return;
+                window.removeEventListener('message', handler);
+                resolve(event.data.payload);
+            };
+            window.addEventListener('message', handler);
+            window.parent.postMessage({
+                type: 'CAT_REQUEST_FILE_URL',
+                payload: { assignmentId: assignment.id }
+            }, window.location.origin);
+            // 逾時：30 秒
+            setTimeout(() => { window.removeEventListener('message', handler); resolve(null); }, 30000);
+        });
+
+        if (!signedUrlResult || !signedUrlResult.signedUrl) {
+            alert('取得檔案連結失敗，請稍後再試。');
+            return;
+        }
+
+        // 2. 下載檔案
+        let file;
+        try {
+            const resp = await fetch(signedUrlResult.signedUrl);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const blob = await resp.blob();
+            file = new File([blob], signedUrlResult.fileName || assignment.source_file_name, { type: blob.type || 'application/octet-stream' });
+        } catch (err) {
+            alert('下載原始檔失敗：' + (err.message || err));
+            return;
+        }
+
+        // 3. 設定語言對，呼叫匯入
+        const lowerName = file.name.toLowerCase();
+        const isXliffLike = lowerName.endsWith('.xlf') || lowerName.endsWith('.xliff') || lowerName.endsWith('.mqxliff') || lowerName.endsWith('.sdlxliff');
+        const isExcel = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls');
+
+        _importSelectedSrcLang = assignment.source_lang || '';
+        _importSelectedTgtLang = assignment.target_lang || '';
+
+        try {
+            if (isXliffLike) {
+                if (!XliffImport || typeof XliffImport.handleXliffLikeImport !== 'function') {
+                    throw new Error('XLIFF 匯入模組未載入');
+                }
+                const isMqxliff = lowerName.endsWith('.mqxliff');
+                let role = null;
+                if (isMqxliff) {
+                    role = await showMqRoleModal({ hideWizardFirst: false });
+                    if (role === null) return;
+                }
+                await XliffImport.handleXliffLikeImport(xliffImportCtx(), file, role);
+            } else if (isExcel) {
+                // Excel：透過 sourceFileInput 觸發 wizard 流程
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                sourceFileInput.files = dt.files;
+                sourceFileInput.dispatchEvent(new Event('change', { bubbles: true }));
+                return; // 後續狀態更新由使用者完成 wizard 後觸發
+            } else {
+                alert('此指派的檔案格式不支援自動匯入，請手動匯入。');
+                return;
+            }
+
+            // 4. 回報狀態 → in_progress
+            window.parent.postMessage({
+                type: 'CAT_ASSIGNMENT_STATUS',
+                payload: { assignmentId: assignment.id, status: 'in_progress' }
+            }, window.location.origin);
+
+            // 同步更新本地清單的狀態
+            if (window._tmsAssignments) {
+                const a = window._tmsAssignments.find(x => x.id === assignment.id);
+                if (a) a.status = 'in_progress';
+                renderTmsAssignmentsPanel(window._tmsAssignments);
+            }
+        } catch (err) {
+            console.error('[TMS Assign] import error', err);
+            alert('匯入失敗：' + (err.message || err));
+        }
+    }
 
     /** 將 ISO 時間字串轉成台灣格式（年/月/日 時:分）供變更紀錄顯示用 */
     function formatDateForLog(iso) {

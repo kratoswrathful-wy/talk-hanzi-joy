@@ -23,6 +23,18 @@
                 <a href="#" class="nav-item" data-view="viewTM"><span class="nav-icon">🧠</span><span class="nav-text">翻譯記憶庫 (TM)</span></a>
                 <a href="#" class="nav-item" data-view="viewTB"><span class="nav-icon">📘</span><span class="nav-text">術語庫 (TB)</span></a>
             </nav>
+
+            <!-- TMS 指派任務面板（預設隱藏，收到 TMS_ASSIGNMENTS 且有資料時顯示） -->
+            <div id="tmsAssignmentsPanel" style="display:none; border-top:1px solid var(--border-color, #e5e7eb); margin:0 .5rem .5rem; border-radius:8px; overflow:hidden; background:var(--sidebar-section-bg, #f9fafb);">
+                <button id="btnToggleTmsPanel" style="width:100%; display:flex; align-items:center; justify-content:space-between; padding:.45rem .6rem; background:none; border:none; cursor:pointer; font-size:.78rem; font-weight:600; color:var(--text-secondary, #6b7280); letter-spacing:.02em; text-transform:uppercase;">
+                    <span><span style="margin-right:.35rem;">📋</span><span class="nav-text">TMS 指派任務</span></span>
+                    <span id="tmsAssignmentsBadge" style="display:none; background:#3b82f6; color:#fff; border-radius:999px; font-size:.7rem; font-weight:700; padding:.05rem .45rem; line-height:1.4;"></span>
+                    <span id="tmsPanelChevron" style="font-size:.7rem; transition:transform .2s;">▲</span>
+                </button>
+                <div id="tmsAssignmentsList" style="padding:0 .4rem .4rem; display:flex; flex-direction:column; gap:.35rem; max-height:280px; overflow-y:auto;">
+                    <!-- 由 app.js renderTmsAssignmentsPanel() 動態填入 -->
+                </div>
+            </div>
             <div class="sidebar-footer" id="btnUserProfile" style="cursor: pointer;" title="設定使用者名稱">
                 <span class="nav-icon" id="userAvatarIcon">👤</span><span class="nav-text" id="displayUserName">未設定名稱</span>
             </div>
