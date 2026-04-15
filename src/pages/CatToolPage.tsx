@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
+import { handleCatCloudRpc } from "@/lib/cat-cloud-rpc";
 
 /**
  * Embeds the vanilla CAT app from /cat/index.html (see cat-tool/ → public/cat via npm run sync:cat).
@@ -13,7 +14,8 @@ import { supabase } from "@/integrations/supabase/client";
  * All editor logic lives in cat-tool/ (one codebase); only this thin React wrapper differs.
  */
 export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "team" }) {
-  const src = `${import.meta.env.BASE_URL}cat/index.html`;
+  const catStorage = mode === "team" ? "team" : "offline";
+  const src = `${import.meta.env.BASE_URL}cat/index.html?catStorage=${encodeURIComponent(catStorage)}`;
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { user, profile, primaryRole } = useAuth();
 
@@ -114,6 +116,24 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
           .from("cat_assignments")
           .update({ status, updated_at: new Date().toISOString() })
           .eq("id", assignmentId);
+      } else if (event.data?.type === "CAT_CLOUD_RPC") {
+        const { requestId, action, payload } = event.data.payload ?? {};
+        if (!requestId || !action || !user?.id) return;
+        try {
+          const data = await handleCatCloudRpc(action, payload ?? {}, user.id);
+          iframeRef.current?.contentWindow?.postMessage(
+            { type: "CAT_CLOUD_RPC_RESULT", payload: { requestId, ok: true, data } },
+            window.location.origin
+          );
+        } catch (error: any) {
+          iframeRef.current?.contentWindow?.postMessage(
+            {
+              type: "CAT_CLOUD_RPC_RESULT",
+              payload: { requestId, ok: false, error: error?.message || String(error) },
+            },
+            window.location.origin
+          );
+        }
       }
     };
 

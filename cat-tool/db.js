@@ -1,5 +1,15 @@
-// Setup Dexie Database targetting v2 (Schema Update)
-const db = new Dexie("LocalCatDB");
+// IndexedDB name is selected by URL query `catStorage`.
+// offline (default) => LocalCatDB
+// team => LocalCatTeamDB (separate local cache namespace)
+function getCatDexieName() {
+    try {
+        const m = (new URLSearchParams(window.location.search).get('catStorage') || '').toLowerCase();
+        if (m === 'team') return 'LocalCatTeamDB';
+    } catch (_) { /* ignore */ }
+    return 'LocalCatDB';
+}
+
+const db = new Dexie(getCatDexieName());
 
 // Define Schema for decoupled entities
 db.version(5).stores({
@@ -101,6 +111,9 @@ const DBService = {
             writeTms: writeTms || [],
             lastModified: new Date().toISOString()
         });
+    },
+    async patchProject(projectId, updates) {
+        return await db.projects.update(projectId, { ...updates, lastModified: new Date().toISOString() });
     },
 
     async getProjects() {
@@ -285,6 +298,7 @@ const DBService = {
     async getTMs() { return await db.tms.orderBy('lastModified').reverse().toArray(); },
     async getTM(tmId) { return await db.tms.get(tmId); },
     async updateTMName(tmId, newName) { return await db.tms.update(tmId, { name: newName, lastModified: new Date().toISOString() }); },
+    async patchTM(tmId, updates) { return await db.tms.update(tmId, { ...updates, lastModified: new Date().toISOString() }); },
     async deleteTM(tmId) { 
         await db.tmSegments.where('tmId').equals(tmId).delete();
         return await db.tms.delete(tmId); 
@@ -317,6 +331,12 @@ const DBService = {
     },
     async getTMSegments(tmId) {
         return await db.tmSegments.where('tmId').equals(tmId).toArray();
+    },
+    async getTMSegmentById(id) {
+        return await db.tmSegments.get(id);
+    },
+    async deleteTMSegmentsByTMId(tmId) {
+        return await db.tmSegments.where('tmId').equals(tmId).delete();
     },
     async updateTMSegment(id, targetText, metaUpdate = {}) {
         const updatePayload = { targetText, lastModified: new Date().toISOString() };
@@ -360,6 +380,9 @@ const DBService = {
         if (!existing) return;
         return await db.tbs.put({ ...existing, ...payload });
     },
+    async patchTB(tbId, updates) {
+        return await db.tbs.update(tbId, { ...updates, lastModified: new Date().toISOString() });
+    },
     async deleteTB(id) { return await db.tbs.delete(id); },
     async deleteTBName(id) { return await db.tbs.delete(id); },
 
@@ -372,3 +395,141 @@ const DBService = {
     projects: db.projects,
     tbs: db.tbs
 };
+
+// Team mode: route DBService through cloud RPC (Supabase in parent app).
+;(function enableTeamCloudProvider() {
+    const ctx = window.CatDataProviderContext;
+    const mode = ctx && typeof ctx.getMode === 'function' ? ctx.getMode() : 'offline';
+    if (mode !== 'team' || !ctx || !ctx.cloudRpc || typeof ctx.cloudRpc.call !== 'function') return;
+
+    function abToBase64(ab) {
+        if (!ab) return '';
+        const bytes = new Uint8Array(ab);
+        let binary = '';
+        const chunk = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunk) {
+            const sub = bytes.subarray(i, i + chunk);
+            binary += String.fromCharCode.apply(null, Array.from(sub));
+        }
+        return btoa(binary);
+    }
+    function base64ToAb(b64) {
+        if (!b64) return null;
+        const binary = atob(String(b64));
+        const len = binary.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+        return bytes.buffer;
+    }
+    function hydrateFile(file) {
+        if (!file) return file;
+        if (file.originalFileBase64 && !file.originalFileBuffer) {
+            file.originalFileBuffer = base64ToAb(file.originalFileBase64);
+        }
+        return file;
+    }
+    async function rpc(method, payload) {
+        return await ctx.cloudRpc.call(method, payload || {});
+    }
+
+    // module logs
+    DBService.addModuleLog = async (module, payload) => rpc('db.addModuleLog', { module, payload });
+    DBService.getModuleLogs = async (module, limit = 20) => rpc('db.getModuleLogs', { module, limit });
+
+    // projects
+    DBService.createProject = async (name, sourceLangs = [], targetLangs = []) =>
+        rpc('db.createProject', { name, sourceLangs, targetLangs });
+    DBService.updateProjectName = async (projectId, newName) =>
+        rpc('db.updateProjectName', { projectId, newName });
+    DBService.updateProjectLangs = async (projectId, sourceLangs, targetLangs) =>
+        rpc('db.updateProjectLangs', { projectId, sourceLangs, targetLangs });
+    DBService.updateProjectTMs = async (projectId, readTms, writeTms) =>
+        rpc('db.updateProjectTMs', { projectId, readTms, writeTms });
+    DBService.getProjects = async () => rpc('db.getProjects');
+    DBService.getProject = async (projectId) => rpc('db.getProject', { projectId });
+    DBService.deleteProject = async (projectId) => rpc('db.deleteProject', { projectId });
+    DBService.patchProject = async (projectId, updates) => rpc('db.patchProject', { projectId, updates });
+
+    // files
+    DBService.createFile = async (projectId, name, originalFileBuffer, sourceLang = '', targetLang = '', originalSourceLang = '', originalTargetLang = '') =>
+        rpc('db.createFile', {
+            projectId,
+            name,
+            originalFileBase64: abToBase64(originalFileBuffer),
+            sourceLang,
+            targetLang,
+            originalSourceLang,
+            originalTargetLang
+        });
+    DBService.getFiles = async (projectId) => (await rpc('db.getFiles', { projectId })).map(hydrateFile);
+    DBService.getRecentFiles = async (limit = 10) => (await rpc('db.getRecentFiles', { limit })).map(hydrateFile);
+    DBService.getFile = async (fileId) => hydrateFile(await rpc('db.getFile', { fileId }));
+    DBService.updateFile = async (fileId, updates) => {
+        const patch = { ...updates };
+        if (patch.originalFileBuffer) {
+            patch.originalFileBase64 = abToBase64(patch.originalFileBuffer);
+            delete patch.originalFileBuffer;
+        }
+        return rpc('db.updateFile', { fileId, updates: patch });
+    };
+    DBService.deleteFile = async (fileId) => rpc('db.deleteFile', { fileId });
+
+    // segments
+    DBService.addSegments = async (segmentsArray) => rpc('db.addSegments', { segmentsArray });
+    DBService.getSegmentsByFile = async (fileId) => rpc('db.getSegmentsByFile', { fileId });
+    DBService.updateSegmentTarget = async (segmentId, newTargetText, extra = {}) =>
+        rpc('db.updateSegmentTarget', { segmentId, newTargetText, extra });
+    DBService.updateSegmentStatus = async (segmentId, newStatus, extra = {}) =>
+        rpc('db.updateSegmentStatus', { segmentId, newStatus, extra });
+    DBService.updateSegmentEditorNote = async (segmentId, editorNote) =>
+        rpc('db.updateSegmentEditorNote', { segmentId, editorNote });
+
+    // workspace notes
+    DBService.addWorkspaceNote = async (entry) => rpc('db.addWorkspaceNote', { entry });
+    DBService.getWorkspaceNotesByProject = async (projectId) => rpc('db.getWorkspaceNotesByProject', { projectId });
+    DBService.getWorkspaceNote = async (noteId) => rpc('db.getWorkspaceNote', { noteId });
+    DBService.deleteWorkspaceNote = async (noteId) => rpc('db.deleteWorkspaceNote', { noteId });
+    DBService.updateWorkspaceNote = async (noteId, updates) => rpc('db.updateWorkspaceNote', { noteId, updates });
+
+    // TM
+    DBService.createTM = async (name, sourceLangs = [], targetLangs = []) =>
+        rpc('db.createTM', { name, sourceLangs, targetLangs });
+    DBService.updateTMLangs = async (tmId, sourceLangs, targetLangs) =>
+        rpc('db.updateTMLangs', { tmId, sourceLangs, targetLangs });
+    DBService.getTMs = async () => rpc('db.getTMs');
+    DBService.getTM = async (tmId) => rpc('db.getTM', { tmId });
+    DBService.updateTMName = async (tmId, newName) => rpc('db.updateTMName', { tmId, newName });
+    DBService.patchTM = async (tmId, updates) => rpc('db.patchTM', { tmId, updates });
+    DBService.deleteTM = async (tmId) => rpc('db.deleteTM', { tmId });
+    DBService.addTMSegment = async (tmId, sourceText, targetText, meta = {}) =>
+        rpc('db.addTMSegment', { tmId, sourceText, targetText, meta });
+    DBService.bulkAddTMSegments = async (tmSegmentsArray) => rpc('db.bulkAddTMSegments', { tmSegmentsArray });
+    DBService.getTMSegments = async (tmId) => rpc('db.getTMSegments', { tmId });
+    DBService.getTMSegmentById = async (id) => rpc('db.getTMSegmentById', { id });
+    DBService.updateTMSegment = async (id, targetText, metaUpdate = {}) =>
+        rpc('db.updateTMSegment', { id, targetText, metaUpdate });
+    DBService.deleteTMSegment = async (id) => rpc('db.deleteTMSegment', { id });
+    DBService.deleteTMSegmentsByTMId = async (tmId) => rpc('db.deleteTMSegmentsByTMId', { tmId });
+
+    // TB
+    DBService.createTB = async (name, sourceLangs = [], targetLangs = []) =>
+        rpc('db.createTB', { name, sourceLangs, targetLangs });
+    DBService.updateTBLangs = async (tbId, sourceLangs, targetLangs) =>
+        rpc('db.updateTBLangs', { tbId, sourceLangs, targetLangs });
+    DBService.getTBs = async () => rpc('db.getTBs');
+    DBService.getTB = async (tbId) => rpc('db.getTB', { tbId });
+    DBService.updateTBName = async (tbId, newName) => rpc('db.updateTBName', { tbId, newName });
+    DBService.updateTB = async (tbId, updates) => rpc('db.updateTB', { tbId, updates });
+    DBService.patchTB = async (tbId, updates) => rpc('db.patchTB', { tbId, updates });
+    DBService.deleteTB = async (id) => rpc('db.deleteTB', { id });
+    DBService.deleteTBName = async (id) => rpc('db.deleteTB', { id });
+
+    // table handles are local-only; prevent accidental direct Dexie usage in team mode.
+    DBService.db = null;
+    DBService.tms = null;
+    DBService.tmSegments = null;
+    DBService.segments = null;
+    DBService.files = null;
+    DBService.projects = null;
+    DBService.tbs = null;
+})();

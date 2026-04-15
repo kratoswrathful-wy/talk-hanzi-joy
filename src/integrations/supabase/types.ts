@@ -312,6 +312,403 @@ export type Database = {
           }
         ]
       }
+      cat_files: {
+        Row: {
+          created_at: string
+          id: string
+          last_modified: string
+          name: string
+          original_file_base64: string | null
+          original_source_lang: string
+          original_target_lang: string
+          project_id: string
+          source_lang: string
+          target_lang: string
+          workspace_note_draft: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_modified?: string
+          name: string
+          original_file_base64?: string | null
+          original_source_lang?: string
+          original_target_lang?: string
+          project_id: string
+          source_lang?: string
+          target_lang?: string
+          workspace_note_draft?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_modified?: string
+          name?: string
+          original_file_base64?: string | null
+          original_source_lang?: string
+          original_target_lang?: string
+          project_id?: string
+          source_lang?: string
+          target_lang?: string
+          workspace_note_draft?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_files_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "cat_projects"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      cat_module_logs: {
+        Row: {
+          at: string
+          id: number
+          module: string
+          payload: Json | null
+        }
+        Insert: {
+          at?: string
+          id?: number
+          module: string
+          payload?: Json | null
+        }
+        Update: {
+          at?: string
+          id?: number
+          module?: string
+          payload?: Json | null
+        }
+        Relationships: []
+      }
+      cat_projects: {
+        Row: {
+          assignment_id: string | null
+          change_log: Json
+          created_at: string
+          env: string
+          id: string
+          last_modified: string
+          name: string
+          owner_user_id: string | null
+          read_tms: string[]
+          source_langs: string[]
+          target_langs: string[]
+          write_tms: string[]
+        }
+        Insert: {
+          assignment_id?: string | null
+          change_log?: Json
+          created_at?: string
+          env?: string
+          id?: string
+          last_modified?: string
+          name?: string
+          owner_user_id?: string | null
+          read_tms?: string[]
+          source_langs?: string[]
+          target_langs?: string[]
+          write_tms?: string[]
+        }
+        Update: {
+          assignment_id?: string | null
+          change_log?: Json
+          created_at?: string
+          env?: string
+          id?: string
+          last_modified?: string
+          name?: string
+          owner_user_id?: string | null
+          read_tms?: string[]
+          source_langs?: string[]
+          target_langs?: string[]
+          write_tms?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_projects_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "cat_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_projects_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      cat_segments: {
+        Row: {
+          col_src: string | null
+          col_tgt: string | null
+          created_at: string
+          editor_note: string
+          extra_value: string | null
+          file_id: string
+          id: string
+          id_value: string | null
+          is_locked: boolean
+          last_modified: string
+          match_value: number | null
+          row_idx: number
+          sheet_name: string
+          source_text: string
+          status: string
+          target_text: string
+        }
+        Insert: {
+          col_src?: string | null
+          col_tgt?: string | null
+          created_at?: string
+          editor_note?: string
+          extra_value?: string | null
+          file_id: string
+          id?: string
+          id_value?: string | null
+          is_locked?: boolean
+          last_modified?: string
+          match_value?: number | null
+          row_idx?: number
+          sheet_name?: string
+          source_text?: string
+          status?: string
+          target_text?: string
+        }
+        Update: {
+          col_src?: string | null
+          col_tgt?: string | null
+          created_at?: string
+          editor_note?: string
+          extra_value?: string | null
+          file_id?: string
+          id?: string
+          id_value?: string | null
+          is_locked?: boolean
+          last_modified?: string
+          match_value?: number | null
+          row_idx?: number
+          sheet_name?: string
+          source_text?: string
+          status?: string
+          target_text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_segments_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "cat_files"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      cat_tbs: {
+        Row: {
+          change_log: Json
+          created_at: string
+          env: string
+          id: string
+          last_modified: string
+          name: string
+          next_term_number: number
+          owner_user_id: string | null
+          source_langs: string[]
+          target_langs: string[]
+          terms: Json
+        }
+        Insert: {
+          change_log?: Json
+          created_at?: string
+          env?: string
+          id?: string
+          last_modified?: string
+          name?: string
+          next_term_number?: number
+          owner_user_id?: string | null
+          source_langs?: string[]
+          target_langs?: string[]
+          terms?: Json
+        }
+        Update: {
+          change_log?: Json
+          created_at?: string
+          env?: string
+          id?: string
+          last_modified?: string
+          name?: string
+          next_term_number?: number
+          owner_user_id?: string | null
+          source_langs?: string[]
+          target_langs?: string[]
+          terms?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_tbs_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      cat_tm_segments: {
+        Row: {
+          change_log: Json
+          created_at: string
+          created_by: string
+          id: string
+          key: string
+          last_modified: string
+          next_segment: string
+          prev_segment: string
+          source_lang: string
+          source_text: string
+          target_lang: string
+          target_text: string
+          tm_id: string
+          written_file: string
+          written_project: string
+        }
+        Insert: {
+          change_log?: Json
+          created_at?: string
+          created_by?: string
+          id?: string
+          key?: string
+          last_modified?: string
+          next_segment?: string
+          prev_segment?: string
+          source_lang?: string
+          source_text?: string
+          target_lang?: string
+          target_text?: string
+          tm_id: string
+          written_file?: string
+          written_project?: string
+        }
+        Update: {
+          change_log?: Json
+          created_at?: string
+          created_by?: string
+          id?: string
+          key?: string
+          last_modified?: string
+          next_segment?: string
+          prev_segment?: string
+          source_lang?: string
+          source_text?: string
+          target_lang?: string
+          target_text?: string
+          tm_id?: string
+          written_file?: string
+          written_project?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_tm_segments_tm_id_fkey"
+            columns: ["tm_id"]
+            isOneToOne: false
+            referencedRelation: "cat_tms"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      cat_tms: {
+        Row: {
+          change_log: Json
+          created_at: string
+          env: string
+          id: string
+          last_modified: string
+          name: string
+          owner_user_id: string | null
+          source_langs: string[]
+          target_langs: string[]
+        }
+        Insert: {
+          change_log?: Json
+          created_at?: string
+          env?: string
+          id?: string
+          last_modified?: string
+          name?: string
+          owner_user_id?: string | null
+          source_langs?: string[]
+          target_langs?: string[]
+        }
+        Update: {
+          change_log?: Json
+          created_at?: string
+          env?: string
+          id?: string
+          last_modified?: string
+          name?: string
+          owner_user_id?: string | null
+          source_langs?: string[]
+          target_langs?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_tms_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      cat_workspace_notes: {
+        Row: {
+          content: string
+          created_by: string
+          display_title: string
+          file_id: string | null
+          id: string
+          project_id: string
+          saved_at: string
+        }
+        Insert: {
+          content?: string
+          created_by?: string
+          display_title?: string
+          file_id?: string | null
+          id?: string
+          project_id: string
+          saved_at?: string
+        }
+        Update: {
+          content?: string
+          created_by?: string
+          display_title?: string
+          file_id?: string | null
+          id?: string
+          project_id?: string
+          saved_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_workspace_notes_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "cat_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_workspace_notes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "cat_projects"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       client_invoice_fees: {
         Row: {
           client_invoice_id: string

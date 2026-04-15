@@ -144,7 +144,7 @@ export default function CatAssignSection({
 
     // 讀取譯者名稱（批次）
     const userIds = [...new Set((data ?? []).map((a) => a.translator_user_id))];
-    let nameMap: Record<string, string> = {};
+    const nameMap: Record<string, string> = {};
     if (userIds.length > 0) {
       const { data: ps } = await supabase
         .from("profiles")
@@ -215,8 +215,9 @@ export default function CatAssignSection({
       toast({ title: "已建立 CAT 指派任務" });
       setDialogOpen(false);
       await fetchAssignments();
-    } catch (e: any) {
-      toast({ title: "建立失敗", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast({ title: "建立失敗", description: msg, variant: "destructive" });
     } finally {
       setSubmitting(false);
     }

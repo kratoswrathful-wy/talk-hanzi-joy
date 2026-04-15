@@ -85,6 +85,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!XliffImport) {
         console.error('my-cat-tool：請在 index.html 於 app.js 之前載入 js/xliff-import.js');
     }
+    try {
+        const catStorage = (new URLSearchParams(window.location.search).get('catStorage') || '').toLowerCase();
+        if (catStorage === 'team') {
+            const sidebarTitle = document.querySelector('.sidebar-title');
+            if (sidebarTitle) sidebarTitle.textContent = 'CAT Team';
+        }
+    } catch (_) { /* ignore */ }
 
     // 本檔案結構：(1) 畫面上元件的參照 (2) 共用小工具 (3) 畫面切換與資料載入 (4) 各功能區塊與事件
     // ---- DOM Elements ----
@@ -645,30 +652,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function appendProjectChangeLog(projectId, entry) {
-        if (!projectId || !DBService || !DBService.projects) return;
-        const project = await DBService.projects.get(projectId);
+        if (!projectId || !DBService) return;
+        const project = await DBService.getProject(projectId);
         if (!project) return;
         const log = Array.isArray(project.changeLog) ? project.changeLog.slice() : [];
         log.push(entry);
-        await DBService.projects.update(projectId, { changeLog: log, lastModified: new Date().toISOString() });
+        await DBService.patchProject(projectId, { changeLog: log });
     }
 
     async function appendTMChangeLog(tmId, entry) {
-        if (!tmId || !DBService || !DBService.tms) return;
-        const tm = await DBService.tms.get(tmId);
+        if (!tmId || !DBService) return;
+        const tm = await DBService.getTM(tmId);
         if (!tm) return;
         const log = Array.isArray(tm.changeLog) ? tm.changeLog.slice() : [];
         log.push(entry);
-        await DBService.tms.update(tmId, { changeLog: log, lastModified: new Date().toISOString() });
+        await DBService.patchTM(tmId, { changeLog: log });
     }
 
     async function appendTBChangeLog(tbId, entry) {
-        if (!tbId || !DBService || !DBService.tbs) return;
-        const tb = await DBService.tbs.get(tbId);
+        if (!tbId || !DBService) return;
+        const tb = await DBService.getTB(tbId);
         if (!tb) return;
         const log = Array.isArray(tb.changeLog) ? tb.changeLog.slice() : [];
         log.push(entry);
-        await DBService.tbs.update(tbId, { changeLog: log, lastModified: new Date().toISOString() });
+        await DBService.patchTB(tbId, { changeLog: log });
     }
 
     // User Profile Feature
@@ -2671,8 +2678,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if(confirm('確定要清空此記憶庫中所有的句段嗎？此動作無法復原！')) {
                 const existing = await DBService.getTMSegments(currentTmId);
                 const total = existing.length;
-                await DBService.tmSegments.where('tmId').equals(currentTmId).delete();
-                await DBService.tms.update(currentTmId, { lastModified: new Date().toISOString() });
+                await DBService.deleteTMSegmentsByTMId(currentTmId);
+                await DBService.patchTM(currentTmId, {});
                 if (total > 0) {
                     const entry = makeBaseLogEntry('delete', 'tm-segment', {
                         entityId: currentTmId,
@@ -2777,7 +2784,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 if (parsedSegments.length > 0) {
                     await DBService.bulkAddTMSegments(parsedSegments);
-                    await DBService.tms.update(currentTmId, { lastModified: new Date().toISOString() });
+                    await DBService.patchTM(currentTmId, {});
                     const entry = makeBaseLogEntry('create', 'tm-segment', {
                         entityId: currentTmId,
                         entityName: `TM #${currentTmId}`,
@@ -5744,7 +5751,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tmRow = await DBService.getTM(tmId);
             const tmName = tmRow ? tmRow.name : `TM #${tmId}`;
             // 寫入時只比對同語言對的現有句段（向下相容：舊句段無語言標記者也納入比對）
-            const existing = await DBService.tmSegments.where('tmId').equals(tmId).toArray();
+            const existing = await DBService.getTMSegments(tmId);
             const srcLang = metaBase.sourceLang.toLowerCase();
             const tgtLang = metaBase.targetLang.toLowerCase();
             const match = existing.find(tms => {
@@ -5760,7 +5767,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     ...metaBase,
                     changeLog: []
                 });
-                const full = await DBService.tmSegments.get(newId);
+                const full = await DBService.getTMSegmentById(newId);
                 if (full) {
                     const dupCache = window.ActiveTmCache.some(t => t.id === full.id || (t._tmId === tmId && t.sourceText === seg.sourceText));
                     if (!dupCache) {
@@ -6504,4 +6511,136 @@ document.addEventListener('DOMContentLoaded', async () => {
             exportBtn.textContent = '匯出檔案';
         }
     });
+
+    // One-way migration helper: offline snapshot -> team cloud.
+    window.CatMigrationTools = {
+        async exportOfflineSnapshot() {
+            if (!DBService || !DBService.db) {
+                throw new Error('Offline snapshot export requires local mode with IndexedDB access.');
+            }
+            const [projects, files, segments, tms, tmSegments, tbs, workspaceNotes, moduleLogs] = await Promise.all([
+                DBService.db.projects.toArray(),
+                DBService.db.files.toArray(),
+                DBService.db.segments.toArray(),
+                DBService.db.tms.toArray(),
+                DBService.db.tmSegments.toArray(),
+                DBService.db.tbs.toArray(),
+                DBService.db.workspaceNotes.toArray(),
+                DBService.db.moduleLogs.toArray()
+            ]);
+            return {
+                exportedAt: new Date().toISOString(),
+                source: 'offline-indexeddb',
+                schemaVersion: 1,
+                projects, files, segments, tms, tmSegments, tbs, workspaceNotes, moduleLogs
+            };
+        },
+        downloadSnapshot(snapshot) {
+            const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `cat-offline-snapshot-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        },
+        async importSnapshotToTeam(snapshot) {
+            if (!snapshot || typeof snapshot !== 'object') throw new Error('Invalid snapshot');
+            if (!Array.isArray(snapshot.projects)) throw new Error('Invalid snapshot.projects');
+
+            const projectIdMap = new Map();
+            const fileIdMap = new Map();
+            const tmIdMap = new Map();
+
+            for (const p of snapshot.projects || []) {
+                const newId = await DBService.createProject(p.name, p.sourceLangs || [], p.targetLangs || []);
+                projectIdMap.set(String(p.id), newId);
+                await DBService.patchProject(newId, {
+                    readTms: p.readTms || [],
+                    writeTms: p.writeTms || [],
+                    changeLog: p.changeLog || []
+                });
+            }
+
+            for (const f of snapshot.files || []) {
+                const mappedProjectId = projectIdMap.get(String(f.projectId));
+                if (!mappedProjectId) continue;
+                const newFileId = await DBService.createFile(
+                    mappedProjectId,
+                    f.name || 'Untitled',
+                    f.originalFileBuffer || null,
+                    f.sourceLang || '',
+                    f.targetLang || '',
+                    f.originalSourceLang || '',
+                    f.originalTargetLang || ''
+                );
+                fileIdMap.set(String(f.id), newFileId);
+            }
+
+            const segs = (snapshot.segments || []).map(s => ({
+                ...s,
+                fileId: fileIdMap.get(String(s.fileId))
+            })).filter(s => !!s.fileId);
+            if (segs.length) await DBService.addSegments(segs);
+
+            for (const tm of snapshot.tms || []) {
+                const newTmId = await DBService.createTM(tm.name, tm.sourceLangs || [], tm.targetLangs || []);
+                tmIdMap.set(String(tm.id), newTmId);
+                await DBService.patchTM(newTmId, { changeLog: tm.changeLog || [] });
+            }
+
+            for (const ts of snapshot.tmSegments || []) {
+                const mappedTmId = tmIdMap.get(String(ts.tmId));
+                if (!mappedTmId) continue;
+                await DBService.addTMSegment(mappedTmId, ts.sourceText || '', ts.targetText || '', {
+                    key: ts.key || '',
+                    prevSegment: ts.prevSegment || '',
+                    nextSegment: ts.nextSegment || '',
+                    writtenFile: ts.writtenFile || '',
+                    writtenProject: ts.writtenProject || '',
+                    createdBy: ts.createdBy || 'Unknown User',
+                    changeLog: ts.changeLog || [],
+                    sourceLang: ts.sourceLang || '',
+                    targetLang: ts.targetLang || ''
+                });
+            }
+
+            for (const tb of snapshot.tbs || []) {
+                const newTbId = await DBService.createTB(tb.name, tb.sourceLangs || [], tb.targetLangs || []);
+                await DBService.updateTB(newTbId, {
+                    terms: tb.terms || [],
+                    nextTermNumber: tb.nextTermNumber || 1,
+                    changeLog: tb.changeLog || []
+                });
+            }
+
+            for (const note of snapshot.workspaceNotes || []) {
+                const mappedProjectId = projectIdMap.get(String(note.projectId));
+                const mappedFileId = fileIdMap.get(String(note.fileId));
+                if (!mappedProjectId) continue;
+                await DBService.addWorkspaceNote({
+                    projectId: mappedProjectId,
+                    fileId: mappedFileId || null,
+                    displayTitle: note.displayTitle || 'Untitled',
+                    content: note.content || '',
+                    createdBy: note.createdBy || 'Unknown User',
+                    savedAt: note.savedAt || new Date().toISOString()
+                });
+            }
+
+            for (const log of snapshot.moduleLogs || []) {
+                await DBService.addModuleLog(log.module || 'migration', log);
+            }
+
+            return {
+                projects: projectIdMap.size,
+                files: fileIdMap.size,
+                segments: segs.length,
+                tms: tmIdMap.size,
+                tmSegments: (snapshot.tmSegments || []).length,
+                tbs: (snapshot.tbs || []).length,
+                workspaceNotes: (snapshot.workspaceNotes || []).length
+            };
+        }
+    };
 });
