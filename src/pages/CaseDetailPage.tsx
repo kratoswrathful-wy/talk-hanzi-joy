@@ -824,6 +824,10 @@ const CASE_LOG_SKIP_KEYS = new Set<string>([
   "inquirySlackRecords",
   // log individual sub-fields (workType, billingUnit, unitCount) instead of the raw JSON blob
   "workGroups",
+  // BlockNote rich text — not meaningful to log as JSON
+  "bodyContent",
+  // internal records managed separately
+  "internalRecords",
 ]);
 
 const CASE_FIELD_LABELS: Partial<Record<keyof CaseRecord, string>> = {
@@ -871,6 +875,17 @@ function serializeCaseFieldForLog(key: keyof CaseRecord, value: unknown): string
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
     try { return formatTimestamp(value); } catch { return value; }
   }
+  // status → Chinese label
+  if (key === "status") {
+    return CASE_STATUS_LABEL_MAP[value as string] ?? String(value);
+  }
+  // declineRecords → N 筆（譯者A、譯者B）
+  if (key === "declineRecords") {
+    const recs = value as DeclineRecord[];
+    if (!recs?.length) return "（空）";
+    const names = recs.map((r) => r.translator).filter(Boolean);
+    return `${recs.length} 筆${names.length ? `（${names.join("、")}）` : ""}`;
+  }
   if (key === "tools" || key === "questionTools") {
     const entries = value as ToolEntry[];
     if (!entries?.length) return "（空）";
@@ -885,6 +900,24 @@ function serializeCaseFieldForLog(key: keyof CaseRecord, value: unknown): string
   }
   if (key === "multiCollab") return value ? "啟用" : "停用";
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+  // string[] → 以「、」串接（譯者、審稿人員、工作類型等）
+  if (Array.isArray(value) && (value.length === 0 || typeof value[0] === "string")) {
+    const arr = value as string[];
+    return arr.length ? arr.join("、") : "（空）";
+  }
+  // { name; url }[] 檔案陣列 → 列出檔名
+  if (Array.isArray(value) && value.length > 0 && typeof (value[0] as Record<string, unknown>)?.name === "string") {
+    const files = value as { name: string }[];
+    const names = files.map((f) => f.name).filter(Boolean);
+    return names.length ? names.join("、") : "（空）";
+  }
+  // 空陣列 fallback
+  if (Array.isArray(value)) return "（空）";
+  // 單一物件（如 clientCaseLink: { url; label }）→ 顯示 label 或 name
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, string>;
+    return obj.label || obj.name || JSON.stringify(value);
+  }
   return JSON.stringify(value ?? null);
 }
 

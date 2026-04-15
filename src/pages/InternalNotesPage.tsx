@@ -623,14 +623,39 @@ export default function InternalNotesPage() {
       if (!nid) return;
       const prev = internalNotesStore.getAll().find((n) => n.id === nid);
       if (!prev) return;
-      const NOTE_SKIP = new Set(["editLogs", "editLogStartedAt", "comments", "createdAt"]);
+      const NOTE_SKIP = new Set(["editLogs", "editLogStartedAt", "comments", "createdAt",
+        "questionOrNoteBlocks", // BlockNote rich text — not meaningful to log as JSON
+      ]);
       let merged: Partial<InternalNote> = { ...updates };
       if (prev.editLogStartedAt && profile) {
         let logs = [...(prev.editLogs || [])];
         let burst = noteBurstRef.current;
         const author = profile.display_name || profile.email || "系統";
-        const ser = (v: unknown) =>
-          typeof v === "string" || typeof v === "number" || typeof v === "boolean" ? v : JSON.stringify(v ?? null);
+        const serializeNoteFieldForLog = (key: string, v: unknown): string => {
+          if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v)) {
+            try {
+              return new Date(v).toLocaleString("zh-TW", {
+                year: "numeric", month: "2-digit", day: "2-digit",
+                hour: "2-digit", minute: "2-digit", hour12: false,
+              });
+            } catch { return v; }
+          }
+          if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") return String(v);
+          if (Array.isArray(v)) {
+            if (v.length === 0) return "（空）";
+            if (typeof (v[0] as Record<string, unknown>)?.name === "string") {
+              const names = (v as { name: string }[]).map((f) => f.name).filter(Boolean);
+              return names.length ? names.join("、") : "（空）";
+            }
+            if (typeof v[0] === "string") return (v as string[]).join("、");
+            return "（空）";
+          }
+          if (v && typeof v === "object") {
+            const obj = v as Record<string, string>;
+            return obj.label || obj.name || JSON.stringify(v);
+          }
+          return JSON.stringify(v ?? null);
+        };
         for (const key of Object.keys(updates)) {
           if (NOTE_SKIP.has(key)) continue;
           const ov = (prev as any)[key];
@@ -640,8 +665,8 @@ export default function InternalNotesPage() {
           const label = internalNotesFieldMetas.find((m) => m.key === key)?.label || key;
           const { nextLogs, nextBurstMap } = applyEditLogFieldChange({
             fieldKey: key,
-            oldValue: ser(ov),
-            newValue: ser(nv),
+            oldValue: serializeNoteFieldForLog(key, ov),
+            newValue: serializeNoteFieldForLog(key, nv),
             now: Date.now(),
             author,
             formatTimestamp: (d) =>
