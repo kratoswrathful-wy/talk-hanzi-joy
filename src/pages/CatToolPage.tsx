@@ -5,15 +5,14 @@ import { supabase } from "@/integrations/supabase/client";
 /**
  * Embeds the vanilla CAT app from /cat/index.html (see cat-tool/ → public/cat via npm run sync:cat).
  *
- * Identity bridge: when the iframe loads (or when auth state changes while it is mounted),
- * a TMS_IDENTITY postMessage is sent to the iframe so the CAT tool can display the correct
- * user name, avatar, and role without needing its own login.
+ * mode="offline"  (個人離線版) — only sends TMS_IDENTITY; assignment panel stays hidden.
+ * mode="team"     (團隊線上版) — additionally sends TMS_ASSIGNMENTS and handles the
+ *                 CAT_REQUEST_FILE_URL / CAT_ASSIGNMENT_STATUS message bridge.
  *
- * Assignment bridge: sendAssignments queries cat_assignments for the current user and
- * delivers them as TMS_ASSIGNMENTS. The CAT iframe can request signed download URLs via
- * CAT_REQUEST_FILE_URL, and report status changes via CAT_ASSIGNMENT_STATUS.
+ * Both modes load the same iframe; the difference is purely which postMessages are sent.
+ * All editor logic lives in cat-tool/ (one codebase); only this thin React wrapper differs.
  */
-export default function CatToolPage() {
+export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "team" }) {
   const src = `${import.meta.env.BASE_URL}cat/index.html`;
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { user, profile, primaryRole } = useAuth();
@@ -69,12 +68,14 @@ export default function CatToolPage() {
   // Re-send whenever auth state changes while the page is mounted.
   useEffect(() => {
     sendIdentity();
-    sendAssignments();
-  }, [sendIdentity, sendAssignments]);
+    if (mode === "team") sendAssignments();
+  }, [sendIdentity, sendAssignments, mode]);
 
-  // ── Listen for messages from the CAT iframe ───────────────────────────────────
+  // ── Listen for messages from the CAT iframe (team mode only) ─────────────────
 
   useEffect(() => {
+    if (mode !== "team") return;
+
     const handler = async (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
 
@@ -118,18 +119,18 @@ export default function CatToolPage() {
 
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [user]);
+  }, [user, mode]);
 
   return (
     <div className="-m-6 flex min-h-0 flex-1 flex-col" style={{ minHeight: "calc(100vh - 3rem)" }}>
       <iframe
         ref={iframeRef}
-        title="CAT（建構中）"
+        title={mode === "team" ? "CAT 團隊線上版" : "CAT 個人離線版"}
         src={src}
         className="min-h-0 w-full flex-1 border-0 bg-background"
         onLoad={() => {
           sendIdentity();
-          sendAssignments();
+          if (mode === "team") sendAssignments();
         }}
       />
     </div>
