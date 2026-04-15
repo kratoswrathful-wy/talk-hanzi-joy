@@ -444,6 +444,12 @@ export default function ClientInvoiceDetailPage() {
   const isCollected = invoice.status === "collected";
   const editable = isAdmin && !isCollected;
 
+  // Footer total: include adjustment lines when present
+  const hasAdjustments = (invoice.adjustmentLines?.length ?? 0) > 0;
+  const footerOriginalAmount = hasAdjustments
+    ? formatCurrency(adjustmentDialogCurrentTotal, clientCurrency)
+    : feeTotalOriginal;
+
   // Calculate paid so far
   const paidSoFar = invoice.payments.reduce((sum, p) => {
     if (p.type === "full") {
@@ -923,7 +929,7 @@ export default function ClientInvoiceDetailPage() {
                       <TableRow key={line.id}>
                         <TableCell className="text-sm font-medium text-muted-foreground">費用調整</TableCell>
                         <TableCell className="text-center text-sm tabular-nums">
-                          <span className={line.operation === "subtract" ? "text-destructive" : "text-foreground"}>
+                          <span className={`${line.operation === "subtract" ? "text-destructive" : "text-foreground"} whitespace-nowrap`}>
                             {line.operation === "subtract" ? "−" : "+"}
                             {formatCurrency(line.amount, line.currency)}
                           </span>
@@ -964,8 +970,8 @@ export default function ClientInvoiceDetailPage() {
                       </TableCell>
                       <TableCell className="text-center">
                         <TooltipProvider delayDuration={200}><Tooltip><TooltipTrigger asChild>
-                          <span className="font-medium tabular-nums cursor-default text-sm">{feeTotalOriginal}</span>
-                        </TooltipTrigger><TooltipContent className="text-xs">原幣值合計</TooltipContent></Tooltip></TooltipProvider>
+                          <span className="font-medium tabular-nums cursor-default text-sm">{footerOriginalAmount}</span>
+                        </TooltipTrigger><TooltipContent className="text-xs">{hasAdjustments ? "費用合計（含調整）" : "原幣值合計"}</TooltipContent></Tooltip></TooltipProvider>
                       </TableCell>
                       {editable && <TableCell />}
                     </TableRow>
