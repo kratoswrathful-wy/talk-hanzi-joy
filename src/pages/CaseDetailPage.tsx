@@ -76,7 +76,6 @@ import { filterEditLogsCase } from "@/lib/edit-log-permission-filter";
 import CollaborationTable from "@/components/CollaborationTable";
 import { InquirySlackDialog } from "@/components/InquirySlackDialog";
 import { CaseBodyEditorBoundary } from "@/components/CaseBodyEditorBoundary";
-import CatAssignSection from "@/components/cat/CatAssignSection";
 
 const RichTextEditor = lazy(() => import("@/components/RichTextEditor"));
 
@@ -2674,16 +2673,6 @@ export default function CaseDetailPage() {
           <FileFieldRow label="追蹤修訂" value={caseData.trackChanges} onChange={(v) => save({ trackChanges: v })} />
         </div>
       </div>
-
-      <Separator />
-
-      {/* CAT 指派任務 */}
-      <CatAssignSection
-        caseId={caseData.id}
-        sourceFiles={Array.isArray(caseData.sourceFiles) ? caseData.sourceFiles as any[] : []}
-        isAdmin={currentRole === "pm" || currentRole === "executive"}
-        env={import.meta.env.MODE === "development" ? "development" : "production"}
-      />
 
       <Separator />
 

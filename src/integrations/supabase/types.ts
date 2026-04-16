@@ -362,6 +362,58 @@ export type Database = {
           }
         ]
       }
+      cat_file_assignments: {
+        Row: {
+          assignee_user_id: string
+          assigned_at: string
+          assigned_by: string | null
+          file_id: string
+          id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_user_id: string
+          assigned_at?: string
+          assigned_by?: string | null
+          file_id: string
+          id?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_user_id?: string
+          assigned_at?: string
+          assigned_by?: string | null
+          file_id?: string
+          id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_file_assignments_assignee_user_id_fkey"
+            columns: ["assignee_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_file_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_file_assignments_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "cat_files"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       cat_module_logs: {
         Row: {
           at: string

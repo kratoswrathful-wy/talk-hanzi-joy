@@ -119,6 +119,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnProjectsDeleteSelected = document.getElementById('btnProjectsDeleteSelected');
     const filesListBody = document.getElementById('filesListBody');
     const projectFilesSelectAll = document.getElementById('projectFilesSelectAll');
+    const projectFileAssignHint = document.getElementById('projectFileAssignHint');
+    const assignedFilesBody = document.getElementById('assignedFilesBody');
+    const collabPresenceBar = document.getElementById('collabPresenceBar');
+    const fileAssignModal = document.getElementById('fileAssignModal');
+    const fileAssignModalTitle = document.getElementById('fileAssignModalTitle');
+    const fileAssignMembersList = document.getElementById('fileAssignMembersList');
+    const btnCloseFileAssignModal = document.getElementById('btnCloseFileAssignModal');
+    const btnCancelFileAssign = document.getElementById('btnCancelFileAssign');
+    const btnSaveFileAssign = document.getElementById('btnSaveFileAssign');
     // --- TM 清單與 TM 內頁 ---
     const tmList = document.getElementById('tmList');
     const tmListSelectAll = document.getElementById('tmListSelectAll');
@@ -249,6 +258,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const colSettingsListContainer = document.getElementById('colSettingsListContainer');
     const btnSaveViewSettings = document.getElementById('btnSaveViewSettings');
     const btnResetViewSettings = document.getElementById('btnResetViewSettings');
+    const collabMergeModeSelect = document.getElementById('collabMergeMode');
 
     const btnShortcuts = document.getElementById('btnShortcuts');
     const shortcutsModal = document.getElementById('shortcutsModal');
@@ -370,6 +380,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** 將 TMS 傳入的身分資料套用到 CAT 工具的 UI。 */
     function applyTmsIdentityToUI(payload) {
         const { displayName, email, avatarUrl, role } = payload || {};
+        window._tmsRole = role || '';
+        window._tmsAvatarUrl = avatarUrl || null;
 
         // 更新 localStorage（讓 getCurrentUserName() 等全部呼叫點自動生效）
         if (displayName) localStorage.setItem('localCatUserProfile', displayName);
@@ -411,6 +423,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         window._tmsManagedIdentity = true;
+        enforceTeamRoleLayout();
     }
 
     /** 顯示 TMS 個人資訊唯讀卡片。 */
@@ -433,39 +446,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // postMessage 接收器：接收來自 TMS（父框架）的身分與指派資訊
-    window.addEventListener('message', (event) => {
-        // 安全性驗證：只接受來自父框架且同源的訊息
-        if (event.source !== window.parent) return;
-        if (event.origin !== window.location.origin) return;
-        if (!event.data) return;
-
-        if (event.data.type === 'TMS_IDENTITY') {
-            applyTmsIdentityToUI(event.data.payload);
-        } else if (event.data.type === 'TMS_ASSIGNMENTS') {
-            const assignments = (event.data.payload && event.data.payload.assignments) || [];
-            window._tmsAssignments = assignments;
-            renderTmsAssignmentsPanel(assignments);
-        } else if (event.data.type === 'TMS_FILE_URL') {
-            // 一次性：由 openTmsAssignment 的 Promise 監聽器處理，此處無需額外動作
+    function isTeamMode() {
+        try {
+            return (new URLSearchParams(window.location.search).get('catStorage') || '').toLowerCase() === 'team';
+        } catch (_) {
+            return false;
         }
-    });
-
-    // ─── TMS 指派任務面板 ────────────────────────────────────────────────────────
-
-    const tmsAssignmentsPanel = document.getElementById('tmsAssignmentsPanel');
-    const tmsAssignmentsList  = document.getElementById('tmsAssignmentsList');
-    const tmsAssignmentsBadge = document.getElementById('tmsAssignmentsBadge');
-    const tmsPanelChevron     = document.getElementById('tmsPanelChevron');
-    const btnToggleTmsPanel   = document.getElementById('btnToggleTmsPanel');
-    let tmsPanelCollapsed = false;
-
-    if (btnToggleTmsPanel) {
-        btnToggleTmsPanel.addEventListener('click', () => {
-            tmsPanelCollapsed = !tmsPanelCollapsed;
-            if (tmsAssignmentsList) tmsAssignmentsList.style.display = tmsPanelCollapsed ? 'none' : '';
-            if (tmsPanelChevron) tmsPanelChevron.textContent = tmsPanelCollapsed ? '▼' : '▲';
-        });
     }
 
     const STATUS_LABELS_TMS = {
@@ -474,143 +460,530 @@ document.addEventListener('DOMContentLoaded', async () => {
         completed: '已完成',
         cancelled: '已取消'
     };
+    const COLLAB_FOCUS_TTL_MS = 15000;
+    const COLLAB_EDIT_TTL_MS = 20000;
 
-    function renderTmsAssignmentsPanel(assignments) {
-        if (!tmsAssignmentsPanel || !tmsAssignmentsList) return;
+    function collabPaletteFor(sessionId) {
+        if (!sessionId) return '#64748b';
+        if (sessionId === collabSelfSessionId) return '#2563eb';
+        const palette = ['#ef4444', '#f59e0b', '#10b981', '#14b8a6', '#8b5cf6', '#ec4899', '#0ea5e9', '#84cc16'];
+        let hash = 0;
+        for (let i = 0; i < sessionId.length; i++) hash = ((hash << 5) - hash + sessionId.charCodeAt(i)) | 0;
+        return palette[Math.abs(hash) % palette.length];
+    }
 
-        const active = assignments.filter(a => a.status !== 'cancelled');
+    function getCollabOverlay() {
+        let overlay = document.getElementById('collabOutlineOverlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'collabOutlineOverlay';
+            overlay.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:8000;overflow:hidden;';
+            document.body.appendChild(overlay);
+        }
+        return overlay;
+    }
 
-        // 隱藏/顯示整個面板
-        tmsAssignmentsPanel.style.display = active.length === 0 ? 'none' : '';
+    function clearCollabOutlines() {
+        const overlay = document.getElementById('collabOutlineOverlay');
+        if (overlay) overlay.innerHTML = '';
+    }
 
-        // 更新徽章
-        if (tmsAssignmentsBadge) {
-            if (active.length > 0) {
-                tmsAssignmentsBadge.textContent = String(active.length);
-                tmsAssignmentsBadge.style.display = '';
-            } else {
-                tmsAssignmentsBadge.style.display = 'none';
+    function findMemberBySession(sessionId) {
+        return (collabMembers || []).find(m => String(m.sessionId || '') === String(sessionId || '')) || null;
+    }
+
+    function drawCollabOutlineOnOverlay(overlay, el, color, dashed) {
+        if (!el || !overlay) return;
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 && r.height === 0) return;
+        const div = document.createElement('div');
+        div.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;border:2px ${dashed ? 'dashed' : 'solid'} ${color};border-radius:3px;pointer-events:none;box-sizing:border-box;`;
+        overlay.appendChild(div);
+    }
+
+    function applyCollabFocusOutlines() {
+        clearCollabOutlines();
+        const overlay = getCollabOverlay();
+        const now = Date.now();
+
+        Object.values(collabFocusBySession || {}).forEach((focus) => {
+            if (!focus || !focus.sessionId) return;
+            if (focus.sessionId === collabSelfSessionId) return;
+            const ts = Date.parse(focus.at || '');
+            if (!Number.isFinite(ts) || (now - ts) > COLLAB_FOCUS_TTL_MS) return;
+            const color = collabPaletteFor(focus.sessionId);
+            let el = null;
+            if (focus.targetType === 'segment' && focus.targetId != null) {
+                el = document.querySelector(`.grid-data-row[data-seg-id="${focus.targetId}"]`);
+            } else if (focus.targetType === 'control' && focus.targetId) {
+                el = document.getElementById(String(focus.targetId));
+                if (!el) el = document.querySelector(`.tab-btn[data-tab="${String(focus.targetId)}"]`);
+            }
+            drawCollabOutlineOnOverlay(overlay, el, color, false);
+        });
+
+        Object.values(collabEditBySession || {}).forEach((edit) => {
+            if (!edit || !edit.sessionId) return;
+            if (edit.sessionId === collabSelfSessionId) return;
+            if (String(edit.state || '') === 'end') return;
+            const ts = Date.parse(edit.at || '');
+            if (!Number.isFinite(ts) || (now - ts) > COLLAB_EDIT_TTL_MS) return;
+            if (edit.segmentId == null) return;
+            const row = document.querySelector(`.grid-data-row[data-seg-id="${edit.segmentId}"]`);
+            drawCollabOutlineOnOverlay(overlay, row, collabPaletteFor(edit.sessionId), true);
+        });
+    }
+
+    function renderCollabPresence() {
+        if (!collabPresenceBar) return;
+        if (!isTeamMode() || !collabCurrentFileId) {
+            collabPresenceBar.style.display = 'none';
+            collabPresenceBar.innerHTML = '';
+            return;
+        }
+        const members = Array.isArray(collabMembers) ? collabMembers : [];
+        if (!members.length) {
+            collabPresenceBar.style.display = 'none';
+            collabPresenceBar.innerHTML = '';
+            return;
+        }
+        collabPresenceBar.style.display = 'flex';
+        collabPresenceBar.innerHTML = members.map((m) => {
+            const sid = String(m.sessionId || '');
+            const color = collabPaletteFor(sid);
+            const displayName = (m.displayName || 'Unknown User').replace(/</g, '&lt;');
+            const avatar = m.avatarUrl
+                ? `<img src="${m.avatarUrl}" alt="${displayName}" style="width:16px;height:16px;border-radius:50%;object-fit:cover;">`
+                : '<span style="font-size:11px;">👤</span>';
+            return `<span title="${displayName}" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.1rem 0.35rem;border:1px solid ${color};border-radius:999px;background:#ffffffcc;font-size:0.72rem;color:#334155;">${avatar}<span>${displayName}</span></span>`;
+        }).join('');
+    }
+
+    function joinCollabForFile(file) {
+        if (!isTeamMode() || !file || !file.id) return;
+        collabCurrentFileId = String(file.id);
+        window.parent.postMessage({
+            type: 'CAT_COLLAB_JOIN',
+            payload: {
+                fileId: String(file.id),
+                sessionId: collabSelfSessionId,
+                displayName: localStorage.getItem('localCatUserProfile') || 'Unknown User',
+                avatarUrl: window._tmsAvatarUrl || null,
+                role: window._tmsRole || null
+            }
+        }, window.location.origin);
+    }
+
+    function leaveCollabForCurrentFile() {
+        if (!collabCurrentFileId) return;
+        window.parent.postMessage({
+            type: 'CAT_COLLAB_LEAVE',
+            payload: {
+                fileId: collabCurrentFileId,
+                sessionId: collabSelfSessionId
+            }
+        }, window.location.origin);
+        collabCurrentFileId = null;
+        collabMembers = [];
+        collabFocusBySession = {};
+        collabEditBySession = {};
+        collabSeenCommitKeys = new Set();
+        renderCollabPresence();
+        clearCollabOutlines();
+    }
+
+    function emitCollabFocus(targetType, targetId) {
+        if (!isTeamMode() || !collabCurrentFileId) return;
+        if (!targetType || targetId == null) return;
+        window.parent.postMessage({
+            type: 'CAT_COLLAB_FOCUS',
+            payload: {
+                fileId: collabCurrentFileId,
+                sessionId: collabSelfSessionId,
+                targetType,
+                targetId: String(targetId)
+            }
+        }, window.location.origin);
+    }
+
+    function emitCollabEdit(state, seg, text) {
+        if (!isTeamMode() || !collabCurrentFileId) return;
+        if (!seg || !seg.id || !state) return;
+        window.parent.postMessage({
+            type: 'CAT_COLLAB_EDIT',
+            payload: {
+                fileId: collabCurrentFileId,
+                sessionId: collabSelfSessionId,
+                segmentId: seg.id,
+                state: state,
+                text: typeof text === 'string' ? text : null
+            }
+        }, window.location.origin);
+    }
+
+    function isSegmentBeingEditedByOthers(segId) {
+        const now = Date.now();
+        return Object.values(collabEditBySession || {}).some((edit) => {
+            if (!edit || !edit.sessionId) return false;
+            if (edit.sessionId === collabSelfSessionId) return false;
+            if (String(edit.state || '') === 'end') return false;
+            if (String(edit.segmentId || '') !== String(segId || '')) return false;
+            const ts = Date.parse(edit.at || '');
+            return Number.isFinite(ts) && (now - ts) <= COLLAB_EDIT_TTL_MS;
+        });
+    }
+
+    function showRowWriteHint(segId, text) {
+        const row = document.querySelector(`.grid-data-row[data-seg-id="${segId}"]`);
+        if (!row) return;
+        let hint = row.querySelector('.collab-write-hint');
+        if (!hint) {
+            hint = document.createElement('div');
+            hint.className = 'collab-write-hint';
+            hint.style.cssText = 'position:absolute;right:6px;top:4px;font-size:11px;padding:1px 6px;border-radius:999px;background:#fef3c7;color:#92400e;border:1px solid #f59e0b;z-index:2;';
+            row.style.position = 'relative';
+            row.appendChild(hint);
+        }
+        hint.textContent = text;
+        if (collabRowWriteHintTimers[segId]) clearTimeout(collabRowWriteHintTimers[segId]);
+        collabRowWriteHintTimers[segId] = setTimeout(() => {
+            const node = row.querySelector('.collab-write-hint');
+            if (node) node.remove();
+            delete collabRowWriteHintTimers[segId];
+        }, 4000);
+    }
+
+    const _collabNoticeBySegId = {};
+
+    function showCollabActionNotice(message, actions, timeoutMs = 10000, segmentId) {
+        let host = document.getElementById('collabNoticeHost');
+        if (!host) {
+            host = document.createElement('div');
+            host.id = 'collabNoticeHost';
+            host.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:9999;display:flex;flex-direction:column-reverse;gap:8px;max-width:min(460px,calc(100vw - 24px));';
+            document.body.appendChild(host);
+        }
+
+        if (segmentId != null && _collabNoticeBySegId[segmentId]) {
+            const old = _collabNoticeBySegId[segmentId];
+            if (old._dismiss) old._dismiss('replaced');
+        }
+
+        return new Promise((resolve) => {
+            const card = document.createElement('div');
+            card.style.cssText = 'background:#111827;color:#f8fafc;border:1px solid #374151;border-radius:8px;padding:10px 10px 8px;box-shadow:0 6px 20px rgba(0,0,0,.28);font-size:12px;line-height:1.45;';
+            const msg = document.createElement('div');
+            msg.textContent = message;
+            card.appendChild(msg);
+
+            const actionsRow = document.createElement('div');
+            actionsRow.style.cssText = 'display:flex;justify-content:flex-end;gap:6px;margin-top:8px;';
+            card.appendChild(actionsRow);
+
+            let finished = false;
+            const done = (result) => {
+                if (finished) return;
+                finished = true;
+                clearTimeout(timer);
+                card.remove();
+                if (segmentId != null && _collabNoticeBySegId[segmentId] === card) {
+                    delete _collabNoticeBySegId[segmentId];
+                }
+                resolve(result);
+            };
+            card._dismiss = done;
+
+            (actions || []).forEach((a) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = a.label || 'OK';
+                btn.style.cssText = `border:1px solid ${a.primary ? '#60a5fa' : '#4b5563'};background:${a.primary ? '#1d4ed8' : '#111827'};color:#fff;border-radius:6px;padding:3px 9px;font-size:12px;cursor:pointer;`;
+                btn.addEventListener('click', () => done(a.id));
+                actionsRow.appendChild(btn);
+            });
+
+            host.appendChild(card);
+            if (segmentId != null) _collabNoticeBySegId[segmentId] = card;
+            const timer = setTimeout(() => done('timeout'), timeoutMs);
+        });
+    }
+
+    function getSegmentById(segId) {
+        return currentSegmentsList.find((s) => String(s.id) === String(segId || '')) || null;
+    }
+
+    function getSegmentEditor(segId) {
+        const row = document.querySelector(`.grid-data-row[data-seg-id="${segId}"]`);
+        if (!row) return { row: null, editor: null };
+        const editor = row.querySelector('.grid-textarea');
+        return { row, editor };
+    }
+
+    async function applyRemoteCommit(edit, whoLabel) {
+        const segId = edit && edit.segmentId;
+        if (segId == null) return;
+        const remoteText = typeof edit.text === 'string' ? edit.text : null;
+        if (remoteText == null) return;
+        const seg = getSegmentById(segId);
+        if (!seg || seg.targetText === remoteText) return;
+
+        const { row, editor } = getSegmentEditor(segId);
+        const activeEditor = document.activeElement && document.activeElement.classList
+            && document.activeElement.classList.contains('grid-textarea')
+            ? document.activeElement
+            : null;
+        const activeSegId = activeEditor && activeEditor.closest('.grid-data-row')
+            ? activeEditor.closest('.grid-data-row').getAttribute('data-seg-id')
+            : null;
+        const isEditingSameSeg = String(activeSegId || '') === String(segId);
+
+        if (collabMergeMode === 'hint') {
+            showRowWriteHint(segId, `${whoLabel} 已更新（未套用）`);
+            return;
+        }
+        if (collabMergeMode === 'prompt') {
+            if (isEditingSameSeg) {
+                showRowWriteHint(segId, `${whoLabel} 有新版本（你正在編輯）`);
+                return;
+            }
+            const action = await showCollabActionNotice(
+                `${whoLabel} 已提交此句段新內容，要套用遠端文字嗎？`,
+                [
+                    { id: 'ignore', label: '忽略' },
+                    { id: 'apply', label: '套用', primary: true }
+                ],
+                12000,
+                segId
+            );
+            if (action !== 'apply') {
+                showRowWriteHint(segId, '已略過遠端更新');
+                return;
             }
         }
 
-        if (active.length === 0) return;
+        seg.targetText = remoteText;
+        if (editor) {
+            editor.innerHTML = buildTaggedHtml(remoteText, seg.targetTags || seg.sourceTags || []);
+        }
+        if (row) {
+            updateTagColors(row, remoteText);
+            refreshTagNextHighlight(row);
+        }
+        try {
+            await DBService.updateSegmentTarget(seg.id, remoteText);
+        } catch (err) {
+            console.error('[collab] apply remote commit failed', err);
+        }
+        showRowWriteHint(segId, `${whoLabel} 更新已套用`);
+    }
 
-        tmsAssignmentsList.innerHTML = active.map(a => {
-            const statusLabel = STATUS_LABELS_TMS[a.status] || a.status;
-            const statusColor = a.status === 'in_progress' ? '#2563eb' : a.status === 'completed' ? '#16a34a' : '#6b7280';
-            const deadlineStr = a.deadline
-                ? new Date(a.deadline).toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-                : '';
+    function enforceTeamRoleLayout() {
+        if (!isTeamMode()) return;
+        const role = (window._tmsRole || '').toLowerCase();
+        const translatorOnly = role === 'member' || !!window._tmsTranslatorOnly;
+        const nav = document.querySelector('.sidebar-nav');
+        const sideTitle = document.querySelector('.sidebar-title');
+        if (sideTitle && translatorOnly) sideTitle.textContent = 'CAT Team（受派）';
+        if (projectFileAssignHint) {
+            projectFileAssignHint.style.display = translatorOnly ? 'none' : '';
+        }
+        if (nav) nav.style.display = translatorOnly ? 'none' : '';
+        if (translatorOnly) {
+            switchView('viewAssignedFiles');
+        }
+    }
+
+    function renderAssignedFilesView(assignments) {
+        if (!assignedFilesBody) return;
+        const list = (assignments || []).filter(a => a && a.status !== 'cancelled');
+        if (list.length === 0) {
+            assignedFilesBody.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">目前沒有受派檔案。</td></tr>';
+            return;
+        }
+        assignedFilesBody.innerHTML = list.map(a => {
+            const file = a.file || {};
+            const status = STATUS_LABELS_TMS[a.status] || a.status || '—';
+            const at = (a.updated_at || a.assigned_at) ? new Date(a.updated_at || a.assigned_at).toLocaleString('zh-TW') : '—';
             return `
-                <div class="tms-assign-card" data-assign-id="${a.id}" style="background:#fff; border:1px solid #e5e7eb; border-radius:6px; padding:.45rem .55rem; font-size:.78rem; line-height:1.4;">
-                    <div style="display:flex; align-items:center; justify-content:space-between; gap:.3rem; margin-bottom:.25rem;">
-                        <span style="font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;" title="${a.source_file_name}">${a.source_file_name}</span>
-                        <span style="white-space:nowrap; font-size:.7rem; font-weight:600; padding:.1rem .4rem; border-radius:999px; background:${statusColor}1a; color:${statusColor};">${statusLabel}</span>
-                    </div>
-                    <div style="color:#6b7280; font-size:.72rem; margin-bottom:.3rem;">${a.source_lang} → ${a.target_lang}${deadlineStr ? ' · ' + deadlineStr : ''}</div>
-                    ${a.status !== 'completed' ? `<button class="btn-open-tms-assign" data-assign-id="${a.id}" style="width:100%; padding:.25rem .4rem; font-size:.72rem; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:4px; cursor:pointer;">📂 開啟任務</button>` : ''}
-                </div>
+                <tr>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0;">${status}</td>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0;">${(file.name || '').replace(/</g, '&lt;')}</td>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0;">${(file.source_lang || '')} → ${(file.target_lang || '')}</td>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0;">${at}</td>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0;">
+                        <button type="button" class="primary-btn btn-sm open-assigned-file-btn" data-assignment-id="${a.id}" data-file-id="${file.id || ''}" data-project-id="${file.project_id || ''}">開啟</button>
+                    </td>
+                </tr>
             `;
         }).join('');
-
-        // 綁定「開啟任務」按鈕
-        tmsAssignmentsList.querySelectorAll('.btn-open-tms-assign').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const assignId = btn.getAttribute('data-assign-id');
-                const assignment = (window._tmsAssignments || []).find(a => a.id === assignId);
-                if (assignment) openTmsAssignment(assignment);
+        assignedFilesBody.querySelectorAll('.open-assigned-file-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const fileId = btn.getAttribute('data-file-id');
+                const projectId = btn.getAttribute('data-project-id');
+                const assignmentId = btn.getAttribute('data-assignment-id');
+                if (!fileId) return;
+                if (projectId) {
+                    currentProjectId = projectId;
+                    await openProjectDetail(projectId);
+                }
+                await openEditor(fileId);
+                if (assignmentId) {
+                    window.parent.postMessage({
+                        type: 'CAT_ASSIGNMENT_STATUS',
+                        payload: { assignmentId, status: 'in_progress' }
+                    }, window.location.origin);
+                }
             });
         });
     }
 
-    /**
-     * 從 TMS 下載並匯入指派的原始檔，然後向父框架回報狀態。
-     * @param {object} assignment - cat_assignments 記錄
-     */
-    async function openTmsAssignment(assignment) {
-        // 1. 向父框架請求 signed URL
-        const signedUrlResult = await new Promise((resolve) => {
+    function closeFileAssignModal() {
+        if (fileAssignModal) fileAssignModal.classList.add('hidden');
+        currentAssignFileId = null;
+        currentAssignFileName = '';
+    }
+
+    async function requestFileAssignments(fileId) {
+        return await new Promise((resolve) => {
             const handler = (event) => {
                 if (event.origin !== window.location.origin) return;
-                if (event.data?.type !== 'TMS_FILE_URL') return;
-                if (event.data?.payload?.assignmentId !== assignment.id) return;
+                if (event.data?.type !== 'TMS_FILE_ASSIGNMENTS') return;
+                if (event.data?.payload?.fileId !== fileId) return;
                 window.removeEventListener('message', handler);
-                resolve(event.data.payload);
+                resolve(event.data.payload.assignments || []);
             };
             window.addEventListener('message', handler);
-            window.parent.postMessage({
-                type: 'CAT_REQUEST_FILE_URL',
-                payload: { assignmentId: assignment.id }
-            }, window.location.origin);
-            // 逾時：30 秒
-            setTimeout(() => { window.removeEventListener('message', handler); resolve(null); }, 30000);
+            window.parent.postMessage({ type: 'CAT_REQUEST_FILE_ASSIGNMENTS', payload: { fileId } }, window.location.origin);
+            setTimeout(() => {
+                window.removeEventListener('message', handler);
+                resolve([]);
+            }, 15000);
         });
+    }
 
-        if (!signedUrlResult || !signedUrlResult.signedUrl) {
-            alert('取得檔案連結失敗，請稍後再試。');
+    async function openFileAssignModal(fileId, fileName) {
+        if (!fileAssignModal || !fileAssignMembersList) return;
+        if (!window._tmsCanAssign) {
+            alert('目前身分不可指派檔案。');
             return;
         }
-
-        // 2. 下載檔案
-        let file;
-        try {
-            const resp = await fetch(signedUrlResult.signedUrl);
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const blob = await resp.blob();
-            file = new File([blob], signedUrlResult.fileName || assignment.source_file_name, { type: blob.type || 'application/octet-stream' });
-        } catch (err) {
-            alert('下載原始檔失敗：' + (err.message || err));
-            return;
+        currentAssignFileId = fileId;
+        currentAssignFileName = fileName || '';
+        if (fileAssignModalTitle) {
+            fileAssignModalTitle.textContent = `指派檔案：${currentAssignFileName || fileId}`;
         }
-
-        // 3. 設定語言對，呼叫匯入
-        const lowerName = file.name.toLowerCase();
-        const isXliffLike = lowerName.endsWith('.xlf') || lowerName.endsWith('.xliff') || lowerName.endsWith('.mqxliff') || lowerName.endsWith('.sdlxliff');
-        const isExcel = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls');
-
-        _importSelectedSrcLang = assignment.source_lang || '';
-        _importSelectedTgtLang = assignment.target_lang || '';
-
-        try {
-            if (isXliffLike) {
-                if (!XliffImport || typeof XliffImport.handleXliffLikeImport !== 'function') {
-                    throw new Error('XLIFF 匯入模組未載入');
-                }
-                const isMqxliff = lowerName.endsWith('.mqxliff');
-                let role = null;
-                if (isMqxliff) {
-                    role = await showMqRoleModal({ hideWizardFirst: false });
-                    if (role === null) return;
-                }
-                await XliffImport.handleXliffLikeImport(xliffImportCtx(), file, role);
-            } else if (isExcel) {
-                // Excel：透過 sourceFileInput 觸發 wizard 流程
-                const dt = new DataTransfer();
-                dt.items.add(file);
-                sourceFileInput.files = dt.files;
-                sourceFileInput.dispatchEvent(new Event('change', { bubbles: true }));
-                return; // 後續狀態更新由使用者完成 wizard 後觸發
-            } else {
-                alert('此指派的檔案格式不支援自動匯入，請手動匯入。');
-                return;
-            }
-
-            // 4. 回報狀態 → in_progress
-            window.parent.postMessage({
-                type: 'CAT_ASSIGNMENT_STATUS',
-                payload: { assignmentId: assignment.id, status: 'in_progress' }
-            }, window.location.origin);
-
-            // 同步更新本地清單的狀態
-            if (window._tmsAssignments) {
-                const a = window._tmsAssignments.find(x => x.id === assignment.id);
-                if (a) a.status = 'in_progress';
-                renderTmsAssignmentsPanel(window._tmsAssignments);
-            }
-        } catch (err) {
-            console.error('[TMS Assign] import error', err);
-            alert('匯入失敗：' + (err.message || err));
+        const existing = await requestFileAssignments(fileId);
+        const selectedSet = new Set(existing.map(a => String(a.assignee_user_id)));
+        const members = window._tmsAssignableUsers || [];
+        if (!members.length) {
+            fileAssignMembersList.innerHTML = '<div style="color:#64748b; font-size:0.9rem;">尚無可指派人員。</div>';
+        } else {
+            fileAssignMembersList.innerHTML = members.map(m => {
+                const checked = selectedSet.has(String(m.id)) ? 'checked' : '';
+                const roleText = Array.isArray(m.roles) && m.roles.length ? `（${m.roles.join('/')})` : '';
+                return `
+                    <label style="display:flex; align-items:center; gap:0.5rem; padding:0.35rem 0.2rem; border-bottom:1px dashed #e5e7eb;">
+                        <input type="checkbox" class="file-assign-user-cb" value="${m.id}" ${checked}>
+                        <span style="flex:1;">${(m.displayName || m.email || '').replace(/</g, '&lt;')}</span>
+                        <span style="font-size:0.8rem; color:#64748b;">${roleText}</span>
+                    </label>
+                `;
+            }).join('');
         }
+        fileAssignModal.classList.remove('hidden');
+    }
+
+    if (btnCloseFileAssignModal) btnCloseFileAssignModal.addEventListener('click', closeFileAssignModal);
+    if (btnCancelFileAssign) btnCancelFileAssign.addEventListener('click', closeFileAssignModal);
+    if (fileAssignModal) {
+        fileAssignModal.addEventListener('click', (e) => {
+            if (e.target === fileAssignModal) closeFileAssignModal();
+        });
+    }
+    if (btnSaveFileAssign) {
+        btnSaveFileAssign.addEventListener('click', async () => {
+            if (!currentAssignFileId || !fileAssignMembersList) return;
+            const selectedUserIds = Array.from(fileAssignMembersList.querySelectorAll('.file-assign-user-cb:checked')).map(cb => cb.value);
+            const existing = await requestFileAssignments(currentAssignFileId);
+            const existingIds = new Set(existing.map(a => String(a.assignee_user_id)));
+            const selectedIds = new Set(selectedUserIds.map(x => String(x)));
+
+            // add/update selected
+            if (selectedUserIds.length > 0) {
+                window.parent.postMessage({
+                    type: 'CAT_ASSIGN_FILE',
+                    payload: { fileId: currentAssignFileId, assigneeUserIds: selectedUserIds }
+                }, window.location.origin);
+            }
+            // remove deselected
+            existing.forEach(a => {
+                const uid = String(a.assignee_user_id);
+                if (!selectedIds.has(uid)) {
+                    window.parent.postMessage({
+                        type: 'CAT_UNASSIGN_FILE',
+                        payload: { fileId: currentAssignFileId, assigneeUserId: uid }
+                    }, window.location.origin);
+                }
+            });
+            closeFileAssignModal();
+            await loadFilesList();
+        });
+    }
+
+    // postMessage 接收器：接收來自 TMS（父框架）的身分與指派資訊
+    window.addEventListener('message', (event) => {
+        if (event.source !== window.parent) return;
+        if (event.origin !== window.location.origin) return;
+        if (!event.data) return;
+
+        if (event.data.type === 'TMS_IDENTITY') {
+            applyTmsIdentityToUI(event.data.payload);
+        } else if (event.data.type === 'TMS_ASSIGNMENTS') {
+            const payload = event.data.payload || {};
+            const assignments = payload.assignments || [];
+            window._tmsAssignments = assignments;
+            window._tmsTranslatorOnly = !!payload.translatorOnly;
+            renderAssignedFilesView(assignments);
+            enforceTeamRoleLayout();
+        } else if (event.data.type === 'TMS_ASSIGNABLE_USERS') {
+            const payload = event.data.payload || {};
+            window._tmsAssignableUsers = payload.members || [];
+            window._tmsCanAssign = !!payload.canAssign;
+            window._tmsTranslatorOnly = !!payload.translatorOnly;
+            enforceTeamRoleLayout();
+            if (currentProjectId) loadFilesList();
+        } else if (event.data.type === 'TMS_COLLAB_STATE') {
+            const payload = event.data.payload || {};
+            if (!payload.fileId || String(payload.fileId) !== String(collabCurrentFileId || '')) return;
+            collabMembers = Array.isArray(payload.members) ? payload.members : [];
+            collabFocusBySession = payload.focusBySession || {};
+            collabEditBySession = payload.editBySession || {};
+            Object.values(collabEditBySession || {}).forEach((edit) => {
+                if (!edit || edit.sessionId === collabSelfSessionId) return;
+                if (String(edit.state || '') !== 'commit') return;
+                if (edit.segmentId == null) return;
+                const commitKey = `${edit.sessionId}:${edit.segmentId}:${edit.at || ''}`;
+                if (collabSeenCommitKeys.has(commitKey)) return;
+                collabSeenCommitKeys.add(commitKey);
+                const m = findMemberBySession(edit.sessionId);
+                const who = (m && m.displayName) ? m.displayName : '其他成員';
+                applyRemoteCommit(edit, who);
+            });
+            renderCollabPresence();
+            applyCollabFocusOutlines();
+        }
+    });
+
+    setInterval(() => {
+        if (!collabCurrentFileId) return;
+        applyCollabFocusOutlines();
+    }, 3000);
+
+    const gridViewport = document.getElementById('editorGrid');
+    if (gridViewport) {
+        gridViewport.addEventListener('scroll', () => {
+            if (collabCurrentFileId) applyCollabFocusOutlines();
+        });
     }
 
     /** 將 ISO 時間字串轉成台灣格式（年/月/日 時:分）供變更紀錄顯示用 */
@@ -709,6 +1082,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             panelContents.forEach(p => p.classList.remove('active'));
             btn.classList.add('active');
             document.getElementById(btn.getAttribute('data-tab')).classList.add('active');
+            const tabId = btn.getAttribute('data-tab');
+            if (tabId) emitCollabFocus('control', tabId);
         });
     });
 
@@ -836,6 +1211,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     let workspaceNoteDraftTimer = null;
     let workspaceNoteRenameTargetId = null;
     let namingActionContext = null;
+    let currentAssignFileId = null;
+    let currentAssignFileName = '';
+    window._tmsAssignableUsers = [];
+    window._tmsCanAssign = false;
+    window._tmsTranslatorOnly = false;
+    const collabSelfSessionId = `sess-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    let collabCurrentFileId = null;
+    let collabMembers = [];
+    let collabFocusBySession = {};
+    let collabEditBySession = {};
+    let collabRowWriteHintTimers = {};
+    let collabSeenCommitKeys = new Set();
+    let collabMergeMode = localStorage.getItem('catToolCollabMergeMode') || 'auto';
+    if (!['hint', 'prompt', 'auto'].includes(collabMergeMode)) collabMergeMode = 'auto';
+    if (collabMergeModeSelect) collabMergeModeSelect.value = collabMergeMode;
 
     // Repetition Confirmation Mode: 'after' | 'all' | 'none'
     let repMode = localStorage.getItem('catToolRepMode') || 'after';
@@ -968,6 +1358,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (inEditor) {
                 const ok = await ensureWorkspaceNoteLeaveResolved();
                 if (!ok) return;
+                leaveCollabForCurrentFile();
                 currentFileId = null;
                 currentSegmentsList = [];
                 if (gridBody) gridBody.innerHTML = '';
@@ -985,6 +1376,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     window.addEventListener('beforeunload', (e) => {
+        leaveCollabForCurrentFile();
         const noteInput = document.getElementById('editorWorkspaceNoteInput');
         const viewEditorEl = document.getElementById('viewEditor');
         if (!currentFileId || !noteInput || !viewEditorEl || viewEditorEl.classList.contains('hidden')) return;
@@ -993,6 +1385,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.returnValue = '';
     });
     window.addEventListener('pagehide', () => {
+        leaveCollabForCurrentFile();
         const noteInput = document.getElementById('editorWorkspaceNoteInput');
         if (!currentFileId || !noteInput) return;
         clearTimeout(workspaceNoteDraftTimer);
@@ -1349,6 +1742,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             tr.setAttribute('data-file-id', f.id);
+            const assignBtnHtml = window._tmsCanAssign
+                ? `<button type="button" class="secondary-btn btn-sm assign-file-btn" data-id="${f.id}" data-name="${nameEsc}">指派</button>`
+                : '';
             tr.innerHTML = `
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="project-file-row-cb" data-id="${f.id}"></td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${f.id}</td>
@@ -1356,18 +1752,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${fileLangHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:80px;">${roleStr}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;">${modStr}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><button type="button" class="danger-btn btn-sm delete-file-btn" data-id="${f.id}">刪除</button></td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;">
+                    <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
+                        ${assignBtnHtml}
+                        <button type="button" class="danger-btn btn-sm delete-file-btn" data-id="${f.id}">刪除</button>
+                    </div>
+                </td>
             `;
             filesListBody.appendChild(tr);
         });
 
         filesListBody.querySelectorAll('.edit-file-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => { e.preventDefault(); openEditor(parseInt(btn.getAttribute('data-id'))); });
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const id = btn.getAttribute('data-id');
+                if (!id) return;
+                openEditor(id);
+            });
         });
         filesListBody.querySelectorAll('.delete-file-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
-                const id = parseInt(btn.getAttribute('data-id'));
-                if (isNaN(id)) return;
+                const id = btn.getAttribute('data-id');
+                if (!id) return;
                 if(confirm('確定要從專案移除此檔案並刪除所有翻譯資料嗎？')) {
                     const file = await DBService.getFile(id);
                     await DBService.deleteFile(id);
@@ -1381,6 +1787,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     await loadFilesList();
                 }
+            });
+        });
+        filesListBody.querySelectorAll('.assign-file-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const fileId = btn.getAttribute('data-id');
+                const fileName = btn.getAttribute('data-name') || '';
+                if (!fileId) return;
+                await openFileAssignModal(fileId, fileName);
             });
         });
         syncProjectFilesSelectAll();
@@ -3447,6 +3861,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function openEditor(fileId) {
+        if (collabCurrentFileId && String(collabCurrentFileId) !== String(fileId)) {
+            leaveCollabForCurrentFile();
+        }
         currentFileId = fileId;
         editorUndoStack = [];
         editorRedoStack = [];
@@ -3742,11 +4159,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         renderEditorSegments();
+        joinCollabForFile(file);
+        renderCollabPresence();
     }
 
     btnExitEditor.addEventListener('click', async () => {
         const ok = await ensureWorkspaceNoteLeaveResolved();
         if (!ok) return;
+        leaveCollabForCurrentFile();
         currentFileId = null;
         currentSegmentsList = [];
         gridBody.innerHTML = '';
@@ -3910,6 +4330,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sfReplaceInput = document.getElementById('sfReplaceInput');
     const btnSfReplaceThis = document.getElementById('btnSfReplaceThis');
     const btnSfReplaceAll = document.getElementById('btnSfReplaceAll');
+    ['sfModeSearch', 'sfModeFilter', 'btnSfPrev', 'btnSfNext', 'btnSfClearNav', 'btnToggleAdvancedSF', 'btnPreTranslate', 'btnSortMenu', 'btnCopySourceToTarget', 'btnClearTarget', 'btnTagCollapse', 'btnTagGroupMode', 'btnShortcuts', 'btnColSettings', 'exportBtn'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('click', () => emitCollabFocus('control', id));
+    });
+    if (sfInput) sfInput.addEventListener('focus', () => emitCollabFocus('control', 'sfInput'));
+    if (sfReplaceInput) sfReplaceInput.addEventListener('focus', () => emitCollabFocus('control', 'sfReplaceInput'));
     
     // Toggles
     btnToggleAdvancedSF.addEventListener('click', () => {
@@ -3935,6 +4362,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (sfMode === 'search') { sfModeFilter.click(); return; } // Toggle behavior
         sfMode = 'search'; sfModeSearch.classList.add('active'); sfModeFilter.classList.remove('active');
         runSearchAndFilter();
+        emitCollabFocus('control', 'sfModeSearch');
     });
     sfModeFilter.addEventListener('click', () => {
         // 進階篩選開啟時，維持在「篩選」模式且不做切換邏輯
@@ -3948,6 +4376,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (sfMode === 'filter') { sfModeSearch.click(); return; } // Toggle behavior
         sfMode = 'filter'; sfModeFilter.classList.add('active'); sfModeSearch.classList.remove('active');
         runSearchAndFilter();
+        emitCollabFocus('control', 'sfModeFilter');
     });
     sfUseRegex.addEventListener('change', (e) => { sfUseRegexChecked = e.target.checked; runSearchAndFilter(); });
     btnSfInvert.addEventListener('click', () => {
@@ -4779,9 +5208,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             clearUIFilters();
             sfFilterGroups = [];
             renderFilterGroups();
-            if (sfMode !== 'search') {
-                sfMode = 'search'; sfModeSearch.classList.add('active'); sfModeFilter.classList.remove('active');
-            }
             runSearchAndFilter();
             if (lastEditedRowIdx !== null) {
                 const rows = document.querySelectorAll('.grid-data-row');
@@ -5372,6 +5798,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 renderLiveTmMatches(seg);
                 renderSegmentComments(seg);
                 refreshTagNextHighlight(row);
+                emitCollabFocus('segment', seg.id);
             });
 
             const isConfirmed = seg.status === 'confirmed';
@@ -5525,12 +5952,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 let targetDebounceTimer;
                 targetInput.addEventListener('focus', () => {
+                    if (isSegmentBeingEditedByOthers(seg.id)) {
+                        const locker = Object.values(collabEditBySession || {}).find((e) =>
+                            e && e.sessionId !== collabSelfSessionId && String(e.segmentId || '') === String(seg.id || '') && String(e.state || '') !== 'end'
+                        );
+                        const m = locker ? findMemberBySession(locker.sessionId) : null;
+                        const who = (m && m.displayName) ? m.displayName : '其他成員';
+                        alert(`此句段目前由 ${who} 編輯中，請稍後再試。`);
+                        targetInput.blur();
+                        return;
+                    }
                     editorUndoEditStart[seg.id] = seg.targetText;
                     refreshTagNextHighlight(row);
+                    emitCollabEdit('start', seg, seg.targetText || '');
                 });
                 targetInput.addEventListener('input', async () => {
+                    if (isSegmentBeingEditedByOthers(seg.id)) {
+                        targetInput.innerText = seg.targetText || '';
+                        refreshTagNextHighlight(row);
+                        return;
+                    }
                     const newVal = extractTextFromEditor(targetInput);
                     seg.targetText = newVal;
+                    emitCollabEdit('typing', seg, newVal);
 
                     // Update source tag colours (blue=present, red=missing)
                     updateTagColors(row, newVal);
@@ -5553,13 +5997,30 @@ document.addEventListener('DOMContentLoaded', async () => {
                             editorUndoEditStart[seg.id] = newVal;
                         }
                         await DBService.updateSegmentTarget(seg.id, newVal);
+                        emitCollabEdit('commit', seg, newVal);
                     }, 500);
                 });
 
                 // 游標位置/選取改變時，更新「F8 下一步」的深藍高亮
                 targetInput.addEventListener('mouseup', () => refreshTagNextHighlight(row));
                 targetInput.addEventListener('keyup', () => refreshTagNextHighlight(row));
-                targetInput.addEventListener('blur', () => refreshTagNextHighlight(row));
+                targetInput.addEventListener('blur', async () => {
+                    refreshTagNextHighlight(row);
+                    if (targetDebounceTimer) {
+                        clearTimeout(targetDebounceTimer);
+                        targetDebounceTimer = null;
+                        const newVal = extractTextFromEditor(targetInput);
+                        const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
+                        if (oldVal !== newVal) {
+                            pushEditorUndo(seg.id, oldVal, newVal);
+                            editorUndoEditStart[seg.id] = newVal;
+                        }
+                        seg.targetText = newVal;
+                        await DBService.updateSegmentTarget(seg.id, newVal);
+                        emitCollabEdit('commit', seg, newVal);
+                    }
+                    emitCollabEdit('end', seg, null);
+                });
 
                 // Intercept paste：
                 // - 若是從本工具的欄位複製（含 .rt-tag span），保留這些標籤節點，確保匯出時仍可還原 tag
@@ -5710,6 +6171,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         gridBody.appendChild(fragment);
         updateProgress();
+        applyCollabFocusOutlines();
     }
 
     /**
@@ -6358,6 +6820,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     btnColSettings.addEventListener('click', () => {
         renderColSettings();
+        if (collabMergeModeSelect) collabMergeModeSelect.value = collabMergeMode;
         viewSettingsModal.classList.remove('hidden');
     });
 
@@ -6365,6 +6828,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     btnSaveViewSettings.addEventListener('click', () => {
         localStorage.setItem('catToolColSettings', JSON.stringify(colSettings));
+        if (collabMergeModeSelect) {
+            collabMergeMode = collabMergeModeSelect.value || 'auto';
+            if (!['hint', 'prompt', 'auto'].includes(collabMergeMode)) collabMergeMode = 'auto';
+            localStorage.setItem('catToolCollabMergeMode', collabMergeMode);
+        }
         applyColSettings();
         viewSettingsModal.classList.add('hidden');
     });
@@ -6385,6 +6853,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         defaultCols.push({ id: 'col-status', name: '狀態', visible: true, width: '35px' });
 
         colSettings = defaultCols;
+        collabMergeMode = 'auto';
+        if (collabMergeModeSelect) collabMergeModeSelect.value = collabMergeMode;
+        localStorage.setItem('catToolCollabMergeMode', collabMergeMode);
         renderColSettings();
     });
 
