@@ -641,6 +641,9 @@ function clearDuplicateFields(data: Partial<CaseRecord>): Partial<CaseRecord> {
     caseReferenceMaterials: [],
     sourceFiles: [],
     declineRecords: [],
+    // do not inherit the original case's change log or its recording trigger
+    edit_logs: [],
+    changeLogEnabledAt: undefined,
   };
 }
 
