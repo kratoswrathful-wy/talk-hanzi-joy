@@ -862,6 +862,14 @@ const CASE_FIELD_LABELS: Partial<Record<keyof CaseRecord, string>> = {
   collabCount: "協作人數",
 };
 
+/** Translate raw status codes in old log descriptions to Chinese labels for display */
+function localizeLogDescription(desc: string): string {
+  return desc.replace(
+    /\b(draft|inquiry|dispatched|task_completed|delivered|feedback|feedback_completed)\b/g,
+    (match) => CASE_STATUS_LABEL_MAP[match] || match
+  );
+}
+
 /** Normalize ISO date strings to canonical UTC so +00:00 and .000Z compare as equal */
 function normDateForCompare(v: unknown): unknown {
   if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v)) {
@@ -2710,7 +2718,7 @@ export default function CaseDetailPage() {
                   <div key={entry.id} className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs space-y-0.5">
                     <div className="flex flex-wrap gap-x-4 gap-y-0.5">
                       <span><span className="text-muted-foreground">變更者：</span>{entry.changedBy}</span>
-                      <span><span className="text-muted-foreground">變更內容：</span>{entry.description}</span>
+                      <span><span className="text-muted-foreground">變更內容：</span>{localizeLogDescription(entry.description)}</span>
                       <span><span className="text-muted-foreground">變更時間：</span>{entry.timestamp}</span>
                     </div>
                   </div>
