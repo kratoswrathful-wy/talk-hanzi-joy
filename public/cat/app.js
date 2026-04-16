@@ -4076,9 +4076,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         // --- LOAD PROJECT TM CACHE ---
         window.ActiveTmCache = [];
         window.ActiveWriteTms = [];
+        window.ActiveReadTmIds = [];
+        window.ActiveReadTbIds = [];
+        window.ActiveTbNames = {};
         // 記錄當前檔案的語言對，供 TM 篩選及寫入使用
         window.ActiveFileLangs = { sourceLang: file.sourceLang || '', targetLang: file.targetLang || '' };
         const project = await DBService.getProject(file.projectId);
+        window.ActiveReadTmIds = (project && Array.isArray(project.readTms)) ? project.readTms : [];
         if (project && project.readTms && project.readTms.length > 0) {
             for (const tmId of project.readTms) {
                 const tm = await DBService.getTM(tmId);
@@ -4108,9 +4112,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.ActiveTbTerms = [];
         window.ActiveWriteTb = (project && project.writeTb != null) ? project.writeTb : null;
         const readTbIds = (project && Array.isArray(project.readTbs)) ? project.readTbs : [];
+        window.ActiveReadTbIds = readTbIds;
         for (const tbId of readTbIds) {
             const full = await DBService.getTB(tbId);
             if (!full) continue;
+            // 無論術語數量多寡，先記錄 TB 名稱供 UI 顯示
+            window.ActiveTbNames[full.id] = full.name || `TB #${full.id}`;
             const terms = full.terms ? full.terms : [];
             terms.forEach(t => {
                 if (t && ((t.source && t.source.trim()) || (t.target && t.target.trim())))
@@ -4122,6 +4129,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                         tbName: full.name || `TB #${full.id}`
                     });
             });
+        }
+        // 若 writeTb 不在 readTbs 中，補抓其名稱供新增術語分頁顯示
+        if (project && project.writeTb && !readTbIds.includes(project.writeTb)) {
+            const wFull = await DBService.getTB(project.writeTb);
+            if (wFull) window.ActiveTbNames[project.writeTb] = wFull.name || `TB #${project.writeTb}`;
         }
         
         // Dynamic Key Columns Setup & Legacy Migration
@@ -6645,7 +6657,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (trackEl) trackEl.innerHTML = '<span style="color:#94a3b8;font-size:0.75rem;">無 TM / 片段列可比對時無法顯示追蹤修訂。</span>';
             }
         } else {
-            searchResultsDOM.innerHTML = '<div style="padding: 1rem; color: #64748b; font-size: 0.9rem; text-align: center;">' + (seg.isLocked ? '此句段已鎖定' : '目前未掛載 TM 或術語庫，或請先選取句段') + '</div>';
+            const _isConfigured = (window.ActiveReadTmIds?.length > 0) || (window.ActiveReadTbIds?.length > 0);
+            const _noDataMsg = seg.isLocked ? '此句段已鎖定'
+                : _isConfigured ? '已掛載 TM / TB，目前無相符的比對結果'
+                : '目前未掛載 TM 或術語庫，或請先選取句段';
+            searchResultsDOM.innerHTML = `<div style="padding: 1rem; color: #64748b; font-size: 0.9rem; text-align: center;">${_noDataMsg}</div>`;
             footerDOM.innerHTML = '請選取句段以檢視詳細資訊。';
             const trackEl = document.getElementById('liveTrackChangeContent');
             if (trackEl) trackEl.innerHTML = '<span style="color:#94a3b8;font-size:0.75rem;">選取句段以顯示原文對照。</span>';
@@ -6917,8 +6933,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         noTbEl.style.display = 'none';
         formEl.style.display = '';
-        const tbMatch = (window.ActiveTbTerms || []).find(t => t.tbId === writeTbId);
-        if (nameEl) nameEl.textContent = tbMatch ? tbMatch.tbName : `TB #${writeTbId}`;
+        const tbName = (window.ActiveTbNames || {})[writeTbId] || `TB #${writeTbId}`;
+        if (nameEl) nameEl.textContent = tbName;
     }
 
     const btnAddNewTerm = document.getElementById('btnAddNewTerm');
