@@ -6355,7 +6355,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             targetLang: fileLangs.targetLang || ''
         };
         for (const rawTmId of window.ActiveWriteTms) {
-            const tmId = Number(rawTmId);
+            const tmId = rawTmId;
             const tmRow = await DBService.getTM(tmId);
             const tmName = tmRow ? tmRow.name : `TM #${tmId}`;
             // 寫入時只比對同語言對的現有句段（向下相容：舊句段無語言標記者也納入比對）
