@@ -872,7 +872,6 @@ const CASE_FIELD_LABELS: Partial<Record<keyof CaseRecord, string>> = {
   referenceMaterials: "參考資料",
   seriesReferenceMaterials: "系列參考資料",
   caseReferenceMaterials: "案件參考資料",
-  clientCaseLink: "客戶案件連結",
 };
 
 /** Translate raw status codes in old log descriptions to Chinese labels for display */
