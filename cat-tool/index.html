@@ -189,6 +189,27 @@
                         <button class="primary-btn btn-sm" id="btnSaveProjectTms">儲存 TM 設定</button>
                     </div>
                 </div>
+                <div class="project-tb-settings" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:1.5rem; margin-top:1rem;">
+                    <h2 style="font-size:1.1rem; color:#1e293b; margin-top:0; margin-bottom:0.5rem; border-bottom:1px solid #e2e8f0; padding-bottom:0.5rem;">掛載的術語庫 (TB)</h2>
+                    <p style="font-size:0.82rem; color:#64748b; margin:0 0 0.75rem 0;">寫入目標僅限選擇一個術語庫；讀取可勾選多個。</p>
+                    <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
+                        <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                            <thead>
+                                <tr style="background:#f1f5f9;">
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:200px;">語言對</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">讀取</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">寫入</th>
+                                </tr>
+                            </thead>
+                            <tbody id="projectTbListBody"></tbody>
+                        </table>
+                    </div>
+                    <div style="margin-top: 1rem; text-align: right;">
+                        <button class="primary-btn btn-sm" id="btnSaveProjectTbs">儲存 TB 設定</button>
+                    </div>
+                </div>
             </section>
 
             <!-- VIEW: Assigned Files (translator-only team screen) -->
@@ -572,8 +593,8 @@
                     <aside class="editor-side-panel">
                         <div class="panel-tabs">
                             <button class="tab-btn active" data-tab="tabCAT">CAT</button>
-                            <button class="tab-btn" data-tab="tabChanges">Changes</button>
-                            <button class="tab-btn" data-tab="tabQA">QA</button>
+                            <button class="tab-btn" data-tab="tabTmSearch">TM 搜尋</button>
+                            <button class="tab-btn" data-tab="tabNewTerm">新增術語</button>
                             <button class="tab-btn" data-tab="tabComments">Comments</button>
                         </div>
                         
@@ -593,8 +614,33 @@
                             </div>
                         </div>
 
-                        <div class="panel-content" id="tabChanges">Changes (WIP)</div>
-                        <div class="panel-content" id="tabQA">QA (WIP)</div>
+                        <div class="panel-content" id="tabTmSearch" style="padding:0.5rem;">
+                            <div style="display:flex; gap:0.35rem; margin-bottom:0.5rem;">
+                                <input type="text" id="tmSearchInput" placeholder="輸入關鍵字搜尋 TM…" style="flex:1; padding:0.35rem 0.5rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem;">
+                                <select id="tmSearchField" style="padding:0.3rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.82rem;">
+                                    <option value="source">原文</option>
+                                    <option value="target">譯文</option>
+                                </select>
+                                <button class="primary-btn btn-sm" id="btnTmSearch" style="white-space:nowrap;">搜尋</button>
+                            </div>
+                            <div id="tmSearchConcordanceResults" style="overflow-y:auto; max-height:calc(100% - 50px); font-size:0.85rem;"></div>
+                        </div>
+                        <div class="panel-content" id="tabNewTerm" style="padding:0.5rem;">
+                            <div id="newTermNoTb" style="color:#64748b; font-size:0.85rem; display:none;">請先在專案設定中指定寫入目標術語庫。</div>
+                            <div id="newTermForm" style="display:none;">
+                                <div style="margin-bottom:0.4rem; font-size:0.78rem; color:#64748b;">寫入目標：<span id="newTermTbName" style="font-weight:600; color:#334155;"></span></div>
+                                <label style="font-size:0.82rem; color:#475569; display:block; margin-bottom:2px;">原文</label>
+                                <input type="text" id="newTermSource" style="width:100%; padding:0.3rem 0.45rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; margin-bottom:0.4rem; box-sizing:border-box;">
+                                <label style="font-size:0.82rem; color:#475569; display:block; margin-bottom:2px;">譯文</label>
+                                <input type="text" id="newTermTarget" style="width:100%; padding:0.3rem 0.45rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; margin-bottom:0.4rem; box-sizing:border-box;">
+                                <label style="font-size:0.82rem; color:#475569; display:block; margin-bottom:2px;">備註</label>
+                                <input type="text" id="newTermNote" style="width:100%; padding:0.3rem 0.45rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; margin-bottom:0.6rem; box-sizing:border-box;">
+                                <div style="text-align:right;">
+                                    <button class="primary-btn btn-sm" id="btnAddNewTerm">新增術語</button>
+                                </div>
+                                <div id="newTermStatus" style="font-size:0.8rem; color:#16a34a; margin-top:0.35rem; display:none;"></div>
+                            </div>
+                        </div>
                         <div class="panel-content" id="tabComments">Comments (WIP)</div>
                         
                         <div id="catPanelResizerBottom" class="cat-panel-resizer" title="拖曳調整下方資訊區高度">
@@ -613,7 +659,7 @@
                         <div id="progressFill" style="position:absolute; top:0; left:0; bottom:0; width:0%; background:var(--success-color); transition:width 0.3s ease; z-index:0;"></div>
                         <div style="position:relative; z-index:1; display:flex; gap:1.5rem;">
                             <div>句段：<span id="statusBarSegments" style="font-weight:600; color:var(--text-main);">0 / 0</span></div>
-                            <div>字數：<span id="statusBarWords" style="font-weight:600; color:var(--text-main);">0 / 0</span></div>
+                            <div>字數 (Words)：<span id="statusBarWords" style="font-weight:600; color:var(--text-main);">0 / 0</span></div>
                         </div>
                     </div>
                     <div style="flex:1; text-align:right;">快捷鍵: <kbd style="background:#e2e8f0; padding:2px 6px; border-radius:4px; color:#334155;">Ctrl+Enter</kbd> 確認句段並跳至下一行</div>

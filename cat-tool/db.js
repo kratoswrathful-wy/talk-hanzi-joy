@@ -112,6 +112,13 @@ const DBService = {
             lastModified: new Date().toISOString()
         });
     },
+    async updateProjectTBs(projectId, readTbs, writeTb) {
+        return await db.projects.update(projectId, {
+            readTbs: readTbs || [],
+            writeTb: writeTb ?? null,
+            lastModified: new Date().toISOString()
+        });
+    },
     async patchProject(projectId, updates) {
         return await db.projects.update(projectId, { ...updates, lastModified: new Date().toISOString() });
     },
@@ -445,6 +452,8 @@ const DBService = {
         rpc('db.updateProjectLangs', { projectId, sourceLangs, targetLangs });
     DBService.updateProjectTMs = async (projectId, readTms, writeTms) =>
         rpc('db.updateProjectTMs', { projectId, readTms, writeTms });
+    DBService.updateProjectTBs = async (projectId, readTbs, writeTb) =>
+        rpc('db.updateProjectTBs', { projectId, readTbs, writeTb });
     DBService.getProjects = async () => rpc('db.getProjects');
     DBService.getProject = async (projectId) => rpc('db.getProject', { projectId });
     DBService.deleteProject = async (projectId) => rpc('db.deleteProject', { projectId });

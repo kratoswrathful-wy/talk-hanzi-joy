@@ -41,6 +41,17 @@ function langLabel(code) {
     return opt ? opt.label : code;
 }
 
+function countWords(text) {
+    if (!text) return 0;
+    let count = 0;
+    const cjk = text.match(/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/g);
+    if (cjk) count += cjk.length;
+    const cleaned = text.replace(/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/g, ' ');
+    const words = cleaned.trim().split(/\s+/).filter(w => w.length > 0);
+    count += words.length;
+    return count;
+}
+
 /** 渲染語言代碼為 badge HTML（供 innerHTML 插入） */
 function langBadgeHtml(codes, dir = '') {
     if (!codes || !codes.length) return '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
@@ -1084,6 +1095,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById(btn.getAttribute('data-tab')).classList.add('active');
             const tabId = btn.getAttribute('data-tab');
             if (tabId) emitCollabFocus('control', tabId);
+            if (tabId === 'tabNewTerm') {
+                refreshNewTermPanel();
+                const sel = window.getSelection();
+                const selText = sel ? sel.toString().trim() : '';
+                if (selText) {
+                    const srcInput = document.getElementById('newTermSource');
+                    if (srcInput && !srcInput.value.trim()) srcInput.value = selText;
+                }
+            }
         });
     });
 
@@ -1596,6 +1616,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await updateProjectDetailChangeLog(p);
         await loadFilesList();
         await loadProjectTms(p);
+        await loadProjectTbs(p);
     }
 
     btnBackToProjects.addEventListener('click', () => switchView('viewProjects'));
@@ -1689,6 +1710,95 @@ document.addEventListener('DOMContentLoaded', async () => {
             await DBService.addModuleLog('projects', summary);
         }
         alert('翻譯記憶庫設定已儲存！');
+    });
+
+    // ── TB mounting ──────────────────────────────────────────────────────────
+
+    async function loadProjectTbs(project) {
+        const tbs = await DBService.getTBs();
+        const projectTbListBody = document.getElementById('projectTbListBody');
+        if (!projectTbListBody) return;
+
+        if (tbs.length === 0) {
+            projectTbListBody.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">系統中目前沒有任何術語庫。請至 TB 管理頁面新增。</td></tr>';
+            return;
+        }
+
+        const readTbs = new Set(project.readTbs || []);
+        const writeTb = project.writeTb ?? null;
+
+        projectTbListBody.innerHTML = '';
+        tbs.forEach(tb => {
+            const tr = document.createElement('tr');
+            const nameEsc = (tb.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const isRead = readTbs.has(tb.id);
+            const isWrite = writeTb === tb.id;
+            const tbSrcLangs = tb.sourceLangs || [];
+            const tbTgtLangs = tb.targetLangs || [];
+            const tbLangHtml = (tbSrcLangs.length || tbTgtLangs.length)
+                ? `${langBadgeHtml(tbSrcLangs)} <span style="color:#94a3b8;">→</span> ${langBadgeHtml(tbTgtLangs)}`
+                : '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
+            tr.innerHTML = `
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${tb.id}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="tb-proj-link" data-id="${tb.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a></td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${tbLangHtml}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="checkbox" class="tb-read-cb" data-id="${tb.id}" ${isRead ? 'checked' : ''}> Read</label></td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="radio" name="tb-write-radio" value="${tb.id}" ${isWrite ? 'checked' : ''}> Write</label></td>
+            `;
+            projectTbListBody.appendChild(tr);
+        });
+
+        projectTbListBody.querySelectorAll('.tb-proj-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const id = parseInt(link.getAttribute('data-id'));
+                openTbDetail(id);
+                navItems.forEach(n => n.classList.remove('active'));
+                const navTb = document.querySelector('.nav-item[data-view="viewTB"]');
+                if (navTb) navTb.classList.add('active');
+            });
+        });
+    }
+
+    document.getElementById('btnSaveProjectTbs').addEventListener('click', async () => {
+        if (!currentProjectId) return;
+        const project = await DBService.getProject(currentProjectId) || {};
+        const prevRead = new Set(project.readTbs || []);
+        const prevWrite = project.writeTb ?? null;
+
+        const readTbs = [];
+        document.querySelectorAll('.tb-read-cb:checked').forEach(cb => readTbs.push(parseInt(cb.getAttribute('data-id'))));
+        const writeRadio = document.querySelector('input[name="tb-write-radio"]:checked');
+        const writeTb = writeRadio ? parseInt(writeRadio.value) : null;
+
+        await DBService.updateProjectTBs(currentProjectId, readTbs, writeTb);
+
+        const nextRead = new Set(readTbs);
+        const allIds = new Set([...prevRead, ...nextRead, ...(prevWrite != null ? [prevWrite] : []), ...(writeTb != null ? [writeTb] : [])]);
+        const diffs = [];
+        allIds.forEach(id => {
+            const beforeR = prevRead.has(id);
+            const afterR = nextRead.has(id);
+            const beforeW = prevWrite === id;
+            const afterW = writeTb === id;
+            const before = (beforeR ? 'read' : '') + (beforeW ? 'write' : '');
+            const after = (afterR ? 'read' : '') + (afterW ? 'write' : '');
+            if (before === after) return;
+            const action = after === '' ? 'detach' : before === '' ? 'attach' : 'update';
+            diffs.push({ id, action, extra: { from: before || 'none', to: after || 'none', tbId: id } });
+        });
+        if (diffs.length) {
+            for (const d of diffs) {
+                const entry = makeBaseLogEntry(d.action, 'project-tb', {
+                    entityId: d.id,
+                    entityName: `TB #${d.id}`,
+                    extra: d.extra
+                });
+                await appendProjectChangeLog(currentProjectId, entry);
+                await DBService.addModuleLog('projects', entry);
+            }
+        }
+        alert('術語庫設定已儲存！');
     });
 
     if (projectFilesSelectAll && filesListBody) {
@@ -3976,30 +4086,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (project && project.writeTms) window.ActiveWriteTms = project.writeTms;
 
-        // --- LOAD TB TERMS FOR CAT PANEL (依語言對篩選 TB) ---
+        // --- LOAD TB TERMS: only TBs listed in project.readTbs (no language fallback) ---
         window.ActiveTbTerms = [];
-        const allTbs = await DBService.getTBs();
-        const fileSrcLang = window.ActiveFileLangs.sourceLang;
-        const fileTgtLang = window.ActiveFileLangs.targetLang;
-        for (const tb of allTbs) {
-            // 若 TB 有設定語言，只使用語言對相符的 TB；若未設定語言（舊資料）則不限
-            const tbSrcLangs = tb.sourceLangs || [];
-            const tbTgtLangs = tb.targetLangs || [];
-            const tbHasLangs = tbSrcLangs.length > 0 || tbTgtLangs.length > 0;
-            if (tbHasLangs && (fileSrcLang || fileTgtLang)) {
-                const srcOk = !tbSrcLangs.length || tbSrcLangs.some(c => c.toLowerCase() === fileSrcLang.toLowerCase());
-                const tgtOk = !tbTgtLangs.length || tbTgtLangs.some(c => c.toLowerCase() === fileTgtLang.toLowerCase());
-                if (!srcOk || !tgtOk) continue;
-            }
-            const full = await DBService.getTB(tb.id);
-            const terms = (full && full.terms) ? full.terms : [];
+        window.ActiveWriteTb = (project && project.writeTb != null) ? project.writeTb : null;
+        const readTbIds = (project && Array.isArray(project.readTbs)) ? project.readTbs : [];
+        for (const tbId of readTbIds) {
+            const full = await DBService.getTB(tbId);
+            if (!full) continue;
+            const terms = full.terms ? full.terms : [];
             terms.forEach(t => {
                 if (t && ((t.source && t.source.trim()) || (t.target && t.target.trim())))
                     window.ActiveTbTerms.push({
                         source: (t.source || '').trim(),
                         target: (t.target || '').trim(),
                         note: (t.note || '').trim(),
-                        tbName: tb.name || `TB #${tb.id}`
+                        tbId: full.id,
+                        tbName: full.name || `TB #${full.id}`
                     });
             });
         }
@@ -4161,6 +4263,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderEditorSegments();
         joinCollabForFile(file);
         renderCollabPresence();
+        refreshNewTermPanel();
     }
 
     btnExitEditor.addEventListener('click', async () => {
@@ -4592,7 +4695,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tagToggleBtn = document.getElementById('btnTagCollapse');
             if (tagToggleBtn) tagToggleBtn.title = tagsExpanded ? '收起標籤 (Ctrl+Shift+T)' : '展開標籤 (Ctrl+Shift+T)';
         }
-        // Editor-wide undo/redo (譯文) when focus is in editor area
+        if (e.ctrlKey && e.key.toLowerCase() === 'k' && currentFileId) {
+            e.preventDefault();
+            const sel = window.getSelection();
+            const selText = sel ? sel.toString().trim() : '';
+            const tmSearchInput = document.getElementById('tmSearchInput');
+            if (selText && tmSearchInput) tmSearchInput.value = selText;
+            const tabBtn = document.querySelector('.tab-btn[data-tab="tabTmSearch"]');
+            if (tabBtn) tabBtn.click();
+            if (tmSearchInput && tmSearchInput.value.trim()) {
+                runTmConcordanceSearch();
+            } else if (tmSearchInput) {
+                tmSearchInput.focus();
+            }
+        }
         if (currentFileId && currentSegmentsList.length) {
             const inEditor = document.getElementById('viewEditor')?.contains(document.activeElement);
             if (inEditor && e.ctrlKey && e.key.toLowerCase() === 'z' && !e.shiftKey) {
@@ -6684,27 +6800,133 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 點擊按鈕、快速鍵或其他操作不會清除選取狀態。
 
     function updateProgress() {
-        // 分母（總句段/字數）以預設身分的非禁止句段為準，不隨當次 session 變動
         const baseline = currentSegmentsList.filter(s => !isBaselineForbidden(s));
         const total = baseline.length;
-        // 分子（已確認）以目前 session 可見的非禁止且已確認句段計算
         const sessionValid = currentSegmentsList.filter(s => !(isDynamicForbidden(s) || s.isLockedUser));
         const translated = sessionValid.filter(s => s.status === 'confirmed').length;
-        
-        let totalChars = 0;
-        let confirmedChars = 0;
-        baseline.forEach(s => {
-            const len = s.sourceText.length;
-            totalChars += len;
-        });
+
+        let totalWords = 0;
+        let confirmedWords = 0;
+        baseline.forEach(s => { totalWords += countWords(s.sourceText); });
         sessionValid.forEach(s => {
-            if (s.status === 'confirmed') confirmedChars += s.sourceText.length;
+            if (s.status === 'confirmed') confirmedWords += countWords(s.sourceText);
         });
 
         document.getElementById('statusBarSegments').textContent = `${translated} / ${total}`;
-        document.getElementById('statusBarWords').textContent = `${confirmedChars} / ${totalChars}`;
+        document.getElementById('statusBarWords').textContent = `${confirmedWords} / ${totalWords}`;
 
-        if (progressFill) progressFill.style.width = total === 0 ? '0%' : `${(translated/total)*100}%`;
+        const wordPct = totalWords === 0 ? 0 : (confirmedWords / totalWords) * 100;
+        if (progressFill) progressFill.style.width = `${wordPct}%`;
+    }
+
+    // ── TM Concordance Search ────────────────────────────────────────────────
+
+    function runTmConcordanceSearch() {
+        const input = document.getElementById('tmSearchInput');
+        const fieldSel = document.getElementById('tmSearchField');
+        const resultsEl = document.getElementById('tmSearchConcordanceResults');
+        if (!input || !resultsEl) return;
+        const query = (input.value || '').trim().toLowerCase();
+        if (!query) { resultsEl.innerHTML = '<div style="color:#64748b; padding:0.5rem;">請輸入搜尋關鍵字。</div>'; return; }
+        const field = fieldSel ? fieldSel.value : 'source';
+        const cache = window.ActiveTmCache || [];
+        const matches = [];
+        cache.forEach(seg => {
+            const text = field === 'target' ? (seg.targetText || '') : (seg.sourceText || '');
+            if (text.toLowerCase().includes(query)) {
+                matches.push(seg);
+            }
+        });
+        if (!matches.length) {
+            resultsEl.innerHTML = '<div style="color:#64748b; padding:0.5rem;">沒有找到相符的 TM 記錄。</div>';
+            return;
+        }
+        const maxShow = 50;
+        const shown = matches.slice(0, maxShow);
+        resultsEl.innerHTML = shown.map((m, i) => {
+            const src = (m.sourceText || '').replace(/</g, '&lt;');
+            const tgt = (m.targetText || '').replace(/</g, '&lt;');
+            const tmLabel = (m.tmName || '').replace(/</g, '&lt;');
+            return `<div class="tm-concordance-item" data-idx="${i}" style="padding:0.45rem 0.4rem; border-bottom:1px solid #e2e8f0; cursor:pointer;" title="點擊套用譯文">
+                <div style="font-size:0.78rem; color:#64748b; margin-bottom:2px;">${tmLabel}</div>
+                <div style="margin-bottom:2px;"><b>原：</b>${src}</div>
+                <div><b>譯：</b>${tgt}</div>
+            </div>`;
+        }).join('') + (matches.length > maxShow ? `<div style="padding:0.4rem; color:#94a3b8; font-size:0.8rem;">僅顯示前 ${maxShow} 筆（共 ${matches.length} 筆相符）</div>` : '');
+
+        resultsEl.querySelectorAll('.tm-concordance-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const idx = parseInt(item.getAttribute('data-idx'));
+                const m = shown[idx];
+                if (!m) return;
+                const activeRow = document.querySelector('.grid-data-row.active-row');
+                if (!activeRow) return;
+                const segId = parseInt(activeRow.getAttribute('data-seg-id'));
+                const seg = currentSegmentsList.find(s => s.id === segId);
+                if (!seg) return;
+                const editor = activeRow.querySelector('.grid-textarea');
+                if (!editor || editor.contentEditable === 'false') return;
+                editor.innerText = m.targetText || '';
+                seg.targetText = m.targetText || '';
+                DBService.updateSegmentTarget(seg.id, seg.targetText).catch(console.error);
+                updateProgress();
+                emitCollabEdit('commit', seg, seg.targetText);
+            });
+        });
+    }
+
+    const btnTmSearch = document.getElementById('btnTmSearch');
+    if (btnTmSearch) btnTmSearch.addEventListener('click', runTmConcordanceSearch);
+    const tmSearchInputEl = document.getElementById('tmSearchInput');
+    if (tmSearchInputEl) tmSearchInputEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); runTmConcordanceSearch(); }
+    });
+
+    // ── New Term Panel ───────────────────────────────────────────────────────
+
+    function refreshNewTermPanel() {
+        const noTbEl = document.getElementById('newTermNoTb');
+        const formEl = document.getElementById('newTermForm');
+        const nameEl = document.getElementById('newTermTbName');
+        if (!noTbEl || !formEl) return;
+        const writeTbId = window.ActiveWriteTb;
+        if (writeTbId == null) {
+            noTbEl.style.display = '';
+            formEl.style.display = 'none';
+            return;
+        }
+        noTbEl.style.display = 'none';
+        formEl.style.display = '';
+        const tbMatch = (window.ActiveTbTerms || []).find(t => t.tbId === writeTbId);
+        if (nameEl) nameEl.textContent = tbMatch ? tbMatch.tbName : `TB #${writeTbId}`;
+    }
+
+    const btnAddNewTerm = document.getElementById('btnAddNewTerm');
+    if (btnAddNewTerm) {
+        btnAddNewTerm.addEventListener('click', async () => {
+            const writeTbId = window.ActiveWriteTb;
+            if (writeTbId == null) { alert('未設定寫入目標術語庫。'); return; }
+            const src = (document.getElementById('newTermSource')?.value || '').trim();
+            const tgt = (document.getElementById('newTermTarget')?.value || '').trim();
+            const note = (document.getElementById('newTermNote')?.value || '').trim();
+            if (!src && !tgt) { alert('請至少填入原文或譯文。'); return; }
+            const tb = await DBService.getTB(writeTbId);
+            if (!tb) { alert('找不到寫入目標術語庫。'); return; }
+            const terms = (tb.terms || []).slice();
+            const nextNum = typeof tb.nextTermNumber === 'number' ? tb.nextTermNumber : terms.length + 1;
+            const userName = getCurrentUserName();
+            const now = new Date().toISOString();
+            terms.push({ source: src, target: tgt, note, termNumber: nextNum, createdBy: userName, createdAt: now });
+            const changeLog = Array.isArray(tb.changeLog) ? tb.changeLog.slice() : [];
+            changeLog.push(makeBaseLogEntry('add', 'tb-term', { termNumbers: [nextNum] }));
+            await DBService.updateTB(writeTbId, { terms, nextTermNumber: nextNum + 1, changeLog });
+            window.ActiveTbTerms.push({ source: src, target: tgt, note, tbId: writeTbId, tbName: tb.name || `TB #${writeTbId}` });
+            const statusEl = document.getElementById('newTermStatus');
+            if (statusEl) { statusEl.textContent = `已新增術語 #${nextNum}`; statusEl.style.display = ''; setTimeout(() => { statusEl.style.display = 'none'; }, 3000); }
+            if (document.getElementById('newTermSource')) document.getElementById('newTermSource').value = '';
+            if (document.getElementById('newTermTarget')) document.getElementById('newTermTarget').value = '';
+            if (document.getElementById('newTermNote')) document.getElementById('newTermNote').value = '';
+        });
     }
 
     function renderSegmentComments(seg) {
