@@ -42,8 +42,8 @@ export function AppSidebar() {
     { title: "個人檔案", url: "/profile", icon: User },
     ...(isAdmin ? [{ title: "設定", url: "/settings", icon: Settings }] : []),
     ...(canViewFieldRef ? [{ title: "內部資料", url: "/field-reference", icon: Table2 }] : []),
-    { title: "CAT 個人離線版", url: "/cat/offline", icon: Languages },
     { title: "CAT 團隊線上版", url: "/cat/team", icon: Languages },
+    { title: "CAT 個人離線版", url: "/cat/offline", icon: Languages },
   ];
 
   const initials = (profile?.display_name || profile?.email || user?.email || "?").slice(0, 2).toUpperCase();
