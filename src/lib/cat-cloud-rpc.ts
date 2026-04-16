@@ -245,20 +245,29 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       const { data } = await supabase.from("cat_segments").select("*").eq("file_id", payload.fileId).order("row_idx", { ascending: true });
       return (data ?? []).map(mapSegmentRow);
     }
-    case "db.updateSegmentTarget":
-      return await supabase.from("cat_segments").update({
+    case "db.updateSegmentTarget": {
+      const { error: ustErr } = await supabase.from("cat_segments").update({
         target_text: payload.newTargetText,
         ...(payload.extra ?? {}),
         last_modified: nowIso(),
       } as any).eq("id", payload.segmentId);
-    case "db.updateSegmentStatus":
-      return await supabase.from("cat_segments").update({
+      if (ustErr) throw ustErr;
+      return;
+    }
+    case "db.updateSegmentStatus": {
+      const { error: ussErr } = await supabase.from("cat_segments").update({
         status: payload.newStatus,
         ...(payload.extra ?? {}),
         last_modified: nowIso(),
       } as any).eq("id", payload.segmentId);
-    case "db.updateSegmentEditorNote":
-      return await supabase.from("cat_segments").update({ editor_note: payload.editorNote ?? "", last_modified: nowIso() } as any).eq("id", payload.segmentId);
+      if (ussErr) throw ussErr;
+      return;
+    }
+    case "db.updateSegmentEditorNote": {
+      const { error: useErr } = await supabase.from("cat_segments").update({ editor_note: payload.editorNote ?? "", last_modified: nowIso() } as any).eq("id", payload.segmentId);
+      if (useErr) throw useErr;
+      return;
+    }
 
     case "db.addWorkspaceNote": {
       const { data, error } = await supabase
@@ -358,9 +367,9 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       await supabase.from("cat_tms").update({ last_modified: nowIso() } as any).eq("id", payload.tmId);
       return data.id;
     }
-    case "db.bulkAddTMSegments":
+    case "db.bulkAddTMSegments": {
       if (!Array.isArray(payload.tmSegmentsArray) || payload.tmSegmentsArray.length === 0) return null;
-      return await supabase.from("cat_tm_segments").insert(
+      const { error: batErr } = await supabase.from("cat_tm_segments").insert(
         payload.tmSegmentsArray.map((s: any) => ({
           tm_id: s.tmId,
           source_text: s.sourceText ?? "",
@@ -378,6 +387,9 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           last_modified: s.lastModified ?? nowIso(),
         })) as any
       );
+      if (batErr) throw batErr;
+      return null;
+    }
     case "db.getTMSegments": {
       const { data } = await supabase.from("cat_tm_segments").select("*").eq("tm_id", payload.tmId);
       return (data ?? []).map(mapTmSegmentRow);

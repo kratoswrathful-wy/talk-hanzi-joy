@@ -334,7 +334,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // 單一：套用至目前 active 句段
                 const activeRow = document.querySelector('.grid-data-row.active-row');
                 if (!activeRow) return;
-                const segId = parseInt(activeRow.dataset.segId);
+                const segId = parseId(activeRow.dataset.segId);
                 const seg = currentSegmentsList.find(s => s.id === segId);
                 await applySegmentTextOp(seg, activeRow, op);
             }
@@ -2141,15 +2141,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         listContainerElement.querySelectorAll('.resource-name').forEach(btn => {
             btn.addEventListener('click', () => {
-                const id = parseInt(btn.getAttribute('data-id'));
-                if (!isNaN(id)) openDetail(id);
+                const id = parseId(btn.getAttribute('data-id'));
+                if (id) openDetail(id);
             });
         });
 
         listContainerElement.querySelectorAll('.manage-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                const id = parseInt(btn.getAttribute('data-id'));
-                if (!isNaN(id)) openDetail(id);
+                const id = parseId(btn.getAttribute('data-id'));
+                if (id) openDetail(id);
             });
         });
 
@@ -2213,8 +2213,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnTmListDeleteSelected.addEventListener('click', async () => {
             if (!tmList) return;
             const checkedIds = Array.from(tmList.querySelectorAll('.resource-row-cb:checked'))
-                .map(cb => parseInt(cb.getAttribute('data-id'), 10))
-                .filter(n => !isNaN(n));
+                .map(cb => parseId(cb.getAttribute('data-id')))
+                .filter(id => id != null && id !== '');
             if (checkedIds.length === 0) {
                 alert('請先勾選要刪除的 TM。');
                 return;
@@ -2249,8 +2249,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnTbListDeleteSelected.addEventListener('click', async () => {
             if (!tbList) return;
             const checkedIds = Array.from(tbList.querySelectorAll('.resource-row-cb:checked'))
-                .map(cb => parseInt(cb.getAttribute('data-id'), 10))
-                .filter(n => !isNaN(n));
+                .map(cb => parseId(cb.getAttribute('data-id')))
+                .filter(id => id != null && id !== '');
             if (checkedIds.length === 0) {
                 alert('請先勾選要刪除的術語庫。');
                 return;
@@ -3657,7 +3657,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     preview.textContent = '（不掛載：工作筆記欄將為空白，可於編輯器中自行輸入。）';
                     return;
                 }
-                const nid = parseInt(v, 10);
+                const nid = parseId(v);
                 const n = byId.get(nid);
                 const body = n && n.content != null ? String(n.content) : '';
                 preview.textContent = body.length > 12000
@@ -3688,8 +3688,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     finish({ noteId: null });
                     return;
                 }
-                const nid = parseInt(v, 10);
-                finish(Number.isNaN(nid) ? { noteId: null } : { noteId: nid });
+                const nid = parseId(v);
+                finish(!nid ? { noteId: null } : { noteId: nid });
             };
             const cancel = () => finish(null);
             btnCancel.onclick = cancel;
@@ -4641,7 +4641,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             selectedRowIds.clear();
             currentSegmentsList.forEach(s => { if (!isDynamicForbidden(s) && !s.isLockedUser) selectedRowIds.add(s.id); });
             document.querySelectorAll('.grid-data-row').forEach(r => {
-                const rId = parseInt(r.dataset.segId);
+                const rId = parseId(r.dataset.segId);
                 if (selectedRowIds.has(rId)) r.classList.add('selected-row');
                 else r.classList.remove('selected-row');
             });
@@ -4660,7 +4660,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (activeEditor && activeEditor.contentEditable !== 'false') {
                 const activeRow = activeEditor.closest('.grid-data-row');
                 if (!activeRow) return;
-                const segId = parseInt(activeRow.dataset.segId);
+                const segId = parseId(activeRow.dataset.segId);
                 const seg = currentSegmentsList.find(s => s.id === segId);
                 if (seg) insertNextMissingTag(activeEditor, seg);
             }
@@ -4679,7 +4679,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (activeEditor && activeEditor.contentEditable !== 'false') {
                 const activeRow = activeEditor.closest('.grid-data-row');
                 if (!activeRow) return;
-                const segId = parseInt(activeRow.dataset.segId);
+                const segId = parseId(activeRow.dataset.segId);
                 const seg = currentSegmentsList.find(s => s.id === segId);
                 if (seg) {
                     const stripped = seg.targetText.replace(/\{\/?\d+\}/g, '');
@@ -5530,7 +5530,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             updateProgress();
             renderEditorSegments();
             const ar = document.querySelector('.grid-data-row.active-row');
-            const aid = ar ? parseInt(ar.dataset.segId, 10) : null;
+            const aid = ar ? parseId(ar.dataset.segId) : null;
             const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
             if (activeSeg) renderLiveTmMatches(activeSeg);
         })();
@@ -5671,7 +5671,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function updateTagColors(row, targetText) {
         if (!row) return;
 
-        const segId = parseInt(row.dataset.segId, 10);
+        const segId = parseId(row.dataset.segId);
         const seg = currentSegmentsList.find(s => s && s.id === segId);
         if (!seg) return;
 
@@ -5816,7 +5816,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function refreshTagNextHighlight(row) {
         if (!row) return;
-        const segId = parseInt(row.dataset.segId, 10);
+        const segId = parseId(row.dataset.segId);
         const seg = currentSegmentsList.find(s => s && s.id === segId);
         if (!seg) return;
 
@@ -5924,7 +5924,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     selectedRowIds.clear();
                     selectedRowIds.add(seg.id);
                     document.querySelectorAll('.grid-data-row').forEach(r => {
-                        const rId = parseInt(r.dataset.segId);
+                        const rId = parseId(r.dataset.segId);
                         if (selectedRowIds.has(rId)) r.classList.add('selected-row');
                         else r.classList.remove('selected-row');
                     });
@@ -6066,8 +6066,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (e.ctrlKey || e.metaKey || e.shiftKey) {
                             const activeRow = document.querySelector('.grid-data-row.active-row');
                             if (activeRow) {
-                                const activeSegId = parseInt(activeRow.dataset.segId);
-                                if (!selectedRowIds.has(activeSegId)) {
+                        const activeSegId = parseId(activeRow.dataset.segId);
+                        if (!selectedRowIds.has(activeSegId)) {
                                     activeRow.classList.remove('active-row');
                                     const focused = document.activeElement;
                                     if (focused && focused.classList.contains('grid-textarea')) focused.blur();
@@ -6077,7 +6077,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         
                         // Render visually using data-seg-id
                         document.querySelectorAll('.grid-data-row').forEach(r => {
-                            const rId = parseInt(r.dataset.segId);
+                            const rId = parseId(r.dataset.segId);
                             if (selectedRowIds.has(rId)) r.classList.add('selected-row');
                             else r.classList.remove('selected-row');
                         });
@@ -6731,7 +6731,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const targetRow = e.target.closest('.grid-data-row');
         if (!targetRow) return;
         
-        let targetId = Number(targetRow.querySelector('.col-id').getAttribute('data-id'));
+        let targetId = parseId(targetRow.querySelector('.col-id').getAttribute('data-id'));
         
         // 若點到未選取列，改為只選這一列
         if (!selectedRowIds.has(targetId)) {
@@ -6881,7 +6881,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!m) return;
                 const activeRow = document.querySelector('.grid-data-row.active-row');
                 if (!activeRow) return;
-                const segId = parseInt(activeRow.getAttribute('data-seg-id'));
+                const segId = parseId(activeRow.dataset.segId);
                 const seg = currentSegmentsList.find(s => s.id === segId);
                 if (!seg) return;
                 const editor = activeRow.querySelector('.grid-textarea');
