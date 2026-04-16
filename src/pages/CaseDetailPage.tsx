@@ -860,6 +860,19 @@ const CASE_FIELD_LABELS: Partial<Record<keyof CaseRecord, string>> = {
   collabRows: "協作列",
   declineRecords: "婉拒紀錄",
   collabCount: "協作人數",
+  translatorFinal: "譯者完稿",
+  internalReviewFinal: "內審完稿",
+  trackChanges: "追蹤修訂",
+  workingFiles: "工作檔案",
+  sourceFiles: "原始檔案",
+  deliveryMethodFiles: "交件附件",
+  clientReceiptFiles: "客戶簽收",
+  customGuidelinesUrl: "客戶規範",
+  clientGuidelines: "客戶指引",
+  referenceMaterials: "參考資料",
+  seriesReferenceMaterials: "系列參考資料",
+  caseReferenceMaterials: "案件參考資料",
+  clientCaseLink: "客戶案件連結",
 };
 
 /** Translate raw status codes in old log descriptions to Chinese labels for display */
