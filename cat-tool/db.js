@@ -128,7 +128,12 @@ const DBService = {
     },
 
     async getProject(projectId) {
-        return await db.projects.get(projectId);
+        let result = await db.projects.get(projectId);
+        if (result == null && typeof projectId === 'string') {
+            const n = parseInt(projectId, 10);
+            if (!isNaN(n)) result = await db.projects.get(n);
+        }
+        return result ?? null;
     },
 
     async deleteProject(projectId) {
@@ -177,7 +182,12 @@ const DBService = {
     },
 
     async getFile(fileId) {
-        return await db.files.get(fileId);
+        let result = await db.files.get(fileId);
+        if (result == null && typeof fileId === 'string') {
+            const n = parseInt(fileId, 10);
+            if (!isNaN(n)) result = await db.files.get(n);
+        }
+        return result ?? null;
     },
 
     async updateFile(fileId, updates) {

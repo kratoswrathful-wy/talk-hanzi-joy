@@ -1528,7 +1528,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             syncProjectsSelectAllLabel();
 
             projectsTableBody.querySelectorAll('.resource-name').forEach(btn => {
-            btn.addEventListener('click', () => openProjectDetail(parseInt(btn.getAttribute('data-id'))));
+            btn.addEventListener('click', () => {
+                const idAttr = btn.getAttribute('data-id');
+                const id = isTeamMode() ? idAttr : parseInt(idAttr, 10);
+                openProjectDetail(id);
+            });
         });
             projectsTableBody.querySelectorAll('.rename-btn').forEach(btn => {
             btn.addEventListener('click', () => {
