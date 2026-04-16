@@ -215,8 +215,12 @@ const DBService = {
     },
 
     async getSegmentsByFile(fileId) {
-        // 也把 matchValue 帶出來，確保翻頁後相符度仍能顯示
-        return await db.segments.where('fileId').equals(fileId).toArray();
+        let segs = await db.segments.where('fileId').equals(fileId).toArray();
+        if (segs.length === 0 && typeof fileId === 'string') {
+            const n = parseInt(fileId, 10);
+            if (!isNaN(n)) segs = await db.segments.where('fileId').equals(n).toArray();
+        }
+        return segs.sort((a, b) => (a.rowIdx ?? 0) - (b.rowIdx ?? 0));
     },
 
     async updateSegmentTarget(segmentId, newTargetText, extra = {}) {

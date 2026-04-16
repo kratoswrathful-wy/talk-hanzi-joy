@@ -1,5 +1,5 @@
 ;(function () {
-  function getCatMode() {
+  function getMode() {
     try {
       const m = (new URLSearchParams(window.location.search).get("catStorage") || "").toLowerCase();
       return m === "team" ? "team" : "offline";
