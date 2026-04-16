@@ -12,6 +12,8 @@ const mapProjectRow = (r: any) => ({
   targetLangs: r.target_langs ?? [],
   readTms: r.read_tms ?? [],
   writeTms: r.write_tms ?? [],
+  readTbs: r.read_tbs ?? [],
+  writeTb: r.write_tb ?? null,
   changeLog: r.change_log ?? [],
   assignmentId: r.assignment_id ?? null,
   env: r.env ?? "production",
@@ -146,6 +148,8 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       return await supabase.from("cat_projects").update({ source_langs: payload.sourceLangs ?? [], target_langs: payload.targetLangs ?? [], last_modified: nowIso() } as any).eq("id", payload.projectId);
     case "db.updateProjectTMs":
       return await supabase.from("cat_projects").update({ read_tms: payload.readTms ?? [], write_tms: payload.writeTms ?? [], last_modified: nowIso() } as any).eq("id", payload.projectId);
+    case "db.updateProjectTBs":
+      return await supabase.from("cat_projects").update({ read_tbs: payload.readTbs ?? [], write_tb: payload.writeTb ?? null, last_modified: nowIso() } as any).eq("id", payload.projectId);
     case "db.patchProject":
       return await supabase.from("cat_projects").update({
         ...(payload.updates?.name != null ? { name: payload.updates.name } : {}),
@@ -213,9 +217,9 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     case "db.deleteFile":
       return await supabase.from("cat_files").delete().eq("id", payload.fileId);
 
-    case "db.addSegments":
-      if (!Array.isArray(payload.segmentsArray) || payload.segmentsArray.length === 0) return null;
-      return await supabase.from("cat_segments").insert(
+    case "db.addSegments": {
+      if (!Array.isArray(payload.segmentsArray) || payload.segmentsArray.length === 0) return 0;
+      const { error: segInsertError, count: segCount } = await supabase.from("cat_segments").insert(
         payload.segmentsArray.map((s: any) => ({
           file_id: s.fileId,
           sheet_name: s.sheetName ?? "Sheet1",
@@ -234,6 +238,9 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           last_modified: nowIso(),
         })) as any
       );
+      if (segInsertError) throw segInsertError;
+      return segCount ?? payload.segmentsArray.length;
+    }
     case "db.getSegmentsByFile": {
       const { data } = await supabase.from("cat_segments").select("*").eq("file_id", payload.fileId).order("row_idx", { ascending: true });
       return (data ?? []).map(mapSegmentRow);

@@ -465,6 +465,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // In team mode, entity IDs are UUID strings; in offline mode they are Dexie auto-increment integers.
+    function parseId(idAttr) {
+        return isTeamMode() ? idAttr : parseInt(idAttr, 10);
+    }
+
     const STATUS_LABELS_TMS = {
         assigned: '待開始',
         in_progress: '翻譯中',
@@ -1448,7 +1453,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // 點擊最近檔案直接開啟對應專案與檔案
                 recentFilesList.querySelectorAll('.list-item-info').forEach(el => {
                     el.addEventListener('click', async () => {
-                        const fileId = parseInt(el.getAttribute('data-file-id'));
+                        const fileId = parseId(el.getAttribute('data-file-id'));
                         const file = await DBService.getFile(fileId);
                         if (!file) return;
                         await openProjectDetail(file.projectId);
@@ -1536,7 +1541,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
             projectsTableBody.querySelectorAll('.rename-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                const id = parseInt(btn.getAttribute('data-id'));
+                const id = parseId(btn.getAttribute('data-id'));
                     const name = (btn.getAttribute('data-name') || '').replace(/&quot;/g, '"');
                     openNamingModal('renameProject', '專案更名', '新專案名稱', id, name);
             });
@@ -1581,8 +1586,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnProjectsDeleteSelected.addEventListener('click', async () => {
             if (!projectsTableBody) return;
             const checkedIds = Array.from(projectsTableBody.querySelectorAll('.project-row-cb:checked'))
-                .map(cb => parseInt(cb.getAttribute('data-id'), 10))
-                .filter(n => !isNaN(n));
+                .map(cb => parseId(cb.getAttribute('data-id')))
+                .filter(id => id != null && id === id); // filter out NaN
         if (checkedIds.length === 0) {
                 alert('請先勾選要刪除的專案。');
                 return;
@@ -1666,7 +1671,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         projectTmListBody.querySelectorAll('.tm-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
-                const id = parseInt(link.getAttribute('data-id'));
+                const id = parseId(link.getAttribute('data-id'));
                 openTmDetail(id);
                 navItems.forEach(n => n.classList.remove('active'));
                 const navTm = document.querySelector('.nav-item[data-view="viewTM"]');
@@ -1683,8 +1688,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const readTms = [];
         const writeTms = [];
-        document.querySelectorAll('.tm-read-cb:checked').forEach(cb => readTms.push(parseInt(cb.getAttribute('data-id'))));
-        document.querySelectorAll('.tm-write-cb:checked').forEach(cb => writeTms.push(parseInt(cb.getAttribute('data-id'))));
+        document.querySelectorAll('.tm-read-cb:checked').forEach(cb => readTms.push(parseId(cb.getAttribute('data-id'))));
+        document.querySelectorAll('.tm-write-cb:checked').forEach(cb => writeTms.push(parseId(cb.getAttribute('data-id'))));
         
         await DBService.updateProjectTMs(currentProjectId, readTms, writeTms);
 
@@ -1759,7 +1764,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         projectTbListBody.querySelectorAll('.tb-proj-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
-                const id = parseInt(link.getAttribute('data-id'));
+                const id = parseId(link.getAttribute('data-id'));
                 openTbDetail(id);
                 navItems.forEach(n => n.classList.remove('active'));
                 const navTb = document.querySelector('.nav-item[data-view="viewTB"]');
@@ -1775,9 +1780,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const prevWrite = project.writeTb ?? null;
 
         const readTbs = [];
-        document.querySelectorAll('.tb-read-cb:checked').forEach(cb => readTbs.push(parseInt(cb.getAttribute('data-id'))));
+        document.querySelectorAll('.tb-read-cb:checked').forEach(cb => readTbs.push(parseId(cb.getAttribute('data-id'))));
         const writeRadio = document.querySelector('input[name="tb-write-radio"]:checked');
-        const writeTb = writeRadio ? parseInt(writeRadio.value) : null;
+        const writeTb = writeRadio ? parseId(writeRadio.value) : null;
 
         await DBService.updateProjectTBs(currentProjectId, readTbs, writeTb);
 
@@ -1978,8 +1983,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         tbody.querySelectorAll('.project-workspace-note-preview').forEach(btn => {
             btn.addEventListener('click', async () => {
-                const id = parseInt(btn.getAttribute('data-id'), 10);
-                if (Number.isNaN(id)) return;
+                const id = parseId(btn.getAttribute('data-id'));
+                if (!id && id !== 0) return;
                 const row = await DBService.getWorkspaceNote(id);
                 const titEl = document.getElementById('workspaceNoteReadTitle');
                 const bodyEl = document.getElementById('workspaceNoteReadBody');
@@ -1993,8 +1998,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         tbody.querySelectorAll('.project-workspace-note-rename').forEach(btn => {
             btn.addEventListener('click', async () => {
-                const id = parseInt(btn.getAttribute('data-id'), 10);
-                if (Number.isNaN(id)) return;
+                const id = parseId(btn.getAttribute('data-id'));
+                if (!id && id !== 0) return;
                 const row = await DBService.getWorkspaceNote(id);
                 workspaceNoteRenameTargetId = id;
                 const renameIn = document.getElementById('workspaceNoteRenameInput');
@@ -2005,8 +2010,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         tbody.querySelectorAll('.project-workspace-note-del').forEach(btn => {
             btn.addEventListener('click', async () => {
-                const id = parseInt(btn.getAttribute('data-id'), 10);
-                if (Number.isNaN(id)) return;
+                const id = parseId(btn.getAttribute('data-id'));
+                if (!id && id !== 0) return;
                 if (!confirm('確定刪除此筆筆記紀錄？')) return;
                 await DBService.deleteWorkspaceNote(id);
                 await loadWorkspaceNotesList();
@@ -2027,8 +2032,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (btnDel) {
             btnDel.addEventListener('click', async () => {
                 const ids = Array.from(tbodyHost.querySelectorAll('.project-workspace-note-cb:checked'))
-                    .map(cb => parseInt(cb.getAttribute('data-id'), 10))
-                    .filter(id => !Number.isNaN(id));
+                    .map(cb => parseId(cb.getAttribute('data-id')))
+                    .filter(id => id != null && id === id);
                 if (!ids.length) return;
                 if (!confirm(`確定刪除所選 ${ids.length} 筆筆記？`)) return;
                 for (const id of ids) await DBService.deleteWorkspaceNote(id);
@@ -3829,7 +3834,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await DBService.addModuleLog('projects', entry);
             }
             const mappedSegments = extractedSegmentsBackup.map((s, idx) => ({ ...s, fileId: fId, globalId: idx + 1 }));
-            await DBService.addSegments(mappedSegments);
+            const savedCount = await DBService.addSegments(mappedSegments);
+            if (isTeamMode() && mappedSegments.length > 0 && !savedCount) {
+                console.warn('[CAT] addSegments returned 0 — segments may not have been saved to cloud.');
+            }
 
             wizardOverlay.classList.add('hidden');
             excelWorkbook = null; excelRawBuffer = null; excelDataBySheet = {}; extractedSegmentsBackup = [];
