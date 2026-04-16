@@ -35,6 +35,25 @@
             <!-- VIEW: Dashboard -->
             <section class="view-section active" id="viewDashboard" style="padding: 2rem; overflow-y: auto;">
                 <header class="view-header"><h1>儀表板</h1></header>
+                <!-- 受指派檔案（譯者身分在團隊線上版時顯示） -->
+                <div id="dashboardAssignedBlock" style="display:none; margin-bottom:2rem;">
+                    <h2 style="font-size:1.1rem; color:#1e293b; margin:0 0 0.25rem 0;">我的受派檔案</h2>
+                    <p style="margin:0 0 0.75rem 0; color:#64748b; font-size:0.9rem;">以下為目前指派給你的 CAT 檔案。</p>
+                    <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
+                        <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.95rem;">
+                            <thead>
+                                <tr style="background:#f1f5f9;">
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">狀態</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">檔案</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">語言對</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">更新時間</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:100px;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="assignedFilesBody"></tbody>
+                        </table>
+                    </div>
+                </div>
                 <div class="dashboard-stats">
                     <div class="stat-card"><h3>專案數量</h3><div class="stat-value" id="statProjects">0</div></div>
                     <div class="stat-card"><h3>自建 TM 數量</h3><div class="stat-value" id="statTMs">0</div></div>
@@ -209,28 +228,6 @@
                     <div style="margin-top: 1rem; text-align: right;">
                         <button class="primary-btn btn-sm" id="btnSaveProjectTbs">儲存 TB 設定</button>
                     </div>
-                </div>
-            </section>
-
-            <!-- VIEW: Assigned Files (translator-only team screen) -->
-            <section class="view-section hidden" id="viewAssignedFiles" style="padding:2rem; overflow-y:auto;">
-                <header class="view-header" style="flex-direction:column; align-items:flex-start; gap:0.4rem;">
-                    <h1 class="page-title" style="margin:0; font-size:1.5rem; font-weight:700;">我的受派檔案</h1>
-                    <p style="margin:0; color:#64748b; font-size:0.9rem;">此頁僅顯示目前指派給你的 CAT 檔案。</p>
-                </header>
-                <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px; margin-top:0.8rem;">
-                    <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.95rem;">
-                        <thead>
-                            <tr style="background:#f1f5f9;">
-                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">狀態</th>
-                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">檔案</th>
-                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">語言對</th>
-                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">更新時間</th>
-                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:100px;">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="assignedFilesBody"></tbody>
-                    </table>
                 </div>
             </section>
 
@@ -658,8 +655,9 @@
                     <div style="position:relative; background:#e2e8f0; border-radius:4px; overflow:hidden; display:flex; align-items:center; padding:0 0.5rem; min-height:24px; min-width:250px;">
                         <div id="progressFill" style="position:absolute; top:0; left:0; bottom:0; width:0%; background:var(--success-color); transition:width 0.3s ease; z-index:0;"></div>
                         <div style="position:relative; z-index:1; display:flex; gap:1.5rem;">
-                            <div>句段：<span id="statusBarSegments" style="font-weight:600; color:var(--text-main);">0 / 0</span></div>
-                            <div>字數 (Words)：<span id="statusBarWords" style="font-weight:600; color:var(--text-main);">0 / 0</span></div>
+                            <div>句段：<span id="statusBarSegments" style="color:#111;">0 / 0</span></div>
+                            <div><span id="statusBarPercent" style="color:#111;">0%</span></div>
+                            <div>字數 (Words)：<span id="statusBarWords" style="color:#111;">0 / 0</span></div>
                         </div>
                     </div>
                     <div style="flex:1; text-align:right;">快捷鍵: <kbd style="background:#e2e8f0; padding:2px 6px; border-radius:4px; color:#334155;">Ctrl+Enter</kbd> 確認句段並跳至下一行</div>

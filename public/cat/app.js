@@ -800,7 +800,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (nav) nav.style.display = translatorOnly ? 'none' : '';
         if (translatorOnly) {
-            switchView('viewAssignedFiles');
+            const ab = document.getElementById('dashboardAssignedBlock');
+            if (ab) ab.style.display = '';
+            switchView('viewDashboard');
         }
     }
 
@@ -955,6 +957,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             window._tmsAssignments = assignments;
             window._tmsTranslatorOnly = !!payload.translatorOnly;
             renderAssignedFilesView(assignments);
+            const ab = document.getElementById('dashboardAssignedBlock');
+            if (ab && window._tmsTranslatorOnly) ab.style.display = '';
             enforceTeamRoleLayout();
         } else if (event.data.type === 'TMS_ASSIGNABLE_USERS') {
             const payload = event.data.payload || {};
@@ -1875,8 +1879,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         filesListBody.querySelectorAll('.edit-file-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
-                const id = btn.getAttribute('data-id');
-                if (!id) return;
+                const idAttr = btn.getAttribute('data-id');
+                if (!idAttr) return;
+                // local mode: Dexie PK is integer; team mode: string UUID
+                const id = isTeamMode() ? idAttr : parseInt(idAttr);
                 openEditor(id);
             });
         });
@@ -6817,6 +6823,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const wordPct = totalWords === 0 ? 0 : (confirmedWords / totalWords) * 100;
         if (progressFill) progressFill.style.width = `${wordPct}%`;
+        const pctEl = document.getElementById('statusBarPercent');
+        if (pctEl) pctEl.textContent = `${wordPct.toFixed(0)}%`;
     }
 
     // ── TM Concordance Search ────────────────────────────────────────────────
