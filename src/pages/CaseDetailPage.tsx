@@ -824,8 +824,10 @@ const CASE_LOG_SKIP_KEYS = new Set<string>([
   "inquirySlackRecords",
   // log individual sub-fields (workType, billingUnit, unitCount) instead of the raw JSON blob
   "workGroups",
-  // BlockNote rich text — not meaningful to log as JSON
-  "bodyContent",
+  // handled with per-block diff in save()
+  // "bodyContent",
+  // handled with per-row/per-field diff in save()
+  "collabRows",
   // internal records managed separately
   "internalRecords",
 ]);
@@ -873,6 +875,20 @@ const CASE_FIELD_LABELS: Partial<Record<keyof CaseRecord, string>> = {
   seriesReferenceMaterials: "系列參考資料",
   caseReferenceMaterials: "案件參考資料",
 };
+
+/** Recursively extract plain text from a BlockNote block */
+function extractBlockText(block: unknown): string {
+  if (!block || typeof block !== "object") return "";
+  const b = block as { content?: unknown[]; children?: unknown[] };
+  const inline = (b.content || [])
+    .map((n: unknown) => {
+      const node = n as { type?: string; text?: string };
+      return node?.type === "text" ? (node.text || "") : "";
+    })
+    .join("");
+  const childText = (b.children || []).map(extractBlockText).join("\n");
+  return [inline, childText].filter(Boolean).join("\n");
+}
 
 /** Translate raw status codes in old log descriptions to Chinese labels for display */
 function localizeLogDescription(desc: string): string {
@@ -1193,6 +1209,111 @@ export default function CaseDetailPage() {
                     now: Date.now(), author,
                     formatTimestamp: (d) => formatTimestamp(d),
                     fieldLabel: `${label} (${newEntry.tool || "工具"}) ${fieldLabel}`,
+                    existingLogs: logs, burstMap: burst,
+                  });
+                  logs = r.nextLogs; burst = r.nextBurstMap;
+                }
+              }
+              continue;
+            }
+
+            // Per-block diff for bodyContent (BlockNote rich text)
+            if (key === "bodyContent") {
+              type RawBlock = { id: string; [k: string]: unknown };
+              const oldBlocks = ((oldV as RawBlock[]) || []);
+              const newBlocks = ((newV as RawBlock[]) || []);
+              const oldMap = new Map(oldBlocks.map((b) => [b.id, b]));
+              const newMap = new Map(newBlocks.map((b) => [b.id, b]));
+              const fieldLabel = CASE_FIELD_LABELS.bodyContent ?? "案件說明";
+              // Removed blocks
+              for (const [bid, ob] of oldMap) {
+                if (newMap.has(bid)) continue;
+                const txt = extractBlockText(ob).trim();
+                if (!txt) continue;
+                const r = applyEditLogFieldChange({
+                  fieldKey: `bodyContent:${bid}`, oldValue: txt, newValue: "（刪除）",
+                  now: Date.now(), author, formatTimestamp: (d) => formatTimestamp(d),
+                  fieldLabel, existingLogs: logs, burstMap: burst,
+                });
+                logs = r.nextLogs; burst = r.nextBurstMap;
+              }
+              // Added blocks
+              for (const [bid, nb] of newMap) {
+                if (oldMap.has(bid)) continue;
+                const txt = extractBlockText(nb).trim();
+                if (!txt) continue;
+                const r = applyEditLogFieldChange({
+                  fieldKey: `bodyContent:${bid}`, oldValue: "（空）", newValue: txt,
+                  now: Date.now(), author, formatTimestamp: (d) => formatTimestamp(d),
+                  fieldLabel, existingLogs: logs, burstMap: burst,
+                });
+                logs = r.nextLogs; burst = r.nextBurstMap;
+              }
+              // Modified blocks (same ID, different text)
+              for (const [bid, nb] of newMap) {
+                const ob = oldMap.get(bid);
+                if (!ob) continue;
+                const oldTxt = extractBlockText(ob).trim();
+                const newTxt = extractBlockText(nb).trim();
+                if (oldTxt === newTxt) continue;
+                const r = applyEditLogFieldChange({
+                  fieldKey: `bodyContent:${bid}`,
+                  oldValue: oldTxt || "（空）", newValue: newTxt || "（空）",
+                  now: Date.now(), author, formatTimestamp: (d) => formatTimestamp(d),
+                  fieldLabel, existingLogs: logs, burstMap: burst,
+                });
+                logs = r.nextLogs; burst = r.nextBurstMap;
+              }
+              continue;
+            }
+
+            // Per-row/per-field diff for collabRows
+            if (key === "collabRows") {
+              const COLLAB_FIELD_LABELS: Record<string, string> = {
+                translator: "譯者", reviewer: "審稿人員", segment: "分段",
+                unitCount: "計費單位數", translationDeadline: "翻譯交期",
+                reviewDeadline: "審稿交期", accepted: "確認承接",
+                taskCompleted: "任務完成", delivered: "交件完畢",
+              };
+              const serCollab = (v: unknown): string => {
+                if (typeof v === "boolean") return v ? "是" : "否";
+                if (v === null || v === undefined || v === "") return "（空）";
+                if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v)) {
+                  try { return formatTimestamp(v); } catch { return v; }
+                }
+                return String(v);
+              };
+              const oldRows = ((oldV as CollabRow[]) || []);
+              const newRows = ((newV as CollabRow[]) || []);
+              const oldRowMap = new Map(oldRows.map((r) => [r.id, r]));
+              const newRowMap = new Map(newRows.map((r) => [r.id, r]));
+              // Structural change (rows added / removed)
+              const addedIds = [...newRowMap.keys()].filter((rid) => !oldRowMap.has(rid));
+              const removedIds = [...oldRowMap.keys()].filter((rid) => !newRowMap.has(rid));
+              if (addedIds.length || removedIds.length) {
+                const r = applyEditLogFieldChange({
+                  fieldKey: "collabRows:structure",
+                  oldValue: oldRows.map((r) => r.translator || r.segment || "列").join("、") || "（空）",
+                  newValue: newRows.map((r) => r.translator || r.segment || "列").join("、") || "（空）",
+                  now: Date.now(), author, formatTimestamp: (d) => formatTimestamp(d),
+                  fieldLabel: label, existingLogs: logs, burstMap: burst,
+                });
+                logs = r.nextLogs; burst = r.nextBurstMap;
+              }
+              // Per-row, per-field changes
+              for (const [rowId, newRow] of newRowMap) {
+                const oldRow = oldRowMap.get(rowId);
+                if (!oldRow) continue;
+                const rowLabel = newRow.translator || newRow.segment || rowId.slice(0, 6);
+                for (const field of Object.keys(COLLAB_FIELD_LABELS) as (keyof CollabRow)[]) {
+                  if (JSON.stringify(normDateForCompare(oldRow[field])) ===
+                      JSON.stringify(normDateForCompare(newRow[field]))) continue;
+                  const r = applyEditLogFieldChange({
+                    fieldKey: `collabRows:${rowId}:${field}`,
+                    oldValue: serCollab(oldRow[field]),
+                    newValue: serCollab(newRow[field]),
+                    now: Date.now(), author, formatTimestamp: (d) => formatTimestamp(d),
+                    fieldLabel: `${label}（${rowLabel}）${COLLAB_FIELD_LABELS[field as string]}`,
                     existingLogs: logs, burstMap: burst,
                   });
                   logs = r.nextLogs; burst = r.nextBurstMap;
