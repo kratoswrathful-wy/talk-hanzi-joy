@@ -806,7 +806,7 @@
 
         <!-- Basic Naming Modal (Used for Project/TM/TB/rename) -->
         <div class="wizard-overlay hidden" id="namingModal">
-            <div class="wizard-modal" style="max-width: 520px;">
+            <div class="wizard-modal" style="max-width: min(780px, 95vw);">
                 <div class="wizard-header">
                     <h2 id="namingModalTitle" style="margin:0; font-size:1.2rem;">新增專案</h2>
                     <button class="close-btn" id="btnCloseNamingModal">&times;</button>
@@ -840,7 +840,7 @@
 
         <!-- 檔案匯入：語言對選擇 Modal -->
         <div class="wizard-overlay hidden" id="fileLangModal">
-            <div class="wizard-modal" style="max-width: 440px;">
+            <div class="wizard-modal" style="max-width: min(560px, 95vw);">
                 <div class="wizard-header">
                     <h2 style="margin:0; font-size:1.2rem;">選擇此任務的語言對</h2>
                     <button class="close-btn" id="btnCloseFileLangModal">&times;</button>
@@ -850,11 +850,13 @@
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
                         <div>
                             <label style="display:block; font-size:0.88rem; font-weight:600; margin-bottom:0.3rem;">原文語言</label>
-                            <select id="fileLangSrcSelect" style="width:100%; padding:0.5rem 0.4rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.9rem;"></select>
+                            <input type="text" id="fileLangSrcSearch" placeholder="搜尋語言…" autocomplete="off" style="width:100%; box-sizing:border-box; padding:0.35rem 0.5rem; margin-bottom:0.3rem; border:1px solid #cbd5e1; border-radius:5px; font-size:0.85rem;">
+                            <select id="fileLangSrcSelect" size="6" style="width:100%; padding:0.3rem 0.4rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.9rem;"></select>
                         </div>
                         <div>
                             <label style="display:block; font-size:0.88rem; font-weight:600; margin-bottom:0.3rem;">譯文語言</label>
-                            <select id="fileLangTgtSelect" style="width:100%; padding:0.5rem 0.4rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.9rem;"></select>
+                            <input type="text" id="fileLangTgtSearch" placeholder="搜尋語言…" autocomplete="off" style="width:100%; box-sizing:border-box; padding:0.35rem 0.5rem; margin-bottom:0.3rem; border:1px solid #cbd5e1; border-radius:5px; font-size:0.85rem;">
+                            <select id="fileLangTgtSelect" size="6" style="width:100%; padding:0.3rem 0.4rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.9rem;"></select>
                         </div>
                     </div>
                     <div id="fileLangWarning" class="hidden" style="padding:0.6rem 0.75rem; background:#fef9c3; border:1px solid #fde047; border-radius:6px; font-size:0.85rem; color:#713f12;"></div>
@@ -1065,7 +1067,7 @@
 
     <!-- 共用資訊 Modal（從專案頁開啟） -->
     <div id="sharedInfoModal" class="modal-overlay hidden">
-        <div class="modal-box" style="max-width:680px; max-height:90vh; display:flex; flex-direction:column;">
+        <div class="modal-box" style="max-width:min(1280px, 95vw); max-height:95vh; display:flex; flex-direction:column;">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem; flex-shrink:0;">
                 <h3 style="margin:0;">共用資訊</h3>
                 <button type="button" id="btnCloseSharedInfoModal" class="secondary-btn btn-sm">關閉</button>

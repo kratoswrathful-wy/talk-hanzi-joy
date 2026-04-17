@@ -65,8 +65,19 @@ function langBadgeHtml(codes, dir = '') {
  *  @param {string[]} selected - 已選中的語言代碼
  */
 function buildLangCheckboxes(selected = []) {
+    const wrap = document.createElement('div');
+
+    // 搜尋框
+    const search = document.createElement('input');
+    search.type = 'text';
+    search.placeholder = '搜尋語言…';
+    search.autocomplete = 'off';
+    search.style.cssText = 'width:100%; box-sizing:border-box; padding:0.3rem 0.5rem; margin-bottom:0.3rem; border:1px solid #cbd5e1; border-radius:5px; font-size:0.82rem;';
+    wrap.appendChild(search);
+
+    // Checkbox 容器
     const container = document.createElement('div');
-    container.style.cssText = 'display:flex; flex-wrap:wrap; gap:0.35rem; max-height:140px; overflow-y:auto; padding:0.25rem; border:1px solid #e2e8f0; border-radius:6px; background:#f8fafc;';
+    container.style.cssText = 'display:flex; flex-wrap:wrap; gap:0.35rem; max-height:160px; overflow-y:auto; padding:0.25rem; border:1px solid #e2e8f0; border-radius:6px; background:#f8fafc;';
     LANG_OPTIONS.forEach(opt => {
         const lbl = document.createElement('label');
         lbl.style.cssText = 'display:inline-flex; align-items:center; gap:0.25rem; cursor:pointer; padding:0.2rem 0.4rem; border-radius:4px; font-size:0.82rem; white-space:nowrap; background:#fff; border:1px solid #e2e8f0;';
@@ -79,7 +90,17 @@ function buildLangCheckboxes(selected = []) {
         lbl.appendChild(document.createTextNode(opt.label));
         container.appendChild(lbl);
     });
-    return container;
+    wrap.appendChild(container);
+
+    // 即時搜尋過濾
+    search.addEventListener('input', () => {
+        const q = search.value.toLowerCase();
+        container.querySelectorAll('label').forEach(lbl => {
+            lbl.style.display = lbl.textContent.toLowerCase().includes(q) ? '' : 'none';
+        });
+    });
+
+    return wrap;
 }
 
 /** 從 buildLangCheckboxes 回傳的 container 取得已勾選的代碼陣列 */
@@ -3532,6 +3553,28 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
             buildOptions(srcSel, srcLangs);
             buildOptions(tgtSel, tgtLangs);
+
+            // 搜尋框過濾（重置後重新綁定，防止重複）
+            const wireSearch = (searchId, sel) => {
+                const searchEl = document.getElementById(searchId);
+                if (!searchEl) return;
+                searchEl.value = '';
+                const handler = () => {
+                    const q = searchEl.value.toLowerCase();
+                    Array.from(sel.options).forEach(opt => {
+                        opt.style.display = opt.text.toLowerCase().includes(q) ? '' : 'none';
+                    });
+                    if (sel.selectedOptions.length === 0 || sel.selectedOptions[0].style.display === 'none') {
+                        const first = Array.from(sel.options).find(o => o.style.display !== 'none');
+                        if (first) sel.value = first.value;
+                    }
+                };
+                const clone = searchEl.cloneNode(true); // 移除舊監聽
+                searchEl.parentNode.replaceChild(clone, searchEl);
+                clone.addEventListener('input', handler);
+            };
+            wireSearch('fileLangSrcSearch', srcSel);
+            wireSearch('fileLangTgtSearch', tgtSel);
 
             if (warnEl) warnEl.classList.add('hidden');
             modal.classList.remove('hidden');
