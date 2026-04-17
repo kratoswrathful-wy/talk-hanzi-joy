@@ -427,7 +427,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         createdByName: payload.updaterName || existing.created_by_name,
         createdAt: existing.updated_at,
       };
-      const versions = [...(existing.versions ?? []), prevVersion];
+      const versions = [...((existing.versions as any[] | null) ?? []), prevVersion];
       const { error } = await supabase
         .from("cat_guidelines")
         .update({ content: payload.content, versions, updated_at: nowIso() } as any)
