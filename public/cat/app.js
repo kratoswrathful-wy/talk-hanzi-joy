@@ -1406,19 +1406,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     window.addEventListener('beforeunload', (e) => {
         leaveCollabForCurrentFile();
-        const noteInput = document.getElementById('editorWorkspaceNoteInput');
         const viewEditorEl = document.getElementById('viewEditor');
-        if (!currentFileId || !noteInput || !viewEditorEl || viewEditorEl.classList.contains('hidden')) return;
-        if (!(noteInput.value || '').trim()) return;
-        e.preventDefault();
-        e.returnValue = '';
+        if (!currentFileId || !viewEditorEl || viewEditorEl.classList.contains('hidden')) return;
+        // Auto-save notes, no custom modal possible on beforeunload
+        autoSaveAllNotes().catch(() => {});
     });
     window.addEventListener('pagehide', () => {
         leaveCollabForCurrentFile();
-        const noteInput = document.getElementById('editorWorkspaceNoteInput');
-        if (!currentFileId || !noteInput) return;
-        clearTimeout(workspaceNoteDraftTimer);
-        DBService.updateFile(currentFileId, { workspaceNoteDraft: noteInput.value }).catch(() => {});
+        autoSaveAllNotes().catch(() => {});
     });
 
     // ==========================================
@@ -1926,145 +1921,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadWorkspaceNotesList();
     }
 
-    function syncProjectWorkspaceNotesSelectAll() {
-        const sel = document.getElementById('projectWorkspaceNotesSelectAll');
-        const btn = document.getElementById('btnProjectWorkspaceNotesDeleteSelected');
-        const tbody = document.getElementById('projectWorkspaceNotesBody');
-        if (!sel || !tbody) return;
-        const cbs = tbody.querySelectorAll('.project-workspace-note-cb');
-        const total = cbs.length;
-        const checked = Array.from(cbs).filter(cb => cb.checked).length;
-        sel.checked = total > 0 && checked === total;
-        if (btn) btn.style.display = checked > 0 ? 'inline-block' : 'none';
-    }
+    function syncProjectWorkspaceNotesSelectAll() { /* removed - workspace notes table replaced by shared info */ }
 
-    /** 專案內「工作筆記」存檔列表（與編輯器離開時保留筆記連動） */
-    async function loadWorkspaceNotesList() {
-        const tbody = document.getElementById('projectWorkspaceNotesBody');
-        if (!tbody || !currentProjectId) return;
-        let notes = [];
-        try {
-            notes = await DBService.getWorkspaceNotesByProject(currentProjectId);
-        } catch (err) {
-            console.error(err);
-            tbody.innerHTML = '<tr><td colspan="7" style="padding:0.75rem; color:#b91c1c;">無法載入筆記列表（請確認資料庫已升級）。</td></tr>';
-            syncProjectWorkspaceNotesSelectAll();
-            return;
-        }
-        tbody.innerHTML = '';
-        if (!notes.length) {
-            tbody.innerHTML = '<tr><td colspan="7" style="padding:0.75rem; color:#64748b;">尚無已存檔的工作筆記。</td></tr>';
-            syncProjectWorkspaceNotesSelectAll();
-            return;
-        }
-        notes.forEach(n => {
-            const tr = document.createElement('tr');
-            const titleEsc = normalizeWorkspaceNoteTitle(n.displayTitle).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            const byEsc = (n.createdBy || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            const at = n.savedAt ? new Date(n.savedAt).toLocaleString('zh-TW', { hour12: false }) : '—';
-            tr.innerHTML = `
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="project-workspace-note-cb" data-id="${n.id}"></td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0;">${n.id}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.85rem;">
-                    <button type="button" class="project-workspace-note-preview" data-id="${n.id}" style="background:none;border:none;padding:0;color:var(--primary-color);text-decoration:underline;cursor:pointer;text-align:left;font-size:inherit;">${titleEsc}</button>
-                </td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0;">${n.fileId}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0;">${byEsc}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0;">${at}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0;">
-                    <button type="button" class="secondary-btn btn-sm project-workspace-note-rename" data-id="${n.id}">更名</button>
-                    <button type="button" class="danger-btn btn-sm project-workspace-note-del" data-id="${n.id}">刪除</button>
-                </td>
-            `;
-            tbody.appendChild(tr);
-        });
-        tbody.querySelectorAll('.project-workspace-note-cb').forEach(cb => {
-            cb.addEventListener('change', () => syncProjectWorkspaceNotesSelectAll());
-        });
-        tbody.querySelectorAll('.project-workspace-note-preview').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const id = parseId(btn.getAttribute('data-id'));
-                if (!id && id !== 0) return;
-                const row = await DBService.getWorkspaceNote(id);
-                const titEl = document.getElementById('workspaceNoteReadTitle');
-                const bodyEl = document.getElementById('workspaceNoteReadBody');
-                const modal = document.getElementById('workspaceNoteReadModal');
-                const titleText = row ? normalizeWorkspaceNoteTitle(row.displayTitle) : '筆記預覽';
-                const bodyText = row && row.content != null ? String(row.content) : '';
-                if (titEl) titEl.textContent = titleText;
-                if (bodyEl) bodyEl.textContent = bodyText || '（無內容）';
-                if (modal) modal.classList.remove('hidden');
-            });
-        });
-        tbody.querySelectorAll('.project-workspace-note-rename').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const id = parseId(btn.getAttribute('data-id'));
-                if (!id && id !== 0) return;
-                const row = await DBService.getWorkspaceNote(id);
-                workspaceNoteRenameTargetId = id;
-                const renameIn = document.getElementById('workspaceNoteRenameInput');
-                const renameModal = document.getElementById('workspaceNoteRenameModal');
-                if (renameIn) renameIn.value = row ? normalizeWorkspaceNoteTitle(row.displayTitle) : '';
-                if (renameModal) renameModal.classList.remove('hidden');
-            });
-        });
-        tbody.querySelectorAll('.project-workspace-note-del').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const id = parseId(btn.getAttribute('data-id'));
-                if (!id && id !== 0) return;
-                if (!confirm('確定刪除此筆筆記紀錄？')) return;
-                await DBService.deleteWorkspaceNote(id);
-                await loadWorkspaceNotesList();
-            });
-        });
-        syncProjectWorkspaceNotesSelectAll();
-    }
+    /** Stub for legacy references (workspace notes table replaced by shared info panel) */
+    async function loadWorkspaceNotesList() { /* no-op: replaced by shared info */ }
 
-    (function initProjectWorkspaceNotesTableChrome() {
-        const selAll = document.getElementById('projectWorkspaceNotesSelectAll');
-        const btnDel = document.getElementById('btnProjectWorkspaceNotesDeleteSelected');
-        const tbodyHost = document.getElementById('projectWorkspaceNotesBody');
-        if (!selAll || !tbodyHost) return;
-        selAll.addEventListener('change', () => {
-            tbodyHost.querySelectorAll('.project-workspace-note-cb').forEach(cb => { cb.checked = selAll.checked; });
-            syncProjectWorkspaceNotesSelectAll();
-        });
-        if (btnDel) {
-            btnDel.addEventListener('click', async () => {
-                const ids = Array.from(tbodyHost.querySelectorAll('.project-workspace-note-cb:checked'))
-                    .map(cb => parseId(cb.getAttribute('data-id')))
-                    .filter(id => id != null && id === id);
-                if (!ids.length) return;
-                if (!confirm(`確定刪除所選 ${ids.length} 筆筆記？`)) return;
-                for (const id of ids) await DBService.deleteWorkspaceNote(id);
-                await loadWorkspaceNotesList();
-            });
-        }
-    })();
-
-    (function initWorkspaceNoteReadRenameModals() {
-        document.getElementById('btnWorkspaceNoteReadClose')?.addEventListener('click', () => {
-            document.getElementById('workspaceNoteReadModal')?.classList.add('hidden');
-        });
-        document.getElementById('btnWorkspaceNoteRenameCancel')?.addEventListener('click', () => {
-            workspaceNoteRenameTargetId = null;
-            document.getElementById('workspaceNoteRenameModal')?.classList.add('hidden');
-        });
-        document.getElementById('btnWorkspaceNoteRenameSave')?.addEventListener('click', async () => {
-            const id = workspaceNoteRenameTargetId;
-            const inp = document.getElementById('workspaceNoteRenameInput');
-            if (!id || !inp) return;
-            const t = normalizeWorkspaceNoteTitle(inp.value.trim());
-            try {
-                await DBService.updateWorkspaceNote(id, { displayTitle: t });
-            } catch (e) {
-                console.error(e);
-                alert('更名失敗');
-                return;
+    // ---- Project page: shared info button ----
+    (function initProjectSharedInfoBtn() {
+        document.addEventListener('click', async (e) => {
+            if (e.target && e.target.id === 'btnOpenSharedInfo') {
+                if (!currentProjectId) return;
+                await openSharedInfoModal(currentProjectId);
             }
-            workspaceNoteRenameTargetId = null;
-            document.getElementById('workspaceNoteRenameModal')?.classList.add('hidden');
-            await loadWorkspaceNotesList();
         });
     })();
 
@@ -3607,96 +3475,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    /** 舊版自動產生的筆記標題（顯示改為「未命名」） */
-    function isLegacyAutoWorkspaceNoteTitle(s) {
-        if (s == null || typeof s !== 'string') return false;
-        const t = s.trim();
-        return /^檔案 #\d+，/.test(t) || /^File #\d+,/.test(t);
-    }
-
-    /** 空白或舊自動標題 →「未命名」 */
-    function normalizeWorkspaceNoteTitle(raw) {
-        const t = String(raw ?? '').trim();
-        if (!t || isLegacyAutoWorkspaceNoteTitle(t)) return '未命名';
-        return t;
-    }
-
-    /**
-     * 開啟編輯器前：草稿為空且專案有已存筆記時，於清單畫面顯示蓋板。
-     * @returns {Promise<null|{ noteId: number|null }>} null = 使用者取消開檔；noteId null = 不掛載
-     */
-    function showWorkspaceNoteMountModal({ notes }) {
-        return new Promise((resolve) => {
-            const modal = document.getElementById('workspaceNoteMountModal');
-            const sel = document.getElementById('workspaceNoteMountSelect');
-            const preview = document.getElementById('workspaceNoteMountPreview');
-            const btnOpen = document.getElementById('btnWorkspaceNoteMountOpen');
-            const btnCancel = document.getElementById('btnWorkspaceNoteMountCancel');
-            const btnClose = document.getElementById('btnCloseWorkspaceNoteMountModal');
-            if (!modal || !sel || !preview || !btnOpen || !btnCancel) {
-                resolve({ noteId: null });
-                return;
-            }
-            const byId = new Map(notes.map(n => [n.id, n]));
-            sel.innerHTML = '';
-            const optNone = document.createElement('option');
-            optNone.value = '';
-            optNone.textContent = '不掛載筆記，直接開啟編輯器';
-            sel.appendChild(optNone);
-            for (const n of notes) {
-                const o = document.createElement('option');
-                o.value = String(n.id);
-                const title = normalizeWorkspaceNoteTitle(n.displayTitle);
-                const at = n.savedAt ? new Date(n.savedAt).toLocaleString('zh-TW', { hour12: false }) : '—';
-                o.textContent = `${title}（檔案 ID ${n.fileId}，${at}）`;
-                sel.appendChild(o);
-            }
-            const refreshPreview = () => {
-                const v = sel.value;
-                if (!v) {
-                    preview.textContent = '（不掛載：工作筆記欄將為空白，可於編輯器中自行輸入。）';
-                    return;
-                }
-                const nid = parseId(v);
-                const n = byId.get(nid);
-                const body = n && n.content != null ? String(n.content) : '';
-                preview.textContent = body.length > 12000
-                    ? body.slice(0, 12000) + '\n…（僅預覽前 12000 字）'
-                    : body || '（無內容）';
-            };
-            sel.onchange = refreshPreview;
-            refreshPreview();
-            modal.classList.remove('hidden');
-            const cleanupHandlers = () => {
-                sel.onchange = null;
-                modal.onclick = null;
-                btnOpen.onclick = null;
-                btnCancel.onclick = null;
-                if (btnClose) btnClose.onclick = null;
-            };
-            const finish = (val) => {
-                modal.classList.add('hidden');
-                document.removeEventListener('keydown', onEsc);
-                cleanupHandlers();
-                resolve(val);
-            };
-            const onEsc = (e) => { if (e.key === 'Escape') finish(null); };
-            document.addEventListener('keydown', onEsc);
-            btnOpen.onclick = () => {
-                const v = sel.value;
-                if (!v) {
-                    finish({ noteId: null });
-                    return;
-                }
-                const nid = parseId(v);
-                finish(!nid ? { noteId: null } : { noteId: nid });
-            };
-            const cancel = () => finish(null);
-            btnCancel.onclick = cancel;
-            if (btnClose) btnClose.onclick = cancel;
-            modal.onclick = (e) => { if (e.target === modal) cancel(); };
-        });
-    }
+    /** Legacy stubs (replaced by new notes module) */
+    function isLegacyAutoWorkspaceNoteTitle() { return false; }
+    function normalizeWorkspaceNoteTitle(raw) { return String(raw ?? '').trim() || '未命名'; }
+    function showWorkspaceNoteMountModal() { return Promise.resolve({ noteId: null }); }
 
     // ==========================================
     // XLIFF 匯入：js/xliff-import.js（window.CatToolXliffImport）
@@ -4053,25 +3835,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // 草稿為空且專案有已存筆記：清單畫面蓋板詢問是否掛載（可選專案內任一筆記）
-        const draftEmptyForMount = !String(file.workspaceNoteDraft || '').trim();
-        if (draftEmptyForMount && file.projectId) {
-            try {
-                const projectNotesForMount = await DBService.getWorkspaceNotesByProject(file.projectId);
-                if (projectNotesForMount.length) {
-                    const pick = await showWorkspaceNoteMountModal({ notes: projectNotesForMount });
-                    if (pick === null) return;
-                    if (pick.noteId != null && !Number.isNaN(pick.noteId)) {
-                        const noteRow = await DBService.getWorkspaceNote(pick.noteId);
-                        const mounted = noteRow && noteRow.content != null ? String(noteRow.content) : '';
-                        await DBService.updateFile(fileId, { workspaceNoteDraft: mounted });
-                        file.workspaceNoteDraft = mounted;
-                    }
-                }
-            } catch (err) {
-                console.warn('掛載筆記蓋板失敗', err);
-            }
-        }
+        // Notes auto-load is handled later after editor renders
         
         // --- LOAD PROJECT TM CACHE ---
         window.ActiveTmCache = [];
@@ -4282,18 +4046,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('viewEditor').classList.remove('hidden');
         sidebar.classList.add('collapsed');
 
-        const workspaceNoteEl = document.getElementById('editorWorkspaceNoteInput');
-        if (workspaceNoteEl) {
-            const fileLatest = await DBService.getFile(fileId);
-            workspaceNoteEl.value = fileLatest && fileLatest.workspaceNoteDraft != null
-                ? String(fileLatest.workspaceNoteDraft)
-                : '';
-        }
-
         renderEditorSegments();
         joinCollabForFile(file);
         renderCollabPresence();
         refreshNewTermPanel();
+
+        // Auto-load notes panel
+        if (file.projectId) {
+            loadEditorNotes(file.projectId).catch(console.warn);
+        }
     }
 
     btnExitEditor.addEventListener('click', async () => {
@@ -5422,96 +5183,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateProgress();
     }
 
-    /** 整份檔案工作筆記：即時 debounce 寫入 files.workspaceNoteDraft */
-    (function initEditorWorkspaceNoteBar() {
-        const noteInput = document.getElementById('editorWorkspaceNoteInput');
-        if (!noteInput) return;
-        noteInput.addEventListener('input', () => {
-            if (!currentFileId) return;
-            clearTimeout(workspaceNoteDraftTimer);
-            workspaceNoteDraftTimer = setTimeout(() => {
-                DBService.updateFile(currentFileId, { workspaceNoteDraft: noteInput.value }).catch(console.error);
-            }, 400);
-        });
-    })();
+    // Notes bar replaced by new notesPanel (see NOTES MODULE section)
 
-    /**
-     * 離開編輯器前處理筆記：空白則清除草稿；有內容則蓋版詢問是否寫入專案筆記列表。
-     * @returns {Promise<boolean>} true = 可繼續離開；false = 使用者取消
-     */
+    /** 離開編輯器前：詢問是否共用私人筆記（以新 sharing modal）。 */
     async function ensureWorkspaceNoteLeaveResolved() {
-        const noteInput = document.getElementById('editorWorkspaceNoteInput');
-        if (!currentFileId || !noteInput) return true;
-        clearTimeout(workspaceNoteDraftTimer);
-        await DBService.updateFile(currentFileId, { workspaceNoteDraft: noteInput.value }).catch(() => {});
-        const text = (noteInput.value || '').trim();
-        if (!text) {
-            await DBService.updateFile(currentFileId, { workspaceNoteDraft: '' }).catch(() => {});
-            return true;
-        }
-        return await new Promise((resolve) => {
-            const modal = document.getElementById('workspaceNoteLeaveModal');
-            const preview = document.getElementById('workspaceNoteLeavePreview');
-            const titleInput = document.getElementById('workspaceNoteTitleInput');
-            const btnSave = document.getElementById('btnWorkspaceNoteLeaveSave');
-            const btnDiscard = document.getElementById('btnWorkspaceNoteLeaveDiscard');
-            const btnCancel = document.getElementById('btnWorkspaceNoteLeaveCancel');
-            if (!modal || !preview || !btnSave || !btnDiscard || !btnCancel) {
-                resolve(true);
-                return;
-            }
-            if (titleInput) {
-                const perFile = localStorage.getItem(`catWorkspaceNoteTitle_file_${currentFileId}`);
-                const lastG = localStorage.getItem('catWorkspaceNoteTitle_last');
-                titleInput.value = perFile || lastG || '';
-            }
-            preview.textContent = noteInput.value.length > 12000
-                ? noteInput.value.slice(0, 12000) + '\n…（僅預覽前 12000 字；存檔仍為全文）'
-                : noteInput.value;
-            modal.classList.remove('hidden');
-            const cleanup = () => {
-                modal.classList.add('hidden');
-                btnSave.onclick = null;
-                btnDiscard.onclick = null;
-                btnCancel.onclick = null;
-            };
-            btnCancel.onclick = () => { cleanup(); resolve(false); };
-            btnDiscard.onclick = async () => {
-                try {
-                    await DBService.updateFile(currentFileId, { workspaceNoteDraft: '' });
-                } catch (_) {}
-                noteInput.value = '';
-                cleanup();
-                resolve(true);
-            };
-            btnSave.onclick = async () => {
-                const creator = localStorage.getItem('localCatUserProfile') || 'Unknown User';
-                const savedAt = new Date().toISOString();
-                const displayTitle = normalizeWorkspaceNoteTitle(titleInput ? titleInput.value.trim() : '');
-                try {
-                    localStorage.setItem('catWorkspaceNoteTitle_last', displayTitle);
-                    localStorage.setItem(`catWorkspaceNoteTitle_file_${currentFileId}`, displayTitle);
-                    await DBService.addWorkspaceNote({
-                        projectId: currentProjectId,
-                        fileId: currentFileId,
-                        displayTitle,
-                        content: noteInput.value,
-                        createdBy: creator,
-                        savedAt
-                    });
-                    await DBService.updateFile(currentFileId, { workspaceNoteDraft: '' });
-                } catch (err) {
-                    console.error(err);
-                    alert('無法儲存筆記（請確認瀏覽器資料庫已升級至 v6）。');
-                    cleanup();
-                    resolve(false);
-                    return;
-                }
-                noteInput.value = '';
-                cleanup();
-                resolve(true);
-            };
-        });
+        await autoSaveAllNotes();
+        return await ensureNotesSharingResolved();
     }
 
     /** 多選時 Ctrl+Enter：批次確認所選句段（略過鎖定／禁止），並寫入 TM／重複傳播。capture 先於 textarea。 */
@@ -7242,6 +6919,542 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // One-way migration helper: offline snapshot -> team cloud.
+    // ============================================================
+    // NOTES MODULE（私人筆記、共用資訊、討論串）
+    // ============================================================
+
+    const NOTES_TOOLBAR = [
+        ['bold', 'italic', 'strike'],
+        [{ script: 'sub' }, { script: 'super' }],
+        ['link', 'image'],
+        [{ list: 'ordered' }, { list: 'bullet' }]
+    ];
+    const REPLY_TOOLBAR = [['bold', 'italic', 'strike'], ['link'], [{ list: 'bullet' }]];
+
+    let _noteQuills = {};       // noteId → Quill instance
+    let _replyQuills = {};      // guidelineId+context → Quill instance
+    let _activeNoteProjectId = null;
+    let _notesPanelInitialized = false;
+
+    function isPmUser() {
+        const role = (window._tmsRole || '').toLowerCase();
+        return role === 'pm' || role === 'executive' || !isTeamMode() || !role;
+    }
+
+    // ---- Quill image handler for notes ----
+    async function uploadQuillImage(quill) {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = async () => {
+            const file = input.files[0];
+            if (!file) return;
+            const url = await _uploadImageFile(file);
+            if (!url) return;
+            const range = quill.getSelection(true);
+            quill.insertEmbed(range ? range.index : 0, 'image', url);
+        };
+        input.click();
+    }
+
+    async function _uploadImageFile(file) {
+        const reader = new FileReader();
+        return new Promise(resolve => {
+            reader.onload = async (e) => {
+                const base64 = e.target.result;
+                if (!isTeamMode()) { resolve(base64); return; }
+                try {
+                    const url = await DBService.uploadNoteImage({ fileName: file.name, base64, mimeType: file.type });
+                    resolve(url);
+                } catch (err) { console.error('Image upload failed', err); resolve(null); }
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function _makeQuill(container, toolbar, placeholder) {
+        const q = new Quill(container, {
+            theme: 'snow',
+            placeholder: placeholder || '',
+            modules: {
+                toolbar: {
+                    container: toolbar,
+                    handlers: { image: () => uploadQuillImage(q) }
+                }
+            }
+        });
+        container.addEventListener('paste', async (e) => {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            for (const item of items) {
+                if (item.type.startsWith('image/')) {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    const url = await _uploadImageFile(file);
+                    if (!url) return;
+                    const range = q.getSelection(true);
+                    q.insertEmbed(range ? range.index : 0, 'image', url);
+                }
+            }
+        });
+        return q;
+    }
+
+    // ---- Notes panel init (tabs, resize, collapse) ----
+    function initNotesPanel() {
+        if (_notesPanelInitialized) return;
+        _notesPanelInitialized = true;
+
+        const panel = document.getElementById('notesPanel');
+        const resizer = document.getElementById('notesPanelResizer');
+        const collapseBtn = document.getElementById('btnCollapseNotesPanel');
+        const body = document.getElementById('notesPanelBody');
+        if (!panel) return;
+
+        // Tab switching
+        panel.querySelectorAll('.notes-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                panel.querySelectorAll('.notes-tab-btn').forEach(b => b.classList.remove('active'));
+                panel.querySelectorAll('.notes-tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                const tabId = btn.getAttribute('data-notes-tab');
+                const tabEl = document.getElementById(tabId);
+                if (tabEl) tabEl.classList.add('active');
+            });
+        });
+
+        // Collapse
+        if (collapseBtn) {
+            collapseBtn.addEventListener('click', () => {
+                panel.classList.toggle('collapsed');
+                collapseBtn.textContent = panel.classList.contains('collapsed') ? '▲' : '▼';
+            });
+        }
+
+        // Drag-resize (top border, ns-resize)
+        if (resizer && panel) {
+            let ptrNotes = null;
+            const endNotes = (e) => {
+                if (ptrNotes && e.pointerId === ptrNotes.pid) {
+                    try { resizer.releasePointerCapture(e.pointerId); } catch (_) {}
+                    ptrNotes = null;
+                    document.body.style.cursor = '';
+                }
+            };
+            resizer.addEventListener('pointerdown', (e) => {
+                e.preventDefault();
+                if (panel.classList.contains('collapsed')) return;
+                ptrNotes = { pid: e.pointerId, startY: e.clientY, startH: panel.offsetHeight };
+                resizer.setPointerCapture(e.pointerId);
+                document.body.style.cursor = 'ns-resize';
+            });
+            resizer.addEventListener('pointermove', (e) => {
+                if (!ptrNotes || e.pointerId !== ptrNotes.pid) return;
+                e.preventDefault();
+                const dy = ptrNotes.startY - e.clientY;
+                let nh = ptrNotes.startH + dy;
+                nh = Math.min(600, Math.max(80, nh));
+                panel.style.height = `${nh}px`;
+            });
+            resizer.addEventListener('pointerup', endNotes);
+            resizer.addEventListener('pointercancel', endNotes);
+        }
+
+        // Share button
+        const shareBtn = document.getElementById('btnShareNotes');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', () => _showNoteSharingModal(false));
+        }
+
+        // Add private note
+        const addBtn = document.getElementById('btnAddPrivateNote');
+        if (addBtn) {
+            addBtn.addEventListener('click', async () => {
+                if (!_activeNoteProjectId) return;
+                const id = await DBService.addPrivateNote({
+                    projectId: _activeNoteProjectId,
+                    userId: '',
+                    content: '',
+                    createdByName: getCurrentUserName()
+                });
+                await _loadPrivateNotes();
+                const newItem = document.getElementById(`note-item-${id}`);
+                if (newItem) newItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            });
+        }
+
+        // Add PM guideline
+        const addPmBtn = document.getElementById('btnAddPmGuideline');
+        if (addPmBtn) {
+            addPmBtn.addEventListener('click', async () => {
+                if (!_activeNoteProjectId) return;
+                await _addGuideline('pm_guideline');
+            });
+        }
+    }
+
+    async function _addGuideline(type) {
+        if (!_activeNoteProjectId) return;
+        await DBService.addGuideline({ projectId: _activeNoteProjectId, type, content: '', createdByName: getCurrentUserName() });
+        await _loadSharedInfo();
+    }
+
+    // ---- Load notes for current project ----
+    async function loadEditorNotes(projectId) {
+        _activeNoteProjectId = projectId;
+        initNotesPanel();
+        const shareBtn = document.getElementById('btnShareNotes');
+        if (shareBtn) shareBtn.style.display = '';
+        await Promise.all([_loadPrivateNotes(), _loadSharedInfo()]);
+    }
+
+    async function _loadPrivateNotes() {
+        const list = document.getElementById('privateNotesList');
+        if (!list || !_activeNoteProjectId) return;
+        let notes = [];
+        try { notes = await DBService.getPrivateNotesByProject(_activeNoteProjectId, ''); } catch (_) {}
+        _noteQuills = {};
+        list.innerHTML = '';
+        if (!notes.length) {
+            list.innerHTML = '<div style="font-size:0.8rem;color:#94a3b8;padding:0.3rem 0;">目前沒有私人筆記。點「＋ 新增筆記」開始記錄。</div>';
+            return;
+        }
+        notes.forEach(note => list.appendChild(_buildNoteItem(note)));
+    }
+
+    function _buildNoteItem(note) {
+        const wrap = document.createElement('div');
+        wrap.className = 'note-item';
+        wrap.id = `note-item-${note.id}`;
+        const at = note.updatedAt ? new Date(note.updatedAt).toLocaleString('zh-TW', { hour12: false }) : '';
+        wrap.innerHTML = `
+            <div class="note-item-header">
+                <span class="note-item-meta">${at}</span>
+                <div class="note-item-actions">
+                    <button class="danger note-del-btn" data-note-id="${note.id}">刪除</button>
+                </div>
+            </div>
+            <div class="note-quill-host" id="note-quill-${note.id}"></div>`;
+        wrap.querySelector('.note-del-btn').addEventListener('click', async () => {
+            if (!confirm('確定刪除此筆記？')) return;
+            await DBService.deletePrivateNote(parseId(note.id));
+            await _loadPrivateNotes();
+        });
+        setTimeout(() => {
+            const host = document.getElementById(`note-quill-${note.id}`);
+            if (!host) return;
+            const q = _makeQuill(host, NOTES_TOOLBAR, '在此輸入筆記…');
+            if (note.content) { try { q.root.innerHTML = note.content; } catch (_) {} }
+            _noteQuills[note.id] = q;
+            let saveTimer = null;
+            q.on('text-change', () => {
+                clearTimeout(saveTimer);
+                saveTimer = setTimeout(async () => {
+                    await DBService.updatePrivateNote(parseId(note.id), q.root.innerHTML).catch(console.error);
+                }, 600);
+            });
+        }, 0);
+        return wrap;
+    }
+
+    // ---- Shared info ----
+    async function _loadSharedInfo() {
+        let guidelines = [];
+        try { guidelines = await DBService.getGuidelinesByProject(_activeNoteProjectId); } catch (_) {}
+        const pmList = document.getElementById('pmGuidelinesList');
+        const shList = document.getElementById('sharedNotesList');
+        const pmAddBtn = document.getElementById('btnAddPmGuideline');
+        if (pmAddBtn) pmAddBtn.style.display = isPmUser() ? '' : 'none';
+        _renderGuidelinesList(guidelines.filter(g => g.type === 'pm_guideline'), pmList);
+        _renderGuidelinesList(guidelines.filter(g => g.type === 'shared_note'), shList);
+    }
+
+    function _renderGuidelinesList(items, container) {
+        if (!container) return;
+        container.innerHTML = '';
+        if (!items.length) {
+            container.innerHTML = '<div style="font-size:0.8rem;color:#94a3b8;padding:0.2rem 0;">（目前無內容）</div>';
+            return;
+        }
+        items.forEach(gl => container.appendChild(_buildGuidelineItem(gl)));
+    }
+
+    function _buildGuidelineItem(gl) {
+        const pm = isPmUser();
+        const wrap = document.createElement('div');
+        wrap.className = 'guideline-item';
+        wrap.id = `guideline-item-${gl.id}`;
+        const updAt = gl.updatedAt ? new Date(gl.updatedAt).toLocaleString('zh-TW', { hour12: false }) : '';
+        const byLabel = gl.createdByName ? ` — ${gl.createdByName}` : '';
+        const actionsHtml = pm ? `
+            <button class="gl-edit-btn" title="編輯">✏️</button>
+            <button class="gl-del-btn danger" title="刪除">🗑</button>` : '';
+        wrap.innerHTML = `
+            <div class="guideline-item-header">
+                <span style="flex:1; font-size:0.75rem; color:#64748b;">${updAt}${byLabel}</span>
+                <div class="note-item-actions">${actionsHtml}
+                    <button class="gl-reply-btn">回覆</button>
+                </div>
+            </div>
+            <div class="guideline-item-body" id="gl-body-${gl.id}"></div>
+            <div class="guideline-versions" id="gl-versions-${gl.id}" style="${gl.versions && gl.versions.length ? '' : 'display:none'}"></div>
+            <div class="replies-section" id="gl-replies-${gl.id}"></div>`;
+
+        // Render body content (read-only HTML)
+        const bodyEl = wrap.querySelector(`#gl-body-${gl.id}`);
+        bodyEl.innerHTML = gl.content ? `<div class="ql-editor ql-snow" style="padding:0.4rem 0.6rem; font-size:0.85rem;">${gl.content}</div>` : '<div style="font-size:0.8rem;color:#94a3b8;padding:0.4rem 0.6rem;">（無內容）</div>';
+
+        // Version history
+        _renderVersions(gl, wrap.querySelector(`#gl-versions-${gl.id}`));
+
+        // Replies
+        _loadAndRenderReplies(gl.id, wrap.querySelector(`#gl-replies-${gl.id}`));
+
+        // Edit
+        if (pm) {
+            wrap.querySelector('.gl-edit-btn')?.addEventListener('click', () => _startGuidelineEdit(gl, wrap));
+            wrap.querySelector('.gl-del-btn')?.addEventListener('click', async () => {
+                if (!confirm('確定刪除此條目（包含所有回覆）？')) return;
+                await DBService.deleteGuideline(parseId(gl.id));
+                await _loadSharedInfo();
+            });
+        }
+
+        // Reply
+        wrap.querySelector('.gl-reply-btn')?.addEventListener('click', () => _showReplyInput(gl.id, null, 0, wrap.querySelector(`#gl-replies-${gl.id}`)));
+
+        return wrap;
+    }
+
+    function _startGuidelineEdit(gl, wrap) {
+        const bodyEl = wrap.querySelector(`#gl-body-${gl.id}`);
+        if (!bodyEl) return;
+        bodyEl.innerHTML = '';
+        const q = _makeQuill(bodyEl, NOTES_TOOLBAR, '輸入內容…');
+        if (gl.content) { try { q.root.innerHTML = gl.content; } catch (_) {} }
+        const acts = wrap.querySelector('.note-item-actions');
+        if (acts) acts.innerHTML = `
+            <button class="gl-save-btn primary-btn btn-sm">儲存</button>
+            <button class="gl-cancel-btn secondary-btn btn-sm">取消</button>`;
+        wrap.querySelector('.gl-save-btn')?.addEventListener('click', async () => {
+            await DBService.updateGuideline(parseId(gl.id), q.root.innerHTML, getCurrentUserName());
+            await _loadSharedInfo();
+        });
+        wrap.querySelector('.gl-cancel-btn')?.addEventListener('click', () => _loadSharedInfo());
+    }
+
+    function _renderVersions(gl, container) {
+        if (!container) return;
+        const versions = gl.versions || [];
+        if (!versions.length) return;
+        container.innerHTML = `<span class="guideline-versions-toggle">▸ ${versions.length} 個舊版本</span>
+            <div class="guideline-versions-list" id="gl-vlist-${gl.id}"></div>`;
+        const toggle = container.querySelector('.guideline-versions-toggle');
+        const vlist = container.querySelector(`#gl-vlist-${gl.id}`);
+        toggle.addEventListener('click', () => {
+            vlist.classList.toggle('open');
+            toggle.textContent = vlist.classList.contains('open')
+                ? `▾ ${versions.length} 個舊版本`
+                : `▸ ${versions.length} 個舊版本`;
+        });
+        [...versions].reverse().forEach(v => {
+            const entry = document.createElement('div');
+            entry.className = 'guideline-version-entry';
+            entry.innerHTML = `<div class="ql-editor ql-snow" style="padding:0;font-size:0.78rem;color:#94a3b8;">${v.content || ''}</div>
+                <div class="guideline-version-meta">${v.createdByName || ''}  ${v.createdAt ? new Date(v.createdAt).toLocaleString('zh-TW', { hour12: false }) : ''}</div>`;
+            vlist.appendChild(entry);
+        });
+    }
+
+    // ---- Replies ----
+    async function _loadAndRenderReplies(guidelineId, container) {
+        if (!container) return;
+        let replies = [];
+        try { replies = await DBService.getGuidelineReplies(guidelineId); } catch (_) {}
+        container.innerHTML = '';
+        _renderReplyTree(guidelineId, container, replies, isPmUser(), null, 0);
+    }
+
+    function _renderReplyTree(guidelineId, container, allReplies, pm, parentId, depth) {
+        const children = allReplies.filter(r => (r.parentReplyId || null) === parentId);
+        children.forEach(reply => {
+            const item = document.createElement('div');
+            item.className = 'reply-item' + (reply.isResolved ? ' resolved' : '');
+            item.dataset.depth = depth;
+            item.dataset.replyId = reply.id;
+            const at = new Date(reply.createdAt).toLocaleString('zh-TW', { hour12: false });
+            const resolveLabel = reply.isResolved
+                ? `已結案（${reply.resolvedByName || ''}，${reply.resolvedAt ? new Date(reply.resolvedAt).toLocaleString('zh-TW', { hour12: false }) : ''}）▸ 點此展開`
+                : '';
+            item.innerHTML = `
+                ${reply.isResolved ? `<div class="reply-resolved-bar" data-reply-id="${reply.id}">${resolveLabel}</div>` : ''}
+                <div class="reply-content-area${reply.isResolved ? '' : ' open'}">
+                    <div class="reply-meta">
+                        <span>${reply.createdByName || ''}  ${at}</span>
+                    </div>
+                    <div class="reply-body"><div class="ql-editor ql-snow" style="padding:0;font-size:0.82rem;">${reply.content || ''}</div></div>
+                    <div class="reply-actions">
+                        ${depth < 2 ? `<button class="reply-reply-btn" data-reply-id="${reply.id}" data-depth="${depth}">回覆</button>` : ''}
+                        <button class="reply-resolve-btn" data-reply-id="${reply.id}">${reply.isResolved ? '重開' : '結案'}</button>
+                        ${pm ? `<button class="danger reply-del-btn" data-reply-id="${reply.id}">刪除</button>` : ''}
+                    </div>
+                </div>`;
+            container.appendChild(item);
+
+            // Collapsed bar click
+            item.querySelector('.reply-resolved-bar')?.addEventListener('click', () => {
+                item.querySelector('.reply-content-area').classList.toggle('open');
+            });
+            // Reply button
+            item.querySelector('.reply-reply-btn')?.addEventListener('click', () => {
+                const replyContainer = document.getElementById(`gl-replies-${guidelineId}`);
+                _showReplyInput(guidelineId, reply.id, depth + 1, replyContainer, item);
+            });
+            // Resolve/reopen
+            item.querySelector('.reply-resolve-btn')?.addEventListener('click', async () => {
+                const newResolved = !reply.isResolved;
+                await DBService.resolveGuidelineReply(parseId(reply.id), getCurrentUserName(), newResolved);
+                await _loadAndRenderReplies(guidelineId, container);
+            });
+            // Delete
+            item.querySelector('.reply-del-btn')?.addEventListener('click', async () => {
+                if (!confirm('確定刪除此回覆（及其下層回覆）？')) return;
+                await DBService.deleteGuidelineReply(parseId(reply.id));
+                await _loadAndRenderReplies(guidelineId, container);
+            });
+
+            // Render children
+            _renderReplyTree(guidelineId, container, allReplies, pm, reply.id, depth + 1);
+        });
+    }
+
+    function _showReplyInput(guidelineId, parentReplyId, depth, container, afterEl) {
+        const existingInput = container.querySelector('.reply-add-area');
+        if (existingInput) existingInput.remove();
+        const area = document.createElement('div');
+        area.className = 'reply-add-area';
+        const host = document.createElement('div');
+        area.appendChild(host);
+        const actions = document.createElement('div');
+        actions.className = 'reply-add-actions';
+        actions.innerHTML = `<button class="secondary-btn reply-cancel-btn">取消</button><button class="primary-btn reply-submit-btn">送出</button>`;
+        area.appendChild(actions);
+        if (afterEl) afterEl.after(area); else container.appendChild(area);
+        const q = _makeQuill(host, REPLY_TOOLBAR, '輸入回覆…');
+        area.querySelector('.reply-cancel-btn').addEventListener('click', () => area.remove());
+        area.querySelector('.reply-submit-btn').addEventListener('click', async () => {
+            const html = q.root.innerHTML;
+            if (!html || html === '<p><br></p>') return;
+            await DBService.addGuidelineReply({ guidelineId: parseId(guidelineId), parentReplyId: parentReplyId ? parseId(parentReplyId) : null, depth, content: html, createdByName: getCurrentUserName() });
+            await _loadAndRenderReplies(guidelineId, container);
+        });
+    }
+
+    // ---- Sharing modal (exit flow) ----
+    async function ensureNotesSharingResolved() {
+        if (!_activeNoteProjectId) return true;
+        let notes = [];
+        try { notes = await DBService.getPrivateNotesByProject(_activeNoteProjectId, ''); } catch (_) {}
+        const hasContent = notes.some(n => n.content && n.content !== '<p><br></p>' && n.content.trim());
+        if (!hasContent) return true;
+        return _showNoteSharingModal(true);
+    }
+
+    async function _showNoteSharingModal(returnPromise) {
+        let notes = [];
+        try { notes = await DBService.getPrivateNotesByProject(_activeNoteProjectId, ''); } catch (_) {}
+        notes = notes.filter(n => n.content && n.content !== '<p><br></p>' && n.content.trim());
+        if (!notes.length) return true;
+
+        const modal = document.getElementById('noteSharingModal');
+        const list = document.getElementById('noteSharingList');
+        if (!modal || !list) return true;
+
+        list.innerHTML = '';
+        notes.forEach(note => {
+            const item = document.createElement('div');
+            item.className = 'note-sharing-item';
+            const preview = document.createElement('div');
+            preview.className = 'note-sharing-item-preview';
+            preview.innerHTML = note.content || '';
+            const radios = document.createElement('div');
+            radios.className = 'note-sharing-radios';
+            const uid = `nshare-${note.id}`;
+            radios.innerHTML = `
+                <label><input type="radio" name="${uid}" value="keep" checked> 保留為私人筆記</label>
+                <label><input type="radio" name="${uid}" value="copy"> 複製到共用筆記</label>
+                <label><input type="radio" name="${uid}" value="move"> 移動到共用筆記</label>`;
+            item.appendChild(preview);
+            item.appendChild(radios);
+            list.appendChild(item);
+        });
+
+        modal.classList.remove('hidden');
+
+        if (!returnPromise) return;
+        return new Promise(resolve => {
+            const confirmBtn = document.getElementById('btnNoteSharingConfirm');
+            const cancelBtn = document.getElementById('btnNoteSharingCancel');
+            const cleanup = () => {
+                modal.classList.add('hidden');
+                if (confirmBtn) confirmBtn.onclick = null;
+                if (cancelBtn) cancelBtn.onclick = null;
+            };
+            if (cancelBtn) cancelBtn.onclick = () => { cleanup(); resolve(false); };
+            if (confirmBtn) confirmBtn.onclick = async () => {
+                const items = list.querySelectorAll('.note-sharing-item');
+                for (let i = 0; i < notes.length && i < items.length; i++) {
+                    const note = notes[i];
+                    const chosen = items[i].querySelector(`input[name="nshare-${note.id}"]:checked`)?.value || 'keep';
+                    if (chosen === 'copy' || chosen === 'move') {
+                        await DBService.addGuideline({ projectId: _activeNoteProjectId, type: 'shared_note', content: note.content, createdByName: getCurrentUserName() }).catch(() => {});
+                    }
+                    if (chosen === 'move') {
+                        await DBService.deletePrivateNote(parseId(note.id)).catch(() => {});
+                    }
+                }
+                cleanup();
+                resolve(true);
+            };
+        });
+    }
+
+    async function autoSaveAllNotes() {
+        if (!_activeNoteProjectId) return;
+        for (const [id, q] of Object.entries(_noteQuills)) {
+            try { await DBService.updatePrivateNote(parseId(id), q.root.innerHTML); } catch (_) {}
+        }
+    }
+
+    // ---- Shared info modal (project page) ----
+    async function openSharedInfoModal(projectId) {
+        _activeNoteProjectId = projectId;
+        let guidelines = [];
+        try { guidelines = await DBService.getGuidelinesByProject(projectId); } catch (_) {}
+        const pmAddBtn = document.getElementById('btnAddPmGuidelineModal');
+        if (pmAddBtn) {
+            pmAddBtn.style.display = isPmUser() ? '' : 'none';
+            pmAddBtn.onclick = async () => { await _addGuideline('pm_guideline'); await _reloadSharedInfoModal(projectId); };
+        }
+        await _reloadSharedInfoModal(projectId, guidelines);
+        document.getElementById('sharedInfoModal')?.classList.remove('hidden');
+    }
+
+    async function _reloadSharedInfoModal(projectId, guidelines) {
+        if (!guidelines) {
+            try { guidelines = await DBService.getGuidelinesByProject(projectId); } catch (_) { guidelines = []; }
+        }
+        const pmList = document.getElementById('pmGuidelinesListModal');
+        const shList = document.getElementById('sharedNotesListModal');
+        _renderGuidelinesList(guidelines.filter(g => g.type === 'pm_guideline'), pmList);
+        _renderGuidelinesList(guidelines.filter(g => g.type === 'shared_note'), shList);
+    }
+
+    (function initSharedInfoModal() {
+        document.getElementById('btnCloseSharedInfoModal')?.addEventListener('click', () => {
+            document.getElementById('sharedInfoModal')?.classList.add('hidden');
+        });
+    })();
+
     window.CatMigrationTools = {
         async exportOfflineSnapshot() {
             if (!DBService || !DBService.db) {

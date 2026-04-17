@@ -7,7 +7,9 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="lib/dexie.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 </head>
 <body>
     <div class="app-layout" id="appLayout">
@@ -161,32 +163,9 @@
                 <div id="projectFileAssignHint" style="font-size:0.82rem; color:#64748b; margin-top:-0.8rem; margin-bottom:1rem; display:none;">
                     團隊線上版可在「操作 / 指派」欄位，將同一檔案指派給多位未凍結人員。
                 </div>
-                <div style="margin-bottom:1.5rem;">
-                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.5rem;">
-                        <h2 style="font-size:1.1rem; color:#1e293b; margin:0;">工作筆記（自編輯器存檔）</h2>
-                        <button type="button" class="danger-btn btn-sm" id="btnProjectWorkspaceNotesDeleteSelected" style="display:none;">刪除所選筆記</button>
-                    </div>
-                    <p style="font-size:0.85rem; color:#64748b; margin:0 0 0.5rem 0;">離開編輯器時可命名並保留筆記；點標題可預覽全文。</p>
-                    <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
-                        <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
-                            <thead>
-                                <tr style="background:#f1f5f9;">
-                                    <th style="text-align:center; padding:0.5rem; border:1px solid #e2e8f0; width:52px;">
-                                        <label style="display:flex; align-items:center; justify-content:center; cursor:pointer;" title="全選／取消全選">
-                                            <input type="checkbox" id="projectWorkspaceNotesSelectAll" aria-label="全選筆記">
-                                        </label>
-                                    </th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:56px;">ID</th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">標題</th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:72px;">檔案 ID</th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:110px;">建立者</th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:178px;">最後存檔時間</th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:150px;">操作</th>
-                                </tr>
-                            </thead>
-                            <tbody id="projectWorkspaceNotesBody"></tbody>
-                        </table>
-                    </div>
+                <div style="margin-bottom:1.5rem; display:flex; align-items:center; gap:0.75rem;">
+                    <button type="button" class="secondary-btn" id="btnOpenSharedInfo">📋 共用資訊</button>
+                    <span style="font-size:0.82rem; color:#64748b;">查看或編輯本專案的翻譯準則與共用筆記</span>
                 </div>
                 <div class="project-tm-settings" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:1.5rem;">
                     <h2 style="font-size:1.1rem; color:#1e293b; margin-top:0; margin-bottom:1rem; border-bottom:1px solid #e2e8f0; padding-bottom:0.5rem;">掛載的翻譯記憶庫 (TM)</h2>
@@ -577,9 +556,45 @@
                             <!-- Segments will be injected here as .grid-data-row -->
                             <div class="grid-body" id="gridBody" style="min-width: min-content;"></div>
                         </div>
-                        <div class="editor-segment-note-bar" id="editorWorkspaceNoteBar">
-                            <label for="editorWorkspaceNoteInput" class="editor-segment-note-label">工作筆記（整份檔案共用，不切換句段）</label>
-                            <textarea id="editorWorkspaceNoteInput" class="editor-segment-note-input" rows="3" placeholder="整份檔案的一般備註…（會自動暫存；離開時可選是否存成專案筆記檔）" autocomplete="off"></textarea>
+                        <!-- Notes Panel -->
+                        <div id="notesPanel" class="notes-panel">
+                            <div id="notesPanelResizer" class="notes-panel-resizer" title="拖曳調整筆記面板高度"><div class="notes-panel-resizer-grip"></div></div>
+                            <div class="notes-panel-header" id="notesPanelHeader">
+                                <div class="notes-panel-tabs">
+                                    <button class="notes-tab-btn active" data-notes-tab="tabPrivateNotes">私人筆記</button>
+                                    <button class="notes-tab-btn" data-notes-tab="tabSharedInfo">共用資訊</button>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:0.4rem;">
+                                    <button type="button" id="btnShareNotes" class="notes-action-btn" title="共用筆記至共用資訊區" style="display:none;">共用</button>
+                                    <button type="button" id="btnCollapseNotesPanel" class="notes-panel-collapse-btn" title="收合筆記面板">▼</button>
+                                </div>
+                            </div>
+                            <div class="notes-panel-body" id="notesPanelBody">
+                                <!-- Private Notes Tab -->
+                                <div class="notes-tab-content active" id="tabPrivateNotes">
+                                    <div class="notes-list-header">
+                                        <span style="font-size:0.8rem; color:#64748b;">僅自己可見。離開編輯器時可選擇共用。</span>
+                                        <button type="button" class="notes-add-btn" id="btnAddPrivateNote">＋ 新增筆記</button>
+                                    </div>
+                                    <div id="privateNotesList" class="notes-items-list"></div>
+                                </div>
+                                <!-- Shared Info Tab -->
+                                <div class="notes-tab-content" id="tabSharedInfo">
+                                    <div class="shared-info-section">
+                                        <div class="shared-info-section-header">
+                                            <h4 class="shared-info-section-title">翻譯準則</h4>
+                                            <button type="button" class="notes-add-btn pm-only-ui" id="btnAddPmGuideline" style="display:none;">＋ 新增準則</button>
+                                        </div>
+                                        <div id="pmGuidelinesList" class="notes-items-list"></div>
+                                    </div>
+                                    <div class="shared-info-section" style="margin-top:0.75rem;">
+                                        <div class="shared-info-section-header">
+                                            <h4 class="shared-info-section-title">共用筆記</h4>
+                                        </div>
+                                        <div id="sharedNotesList" class="notes-items-list"></div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -784,29 +799,6 @@
                     </div>
                     <div style="display:flex; justify-content:flex-end; margin-top:1.25rem;">
                         <button id="btnMqRoleConfirm" class="primary-btn">確認</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 開啟編輯器前：是否掛載專案內已存工作筆記（清單畫面蓋板） -->
-        <div class="wizard-overlay hidden" id="workspaceNoteMountModal">
-            <div class="wizard-modal" style="max-width: 520px;">
-                <div class="wizard-header">
-                    <h2 style="margin:0; font-size:1.2rem;">掛載工作筆記</h2>
-                    <button type="button" class="close-btn" id="btnCloseWorkspaceNoteMountModal">&times;</button>
-                </div>
-                <div class="wizard-body">
-                    <p style="margin:0 0 0.75rem 0; font-size:0.88rem; color:#64748b;">
-                        此檔案目前沒有工作筆記草稿。可自專案內任一已存檔筆記掛載到編輯器，或選擇不掛載直接開啟。
-                    </p>
-                    <label for="workspaceNoteMountSelect" style="display:block; font-size:0.88rem; margin-bottom:0.35rem;"><strong>選擇筆記檔</strong></label>
-                    <select id="workspaceNoteMountSelect" style="width:100%; box-sizing:border-box; padding:0.5rem 0.55rem; margin-bottom:0.75rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.9rem;"></select>
-                    <p style="font-size:0.82rem; color:#64748b; margin:0 0 0.35rem 0;">內容預覽：</p>
-                    <pre id="workspaceNoteMountPreview" style="max-height:min(40vh, 220px); overflow-y:auto; font-size:0.82rem; line-height:1.45; margin:0 0 1rem 0; padding:0.65rem; border:1px solid #e2e8f0; border-radius:6px; background:#f8fafc; white-space:pre-wrap; word-break:break-word;"></pre>
-                    <div style="display:flex; justify-content:flex-end; gap:0.5rem; flex-wrap:wrap;">
-                        <button type="button" id="btnWorkspaceNoteMountCancel" class="secondary-btn">取消</button>
-                        <button type="button" id="btnWorkspaceNoteMountOpen" class="primary-btn">開啟編輯器</button>
                     </div>
                 </div>
             </div>
@@ -1058,43 +1050,44 @@
         </div>
     </div>
 
-    <div id="workspaceNoteLeaveModal" class="modal-overlay hidden">
-        <div class="modal-box" style="max-width:560px;">
-            <h3 style="margin-top:0;">是否保留這次筆記內容？</h3>
-            <label for="workspaceNoteTitleInput" style="display:block;font-size:0.88rem;margin-bottom:0.35rem;"><strong>筆記標題</strong>（顯示於專案列表，每次離開皆可修改）</label>
-            <input type="text" id="workspaceNoteTitleInput" maxlength="500" placeholder="為此筆記命名…" autocomplete="off"
-                   style="width:100%;box-sizing:border-box;padding:0.45rem 0.55rem;margin-bottom:0.85rem;border:1px solid #cbd5e1;border-radius:6px;font-size:0.9rem;">
-            <p style="font-size:0.88rem; color:#64748b; margin:0 0 0.35rem 0;">預覽（全文會存進專案筆記列表）：</p>
-            <pre id="workspaceNoteLeavePreview" style="max-height:200px;overflow-y:auto;font-size:0.82rem;line-height:1.45;margin:0 0 1rem 0;padding:0.65rem;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;white-space:pre-wrap;word-break:break-word;"></pre>
-            <div style="display:flex;gap:0.5rem;justify-content:flex-end;flex-wrap:wrap;">
-                <button type="button" id="btnWorkspaceNoteLeaveCancel" class="btn-sm">取消（留在編輯器）</button>
-                <button type="button" id="btnWorkspaceNoteLeaveDiscard" class="secondary-btn btn-sm">否，捨棄</button>
-                <button type="button" id="btnWorkspaceNoteLeaveSave" class="primary-btn btn-sm">是，存成專案筆記</button>
+    <!-- 離開編輯器：共用筆記選擇 Modal -->
+    <div id="noteSharingModal" class="modal-overlay hidden">
+        <div class="modal-box" style="max-width:620px; max-height:85vh; display:flex; flex-direction:column;">
+            <h3 style="margin-top:0; flex-shrink:0;">離開前：是否要共用筆記？</h3>
+            <p style="font-size:0.88rem; color:#64748b; margin:0 0 0.75rem 0; flex-shrink:0;">請為每則私人筆記選擇處理方式：</p>
+            <div id="noteSharingList" style="overflow-y:auto; flex:1; min-height:0; border:1px solid #e2e8f0; border-radius:8px; padding:0.5rem;"></div>
+            <div style="display:flex; gap:0.5rem; justify-content:flex-end; flex-wrap:wrap; margin-top:1rem; flex-shrink:0;">
+                <button type="button" id="btnNoteSharingCancel" class="secondary-btn btn-sm">取消（留在編輯器）</button>
+                <button type="button" id="btnNoteSharingConfirm" class="primary-btn btn-sm">確認並離開</button>
             </div>
         </div>
     </div>
 
-    <div id="workspaceNoteReadModal" class="modal-overlay hidden">
-        <div class="modal-box" style="max-width:560px;">
-            <h3 id="workspaceNoteReadTitle" style="margin-top:0; font-size:1.05rem;">筆記預覽</h3>
-            <pre id="workspaceNoteReadBody" readonly style="max-height:min(60vh,360px);overflow-y:auto;font-size:0.85rem;line-height:1.45;margin:0 0 1rem 0;padding:0.65rem;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;white-space:pre-wrap;word-break:break-word;"></pre>
-            <div style="display:flex;justify-content:flex-end;">
-                <button type="button" id="btnWorkspaceNoteReadClose" class="primary-btn btn-sm">關閉</button>
+    <!-- 共用資訊 Modal（從專案頁開啟） -->
+    <div id="sharedInfoModal" class="modal-overlay hidden">
+        <div class="modal-box" style="max-width:680px; max-height:90vh; display:flex; flex-direction:column;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem; flex-shrink:0;">
+                <h3 style="margin:0;">共用資訊</h3>
+                <button type="button" id="btnCloseSharedInfoModal" class="secondary-btn btn-sm">關閉</button>
+            </div>
+            <div style="overflow-y:auto; flex:1; min-height:0;">
+                <div class="shared-info-section">
+                    <div class="shared-info-section-header">
+                        <h4 class="shared-info-section-title">翻譯準則</h4>
+                        <button type="button" class="notes-add-btn pm-only-ui" id="btnAddPmGuidelineModal" style="display:none;">＋ 新增準則</button>
+                    </div>
+                    <div id="pmGuidelinesListModal" class="notes-items-list"></div>
+                </div>
+                <div class="shared-info-section" style="margin-top:1rem;">
+                    <div class="shared-info-section-header">
+                        <h4 class="shared-info-section-title">共用筆記</h4>
+                    </div>
+                    <div id="sharedNotesListModal" class="notes-items-list"></div>
+                </div>
             </div>
         </div>
     </div>
 
-    <div id="workspaceNoteRenameModal" class="modal-overlay hidden">
-        <div class="modal-box" style="max-width:440px;">
-            <h3 style="margin-top:0;">筆記更名</h3>
-            <input type="text" id="workspaceNoteRenameInput" maxlength="500" style="width:100%;box-sizing:border-box;padding:0.45rem 0.55rem;margin-bottom:1rem;border:1px solid #cbd5e1;border-radius:6px;font-size:0.9rem;">
-            <div style="display:flex;gap:0.5rem;justify-content:flex-end;">
-                <button type="button" id="btnWorkspaceNoteRenameCancel" class="secondary-btn btn-sm">取消</button>
-                <button type="button" id="btnWorkspaceNoteRenameSave" class="primary-btn btn-sm">儲存</button>
-            </div>
-        </div>
-    </div>
-    
     <!-- TMS 身分橋接：唯讀個人資訊卡（由 TMS postMessage 注入後顯示） -->
     <div id="tmsProfileCard" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.45); align-items:center; justify-content:center;">
         <div style="background:#fff; border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,.22); padding:2rem 2.25rem; min-width:300px; max-width:380px; width:90%; font-family:inherit; position:relative;">

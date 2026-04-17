@@ -51,6 +51,24 @@ db.version(7).stores({
     workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle'
 });
 
+// v8：筆記與共用資訊重設計
+// - privateNotes：私人筆記（每人每專案獨立，content 為 Quill HTML）
+// - guidelines：共用資訊條目（翻譯準則 & 共用筆記，type: 'pm_guideline'|'shared_note'）
+// - guidelineReplies：討論串回覆（最多三層巢狀）
+db.version(8).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, *changeLog, sourceLang, targetLang',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId'
+});
+
 // Helper Database Methods
 const DBService = {
     // ---- Module-level Logs ----
@@ -297,6 +315,93 @@ const DBService = {
         await db.projects.update(note.projectId, { lastModified: new Date().toISOString() });
     },
 
+    // ---- Private Notes（私人筆記）----
+    async addPrivateNote(entry) {
+        const now = new Date().toISOString();
+        return await db.privateNotes.add({
+            projectId: entry.projectId,
+            userId: entry.userId || '',
+            content: entry.content || '',
+            createdByName: entry.createdByName || '',
+            createdAt: now,
+            updatedAt: now
+        });
+    },
+    async getPrivateNotesByProject(projectId, userId) {
+        let notes = await db.privateNotes.where('projectId').equals(projectId).toArray();
+        if (userId) notes = notes.filter(n => n.userId === userId || !n.userId);
+        return notes.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+    },
+    async updatePrivateNote(noteId, content) {
+        return await db.privateNotes.update(noteId, { content, updatedAt: new Date().toISOString() });
+    },
+    async deletePrivateNote(noteId) {
+        return await db.privateNotes.delete(noteId);
+    },
+
+    // ---- Guidelines（共用資訊：翻譯準則 & 共用筆記）----
+    async addGuideline(entry) {
+        const now = new Date().toISOString();
+        return await db.guidelines.add({
+            projectId: entry.projectId,
+            type: entry.type || 'shared_note',
+            content: entry.content || '',
+            versions: [],
+            createdById: entry.createdById || null,
+            createdByName: entry.createdByName || '',
+            createdAt: now,
+            updatedAt: now,
+            sortOrder: entry.sortOrder || 0
+        });
+    },
+    async getGuidelinesByProject(projectId) {
+        const list = await db.guidelines.where('projectId').equals(projectId).toArray();
+        return list.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || new Date(a.createdAt) - new Date(b.createdAt));
+    },
+    async updateGuideline(guidelineId, content, updaterName) {
+        const row = await db.guidelines.get(guidelineId);
+        if (!row) return;
+        const prevVersion = { content: row.content, createdByName: updaterName || row.createdByName, createdAt: row.updatedAt || row.createdAt };
+        const versions = [...(row.versions || []), prevVersion];
+        return await db.guidelines.update(guidelineId, { content, versions, updatedAt: new Date().toISOString() });
+    },
+    async deleteGuideline(guidelineId) {
+        await db.guidelineReplies.where('guidelineId').equals(guidelineId).delete();
+        return await db.guidelines.delete(guidelineId);
+    },
+
+    // ---- Guideline Replies（討論串回覆）----
+    async addGuidelineReply(entry) {
+        return await db.guidelineReplies.add({
+            guidelineId: entry.guidelineId,
+            parentReplyId: entry.parentReplyId || null,
+            depth: entry.depth || 0,
+            content: entry.content || '',
+            createdById: entry.createdById || null,
+            createdByName: entry.createdByName || '',
+            createdAt: new Date().toISOString(),
+            isResolved: false,
+            resolvedByName: null,
+            resolvedAt: null
+        });
+    },
+    async getGuidelineReplies(guidelineId) {
+        const list = await db.guidelineReplies.where('guidelineId').equals(guidelineId).toArray();
+        return list.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    },
+    async resolveGuidelineReply(replyId, resolvedByName, isResolved) {
+        return await db.guidelineReplies.update(replyId, {
+            isResolved: !!isResolved,
+            resolvedByName: isResolved ? resolvedByName : null,
+            resolvedAt: isResolved ? new Date().toISOString() : null
+        });
+    },
+    async deleteGuidelineReply(replyId) {
+        const children = await db.guidelineReplies.where('parentReplyId').equals(replyId).toArray();
+        for (const c of children) await DBService.deleteGuidelineReply(c.id);
+        return await db.guidelineReplies.delete(replyId);
+    },
+
     // ---- TM (Translation Memory) ----
     async createTM(name, sourceLangs = [], targetLangs = []) {
         return await db.tms.add({
@@ -507,12 +612,33 @@ const DBService = {
     DBService.updateSegmentEditorNote = async (segmentId, editorNote) =>
         rpc('db.updateSegmentEditorNote', { segmentId, editorNote });
 
-    // workspace notes
+    // workspace notes (legacy)
     DBService.addWorkspaceNote = async (entry) => rpc('db.addWorkspaceNote', { entry });
     DBService.getWorkspaceNotesByProject = async (projectId) => rpc('db.getWorkspaceNotesByProject', { projectId });
     DBService.getWorkspaceNote = async (noteId) => rpc('db.getWorkspaceNote', { noteId });
     DBService.deleteWorkspaceNote = async (noteId) => rpc('db.deleteWorkspaceNote', { noteId });
     DBService.updateWorkspaceNote = async (noteId, updates) => rpc('db.updateWorkspaceNote', { noteId, updates });
+
+    // private notes
+    DBService.addPrivateNote = async (entry) => rpc('db.addPrivateNote', { entry });
+    DBService.getPrivateNotesByProject = async (projectId, userId) => rpc('db.getPrivateNotesByProject', { projectId, userId });
+    DBService.updatePrivateNote = async (noteId, content) => rpc('db.updatePrivateNote', { noteId, content });
+    DBService.deletePrivateNote = async (noteId) => rpc('db.deletePrivateNote', { noteId });
+
+    // guidelines
+    DBService.addGuideline = async (entry) => rpc('db.addGuideline', { entry });
+    DBService.getGuidelinesByProject = async (projectId) => rpc('db.getGuidelinesByProject', { projectId });
+    DBService.updateGuideline = async (guidelineId, content, updaterName) => rpc('db.updateGuideline', { guidelineId, content, updaterName });
+    DBService.deleteGuideline = async (guidelineId) => rpc('db.deleteGuideline', { guidelineId });
+
+    // guideline replies
+    DBService.addGuidelineReply = async (entry) => rpc('db.addGuidelineReply', { entry });
+    DBService.getGuidelineReplies = async (guidelineId) => rpc('db.getGuidelineReplies', { guidelineId });
+    DBService.resolveGuidelineReply = async (replyId, resolvedByName, isResolved) => rpc('db.resolveGuidelineReply', { replyId, resolvedByName, isResolved });
+    DBService.deleteGuidelineReply = async (replyId) => rpc('db.deleteGuidelineReply', { replyId });
+
+    // image upload (team mode only)
+    DBService.uploadNoteImage = async (file, userId) => rpc('db.uploadNoteImage', { file, userId });
 
     // TM
     DBService.createTM = async (name, sourceLangs = [], targetLangs = []) =>

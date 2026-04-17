@@ -106,6 +106,43 @@ const mapWorkspaceNoteRow = (r: any) => ({
   savedAt: r.saved_at,
 });
 
+const mapPrivateNoteRow = (r: any) => ({
+  id: r.id,
+  projectId: r.project_id,
+  userId: r.user_id,
+  content: r.content,
+  createdByName: r.created_by_name,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
+const mapGuidelineRow = (r: any) => ({
+  id: r.id,
+  projectId: r.project_id,
+  type: r.type,
+  content: r.content,
+  versions: r.versions ?? [],
+  createdById: r.created_by_id,
+  createdByName: r.created_by_name,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+  sortOrder: r.sort_order ?? 0,
+});
+
+const mapGuidelineReplyRow = (r: any) => ({
+  id: r.id,
+  guidelineId: r.guideline_id,
+  parentReplyId: r.parent_reply_id,
+  depth: r.depth ?? 0,
+  content: r.content,
+  createdById: r.created_by_id,
+  createdByName: r.created_by_name,
+  createdAt: r.created_at,
+  isResolved: r.is_resolved ?? false,
+  resolvedByName: r.resolved_by_name,
+  resolvedAt: r.resolved_at,
+});
+
 export async function handleCatCloudRpc(action: string, payload: RpcPayload, userId: string) {
   switch (action) {
     case "db.addModuleLog": {
@@ -301,6 +338,174 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         ...(payload.updates?.content != null ? { content: payload.updates.content } : {}),
         saved_at: payload.updates?.savedAt || nowIso(),
       } as any).eq("id", payload.noteId);
+
+    // ---- Private Notes ----
+    case "db.addPrivateNote": {
+      const { data, error } = await supabase
+        .from("cat_private_notes")
+        .insert({
+          project_id: payload.entry.projectId,
+          user_id: userId,
+          content: payload.entry.content || "",
+          created_by_name: payload.entry.createdByName || "",
+          created_at: nowIso(),
+          updated_at: nowIso(),
+        } as any)
+        .select("id")
+        .single();
+      if (error) throw error;
+      return data.id;
+    }
+    case "db.getPrivateNotesByProject": {
+      const { data, error } = await supabase
+        .from("cat_private_notes")
+        .select("*")
+        .eq("project_id", payload.projectId)
+        .eq("user_id", userId)
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map(mapPrivateNoteRow);
+    }
+    case "db.updatePrivateNote": {
+      const { error } = await supabase
+        .from("cat_private_notes")
+        .update({ content: payload.content, updated_at: nowIso() } as any)
+        .eq("id", payload.noteId)
+        .eq("user_id", userId);
+      if (error) throw error;
+      return;
+    }
+    case "db.deletePrivateNote": {
+      const { error } = await supabase
+        .from("cat_private_notes")
+        .delete()
+        .eq("id", payload.noteId)
+        .eq("user_id", userId);
+      if (error) throw error;
+      return;
+    }
+
+    // ---- Guidelines ----
+    case "db.addGuideline": {
+      const { data, error } = await supabase
+        .from("cat_guidelines")
+        .insert({
+          project_id: payload.entry.projectId,
+          type: payload.entry.type || "shared_note",
+          content: payload.entry.content || "",
+          versions: [],
+          created_by_id: userId,
+          created_by_name: payload.entry.createdByName || "",
+          created_at: nowIso(),
+          updated_at: nowIso(),
+          sort_order: payload.entry.sortOrder ?? 0,
+        } as any)
+        .select("id")
+        .single();
+      if (error) throw error;
+      return data.id;
+    }
+    case "db.getGuidelinesByProject": {
+      const { data, error } = await supabase
+        .from("cat_guidelines")
+        .select("*")
+        .eq("project_id", payload.projectId)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map(mapGuidelineRow);
+    }
+    case "db.updateGuideline": {
+      const { data: existing, error: fetchErr } = await supabase
+        .from("cat_guidelines")
+        .select("content, versions, updated_at, created_by_name")
+        .eq("id", payload.guidelineId)
+        .single();
+      if (fetchErr) throw fetchErr;
+      const prevVersion = {
+        content: existing.content,
+        createdByName: payload.updaterName || existing.created_by_name,
+        createdAt: existing.updated_at,
+      };
+      const versions = [...(existing.versions ?? []), prevVersion];
+      const { error } = await supabase
+        .from("cat_guidelines")
+        .update({ content: payload.content, versions, updated_at: nowIso() } as any)
+        .eq("id", payload.guidelineId);
+      if (error) throw error;
+      return;
+    }
+    case "db.deleteGuideline": {
+      const { error } = await supabase
+        .from("cat_guidelines")
+        .delete()
+        .eq("id", payload.guidelineId);
+      if (error) throw error;
+      return;
+    }
+
+    // ---- Guideline Replies ----
+    case "db.addGuidelineReply": {
+      const { data, error } = await supabase
+        .from("cat_note_replies")
+        .insert({
+          guideline_id: payload.entry.guidelineId,
+          parent_reply_id: payload.entry.parentReplyId ?? null,
+          depth: payload.entry.depth ?? 0,
+          content: payload.entry.content || "",
+          created_by_id: userId,
+          created_by_name: payload.entry.createdByName || "",
+          created_at: nowIso(),
+          is_resolved: false,
+        } as any)
+        .select("id")
+        .single();
+      if (error) throw error;
+      return data.id;
+    }
+    case "db.getGuidelineReplies": {
+      const { data, error } = await supabase
+        .from("cat_note_replies")
+        .select("*")
+        .eq("guideline_id", payload.guidelineId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map(mapGuidelineReplyRow);
+    }
+    case "db.resolveGuidelineReply": {
+      const { error } = await supabase
+        .from("cat_note_replies")
+        .update({
+          is_resolved: !!payload.isResolved,
+          resolved_by_name: payload.isResolved ? payload.resolvedByName : null,
+          resolved_at: payload.isResolved ? nowIso() : null,
+        } as any)
+        .eq("id", payload.replyId);
+      if (error) throw error;
+      return;
+    }
+    case "db.deleteGuidelineReply": {
+      const { error } = await supabase
+        .from("cat_note_replies")
+        .delete()
+        .eq("id", payload.replyId);
+      if (error) throw error;
+      return;
+    }
+
+    // ---- Image Upload (cat-notes-images bucket) ----
+    case "db.uploadNoteImage": {
+      const { fileName, base64, mimeType } = payload;
+      const byteStr = atob(base64.split(",")[1] ?? base64);
+      const ab = new Uint8Array(byteStr.length);
+      for (let i = 0; i < byteStr.length; i++) ab[i] = byteStr.charCodeAt(i);
+      const blob = new Blob([ab], { type: mimeType || "image/png" });
+      const path = `${userId}/${Date.now()}_${fileName || "image.png"}`;
+      const { error } = await supabase.storage.from("cat-notes-images").upload(path, blob, { contentType: mimeType || "image/png", upsert: false });
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from("cat-notes-images").getPublicUrl(path);
+      return urlData.publicUrl;
+    }
 
     case "db.createTM": {
       const { data, error } = await supabase
