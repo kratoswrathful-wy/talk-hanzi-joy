@@ -1248,3 +1248,32 @@ mark.search-match {
     border: 1px solid #e2e8f0;
     border-radius: 8px;
 }
+
+/* 檔案匯入：語言對選擇（單選 radio，可捲動） */
+.file-lang-radio-list {
+    max-height: min(220px, 40vh);
+    overflow: auto;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #fff;
+    padding: 0.15rem 0;
+}
+.lang-radio-row {
+    padding: 0.28rem 0.5rem;
+}
+.lang-radio-row:has(input:checked) {
+    background: #eff6ff;
+}
+.file-lang-radio-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    cursor: pointer;
+    font-size: 0.88rem;
+    line-height: 1.35;
+    margin: 0;
+}
+.file-lang-radio-label input[type="radio"] {
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+}

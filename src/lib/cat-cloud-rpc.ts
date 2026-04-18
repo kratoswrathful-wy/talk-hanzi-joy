@@ -20,6 +20,15 @@ function normalizeCatGuidelineContent(html: string | null | undefined): string {
   }
 }
 
+/** cat_segments.match_value 為 double precision；空字串會導致 Postgres 報錯 */
+function coerceMatchValueForDb(v: unknown): number | null {
+  if (v == null) return null;
+  if (typeof v === "string" && v.trim() === "") return null;
+  const n = typeof v === "number" ? v : Number.parseFloat(String(v).trim());
+  if (!Number.isFinite(n)) return null;
+  return n;
+}
+
 const mapProjectRow = (r: any) => ({
   id: r.id,
   name: r.name,
@@ -285,7 +294,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           is_locked: !!s.isLocked,
           status: s.status ?? "",
           editor_note: s.editorNote ?? "",
-          match_value: s.matchValue ?? null,
+          match_value: coerceMatchValueForDb(s.matchValue),
           created_at: nowIso(),
           last_modified: nowIso(),
         })) as any

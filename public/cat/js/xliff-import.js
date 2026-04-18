@@ -128,7 +128,7 @@
             }
 
             let status = 'unconfirmed';
-            let matchValue = '';
+            let matchValue = null;
             let confirmationRole = null;
             let originalRole = null;
 
@@ -143,7 +143,7 @@
             const mqPercent = tu.getAttribute('mq:percent') ||
                               (targetNode && (targetNode.getAttribute('mq:percent') || targetNode.getAttribute('percent')));
             if (mqPercent && !Number.isNaN(parseInt(mqPercent, 10))) {
-                matchValue = parseInt(mqPercent, 10).toString();
+                matchValue = parseInt(mqPercent, 10);
             }
 
             const mqLocked = tu.getAttribute('mq:locked');
@@ -227,7 +227,12 @@
             await DBService.addModuleLog('projects', entry);
         }
         const mappedSegments = segments.map((s, idx) => ({ ...s, fileId, globalId: idx + 1 }));
-        await DBService.addSegments(mappedSegments);
+        try {
+            await DBService.addSegments(mappedSegments);
+        } catch (err) {
+            await DBService.deleteFile(fileId).catch(() => {});
+            throw err;
+        }
 
         if (wizardOverlay) wizardOverlay.classList.add('hidden');
         await loadFilesList();

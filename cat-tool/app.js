@@ -3657,49 +3657,64 @@ document.addEventListener('DOMContentLoaded', async () => {
     function showFileLangModal(srcLangs, tgtLangs) {
         return new Promise((resolve) => {
             const modal = document.getElementById('fileLangModal');
-            const srcSel = document.getElementById('fileLangSrcSelect');
-            const tgtSel = document.getElementById('fileLangTgtSelect');
+            const srcList = document.getElementById('fileLangSrcList');
+            const tgtList = document.getElementById('fileLangTgtList');
             const warnEl = document.getElementById('fileLangWarning');
             const btnConfirm = document.getElementById('btnFileLangConfirm');
             const btnCancel = document.getElementById('btnFileLangCancel');
             const btnClose = document.getElementById('btnCloseFileLangModal');
-            if (!modal || !srcSel || !tgtSel) { resolve(null); return; }
+            if (!modal || !srcList || !tgtList) { resolve(null); return; }
 
-            // 填入選項（若專案沒有設定語言，顯示全部）
-            const buildOptions = (sel, codes) => {
-                sel.innerHTML = '';
+            /** 可捲動單選列表（若專案沒有設定語言，顯示全部） */
+            function buildRadioList(container, codes, radioName) {
+                container.innerHTML = '';
                 const pool = codes && codes.length ? codes : LANG_OPTIONS.map(o => o.code);
-                pool.forEach(code => {
-                    const opt = document.createElement('option');
-                    opt.value = code;
-                    opt.textContent = langLabel(code);
-                    sel.appendChild(opt);
+                pool.forEach((code, i) => {
+                    const row = document.createElement('div');
+                    row.className = 'lang-radio-row';
+                    row.dataset.langCode = code;
+                    const label = document.createElement('label');
+                    label.className = 'file-lang-radio-label';
+                    const input = document.createElement('input');
+                    input.type = 'radio';
+                    input.name = radioName;
+                    input.value = code;
+                    if (i === 0) input.checked = true;
+                    label.appendChild(input);
+                    label.appendChild(document.createTextNode(` ${langLabel(code)}`));
+                    row.appendChild(label);
+                    container.appendChild(row);
                 });
-            };
-            buildOptions(srcSel, srcLangs);
-            buildOptions(tgtSel, tgtLangs);
+            }
+            buildRadioList(srcList, srcLangs, 'fileLangSrc');
+            buildRadioList(tgtList, tgtLangs, 'fileLangTgt');
 
-            // 搜尋框過濾（重置後重新綁定，防止重複）
-            const wireSearch = (searchId, sel) => {
+            const wireSearch = (searchId, listEl, radioName) => {
                 const searchEl = document.getElementById(searchId);
                 if (!searchEl) return;
                 searchEl.value = '';
                 const handler = () => {
                     const q = searchEl.value.toLowerCase();
-                    Array.from(sel.options).forEach(opt => {
-                        opt.style.display = opt.text.toLowerCase().includes(q) ? '' : 'none';
+                    const rows = listEl.querySelectorAll('.lang-radio-row');
+                    rows.forEach(row => {
+                        const t = (row.textContent || '').toLowerCase();
+                        row.style.display = t.includes(q) ? '' : 'none';
                     });
-                    if (sel.selectedOptions.length === 0 || sel.selectedOptions[0].style.display === 'none') {
-                        const first = Array.from(sel.options).find(o => o.style.display !== 'none');
-                        if (first) sel.value = first.value;
+                    const visible = Array.from(rows).filter(r => r.style.display !== 'none');
+                    if (!visible.length) return;
+                    const checked = listEl.querySelector(`input[name="${radioName}"]:checked`);
+                    const checkedRow = checked && checked.closest('.lang-radio-row');
+                    if (!checked || (checkedRow && checkedRow.style.display === 'none')) {
+                        const firstIn = visible[0].querySelector('input[type="radio"]');
+                        if (firstIn) firstIn.checked = true;
                     }
                 };
-                const clone = searchEl.cloneNode(true); // 移除舊監聽
+                const clone = searchEl.cloneNode(true);
                 searchEl.parentNode.replaceChild(clone, searchEl);
                 clone.addEventListener('input', handler);
             };
-            wireSearch('fileLangSrcSearch', srcSel);
-            wireSearch('fileLangTgtSearch', tgtSel);
+            wireSearch('fileLangSrcSearch', srcList, 'fileLangSrc');
+            wireSearch('fileLangTgtSearch', tgtList, 'fileLangTgt');
 
             if (warnEl) warnEl.classList.add('hidden');
             modal.classList.remove('hidden');
@@ -3711,7 +3726,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (btnClose) btnClose.removeEventListener('click', onCancel);
                 resolve(val);
             };
-            const onConfirm = () => cleanup({ sourceLang: srcSel.value, targetLang: tgtSel.value });
+            const onConfirm = () => {
+                const src = modal.querySelector('input[name="fileLangSrc"]:checked');
+                const tgt = modal.querySelector('input[name="fileLangTgt"]:checked');
+                cleanup({ sourceLang: src ? src.value : '', targetLang: tgt ? tgt.value : '' });
+            };
             const onCancel = () => cleanup(null);
 
             btnConfirm.addEventListener('click', onConfirm);
