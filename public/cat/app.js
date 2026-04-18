@@ -327,7 +327,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 editor.innerHTML = buildTaggedHtml(newText, seg.targetTags || seg.sourceTags || []);
                 updateTagColors(rowEl, newText);
             }
-            // 若變為未確認，清除確認樣式
             if (seg.status === 'confirmed') {
                 seg.status = 'unconfirmed';
                 const si = rowEl.querySelector('.status-icon');
@@ -337,30 +336,36 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
         await DBService.updateSegmentTarget(seg.id, newText, { targetTags: seg.targetTags });
-        updateProgress();
     }
 
     async function runTextOpOnSelection(op) {
-        // 凍結選取的句段 ID 清單，避免操作過程中被 focusin 等事件修改
         const targetIds = new Set(selectedRowIds);
         isBatchOpInProgress = true;
         try {
             if (targetIds.size > 0) {
-                // 批次：套用至所有選取句段，透過 data-seg-id 精確定位行
+                const items = [];
                 for (const seg of currentSegmentsList) {
                     if (targetIds.has(seg.id)) {
                         const rowEl = document.querySelector(`.grid-data-row[data-seg-id="${seg.id}"]`);
+                        const beforeSnap = snapshotSegForUndo(seg);
                         await applySegmentTextOp(seg, rowEl, op);
+                        items.push({ id: seg.id, beforeSnap, afterSnap: snapshotSegForUndo(seg) });
                     }
                 }
+                if (items.length) pushUndoEntry({ kind: 'segmentState', items });
             } else {
-                // 單一：套用至目前 active 句段
                 const activeRow = document.querySelector('.grid-data-row.active-row');
                 if (!activeRow) return;
                 const segId = parseId(activeRow.dataset.segId);
                 const seg = currentSegmentsList.find(s => s.id === segId);
+                const beforeSnap = snapshotSegForUndo(seg);
                 await applySegmentTextOp(seg, activeRow, op);
+                const afterSnap = snapshotSegForUndo(seg);
+                if (JSON.stringify(beforeSnap) !== JSON.stringify(afterSnap)) {
+                    pushUndoEntry({ kind: 'segmentState', items: [{ id: seg.id, beforeSnap, afterSnap }] });
+                }
             }
+            updateProgress();
         } finally {
             isBatchOpInProgress = false;
         }
@@ -3937,6 +3942,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let editorUndoStack = [];
     let editorRedoStack = [];
     let editorUndoEditStart = {};
+    let editorUndoStatusStart = {};
+    let editorUndoMatchStart = {};
     let currentFileFormat = 'excel'; // 'excel' | 'xliff' | 'mqxliff' | 'sdlxliff'
     let currentMqConfirmationRole = 'T_ALLOW_R1'; // mqxliff 用的目前確認身分
     let currentFileDefaultMqRole = null; // 匯入時儲存的預設身分，用於字數/句段統計基準
@@ -4002,6 +4009,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         editorUndoStack = [];
         editorRedoStack = [];
         editorUndoEditStart = {};
+        editorUndoStatusStart = {};
+        editorUndoMatchStart = {};
         const file = await DBService.getFile(fileId);
         if(!file) return alert('檔案不存在');
         
@@ -4683,12 +4692,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const segId = parseId(activeRow.dataset.segId);
                 const seg = currentSegmentsList.find(s => s.id === segId);
                 if (seg) {
+                    const oldTarget = seg.targetText;
+                    const oldMv = seg.matchValue;
                     const stripped = seg.targetText.replace(/\{\/?\d+\}/g, '');
                     seg.targetText = stripped;
+                    seg.matchValue = undefined;
                     activeEditor.innerHTML = buildTaggedHtml(stripped, seg.targetTags || seg.sourceTags || []);
                     updateTagColors(activeRow, stripped);
                     refreshTagNextHighlight(activeRow);
-                    DBService.updateSegmentTarget(seg.id, stripped).catch(console.error);
+                    applyMatchCellVisual(activeRow, '');
+                    pushEditorUndo(seg.id, oldTarget, stripped, { oldMatchValue: oldMv, newMatchValue: undefined });
+                    DBService.updateSegmentTarget(seg.id, stripped, { matchValue: '' }).catch(console.error);
                 }
             }
         }
@@ -4728,17 +4742,39 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tmSearchInput.focus();
             }
         }
-        if (currentFileId && currentSegmentsList.length) {
-            const inEditor = document.getElementById('viewEditor')?.contains(document.activeElement);
-            if (inEditor && e.ctrlKey && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        function editorUndoHotkeyAllowed() {
+            if (!currentFileId || !currentSegmentsList.length) return false;
+            const ve = document.getElementById('viewEditor');
+            if (!ve || ve.classList.contains('hidden')) return false;
+            const ae = document.activeElement;
+            if (ae && (ae.id === 'tmSearchInput' || ae.id === 'sfInput' || ae.id === 'sfReplaceInput')) return false;
+            return true;
+        }
+
+        if (editorUndoHotkeyAllowed()) {
+            if (e.ctrlKey && e.key.toLowerCase() === 'z' && !e.shiftKey) {
                 e.preventDefault();
                 applyEditorUndo();
-            } else if (inEditor && e.ctrlKey && e.key.toLowerCase() === 'y') {
+            } else if (e.ctrlKey && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
                 e.preventDefault();
                 applyEditorRedo();
             }
         }
     });
+
+    document.addEventListener('keydown', (e) => {
+        if (!e.ctrlKey || !/^[1-9]$/.test(e.key) || !currentFileId) return;
+        const ve = document.getElementById('viewEditor');
+        if (!ve || ve.classList.contains('hidden')) return;
+        const ae = document.activeElement;
+        if (ae && ae.id === 'tmSearchInput') return;
+        if (!window.currentTmMatches || !window.currentTmMatches.length) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof window.applyCatMatchAtIndex === 'function') {
+            window.applyCatMatchAtIndex(parseInt(e.key, 10) - 1);
+        }
+    }, true);
 
     btnSfNext.addEventListener('click', () => {
         if(sfSearchMatches.length === 0) return;
@@ -5019,50 +5055,407 @@ document.addEventListener('DOMContentLoaded', async () => {
         return '';
     }
 
-    function pushEditorUndo(segmentId, oldTarget, newTarget) {
-        if (oldTarget === newTarget) return;
-        editorUndoStack.push({ segmentId, oldTarget, newTarget });
+    function insertPlainTextAtCaret(editorEl, plainText) {
+        if (!editorEl || !plainText) return;
+        editorEl.focus();
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) {
+            editorEl.appendChild(document.createTextNode(plainText));
+            return;
+        }
+        const range = sel.getRangeAt(0);
+        if (!editorEl.contains(range.commonAncestorContainer)) {
+            editorEl.appendChild(document.createTextNode(plainText));
+            return;
+        }
+        range.deleteContents();
+        const textNode = document.createTextNode(plainText);
+        range.insertNode(textNode);
+        range.setStartAfter(textNode);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
+
+    function applyMatchCellVisual(rowEl, matchValue) {
+        if (!rowEl) return;
+        const matchCell = rowEl.querySelector('.col-match');
+        if (!matchCell) return;
+        if (matchValue == null || matchValue === '') {
+            matchCell.textContent = '';
+            matchCell.style.background = '';
+            return;
+        }
+        const mv = parseInt(String(matchValue), 10);
+        if (!isNaN(mv)) {
+            matchCell.style.background = mv >= 100 ? '#dcfce7' : (mv >= 70 ? '#ffedd5' : '');
+            matchCell.textContent = String(matchValue);
+        } else {
+            matchCell.style.background = '';
+            matchCell.textContent = String(matchValue);
+        }
+    }
+
+    function snapshotSegForUndo(seg) {
+        if (!seg) return null;
+        return {
+            targetText: seg.targetText,
+            status: seg.status,
+            confirmationRole: seg.confirmationRole,
+            isLockedUser: !!seg.isLockedUser,
+            matchValue: seg.matchValue,
+            targetTags: seg.targetTags ? seg.targetTags.map(t => ({ ...t })) : []
+        };
+    }
+
+    function applySegSnapshotToModel(seg, snap) {
+        if (!seg || !snap) return;
+        seg.targetText = snap.targetText;
+        seg.status = snap.status;
+        seg.confirmationRole = snap.confirmationRole;
+        seg.isLockedUser = snap.isLockedUser;
+        seg.matchValue = snap.matchValue;
+        seg.targetTags = snap.targetTags ? snap.targetTags.map(t => ({ ...t })) : [];
+    }
+
+    async function persistSegStateToDb(seg) {
+        const ex = currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {};
+        if (seg.isLockedUser !== undefined) {
+            ex.isLockedUser = seg.isLockedUser;
+            ex.isLocked = !!(seg.isLockedSystem || seg.isLockedUser);
+        }
+        await DBService.updateSegmentStatus(seg.id, seg.status, ex);
+        await DBService.updateSegmentTarget(seg.id, seg.targetText, { targetTags: seg.targetTags, matchValue: seg.matchValue });
+    }
+
+    function pushUndoEntry(entry) {
+        editorUndoStack.push(entry);
         editorRedoStack.length = 0;
     }
 
-    function applyEditorUndo() {
-        const entry = editorUndoStack.pop();
-        if (!entry) return;
-        const segIdx = currentSegmentsList.findIndex(s => s.id === entry.segmentId);
-        if (segIdx === -1) return;
+    /** @param extras.oldMatchValue, newMatchValue, oldStatus, newStatus, oldTargetTags, newTargetTags */
+    function pushEditorUndo(segmentId, oldTarget, newTarget, extras = {}) {
+        if (oldTarget === newTarget && !extras.force) return;
+        pushUndoEntry({
+            kind: 'target',
+            segmentId,
+            oldTarget,
+            newTarget,
+            oldMatchValue: extras.oldMatchValue,
+            newMatchValue: extras.newMatchValue,
+            oldStatus: extras.oldStatus,
+            newStatus: extras.newStatus,
+            oldTargetTags: extras.oldTargetTags,
+            newTargetTags: extras.newTargetTags
+        });
+    }
+
+    async function applyTmUndoOps(ops) {
+        if (!ops || !ops.length) return;
+        for (let i = ops.length - 1; i >= 0; i--) {
+            const op = ops[i];
+            if (op.op === 'delete') {
+                await DBService.deleteTMSegment(op.id);
+                window.ActiveTmCache = (window.ActiveTmCache || []).filter(t => t.id !== op.id);
+            } else if (op.op === 'update') {
+                await DBService.updateTMSegment(op.id, op.oldTarget, { changeLog: op.oldChangeLog || [] });
+                window.ActiveTmCache.forEach(tms => {
+                    if (tms.id === op.id) {
+                        tms.targetText = op.oldTarget;
+                        tms.changeLog = op.oldChangeLog || [];
+                    }
+                });
+            }
+        }
+    }
+
+    async function applyTmRedoOps(ops) {
+        if (!ops || !ops.length) return;
+        for (const op of ops) {
+            if (op.op === 'create') {
+                const newId = await DBService.addTMSegment(op.tmId, op.sourceText, op.targetText, op.meta || {});
+                const full = await DBService.getTMSegmentById(newId);
+                const tmRow = await DBService.getTM(op.tmId);
+                const tmName = tmRow ? tmRow.name : `TM #${op.tmId}`;
+                if (full && !window.ActiveTmCache.some(t => t.id === full.id)) {
+                    window.ActiveTmCache.push({ ...full, _tmId: op.tmId, tmName });
+                }
+            } else if (op.op === 'update') {
+                await DBService.updateTMSegment(op.id, op.newTarget, { changeLog: op.newChangeLog || [] });
+                window.ActiveTmCache.forEach(tms => {
+                    if (tms.id === op.id) {
+                        tms.targetText = op.newTarget;
+                        tms.changeLog = op.newChangeLog || [];
+                    }
+                });
+            }
+        }
+    }
+
+    function normalizeUndoEntry(entry) {
+        if (!entry) return null;
+        if (entry.kind) return entry;
+        return {
+            kind: 'target',
+            segmentId: entry.segmentId,
+            oldTarget: entry.oldTarget,
+            newTarget: entry.newTarget
+        };
+    }
+
+    function applyOneTargetUndo(te, direction) {
+        const isUndo = direction === 'undo';
+        const segIdx = currentSegmentsList.findIndex(s => s.id === te.segmentId);
+        if (segIdx === -1) return null;
         const seg = currentSegmentsList[segIdx];
-        seg.targetText = entry.oldTarget;
+        const tgt = isUndo ? te.oldTarget : te.newTarget;
+        const mv = isUndo ? te.oldMatchValue : te.newMatchValue;
+        const st = isUndo ? te.oldStatus : te.newStatus;
+        const tags = isUndo ? te.oldTargetTags : te.newTargetTags;
+
+        seg.targetText = tgt;
+        if (mv !== undefined) seg.matchValue = mv;
+        if (st !== undefined) seg.status = st;
+        if (tags !== undefined) seg.targetTags = tags ? tags.map(t => ({ ...t })) : [];
+
         const row = document.querySelectorAll('.grid-data-row')[segIdx];
         if (row) {
             const ta = row.querySelector('.grid-textarea');
             if (ta) {
-                ta.innerHTML = buildTaggedHtml(entry.oldTarget, seg.targetTags || seg.sourceTags || []);
-                updateTagColors(row, entry.oldTarget);
-                if (editorUndoEditStart[seg.id] !== undefined) editorUndoEditStart[seg.id] = entry.oldTarget;
+                ta.innerHTML = buildTaggedHtml(tgt, seg.targetTags || seg.sourceTags || []);
+                updateTagColors(row, tgt);
             }
+            applyMatchCellVisual(row, seg.matchValue);
+            const effectiveLocked = !!(isDynamicForbidden(seg) || seg.isLockedUser);
+            const isConfirmed = seg.status === 'confirmed';
+            if (isConfirmed && !effectiveLocked) {
+                row.style.backgroundColor = '#f0fdf4';
+                row.classList.add('row-bg-confirmed');
+            } else {
+                row.style.backgroundColor = '';
+                row.classList.remove('row-bg-confirmed');
+            }
+            const si = row.querySelector('.status-icon');
+            if (si) {
+                if (isConfirmed) {
+                    si.classList.add('done');
+                    if (currentFileFormat === 'mqxliff') {
+                        const role = seg.confirmationRole || 'T';
+                        if (role === 'R1') {
+                            si.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
+                        } else if (role === 'R2') {
+                            si.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
+                        } else {
+                            si.innerHTML = '&#10003;';
+                        }
+                    }
+                } else {
+                    si.classList.remove('done');
+                    if (currentFileFormat === 'mqxliff') si.innerHTML = '';
+                }
+            }
+            if (editorUndoEditStart[seg.id] !== undefined) editorUndoEditStart[seg.id] = tgt;
         }
-        if (seg.id) DBService.updateSegmentTarget(seg.id, entry.oldTarget).catch(console.error);
-        editorRedoStack.push({ segmentId: entry.segmentId, oldTarget: entry.newTarget, newTarget: entry.oldTarget });
+
+        const extra = {};
+        if (mv !== undefined) extra.matchValue = mv;
+        if (tags !== undefined) extra.targetTags = seg.targetTags;
+        if (st !== undefined) {
+            DBService.updateSegmentStatus(seg.id, st, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {}).catch(console.error);
+        }
+        if (seg.id) DBService.updateSegmentTarget(seg.id, tgt, extra).catch(console.error);
+
+        return {
+            kind: 'target',
+            segmentId: te.segmentId,
+            oldTarget: isUndo ? te.newTarget : te.oldTarget,
+            newTarget: isUndo ? te.oldTarget : te.newTarget,
+            oldMatchValue: isUndo ? te.newMatchValue : te.oldMatchValue,
+            newMatchValue: isUndo ? te.oldMatchValue : te.newMatchValue,
+            oldStatus: isUndo ? te.newStatus : te.oldStatus,
+            newStatus: isUndo ? te.oldStatus : te.newStatus,
+            oldTargetTags: isUndo ? te.newTargetTags : te.oldTargetTags,
+            newTargetTags: isUndo ? te.oldTargetTags : te.newTargetTags
+        };
+    }
+
+    function applySegmentStateItems(entry, direction) {
+        const isUndo = direction === 'undo';
+        for (const it of entry.items) {
+            const segIdx = currentSegmentsList.findIndex(s => s.id === it.id);
+            if (segIdx === -1) continue;
+            const seg = currentSegmentsList[segIdx];
+            const snap = isUndo ? it.beforeSnap : it.afterSnap;
+            applySegSnapshotToModel(seg, snap);
+            const row = document.querySelectorAll('.grid-data-row')[segIdx];
+            if (row) {
+                const ta = row.querySelector('.grid-textarea');
+                if (ta) {
+                    ta.innerHTML = buildTaggedHtml(seg.targetText, seg.targetTags || seg.sourceTags || []);
+                    updateTagColors(row, seg.targetText);
+                }
+                applyMatchCellVisual(row, seg.matchValue);
+                const effectiveLockedSystem = isDynamicForbidden(seg);
+                const effectiveLocked = !!(effectiveLockedSystem || seg.isLockedUser);
+                let lockedClass = '';
+                if (effectiveLockedSystem) lockedClass = 'locked-system';
+                else if (seg.isLockedUser) lockedClass = 'locked-user';
+                row.className = `grid-data-row ${lockedClass}`.trim();
+                if (effectiveLockedSystem) row.title = getForbiddenTooltip(seg);
+                else if (seg.isLockedUser) row.title = '句段鎖定中，請解除鎖定後再編輯';
+                else row.title = '';
+                const isConfirmed = seg.status === 'confirmed';
+                if (isConfirmed && !effectiveLocked) {
+                    row.style.backgroundColor = '#f0fdf4';
+                    row.classList.add('row-bg-confirmed');
+                } else {
+                    row.style.backgroundColor = '';
+                    row.classList.remove('row-bg-confirmed');
+                }
+                const si = row.querySelector('.status-icon');
+                if (si) {
+                    if (isConfirmed) {
+                        si.classList.add('done');
+                        if (currentFileFormat === 'mqxliff') {
+                            const role = seg.confirmationRole || 'T';
+                            if (role === 'R1') {
+                                si.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
+                            } else if (role === 'R2') {
+                                si.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
+                            } else {
+                                si.innerHTML = '&#10003;';
+                            }
+                        }
+                    } else {
+                        si.classList.remove('done');
+                        if (currentFileFormat === 'mqxliff') si.innerHTML = '';
+                    }
+                }
+            }
+            const ex = currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {};
+            if (seg.isLockedUser !== undefined) {
+                ex.isLockedUser = seg.isLockedUser;
+                ex.isLocked = !!(seg.isLockedSystem || seg.isLockedUser);
+            }
+            DBService.updateSegmentStatus(seg.id, seg.status, ex).catch(console.error);
+            DBService.updateSegmentTarget(seg.id, seg.targetText, { targetTags: seg.targetTags, matchValue: seg.matchValue }).catch(console.error);
+        }
+    }
+
+    function applyEditorUndo() {
+        const raw = editorUndoStack.pop();
+        const entry = normalizeUndoEntry(raw);
+        if (!entry) return;
+
+        if (entry.kind === 'compound') {
+            const redoEntries = [];
+            for (let i = entry.entries.length - 1; i >= 0; i--) {
+                const te = normalizeUndoEntry(entry.entries[i]);
+                if (te.kind === 'target') redoEntries.unshift(applyOneTargetUndo(te, 'undo'));
+            }
+            editorRedoStack.push({ kind: 'compound', entries: redoEntries });
+            updateProgress();
+            return;
+        }
+
+        if (entry.kind === 'segmentState') {
+            applySegmentStateItems(entry, 'undo');
+            editorRedoStack.push(entry);
+            updateProgress();
+            return;
+        }
+
+        if (entry.kind === 'confirmOp') {
+            (async () => {
+                for (const id of Object.keys(entry.beforeSnapshots)) {
+                    const seg = currentSegmentsList.find(s => String(s.id) === String(id));
+                    const snap = entry.beforeSnapshots[id];
+                    if (seg && snap) {
+                        applySegSnapshotToModel(seg, snap);
+                        await persistSegStateToDb(seg);
+                    }
+                }
+                await applyTmUndoOps(entry.tmUndo || []);
+                renderEditorSegments();
+                const ar = document.querySelector('.grid-data-row.active-row');
+                const aid = ar ? parseId(ar.dataset.segId) : null;
+                const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
+                if (activeSeg) renderLiveTmMatches(activeSeg);
+                updateProgress();
+            })().catch(console.error);
+            editorRedoStack.push({
+                kind: 'confirmOp',
+                beforeSnapshots: entry.afterSnapshots,
+                afterSnapshots: entry.beforeSnapshots,
+                tmUndo: entry.tmRedo || [],
+                tmRedo: entry.tmUndo || []
+            });
+            return;
+        }
+
+        if (entry.kind === 'target') {
+            const mirror = applyOneTargetUndo(entry, 'undo');
+            editorRedoStack.push(mirror);
+            updateProgress();
+        }
     }
 
     function applyEditorRedo() {
-        const entry = editorRedoStack.pop();
+        const raw = editorRedoStack.pop();
+        const entry = normalizeUndoEntry(raw);
         if (!entry) return;
-        const segIdx = currentSegmentsList.findIndex(s => s.id === entry.segmentId);
-        if (segIdx === -1) return;
-        const seg = currentSegmentsList[segIdx];
-        seg.targetText = entry.newTarget;
-        const row = document.querySelectorAll('.grid-data-row')[segIdx];
-        if (row) {
-            const ta = row.querySelector('.grid-textarea');
-            if (ta) {
-                ta.innerHTML = buildTaggedHtml(entry.newTarget, seg.targetTags || seg.sourceTags || []);
-                updateTagColors(row, entry.newTarget);
-                if (editorUndoEditStart[seg.id] !== undefined) editorUndoEditStart[seg.id] = entry.newTarget;
+
+        if (entry.kind === 'compound') {
+            const undoEntries = [];
+            for (let i = 0; i < entry.entries.length; i++) {
+                const te = normalizeUndoEntry(entry.entries[i]);
+                if (te.kind === 'target') undoEntries.push(applyOneTargetUndo(te, 'redo'));
             }
+            editorUndoStack.push({ kind: 'compound', entries: undoEntries });
+            updateProgress();
+            return;
         }
-        if (seg.id) DBService.updateSegmentTarget(seg.id, entry.newTarget).catch(console.error);
-        editorUndoStack.push({ segmentId: entry.segmentId, oldTarget: entry.newTarget, newTarget: entry.oldTarget });
+
+        if (entry.kind === 'segmentState') {
+            applySegmentStateItems(entry, 'redo');
+            editorUndoStack.push(entry);
+            updateProgress();
+            return;
+        }
+
+        if (entry.kind === 'confirmOp') {
+            (async () => {
+                for (const id of Object.keys(entry.beforeSnapshots)) {
+                    const seg = currentSegmentsList.find(s => String(s.id) === String(id));
+                    const snap = entry.beforeSnapshots[id];
+                    if (seg && snap) {
+                        applySegSnapshotToModel(seg, snap);
+                        await persistSegStateToDb(seg);
+                    }
+                }
+                await applyTmRedoOps(entry.tmRedo || []);
+                renderEditorSegments();
+                const ar = document.querySelector('.grid-data-row.active-row');
+                const aid = ar ? parseId(ar.dataset.segId) : null;
+                const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
+                if (activeSeg) renderLiveTmMatches(activeSeg);
+                updateProgress();
+            })().catch(console.error);
+            editorUndoStack.push({
+                kind: 'confirmOp',
+                beforeSnapshots: entry.afterSnapshots,
+                afterSnapshots: entry.beforeSnapshots,
+                tmUndo: entry.tmRedo || [],
+                tmRedo: entry.tmUndo || []
+            });
+            return;
+        }
+
+        if (entry.kind === 'target') {
+            const mirror = applyOneTargetUndo(entry, 'redo');
+            editorUndoStack.push(mirror);
+            updateProgress();
+        }
     }
 
     function setSegmentFieldText(seg, segIdx, fieldKey, newText) {
@@ -5157,7 +5550,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let text = getSegmentFieldText(seg, match.segIdx, 'target');
         const newText = doReplaceInText(text, term, replaceTerm, sfUseRegexChecked, true);
         if (newText === text) return;
-        pushEditorUndo(seg.id, text, newText);
+        pushEditorUndo(seg.id, text, newText, { oldMatchValue: seg.matchValue, newMatchValue: seg.matchValue });
         setSegmentFieldText(seg, match.segIdx, 'target', newText);
         runSearchAndFilter();
         if (sfSearchMatches.length > 0) {
@@ -5175,6 +5568,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const rows = document.querySelectorAll('.grid-data-row');
         const hasSelection = selectedRowIds && selectedRowIds.size > 0;
         let replacedCount = 0;
+        const bundle = [];
         currentSegmentsList.forEach((seg, segIdx) => {
             if (seg.isLocked) return;
             const row = rows[segIdx];
@@ -5183,11 +5577,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             let text = getSegmentFieldText(seg, segIdx, 'target');
             const newText = doReplaceInText(text, term, replaceTerm, sfUseRegexChecked, false);
             if (newText !== text) {
-                pushEditorUndo(seg.id, text, newText);
+                bundle.push({
+                    kind: 'target',
+                    segmentId: seg.id,
+                    oldTarget: text,
+                    newTarget: newText,
+                    oldMatchValue: seg.matchValue,
+                    newMatchValue: seg.matchValue
+                });
                 setSegmentFieldText(seg, segIdx, 'target', newText);
                 replacedCount++;
             }
         });
+        if (bundle.length) pushUndoEntry({ kind: 'compound', entries: bundle });
         runSearchAndFilter();
         if (replacedCount > 0) updateProgress();
     }
@@ -5357,10 +5759,36 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     loadPresetsSelect();
 
+    /** 確認／傳播時可能受影響的列索引（含自身與重複句段同原文列） */
+    function collectConfirmTouchIndices(segIndex) {
+        const set = new Set([segIndex]);
+        const seg = currentSegmentsList[segIndex];
+        if (!seg || !seg.repetitionType) return set;
+        const mode = seg.repModeSeg || repMode;
+        if (mode === 'none') return set;
+        const src = seg.sourceText;
+        for (let j = 0; j < currentSegmentsList.length; j++) {
+            if (j === segIndex) continue;
+            const other = currentSegmentsList[j];
+            const otherLocked = !!(isDynamicForbidden(other) || other.isLockedUser);
+            if (otherLocked || other.sourceText !== src) continue;
+            if (mode === 'after' && j <= segIndex) continue;
+            set.add(j);
+        }
+        return set;
+    }
+
+    function mergeTmPair(acc, pair) {
+        if (!pair) return;
+        acc.undo.push(...(pair.undo || []));
+        acc.redo.push(...(pair.redo || []));
+    }
+
     // Helper: propagate repetition confirmation
     async function propagateRepetition(seg, segIndex) {
+        const accum = { undo: [], redo: [] };
         const mode = seg.repModeSeg || repMode;
-        if (mode === 'none' || !seg.repetitionType) return;
+        if (mode === 'none' || !seg.repetitionType) return accum;
 
         const src = seg.sourceText;
         const tgt = seg.targetText;
@@ -5371,8 +5799,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const otherLocked = !!(isDynamicForbidden(other) || other.isLockedUser);
             if (otherLocked || other.sourceText !== src) continue;
 
-            if (mode === 'after' && j <= segIndex) continue; // only after
-            // mode === 'all': process everyone
+            if (mode === 'after' && j <= segIndex) continue;
 
             other.targetText = tgt;
             other.status = 'confirmed';
@@ -5381,9 +5808,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             await DBService.updateSegmentTarget(other.id, tgt);
             await DBService.updateSegmentStatus(other.id, 'confirmed', currentFileFormat === 'mqxliff' && other.confirmationRole ? { confirmationRole: other.confirmationRole } : {});
-            await syncSegmentToWriteTmsOnConfirm(other, j);
+            mergeTmPair(accum, await syncSegmentToWriteTmsOnConfirm(other, j));
 
-            // Update DOM if row exists
             const rows = document.querySelectorAll('.grid-data-row');
             if (rows[j]) {
                 const ta = rows[j].querySelector('.grid-textarea');
@@ -5409,6 +5835,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
         updateProgress();
+        return accum;
     }
 
     // Notes bar replaced by new notesPanel (see NOTES MODULE section)
@@ -5433,6 +5860,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (selectedRowIds.has(s.id) && !isDynamicForbidden(s) && !s.isLockedUser) indices.push(idx);
             });
             indices.sort((a, b) => a - b);
+            const touchAll = new Set();
+            indices.forEach(i => collectConfirmTouchIndices(i).forEach(x => touchAll.add(x)));
+            const beforeSnapshots = {};
+            touchAll.forEach(idx => {
+                const s = currentSegmentsList[idx];
+                beforeSnapshots[s.id] = snapshotSegForUndo(s);
+            });
+            let tmU = [];
+            let tmR = [];
             for (const i of indices) {
                 const seg = currentSegmentsList[i];
                 if (seg.status !== 'confirmed') {
@@ -5441,8 +5877,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const extra = currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {};
                     await DBService.updateSegmentStatus(seg.id, seg.status, extra);
                 }
-                await syncSegmentToWriteTmsOnConfirm(seg, i);
-                if (seg.repetitionType) await propagateRepetition(seg, i);
+                mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
+                if (seg.repetitionType) mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
+            }
+            const afterSnapshots = {};
+            touchAll.forEach(idx => {
+                const s = currentSegmentsList[idx];
+                afterSnapshots[s.id] = snapshotSegForUndo(s);
+            });
+            let changed = tmU.length > 0 || tmR.length > 0;
+            for (const id of Object.keys(beforeSnapshots)) {
+                if (JSON.stringify(beforeSnapshots[id]) !== JSON.stringify(afterSnapshots[id])) changed = true;
+            }
+            if (changed) {
+                pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
             }
             updateProgress();
             renderEditorSegments();
@@ -6014,6 +6462,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         return;
                     }
                     editorUndoEditStart[seg.id] = seg.targetText;
+                    editorUndoStatusStart[seg.id] = seg.status;
+                    editorUndoMatchStart[seg.id] = seg.matchValue;
                     refreshTagNextHighlight(row);
                     emitCollabEdit('start', seg, seg.targetText || '');
                 });
@@ -6044,7 +6494,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     targetDebounceTimer = setTimeout(async () => {
                         const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
                         if (oldVal !== newVal) {
-                            pushEditorUndo(seg.id, oldVal, newVal);
+                            pushEditorUndo(seg.id, oldVal, newVal, {
+                                oldMatchValue: editorUndoMatchStart[seg.id],
+                                newMatchValue: seg.matchValue,
+                                oldStatus: editorUndoStatusStart[seg.id],
+                                newStatus: seg.status
+                            });
                             editorUndoEditStart[seg.id] = newVal;
                         }
                         await DBService.updateSegmentTarget(seg.id, newVal);
@@ -6063,7 +6518,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const newVal = extractTextFromEditor(targetInput);
                         const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
                         if (oldVal !== newVal) {
-                            pushEditorUndo(seg.id, oldVal, newVal);
+                            pushEditorUndo(seg.id, oldVal, newVal, {
+                                oldMatchValue: editorUndoMatchStart[seg.id],
+                                newMatchValue: seg.matchValue,
+                                oldStatus: editorUndoStatusStart[seg.id],
+                                newStatus: seg.status
+                            });
                             editorUndoEditStart[seg.id] = newVal;
                         }
                         seg.targetText = newVal;
@@ -6098,6 +6558,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 targetInput.addEventListener('keydown', async (e) => {
                     if (e.ctrlKey && e.key === 'Enter') {
                         e.preventDefault();
+                        const touch = collectConfirmTouchIndices(i);
+                        const beforeSnapshots = {};
+                        touch.forEach(idx => {
+                            const s = currentSegmentsList[idx];
+                            beforeSnapshots[s.id] = snapshotSegForUndo(s);
+                        });
+                        let tmU = [];
+                        let tmR = [];
                         if (seg.status !== 'confirmed') {
                             seg.status = 'confirmed';
                             statusIcon.classList.add('done');
@@ -6111,7 +6579,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     statusIcon.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
                                 } else if (role === 'R2') {
                                     statusIcon.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
-                                    } else {
+                                } else {
                                     statusIcon.innerHTML = '&#10003;';
                                 }
                             }
@@ -6119,18 +6587,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                             updateProgress();
                         }
                         if (seg.status === 'confirmed') {
-                            await syncSegmentToWriteTmsOnConfirm(seg, i);
+                            mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
                         }
-                        
-                        // Repetition propagation on Ctrl+Enter
                         if (seg.repetitionType) {
-                            await propagateRepetition(seg, i);
+                            mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
+                        }
+                        const afterSnapshots = {};
+                        touch.forEach(idx => {
+                            const s = currentSegmentsList[idx];
+                            afterSnapshots[s.id] = snapshotSegForUndo(s);
+                        });
+                        let changed = tmU.length > 0 || tmR.length > 0;
+                        for (const id of Object.keys(beforeSnapshots)) {
+                            if (JSON.stringify(beforeSnapshots[id]) !== JSON.stringify(afterSnapshots[id])) changed = true;
+                        }
+                        if (changed) {
+                            pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
                         }
 
                         const nextRow = row.nextElementSibling;
-                        if(nextRow) {
+                        if (nextRow) {
                             const nextEditor = nextRow.querySelector('.grid-textarea');
-                            if(nextEditor && nextEditor.contentEditable !== 'false') nextEditor.focus();
+                            if (nextEditor && nextEditor.contentEditable !== 'false') nextEditor.focus();
                         }
                     } else if (e.ctrlKey && e.key === 'ArrowUp') {
                         e.preventDefault();
@@ -6147,14 +6625,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if(nextEditor && nextEditor.contentEditable !== 'false') nextEditor.focus();
                         }
                     } else if (e.ctrlKey && e.key >= '1' && e.key <= '9') {
-                        // Phase 4.9: CAT Shortcuts
                         e.preventDefault();
-                        const idx = parseInt(e.key) - 1;
-                        const matchItems = document.querySelectorAll('#tmSearchResults .result-item');
-                        if (matchItems[idx]) {
-                            matchItems[idx].click();
-                            // Optional: Highlight effect? click() already handles the substitution
-                        }
+                        if (typeof window.applyCatMatchAtIndex === 'function') window.applyCatMatchAtIndex(parseInt(e.key, 10) - 1);
                     }
                 });
 
@@ -6181,8 +6653,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 // Click icon to toggle
                 statusIcon.addEventListener('click', async () => {
-                    seg.status = seg.status === 'confirmed' ? 'unconfirmed' : 'confirmed';
-                    if (seg.status === 'confirmed') {
+                    const willConfirm = seg.status !== 'confirmed';
+                    if (willConfirm) {
+                        const touch = collectConfirmTouchIndices(i);
+                        const beforeSnapshots = {};
+                        touch.forEach(idx => {
+                            const s = currentSegmentsList[idx];
+                            beforeSnapshots[s.id] = snapshotSegForUndo(s);
+                        });
+                        seg.status = 'confirmed';
                         statusIcon.classList.add('done');
                         if (!effectiveLocked) row.style.backgroundColor = '#f0fdf4';
                         if (currentFileFormat === 'mqxliff') {
@@ -6198,21 +6677,34 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 statusIcon.innerHTML = '&#10003;';
                             }
                         }
+                        await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
+                        let tmU = [];
+                        let tmR = [];
+                        mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
+                        if (seg.repetitionType) mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
+                        const afterSnapshots = {};
+                        touch.forEach(idx => {
+                            const s = currentSegmentsList[idx];
+                            afterSnapshots[s.id] = snapshotSegForUndo(s);
+                        });
+                        let changed = tmU.length > 0 || tmR.length > 0;
+                        for (const id of Object.keys(beforeSnapshots)) {
+                            if (JSON.stringify(beforeSnapshots[id]) !== JSON.stringify(afterSnapshots[id])) changed = true;
+                        }
+                        if (changed) {
+                            pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
+                        }
                     } else {
+                        const beforeSnap = snapshotSegForUndo(seg);
+                        seg.status = 'unconfirmed';
                         statusIcon.classList.remove('done');
                         if (currentFileFormat === 'mqxliff') {
                             statusIcon.innerHTML = '';
                         }
                         row.style.backgroundColor = '';
-                    }
-                    await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
-
-                    if (seg.status === 'confirmed') {
-                        await syncSegmentToWriteTmsOnConfirm(seg, i);
-                    }
-                    // Repetition propagation on confirm
-                    if (seg.status === 'confirmed' && seg.repetitionType) {
-                        await propagateRepetition(seg, i);
+                        await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
+                        const afterSnap = snapshotSegForUndo(seg);
+                        pushUndoEntry({ kind: 'segmentState', items: [{ id: seg.id, beforeSnap, afterSnap }] });
                     }
                     updateProgress();
                 });
@@ -6235,11 +6727,13 @@ document.addEventListener('DOMContentLoaded', async () => {
      * 已存在且譯文不同：更新譯文並 append 結構化 targetUpdate（含舊／新譯供追蹤修訂顯示）。
      */
     async function syncSegmentToWriteTmsOnConfirm(seg, rowIdx) {
-        if (!seg || seg.status !== 'confirmed') return;
-        if (!window.ActiveWriteTms || window.ActiveWriteTms.length === 0) return;
+        const undo = [];
+        const redo = [];
+        if (!seg || seg.status !== 'confirmed') return { undo, redo };
+        if (!window.ActiveWriteTms || window.ActiveWriteTms.length === 0) return { undo, redo };
         let i = typeof rowIdx === 'number' ? rowIdx : currentSegmentsList.indexOf(seg);
         if (i < 0) i = currentSegmentsList.findIndex(s => s.id === seg.id);
-        if (i < 0) return;
+        if (i < 0) return { undo, redo };
         const creator = localStorage.getItem('localCatUserProfile') || 'Unknown User';
         const prjEl = document.getElementById('detailProjectName');
         const fEl = document.getElementById('editorFileName');
@@ -6263,7 +6757,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tmId = rawTmId;
             const tmRow = await DBService.getTM(tmId);
             const tmName = tmRow ? tmRow.name : `TM #${tmId}`;
-            // 寫入時只比對同語言對的現有句段（向下相容：舊句段無語言標記者也納入比對）
             const existing = await DBService.getTMSegments(tmId);
             const srcLang = metaBase.sourceLang.toLowerCase();
             const tgtLang = metaBase.targetLang.toLowerCase();
@@ -6276,10 +6769,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return segSrc === srcLang && segTgt === tgtLang;
             });
             if (!match) {
-                const newId = await DBService.addTMSegment(tmId, seg.sourceText, seg.targetText, {
-                    ...metaBase,
-                    changeLog: []
-                });
+                const metaFull = { ...metaBase, changeLog: [] };
+                const newId = await DBService.addTMSegment(tmId, seg.sourceText, seg.targetText, metaFull);
+                undo.push({ op: 'delete', tmId, id: newId });
+                redo.push({ op: 'create', tmId, sourceText: seg.sourceText, targetText: seg.targetText, meta: metaFull });
                 const full = await DBService.getTMSegmentById(newId);
                 if (full) {
                     const dupCache = window.ActiveTmCache.some(t => t.id === full.id || (t._tmId === tmId && t.sourceText === seg.sourceText));
@@ -6293,7 +6786,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             } else {
                 if (match.targetText === seg.targetText) continue;
-                const prevLog = Array.isArray(match.changeLog) ? [...match.changeLog] : [];
+                const oldTarget = match.targetText;
+                const oldChangeLog = Array.isArray(match.changeLog) ? [...match.changeLog] : [];
+                const prevLog = [...oldChangeLog];
                 prevLog.push({
                     kind: 'targetUpdate',
                     at: new Date().toISOString(),
@@ -6301,6 +6796,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     oldTarget: match.targetText,
                     newTarget: seg.targetText
                 });
+                undo.push({ op: 'update', tmId, id: match.id, oldTarget, oldChangeLog });
+                redo.push({ op: 'update', tmId, id: match.id, newTarget: seg.targetText, newChangeLog: prevLog });
                 await DBService.updateTMSegment(match.id, seg.targetText, { changeLog: prevLog });
                 window.ActiveTmCache.forEach(tms => {
                     if (tms.id === match.id || (tms._tmId === tmId && tms.sourceText === seg.sourceText)) {
@@ -6311,6 +6808,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
         }
+        return { undo, redo };
     }
 
     function updateCatTrackPanelContent() {
@@ -6592,6 +7090,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (rowIdx < 0 || !currentSegmentsList[rowIdx]) return;
         const seg = currentSegmentsList[rowIdx];
         const oldTarget = seg.targetText;
+        const oldMatchValue = seg.matchValue;
 
         let newTarget;
         if (type === 'TM') {
@@ -6599,33 +7098,43 @@ document.addEventListener('DOMContentLoaded', async () => {
             textarea.innerHTML = buildTaggedHtml(text, seg.targetTags || seg.sourceTags || []);
             updateTagColors(activeRow, text);
         } else {
-            // For TB/fragment: insert at current cursor position via execCommand
-            newTarget = text;
             textarea.focus();
-            document.execCommand('insertText', false, text);
+            insertPlainTextAtCaret(textarea, text);
             newTarget = extractTextFromEditor(textarea);
         }
         seg.targetText = newTarget;
         editorUndoEditStart[seg.id] = newTarget;
-        pushEditorUndo(seg.id, oldTarget, newTarget);
+        const newMatchValue = type === 'TM' && score !== undefined && score !== 'undefined' ? String(score) : seg.matchValue;
+        pushEditorUndo(seg.id, oldTarget, newTarget, {
+            oldMatchValue,
+            newMatchValue,
+            oldStatus: seg.status,
+            newStatus: seg.status
+        });
         const updatePayload = type === 'TM' && score !== undefined && score !== 'undefined'
             ? { matchValue: String(score) }
             : undefined;
         if (updatePayload) seg.matchValue = updatePayload.matchValue;
-        DBService.updateSegmentTarget(seg.id, newTarget, updatePayload).catch(console.error);
+        DBService.updateSegmentTarget(seg.id, newTarget, updatePayload || {}).catch(console.error);
 
         if (type === 'TM' && score !== undefined && score !== 'undefined') {
-                const matchCell = activeRow.querySelector('.col-match');
-                if (matchCell) {
-                    const mv = parseInt(score);
-                    matchCell.style.background = mv >= 100 ? '#dcfce7' : (mv >= 70 ? '#ffedd5' : '');
-                    matchCell.textContent = String(score);
-                }
+            applyMatchCellVisual(activeRow, String(score));
         }
 
         textarea.focus();
-        el.style.opacity = 0.5;
-        setTimeout(() => el.style.opacity = 1, 300);
+        if (el && el.style) {
+            el.style.opacity = 0.5;
+            setTimeout(() => { el.style.opacity = 1; }, 300);
+        }
+    };
+
+    window.applyCatMatchAtIndex = function(index) {
+        const matches = window.currentTmMatches;
+        if (!matches || index < 0 || index >= matches.length) return;
+        const m = matches[index];
+        const el = document.querySelector(`#tmSearchResults .result-item[data-index="${index}"]`);
+        const scoreArg = m.type === 'TM' ? m.score : undefined;
+        window.handleCatResultApply(el || document.body, m.type, m.targetText, scoreArg, index);
     };
     
     // Alt+上/下：在右側 CAT 比對列表中移動選取
@@ -6691,6 +7200,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('ctxBatchConfirm').addEventListener('click', async () => {
             const ids = Array.from(selectedRowIds);
             const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
+            const touchAll = new Set();
+            toUpdate.forEach(s => {
+                const idx = currentSegmentsList.indexOf(s);
+                if (idx >= 0) collectConfirmTouchIndices(idx).forEach(x => touchAll.add(x));
+            });
+            const beforeSnapshots = {};
+            touchAll.forEach(idx => {
+                const s = currentSegmentsList[idx];
+                beforeSnapshots[s.id] = snapshotSegForUndo(s);
+            });
+            let tmU = [];
+            let tmR = [];
             for (let s of toUpdate) {
                 s.status = 'confirmed';
                 if (currentFileFormat === 'mqxliff') {
@@ -6698,39 +7219,64 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 await DBService.updateSegmentStatus(s.id, 'confirmed', currentFileFormat === 'mqxliff' && s.confirmationRole ? { confirmationRole: s.confirmationRole } : {});
                 const idx = currentSegmentsList.indexOf(s);
-                await syncSegmentToWriteTmsOnConfirm(s, idx >= 0 ? idx : 0);
+                mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(s, idx >= 0 ? idx : 0));
+                if (s.repetitionType) mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(s, idx >= 0 ? idx : 0));
+            }
+            const afterSnapshots = {};
+            touchAll.forEach(idx => {
+                const s = currentSegmentsList[idx];
+                afterSnapshots[s.id] = snapshotSegForUndo(s);
+            });
+            let changed = tmU.length > 0 || tmR.length > 0;
+            for (const id of Object.keys(beforeSnapshots)) {
+                if (JSON.stringify(beforeSnapshots[id]) !== JSON.stringify(afterSnapshots[id])) changed = true;
+            }
+            if (changed) {
+                pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
             }
             renderEditorSegments();
         });
-        
+
         document.getElementById('ctxBatchUnconfirm').addEventListener('click', async () => {
             const ids = Array.from(selectedRowIds);
             const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
+            const items = [];
             for (let s of toUpdate) {
+                const beforeSnap = snapshotSegForUndo(s);
                 s.status = 'unconfirmed';
                 await DBService.updateSegmentStatus(s.id, 'unconfirmed');
+                items.push({ id: s.id, beforeSnap, afterSnap: snapshotSegForUndo(s) });
             }
+            if (items.length) pushUndoEntry({ kind: 'segmentState', items });
             renderEditorSegments();
         });
 
         document.getElementById('ctxLockSegments').addEventListener('click', async () => {
             const ids = Array.from(selectedRowIds);
             const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
+            const items = [];
             for (let s of toUpdate) {
+                const beforeSnap = snapshotSegForUndo(s);
                 s.isLockedUser = true;
                 await DBService.updateSegmentStatus(s.id, s.status || 'unconfirmed', { isLockedUser: true, isLocked: true });
+                items.push({ id: s.id, beforeSnap, afterSnap: snapshotSegForUndo(s) });
             }
+            if (items.length) pushUndoEntry({ kind: 'segmentState', items });
             renderEditorSegments();
         });
 
         document.getElementById('ctxUnlockSegments').addEventListener('click', async () => {
             const ids = Array.from(selectedRowIds);
             const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && s.isLockedUser);
+            const items = [];
             for (let s of toUpdate) {
+                const beforeSnap = snapshotSegForUndo(s);
                 s.isLockedUser = false;
                 const stillLocked = !!s.isLockedSystem;
                 await DBService.updateSegmentStatus(s.id, s.status || 'unconfirmed', { isLockedUser: false, isLocked: stillLocked });
+                items.push({ id: s.id, beforeSnap, afterSnap: snapshotSegForUndo(s) });
             }
+            if (items.length) pushUndoEntry({ kind: 'segmentState', items });
             renderEditorSegments();
         });
     });
