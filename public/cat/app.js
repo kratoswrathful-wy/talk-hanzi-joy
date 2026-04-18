@@ -170,7 +170,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnCloseSplitAssignModal = document.getElementById('btnCloseSplitAssignModal');
     const btnCancelSplitAssign = document.getElementById('btnCancelSplitAssign');
     const splitHintPartsInput = document.getElementById('splitHintPartsInput');
-    const btnSplitHintPreview = document.getElementById('btnSplitHintPreview');
+    const btnSplitHintRun = document.getElementById('btnSplitHintRun');
+    const splitHintQuotaContainer = document.getElementById('splitHintQuotaContainer');
     const splitAssignTableWrap = document.getElementById('splitAssignTableWrap');
     const highMatchGuardModal = document.getElementById('highMatchGuardModal');
     const highMatchGuardMessage = document.getElementById('highMatchGuardMessage');
@@ -2338,69 +2339,200 @@ document.addEventListener('DOMContentLoaded', async () => {
         alert('已儲存至本機報告紀錄。');
     }
 
-    async function refreshSplitHintPreview(fileIds, parts) {
+    const SPLIT_HINT_QUOTA_EPS = 1e-4;
+
+    function fmtSplitHintNum(x) {
+        if (typeof x !== 'number' || !Number.isFinite(x)) return '—';
+        return String(Math.round(x * 100) / 100);
+    }
+
+    function computeSplitHintQuotas(totalWeighted, n, filledValues) {
+        const eps = SPLIT_HINT_QUOTA_EPS;
+        const T = totalWeighted;
+        const filled = [];
+        for (let i = 0; i < n; i++) {
+            filled.push(i < filledValues.length ? filledValues[i] : null);
+        }
+        let S = 0;
+        const blanks = [];
+        for (let i = 0; i < n; i++) {
+            const v = filled[i];
+            if (v === null || v === undefined || Number.isNaN(v)) {
+                blanks.push(i);
+            } else {
+                S += v;
+            }
+        }
+        const B = blanks.length;
+        const quotas = new Array(n);
+
+        if (B === 0) {
+            if (Math.abs(S - T) > eps) {
+                return { error: `已填配額加總 ${fmtSplitHintNum(S)} 須等於總加權 ${fmtSplitHintNum(T)}（容許誤差 ${eps}）。` };
+            }
+            for (let i = 0; i < n; i++) quotas[i] = filled[i];
+            for (let i = 0; i < n - 1; i++) {
+                if (quotas[i] <= eps) {
+                    return { error: `第 ${i + 1} 份的目標加權必須大於 ${eps}。` };
+                }
+            }
+            return { quotas };
+        }
+
+        const R = T - S;
+        if (R < -eps) {
+            return { error: `已填配額加總 ${fmtSplitHintNum(S)} 超過總加權 ${fmtSplitHintNum(T)}。` };
+        }
+        if (R <= eps && B > 0) {
+            return { error: '已填配額加總已達（或超過）總加權，無法再為留白份量分配剩餘配額。' };
+        }
+
+        for (let i = 0; i < n; i++) {
+            if (blanks.indexOf(i) === -1) quotas[i] = filled[i];
+        }
+        const Bcnt = B;
+        const per = R / Bcnt;
+        let acc = 0;
+        for (let j = 0; j < Bcnt - 1; j++) {
+            const idx = blanks[j];
+            quotas[idx] = per;
+            acc += per;
+        }
+        quotas[blanks[Bcnt - 1]] = R - acc;
+
+        for (let i = 0; i < n - 1; i++) {
+            if (quotas[i] <= eps) {
+                return { error: `第 ${i + 1} 份的目標加權必須大於 ${eps}（含留白均分結果）。` };
+            }
+        }
+        return { quotas };
+    }
+
+    function partitionFlatByQuotas(flat, quotas, n) {
+        const slices = Array.from({ length: n }, () => []);
+        if (!flat || !flat.length) return slices;
+        const eps = SPLIT_HINT_QUOTA_EPS;
+        let fi = 0;
+        for (let p = 0; p < n; p++) {
+            const target = quotas[p];
+            let sum = 0;
+            while (fi < flat.length) {
+                const w = flat[fi].weight || 0;
+                const lastPart = (p === n - 1);
+                if (!lastPart && sum > 0 && sum + w > target + eps) break;
+                slices[p].push(flat[fi++]);
+                sum += w;
+            }
+        }
+        while (fi < flat.length) {
+            slices[n - 1].push(flat[fi++]);
+        }
+        return slices;
+    }
+
+    function rangeTextFromSlice(slice) {
+        if (!slice || !slice.length) return '—';
+        const byFile = {};
+        slice.forEach((item) => {
+            if (!byFile[item.fileName]) byFile[item.fileName] = { min: item.rowInFile, max: item.rowInFile };
+            else {
+                byFile[item.fileName].min = Math.min(byFile[item.fileName].min, item.rowInFile);
+                byFile[item.fileName].max = Math.max(byFile[item.fileName].max, item.rowInFile);
+            }
+        });
+        return Object.keys(byFile).map((fn) => {
+            const o = byFile[fn];
+            return o.min === o.max ? `${fn}：第 ${o.min} 句` : `${fn}：第 ${o.min}–${o.max} 句`;
+        }).join('<br>');
+    }
+
+    function readSplitHintFilledValues(n) {
+        const out = [];
+        for (let i = 0; i < n; i++) {
+            const el = document.getElementById(`splitHintQuotaInput${i}`);
+            if (!el) {
+                out.push(null);
+                continue;
+            }
+            const raw = String(el.value != null ? el.value : '').trim();
+            if (raw === '') {
+                out.push(null);
+                continue;
+            }
+            const num = parseFloat(raw);
+            out.push(Number.isFinite(num) ? num : null);
+        }
+        return out;
+    }
+
+    function renderSplitHintQuotaRows(n) {
+        if (!splitHintQuotaContainer) return;
+        let html = '<div style="display:flex; flex-direction:column; gap:0.35rem;">';
+        for (let i = 0; i < n; i++) {
+            html += `<div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                <label style="min-width:4rem;">第 ${i + 1} 份</label>
+                <input type="number" id="splitHintQuotaInput${i}" step="any" min="0" placeholder="留白均分" style="flex:1; min-width:8rem; padding:0.3rem 0.45rem; border:1px solid #e2e8f0; border-radius:6px;" />
+            </div>`;
+        }
+        html += '</div>';
+        splitHintQuotaContainer.innerHTML = html;
+    }
+
+    async function runSplitHintWeightedPreview(fileIds, parts) {
         const wrap = splitAssignTableWrap;
         if (!wrap || !fileIds || !fileIds.length) return;
         const n = Math.max(2, Math.min(99, parseInt(parts, 10) || 2));
         wrap.innerHTML = '<div style="padding:0.75rem;color:#64748b;">計算中…</div>';
+
         const fileRows = [];
         for (const fid of fileIds) {
             const segs = await DBService.getSegmentsByFile(fid);
             const file = await DBService.getFile(fid);
-            let w = 0;
-            (segs || []).forEach((s) => {
-                w += (window.WordCountEngine && window.WordCountEngine.weightedUnits)
-                    ? window.WordCountEngine.weightedUnits(s.sourceText || '')
-                    : 0;
-            });
             fileRows.push({
                 name: file && file.name ? file.name : String(fid),
                 segs: segs || []
             });
         }
         const flat = [];
+        let totalW = 0;
         fileRows.forEach((fr) => {
             fr.segs.forEach((s, i) => {
-                flat.push({ fileName: fr.name, rowInFile: i + 1 });
+                const w = (window.WordCountEngine && window.WordCountEngine.weightedUnits)
+                    ? window.WordCountEngine.weightedUnits(s.sourceText || '')
+                    : 0;
+                totalW += w;
+                flat.push({ fileName: fr.name, rowInFile: i + 1, weight: w });
             });
         });
         const totalSegs = flat.length;
-        const totalW = fileRows.reduce((acc, fr) => {
-            let w = 0;
-            fr.segs.forEach((s) => {
-                w += (window.WordCountEngine && window.WordCountEngine.weightedUnits)
-                    ? window.WordCountEngine.weightedUnits(s.sourceText || '')
-                    : 0;
-            });
-            return acc + w;
-        }, 0);
-        const chunkSize = totalSegs ? Math.ceil(totalSegs / n) : 0;
-        let html = `<p style="margin:0 0 0.5rem 0; font-size:0.85rem; color:#64748b;">勾選檔案合計 <strong>${totalSegs}</strong> 句、加權約 <strong>${Math.round(totalW * 100) / 100}</strong>；均分為 <strong>${n}</strong> 份（僅供參考）：</p>`;
+
+        const filledValues = readSplitHintFilledValues(n);
+        const qres = computeSplitHintQuotas(totalW, n, filledValues);
+        if (qres.error) {
+            const errText = String(qres.error).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            wrap.innerHTML = `<div style="padding:0.75rem; color:#dc2626; font-size:0.88rem;">${errText}</div>`;
+            return;
+        }
+
+        const partSlices = partitionFlatByQuotas(flat, qres.quotas, n);
+
+        let html = `<p style="margin:0 0 0.5rem 0; font-size:0.85rem; color:#64748b;">勾選檔案合計 <strong>${totalSegs}</strong> 句、加權約 <strong>${fmtSplitHintNum(totalW)}</strong>；分為 <strong>${n}</strong> 份（僅供參考）：</p>`;
         html += '<table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.85rem;"><thead><tr style="background:#f1f5f9;">';
         html += '<th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0;">份次</th>';
+        html += '<th style="text-align:right; padding:0.45rem; border:1px solid #e2e8f0;">目標加權</th>';
+        html += '<th style="text-align:right; padding:0.45rem; border:1px solid #e2e8f0;">實際加權</th>';
         html += '<th style="text-align:right; padding:0.45rem; border:1px solid #e2e8f0;">句段數</th>';
-        html += '<th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0;">列／句段範圍（依檔案順序）</th></tr></thead><tbody>';
+        html += '<th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0;">範圍</th></tr></thead><tbody>';
+
         for (let p = 0; p < n; p++) {
-            const start = p * chunkSize;
-            const end = Math.min(totalSegs, start + chunkSize);
-            const slice = flat.slice(start, end);
+            const slice = partSlices[p] || [];
+            const actualW = slice.reduce((acc, it) => acc + (it.weight || 0), 0);
             const cnt = slice.length;
-            let rangeText = '—';
-            if (slice.length) {
-                const byFile = {};
-                slice.forEach((item) => {
-                    if (!byFile[item.fileName]) byFile[item.fileName] = { min: item.rowInFile, max: item.rowInFile };
-                    else {
-                        byFile[item.fileName].min = Math.min(byFile[item.fileName].min, item.rowInFile);
-                        byFile[item.fileName].max = Math.max(byFile[item.fileName].max, item.rowInFile);
-                    }
-                });
-                rangeText = Object.keys(byFile).map((fn) => {
-                    const o = byFile[fn];
-                    return o.min === o.max ? `${fn}：第 ${o.min} 句` : `${fn}：第 ${o.min}–${o.max} 句`;
-                }).join('<br>');
-            }
+            const rangeText = rangeTextFromSlice(slice);
+            const target = qres.quotas[p];
             html += `<tr><td style="padding:0.45rem; border:1px solid #e2e8f0;">第 ${p + 1} 份</td>`;
+            html += `<td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${fmtSplitHintNum(target)}</td>`;
+            html += `<td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${fmtSplitHintNum(actualW)}</td>`;
             html += `<td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${cnt}</td>`;
             html += `<td style="padding:0.45rem; border:1px solid #e2e8f0; font-size:0.82rem;">${rangeText}</td></tr>`;
         }
@@ -2408,15 +2540,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         wrap.innerHTML = html;
     }
 
-    async function openSplitHintModal() {
+    function openSplitHintModal() {
         const ids = getSelectedProjectFileIds();
         if (!ids.length) {
             alert('請先勾選檔案。');
             return;
         }
-        const parts = splitHintPartsInput ? parseInt(splitHintPartsInput.value, 10) || 2 : 2;
+        const raw = splitHintPartsInput ? parseInt(splitHintPartsInput.value, 10) : 2;
+        const n = Math.max(2, Math.min(99, Number.isFinite(raw) ? raw : 2));
+        if (splitHintPartsInput) splitHintPartsInput.value = String(n);
+        renderSplitHintQuotaRows(n);
+        if (splitAssignTableWrap) {
+            splitAssignTableWrap.innerHTML = '<div style="padding:0.75rem; color:#64748b; font-size:0.88rem;">設定份數與選填配額後，按「開始計算」。</div>';
+        }
         if (splitAssignModal) splitAssignModal.classList.remove('hidden');
-        await refreshSplitHintPreview(ids, parts);
     }
 
     if (btnProjectToolbarAssign) {
@@ -2461,7 +2598,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnProjectWordCount.addEventListener('click', () => { openWordCountModalWithSelection(); });
     }
     if (btnProjectSplitAssign) {
-        btnProjectSplitAssign.addEventListener('click', () => { openSplitHintModal().catch(console.error); });
+        btnProjectSplitAssign.addEventListener('click', () => { openSplitHintModal(); });
     }
     if (btnCloseWordCountModal) btnCloseWordCountModal.addEventListener('click', closeWordCountModal);
     if (btnDismissWordCountModal) btnDismissWordCountModal.addEventListener('click', closeWordCountModal);
@@ -2475,15 +2612,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (splitAssignModal) {
         splitAssignModal.addEventListener('click', (e) => { if (e.target === splitAssignModal) closeSplitAssignModal(); });
     }
-    if (btnSplitHintPreview) {
-        btnSplitHintPreview.addEventListener('click', () => {
+    if (btnSplitHintRun) {
+        btnSplitHintRun.addEventListener('click', () => {
             const ids = getSelectedProjectFileIds();
             if (!ids.length) {
                 alert('請先勾選檔案。');
                 return;
             }
-            const parts = splitHintPartsInput ? parseInt(splitHintPartsInput.value, 10) || 2 : 2;
-            refreshSplitHintPreview(ids, parts).catch(console.error);
+            const raw = splitHintPartsInput ? parseInt(splitHintPartsInput.value, 10) : 2;
+            const n = Math.max(2, Math.min(99, Number.isFinite(raw) ? raw : 2));
+            btnSplitHintRun.disabled = true;
+            runSplitHintWeightedPreview(ids, n).finally(() => {
+                btnSplitHintRun.disabled = false;
+            });
+        });
+    }
+    if (splitHintPartsInput) {
+        splitHintPartsInput.addEventListener('input', () => {
+            const raw = parseInt(splitHintPartsInput.value, 10);
+            const n = Math.max(2, Math.min(99, Number.isFinite(raw) ? raw : 2));
+            renderSplitHintQuotaRows(n);
         });
     }
     (function initHighMatchGuardModal() {
