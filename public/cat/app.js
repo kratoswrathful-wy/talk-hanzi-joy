@@ -7523,7 +7523,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>`;
 
         const bodyEl = wrap.querySelector(`#gl-body-${lk}-${gl.id}`);
-        bodyEl.innerHTML = gl.content ? `<div class="ql-editor ql-snow" style="padding:0.4rem 0.6rem; font-size:0.85rem;">${gl.content}</div>` : '<div style="font-size:0.8rem;color:#94a3b8;padding:0.4rem 0.6rem;">（無內容）</div>';
+        bodyEl.innerHTML = gl.content
+            ? `<div class="ql-editor ql-snow">${gl.content}</div>`
+            : '<div class="guideline-item-empty">（無內容）</div>';
 
         _renderVersions(gl, wrap.querySelector(`#gl-versions-${lk}-${gl.id}`), lk);
 
