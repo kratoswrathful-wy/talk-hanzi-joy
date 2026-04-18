@@ -101,13 +101,12 @@
 
         const buckets = {
             lockedSkipped: { label: '鎖定（略過）', segments: 0, weighted: 0 },
-            untranslated: { label: '未翻譯／空白譯文', segments: 0, weighted: 0 },
             repetition: { label: '檔內重複', segments: 0, weighted: 0 },
             tm100: { label: 'TM 100%', segments: 0, weighted: 0 },
             tm8599: { label: 'TM 高相似 (85–99%)', segments: 0, weighted: 0 },
             tm7584: { label: 'TM 中相似 (75–84%)', segments: 0, weighted: 0 },
             tmLow: { label: 'TM 低相似 (<75%)', segments: 0, weighted: 0 },
-            newWords: { label: '新字／無 TM', segments: 0, weighted: 0 }
+            newWords: { label: '新字／無 TM（含空白譯文）', segments: 0, weighted: 0 }
         };
 
         const seenTranslatedSrc = new Map();
@@ -127,8 +126,8 @@
             }
 
             if (isEmptyTarget(tgt)) {
-                buckets.untranslated.segments += 1;
-                buckets.untranslated.weighted += w;
+                buckets.newWords.segments += 1;
+                buckets.newWords.weighted += w;
                 continue;
             }
 
@@ -151,7 +150,7 @@
             buckets[bucketKey].weighted += w;
         }
 
-        const order = ['lockedSkipped', 'untranslated', 'repetition', 'tm100', 'tm8599', 'tm7584', 'tmLow', 'newWords'];
+        const order = ['lockedSkipped', 'repetition', 'tm100', 'tm8599', 'tm7584', 'tmLow', 'newWords'];
         const rows = order.map((k) => ({
             key: k,
             label: buckets[k].label,

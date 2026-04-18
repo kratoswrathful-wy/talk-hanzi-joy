@@ -169,8 +169,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const splitAssignModal = document.getElementById('splitAssignModal');
     const btnCloseSplitAssignModal = document.getElementById('btnCloseSplitAssignModal');
     const btnCancelSplitAssign = document.getElementById('btnCancelSplitAssign');
-    const btnApplySplitAssign = document.getElementById('btnApplySplitAssign');
+    const splitHintPartsInput = document.getElementById('splitHintPartsInput');
+    const btnSplitHintPreview = document.getElementById('btnSplitHintPreview');
     const splitAssignTableWrap = document.getElementById('splitAssignTableWrap');
+    const highMatchGuardModal = document.getElementById('highMatchGuardModal');
+    const highMatchGuardMessage = document.getElementById('highMatchGuardMessage');
+    const btnHighMatchGuardOk = document.getElementById('btnHighMatchGuardOk');
+    const btnHighMatchGuardCancel = document.getElementById('btnHighMatchGuardCancel');
+    const btnHighMatchGuardClose = document.getElementById('btnHighMatchGuardClose');
     const assignedFilesBody = document.getElementById('assignedFilesBody');
     const collabPresenceBar = document.getElementById('collabPresenceBar');
     const fileAssignModal = document.getElementById('fileAssignModal');
@@ -921,7 +927,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function enforceTeamRoleLayout() {
         if (!isTeamMode()) {
             if (btnProjectToolbarAssign) btnProjectToolbarAssign.style.display = 'none';
-            if (btnProjectSplitAssign) btnProjectSplitAssign.style.display = 'none';
+            if (btnProjectSplitAssign) btnProjectSplitAssign.style.display = '';
             return;
         }
         const role = (window._tmsRole || '').toLowerCase();
@@ -936,7 +942,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             btnProjectToolbarAssign.style.display = translatorOnly || !window._tmsCanAssign ? 'none' : '';
         }
         if (btnProjectSplitAssign) {
-            btnProjectSplitAssign.style.display = translatorOnly || !window._tmsCanAssign ? 'none' : '';
+            btnProjectSplitAssign.style.display = '';
         }
         if (nav) nav.style.display = translatorOnly ? 'none' : '';
         if (translatorOnly) {
@@ -1907,7 +1913,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!projectTmListBody) return;
 
         if (tms.length === 0) {
-            projectTmListBody.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">系統中目前沒有任何翻譯記憶庫。請至 TM 管理頁面新增。</td></tr>';
+            projectTmListBody.innerHTML = '<tr><td colspan="4" style="padding:0.75rem; color:#64748b;">系統中目前沒有任何翻譯記憶庫。請至 TM 管理頁面新增。</td></tr>';
             return;
         }
 
@@ -1917,7 +1923,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         projectTmListBody.innerHTML = '';
         if (mounted.length === 0) {
-            projectTmListBody.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">尚未掛載任何 TM，請按「選擇 TM」。</td></tr>';
+            projectTmListBody.innerHTML = '<tr><td colspan="4" style="padding:0.75rem; color:#64748b;">尚未掛載任何 TM，請按「選擇 TM」。</td></tr>';
             return;
         }
 
@@ -1932,7 +1938,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ? `${langBadgeHtml(tmSrcLangs)} <span style="color:#94a3b8;">→</span> ${langBadgeHtml(tmTgtLangs)}`
                 : '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
             tr.innerHTML = `
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${tm.id}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="tm-link" data-id="${tm.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a></td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${tmLangHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;">${isRead ? '是' : '否'}</td>
@@ -2006,7 +2011,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!projectTbListBody) return;
 
         if (tbs.length === 0) {
-            projectTbListBody.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">系統中目前沒有任何術語庫。請至 TB 管理頁面新增。</td></tr>';
+            projectTbListBody.innerHTML = '<tr><td colspan="4" style="padding:0.75rem; color:#64748b;">系統中目前沒有任何術語庫。請至 TB 管理頁面新增。</td></tr>';
             return;
         }
 
@@ -2016,7 +2021,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         projectTbListBody.innerHTML = '';
         if (mounted.length === 0) {
-            projectTbListBody.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">尚未掛載任何 TB，請按「選擇 TB」。</td></tr>';
+            projectTbListBody.innerHTML = '<tr><td colspan="4" style="padding:0.75rem; color:#64748b;">尚未掛載任何 TB，請按「選擇 TB」。</td></tr>';
             return;
         }
 
@@ -2031,7 +2036,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ? `${langBadgeHtml(tbSrcLangs)} <span style="color:#94a3b8;">→</span> ${langBadgeHtml(tbTgtLangs)}`
                 : '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
             tr.innerHTML = `
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${tb.id}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="tb-proj-link" data-id="${tb.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a></td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${tbLangHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;">${isRead ? '是' : '否'}</td>
@@ -2334,47 +2338,85 @@ document.addEventListener('DOMContentLoaded', async () => {
         alert('已儲存至本機報告紀錄。');
     }
 
-    function openSplitAssignWizard() {
+    async function refreshSplitHintPreview(fileIds, parts) {
+        const wrap = splitAssignTableWrap;
+        if (!wrap || !fileIds || !fileIds.length) return;
+        const n = Math.max(2, Math.min(99, parseInt(parts, 10) || 2));
+        wrap.innerHTML = '<div style="padding:0.75rem;color:#64748b;">計算中…</div>';
+        const fileRows = [];
+        for (const fid of fileIds) {
+            const segs = await DBService.getSegmentsByFile(fid);
+            const file = await DBService.getFile(fid);
+            let w = 0;
+            (segs || []).forEach((s) => {
+                w += (window.WordCountEngine && window.WordCountEngine.weightedUnits)
+                    ? window.WordCountEngine.weightedUnits(s.sourceText || '')
+                    : 0;
+            });
+            fileRows.push({
+                name: file && file.name ? file.name : String(fid),
+                segs: segs || []
+            });
+        }
+        const flat = [];
+        fileRows.forEach((fr) => {
+            fr.segs.forEach((s, i) => {
+                flat.push({ fileName: fr.name, rowInFile: i + 1 });
+            });
+        });
+        const totalSegs = flat.length;
+        const totalW = fileRows.reduce((acc, fr) => {
+            let w = 0;
+            fr.segs.forEach((s) => {
+                w += (window.WordCountEngine && window.WordCountEngine.weightedUnits)
+                    ? window.WordCountEngine.weightedUnits(s.sourceText || '')
+                    : 0;
+            });
+            return acc + w;
+        }, 0);
+        const chunkSize = totalSegs ? Math.ceil(totalSegs / n) : 0;
+        let html = `<p style="margin:0 0 0.5rem 0; font-size:0.85rem; color:#64748b;">勾選檔案合計 <strong>${totalSegs}</strong> 句、加權約 <strong>${Math.round(totalW * 100) / 100}</strong>；均分為 <strong>${n}</strong> 份（僅供參考）：</p>`;
+        html += '<table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.85rem;"><thead><tr style="background:#f1f5f9;">';
+        html += '<th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0;">份次</th>';
+        html += '<th style="text-align:right; padding:0.45rem; border:1px solid #e2e8f0;">句段數</th>';
+        html += '<th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0;">列／句段範圍（依檔案順序）</th></tr></thead><tbody>';
+        for (let p = 0; p < n; p++) {
+            const start = p * chunkSize;
+            const end = Math.min(totalSegs, start + chunkSize);
+            const slice = flat.slice(start, end);
+            const cnt = slice.length;
+            let rangeText = '—';
+            if (slice.length) {
+                const byFile = {};
+                slice.forEach((item) => {
+                    if (!byFile[item.fileName]) byFile[item.fileName] = { min: item.rowInFile, max: item.rowInFile };
+                    else {
+                        byFile[item.fileName].min = Math.min(byFile[item.fileName].min, item.rowInFile);
+                        byFile[item.fileName].max = Math.max(byFile[item.fileName].max, item.rowInFile);
+                    }
+                });
+                rangeText = Object.keys(byFile).map((fn) => {
+                    const o = byFile[fn];
+                    return o.min === o.max ? `${fn}：第 ${o.min} 句` : `${fn}：第 ${o.min}–${o.max} 句`;
+                }).join('<br>');
+            }
+            html += `<tr><td style="padding:0.45rem; border:1px solid #e2e8f0;">第 ${p + 1} 份</td>`;
+            html += `<td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${cnt}</td>`;
+            html += `<td style="padding:0.45rem; border:1px solid #e2e8f0; font-size:0.82rem;">${rangeText}</td></tr>`;
+        }
+        html += '</tbody></table>';
+        wrap.innerHTML = html;
+    }
+
+    async function openSplitHintModal() {
         const ids = getSelectedProjectFileIds();
         if (!ids.length) {
             alert('請先勾選檔案。');
             return;
         }
-        if (!isTeamMode() || !window._tmsCanAssign) {
-            alert('僅團隊模式且具指派權限時可使用拆分指派。');
-            return;
-        }
-        const members = window._tmsAssignableUsers || [];
-        if (!members.length) {
-            alert('尚無可指派人員。');
-            return;
-        }
-        if (!splitAssignTableWrap) return;
-        const opts = members.map((m) => {
-            const lab = (m.displayName || m.email || m.id || '').replace(/</g, '&lt;');
-            return `<option value="${m.id}">${lab}</option>`;
-        }).join('');
-        splitAssignTableWrap.innerHTML = `
-            <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.88rem;">
-                <thead><tr style="background:#f1f5f9;">
-                    <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0;">檔案</th>
-                    <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0;">受派人員（複選 Ctrl+點選）</th>
-                </tr></thead>
-                <tbody>
-                    ${ids.map((fid) => {
-                        const file = filesListBody && filesListBody.querySelector(`tr[data-file-id="${fid}"] .edit-file-btn`);
-                        const rawName = file ? file.textContent : fid;
-                        const nameEsc = String(rawName).replace(/</g, '&lt;');
-                        return `<tr>
-                            <td style="padding:0.45rem; border:1px solid #e2e8f0;">${nameEsc}</td>
-                            <td style="padding:0.45rem; border:1px solid #e2e8f0;">
-                                <select multiple size="5" class="split-assign-select" data-file-id="${fid}" style="width:100%; min-width:220px;">${opts}</select>
-                            </td>
-                        </tr>`;
-                    }).join('')}
-                </tbody>
-            </table>`;
+        const parts = splitHintPartsInput ? parseInt(splitHintPartsInput.value, 10) || 2 : 2;
         if (splitAssignModal) splitAssignModal.classList.remove('hidden');
+        await refreshSplitHintPreview(ids, parts);
     }
 
     if (btnProjectToolbarAssign) {
@@ -2419,7 +2461,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnProjectWordCount.addEventListener('click', () => { openWordCountModalWithSelection(); });
     }
     if (btnProjectSplitAssign) {
-        btnProjectSplitAssign.addEventListener('click', () => { openSplitAssignWizard(); });
+        btnProjectSplitAssign.addEventListener('click', () => { openSplitHintModal().catch(console.error); });
     }
     if (btnCloseWordCountModal) btnCloseWordCountModal.addEventListener('click', closeWordCountModal);
     if (btnDismissWordCountModal) btnDismissWordCountModal.addEventListener('click', closeWordCountModal);
@@ -2433,34 +2475,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (splitAssignModal) {
         splitAssignModal.addEventListener('click', (e) => { if (e.target === splitAssignModal) closeSplitAssignModal(); });
     }
-    if (btnApplySplitAssign) {
-        btnApplySplitAssign.addEventListener('click', async () => {
-            if (!splitAssignTableWrap) return;
-            if (!isTeamMode()) {
-                alert('僅團隊模式可使用拆分指派。');
+    if (btnSplitHintPreview) {
+        btnSplitHintPreview.addEventListener('click', () => {
+            const ids = getSelectedProjectFileIds();
+            if (!ids.length) {
+                alert('請先勾選檔案。');
                 return;
             }
-            const selects = splitAssignTableWrap.querySelectorAll('.split-assign-select');
-            let n = 0;
-            selects.forEach((sel) => {
-                const fileId = sel.getAttribute('data-file-id');
-                const assigneeUserIds = Array.from(sel.selectedOptions).map((o) => o.value).filter(Boolean);
-                if (!fileId || !assigneeUserIds.length) return;
-                window.parent.postMessage({
-                    type: 'CAT_ASSIGN_FILE',
-                    payload: { fileId, assigneeUserIds }
-                }, window.location.origin);
-                n += 1;
-            });
-            if (!n) {
-                alert('請至少為一個檔案選擇受派人員。');
-                return;
-            }
-            closeSplitAssignModal();
-            await new Promise((r) => setTimeout(r, 400));
-            await loadFilesList();
+            const parts = splitHintPartsInput ? parseInt(splitHintPartsInput.value, 10) || 2 : 2;
+            refreshSplitHintPreview(ids, parts).catch(console.error);
         });
     }
+    (function initHighMatchGuardModal() {
+        function closeHm() {
+            if (highMatchGuardModal) highMatchGuardModal.classList.add('hidden');
+            const r = highMatchModalPromiseResolver;
+            highMatchModalPromiseResolver = null;
+            if (r) r(false);
+        }
+        function okHm() {
+            if (highMatchGuardModal) highMatchGuardModal.classList.add('hidden');
+            const r = highMatchModalPromiseResolver;
+            highMatchModalPromiseResolver = null;
+            if (r) r(true);
+        }
+        if (btnHighMatchGuardOk) btnHighMatchGuardOk.addEventListener('click', okHm);
+        if (btnHighMatchGuardCancel) btnHighMatchGuardCancel.addEventListener('click', closeHm);
+        if (btnHighMatchGuardClose) btnHighMatchGuardClose.addEventListener('click', closeHm);
+        if (highMatchGuardModal) {
+            highMatchGuardModal.addEventListener('click', (e) => { if (e.target === highMatchGuardModal) closeHm(); });
+        }
+    })();
 
     function syncProjectWorkspaceNotesSelectAll() { /* removed - workspace notes table replaced by shared info */ }
 
@@ -4637,7 +4682,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('viewEditor').classList.remove('hidden');
         sidebar.classList.add('collapsed');
 
+        sfFilterSnapshotSegIds = null;
+        sfFilterLockedSpecHash = '';
+        highMatchEditConfirmedIds.clear();
         renderEditorSegments();
+        runSearchAndFilter();
         joinCollabForFile(file);
         renderCollabPresence();
         refreshNewTermPanel();
@@ -4795,6 +4844,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     let sfSearchMatches = [];
     let sfActiveMatchIdx = -1;
     let sfFilterGroups = []; // [{ op: 'AND'/'OR', term, scopes, isRegex, isInvert, statuses, tms }]
+    let sfFilterSnapshotSegIds = null;
+    let sfFilterLockedSpecHash = '';
+    const highMatchEditConfirmedIds = new Set();
+    let highMatchModalPromiseResolver = null;
+    let highMatchInputGuardBusy = false;
     let sfPresets = JSON.parse(localStorage.getItem('catToolSfPresets') || '{}');
     let lastEditedRowIdx = null; // Track cursor position
     let selectedRowIds = new Set(); // Track selected segment IDs
@@ -5228,6 +5282,63 @@ document.addEventListener('DOMContentLoaded', async () => {
         return textMatch && statusMatch && tmMatch;
     }
 
+    function getSfFilterSpecHash() {
+        const adv = document.getElementById('sfAdvancedPanel');
+        return JSON.stringify({
+            mode: sfMode,
+            term: sfInput ? sfInput.value : '',
+            scopes: Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map(cb => cb.value),
+            statuses: Array.from(document.querySelectorAll('.sf-status-cb:checked')).map(cb => cb.value),
+            tmVal: document.getElementById('sfTmMatch') ? document.getElementById('sfTmMatch').value : '',
+            invert: btnSfInvert ? btnSfInvert.classList.contains('active') : false,
+            regex: sfUseRegexChecked,
+            groups: sfFilterGroups,
+            advHidden: adv ? adv.classList.contains('hidden') : true
+        });
+    }
+
+    function computeSegmentRowMatch(seg) {
+        const term = sfInput.value;
+        const scopes = Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map(cb => cb.value);
+        const statuses = Array.from(document.querySelectorAll('.sf-status-cb:checked')).map(cb => cb.value);
+        const tmVal = document.getElementById('sfTmMatch').value;
+        const isInvert = btnSfInvert.classList.contains('active');
+        const hasUiFilter = (term || statuses.length > 0 || tmVal || isInvert);
+        const isEvalMatch = evaluateSegment(seg, term, scopes, sfUseRegexChecked, isInvert, statuses, tmVal);
+        let r_finalMatch = true;
+        if (sfFilterGroups.length > 0) {
+            if (!hasUiFilter) {
+                r_finalMatch = evaluateSegment(seg, sfFilterGroups[0].term, sfFilterGroups[0].scopes, sfFilterGroups[0].isRegex, sfFilterGroups[0].isInvert, sfFilterGroups[0].statuses, sfFilterGroups[0].tmVal);
+                for (let i = 1; i < sfFilterGroups.length; i++) {
+                    const g = sfFilterGroups[i];
+                    const m = evaluateSegment(seg, g.term, g.scopes, g.isRegex, g.isInvert, g.statuses, g.tmVal);
+                    if (g.op === 'AND') r_finalMatch = r_finalMatch && m;
+                    if (g.op === 'OR') r_finalMatch = r_finalMatch || m;
+                }
+            } else {
+                r_finalMatch = isEvalMatch;
+                for (let i = 0; i < sfFilterGroups.length; i++) {
+                    const g = sfFilterGroups[i];
+                    const m = evaluateSegment(seg, g.term, g.scopes, g.isRegex, g.isInvert, g.statuses, g.tmVal);
+                    if (g.op === 'AND') r_finalMatch = r_finalMatch && m;
+                    if (g.op === 'OR') r_finalMatch = r_finalMatch || m;
+                }
+            }
+        } else {
+            r_finalMatch = hasUiFilter ? isEvalMatch : true;
+        }
+        return r_finalMatch;
+    }
+
+    function isSfSearchControlActive() {
+        const ae = document.activeElement;
+        if (!ae) return false;
+        const id = ae.id;
+        if (id === 'sfInput' || id === 'sfReplaceInput' || id === 'sfTmMatch') return true;
+        if (ae.closest && ae.closest('#sfAdvancedPanel')) return true;
+        return false;
+    }
+
     function runSearchAndFilter() {
         if (!currentSegmentsList.length) return;
         
@@ -5246,42 +5357,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         const isInvert = btnSfInvert.classList.contains('active');
         
         const rows = document.querySelectorAll('.grid-data-row');
+
+        const specHash = getSfFilterSpecHash();
+        let didRebuildFilterSnapshot = false;
+        if (sfMode !== 'filter') {
+            sfFilterSnapshotSegIds = null;
+            sfFilterLockedSpecHash = '';
+        } else {
+            const needNewSnapshot = sfFilterSnapshotSegIds === null || specHash !== sfFilterLockedSpecHash;
+            if (needNewSnapshot) {
+                const next = new Set();
+                currentSegmentsList.forEach((seg) => {
+                    if (computeSegmentRowMatch(seg)) next.add(seg.id);
+                });
+                sfFilterSnapshotSegIds = next;
+                sfFilterLockedSpecHash = specHash;
+                didRebuildFilterSnapshot = true;
+            }
+        }
         
         currentSegmentsList.forEach((seg, idx) => {
             const row = rows[idx];
             if(!row) return;
 
-            let r_groupMatch = true;
-            
-            const hasUiFilter = (term || statuses.length > 0 || tmVal || isInvert);
-            const isEvalMatch = evaluateSegment(seg, term, scopes, sfUseRegexChecked, isInvert, statuses, tmVal);
-            
-            let r_finalMatch = true;
-            if (sfFilterGroups.length > 0) {
-                if (!hasUiFilter) {
-                    r_finalMatch = evaluateSegment(seg, sfFilterGroups[0].term, sfFilterGroups[0].scopes, sfFilterGroups[0].isRegex, sfFilterGroups[0].isInvert, sfFilterGroups[0].statuses, sfFilterGroups[0].tmVal);
-                    for(let i=1; i<sfFilterGroups.length; i++) {
-                        const g = sfFilterGroups[i];
-                        const m = evaluateSegment(seg, g.term, g.scopes, g.isRegex, g.isInvert, g.statuses, g.tmVal);
-                        if (g.op === 'AND') r_finalMatch = r_finalMatch && m;
-                        if (g.op === 'OR')  r_finalMatch = r_finalMatch || m;
-                    }
-                } else {
-                    r_finalMatch = isEvalMatch;
-                    for(let i=0; i<sfFilterGroups.length; i++) {
-                        const g = sfFilterGroups[i];
-                        const m = evaluateSegment(seg, g.term, g.scopes, g.isRegex, g.isInvert, g.statuses, g.tmVal);
-                        if (g.op === 'AND') r_finalMatch = r_finalMatch && m;
-                        if (g.op === 'OR')  r_finalMatch = r_finalMatch || m;
-                    }
-                }
-            } else {
-                r_finalMatch = hasUiFilter ? isEvalMatch : true;
-            }
+            const r_liveMatch = computeSegmentRowMatch(seg);
 
-            // Filter Mode hiding
+            // Filter Mode hiding：篩選模式下以快照列為準，避免句段內容變動即時剔除列
             if (sfMode === 'filter') {
-                row.style.display = r_finalMatch ? '' : 'none';
+                const vis = sfFilterSnapshotSegIds && sfFilterSnapshotSegIds.has(seg.id);
+                row.style.display = vis ? '' : 'none';
             } else {
                 row.style.display = '';
             }
@@ -5301,10 +5405,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Build a list of highlight requests for this row
             const highlightRequests = [];
             
-            if (term && (sfMode === 'search' ? r_finalMatch : r_finalMatch)) {
+            if (term && (sfMode === 'search' ? r_liveMatch : r_liveMatch)) {
                 highlightRequests.push({ term, scopes, isRegex: sfUseRegexChecked, bg: null }); 
             }
-            if (r_finalMatch || sfMode === 'search') {
+            if (r_liveMatch || sfMode === 'search') {
                 sfFilterGroups.forEach(g => {
                     if(g.term) highlightRequests.push({ term: g.term, scopes: g.scopes, isRegex: g.isRegex, bg: g.color });
                 });
@@ -5380,6 +5484,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             sfMatchCount.textContent = `0 / 0`;
         }
+
+        if (didRebuildFilterSnapshot && sfMode === 'filter' && lastEditedRowIdx !== null && !isSfSearchControlActive()) {
+            const rowsAfter = document.querySelectorAll('.grid-data-row');
+            const targetRow = rowsAfter[lastEditedRowIdx];
+            if (targetRow && targetRow.style.display !== 'none') {
+                const txt = targetRow.querySelector('.grid-textarea');
+                if (txt && txt.contentEditable !== 'false') {
+                    txt.focus();
+                    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        }
     }
 
     function updateMatchHighlightFocus() {
@@ -5392,10 +5508,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         match.markEl.classList.add('search-match-active');
         
         if (match.isTextarea && match.textareaEl) {
-            match.textareaEl.focus();
+            if (!isSfSearchControlActive()) match.textareaEl.focus();
         }
         
-        match.rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (!isSfSearchControlActive()) {
+            match.rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
     }
 
     function getSegmentFieldText(seg, segIdx, fieldKey) {
@@ -5879,7 +5997,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         return -1;
     }
 
-    function performReplaceThis() {
+    function segmentNeedsHighMatchGuard(seg) {
+        if (!seg || highMatchEditConfirmedIds.has(seg.id)) return false;
+        const mv = seg.matchValue;
+        if (mv == null || mv === '') return false;
+        const s = String(mv).trim();
+        const n = parseInt(s, 10);
+        if (!isNaN(n) && n > 100) return true;
+        if (/^(ICE|XTL)$/i.test(s)) return true;
+        if (seg.importMatchKind) {
+            const k = String(seg.importMatchKind).toUpperCase();
+            if (k === 'ICE' || k === 'XTL' || k === '101' || k === 'CTX') return true;
+        }
+        return false;
+    }
+
+    function showHighMatchEditConfirmModal(seg, bulkCount) {
+        return new Promise((resolve) => {
+            if (!highMatchGuardModal || !highMatchGuardMessage) {
+                resolve(true);
+                return;
+            }
+            highMatchModalPromiseResolver = resolve;
+            const mv = seg && seg.matchValue != null ? String(seg.matchValue) : '';
+            const ik = seg && seg.importMatchKind ? String(seg.importMatchKind) : '';
+            if (bulkCount != null && bulkCount > 0) {
+                highMatchGuardMessage.textContent = `即將批次取代 ${bulkCount} 句；其中含有來稿標示為高信心相符（高於一般 100%，例如 101%、ICE 或 XTL 等）。若繼續，表示您確認要覆寫這些譯文。`;
+            } else {
+                highMatchGuardMessage.textContent = `此句在來稿中的相符度為「${mv || ik || '高於 100%'}」。通常表示已依上下文自動帶入譯文。若修改譯文，表示您確認不再沿用該結果。`;
+            }
+            highMatchGuardModal.classList.remove('hidden');
+        });
+    }
+
+    async function performReplaceThis() {
         const term = sfInput.value;
         const replaceTerm = sfReplaceInput ? sfReplaceInput.value : '';
         if (!term || !currentSegmentsList.length) return;
@@ -5908,6 +6059,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         let text = getSegmentFieldText(seg, match.segIdx, 'target');
         const newText = doReplaceInText(text, term, replaceTerm, sfUseRegexChecked, true);
         if (newText === text) return;
+        if (segmentNeedsHighMatchGuard(seg)) {
+            const ok = await showHighMatchEditConfirmModal(seg);
+            if (!ok) return;
+            highMatchEditConfirmedIds.add(seg.id);
+        }
         pushEditorUndo(seg.id, text, newText, { oldMatchValue: seg.matchValue, newMatchValue: seg.matchValue });
         setSegmentFieldText(seg, match.segIdx, 'target', newText);
         runSearchAndFilter();
@@ -5919,41 +6075,49 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    function performReplaceAll() {
+    async function performReplaceAll() {
         const term = sfInput.value;
         const replaceTerm = sfReplaceInput ? sfReplaceInput.value : '';
         if (!term || !currentSegmentsList.length) return;
         const rows = document.querySelectorAll('.grid-data-row');
         const hasSelection = selectedRowIds && selectedRowIds.size > 0;
-        let replacedCount = 0;
-        const bundle = [];
+        const pending = [];
         currentSegmentsList.forEach((seg, segIdx) => {
             if (seg.isLocked) return;
             const row = rows[segIdx];
             if (hasSelection && !selectedRowIds.has(seg.id)) return;
             if (!hasSelection && row && row.style.display === 'none') return;
-            let text = getSegmentFieldText(seg, segIdx, 'target');
+            const text = getSegmentFieldText(seg, segIdx, 'target');
             const newText = doReplaceInText(text, term, replaceTerm, sfUseRegexChecked, false);
-            if (newText !== text) {
-                bundle.push({
-                    kind: 'target',
-                    segmentId: seg.id,
-                    oldTarget: text,
-                    newTarget: newText,
-                    oldMatchValue: seg.matchValue,
-                    newMatchValue: seg.matchValue
-                });
-                setSegmentFieldText(seg, segIdx, 'target', newText);
-                replacedCount++;
-            }
+            if (newText !== text) pending.push({ seg, segIdx, text, newText });
+        });
+        const risky = pending.filter((p) => segmentNeedsHighMatchGuard(p.seg));
+        if (risky.length) {
+            const ok = await showHighMatchEditConfirmModal(null, risky.length);
+            if (!ok) return;
+            risky.forEach((p) => highMatchEditConfirmedIds.add(p.seg.id));
+        }
+        const bundle = [];
+        let replacedCount = 0;
+        pending.forEach((p) => {
+            bundle.push({
+                kind: 'target',
+                segmentId: p.seg.id,
+                oldTarget: p.text,
+                newTarget: p.newText,
+                oldMatchValue: p.seg.matchValue,
+                newMatchValue: p.seg.matchValue
+            });
+            setSegmentFieldText(p.seg, p.segIdx, 'target', p.newText);
+            replacedCount++;
         });
         if (bundle.length) pushUndoEntry({ kind: 'compound', entries: bundle });
         runSearchAndFilter();
         if (replacedCount > 0) updateProgress();
     }
 
-    if (btnSfReplaceThis) btnSfReplaceThis.addEventListener('click', performReplaceThis);
-    if (btnSfReplaceAll) btnSfReplaceAll.addEventListener('click', performReplaceAll);
+    if (btnSfReplaceThis) btnSfReplaceThis.addEventListener('click', () => performReplaceThis().catch(console.error));
+    if (btnSfReplaceAll) btnSfReplaceAll.addEventListener('click', () => performReplaceAll().catch(console.error));
 
     // --- Advanced Groups & Presets ---
     const sfActiveGroupsContainer = document.getElementById('sfActiveGroupsContainer');
@@ -6018,6 +6182,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function clearUIFilters() {
+        sfFilterSnapshotSegIds = null;
+        sfFilterLockedSpecHash = '';
         sfInput.value = '';
         document.querySelectorAll('.sf-status-cb').forEach(c => c.checked = false);
         document.getElementById('sfTmMatch').value = '';
@@ -6915,6 +7081,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
 
                 let targetDebounceTimer;
+                let skipHighMatchInputGuard = false;
                 targetInput.addEventListener('focus', async () => {
                     if (isSegmentBeingEditedByOthers(seg.id)) {
                         const locker = Object.values(collabEditBySession || {}).find((e) =>
@@ -6938,6 +7105,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                         targetInput.innerText = seg.targetText || '';
                         refreshTagNextHighlight(row);
                         return;
+                    }
+                    if (!skipHighMatchInputGuard && segmentNeedsHighMatchGuard(seg)) {
+                        const attempted = extractTextFromEditor(targetInput);
+                        const prevVal = seg.targetText || '';
+                        if (attempted !== prevVal) {
+                            targetInput.innerHTML = buildTaggedHtml(prevVal, seg.targetTags || seg.sourceTags || []);
+                            refreshTagNextHighlight(row);
+                            const ok = await showHighMatchEditConfirmModal(seg);
+                            if (!ok) return;
+                            highMatchEditConfirmedIds.add(seg.id);
+                            skipHighMatchInputGuard = true;
+                            targetInput.innerHTML = buildTaggedHtml(attempted, seg.targetTags || seg.sourceTags || []);
+                            refreshTagNextHighlight(row);
+                            targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                            skipHighMatchInputGuard = false;
+                            return;
+                        }
                     }
                     markEmptySegUserEdited(seg.id);
                     const newVal = extractTextFromEditor(targetInput);
@@ -7568,7 +7752,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     // 雙擊：套用該列的譯文至目前句段
-    window.handleCatResultApply = function(el, type, text, score, matchIndex) {
+    window.handleCatResultApply = async function(el, type, text, score, matchIndex) {
         const activeRow = document.querySelector('.grid-data-row.active-row');
         if (!activeRow) return;
         const textarea = activeRow.querySelector('.grid-textarea');
@@ -7576,6 +7760,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const rowIdx = Array.from(document.querySelectorAll('.grid-data-row')).indexOf(activeRow);
         if (rowIdx < 0 || !currentSegmentsList[rowIdx]) return;
         const seg = currentSegmentsList[rowIdx];
+        if (segmentNeedsHighMatchGuard(seg)) {
+            const ok = await showHighMatchEditConfirmModal(seg);
+            if (!ok) return;
+            highMatchEditConfirmedIds.add(seg.id);
+        }
         markEmptySegUserEdited(seg.id);
         const oldTarget = seg.targetText;
         const oldMatchValue = seg.matchValue;

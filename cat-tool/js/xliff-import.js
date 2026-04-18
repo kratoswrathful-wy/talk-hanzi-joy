@@ -146,6 +146,14 @@
                 matchValue = parseInt(mqPercent, 10);
             }
 
+            let importMatchKind = null;
+            const mqMatchType = tu.getAttribute('mq:match-type') || tu.getAttribute('match-type') || '';
+            const sdlOrig = tu.getAttribute('sdl:origin') || '';
+            const upperHint = `${mqMatchType} ${sdlOrig}`.toUpperCase();
+            if (upperHint.includes('ICE')) importMatchKind = 'ICE';
+            else if (upperHint.includes('XTL')) importMatchKind = 'XTL';
+            else if (matchValue != null && matchValue > 100) importMatchKind = '101';
+
             const mqLocked = tu.getAttribute('mq:locked');
             const isLockedSystem = !!(mqLocked && mqLocked.toLowerCase() === 'locked');
 
@@ -190,6 +198,7 @@
                 isLockedUser: false,
                 status,
                 matchValue,
+                importMatchKind,
                 comments: structuredComments,
                 sourceFormat: isMqxliffFile ? 'mqxliff' : 'xliff',
                 confirmationRole,

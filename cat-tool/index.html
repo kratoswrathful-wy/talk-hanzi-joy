@@ -142,9 +142,9 @@
                         <h2 style="font-size:1.1rem; color:#1e293b; margin:0;">檔案清單</h2>
                         <div id="projectFilesToolbar" style="display:flex; flex-wrap:wrap; gap:0.45rem; align-items:center;">
                             <button type="button" class="secondary-btn btn-sm" id="btnProjectToolbarAssign" style="display:none;" title="需選取一個檔案">指派</button>
-                            <button type="button" class="danger-btn btn-sm" id="btnProjectToolbarDelete">刪除所選</button>
-                            <button type="button" class="secondary-btn btn-sm" id="btnProjectWordCount">計算字數</button>
-                            <button type="button" class="secondary-btn btn-sm" id="btnProjectSplitAssign" style="display:none;">拆分指派</button>
+                            <button type="button" class="danger-btn btn-sm" id="btnProjectToolbarDelete" title="從專案移除所選檔案">移除</button>
+                            <button type="button" class="secondary-btn btn-sm" id="btnProjectWordCount" title="字數與 TM 加權分析">分析</button>
+                            <button type="button" class="secondary-btn btn-sm" id="btnProjectSplitAssign" title="依份數均分句段（僅提示，不指派）">拆分</button>
                         </div>
                     </div>
                     <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
@@ -169,7 +169,7 @@
                     </div>
                 </div>
                 <div id="projectFileAssignHint" style="font-size:0.82rem; color:#64748b; margin-top:-0.8rem; margin-bottom:1rem; display:none;">
-                    團隊線上版可使用上方「指派」或「拆分指派」，將檔案指派給未凍結人員。
+                    團隊線上版可使用上方「指派」將檔案交給未凍結人員；「拆分」僅供均分工作量參考，不會送出指派。
                 </div>
                 <div style="margin-bottom:1.5rem; display:flex; align-items:center; gap:0.75rem;">
                     <button type="button" class="secondary-btn" id="btnOpenSharedInfo">📋 共用資訊</button>
@@ -185,7 +185,6 @@
                         <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                             <thead>
                                 <tr style="background:#f1f5f9;">
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:200px;">語言對</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">讀取</th>
@@ -206,7 +205,6 @@
                         <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                             <thead>
                                 <tr style="background:#f1f5f9;">
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:200px;">語言對</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">讀取</th>
@@ -1188,20 +1186,42 @@
         </div>
     </div>
 
-    <!-- 拆分指派精靈 -->
+    <!-- 拆分提示（均分參考，不指派） -->
     <div id="splitAssignModal" class="wizard-overlay hidden">
-        <div class="wizard-modal" style="max-width:640px;">
+        <div class="wizard-modal" style="max-width:720px;">
             <div class="wizard-header">
-                <h3 style="margin:0; font-size:1.2rem;">拆分指派</h3>
+                <h3 style="margin:0; font-size:1.2rem;">拆分提示</h3>
                 <button type="button" class="close-btn" id="btnCloseSplitAssignModal">×</button>
             </div>
             <div class="wizard-body" style="max-height:55vh; overflow:auto;">
-                <p style="margin:0 0 0.5rem 0; color:#64748b; font-size:0.88rem;">為每個已選檔案各選一位或多位的受派人員（團隊模式）。儲存後將送出指派請求。</p>
-                <div id="splitAssignTableWrap" style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;"></div>
+                <p style="margin:0 0 0.5rem 0; color:#64748b; font-size:0.88rem;">依勾選檔案的句段數將工作切成多份，供人工分配參考；本工具不會送出指派或變更 TMS 權限。</p>
+                <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.75rem;">
+                    <label style="font-size:0.9rem;">分成</label>
+                    <input type="number" id="splitHintPartsInput" min="2" max="99" value="2" style="width:4rem; padding:0.35rem 0.5rem; border:1px solid #e2e8f0; border-radius:6px;">
+                    <span style="font-size:0.9rem;">份（均分句段）</span>
+                    <button type="button" class="primary-btn btn-sm" id="btnSplitHintPreview">預覽均分</button>
+                </div>
+                <div id="splitAssignTableWrap" style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px; min-height:80px;"></div>
             </div>
             <div class="panel-footer" style="display:flex; justify-content:flex-end; gap:0.5rem;">
-                <button type="button" class="secondary-btn" id="btnCancelSplitAssign">取消</button>
-                <button type="button" class="primary-btn" id="btnApplySplitAssign">套用指派</button>
+                <button type="button" class="secondary-btn" id="btnCancelSplitAssign">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 高相符度句段編輯確認 -->
+    <div id="highMatchGuardModal" class="wizard-overlay hidden">
+        <div class="wizard-modal" style="max-width:480px;">
+            <div class="wizard-header">
+                <h3 style="margin:0; font-size:1.2rem;">高信心相符句段</h3>
+                <button type="button" class="close-btn" id="btnHighMatchGuardClose">×</button>
+            </div>
+            <div class="wizard-body">
+                <p id="highMatchGuardMessage" style="margin:0; color:#334155; font-size:0.95rem; line-height:1.5;"></p>
+            </div>
+            <div class="panel-footer" style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                <button type="button" class="secondary-btn" id="btnHighMatchGuardCancel">取消</button>
+                <button type="button" class="primary-btn" id="btnHighMatchGuardOk">仍要編輯</button>
             </div>
         </div>
     </div>

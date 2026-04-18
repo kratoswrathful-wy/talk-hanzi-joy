@@ -1,0 +1,24 @@
+CAT 編輯器：可能主動切換焦點的情境（供後續逐條討論）
+
+1. runSearchAndFilter → updateMatchHighlightFocus
+   - 已修正：當焦點在 sfInput / sfReplaceInput / sfTmMatch 或進階篩選面板內時，不將焦點移到譯文格，且不重捲動（避免搶焦點）。
+
+2. Ctrl+F：聚焦搜尋欄 sfInput（刻意）。
+
+3. Ctrl+K：切 TM 分頁並可能聚焦 tmSearchInput（刻意）。
+
+4. 搜尋上一筆／下一筆：updateMatchHighlightFocus（刻意跟隨命中）。
+
+5. 清除篩選（btnSfClearNav）：清除後聚焦 lastEditedRowIdx 譯文格（刻意）。
+
+6. 篩選條件變更並重建快照後：聚焦最後編輯列（若可見）（刻意）。
+
+7. 遠端衝突未解：blur / Ctrl+Enter 時 queueMicrotask 拉回該列譯文（刻意）。
+
+8. Ctrl+Enter／Ctrl+↑↓：在句段間移動焦點（刻意）。
+
+9. insertPlainTextAtCaret：先 focus 編輯格（貼上／插入需要）。
+
+10. 雙擊套用 TM/TB：結尾 focus 譯文格（刻意）。
+
+11. 命名 Modal、私人待辦新增：聚焦對應輸入（刻意）。

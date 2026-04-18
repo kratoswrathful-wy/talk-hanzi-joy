@@ -89,7 +89,7 @@ db.version(9).stores({
     });
 });
 
-// v10：字數分析報告（本機 IndexedDB，供專案頁「計算字數」紀錄）
+// v10：字數分析報告（本機 IndexedDB，供專案頁「分析」紀錄）
 db.version(10).stores({
     projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
     files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
