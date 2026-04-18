@@ -259,6 +259,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnConfirmTbExcelImport = document.getElementById('btnConfirmTbExcelImport');
     const tbImportInput = document.getElementById('tbImportInput');
     let currentTbId = null;
+    let currentTmId = null;
 
     const wizardOverlay = document.getElementById('wizardOverlay');
     const wizardStep1 = document.getElementById('wizardStep1');
@@ -828,7 +829,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (translatorOnly) {
             const ab = document.getElementById('dashboardAssignedBlock');
             if (ab) ab.style.display = '';
-            switchView('viewDashboard');
+            const viewEditorEl = document.getElementById('viewEditor');
+            const inEditor = !!(viewEditorEl && !viewEditorEl.classList.contains('hidden'));
+            if (!inEditor) {
+                switchView('viewDashboard');
+            }
         }
     }
 
@@ -1397,6 +1402,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         viewSections.forEach(sec => sec.classList.add('hidden'));
         document.getElementById(targetView).classList.remove('hidden');
+        persistCatRoute();
+    }
+
+    function getSessionRouteStorageKey() {
+        try {
+            const s = (new URLSearchParams(window.location.search).get('catStorage') || 'offline').toLowerCase();
+            return `catToolRouteV1_${s}`;
+        } catch (_) {
+            return 'catToolRouteV1_offline';
+        }
+    }
+
+    function persistCatRoute() {
+        try {
+            const viewEditorEl = document.getElementById('viewEditor');
+            const inEditor = !!(currentFileId != null && currentFileId !== '' && viewEditorEl && !viewEditorEl.classList.contains('hidden'));
+            let payload = { view: 'viewDashboard' };
+            if (inEditor) {
+                payload = { view: 'viewEditor', fileId: currentFileId };
+            } else if (activeView === 'viewProjectDetail' && currentProjectId != null) {
+                payload = { view: 'viewProjectDetail', projectId: currentProjectId };
+            } else if (activeView === 'viewTmDetail' && currentTmId != null) {
+                payload = { view: 'viewTmDetail', tmId: currentTmId };
+            } else if (activeView === 'viewTbDetail' && currentTbId != null) {
+                payload = { view: 'viewTbDetail', tbId: currentTbId };
+            } else if (['viewDashboard', 'viewProjects', 'viewTM', 'viewTB'].includes(activeView)) {
+                payload = { view: activeView };
+            } else {
+                payload = { view: activeView || 'viewDashboard' };
+            }
+            sessionStorage.setItem(getSessionRouteStorageKey(), JSON.stringify(payload));
+        } catch (_) { /* ignore */ }
     }
 
     navItems.forEach(item => {
@@ -3092,7 +3129,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // --- TM DETAIL MANAGER ---
-    let currentTmId = null;
     const btnBackToTms = document.getElementById('btnBackToTms');
     const btnImportTmFile = document.getElementById('btnImportTmFile');
     const tmImportInput = document.getElementById('tmImportInput');
@@ -4242,6 +4278,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (file.projectId) {
             loadEditorNotes(file.projectId).catch(console.warn);
         }
+
+        activeView = 'viewEditor';
+        persistCatRoute();
     }
 
     btnExitEditor.addEventListener('click', async () => {
@@ -4254,7 +4293,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.ActiveTmCache = [];
         window.ActiveTbTerms = [];
         sidebar.classList.remove('collapsed');
-        openProjectDetail(currentProjectId);
+        await openProjectDetail(currentProjectId);
+        persistCatRoute();
     });
 
     // --- PRE-TRANSLATE LOGIC ---
@@ -7784,6 +7824,63 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('sharedInfoModal')?.classList.add('hidden');
         });
     })();
+
+    async function restoreCatRouteFromSession() {
+        try {
+            const raw = sessionStorage.getItem(getSessionRouteStorageKey());
+            if (!raw) return;
+            const data = JSON.parse(raw);
+            const view = data.view;
+            const ALLOW = new Set(['viewDashboard', 'viewProjects', 'viewProjectDetail', 'viewTM', 'viewTB', 'viewTmDetail', 'viewTbDetail', 'viewEditor']);
+            if (!view || !ALLOW.has(view)) return;
+
+            if (view === 'viewDashboard') {
+                switchView('viewDashboard');
+                await loadDashboardData();
+                return;
+            }
+            if (view === 'viewProjects') {
+                switchView('viewProjects');
+                await loadProjectsList();
+                return;
+            }
+            if (view === 'viewTM') {
+                switchView('viewTM');
+                await loadTMList();
+                return;
+            }
+            if (view === 'viewTB') {
+                switchView('viewTB');
+                await loadTBList();
+                return;
+            }
+            if (view === 'viewProjectDetail' && data.projectId != null && data.projectId !== '') {
+                await openProjectDetail(data.projectId);
+                return;
+            }
+            if (view === 'viewTmDetail' && data.tmId != null && data.tmId !== '') {
+                await openTmDetail(data.tmId);
+                return;
+            }
+            if (view === 'viewTbDetail' && data.tbId != null && data.tbId !== '') {
+                await openTbDetail(data.tbId);
+                return;
+            }
+            if (view === 'viewEditor' && data.fileId != null && data.fileId !== '') {
+                await openEditor(data.fileId);
+                const ve = document.getElementById('viewEditor');
+                if (!ve || ve.classList.contains('hidden')) {
+                    switchView('viewDashboard');
+                    await loadDashboardData();
+                    persistCatRoute();
+                }
+            }
+        } catch (e) {
+            console.warn('[cat] restore route failed', e);
+        }
+    }
+
+    await restoreCatRouteFromSession();
 
     window.CatMigrationTools = {
         async exportOfflineSnapshot() {
