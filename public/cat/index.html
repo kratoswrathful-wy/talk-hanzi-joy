@@ -801,6 +801,40 @@
             </div>
         </div>
 
+        <!-- 遠端譯文與本機版本衝突 -->
+        <div class="wizard-overlay hidden" id="remoteConflictModal">
+            <div class="wizard-modal" style="max-width: min(720px, 96vw);">
+                <div class="wizard-header">
+                    <h3 style="margin:0; font-size:1.15rem;">遠端譯文與你的版本不同</h3>
+                </div>
+                <div class="wizard-body">
+                    <p style="margin:0 0 0.75rem 0; font-size:0.88rem; color:#64748b; line-height:1.45;">
+                        其他人（<strong id="remoteConflictWho">—</strong>）已提交此句的譯文。請選擇要保留的版本後按「確定」。
+                    </p>
+                    <div class="remote-conflict-panels">
+                        <div class="remote-conflict-col">
+                            <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.88rem; cursor:pointer;">
+                                <input type="radio" name="remoteConflictPick" id="remoteConflictRadioMine" value="mine" checked>
+                                <span>我的版本</span>
+                            </label>
+                            <div id="remoteConflictMine" class="remote-conflict-readonly"></div>
+                        </div>
+                        <div class="remote-conflict-col">
+                            <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.88rem; cursor:pointer;">
+                                <input type="radio" name="remoteConflictPick" id="remoteConflictRadioTheirs" value="theirs">
+                                <span>遠端版本</span>
+                            </label>
+                            <div id="remoteConflictTheirs" class="remote-conflict-readonly"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel-footer" style="padding:1rem 1.5rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; background:#f8fafc;">
+                    <button type="button" class="secondary-btn" id="btnRemoteConflictCancel">取消</button>
+                    <button type="button" class="primary-btn" id="btnRemoteConflictOk">確定</button>
+                </div>
+            </div>
+        </div>
+
         <!-- mqxliff 預設確認身分選擇 -->
         <div class="wizard-overlay hidden" id="mqRoleModal">
             <div class="wizard-modal" style="max-width: 460px;">

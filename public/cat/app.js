@@ -770,13 +770,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { row, editor };
     }
 
+    function applyRemoteTextToSegmentUiAndDb(seg, row, editor, remoteText) {
+        seg.targetText = remoteText;
+        seg.matchValue = undefined;
+        pendingRemoteBySegId.delete(String(seg.id));
+        if (editor) {
+            editor.innerHTML = buildTaggedHtml(remoteText, seg.targetTags || seg.sourceTags || []);
+        }
+        if (row) {
+            updateTagColors(row, remoteText);
+            refreshTagNextHighlight(row);
+            applyMatchCellVisual(row, '');
+        }
+    }
+
     async function applyRemoteCommit(edit, whoLabel) {
         const segId = edit && edit.segmentId;
         if (segId == null) return;
+        if (!isTeamMode()) return;
         const remoteText = typeof edit.text === 'string' ? edit.text : null;
         if (remoteText == null) return;
         const seg = getSegmentById(segId);
-        if (!seg || seg.targetText === remoteText) return;
+        if (!seg) return;
 
         const { row, editor } = getSegmentEditor(segId);
         const activeEditor = document.activeElement && document.activeElement.classList
@@ -788,25 +803,101 @@ document.addEventListener('DOMContentLoaded', async () => {
             : null;
         const isEditingSameSeg = String(activeSegId || '') === String(segId);
 
-        if (isEditingSameSeg) {
-            showRowWriteHint(segId, `${whoLabel} 有新版本（你正在編輯）`);
+        const localText = isEditingSameSeg && editor
+            ? (extractTextFromEditor(editor) || '')
+            : (seg.targetText || '');
+        if (localText === remoteText) {
+            pendingRemoteBySegId.delete(String(segId));
             return;
         }
 
-        seg.targetText = remoteText;
-        if (editor) {
-            editor.innerHTML = buildTaggedHtml(remoteText, seg.targetTags || seg.sourceTags || []);
+        if (isEditingSameSeg && editor) {
+            const at = edit && edit.at ? String(edit.at) : '';
+            const key = String(segId);
+            const prev = pendingRemoteBySegId.get(key);
+            const prevTs = prev && prev.at ? Date.parse(prev.at) : NaN;
+            const newTs = at ? Date.parse(at) : Date.now();
+            if (!prev || !Number.isFinite(prevTs) || (Number.isFinite(newTs) && newTs >= prevTs)) {
+                pendingRemoteBySegId.set(key, {
+                    text: remoteText,
+                    whoLabel: whoLabel || '其他成員',
+                    at: at || new Date().toISOString()
+                });
+            }
+            showRowWriteHint(segId, `${whoLabel} 有新版本（離開或確認時選擇要保留的版本）`);
+            return;
         }
-        if (row) {
-            updateTagColors(row, remoteText);
-            refreshTagNextHighlight(row);
-        }
+
+        applyRemoteTextToSegmentUiAndDb(seg, row, editor, remoteText);
         try {
-            await DBService.updateSegmentTarget(seg.id, remoteText);
+            await DBService.updateSegmentTarget(seg.id, remoteText, { matchValue: '' });
         } catch (err) {
             console.error('[collab] apply remote commit failed', err);
         }
         showRowWriteHint(segId, `${whoLabel} 更新已套用`);
+    }
+
+    /**
+     * 若有待處理的遠端譯文且與本機不同，顯示左右對照選擇。
+     * @returns {Promise<boolean>} true = 可繼續 blur／確認流程；false = 使用者取消（呼叫端應 refocus 譯文欄）
+     */
+    async function resolvePendingRemoteConflict(seg, row, targetInput) {
+        if (!isTeamMode()) return true;
+        const key = String(seg.id);
+        const pending = pendingRemoteBySegId.get(key);
+        if (!pending) return true;
+        const localText = extractTextFromEditor(targetInput) || '';
+        if (localText === pending.text) {
+            pendingRemoteBySegId.delete(key);
+            return true;
+        }
+
+        const modal = document.getElementById('remoteConflictModal');
+        const mineEl = document.getElementById('remoteConflictMine');
+        const theirsEl = document.getElementById('remoteConflictTheirs');
+        const whoEl = document.getElementById('remoteConflictWho');
+        const radioMine = document.getElementById('remoteConflictRadioMine');
+        const radioTheirs = document.getElementById('remoteConflictRadioTheirs');
+        if (!modal || !mineEl || !theirsEl || !radioMine || !radioTheirs) {
+            pendingRemoteBySegId.delete(key);
+            return true;
+        }
+
+        if (whoEl) whoEl.textContent = pending.whoLabel || '其他成員';
+        mineEl.innerHTML = buildTaggedHtml(localText, seg.targetTags || seg.sourceTags || []);
+        theirsEl.innerHTML = buildTaggedHtml(pending.text, seg.targetTags || seg.sourceTags || []);
+        radioMine.checked = true;
+        radioTheirs.checked = false;
+
+        return new Promise((resolve) => {
+            const okBtn = document.getElementById('btnRemoteConflictOk');
+            const cancelBtn = document.getElementById('btnRemoteConflictCancel');
+            const finish = (proceed, pickTheirs) => {
+                modal.classList.add('hidden');
+                if (okBtn) okBtn.onclick = null;
+                if (cancelBtn) cancelBtn.onclick = null;
+                if (!proceed) {
+                    resolve(false);
+                    return;
+                }
+                if (pickTheirs) {
+                    applyRemoteTextToSegmentUiAndDb(seg, row, targetInput, pending.text);
+                    DBService.updateSegmentTarget(seg.id, pending.text, { matchValue: '' }).catch((err) => {
+                        console.error('[collab] apply chosen remote failed', err);
+                    });
+                    editorUndoEditStart[seg.id] = seg.targetText;
+                    editorUndoMatchStart[seg.id] = seg.matchValue;
+                    updateProgress();
+                    renderLiveTmMatches(seg).catch(() => {});
+                } else {
+                    pendingRemoteBySegId.delete(key);
+                }
+                resolve(true);
+            };
+            modal.classList.remove('hidden');
+            if (okBtn) okBtn.onclick = () => finish(true, radioTheirs.checked);
+            if (cancelBtn) cancelBtn.onclick = () => finish(false);
+        });
     }
 
     function enforceTeamRoleLayout() {
@@ -1272,6 +1363,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let collabEditBySession = {};
     let collabRowWriteHintTimers = {};
     let collabSeenCommitKeys = new Set();
+    const pendingRemoteBySegId = new Map();
 
     // Repetition Confirmation Mode: 'after' | 'all' | 'none'
     let repMode = localStorage.getItem('catToolRepMode') || 'after';
@@ -4000,6 +4092,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         editorUndoMatchStart = {};
         emptySegUserEditedIds = new Set();
         emptySegAutoConsumedIds = new Set();
+        pendingRemoteBySegId.clear();
         const file = await DBService.getFile(fileId);
         if(!file) return alert('檔案不存在');
         
@@ -6611,6 +6704,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 targetInput.addEventListener('keyup', () => refreshTagNextHighlight(row));
                 targetInput.addEventListener('blur', async () => {
                     refreshTagNextHighlight(row);
+                    const conflictOk = await resolvePendingRemoteConflict(seg, row, targetInput);
+                    if (!conflictOk) {
+                        queueMicrotask(() => targetInput.focus());
+                        return;
+                    }
                     if (targetDebounceTimer) {
                         clearTimeout(targetDebounceTimer);
                         targetDebounceTimer = null;
@@ -6659,6 +6757,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 targetInput.addEventListener('keydown', async (e) => {
                     if (e.ctrlKey && e.key === 'Enter') {
                         e.preventDefault();
+                        const conflictOk = await resolvePendingRemoteConflict(seg, row, targetInput);
+                        if (!conflictOk) {
+                            queueMicrotask(() => targetInput.focus());
+                            return;
+                        }
                         const touch = collectConfirmTouchIndices(i);
                         const beforeSnapshots = {};
                         touch.forEach(idx => {
@@ -6756,6 +6859,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 statusIcon.addEventListener('click', async () => {
                     const willConfirm = seg.status !== 'confirmed';
                     if (willConfirm) {
+                        const targetTa = row.querySelector('.grid-textarea');
+                        if (targetTa) {
+                            const conflictOk = await resolvePendingRemoteConflict(seg, row, targetTa);
+                            if (!conflictOk) {
+                                queueMicrotask(() => targetTa.focus());
+                                return;
+                            }
+                        }
                         const touch = collectConfirmTouchIndices(i);
                         const beforeSnapshots = {};
                         touch.forEach(idx => {
