@@ -138,6 +138,8 @@ const mapPrivateNoteRow = (r: any) => ({
   createdByName: r.created_by_name,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
+  itemType: r.item_type === "todo" ? "todo" : "note",
+  todoDone: !!r.todo_done,
 });
 
 const mapGuidelineRow = (r: any) => ({
@@ -365,6 +367,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
 
     // ---- Private Notes ----
     case "db.addPrivateNote": {
+      const itemType = payload.entry?.itemType === "todo" ? "todo" : "note";
       const { data, error } = await supabase
         .from("cat_private_notes")
         .insert({
@@ -372,6 +375,8 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           user_id: userId,
           content: payload.entry.content || "",
           created_by_name: payload.entry.createdByName || "",
+          item_type: itemType,
+          todo_done: !!payload.entry.todoDone,
           created_at: nowIso(),
           updated_at: nowIso(),
         } as any)
@@ -391,9 +396,12 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       return (data ?? []).map(mapPrivateNoteRow);
     }
     case "db.updatePrivateNote": {
+      const patch: Record<string, unknown> = { updated_at: nowIso() };
+      if (payload.content !== undefined) patch.content = payload.content;
+      if (payload.todoDone !== undefined) patch.todo_done = !!payload.todoDone;
       const { error } = await supabase
         .from("cat_private_notes")
-        .update({ content: payload.content, updated_at: nowIso() } as any)
+        .update(patch as any)
         .eq("id", payload.noteId)
         .eq("user_id", userId);
       if (error) throw error;

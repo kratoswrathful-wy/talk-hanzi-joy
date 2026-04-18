@@ -69,6 +69,26 @@ db.version(8).stores({
     guidelineReplies: '++id, guidelineId, parentReplyId'
 });
 
+// v9：私人筆記 itemType（note|todo）、todoDone（非索引欄位，upgrade 補齊舊列）
+db.version(9).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, *changeLog, sourceLang, targetLang',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId'
+}).upgrade(tx => {
+    return tx.privateNotes.toCollection().modify(n => {
+        if (n.itemType == null) n.itemType = 'note';
+        if (n.todoDone == null) n.todoDone = false;
+    });
+});
+
 /** 比對／空白判定：取 HTML 可見文字並壓縮空白，與 cat-cloud-rpc / app.js 邏輯一致 */
 function normalizeCatGuidelineContent(html) {
     if (html == null) return '';
@@ -332,13 +352,16 @@ const DBService = {
     // ---- Private Notes（私人筆記）----
     async addPrivateNote(entry) {
         const now = new Date().toISOString();
+        const itemType = entry.itemType === 'todo' ? 'todo' : 'note';
         return await db.privateNotes.add({
             projectId: entry.projectId,
             userId: entry.userId || '',
             content: entry.content || '',
             createdByName: entry.createdByName || '',
             createdAt: now,
-            updatedAt: now
+            updatedAt: now,
+            itemType,
+            todoDone: itemType === 'todo' ? !!entry.todoDone : false
         });
     },
     async getPrivateNotesByProject(projectId, userId) {
@@ -346,8 +369,15 @@ const DBService = {
         if (userId) notes = notes.filter(n => n.userId === userId || !n.userId);
         return notes.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
     },
-    async updatePrivateNote(noteId, content) {
-        return await db.privateNotes.update(noteId, { content, updatedAt: new Date().toISOString() });
+    async updatePrivateNote(noteId, contentOrPatch) {
+        const patch = typeof contentOrPatch === 'string'
+            ? { content: contentOrPatch }
+            : { ...(contentOrPatch && typeof contentOrPatch === 'object' ? contentOrPatch : {}) };
+        const updates = { ...patch, updatedAt: new Date().toISOString() };
+        Object.keys(updates).forEach((k) => {
+            if (updates[k] === undefined) delete updates[k];
+        });
+        return await db.privateNotes.update(noteId, updates);
     },
     async deletePrivateNote(noteId) {
         return await db.privateNotes.delete(noteId);
@@ -639,7 +669,17 @@ const DBService = {
     // private notes
     DBService.addPrivateNote = async (entry) => rpc('db.addPrivateNote', { entry });
     DBService.getPrivateNotesByProject = async (projectId, userId) => rpc('db.getPrivateNotesByProject', { projectId, userId });
-    DBService.updatePrivateNote = async (noteId, content) => rpc('db.updatePrivateNote', { noteId, content });
+    DBService.updatePrivateNote = async (noteId, contentOrPatch) => {
+        if (typeof contentOrPatch === 'string') {
+            return rpc('db.updatePrivateNote', { noteId, content: contentOrPatch });
+        }
+        const p = contentOrPatch && typeof contentOrPatch === 'object' ? contentOrPatch : {};
+        return rpc('db.updatePrivateNote', {
+            noteId,
+            ...(p.content !== undefined ? { content: p.content } : {}),
+            ...(p.todoDone !== undefined ? { todoDone: p.todoDone } : {}),
+        });
+    };
     DBService.deletePrivateNote = async (noteId) => rpc('db.deletePrivateNote', { noteId });
 
     // guidelines

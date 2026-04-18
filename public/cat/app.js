@@ -7159,7 +7159,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     ];
     const REPLY_TOOLBAR = [['bold', 'italic', 'strike'], ['link'], [{ list: 'bullet' }]];
 
-    let _noteQuills = {};       // noteId → Quill instance
+    let _noteQuills = {};       // legacy: 保留給 autoSave 掃描（私人筆記改為編輯模式後主要用 _privateNoteEditQuills）
+    let _privateNoteEditQuills = {}; // 私人筆記 id → Quill（僅編輯中）
     let _replyQuills = {};      // guidelineId+context → Quill instance
     let _guidelineEditQuills = {}; // guideline id (string) → Quill（編輯準則／共用筆記中）
     let _activeNoteProjectId = null;
@@ -7189,6 +7190,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         return normalizeGuidelineContent(html) === '';
     }
 
+    function privateNoteItemType(note) {
+        return note && note.itemType === 'todo' ? 'todo' : 'note';
+    }
+
+    /** 待辦 content 存純文字；相容舊資料若含 HTML 則取可見文字 */
+    function todoPlainTextFromStored(content) {
+        if (content == null) return '';
+        const s = String(content).trim();
+        if (!s) return '';
+        if (s.startsWith('<')) {
+            try {
+                const doc = new DOMParser().parseFromString(s, 'text/html');
+                return (doc.body && doc.body.textContent) ? doc.body.textContent.replace(/\s+/g, ' ').trim() : '';
+            } catch (_) {
+                return s;
+            }
+        }
+        return s;
+    }
+
     /** 共用資訊：時間顯示到分，不含秒 */
     function formatGuidelineDate(iso) {
         if (!iso) return '';
@@ -7212,10 +7233,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const notes = await DBService.getPrivateNotesByProject(projectId, '');
             for (const note of notes) {
-                const q = _noteQuills[note.id];
+                const idStr = String(note.id);
+                if (privateNoteItemType(note) === 'todo') {
+                    const text = todoPlainTextFromStored(note.content);
+                    if (text !== '') continue;
+                    await DBService.deletePrivateNote(parseId(note.id)).catch(() => {});
+                    continue;
+                }
+                const q = _privateNoteEditQuills[idStr] || _noteQuills[note.id];
                 const html = q ? q.root.innerHTML : (note.content || '');
                 if (!isQuillHtmlEffectivelyEmpty(html)) continue;
                 await DBService.deletePrivateNote(parseId(note.id)).catch(() => {});
+                delete _privateNoteEditQuills[idStr];
+                delete _noteQuills[note.id];
             }
         } catch (_) {}
         try {
@@ -7366,7 +7396,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             shareBtn.addEventListener('click', () => _showNoteSharingModal(false));
         }
 
-        // Add private note
         const addBtn = document.getElementById('btnAddPrivateNote');
         if (addBtn) {
             addBtn.addEventListener('click', async () => {
@@ -7375,11 +7404,39 @@ document.addEventListener('DOMContentLoaded', async () => {
                     projectId: _activeNoteProjectId,
                     userId: '',
                     content: '',
-                    createdByName: getCurrentUserName()
+                    createdByName: getCurrentUserName(),
+                    itemType: 'note'
                 });
                 await _loadPrivateNotes();
-                const newItem = document.getElementById(`note-item-${id}`);
-                if (newItem) newItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                const wrap = document.getElementById(`private-note-item-${id}`);
+                if (wrap) {
+                    wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    _startPrivateNoteEdit(
+                        { id, content: '', itemType: 'note', updatedAt: new Date().toISOString() },
+                        wrap
+                    );
+                }
+            });
+        }
+        const addTodoBtn = document.getElementById('btnAddPrivateTodo');
+        if (addTodoBtn) {
+            addTodoBtn.addEventListener('click', async () => {
+                if (!_activeNoteProjectId) return;
+                await DBService.addPrivateNote({
+                    projectId: _activeNoteProjectId,
+                    userId: '',
+                    content: '',
+                    createdByName: getCurrentUserName(),
+                    itemType: 'todo',
+                    todoDone: false
+                });
+                await _loadPrivateNotes();
+                const list = document.getElementById('privateNotesListTodos');
+                const last = list && list.querySelector('.private-todo-item:last-child .private-todo-input');
+                if (last) {
+                    last.focus();
+                    last.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
             });
         }
 
@@ -7421,51 +7478,153 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function _loadPrivateNotes() {
-        const list = document.getElementById('privateNotesList');
-        if (!list || !_activeNoteProjectId) return;
+        const listNotes = document.getElementById('privateNotesListNotes');
+        const listTodos = document.getElementById('privateNotesListTodos');
+        if (!listNotes || !listTodos || !_activeNoteProjectId) return;
         let notes = [];
         try { notes = await DBService.getPrivateNotesByProject(_activeNoteProjectId, ''); } catch (_) {}
         _noteQuills = {};
-        list.innerHTML = '';
-        if (!notes.length) {
-            list.innerHTML = '<div style="font-size:0.8rem;color:#94a3b8;padding:0.3rem 0;">目前沒有私人筆記。點「＋ 新增筆記」開始記錄。</div>';
-            return;
+        Object.keys(_privateNoteEditQuills).forEach((k) => { delete _privateNoteEditQuills[k]; });
+        const noteRows = notes.filter((n) => privateNoteItemType(n) === 'note');
+        const todoRows = notes.filter((n) => privateNoteItemType(n) === 'todo');
+        listNotes.innerHTML = '';
+        listTodos.innerHTML = '';
+        if (!noteRows.length) {
+            listNotes.innerHTML = '<div class="private-notes-empty">目前沒有筆記。點「＋ 新增筆記」開始記錄。</div>';
+        } else {
+            noteRows.forEach((note, idx) => listNotes.appendChild(_buildPrivateNoteItem(note, idx + 1)));
         }
-        notes.forEach(note => list.appendChild(_buildNoteItem(note)));
+        if (!todoRows.length) {
+            listTodos.innerHTML = '<div class="private-notes-empty">目前沒有待辦。點「＋ 新增待辦」新增。</div>';
+        } else {
+            todoRows.forEach((note) => listTodos.appendChild(_buildPrivateTodoItem(note)));
+        }
     }
 
-    function _buildNoteItem(note) {
+    function _buildPrivateNoteItem(note, listIndex) {
         const wrap = document.createElement('div');
-        wrap.className = 'note-item';
-        wrap.id = `note-item-${note.id}`;
-        const at = note.updatedAt ? new Date(note.updatedAt).toLocaleString('zh-TW', { hour12: false }) : '';
+        wrap.className = 'guideline-item private-note-item';
+        wrap.id = `private-note-item-${note.id}`;
+        const idxLabel = listIndex > 0 ? `${listIndex}.` : '';
+        const at = note.updatedAt ? formatGuidelineDate(note.updatedAt) : '';
         wrap.innerHTML = `
-            <div class="note-item-header">
-                <span class="note-item-meta">${at}</span>
-                <div class="note-item-actions">
-                    <button class="danger note-del-btn" data-note-id="${note.id}">刪除</button>
+            <div class="guideline-item-row">
+                <div class="guideline-item-index">${idxLabel}</div>
+                <div class="guideline-item-main">
+                    <div class="guideline-item-body" id="pn-body-${note.id}"></div>
                 </div>
-            </div>
-            <div class="note-quill-host" id="note-quill-${note.id}"></div>`;
-        wrap.querySelector('.note-del-btn').addEventListener('click', async () => {
+                <div class="guideline-item-aside">
+                    <div class="guideline-item-aside-inner">
+                        <span class="guideline-item-meta-combined">${at}</span>
+                        <div class="note-item-actions guideline-item-aside-actions pn-aside-${note.id}">
+                            <button type="button" class="pn-edit-btn" title="編輯">✏️</button>
+                            <button type="button" class="pn-del-btn danger" title="刪除">🗑</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        const bodyEl = wrap.querySelector(`#pn-body-${note.id}`);
+        bodyEl.innerHTML = note.content
+            ? `<div class="ql-editor ql-snow">${note.content}</div>`
+            : '<div class="guideline-item-empty">（無內容）</div>';
+        wrap.querySelector('.pn-edit-btn')?.addEventListener('click', () => _startPrivateNoteEdit(note, wrap));
+        wrap.querySelector('.pn-del-btn')?.addEventListener('click', async () => {
             if (!confirm('確定刪除此筆記？')) return;
+            delete _privateNoteEditQuills[String(note.id)];
             await DBService.deletePrivateNote(parseId(note.id));
             await _loadPrivateNotes();
         });
-        setTimeout(() => {
-            const host = document.getElementById(`note-quill-${note.id}`);
-            if (!host) return;
-            const q = _makeQuill(host, NOTES_TOOLBAR, '在此輸入筆記…');
-            if (note.content) { try { q.root.innerHTML = note.content; } catch (_) {} }
-            _noteQuills[note.id] = q;
-            let saveTimer = null;
-            q.on('text-change', () => {
-                clearTimeout(saveTimer);
-                saveTimer = setTimeout(async () => {
-                    await DBService.updatePrivateNote(parseId(note.id), q.root.innerHTML).catch(console.error);
-                }, 600);
-            });
-        }, 0);
+        return wrap;
+    }
+
+    function _startPrivateNoteEdit(note, wrap) {
+        const idStr = String(note.id);
+        const bodyEl = wrap.querySelector(`#pn-body-${note.id}`);
+        if (!bodyEl) return;
+        bodyEl.innerHTML = '';
+        const q = _makeQuill(bodyEl, NOTES_TOOLBAR, '輸入內容…');
+        if (note.content) { try { q.root.innerHTML = note.content; } catch (_) {} }
+        _privateNoteEditQuills[idStr] = q;
+        const acts = wrap.querySelector(`.pn-aside-${note.id}`) || wrap.querySelector('.guideline-item-aside-actions');
+        if (acts) {
+            acts.innerHTML = `
+                <button type="button" class="pn-save-btn primary-btn btn-sm">儲存</button>
+                <button type="button" class="pn-cancel-btn secondary-btn btn-sm">取消</button>`;
+        }
+        wrap.querySelector('.pn-save-btn')?.addEventListener('click', async () => {
+            const html = q.root.innerHTML;
+            delete _privateNoteEditQuills[idStr];
+            try {
+                await DBService.updatePrivateNote(parseId(note.id), html);
+                await _loadPrivateNotes();
+            } catch (err) {
+                console.error(err);
+                alert(err && err.message ? String(err.message) : '儲存失敗');
+            }
+        });
+        wrap.querySelector('.pn-cancel-btn')?.addEventListener('click', async () => {
+            const html = q.root.innerHTML;
+            delete _privateNoteEditQuills[idStr];
+            if (isQuillHtmlEffectivelyEmpty(html)) {
+                try {
+                    await DBService.deletePrivateNote(parseId(note.id));
+                } catch (err) {
+                    console.error(err);
+                }
+            }
+            await _loadPrivateNotes();
+        });
+    }
+
+    function _buildPrivateTodoItem(note) {
+        const wrap = document.createElement('div');
+        const done = !!note.todoDone;
+        wrap.className = `guideline-item private-todo-item${done ? ' is-done' : ''}`;
+        wrap.id = `private-todo-item-${note.id}`;
+        const at = note.updatedAt ? formatGuidelineDate(note.updatedAt) : '';
+        const textVal = escapeHtml(todoPlainTextFromStored(note.content));
+        wrap.innerHTML = `
+            <div class="guideline-item-row">
+                <div class="private-todo-check">
+                    <input type="checkbox" class="private-todo-cb" ${done ? 'checked' : ''} aria-label="完成待辦">
+                </div>
+                <div class="guideline-item-main">
+                    <input type="text" class="private-todo-input" value="${textVal}" placeholder="待辦內容…" spellcheck="false">
+                </div>
+                <div class="guideline-item-aside">
+                    <div class="guideline-item-aside-inner">
+                        <span class="guideline-item-meta-combined">${at}</span>
+                        <div class="note-item-actions guideline-item-aside-actions">
+                            <button type="button" class="pt-del-btn danger" title="刪除">🗑</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        const cb = wrap.querySelector('.private-todo-cb');
+        const input = wrap.querySelector('.private-todo-input');
+        let saveTimer = null;
+        const saveText = async () => {
+            const t = input ? input.value : '';
+            await DBService.updatePrivateNote(parseId(note.id), { content: t });
+        };
+        input?.addEventListener('input', () => {
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(saveText, 450);
+        });
+        cb?.addEventListener('change', async () => {
+            const checked = !!cb.checked;
+            wrap.classList.toggle('is-done', checked);
+            try {
+                await DBService.updatePrivateNote(parseId(note.id), { todoDone: checked });
+            } catch (err) {
+                console.error(err);
+            }
+        });
+        wrap.querySelector('.pt-del-btn')?.addEventListener('click', async () => {
+            if (!confirm('確定刪除此待辦？')) return;
+            await DBService.deletePrivateNote(parseId(note.id));
+            await _loadPrivateNotes();
+        });
         return wrap;
     }
 
@@ -7720,7 +7879,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!_activeNoteProjectId) return true;
         let notes = [];
         try { notes = await DBService.getPrivateNotesByProject(_activeNoteProjectId, ''); } catch (_) {}
-        const hasContent = notes.some(n => n.content && n.content !== '<p><br></p>' && n.content.trim());
+        const noteRows = notes.filter((n) => privateNoteItemType(n) === 'note');
+        const hasContent = noteRows.some(n => n.content && n.content !== '<p><br></p>' && String(n.content).trim());
         if (!hasContent) return true;
         return _showNoteSharingModal(true);
     }
@@ -7728,7 +7888,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function _showNoteSharingModal(returnPromise) {
         let notes = [];
         try { notes = await DBService.getPrivateNotesByProject(_activeNoteProjectId, ''); } catch (_) {}
-        notes = notes.filter(n => n.content && n.content !== '<p><br></p>' && n.content.trim());
+        notes = notes.filter(
+            (n) => privateNoteItemType(n) === 'note' && n.content && n.content !== '<p><br></p>' && String(n.content).trim()
+        );
         if (!notes.length) return true;
 
         const modal = document.getElementById('noteSharingModal');
@@ -7788,6 +7950,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function autoSaveAllNotes() {
         if (!_activeNoteProjectId) return;
         for (const [id, q] of Object.entries(_noteQuills)) {
+            try { await DBService.updatePrivateNote(parseId(id), q.root.innerHTML); } catch (_) {}
+        }
+        for (const [id, q] of Object.entries(_privateNoteEditQuills)) {
             try { await DBService.updatePrivateNote(parseId(id), q.root.innerHTML); } catch (_) {}
         }
     }

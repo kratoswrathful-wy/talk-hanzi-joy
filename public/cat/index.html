@@ -573,11 +573,21 @@
                             <div class="notes-panel-body" id="notesPanelBody">
                                 <!-- Private Notes Tab -->
                                 <div class="notes-tab-content active" id="tabPrivateNotes">
-                                    <div class="notes-list-header">
-                                        <span style="font-size:0.8rem; color:#64748b;">僅自己可見。離開編輯器時可選擇共用。</span>
-                                        <button type="button" class="notes-add-btn" id="btnAddPrivateNote">＋ 新增筆記</button>
+                                    <p style="font-size:0.78rem; color:#64748b; margin:0 0 0.5rem 0;">僅自己可見。離開編輯器時可針對<strong>筆記</strong>選擇是否複製／移動到共用資訊（待辦不會出現於該視窗）。</p>
+                                    <div class="shared-info-section">
+                                        <div class="shared-info-section-header">
+                                            <h4 class="shared-info-section-title">筆記</h4>
+                                            <button type="button" class="notes-add-btn" id="btnAddPrivateNote">＋ 新增筆記</button>
+                                        </div>
+                                        <div id="privateNotesListNotes" class="notes-items-list"></div>
                                     </div>
-                                    <div id="privateNotesList" class="notes-items-list"></div>
+                                    <div class="shared-info-section" style="margin-top:0.75rem;">
+                                        <div class="shared-info-section-header">
+                                            <h4 class="shared-info-section-title">待辦事項</h4>
+                                            <button type="button" class="notes-add-btn" id="btnAddPrivateTodo">＋ 新增待辦</button>
+                                        </div>
+                                        <div id="privateNotesListTodos" class="notes-items-list"></div>
+                                    </div>
                                 </div>
                                 <!-- Shared Info Tab -->
                                 <div class="notes-tab-content" id="tabSharedInfo">
@@ -1119,7 +1129,7 @@
     <div id="noteSharingModal" class="modal-overlay hidden">
         <div class="modal-box" style="max-width:620px; max-height:85vh; display:flex; flex-direction:column;">
             <h3 style="margin-top:0; flex-shrink:0;">離開前：是否要共用筆記？</h3>
-            <p style="font-size:0.88rem; color:#64748b; margin:0 0 0.75rem 0; flex-shrink:0;">請為每則私人筆記選擇處理方式：</p>
+            <p style="font-size:0.88rem; color:#64748b; margin:0 0 0.75rem 0; flex-shrink:0;">請為每則<strong>筆記</strong>（不含待辦）選擇處理方式：</p>
             <div id="noteSharingList" style="overflow-y:auto; flex:1; min-height:0; border:1px solid #e2e8f0; border-radius:8px; padding:0.5rem;"></div>
             <div style="display:flex; gap:0.5rem; justify-content:flex-end; flex-wrap:wrap; margin-top:1rem; flex-shrink:0;">
                 <button type="button" id="btnNoteSharingCancel" class="secondary-btn btn-sm">取消（留在編輯器）</button>

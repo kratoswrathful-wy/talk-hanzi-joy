@@ -1153,6 +1153,44 @@ mark.search-match {
     line-height: 1.55;
 }
 
+.private-notes-empty {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    padding: 0.2rem 0;
+}
+.private-note-item .guideline-item-body .ql-editor { min-height: 0; }
+.private-todo-item .guideline-item-main { min-width: 0; }
+.private-todo-check {
+    flex-shrink: 0;
+    width: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    align-self: flex-start;
+    padding-top: 0.12rem;
+}
+.private-todo-input {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 0.15rem 0.35rem;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    background: transparent;
+    color: #1e293b;
+}
+.private-todo-input:hover { border-color: #e2e8f0; }
+.private-todo-input:focus {
+    outline: none;
+    border-color: #94a3b8;
+    background: #fff;
+}
+.private-todo-item.is-done .private-todo-input {
+    text-decoration: line-through;
+    color: #94a3b8;
+}
+
 /* 版本記錄 */
 .guideline-versions {
     border-top: 1px solid #f1f5f9;
