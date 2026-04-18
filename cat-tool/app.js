@@ -292,7 +292,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const colSettingsListContainer = document.getElementById('colSettingsListContainer');
     const btnSaveViewSettings = document.getElementById('btnSaveViewSettings');
     const btnResetViewSettings = document.getElementById('btnResetViewSettings');
-    const collabMergeModeSelect = document.getElementById('collabMergeMode');
+    const btnColSettings = document.getElementById('btnColSettings');
+    const emptySegModeSelect = document.getElementById('emptySegMode');
+    const emptySegTmMinPctInput = document.getElementById('emptySegTmMinPct');
 
     const btnShortcuts = document.getElementById('btnShortcuts');
     const shortcutsModal = document.getElementById('shortcutsModal');
@@ -312,12 +314,14 @@ document.addEventListener('DOMContentLoaded', async () => {
      */
     async function applySegmentTextOp(seg, rowEl, op) {
         if (!seg || isDynamicForbidden(seg) || seg.isLockedUser) return;
+        markEmptySegUserEdited(seg.id);
 
         const newText = op === 'copy-source' ? seg.sourceText : '';
         if (op === 'copy-source') {
             seg.targetTags = (seg.sourceTags || []).map(t => ({ ...t }));
         } else {
             seg.targetTags = [];
+            seg.matchValue = undefined;
         }
         seg.targetText = newText;
 
@@ -327,6 +331,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 editor.innerHTML = buildTaggedHtml(newText, seg.targetTags || seg.sourceTags || []);
                 updateTagColors(rowEl, newText);
             }
+            if (op === 'clear') applyMatchCellVisual(rowEl, '');
             if (seg.status === 'confirmed') {
                 seg.status = 'unconfirmed';
                 const si = rowEl.querySelector('.status-icon');
@@ -335,7 +340,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await DBService.updateSegmentStatus(seg.id, 'unconfirmed');
             }
         }
-        await DBService.updateSegmentTarget(seg.id, newText, { targetTags: seg.targetTags });
+        const extra = { targetTags: seg.targetTags };
+        if (op === 'clear') extra.matchValue = '';
+        await DBService.updateSegmentTarget(seg.id, newText, extra);
     }
 
     async function runTextOpOnSelection(op) {
@@ -781,28 +788,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             : null;
         const isEditingSameSeg = String(activeSegId || '') === String(segId);
 
-        if (collabMergeMode === 'hint') {
-            showRowWriteHint(segId, `${whoLabel} 已更新（未套用）`);
+        if (isEditingSameSeg) {
+            showRowWriteHint(segId, `${whoLabel} 有新版本（你正在編輯）`);
             return;
-        }
-        if (collabMergeMode === 'prompt') {
-            if (isEditingSameSeg) {
-                showRowWriteHint(segId, `${whoLabel} 有新版本（你正在編輯）`);
-                return;
-            }
-            const action = await showCollabActionNotice(
-                `${whoLabel} 已提交此句段新內容，要套用遠端文字嗎？`,
-                [
-                    { id: 'ignore', label: '忽略' },
-                    { id: 'apply', label: '套用', primary: true }
-                ],
-                12000,
-                segId
-            );
-            if (action !== 'apply') {
-                showRowWriteHint(segId, '已略過遠端更新');
-                return;
-            }
         }
 
         seg.targetText = remoteText;
@@ -1284,9 +1272,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     let collabEditBySession = {};
     let collabRowWriteHintTimers = {};
     let collabSeenCommitKeys = new Set();
-    let collabMergeMode = localStorage.getItem('catToolCollabMergeMode') || 'auto';
-    if (!['hint', 'prompt', 'auto'].includes(collabMergeMode)) collabMergeMode = 'auto';
-    if (collabMergeModeSelect) collabMergeModeSelect.value = collabMergeMode;
 
     // Repetition Confirmation Mode: 'after' | 'all' | 'none'
     let repMode = localStorage.getItem('catToolRepMode') || 'after';
@@ -3944,6 +3929,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let editorUndoEditStart = {};
     let editorUndoStatusStart = {};
     let editorUndoMatchStart = {};
+    let emptySegUserEditedIds = new Set();
+    let emptySegAutoConsumedIds = new Set();
     let currentFileFormat = 'excel'; // 'excel' | 'xliff' | 'mqxliff' | 'sdlxliff'
     let currentMqConfirmationRole = 'T_ALLOW_R1'; // mqxliff 用的目前確認身分
     let currentFileDefaultMqRole = null; // 匯入時儲存的預設身分，用於字數/句段統計基準
@@ -4011,6 +3998,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         editorUndoEditStart = {};
         editorUndoStatusStart = {};
         editorUndoMatchStart = {};
+        emptySegUserEditedIds = new Set();
+        emptySegAutoConsumedIds = new Set();
         const file = await DBService.getFile(fileId);
         if(!file) return alert('檔案不存在');
         
@@ -4181,6 +4170,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         });
+        ensureStatusColumnLast();
 
         // Initialize grid headers
         const gridHeaderRow = document.getElementById('gridHeaderRow');
@@ -6215,6 +6205,113 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    function markEmptySegUserEdited(segId) {
+        if (segId != null) emptySegUserEditedIds.add(segId);
+    }
+
+    function getEmptySegAutoSettings() {
+        const mode = localStorage.getItem('catToolEmptySegMode') || 'off';
+        const raw = parseInt(localStorage.getItem('catToolEmptySegTmMinPct') || '70', 10);
+        const minPct = Math.min(100, Math.max(0, Number.isFinite(raw) ? raw : 70));
+        return { mode, minPct };
+    }
+
+    function pickBestTmForAuto(seg) {
+        if (!window.ActiveTmCache || !window.ActiveTmCache.length || !seg.sourceText) return null;
+        const rawTm = [];
+        window.ActiveTmCache.forEach(tms => {
+            const sim = calculateSimilarity(seg.sourceText, tms.sourceText);
+            if (sim >= 50) rawTm.push({ ...tms, score: sim, type: 'TM' });
+        });
+        if (!rawTm.length) return null;
+        const bySource = new Map();
+        for (const m of rawTm) {
+            const k = m.sourceText;
+            if (!bySource.has(k)) bySource.set(k, []);
+            bySource.get(k).push(m);
+        }
+        const collapsed = [];
+        for (const arr of bySource.values()) {
+            arr.sort((a, b) => {
+                const ta = new Date(a.lastModified || a.createdAt || 0).getTime();
+                const tb = new Date(b.lastModified || b.createdAt || 0).getTime();
+                return tb - ta;
+            });
+            collapsed.push({ ...arr[0] });
+        }
+        collapsed.sort((a, b) => b.score - a.score);
+        return collapsed[0];
+    }
+
+    async function maybeAutoFillEmptyTarget(seg, row, targetInput) {
+        const cfg = getEmptySegAutoSettings();
+        if (cfg.mode === 'off') return;
+        if (!targetInput || targetInput.getAttribute('contenteditable') === 'false') return;
+        const raw = extractTextFromEditor(targetInput);
+        if ((raw || '').trim() !== '') return;
+        if (isDynamicForbidden(seg) || seg.isLockedUser) return;
+        if (emptySegUserEditedIds.has(seg.id)) return;
+        if (emptySegAutoConsumedIds.has(seg.id)) return;
+
+        const best = pickBestTmForAuto(seg);
+        const hasTm = best && typeof best.score === 'number' && best.score >= cfg.minPct;
+
+        if (cfg.mode === 'tm_only' && !hasTm) return;
+        if (cfg.mode === 'copy_only' && hasTm) return;
+
+        const beforeSnap = snapshotSegForUndo(seg);
+
+        if (cfg.mode === 'tm_only') {
+            if (best.targetTags && best.targetTags.length) {
+                seg.targetTags = best.targetTags.map(t => ({ ...t }));
+            }
+            seg.targetText = best.targetText;
+            seg.matchValue = String(Math.round(best.score));
+            targetInput.innerHTML = buildTaggedHtml(seg.targetText, seg.targetTags || seg.sourceTags || []);
+            updateTagColors(row, seg.targetText);
+            applyMatchCellVisual(row, seg.matchValue);
+            await DBService.updateSegmentTarget(seg.id, seg.targetText, { matchValue: seg.matchValue, targetTags: seg.targetTags });
+        } else if (cfg.mode === 'copy_only') {
+            seg.targetTags = (seg.sourceTags || []).map(t => ({ ...t }));
+            seg.targetText = seg.sourceText;
+            seg.matchValue = undefined;
+            targetInput.innerHTML = buildTaggedHtml(seg.targetText, seg.targetTags || seg.sourceTags || []);
+            updateTagColors(row, seg.targetText);
+            applyMatchCellVisual(row, '');
+            await DBService.updateSegmentTarget(seg.id, seg.targetText, { targetTags: seg.targetTags, matchValue: '' });
+        } else if (cfg.mode === 'tm_then_copy') {
+            if (hasTm) {
+                if (best.targetTags && best.targetTags.length) {
+                    seg.targetTags = best.targetTags.map(t => ({ ...t }));
+                }
+                seg.targetText = best.targetText;
+                seg.matchValue = String(Math.round(best.score));
+                targetInput.innerHTML = buildTaggedHtml(seg.targetText, seg.targetTags || seg.sourceTags || []);
+                updateTagColors(row, seg.targetText);
+                applyMatchCellVisual(row, seg.matchValue);
+                await DBService.updateSegmentTarget(seg.id, seg.targetText, { matchValue: seg.matchValue, targetTags: seg.targetTags });
+            } else {
+                seg.targetTags = (seg.sourceTags || []).map(t => ({ ...t }));
+                seg.targetText = seg.sourceText;
+                seg.matchValue = undefined;
+                targetInput.innerHTML = buildTaggedHtml(seg.targetText, seg.targetTags || seg.sourceTags || []);
+                updateTagColors(row, seg.targetText);
+                applyMatchCellVisual(row, '');
+                await DBService.updateSegmentTarget(seg.id, seg.targetText, { targetTags: seg.targetTags, matchValue: '' });
+            }
+        }
+
+        const afterSnap = snapshotSegForUndo(seg);
+        pushUndoEntry({ kind: 'segmentState', items: [{ id: seg.id, beforeSnap, afterSnap }] });
+        emptySegAutoConsumedIds.add(seg.id);
+        editorUndoEditStart[seg.id] = seg.targetText;
+        editorUndoMatchStart[seg.id] = seg.matchValue;
+        editorUndoStatusStart[seg.id] = seg.status;
+        updateProgress();
+        renderLiveTmMatches(seg);
+        emitCollabEdit('commit', seg, seg.targetText || '');
+    }
+
     function renderEditorSegments() {
         gridBody.innerHTML = '';
 
@@ -6450,7 +6547,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
 
                 let targetDebounceTimer;
-                targetInput.addEventListener('focus', () => {
+                targetInput.addEventListener('focus', async () => {
                     if (isSegmentBeingEditedByOthers(seg.id)) {
                         const locker = Object.values(collabEditBySession || {}).find((e) =>
                             e && e.sessionId !== collabSelfSessionId && String(e.segmentId || '') === String(seg.id || '') && String(e.state || '') !== 'end'
@@ -6461,6 +6558,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         targetInput.blur();
                         return;
                     }
+                    await maybeAutoFillEmptyTarget(seg, row, targetInput);
                     editorUndoEditStart[seg.id] = seg.targetText;
                     editorUndoStatusStart[seg.id] = seg.status;
                     editorUndoMatchStart[seg.id] = seg.matchValue;
@@ -6473,6 +6571,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         refreshTagNextHighlight(row);
                         return;
                     }
+                    markEmptySegUserEdited(seg.id);
                     const newVal = extractTextFromEditor(targetInput);
                     seg.targetText = newVal;
                     emitCollabEdit('typing', seg, newVal);
@@ -6545,6 +6644,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (html && html.includes('class="rt-tag"')) {
                         // 來自本編輯器（或相容結構）的貼上：保留 rt-tag span，以便 extractTextFromEditor 轉回 {N} 佔位符
                         document.execCommand('insertHTML', false, html);
+                        markEmptySegUserEdited(seg.id);
                         return;
                     }
 
@@ -6552,6 +6652,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (plain) {
                         document.execCommand('insertText', false, plain);
                     }
+                    markEmptySegUserEdited(seg.id);
                 });
 
                 // Ctrl+Enter logic
@@ -7089,6 +7190,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const rowIdx = Array.from(document.querySelectorAll('.grid-data-row')).indexOf(activeRow);
         if (rowIdx < 0 || !currentSegmentsList[rowIdx]) return;
         const seg = currentSegmentsList[rowIdx];
+        markEmptySegUserEdited(seg.id);
         const oldTarget = seg.targetText;
         const oldMatchValue = seg.matchValue;
 
@@ -7308,21 +7410,101 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ── TM Concordance Search ────────────────────────────────────────────────
 
+    function parseTmConcordanceQuery(raw) {
+        const phrases = [];
+        const tokens = [];
+        const s = String(raw || '');
+        let i = 0;
+        while (i < s.length) {
+            const ch = s[i];
+            if (ch === '"') {
+                const end = s.indexOf('"', i + 1);
+                if (end === -1) {
+                    const tail = s.slice(i + 1).trim();
+                    if (tail) tail.split(/\s+/).forEach(t => { if (t) tokens.push(t); });
+                    break;
+                }
+                const inner = s.slice(i + 1, end);
+                if (inner) phrases.push(inner);
+                i = end + 1;
+            } else if (/\s/.test(ch)) {
+                i++;
+            } else {
+                const start = i;
+                while (i < s.length && s[i] !== '"' && !/\s/.test(s[i])) i++;
+                const word = s.slice(start, i);
+                if (word) tokens.push(word);
+            }
+        }
+        return { phrases, tokens };
+    }
+
+    function tmConcordanceMatchesQuery(text, phrases, tokens) {
+        const lower = (text || '').toLowerCase();
+        for (const p of phrases) {
+            if (p == null || p === '') continue;
+            if (!lower.includes(String(p).toLowerCase())) return false;
+        }
+        for (const t of tokens) {
+            if (t == null || t === '') continue;
+            if (!lower.includes(String(t).toLowerCase())) return false;
+        }
+        return true;
+    }
+
+    function buildTmConcordanceHighlightedHtml(rawText, phrases, tokens) {
+        const text = rawText == null ? '' : String(rawText);
+        const terms = [];
+        phrases.forEach(p => { if (p != null && p !== '') terms.push(String(p)); });
+        tokens.forEach(t => { if (t != null && t !== '') terms.push(String(t)); });
+        if (!terms.length) return text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const lower = text.toLowerCase();
+        const intervals = [];
+        for (const term of terms) {
+            const tl = term.toLowerCase();
+            let pos = 0;
+            let idx;
+            while ((idx = lower.indexOf(tl, pos)) !== -1) {
+                intervals.push([idx, idx + term.length]);
+                pos = idx + 1;
+            }
+        }
+        if (!intervals.length) return text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        intervals.sort((a, b) => a[0] - b[0]);
+        const merged = [];
+        for (const iv of intervals) {
+            if (!merged.length || iv[0] > merged[merged.length - 1][1]) merged.push([iv[0], iv[1]]);
+            else merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], iv[1]);
+        }
+        let out = '';
+        let last = 0;
+        for (const [a, b] of merged) {
+            out += text.slice(last, a).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            out += '<mark class="tm-search-hit">' + text.slice(a, b).replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</mark>';
+            last = b;
+        }
+        out += text.slice(last).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return out;
+    }
+
     function runTmConcordanceSearch() {
         const input = document.getElementById('tmSearchInput');
         const fieldSel = document.getElementById('tmSearchField');
         const resultsEl = document.getElementById('tmSearchConcordanceResults');
         if (!input || !resultsEl) return;
-        const query = (input.value || '').trim().toLowerCase();
-        if (!query) { resultsEl.innerHTML = '<div style="color:#64748b; padding:0.5rem;">請輸入搜尋關鍵字。</div>'; return; }
+        const raw = (input.value || '').trim();
+        if (!raw) { resultsEl.innerHTML = '<div style="color:#64748b; padding:0.5rem;">請輸入搜尋關鍵字。</div>'; return; }
+        const { phrases, tokens } = parseTmConcordanceQuery(raw);
+        if (!phrases.length && !tokens.length) {
+            resultsEl.innerHTML = '<div style="color:#64748b; padding:0.5rem;">請輸入有效的搜尋關鍵字。</div>';
+            return;
+        }
         const field = fieldSel ? fieldSel.value : 'source';
         const cache = window.ActiveTmCache || [];
         const matches = [];
         cache.forEach(seg => {
             const text = field === 'target' ? (seg.targetText || '') : (seg.sourceText || '');
-            if (text.toLowerCase().includes(query)) {
-                matches.push(seg);
-            }
+            if (tmConcordanceMatchesQuery(text, phrases, tokens)) matches.push(seg);
         });
         if (!matches.length) {
             resultsEl.innerHTML = '<div style="color:#64748b; padding:0.5rem;">沒有找到相符的 TM 記錄。</div>';
@@ -7331,8 +7513,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const maxShow = 50;
         const shown = matches.slice(0, maxShow);
         resultsEl.innerHTML = shown.map((m, i) => {
-            const src = (m.sourceText || '').replace(/</g, '&lt;');
-            const tgt = (m.targetText || '').replace(/</g, '&lt;');
+            const src = buildTmConcordanceHighlightedHtml(m.sourceText || '', phrases, tokens);
+            const tgt = buildTmConcordanceHighlightedHtml(m.targetText || '', phrases, tokens);
             const tmLabel = (m.tmName || '').replace(/</g, '&lt;');
             return `<div class="tm-concordance-item" data-idx="${i}" style="padding:0.45rem 0.4rem; border-bottom:1px solid #e2e8f0; cursor:pointer;" title="點擊套用譯文">
                 <div style="font-size:0.78rem; color:#64748b; margin-bottom:2px;">${tmLabel}</div>
@@ -7351,6 +7533,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const segId = parseId(activeRow.dataset.segId);
                 const seg = currentSegmentsList.find(s => s.id === segId);
                 if (!seg) return;
+                markEmptySegUserEdited(seg.id);
                 const editor = activeRow.querySelector('.grid-textarea');
                 if (!editor || editor.contentEditable === 'false') return;
                 editor.innerText = m.targetText || '';
@@ -7484,52 +7667,93 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    function ensureStatusColumnLast() {
+        const idx = colSettings.findIndex(c => c.id === 'col-status');
+        if (idx >= 0 && idx < colSettings.length - 1) {
+            const [st] = colSettings.splice(idx, 1);
+            colSettings.push(st);
+        }
+    }
+
+    let colSettingsDragFrom = null;
+
     function renderColSettings() {
+        ensureStatusColumnLast();
         colSettingsListContainer.innerHTML = '';
         colSettings.forEach((c, index) => {
             const item = document.createElement('div');
+            item.dataset.index = String(index);
             item.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:0.5rem; background:white; border:1px solid #cbd5e1; border-radius:4px;';
             const isStatus = c.id === 'col-status';
-            
+
             item.innerHTML = `
-                <div style="display:flex; align-items:center; gap:0.5rem;">
-                    <span style="color:#94a3b8;">${isStatus ? '🔒' : '☰'}</span>
+                <div style="display:flex; align-items:center; gap:0.5rem; flex:1; min-width:0;">
+                    <span class="col-drag-handle" style="color:#94a3b8; user-select:none;" title="${isStatus ? '狀態欄固定於最右' : '拖曳排序'}">${isStatus ? '🔒' : '☰'}</span>
                     <label style="display:flex; align-items:center; gap:0.5rem; margin:0; cursor:${isStatus ? 'not-allowed' : 'pointer'};">
                         <input type="checkbox" ${c.visible ? 'checked' : ''} data-id="${c.id}" class="col-vis-toggle" ${isStatus ? 'disabled' : ''}>
                         <span style="${isStatus ? 'color:#94a3b8;' : ''}">${c.name}</span>
                     </label>
-                </div>
-                <div>
-                    <button class="icon-btn btn-sm move-up" ${index===0 || isStatus ? 'disabled' : ''} data-index="${index}">↑</button>
-                    <button class="icon-btn btn-sm move-down" ${index===colSettings.length-1 || isStatus ? 'disabled' : ''} data-index="${index}">↓</button>
-                </div>
-            `;
+                </div>`;
+            if (!isStatus) item.draggable = true;
             colSettingsListContainer.appendChild(item);
         });
 
         document.querySelectorAll('.col-vis-toggle').forEach(chk => {
             chk.addEventListener('change', (e) => {
                 const col = colSettings.find(cs => cs.id === e.target.getAttribute('data-id'));
-                if(col) col.visible = e.target.checked;
+                if (col) col.visible = e.target.checked;
             });
         });
 
-        document.querySelectorAll('.move-up').forEach(btn => btn.addEventListener('click', (e) => {
-            const i = parseInt(btn.getAttribute('data-index'));
-            [colSettings[i-1], colSettings[i]] = [colSettings[i], colSettings[i-1]];
-            renderColSettings();
-        }));
-        
-        document.querySelectorAll('.move-down').forEach(btn => btn.addEventListener('click', (e) => {
-            const i = parseInt(btn.getAttribute('data-index'));
-            [colSettings[i], colSettings[i+1]] = [colSettings[i+1], colSettings[i]];
-            renderColSettings();
-        }));
+        colSettingsListContainer.querySelectorAll('[draggable="true"]').forEach(row => {
+            row.addEventListener('dragstart', (e) => {
+                colSettingsDragFrom = parseInt(row.dataset.index, 10);
+                e.dataTransfer.effectAllowed = 'move';
+                try { e.dataTransfer.setData('text/plain', String(colSettingsDragFrom)); } catch (_) {}
+            });
+            row.addEventListener('dragend', () => { colSettingsDragFrom = null; });
+        });
     }
 
-    btnColSettings.addEventListener('click', () => {
+    if (colSettingsListContainer && !colSettingsListContainer.__colDragBound) {
+        colSettingsListContainer.__colDragBound = true;
+        colSettingsListContainer.addEventListener('dragover', (e) => {
+            const t = e.target && e.target.closest && e.target.closest('[data-index]');
+            if (!t || !colSettingsListContainer.contains(t)) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        });
+        colSettingsListContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const dropRow = e.target && e.target.closest && e.target.closest('[data-index]');
+            if (!dropRow || !colSettingsListContainer.contains(dropRow)) return;
+            const from = colSettingsDragFrom;
+            const to = parseInt(dropRow.dataset.index, 10);
+            if (from == null || Number.isNaN(from) || Number.isNaN(to) || from === to) return;
+            if (!colSettings[from] || !colSettings[to]) return;
+            if (colSettings[from].id === 'col-status' || colSettings[to].id === 'col-status') {
+                ensureStatusColumnLast();
+                renderColSettings();
+                return;
+            }
+            const [moved] = colSettings.splice(from, 1);
+            const ins = from < to ? to - 1 : to;
+            colSettings.splice(ins, 0, moved);
+            ensureStatusColumnLast();
+            renderColSettings();
+        });
+    }
+
+    function syncEmptySegSettingsUI() {
+        const mode = localStorage.getItem('catToolEmptySegMode') || 'off';
+        const pct = localStorage.getItem('catToolEmptySegTmMinPct') || '70';
+        if (emptySegModeSelect) emptySegModeSelect.value = mode;
+        if (emptySegTmMinPctInput) emptySegTmMinPctInput.value = pct;
+    }
+
+    if (btnColSettings) btnColSettings.addEventListener('click', () => {
         renderColSettings();
-        if (collabMergeModeSelect) collabMergeModeSelect.value = collabMergeMode;
+        syncEmptySegSettingsUI();
         viewSettingsModal.classList.remove('hidden');
     });
 
@@ -7537,10 +7761,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     btnSaveViewSettings.addEventListener('click', () => {
         localStorage.setItem('catToolColSettings', JSON.stringify(colSettings));
-        if (collabMergeModeSelect) {
-            collabMergeMode = collabMergeModeSelect.value || 'auto';
-            if (!['hint', 'prompt', 'auto'].includes(collabMergeMode)) collabMergeMode = 'auto';
-            localStorage.setItem('catToolCollabMergeMode', collabMergeMode);
+        if (emptySegModeSelect) {
+            const m = emptySegModeSelect.value || 'off';
+            localStorage.setItem('catToolEmptySegMode', ['off', 'tm_only', 'copy_only', 'tm_then_copy'].includes(m) ? m : 'off');
+        }
+        if (emptySegTmMinPctInput) {
+            const v = parseInt(emptySegTmMinPctInput.value, 10);
+            const n = Math.min(100, Math.max(0, Number.isFinite(v) ? v : 70));
+            localStorage.setItem('catToolEmptySegTmMinPct', String(n));
         }
         applyColSettings();
         viewSettingsModal.classList.add('hidden');
@@ -7562,9 +7790,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         defaultCols.push({ id: 'col-status', name: '狀態', visible: true, width: '35px' });
 
         colSettings = defaultCols;
-        collabMergeMode = 'auto';
-        if (collabMergeModeSelect) collabMergeModeSelect.value = collabMergeMode;
-        localStorage.setItem('catToolCollabMergeMode', collabMergeMode);
+        localStorage.setItem('catToolEmptySegMode', 'off');
+        localStorage.setItem('catToolEmptySegTmMinPct', '70');
+        if (emptySegModeSelect) emptySegModeSelect.value = 'off';
+        if (emptySegTmMinPctInput) emptySegTmMinPctInput.value = '70';
         renderColSettings();
     });
 

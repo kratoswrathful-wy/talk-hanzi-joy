@@ -454,7 +454,7 @@
                         <button id="btnTagCollapse" class="icon-btn" title="展開標籤 (Ctrl+Shift+T)" style="font-size:0.8rem; font-family:monospace;">{…}</button>
                         <button id="btnTagGroupMode" class="icon-btn active" title="標籤群組插入：已停用（F8 固定插入單一 tag）" style="font-size:0.8rem;">T⁺</button>
                         <button id="btnShortcuts" class="icon-btn" title="快捷鍵設定">⌨️</button>
-                        <button id="btnColSettings" class="icon-btn" title="視圖設定">👁️</button>
+                        <button id="btnColSettings" class="icon-btn" title="設定">⚙️</button>
                         <button id="btnPreTranslate" class="primary-btn btn-sm">預先翻譯</button>
                         <button id="exportBtn" class="success-btn btn-sm">匯出檔案</button>
                     </div>
@@ -744,7 +744,7 @@
         <div class="wizard-overlay hidden" id="viewSettingsModal">
             <div class="wizard-modal" style="max-width: 400px;">
                 <div class="wizard-header">
-                    <h3 style="margin:0; font-size:1.25rem;">欄位視圖設定</h3>
+                    <h3 style="margin:0; font-size:1.25rem;">設定</h3>
                     <button class="close-btn" id="btnCloseViewSettings">×</button>
                 </div>
                 <div class="wizard-body" style="display:flex; flex-direction:column; gap:0.75rem;">
@@ -772,23 +772,26 @@
                     </div>
 
                     <div style="padding: 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
-                        <strong style="display:block; margin-bottom: 0.5rem; font-size: 0.9rem;">多人同句段衝突處理</strong>
-                        <label for="collabMergeMode" style="display:block; margin-bottom:0.35rem; font-size:0.82rem; color:#475569;">
-                            當其他人提交同一句段時，此端如何處理遠端文字：
-                        </label>
-                        <select id="collabMergeMode" style="width:100%; padding:0.45rem 0.55rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem;">
-                            <option value="hint">僅提示（不自動覆蓋）</option>
-                            <option value="prompt">詢問是否套用遠端文字</option>
-                            <option value="auto">自動套用遠端文字</option>
+                        <strong style="display:block; margin-bottom: 0.5rem; font-size: 0.9rem;">空白句段自動處理</strong>
+                        <p style="margin:0 0 0.5rem 0; font-size:0.78rem; color:#64748b; line-height:1.4;">空白譯文於<strong>首次</strong>取得焦點時執行一次（若您曾編輯過該句譯文則略過）。</p>
+                        <label for="emptySegMode" style="display:block; margin-bottom:0.35rem; font-size:0.82rem; color:#475569;">模式</label>
+                        <select id="emptySegMode" style="width:100%; padding:0.45rem 0.55rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; margin-bottom:0.5rem;">
+                            <option value="off">關閉</option>
+                            <option value="tm_only">僅自動 TM（≥門檻）</option>
+                            <option value="copy_only">僅無合格 TM 時複製原文</option>
+                            <option value="tm_then_copy">先 TM，否則複製原文</option>
                         </select>
-                        <p style="margin:0.45rem 0 0 0; font-size:0.78rem; color:#64748b;">
-                            建議預設「僅提示」。若需要多人快速對齊內容，可改為「自動套用」。
-                        </p>
+                        <label for="emptySegTmMinPct" style="display:block; margin-bottom:0.35rem; font-size:0.82rem; color:#475569;">TM 門檻（%）</label>
+                        <input type="number" id="emptySegTmMinPct" min="0" max="100" value="70" style="width:100%; padding:0.45rem 0.55rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; box-sizing:border-box;">
                     </div>
 
                     <!-- Column Settings -->
-                    <div id="colSettingsListContainer" style="display:flex; flex-direction:column; gap:0.75rem;">
+                    <div style="padding: 0 0.25rem;">
+                        <strong style="display:block; margin-bottom:0.35rem; font-size:0.9rem;">欄位顯示順序</strong>
+                        <p style="margin:0 0 0.6rem 0; font-size:0.78rem; color:#64748b; line-height:1.4;">此處由上而下表示在編輯器內從左到右，可拖曳調整。取消勾選表示隱藏。</p>
+                        <div id="colSettingsListContainer" style="display:flex; flex-direction:column; gap:0.75rem;">
                         <!-- Content injected via JS -->
+                        </div>
                     </div>
                 </div>
                 <div class="panel-footer" style="padding:1rem 2rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; background:#f8fafc;">
