@@ -1650,63 +1650,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     btnBackToProjects.addEventListener('click', () => switchView('viewProjects'));
 
-    async function loadProjectTms(project) {
-        const tms = await DBService.getTMs();
-        const projectTmListBody = document.getElementById('projectTmListBody');
-        if (!projectTmListBody) return;
-        
-        if (tms.length === 0) {
-            projectTmListBody.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">系統中目前沒有任何翻譯記憶庫。請至 TM 管理頁面新增。</td></tr>';
-            return;
-        }
-
-        const readTms = new Set(project.readTms || []);
-        const writeTms = new Set(project.writeTms || []);
-
-        projectTmListBody.innerHTML = '';
-        tms.forEach(tm => {
-            const tr = document.createElement('tr');
-            const nameEsc = (tm.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            const isRead = readTms.has(tm.id);
-            const isWrite = writeTms.has(tm.id);
-            const tmSrcLangs = tm.sourceLangs || [];
-            const tmTgtLangs = tm.targetLangs || [];
-            const tmLangHtml = (tmSrcLangs.length || tmTgtLangs.length)
-                ? `${langBadgeHtml(tmSrcLangs)} <span style="color:#94a3b8;">→</span> ${langBadgeHtml(tmTgtLangs)}`
-                : '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
-            tr.innerHTML = `
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${tm.id}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="tm-link" data-id="${tm.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a></td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${tmLangHtml}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="checkbox" class="tm-read-cb" data-id="${tm.id}" ${isRead ? 'checked' : ''}> Read</label></td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="checkbox" class="tm-write-cb" data-id="${tm.id}" ${isWrite ? 'checked' : ''}> Write</label></td>
-            `;
-            projectTmListBody.appendChild(tr);
-        });
-
-        projectTmListBody.querySelectorAll('.tm-link').forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                const id = parseId(link.getAttribute('data-id'));
-                openTmDetail(id);
-                navItems.forEach(n => n.classList.remove('active'));
-                const navTm = document.querySelector('.nav-item[data-view="viewTM"]');
-                if (navTm) navTm.classList.add('active');
-            });
-        });
-    }
-
-    document.getElementById('btnSaveProjectTms').addEventListener('click', async () => {
-        if(!currentProjectId) return;
+    async function commitProjectTmMounts(readTms, writeTms) {
+        if (!currentProjectId) return;
         const project = await DBService.getProject(currentProjectId) || {};
         const prevRead = new Set(project.readTms || []);
         const prevWrite = new Set(project.writeTms || []);
-        
-        const readTms = [];
-        const writeTms = [];
-        document.querySelectorAll('.tm-read-cb:checked').forEach(cb => readTms.push(parseId(cb.getAttribute('data-id'))));
-        document.querySelectorAll('.tm-write-cb:checked').forEach(cb => writeTms.push(parseId(cb.getAttribute('data-id'))));
-        
+
         await DBService.updateProjectTMs(currentProjectId, readTms, writeTms);
 
         const nextRead = new Set(readTms);
@@ -1739,66 +1688,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             await DBService.addModuleLog('projects', summary);
         }
         alert('翻譯記憶庫設定已儲存！');
-    });
-
-    // ── TB mounting ──────────────────────────────────────────────────────────
-
-    async function loadProjectTbs(project) {
-        const tbs = await DBService.getTBs();
-        const projectTbListBody = document.getElementById('projectTbListBody');
-        if (!projectTbListBody) return;
-
-        if (tbs.length === 0) {
-            projectTbListBody.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">系統中目前沒有任何術語庫。請至 TB 管理頁面新增。</td></tr>';
-            return;
-        }
-
-        const readTbs = new Set(project.readTbs || []);
-        const writeTb = project.writeTb ?? null;
-
-        projectTbListBody.innerHTML = '';
-        tbs.forEach(tb => {
-            const tr = document.createElement('tr');
-            const nameEsc = (tb.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            const isRead = readTbs.has(tb.id);
-            const isWrite = writeTb === tb.id;
-            const tbSrcLangs = tb.sourceLangs || [];
-            const tbTgtLangs = tb.targetLangs || [];
-            const tbLangHtml = (tbSrcLangs.length || tbTgtLangs.length)
-                ? `${langBadgeHtml(tbSrcLangs)} <span style="color:#94a3b8;">→</span> ${langBadgeHtml(tbTgtLangs)}`
-                : '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
-            tr.innerHTML = `
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${tb.id}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="tb-proj-link" data-id="${tb.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a></td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${tbLangHtml}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="checkbox" class="tb-read-cb" data-id="${tb.id}" ${isRead ? 'checked' : ''}> Read</label></td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="radio" name="tb-write-radio" value="${tb.id}" ${isWrite ? 'checked' : ''}> Write</label></td>
-            `;
-            projectTbListBody.appendChild(tr);
-        });
-
-        projectTbListBody.querySelectorAll('.tb-proj-link').forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                const id = parseId(link.getAttribute('data-id'));
-                openTbDetail(id);
-                navItems.forEach(n => n.classList.remove('active'));
-                const navTb = document.querySelector('.nav-item[data-view="viewTB"]');
-                if (navTb) navTb.classList.add('active');
-            });
-        });
     }
 
-    document.getElementById('btnSaveProjectTbs').addEventListener('click', async () => {
+    async function commitProjectTbMounts(readTbs, writeTb) {
         if (!currentProjectId) return;
         const project = await DBService.getProject(currentProjectId) || {};
         const prevRead = new Set(project.readTbs || []);
         const prevWrite = project.writeTb ?? null;
-
-        const readTbs = [];
-        document.querySelectorAll('.tb-read-cb:checked').forEach(cb => readTbs.push(parseId(cb.getAttribute('data-id'))));
-        const writeRadio = document.querySelector('input[name="tb-write-radio"]:checked');
-        const writeTb = writeRadio ? parseId(writeRadio.value) : null;
 
         await DBService.updateProjectTBs(currentProjectId, readTbs, writeTb);
 
@@ -1828,6 +1724,235 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
         alert('術語庫設定已儲存！');
+    }
+
+    /** 專案頁：僅顯示已掛載 TM（唯讀） */
+    async function loadProjectTms(project) {
+        const tms = await DBService.getTMs();
+        const projectTmListBody = document.getElementById('projectTmListBody');
+        if (!projectTmListBody) return;
+
+        if (tms.length === 0) {
+            projectTmListBody.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">系統中目前沒有任何翻譯記憶庫。請至 TM 管理頁面新增。</td></tr>';
+            return;
+        }
+
+        const readTms = new Set(project.readTms || []);
+        const writeTms = new Set(project.writeTms || []);
+        const mounted = tms.filter(tm => readTms.has(tm.id) || writeTms.has(tm.id));
+
+        projectTmListBody.innerHTML = '';
+        if (mounted.length === 0) {
+            projectTmListBody.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">尚未掛載任何 TM，請按「選擇 TM」。</td></tr>';
+            return;
+        }
+
+        mounted.forEach(tm => {
+            const tr = document.createElement('tr');
+            const nameEsc = (tm.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const isRead = readTms.has(tm.id);
+            const isWrite = writeTms.has(tm.id);
+            const tmSrcLangs = tm.sourceLangs || [];
+            const tmTgtLangs = tm.targetLangs || [];
+            const tmLangHtml = (tmSrcLangs.length || tmTgtLangs.length)
+                ? `${langBadgeHtml(tmSrcLangs)} <span style="color:#94a3b8;">→</span> ${langBadgeHtml(tmTgtLangs)}`
+                : '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
+            tr.innerHTML = `
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${tm.id}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="tm-link" data-id="${tm.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a></td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${tmLangHtml}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;">${isRead ? '是' : '否'}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;">${isWrite ? '是' : '否'}</td>
+            `;
+            projectTmListBody.appendChild(tr);
+        });
+
+        projectTmListBody.querySelectorAll('.tm-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const id = parseId(link.getAttribute('data-id'));
+                openTmDetail(id);
+                navItems.forEach(n => n.classList.remove('active'));
+                const navTm = document.querySelector('.nav-item[data-view="viewTM"]');
+                if (navTm) navTm.classList.add('active');
+            });
+        });
+    }
+
+    function fillProjectTmPickerTable(project) {
+        const body = document.getElementById('projectTmPickerBody');
+        if (!body) return;
+        const readTms = new Set(project.readTms || []);
+        const writeTms = new Set(project.writeTms || []);
+        body.innerHTML = '';
+        DBService.getTMs().then(tms => {
+            if (!tms.length) {
+                body.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">系統中尚無 TM。</td></tr>';
+                return;
+            }
+            tms.forEach(tm => {
+                const isRead = readTms.has(tm.id);
+                const isWrite = writeTms.has(tm.id);
+                const nameEsc = (tm.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const tmSrcLangs = tm.sourceLangs || [];
+                const tmTgtLangs = tm.targetLangs || [];
+                const tmLangHtml = (tmSrcLangs.length || tmTgtLangs.length)
+                    ? `${langBadgeHtml(tmSrcLangs)} <span style="color:#94a3b8;">→</span> ${langBadgeHtml(tmTgtLangs)}`
+                    : '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding:0.45rem; border:1px solid #e2e8f0;">${tm.id}</td>
+                    <td style="padding:0.45rem; border:1px solid #e2e8f0;">${nameEsc}</td>
+                    <td style="padding:0.45rem; border:1px solid #e2e8f0; font-size:0.8rem;">${tmLangHtml}</td>
+                    <td style="padding:0.45rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="checkbox" class="tm-read-cb-picker" data-id="${tm.id}" ${isRead ? 'checked' : ''}> 讀取</label></td>
+                    <td style="padding:0.45rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="checkbox" class="tm-write-cb-picker" data-id="${tm.id}" ${isWrite ? 'checked' : ''}> 寫入</label></td>
+                `;
+                body.appendChild(tr);
+            });
+        });
+    }
+
+    async function openProjectTmPickerModal() {
+        if (!currentProjectId) return;
+        const modal = document.getElementById('projectTmPickerModal');
+        if (!modal) return;
+        const project = await DBService.getProject(currentProjectId) || {};
+        fillProjectTmPickerTable(project);
+        modal.classList.remove('hidden');
+    }
+
+    function closeProjectTmPickerModal() {
+        document.getElementById('projectTmPickerModal')?.classList.add('hidden');
+    }
+
+    /** 專案頁：僅顯示已掛載 TB（唯讀） */
+    async function loadProjectTbs(project) {
+        const tbs = await DBService.getTBs();
+        const projectTbListBody = document.getElementById('projectTbListBody');
+        if (!projectTbListBody) return;
+
+        if (tbs.length === 0) {
+            projectTbListBody.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">系統中目前沒有任何術語庫。請至 TB 管理頁面新增。</td></tr>';
+            return;
+        }
+
+        const readTbs = new Set(project.readTbs || []);
+        const writeTb = project.writeTb ?? null;
+        const mounted = tbs.filter(tb => readTbs.has(tb.id) || writeTb === tb.id);
+
+        projectTbListBody.innerHTML = '';
+        if (mounted.length === 0) {
+            projectTbListBody.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">尚未掛載任何 TB，請按「選擇 TB」。</td></tr>';
+            return;
+        }
+
+        mounted.forEach(tb => {
+            const tr = document.createElement('tr');
+            const nameEsc = (tb.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const isRead = readTbs.has(tb.id);
+            const isWrite = writeTb === tb.id;
+            const tbSrcLangs = tb.sourceLangs || [];
+            const tbTgtLangs = tb.targetLangs || [];
+            const tbLangHtml = (tbSrcLangs.length || tbTgtLangs.length)
+                ? `${langBadgeHtml(tbSrcLangs)} <span style="color:#94a3b8;">→</span> ${langBadgeHtml(tbTgtLangs)}`
+                : '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
+            tr.innerHTML = `
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${tb.id}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="tb-proj-link" data-id="${tb.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a></td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${tbLangHtml}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;">${isRead ? '是' : '否'}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;">${isWrite ? '是' : '否'}</td>
+            `;
+            projectTbListBody.appendChild(tr);
+        });
+
+        projectTbListBody.querySelectorAll('.tb-proj-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const id = parseId(link.getAttribute('data-id'));
+                openTbDetail(id);
+                navItems.forEach(n => n.classList.remove('active'));
+                const navTb = document.querySelector('.nav-item[data-view="viewTB"]');
+                if (navTb) navTb.classList.add('active');
+            });
+        });
+    }
+
+    function fillProjectTbPickerTable(project) {
+        const body = document.getElementById('projectTbPickerBody');
+        if (!body) return;
+        const readTbs = new Set(project.readTbs || []);
+        const writeTb = project.writeTb ?? null;
+        body.innerHTML = '';
+        DBService.getTBs().then(tbs => {
+            if (!tbs.length) {
+                body.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">系統中尚無 TB。</td></tr>';
+                return;
+            }
+            tbs.forEach(tb => {
+                const isRead = readTbs.has(tb.id);
+                const isWrite = writeTb === tb.id;
+                const nameEsc = (tb.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const tbSrcLangs = tb.sourceLangs || [];
+                const tbTgtLangs = tb.targetLangs || [];
+                const tbLangHtml = (tbSrcLangs.length || tbTgtLangs.length)
+                    ? `${langBadgeHtml(tbSrcLangs)} <span style="color:#94a3b8;">→</span> ${langBadgeHtml(tbTgtLangs)}`
+                    : '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding:0.45rem; border:1px solid #e2e8f0;">${tb.id}</td>
+                    <td style="padding:0.45rem; border:1px solid #e2e8f0;">${nameEsc}</td>
+                    <td style="padding:0.45rem; border:1px solid #e2e8f0; font-size:0.8rem;">${tbLangHtml}</td>
+                    <td style="padding:0.45rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="checkbox" class="tb-read-cb-picker" data-id="${tb.id}" ${isRead ? 'checked' : ''}> 讀取</label></td>
+                    <td style="padding:0.45rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="radio" name="tb-write-radio-picker" class="tb-write-radio-picker" value="${tb.id}" ${isWrite ? 'checked' : ''}> 寫入</label></td>
+                `;
+                body.appendChild(tr);
+            });
+        });
+    }
+
+    async function openProjectTbPickerModal() {
+        if (!currentProjectId) return;
+        const modal = document.getElementById('projectTbPickerModal');
+        if (!modal) return;
+        const project = await DBService.getProject(currentProjectId) || {};
+        fillProjectTbPickerTable(project);
+        modal.classList.remove('hidden');
+    }
+
+    function closeProjectTbPickerModal() {
+        document.getElementById('projectTbPickerModal')?.classList.add('hidden');
+    }
+
+    document.getElementById('btnOpenProjectTmPicker')?.addEventListener('click', () => { openProjectTmPickerModal(); });
+    document.getElementById('btnOpenProjectTbPicker')?.addEventListener('click', () => { openProjectTbPickerModal(); });
+    document.getElementById('btnCloseProjectTmPicker')?.addEventListener('click', closeProjectTmPickerModal);
+    document.getElementById('btnProjectTmPickerCancel')?.addEventListener('click', closeProjectTmPickerModal);
+    document.getElementById('btnCloseProjectTbPicker')?.addEventListener('click', closeProjectTbPickerModal);
+    document.getElementById('btnProjectTbPickerCancel')?.addEventListener('click', closeProjectTbPickerModal);
+
+    document.getElementById('btnProjectTmPickerConfirm')?.addEventListener('click', async () => {
+        if (!currentProjectId) return;
+        const readTms = [];
+        const writeTms = [];
+        document.querySelectorAll('.tm-read-cb-picker:checked').forEach(cb => readTms.push(parseId(cb.getAttribute('data-id'))));
+        document.querySelectorAll('.tm-write-cb-picker:checked').forEach(cb => writeTms.push(parseId(cb.getAttribute('data-id'))));
+        await commitProjectTmMounts(readTms, writeTms);
+        closeProjectTmPickerModal();
+        const p = await DBService.getProject(currentProjectId);
+        if (p) await loadProjectTms(p);
+    });
+
+    document.getElementById('btnProjectTbPickerConfirm')?.addEventListener('click', async () => {
+        if (!currentProjectId) return;
+        const readTbs = [];
+        document.querySelectorAll('.tb-read-cb-picker:checked').forEach(cb => readTbs.push(parseId(cb.getAttribute('data-id'))));
+        const writeRadio = document.querySelector('input[name="tb-write-radio-picker"]:checked');
+        const writeTb = writeRadio ? parseId(writeRadio.value) : null;
+        await commitProjectTbMounts(readTbs, writeTb);
+        closeProjectTbPickerModal();
+        const p = await DBService.getProject(currentProjectId);
+        if (p) await loadProjectTbs(p);
     });
 
     if (projectFilesSelectAll && filesListBody) {

@@ -1207,3 +1207,14 @@ mark.search-match {
 .ql-snow .ql-toolbar .ql-picker { font-size: 0.78rem; }
 .ql-container.ql-snow { border: 1px solid #e2e8f0; }
 .ql-toolbar.ql-snow { border: 1px solid #e2e8f0; }
+
+/* 專案頁 TM/TB 選擇器 modal */
+.wizard-modal.project-picker-modal {
+    max-width: min(720px, 95vw);
+}
+.project-picker-modal-body {
+    overflow: auto;
+    max-height: min(55vh, 420px);
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+}

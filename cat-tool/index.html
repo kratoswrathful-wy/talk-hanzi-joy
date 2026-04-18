@@ -168,7 +168,11 @@
                     <span style="font-size:0.82rem; color:#64748b;">查看或編輯本專案的翻譯準則與共用筆記</span>
                 </div>
                 <div class="project-tm-settings" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:1.5rem;">
-                    <h2 style="font-size:1.1rem; color:#1e293b; margin-top:0; margin-bottom:1rem; border-bottom:1px solid #e2e8f0; padding-bottom:0.5rem;">掛載的翻譯記憶庫 (TM)</h2>
+                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; margin-bottom:1rem; border-bottom:1px solid #e2e8f0; padding-bottom:0.5rem;">
+                        <h2 style="font-size:1.1rem; color:#1e293b; margin:0;">掛載的翻譯記憶庫 (TM)</h2>
+                        <button type="button" class="secondary-btn btn-sm" id="btnOpenProjectTmPicker">選擇 TM</button>
+                    </div>
+                    <p style="font-size:0.82rem; color:#64748b; margin:0 0 0.75rem 0;">以下僅顯示已掛載的 TM；變更請按「選擇 TM」。可同時勾選多個讀取與多個寫入。</p>
                     <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
                         <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                             <thead>
@@ -183,13 +187,13 @@
                             <tbody id="projectTmListBody"></tbody>
                         </table>
                     </div>
-                    <div style="margin-top: 1rem; text-align: right;">
-                        <button class="primary-btn btn-sm" id="btnSaveProjectTms">儲存 TM 設定</button>
-                    </div>
                 </div>
                 <div class="project-tb-settings" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:1.5rem; margin-top:1rem;">
-                    <h2 style="font-size:1.1rem; color:#1e293b; margin-top:0; margin-bottom:0.5rem; border-bottom:1px solid #e2e8f0; padding-bottom:0.5rem;">掛載的術語庫 (TB)</h2>
-                    <p style="font-size:0.82rem; color:#64748b; margin:0 0 0.75rem 0;">寫入目標僅限選擇一個術語庫；讀取可勾選多個。</p>
+                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.5rem; border-bottom:1px solid #e2e8f0; padding-bottom:0.5rem;">
+                        <h2 style="font-size:1.1rem; color:#1e293b; margin:0;">掛載的術語庫 (TB)</h2>
+                        <button type="button" class="secondary-btn btn-sm" id="btnOpenProjectTbPicker">選擇 TB</button>
+                    </div>
+                    <p style="font-size:0.82rem; color:#64748b; margin:0 0 0.75rem 0;">以下僅顯示已掛載的 TB；變更請按「選擇 TB」。讀取可勾選多個；寫入目標僅限選擇一個術語庫。</p>
                     <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
                         <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                             <thead>
@@ -203,9 +207,6 @@
                             </thead>
                             <tbody id="projectTbListBody"></tbody>
                         </table>
-                    </div>
-                    <div style="margin-top: 1rem; text-align: right;">
-                        <button class="primary-btn btn-sm" id="btnSaveProjectTbs">儲存 TB 設定</button>
                     </div>
                 </div>
             </section>
@@ -863,6 +864,68 @@
                     <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
                         <button type="button" id="btnFileLangCancel" class="secondary-btn">取消</button>
                         <button type="button" id="btnFileLangConfirm" class="primary-btn">確定</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 專案頁：選擇掛載 TM -->
+        <div class="wizard-overlay hidden" id="projectTmPickerModal">
+            <div class="wizard-modal project-picker-modal">
+                <div class="wizard-header">
+                    <h2 style="margin:0; font-size:1.15rem;">選擇翻譯記憶庫 (TM)</h2>
+                    <button type="button" class="close-btn" id="btnCloseProjectTmPicker">&times;</button>
+                </div>
+                <div class="wizard-body" style="display:flex; flex-direction:column; gap:0.75rem;">
+                    <p style="margin:0; font-size:0.85rem; color:#64748b;">可同時勾選多個「讀取」與多個「寫入」。按「確定」後儲存至本專案。</p>
+                    <div class="project-picker-modal-body">
+                        <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.88rem;">
+                            <thead>
+                                <tr style="background:#f1f5f9;">
+                                    <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0;">ID</th>
+                                    <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0;">名稱</th>
+                                    <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0; width:180px;">語言對</th>
+                                    <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0; width:100px;">讀取</th>
+                                    <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0; width:100px;">寫入</th>
+                                </tr>
+                            </thead>
+                            <tbody id="projectTmPickerBody"></tbody>
+                        </table>
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                        <button type="button" class="secondary-btn" id="btnProjectTmPickerCancel">取消</button>
+                        <button type="button" class="primary-btn" id="btnProjectTmPickerConfirm">確定</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 專案頁：選擇掛載 TB -->
+        <div class="wizard-overlay hidden" id="projectTbPickerModal">
+            <div class="wizard-modal project-picker-modal">
+                <div class="wizard-header">
+                    <h2 style="margin:0; font-size:1.15rem;">選擇術語庫 (TB)</h2>
+                    <button type="button" class="close-btn" id="btnCloseProjectTbPicker">&times;</button>
+                </div>
+                <div class="wizard-body" style="display:flex; flex-direction:column; gap:0.75rem;">
+                    <p style="margin:0; font-size:0.85rem; color:#64748b;">讀取可勾選多個；寫入目標僅限選擇一個術語庫（單選）。按「確定」後儲存至本專案。</p>
+                    <div class="project-picker-modal-body">
+                        <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.88rem;">
+                            <thead>
+                                <tr style="background:#f1f5f9;">
+                                    <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0;">ID</th>
+                                    <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0;">名稱</th>
+                                    <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0; width:180px;">語言對</th>
+                                    <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0; width:100px;">讀取</th>
+                                    <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0; width:100px;">寫入</th>
+                                </tr>
+                            </thead>
+                            <tbody id="projectTbPickerBody"></tbody>
+                        </table>
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                        <button type="button" class="secondary-btn" id="btnProjectTbPickerCancel">取消</button>
+                        <button type="button" class="primary-btn" id="btnProjectTbPickerConfirm">確定</button>
                     </div>
                 </div>
             </div>
