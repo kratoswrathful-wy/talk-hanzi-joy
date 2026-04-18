@@ -29,6 +29,22 @@ function coerceMatchValueForDb(v: unknown): number | null {
   return n;
 }
 
+/** 將 cat-tool 傳入的 camelCase extra 轉為 Postgres 欄位；避免未知鍵寫入失敗 */
+function segmentExtraCamelToSnake(extra: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  if (!extra || typeof extra !== "object") return {};
+  const e = extra as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  if ("matchValue" in e) out.match_value = coerceMatchValueForDb(e.matchValue);
+  if ("isLockedUser" in e) out.is_locked_user = !!e.isLockedUser;
+  if ("isLockedSystem" in e) out.is_locked_system = !!e.isLockedSystem;
+  if ("isLocked" in e) {
+    out.is_locked = !!e.isLocked;
+  } else if ("isLockedUser" in e || "isLockedSystem" in e) {
+    out.is_locked = !!e.isLockedUser || !!e.isLockedSystem;
+  }
+  return out;
+}
+
 const mapProjectRow = (r: any) => ({
   id: r.id,
   name: r.name,
@@ -59,24 +75,31 @@ const mapFileRow = (r: any) => ({
   lastModified: r.last_modified,
 });
 
-const mapSegmentRow = (r: any) => ({
-  id: r.id,
-  fileId: r.file_id,
-  sheetName: r.sheet_name,
-  rowIdx: r.row_idx,
-  colSrc: r.col_src,
-  colTgt: r.col_tgt,
-  idValue: r.id_value,
-  extraValue: r.extra_value,
-  sourceText: r.source_text ?? "",
-  targetText: r.target_text ?? "",
-  isLocked: !!r.is_locked,
-  status: r.status ?? "",
-  editorNote: r.editor_note ?? "",
-  matchValue: r.match_value,
-  createdAt: r.created_at,
-  lastModified: r.last_modified,
-});
+const mapSegmentRow = (r: any) => {
+  const isLockedUser = !!r.is_locked_user;
+  const isLockedSystem = !!r.is_locked_system;
+  const isLocked = !!(r.is_locked ?? (isLockedUser || isLockedSystem));
+  return {
+    id: r.id,
+    fileId: r.file_id,
+    sheetName: r.sheet_name,
+    rowIdx: r.row_idx,
+    colSrc: r.col_src,
+    colTgt: r.col_tgt,
+    idValue: r.id_value,
+    extraValue: r.extra_value,
+    sourceText: r.source_text ?? "",
+    targetText: r.target_text ?? "",
+    isLocked,
+    isLockedUser,
+    isLockedSystem,
+    status: r.status ?? "",
+    editorNote: r.editor_note ?? "",
+    matchValue: r.match_value,
+    createdAt: r.created_at,
+    lastModified: r.last_modified,
+  };
+};
 
 const mapTmRow = (r: any) => ({
   id: r.id,
@@ -283,23 +306,30 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     case "db.addSegments": {
       if (!Array.isArray(payload.segmentsArray) || payload.segmentsArray.length === 0) return 0;
       const { error: segInsertError, count: segCount } = await supabase.from("cat_segments").insert(
-        payload.segmentsArray.map((s: any) => ({
-          file_id: s.fileId,
-          sheet_name: s.sheetName ?? "Sheet1",
-          row_idx: s.rowIdx ?? 0,
-          col_src: s.colSrc ?? null,
-          col_tgt: s.colTgt ?? null,
-          id_value: s.idValue ?? null,
-          extra_value: s.extraValue ?? null,
-          source_text: s.sourceText ?? "",
-          target_text: s.targetText ?? "",
-          is_locked: !!s.isLocked,
-          status: s.status ?? "",
-          editor_note: s.editorNote ?? "",
-          match_value: coerceMatchValueForDb(s.matchValue),
-          created_at: nowIso(),
-          last_modified: nowIso(),
-        })) as any
+        payload.segmentsArray.map((s: any) => {
+          const isLockedUser = !!s.isLockedUser;
+          const isLockedSystem = !!s.isLockedSystem;
+          const isLocked = !!(s.isLocked ?? (isLockedUser || isLockedSystem));
+          return {
+            file_id: s.fileId,
+            sheet_name: s.sheetName ?? "Sheet1",
+            row_idx: s.rowIdx ?? 0,
+            col_src: s.colSrc ?? null,
+            col_tgt: s.colTgt ?? null,
+            id_value: s.idValue ?? null,
+            extra_value: s.extraValue ?? null,
+            source_text: s.sourceText ?? "",
+            target_text: s.targetText ?? "",
+            is_locked_user: isLockedUser,
+            is_locked_system: isLockedSystem,
+            is_locked: isLocked,
+            status: s.status ?? "",
+            editor_note: s.editorNote ?? "",
+            match_value: coerceMatchValueForDb(s.matchValue),
+            created_at: nowIso(),
+            last_modified: nowIso(),
+          };
+        }) as any
       );
       if (segInsertError) throw segInsertError;
       return segCount ?? payload.segmentsArray.length;
@@ -309,18 +339,20 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       return (data ?? []).map(mapSegmentRow);
     }
     case "db.updateSegmentTarget": {
+      const ex = segmentExtraCamelToSnake(payload.extra);
       const { error: ustErr } = await supabase.from("cat_segments").update({
         target_text: payload.newTargetText,
-        ...(payload.extra ?? {}),
+        ...ex,
         last_modified: nowIso(),
       } as any).eq("id", payload.segmentId);
       if (ustErr) throw ustErr;
       return;
     }
     case "db.updateSegmentStatus": {
+      const ex = segmentExtraCamelToSnake(payload.extra);
       const { error: ussErr } = await supabase.from("cat_segments").update({
         status: payload.newStatus,
-        ...(payload.extra ?? {}),
+        ...ex,
         last_modified: nowIso(),
       } as any).eq("id", payload.segmentId);
       if (ussErr) throw ussErr;

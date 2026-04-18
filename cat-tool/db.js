@@ -89,6 +89,22 @@ db.version(9).stores({
     });
 });
 
+// v10：字數分析報告（本機 IndexedDB，供專案頁「計算字數」紀錄）
+db.version(10).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, *changeLog, sourceLang, targetLang',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId',
+    wordCountReports: '++id, projectId, createdAt, label'
+});
+
 /** 比對／空白判定：取 HTML 可見文字並壓縮空白，與 cat-cloud-rpc / app.js 邏輯一致 */
 function normalizeCatGuidelineContent(html) {
     if (html == null) return '';
@@ -558,6 +574,22 @@ const DBService = {
     },
     async deleteTB(id) { return await db.tbs.delete(id); },
     async deleteTBName(id) { return await db.tbs.delete(id); },
+
+    async addWordCountReport(entry) {
+        return await db.wordCountReports.add({
+            projectId: entry.projectId,
+            label: entry.label || '',
+            createdAt: new Date().toISOString(),
+            payload: entry.payload != null ? entry.payload : null
+        });
+    },
+    async listWordCountReports(projectId) {
+        const rows = await db.wordCountReports.where('projectId').equals(projectId).toArray();
+        return rows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 80);
+    },
+    async deleteWordCountReport(id) {
+        return await db.wordCountReports.delete(id);
+    },
 
     // Expose tables directly if needed for custom queries or bulk operations outside this service
     db: db,

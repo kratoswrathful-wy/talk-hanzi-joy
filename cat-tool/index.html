@@ -138,7 +138,15 @@
                     </div>
                 </div>
                 <div style="margin-bottom:1.5rem;">
-                    <h2 style="font-size:1.1rem; color:#1e293b; margin:0 0 0.5rem 0;">檔案清單</h2>
+                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:0.5rem;">
+                        <h2 style="font-size:1.1rem; color:#1e293b; margin:0;">檔案清單</h2>
+                        <div id="projectFilesToolbar" style="display:flex; flex-wrap:wrap; gap:0.45rem; align-items:center;">
+                            <button type="button" class="secondary-btn btn-sm" id="btnProjectToolbarAssign" style="display:none;" title="需選取一個檔案">指派</button>
+                            <button type="button" class="danger-btn btn-sm" id="btnProjectToolbarDelete">刪除所選</button>
+                            <button type="button" class="secondary-btn btn-sm" id="btnProjectWordCount">計算字數</button>
+                            <button type="button" class="secondary-btn btn-sm" id="btnProjectSplitAssign" style="display:none;">拆分指派</button>
+                        </div>
+                    </div>
                     <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
                         <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                             <thead>
@@ -152,8 +160,8 @@
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:130px;">語言對</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:80px;">預設身分</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; min-width:120px; max-width:220px;">指派</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">最後修改</th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:190px;">操作 / 指派</th>
                                 </tr>
                             </thead>
                             <tbody id="filesListBody"></tbody>
@@ -161,7 +169,7 @@
                     </div>
                 </div>
                 <div id="projectFileAssignHint" style="font-size:0.82rem; color:#64748b; margin-top:-0.8rem; margin-bottom:1rem; display:none;">
-                    團隊線上版可在「操作 / 指派」欄位，將同一檔案指派給多位未凍結人員。
+                    團隊線上版可使用上方「指派」或「拆分指派」，將檔案指派給未凍結人員。
                 </div>
                 <div style="margin-bottom:1.5rem; display:flex; align-items:center; gap:0.75rem;">
                     <button type="button" class="secondary-btn" id="btnOpenSharedInfo">📋 共用資訊</button>
@@ -1132,6 +1140,72 @@
         </div>
     </div>
 
+    <!-- 字數分析 Modal -->
+    <div id="wordCountModal" class="wizard-overlay hidden">
+        <div class="wizard-modal" style="max-width:min(920px,96vw); width:96vw;">
+            <div class="wizard-header">
+                <h3 style="margin:0; font-size:1.2rem;">字數與 TM 加權分析</h3>
+                <button type="button" class="close-btn" id="btnCloseWordCountModal">×</button>
+            </div>
+            <div class="wizard-body" style="max-height:72vh; overflow:auto;">
+                <p style="margin:0 0 0.75rem 0; color:#64748b; font-size:0.88rem;">
+                    以目前勾選的檔案為範圍；可選擇用於比對的讀取 TM，並決定是否納入鎖定句段。結果可儲存於本機報告紀錄。
+                </p>
+                <div style="display:flex; flex-wrap:wrap; gap:1rem; margin-bottom:0.75rem;">
+                    <label style="display:flex; align-items:center; gap:0.35rem; font-size:0.88rem; cursor:pointer;">
+                        <input type="checkbox" id="wordCountIncludeLocked" checked>
+                        納入鎖定句段
+                    </label>
+                </div>
+                <div style="margin-bottom:0.75rem;">
+                    <div style="font-weight:600; font-size:0.9rem; margin-bottom:0.35rem;">比對用 TM（專案已掛載讀取）</div>
+                    <div id="wordCountTmCheckboxes" style="display:flex; flex-direction:column; gap:0.35rem; max-height:140px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:6px; padding:0.5rem;"></div>
+                </div>
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.75rem;">
+                    <button type="button" class="primary-btn btn-sm" id="btnRunWordCount">執行分析</button>
+                    <button type="button" class="secondary-btn btn-sm" id="btnSaveWordCountReport">儲存本次報告</button>
+                </div>
+                <div id="wordCountResultWrap" style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:1rem;">
+                    <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                        <thead>
+                            <tr style="background:#f1f5f9;">
+                                <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0;">類型</th>
+                                <th style="text-align:right; padding:0.45rem; border:1px solid #e2e8f0; width:90px;">句段數</th>
+                                <th style="text-align:right; padding:0.45rem; border:1px solid #e2e8f0; width:110px;">加權字數</th>
+                            </tr>
+                        </thead>
+                        <tbody id="wordCountResultBody"></tbody>
+                    </table>
+                </div>
+                <div>
+                    <div style="font-weight:600; font-size:0.9rem; margin-bottom:0.35rem;">報告紀錄（本機）</div>
+                    <ul id="wordCountReportHistory" style="margin:0; padding-left:1.1rem; font-size:0.85rem; color:#334155; max-height:120px; overflow-y:auto;"></ul>
+                </div>
+            </div>
+            <div class="panel-footer" style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                <button type="button" class="secondary-btn" id="btnDismissWordCountModal">關閉</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 拆分指派精靈 -->
+    <div id="splitAssignModal" class="wizard-overlay hidden">
+        <div class="wizard-modal" style="max-width:640px;">
+            <div class="wizard-header">
+                <h3 style="margin:0; font-size:1.2rem;">拆分指派</h3>
+                <button type="button" class="close-btn" id="btnCloseSplitAssignModal">×</button>
+            </div>
+            <div class="wizard-body" style="max-height:55vh; overflow:auto;">
+                <p style="margin:0 0 0.5rem 0; color:#64748b; font-size:0.88rem;">為每個已選檔案各選一位或多位的受派人員（團隊模式）。儲存後將送出指派請求。</p>
+                <div id="splitAssignTableWrap" style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;"></div>
+            </div>
+            <div class="panel-footer" style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                <button type="button" class="secondary-btn" id="btnCancelSplitAssign">取消</button>
+                <button type="button" class="primary-btn" id="btnApplySplitAssign">套用指派</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 檔案指派 Modal（CAT 專案檔案清單操作欄） -->
     <div id="fileAssignModal" class="wizard-overlay hidden">
         <div class="wizard-modal" style="max-width:560px;">
@@ -1230,6 +1304,7 @@
     <script src="js/xliff-tag-pipeline.js"></script>
     <script src="js/xliff-import.js"></script>
     <script src="js/xlsx-rich-tags.js"></script>
+    <script src="word-count-engine.js"></script>
     <script src="app.js"></script>
     <div id="collabOutlineOverlay" style="position:fixed;inset:0;pointer-events:none;z-index:8000;overflow:hidden;"></div>
 </body>

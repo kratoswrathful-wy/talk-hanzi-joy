@@ -370,6 +370,37 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
           },
           window.location.origin
         );
+      } else if (event.data?.type === "CAT_REQUEST_PROJECT_ASSIGNMENTS") {
+        const { projectId } = event.data.payload ?? {};
+        if (!projectId) return;
+        const { data: files } = await supabase.from("cat_files").select("id").eq("project_id", projectId);
+        const fileIds = (files ?? []).map((f: { id: string }) => f.id);
+        if (fileIds.length === 0) {
+          iframeRef.current?.contentWindow?.postMessage(
+            { type: "TMS_PROJECT_ASSIGNMENTS", payload: { projectId, byFile: {} } },
+            window.location.origin
+          );
+          return;
+        }
+        const { data: asg } = await supabase
+          .from("cat_file_assignments")
+          .select("file_id, assignee_user_id, status")
+          .in("file_id", fileIds)
+          .neq("status", "cancelled");
+        const uids = [...new Set((asg ?? []).map((a: { assignee_user_id: string }) => a.assignee_user_id))];
+        const { data: profs } = await supabase.from("profiles").select("id, display_name, email").in("id", uids);
+        const nameById = new Map((profs ?? []).map((p: { id: string; display_name: string | null; email: string | null }) => [p.id, (p.display_name || p.email || "").trim() || p.id]));
+        const byFile: Record<string, string[]> = {};
+        for (const a of asg ?? []) {
+          const row = a as { file_id: string; assignee_user_id: string };
+          const n = nameById.get(row.assignee_user_id) || row.assignee_user_id;
+          if (!byFile[row.file_id]) byFile[row.file_id] = [];
+          if (!byFile[row.file_id].includes(n)) byFile[row.file_id].push(n);
+        }
+        iframeRef.current?.contentWindow?.postMessage(
+          { type: "TMS_PROJECT_ASSIGNMENTS", payload: { projectId, byFile } },
+          window.location.origin
+        );
       } else if (event.data?.type === "CAT_COLLAB_JOIN") {
         await startCollabChannel(event.data.payload ?? {});
       } else if (event.data?.type === "CAT_COLLAB_LEAVE") {

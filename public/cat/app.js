@@ -153,6 +153,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     const filesListBody = document.getElementById('filesListBody');
     const projectFilesSelectAll = document.getElementById('projectFilesSelectAll');
     const projectFileAssignHint = document.getElementById('projectFileAssignHint');
+    const btnProjectToolbarAssign = document.getElementById('btnProjectToolbarAssign');
+    const btnProjectToolbarDelete = document.getElementById('btnProjectToolbarDelete');
+    const btnProjectWordCount = document.getElementById('btnProjectWordCount');
+    const btnProjectSplitAssign = document.getElementById('btnProjectSplitAssign');
+    const wordCountModal = document.getElementById('wordCountModal');
+    const btnCloseWordCountModal = document.getElementById('btnCloseWordCountModal');
+    const btnDismissWordCountModal = document.getElementById('btnDismissWordCountModal');
+    const wordCountIncludeLocked = document.getElementById('wordCountIncludeLocked');
+    const wordCountTmCheckboxes = document.getElementById('wordCountTmCheckboxes');
+    const btnRunWordCount = document.getElementById('btnRunWordCount');
+    const btnSaveWordCountReport = document.getElementById('btnSaveWordCountReport');
+    const wordCountResultBody = document.getElementById('wordCountResultBody');
+    const wordCountReportHistory = document.getElementById('wordCountReportHistory');
+    const splitAssignModal = document.getElementById('splitAssignModal');
+    const btnCloseSplitAssignModal = document.getElementById('btnCloseSplitAssignModal');
+    const btnCancelSplitAssign = document.getElementById('btnCancelSplitAssign');
+    const btnApplySplitAssign = document.getElementById('btnApplySplitAssign');
+    const splitAssignTableWrap = document.getElementById('splitAssignTableWrap');
     const assignedFilesBody = document.getElementById('assignedFilesBody');
     const collabPresenceBar = document.getElementById('collabPresenceBar');
     const fileAssignModal = document.getElementById('fileAssignModal');
@@ -901,7 +919,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function enforceTeamRoleLayout() {
-        if (!isTeamMode()) return;
+        if (!isTeamMode()) {
+            if (btnProjectToolbarAssign) btnProjectToolbarAssign.style.display = 'none';
+            if (btnProjectSplitAssign) btnProjectSplitAssign.style.display = 'none';
+            return;
+        }
         const role = (window._tmsRole || '').toLowerCase();
         const translatorOnly = role === 'member' || !!window._tmsTranslatorOnly;
         const nav = document.querySelector('.sidebar-nav');
@@ -909,6 +931,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (sideTitle && translatorOnly) sideTitle.textContent = 'CAT Team（受派）';
         if (projectFileAssignHint) {
             projectFileAssignHint.style.display = translatorOnly ? 'none' : '';
+        }
+        if (btnProjectToolbarAssign) {
+            btnProjectToolbarAssign.style.display = translatorOnly || !window._tmsCanAssign ? 'none' : '';
+        }
+        if (btnProjectSplitAssign) {
+            btnProjectSplitAssign.style.display = translatorOnly || !window._tmsCanAssign ? 'none' : '';
         }
         if (nav) nav.style.display = translatorOnly ? 'none' : '';
         if (translatorOnly) {
@@ -988,6 +1016,29 @@ document.addEventListener('DOMContentLoaded', async () => {
                 window.removeEventListener('message', handler);
                 resolve([]);
             }, 15000);
+        });
+    }
+
+    async function requestProjectAssignments(projectId) {
+        if (!isTeamMode() || !projectId) {
+            window._fileAssigneesByFileId = {};
+            return;
+        }
+        await new Promise((resolve) => {
+            const handler = (event) => {
+                if (event.origin !== window.location.origin) return;
+                if (event.data?.type !== 'TMS_PROJECT_ASSIGNMENTS') return;
+                if (String(event.data?.payload?.projectId) !== String(projectId)) return;
+                window.removeEventListener('message', handler);
+                window._fileAssigneesByFileId = event.data.payload.byFile || {};
+                resolve();
+            };
+            window.addEventListener('message', handler);
+            window.parent.postMessage({ type: 'CAT_REQUEST_PROJECT_ASSIGNMENTS', payload: { projectId } }, window.location.origin);
+            setTimeout(() => {
+                window.removeEventListener('message', handler);
+                resolve();
+            }, 12000);
         });
     }
 
@@ -1356,6 +1407,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     window._tmsAssignableUsers = [];
     window._tmsCanAssign = false;
     window._tmsTranslatorOnly = false;
+    window._fileAssigneesByFileId = {};
+    let lastWordCountResult = null;
+    let wordCountSelectedFileIds = [];
     const collabSelfSessionId = `sess-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     let collabCurrentFileId = null;
     let collabMembers = [];
@@ -2090,6 +2144,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function loadFilesList() {
         if(!currentProjectId || !filesListBody) return;
+        if (isTeamMode()) {
+            await requestProjectAssignments(currentProjectId);
+        } else {
+            window._fileAssigneesByFileId = {};
+        }
         const files = await DBService.getFiles(currentProjectId);
         filesListBody.innerHTML = '';
         if(files.length === 0) {
@@ -2126,22 +2185,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             tr.setAttribute('data-file-id', f.id);
-            const assignBtnHtml = window._tmsCanAssign
-                ? `<button type="button" class="secondary-btn btn-sm assign-file-btn" data-id="${f.id}" data-name="${nameEsc}">指派</button>`
-                : '';
+            const aid = String(f.id);
+            const assignees = (window._fileAssigneesByFileId && window._fileAssigneesByFileId[aid]) || [];
+            const assignPlain = assignees.length ? assignees.join('、') : '';
+            const assignCell = assignees.length
+                ? assignees.map((n) => String(n).replace(/</g, '&lt;').replace(/>/g, '&gt;')).join('、')
+                : '—';
+            const assignTitle = assignPlain.replace(/"/g, '&quot;');
             tr.innerHTML = `
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="project-file-row-cb" data-id="${f.id}"></td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${f.id}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="edit-file-btn" data-id="${f.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a></td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${fileLangHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:80px;">${roleStr}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#334155; max-width:220px; overflow:hidden; text-overflow:ellipsis;" title="${assignTitle}">${assignCell}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;">${modStr}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0;">
-                    <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
-                        ${assignBtnHtml}
-                        <button type="button" class="danger-btn btn-sm delete-file-btn" data-id="${f.id}">刪除</button>
-                    </div>
-                </td>
             `;
             filesListBody.appendChild(tr);
         });
@@ -2156,35 +2214,252 @@ document.addEventListener('DOMContentLoaded', async () => {
                 openEditor(id);
             });
         });
-        filesListBody.querySelectorAll('.delete-file-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const id = btn.getAttribute('data-id');
-                if (!id) return;
-                if(confirm('確定要從專案移除此檔案並刪除所有翻譯資料嗎？')) {
-                    const file = await DBService.getFile(id);
-                    await DBService.deleteFile(id);
-                    const entry = makeBaseLogEntry('delete', 'project-file', {
-                        entityId: id,
-                        entityName: file && file.name ? file.name : `File #${id}`
-                    });
-                    if (currentProjectId) {
-                        await appendProjectChangeLog(currentProjectId, entry);
-                        await DBService.addModuleLog('projects', entry);
-                    }
-                    await loadFilesList();
-                }
-            });
-        });
-        filesListBody.querySelectorAll('.assign-file-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const fileId = btn.getAttribute('data-id');
-                const fileName = btn.getAttribute('data-name') || '';
-                if (!fileId) return;
-                await openFileAssignModal(fileId, fileName);
-            });
-        });
         syncProjectFilesSelectAll();
         await loadWorkspaceNotesList();
+    }
+
+    function getSelectedProjectFileIds() {
+        if (!filesListBody) return [];
+        return Array.from(filesListBody.querySelectorAll('.project-file-row-cb:checked'))
+            .map(cb => cb.getAttribute('data-id'))
+            .filter(Boolean);
+    }
+
+    function closeWordCountModal() {
+        if (wordCountModal) wordCountModal.classList.add('hidden');
+    }
+
+    function closeSplitAssignModal() {
+        if (splitAssignModal) splitAssignModal.classList.add('hidden');
+    }
+
+    async function refreshWordCountReportHistory() {
+        if (!wordCountReportHistory || !currentProjectId || !DBService.listWordCountReports) return;
+        const list = await DBService.listWordCountReports(currentProjectId);
+        if (!list.length) {
+            wordCountReportHistory.innerHTML = '<li style="color:#64748b;">尚無儲存的報告</li>';
+            return;
+        }
+        wordCountReportHistory.innerHTML = list.map((r) => {
+            const at = r.createdAt ? new Date(r.createdAt).toLocaleString('zh-TW') : '';
+            const lab = (r.label || '').replace(/</g, '&lt;');
+            return `<li style="margin-bottom:0.25rem;"><span style="color:#64748b;">${at}</span> — ${lab}</li>`;
+        }).join('');
+    }
+
+    async function openWordCountModalWithSelection() {
+        const ids = getSelectedProjectFileIds();
+        if (!ids.length) {
+            alert('請先勾選要納入分析的檔案。');
+            return;
+        }
+        if (!currentProjectId || !wordCountModal || !wordCountTmCheckboxes) return;
+        wordCountSelectedFileIds = ids.slice();
+        const p = await DBService.getProject(currentProjectId);
+        const readTms = (p && p.readTms) ? p.readTms : [];
+        const allTms = await DBService.getTMs();
+        wordCountTmCheckboxes.innerHTML = readTms.length ? readTms.map((tid) => {
+            const tm = allTms.find((t) => String(t.id) === String(tid));
+            const name = tm ? (tm.name || `TM #${tid}`) : `TM #${tid}`;
+            const safe = String(name).replace(/</g, '&lt;');
+            return `<label style="display:flex; align-items:center; gap:0.35rem; font-size:0.86rem; cursor:pointer;">
+                <input type="checkbox" class="word-count-tm-cb" value="${tid}" checked> ${safe}
+            </label>`;
+        }).join('') : '<span style="color:#64748b; font-size:0.86rem;">專案尚未掛載讀取 TM（仍可依句段與檔內重複分析）</span>';
+        if (wordCountResultBody) wordCountResultBody.innerHTML = '';
+        lastWordCountResult = null;
+        await refreshWordCountReportHistory();
+        wordCountModal.classList.remove('hidden');
+    }
+
+    async function runWordCountAnalysis() {
+        if (!window.WordCountEngine || !wordCountSelectedFileIds.length) {
+            alert('無可分析的檔案。');
+            return;
+        }
+        const includeLocked = !!(wordCountIncludeLocked && wordCountIncludeLocked.checked);
+        let tmNormList = [];
+        if (wordCountTmCheckboxes) {
+            const checked = wordCountTmCheckboxes.querySelectorAll('.word-count-tm-cb:checked');
+            for (const cb of checked) {
+                const tmId = cb.value;
+                if (!tmId) continue;
+                const segs = await DBService.getTMSegments(tmId);
+                segs.forEach((s) => {
+                    const n = WordCountEngine.normKey(s.sourceText);
+                    if (n) tmNormList.push(n);
+                });
+            }
+        }
+        let allSegments = [];
+        for (const fid of wordCountSelectedFileIds) {
+            const segs = await DBService.getSegmentsByFile(fid);
+            allSegments = allSegments.concat(segs);
+        }
+        lastWordCountResult = WordCountEngine.analyze({
+            segments: allSegments,
+            tmSourcesNormalized: tmNormList,
+            includeLocked
+        });
+        if (wordCountResultBody) {
+            const t = lastWordCountResult.totals || {};
+            const head = `<tr style="background:#f8fafc;"><td style="padding:0.45rem; border:1px solid #e2e8f0; font-weight:600;">分析範圍總計（略過鎖定後）</td>
+                <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${t.segmentsAnalyzed != null ? t.segmentsAnalyzed : '—'}</td>
+                <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${t.weightedExcludingSkipped != null ? t.weightedExcludingSkipped : '—'}</td></tr>`;
+            const body = (lastWordCountResult.rows || []).map((r) =>
+                `<tr><td style="padding:0.45rem; border:1px solid #e2e8f0;">${r.label}</td>
+                <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${r.segments}</td>
+                <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${r.weighted}</td></tr>`
+            ).join('');
+            wordCountResultBody.innerHTML = head + body;
+        }
+    }
+
+    async function saveWordCountReport() {
+        if (!lastWordCountResult || !currentProjectId) {
+            alert('請先執行分析。');
+            return;
+        }
+        const label = new Date().toLocaleString('zh-TW');
+        await DBService.addWordCountReport({
+            projectId: currentProjectId,
+            label,
+            payload: {
+                fileIds: wordCountSelectedFileIds.slice(),
+                result: lastWordCountResult,
+                includeLocked: !!(wordCountIncludeLocked && wordCountIncludeLocked.checked)
+            }
+        });
+        await refreshWordCountReportHistory();
+        alert('已儲存至本機報告紀錄。');
+    }
+
+    function openSplitAssignWizard() {
+        const ids = getSelectedProjectFileIds();
+        if (!ids.length) {
+            alert('請先勾選檔案。');
+            return;
+        }
+        if (!isTeamMode() || !window._tmsCanAssign) {
+            alert('僅團隊模式且具指派權限時可使用拆分指派。');
+            return;
+        }
+        const members = window._tmsAssignableUsers || [];
+        if (!members.length) {
+            alert('尚無可指派人員。');
+            return;
+        }
+        if (!splitAssignTableWrap) return;
+        const opts = members.map((m) => {
+            const lab = (m.displayName || m.email || m.id || '').replace(/</g, '&lt;');
+            return `<option value="${m.id}">${lab}</option>`;
+        }).join('');
+        splitAssignTableWrap.innerHTML = `
+            <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.88rem;">
+                <thead><tr style="background:#f1f5f9;">
+                    <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0;">檔案</th>
+                    <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0;">受派人員（複選 Ctrl+點選）</th>
+                </tr></thead>
+                <tbody>
+                    ${ids.map((fid) => {
+                        const file = filesListBody && filesListBody.querySelector(`tr[data-file-id="${fid}"] .edit-file-btn`);
+                        const rawName = file ? file.textContent : fid;
+                        const nameEsc = String(rawName).replace(/</g, '&lt;');
+                        return `<tr>
+                            <td style="padding:0.45rem; border:1px solid #e2e8f0;">${nameEsc}</td>
+                            <td style="padding:0.45rem; border:1px solid #e2e8f0;">
+                                <select multiple size="5" class="split-assign-select" data-file-id="${fid}" style="width:100%; min-width:220px;">${opts}</select>
+                            </td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            </table>`;
+        if (splitAssignModal) splitAssignModal.classList.remove('hidden');
+    }
+
+    if (btnProjectToolbarAssign) {
+        btnProjectToolbarAssign.addEventListener('click', async () => {
+            const cbs = Array.from(filesListBody ? filesListBody.querySelectorAll('.project-file-row-cb:checked') : []);
+            if (cbs.length !== 1) {
+                alert('請僅勾選一個檔案以進行指派。');
+                return;
+            }
+            const id = cbs[0].getAttribute('data-id');
+            const tr = cbs[0].closest('tr');
+            const nameLink = tr && tr.querySelector('.edit-file-btn');
+            const name = nameLink ? nameLink.textContent : '';
+            if (!id) return;
+            await openFileAssignModal(id, name);
+        });
+    }
+    if (btnProjectToolbarDelete) {
+        btnProjectToolbarDelete.addEventListener('click', async () => {
+            const ids = getSelectedProjectFileIds();
+            if (!ids.length) {
+                alert('請先勾選要刪除的檔案。');
+                return;
+            }
+            if (!confirm(`確定要從專案移除 ${ids.length} 個檔案並刪除其所有翻譯資料嗎？`)) return;
+            for (const id of ids) {
+                const file = await DBService.getFile(id);
+                await DBService.deleteFile(id);
+                const entry = makeBaseLogEntry('delete', 'project-file', {
+                    entityId: id,
+                    entityName: file && file.name ? file.name : `File #${id}`
+                });
+                if (currentProjectId) {
+                    await appendProjectChangeLog(currentProjectId, entry);
+                    await DBService.addModuleLog('projects', entry);
+                }
+            }
+            await loadFilesList();
+        });
+    }
+    if (btnProjectWordCount) {
+        btnProjectWordCount.addEventListener('click', () => { openWordCountModalWithSelection(); });
+    }
+    if (btnProjectSplitAssign) {
+        btnProjectSplitAssign.addEventListener('click', () => { openSplitAssignWizard(); });
+    }
+    if (btnCloseWordCountModal) btnCloseWordCountModal.addEventListener('click', closeWordCountModal);
+    if (btnDismissWordCountModal) btnDismissWordCountModal.addEventListener('click', closeWordCountModal);
+    if (wordCountModal) {
+        wordCountModal.addEventListener('click', (e) => { if (e.target === wordCountModal) closeWordCountModal(); });
+    }
+    if (btnRunWordCount) btnRunWordCount.addEventListener('click', () => { runWordCountAnalysis(); });
+    if (btnSaveWordCountReport) btnSaveWordCountReport.addEventListener('click', () => { saveWordCountReport(); });
+    if (btnCloseSplitAssignModal) btnCloseSplitAssignModal.addEventListener('click', closeSplitAssignModal);
+    if (btnCancelSplitAssign) btnCancelSplitAssign.addEventListener('click', closeSplitAssignModal);
+    if (splitAssignModal) {
+        splitAssignModal.addEventListener('click', (e) => { if (e.target === splitAssignModal) closeSplitAssignModal(); });
+    }
+    if (btnApplySplitAssign) {
+        btnApplySplitAssign.addEventListener('click', async () => {
+            if (!splitAssignTableWrap) return;
+            if (!isTeamMode()) {
+                alert('僅團隊模式可使用拆分指派。');
+                return;
+            }
+            const selects = splitAssignTableWrap.querySelectorAll('.split-assign-select');
+            let n = 0;
+            selects.forEach((sel) => {
+                const fileId = sel.getAttribute('data-file-id');
+                const assigneeUserIds = Array.from(sel.selectedOptions).map((o) => o.value).filter(Boolean);
+                if (!fileId || !assigneeUserIds.length) return;
+                window.parent.postMessage({
+                    type: 'CAT_ASSIGN_FILE',
+                    payload: { fileId, assigneeUserIds }
+                }, window.location.origin);
+                n += 1;
+            });
+            if (!n) {
+                alert('請至少為一個檔案選擇受派人員。');
+                return;
+            }
+            closeSplitAssignModal();
+            await new Promise((r) => setTimeout(r, 400));
+            await loadFilesList();
+        });
     }
 
     function syncProjectWorkspaceNotesSelectAll() { /* removed - workspace notes table replaced by shared info */ }
