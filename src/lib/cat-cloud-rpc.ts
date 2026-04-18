@@ -5,6 +5,21 @@ type RpcPayload = Record<string, any>;
 
 const nowIso = () => new Date().toISOString();
 
+/** 與 cat-tool/db.js 一致：供版本是否需追加時比對 */
+function normalizeCatGuidelineContent(html: string | null | undefined): string {
+  if (html == null) return "";
+  const s = String(html).trim();
+  if (!s) return "";
+  if (typeof DOMParser === "undefined") return s.replace(/\s+/g, " ").trim();
+  try {
+    const doc = new DOMParser().parseFromString(s, "text/html");
+    const text = doc.body?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+    return text;
+  } catch {
+    return s.replace(/\s+/g, " ").trim();
+  }
+}
+
 const mapProjectRow = (r: any) => ({
   id: r.id,
   name: r.name,
@@ -422,6 +437,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .eq("id", payload.guidelineId)
         .single();
       if (fetchErr) throw fetchErr;
+      if (normalizeCatGuidelineContent(existing.content) === normalizeCatGuidelineContent(payload.content)) return;
       const prevVersion = {
         content: existing.content,
         createdByName: payload.updaterName || existing.created_by_name,

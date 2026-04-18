@@ -69,6 +69,20 @@ db.version(8).stores({
     guidelineReplies: '++id, guidelineId, parentReplyId'
 });
 
+/** 比對／空白判定：取 HTML 可見文字並壓縮空白，與 cat-cloud-rpc / app.js 邏輯一致 */
+function normalizeCatGuidelineContent(html) {
+    if (html == null) return '';
+    const s = String(html).trim();
+    if (!s) return '';
+    try {
+        const doc = new DOMParser().parseFromString(s, 'text/html');
+        const text = (doc.body && doc.body.textContent) ? doc.body.textContent.replace(/\s+/g, ' ').trim() : '';
+        return text;
+    } catch (_) {
+        return s.replace(/\s+/g, ' ').trim();
+    }
+}
+
 // Helper Database Methods
 const DBService = {
     // ---- Module-level Logs ----
@@ -361,6 +375,7 @@ const DBService = {
     async updateGuideline(guidelineId, content, updaterName) {
         const row = await db.guidelines.get(guidelineId);
         if (!row) return;
+        if (normalizeCatGuidelineContent(row.content) === normalizeCatGuidelineContent(content)) return;
         const prevVersion = { content: row.content, createdByName: updaterName || row.createdByName, createdAt: row.updatedAt || row.createdAt };
         const versions = [...(row.versions || []), prevVersion];
         return await db.guidelines.update(guidelineId, { content, versions, updatedAt: new Date().toISOString() });
