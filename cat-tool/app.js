@@ -130,7 +130,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- 導覽與版面（側欄、切換畫面） ---
     const navItems = document.querySelectorAll('.nav-item');
     const viewSections = document.querySelectorAll('.view-section');
-    
+    let currentFileId = null;
+
     // Sidebar Toggle
     const sidebar = document.getElementById('sidebar');
     const btnToggleSidebar = document.getElementById('btnToggleSidebar');
@@ -831,7 +832,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (ab) ab.style.display = '';
             const viewEditorEl = document.getElementById('viewEditor');
             const inEditor = !!(viewEditorEl && !viewEditorEl.classList.contains('hidden'));
-            if (!inEditor) {
+            const hasOpenFile = currentFileId != null && currentFileId !== '';
+            if (!inEditor && !hasOpenFile) {
                 switchView('viewDashboard');
             }
         }
@@ -1262,7 +1264,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let activeView = 'viewDashboard';
     let currentProjectId = null;
-    let currentFileId = null;
     let workspaceNoteDraftTimer = null;
     let workspaceNoteRenameTargetId = null;
     let namingActionContext = null;

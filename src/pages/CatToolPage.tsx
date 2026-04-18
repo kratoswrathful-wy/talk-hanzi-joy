@@ -281,12 +281,25 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
     );
   }, [isPmOrAbove, isTranslatorOnly, user]);
 
-  // Re-send whenever auth state changes while the page is mounted.
+  // Re-send when meaningful auth fields change — omit sendIdentity/sendAssignments deps so
+  // token refresh / object reference churn does not spam the iframe postMessage.
   useEffect(() => {
     sendIdentity();
-    if (mode === "team") sendAssignments();
-    if (mode === "team") sendAssignableUsers();
-  }, [sendIdentity, sendAssignments, sendAssignableUsers, mode]);
+    if (mode === "team") {
+      void sendAssignments();
+      void sendAssignableUsers();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- primitives above drive when to resync iframe
+  }, [
+    mode,
+    user?.id,
+    user?.email,
+    primaryRole,
+    isTranslatorOnly,
+    isPmOrAbove,
+    profile?.display_name,
+    profile?.avatar_url,
+  ]);
 
   // ── Listen for messages from the CAT iframe (team mode only) ─────────────────
 
