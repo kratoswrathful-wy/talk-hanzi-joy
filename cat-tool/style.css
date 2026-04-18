@@ -1082,21 +1082,37 @@ mark.search-match {
 }
 .guideline-item-aside {
     flex-shrink: 0;
-    max-width: 42%;
+    min-width: 12rem;
+    max-width: min(48%, 26rem);
     text-align: right;
     font-size: 0.72rem;
     color: #64748b;
     padding-top: 0.2rem;
 }
-.guideline-item-meta-line { line-height: 1.35; }
-.guideline-item-author-line { line-height: 1.35; margin-top: 0.1rem; color: #94a3b8; }
+.guideline-item-aside-inner {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.45rem;
+}
+.guideline-item-meta-combined {
+    flex: 1;
+    min-width: 0;
+    line-height: 1.35;
+    text-align: right;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 .guideline-item-aside-actions {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: flex-end;
     align-items: center;
     gap: 0.25rem;
-    margin-top: 0.35rem;
+    flex-shrink: 0;
 }
 .guideline-item-aside-actions button {
     font-size: 0.72rem;
@@ -1141,6 +1157,29 @@ mark.search-match {
 
 /* 回覆串 */
 .replies-section { border-top: 1px solid #f1f5f9; padding: 0.3rem 0.5rem; }
+.reply-meta-row {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    margin-bottom: 0.25rem;
+}
+.reply-meta-text {
+    font-size: 0.75rem;
+    color: #64748b;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.reply-item .reply-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
 .reply-item {
     padding: 0.25rem 0.4rem 0.25rem 0.5rem;
     border-left: 2px solid #e2e8f0;
@@ -1165,21 +1204,15 @@ mark.search-match {
 .reply-content-area { display: none; }
 .reply-content-area.open { display: block; }
 .reply-item:not(.resolved) .reply-content-area { display: block; }
-.reply-meta {
-    font-size: 0.72rem;
-    color: #94a3b8;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 0.15rem;
-}
 .reply-body { font-size: 0.82rem; color: #374151; line-height: 1.5; }
 .reply-body .ql-editor { padding: 0; min-height: 0; }
 .reply-body p { margin: 0; }
+.reply-meta-row .reply-actions {
+    margin-top: 0;
+}
 .reply-actions {
     display: flex;
     gap: 0.3rem;
-    margin-top: 0.2rem;
     flex-wrap: wrap;
 }
 .reply-actions button {

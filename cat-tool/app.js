@@ -7148,6 +7148,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         return normalizeGuidelineContent(html) === '';
     }
 
+    /** 共用資訊：時間顯示到分，不含秒 */
+    function formatGuidelineDate(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return '';
+        return d.toLocaleString('zh-TW', { hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    }
+
+    /** 側欄共用資訊 + 若共用資訊 Modal 開啟則一併重繪 */
+    async function _refreshSharedInfoUi() {
+        await _loadSharedInfo();
+        const m = document.getElementById('sharedInfoModal');
+        if (m && !m.classList.contains('hidden') && _activeNoteProjectId) {
+            await _reloadSharedInfoModal(_activeNoteProjectId);
+        }
+    }
+
     /** 離開分頁／專案／頁面隱藏時：刪除仍為空且無討論的準則條目，與空白私人筆記 */
     async function _pruneEmptyNoteDrafts(projectId) {
         if (projectId == null || projectId === '') return;
@@ -7255,7 +7272,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const tabEl = document.getElementById(tabId);
                 if (tabEl) tabEl.classList.add('active');
                 await _loadPrivateNotes();
-                await _loadSharedInfo();
+                await _refreshSharedInfoUi();
             });
         });
 
@@ -7330,15 +7347,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (addPmBtn) {
             addPmBtn.addEventListener('click', async () => {
                 if (!_activeNoteProjectId) return;
-                await _addGuideline('pm_guideline');
+                await _addGuideline('pm_guideline', { listKey: 'panel' });
             });
         }
     }
 
-    async function _addGuideline(type) {
+    async function _addGuideline(type, opts) {
+        const listKey = (opts && opts.listKey) || 'panel';
         if (!_activeNoteProjectId) return;
-        await DBService.addGuideline({ projectId: _activeNoteProjectId, type, content: '', createdByName: getCurrentUserName() });
-        await _loadSharedInfo();
+        const id = await DBService.addGuideline({ projectId: _activeNoteProjectId, type, content: '', createdByName: getCurrentUserName() });
+        await _refreshSharedInfoUi();
+        let guidelines = [];
+        try { guidelines = await DBService.getGuidelinesByProject(_activeNoteProjectId); } catch (_) {}
+        const gl = guidelines.find(g => String(g.id) === String(id));
+        const wrap = document.getElementById(`guideline-item-${listKey}-${id}`);
+        if (gl && wrap && isCatSharedMutator()) {
+            _startGuidelineEdit(gl, wrap, listKey);
+        }
     }
 
     // ---- Load notes for current project ----
@@ -7351,7 +7376,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         initNotesPanel();
         const shareBtn = document.getElementById('btnShareNotes');
         if (shareBtn) shareBtn.style.display = '';
-        await Promise.all([_loadPrivateNotes(), _loadSharedInfo()]);
+        await Promise.all([_loadPrivateNotes(), _refreshSharedInfoUi()]);
     }
 
     async function _loadPrivateNotes() {
@@ -7411,28 +7436,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         const shList = document.getElementById('sharedNotesList');
         const pmAddBtn = document.getElementById('btnAddPmGuideline');
         if (pmAddBtn) pmAddBtn.style.display = isCatSharedMutator() ? '' : 'none';
-        _renderGuidelinesList(guidelines.filter(g => g.type === 'pm_guideline'), pmList);
-        _renderGuidelinesList(guidelines.filter(g => g.type === 'shared_note'), shList);
+        _renderGuidelinesList(guidelines.filter(g => g.type === 'pm_guideline'), pmList, 'panel');
+        _renderGuidelinesList(guidelines.filter(g => g.type === 'shared_note'), shList, 'panel');
     }
 
-    function _renderGuidelinesList(items, container) {
+    function _renderGuidelinesList(items, container, listKey) {
         if (!container) return;
+        const lk = listKey || 'panel';
         container.innerHTML = '';
         if (!items.length) {
             container.innerHTML = '<div style="font-size:0.8rem;color:#94a3b8;padding:0.2rem 0;">（目前無內容）</div>';
             return;
         }
-        items.forEach((gl, idx) => container.appendChild(_buildGuidelineItem(gl, idx + 1)));
+        items.forEach((gl, idx) => container.appendChild(_buildGuidelineItem(gl, idx + 1, lk)));
     }
 
-    function _buildGuidelineItem(gl, listIndex) {
+    function _buildGuidelineItem(gl, listIndex, listKey) {
+        const lk = listKey || 'panel';
         const pm = isCatSharedMutator();
         const wrap = document.createElement('div');
         wrap.className = 'guideline-item';
-        wrap.id = `guideline-item-${gl.id}`;
+        wrap.id = `guideline-item-${lk}-${gl.id}`;
         const idxLabel = listIndex > 0 ? `${listIndex}.` : '';
-        const updAt = gl.updatedAt ? new Date(gl.updatedAt).toLocaleString('zh-TW', { hour12: false }) : '';
-        const byLabel = gl.createdByName ? `${gl.createdByName.replace(/</g, '&lt;').replace(/>/g, '&gt;')}` : '';
+        const updAt = gl.updatedAt ? formatGuidelineDate(gl.updatedAt) : '';
+        const byEsc = gl.createdByName ? gl.createdByName.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
+        const metaCombined = [updAt, byEsc].filter(Boolean).join(' · ');
         const actionsHtml = pm ? `
             <button type="button" class="gl-edit-btn" title="編輯">✏️</button>
             <button type="button" class="gl-del-btn danger" title="刪除">🗑</button>` : '';
@@ -7440,34 +7468,35 @@ document.addEventListener('DOMContentLoaded', async () => {
             <div class="guideline-item-row">
                 <div class="guideline-item-index">${idxLabel}</div>
                 <div class="guideline-item-main">
-                    <div class="guideline-item-body" id="gl-body-${gl.id}"></div>
-                    <div class="guideline-versions" id="gl-versions-${gl.id}" style="${gl.versions && gl.versions.length ? '' : 'display:none'}"></div>
-                    <div class="replies-section" id="gl-replies-${gl.id}"></div>
+                    <div class="guideline-item-body" id="gl-body-${lk}-${gl.id}"></div>
+                    <div class="guideline-versions" id="gl-versions-${lk}-${gl.id}" style="${gl.versions && gl.versions.length ? '' : 'display:none'}"></div>
+                    <div class="replies-section" id="gl-replies-${lk}-${gl.id}"></div>
                 </div>
                 <div class="guideline-item-aside">
-                    <div class="guideline-item-meta-line">${updAt}</div>
-                    <div class="guideline-item-author-line">${byLabel}</div>
-                    <div class="note-item-actions guideline-item-aside-actions">${actionsHtml}
-                        <button type="button" class="gl-reply-btn">回覆</button>
+                    <div class="guideline-item-aside-inner">
+                        <span class="guideline-item-meta-combined">${metaCombined}</span>
+                        <div class="note-item-actions guideline-item-aside-actions">${actionsHtml}
+                            <button type="button" class="gl-reply-btn">回覆</button>
+                        </div>
                     </div>
                 </div>
             </div>`;
 
-        const bodyEl = wrap.querySelector(`#gl-body-${gl.id}`);
+        const bodyEl = wrap.querySelector(`#gl-body-${lk}-${gl.id}`);
         bodyEl.innerHTML = gl.content ? `<div class="ql-editor ql-snow" style="padding:0.4rem 0.6rem; font-size:0.85rem;">${gl.content}</div>` : '<div style="font-size:0.8rem;color:#94a3b8;padding:0.4rem 0.6rem;">（無內容）</div>';
 
-        _renderVersions(gl, wrap.querySelector(`#gl-versions-${gl.id}`));
+        _renderVersions(gl, wrap.querySelector(`#gl-versions-${lk}-${gl.id}`), lk);
 
-        _loadAndRenderReplies(gl.id, wrap.querySelector(`#gl-replies-${gl.id}`));
+        _loadAndRenderReplies(gl.id, wrap.querySelector(`#gl-replies-${lk}-${gl.id}`));
 
         if (pm) {
-            wrap.querySelector('.gl-edit-btn')?.addEventListener('click', () => _startGuidelineEdit(gl, wrap));
+            wrap.querySelector('.gl-edit-btn')?.addEventListener('click', () => _startGuidelineEdit(gl, wrap, lk));
             wrap.querySelector('.gl-del-btn')?.addEventListener('click', async () => {
                 if (!confirm('確定刪除此條目（包含所有回覆）？')) return;
                 try {
                     await DBService.deleteGuideline(parseId(gl.id));
                     delete _guidelineEditQuills[String(gl.id)];
-                    await _loadSharedInfo();
+                    await _refreshSharedInfoUi();
                 } catch (err) {
                     console.error(err);
                     alert(err && err.message ? String(err.message) : '刪除失敗（可能無權限或網路錯誤）');
@@ -7475,13 +7504,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
-        wrap.querySelector('.gl-reply-btn')?.addEventListener('click', () => _showReplyInput(gl.id, null, 0, wrap.querySelector(`#gl-replies-${gl.id}`)));
+        wrap.querySelector('.gl-reply-btn')?.addEventListener('click', () => _showReplyInput(gl.id, null, 0, wrap.querySelector(`#gl-replies-${lk}-${gl.id}`)));
 
         return wrap;
     }
 
-    function _startGuidelineEdit(gl, wrap) {
-        const bodyEl = wrap.querySelector(`#gl-body-${gl.id}`);
+    function _startGuidelineEdit(gl, wrap, listKey) {
+        const lk = listKey || 'panel';
+        const bodyEl = wrap.querySelector(`#gl-body-${lk}-${gl.id}`);
         if (!bodyEl) return;
         bodyEl.innerHTML = '';
         const q = _makeQuill(bodyEl, NOTES_TOOLBAR, '輸入內容…');
@@ -7496,13 +7526,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (normalizeGuidelineContent(gl.content) === normalizeGuidelineContent(html)) {
                 alert('內容未變更');
                 delete _guidelineEditQuills[String(gl.id)];
-                await _loadSharedInfo();
+                await _refreshSharedInfoUi();
                 return;
             }
             delete _guidelineEditQuills[String(gl.id)];
             try {
                 await DBService.updateGuideline(parseId(gl.id), html, getCurrentUserName());
-                await _loadSharedInfo();
+                await _refreshSharedInfoUi();
             } catch (err) {
                 console.error(err);
                 alert(err && err.message ? String(err.message) : '儲存失敗');
@@ -7522,18 +7552,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                     console.error(err);
                 }
             }
-            await _loadSharedInfo();
+            await _refreshSharedInfoUi();
         });
     }
 
-    function _renderVersions(gl, container) {
+    function _renderVersions(gl, container, listKey) {
         if (!container) return;
+        const lk = listKey || 'panel';
         const versions = gl.versions || [];
         if (!versions.length) return;
         container.innerHTML = `<span class="guideline-versions-toggle">▸ ${versions.length} 個舊版本</span>
-            <div class="guideline-versions-list" id="gl-vlist-${gl.id}"></div>`;
+            <div class="guideline-versions-list"></div>`;
         const toggle = container.querySelector('.guideline-versions-toggle');
-        const vlist = container.querySelector(`#gl-vlist-${gl.id}`);
+        const vlist = container.querySelector('.guideline-versions-list');
         toggle.addEventListener('click', () => {
             vlist.classList.toggle('open');
             toggle.textContent = vlist.classList.contains('open')
@@ -7544,7 +7575,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const entry = document.createElement('div');
             entry.className = 'guideline-version-entry';
             entry.innerHTML = `<div class="ql-editor ql-snow" style="padding:0;font-size:0.78rem;color:#94a3b8;">${v.content || ''}</div>
-                <div class="guideline-version-meta">${v.createdByName || ''}  ${v.createdAt ? new Date(v.createdAt).toLocaleString('zh-TW', { hour12: false }) : ''}</div>`;
+                <div class="guideline-version-meta">${v.createdByName || ''}  ${v.createdAt ? formatGuidelineDate(v.createdAt) : ''}</div>`;
             vlist.appendChild(entry);
         });
     }
@@ -7555,32 +7586,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         let replies = [];
         try { replies = await DBService.getGuidelineReplies(guidelineId); } catch (_) {}
         container.innerHTML = '';
-        _renderReplyTree(guidelineId, container, replies, isCatSharedMutator(), null, 0);
+        _renderReplyTree(guidelineId, container, replies, isCatSharedMutator(), null, 0, container);
     }
 
-    function _renderReplyTree(guidelineId, container, allReplies, pm, parentId, depth) {
+    function _renderReplyTree(guidelineId, container, allReplies, pm, parentId, depth, repliesRootContainer) {
+        const root = repliesRootContainer || container;
         const children = allReplies.filter(r => (r.parentReplyId || null) === parentId);
         children.forEach(reply => {
             const item = document.createElement('div');
             item.className = 'reply-item' + (reply.isResolved ? ' resolved' : '');
             item.dataset.depth = depth;
             item.dataset.replyId = reply.id;
-            const at = new Date(reply.createdAt).toLocaleString('zh-TW', { hour12: false });
+            const at = formatGuidelineDate(reply.createdAt);
             const resolveLabel = reply.isResolved
-                ? `已結案（${reply.resolvedByName || ''}，${reply.resolvedAt ? new Date(reply.resolvedAt).toLocaleString('zh-TW', { hour12: false }) : ''}）▸ 點此展開`
+                ? `已結案（${reply.resolvedByName || ''}，${reply.resolvedAt ? formatGuidelineDate(reply.resolvedAt) : ''}）▸ 點此展開`
                 : '';
             item.innerHTML = `
                 ${reply.isResolved ? `<div class="reply-resolved-bar" data-reply-id="${reply.id}">${resolveLabel}</div>` : ''}
                 <div class="reply-content-area${reply.isResolved ? '' : ' open'}">
-                    <div class="reply-meta">
-                        <span>${reply.createdByName || ''}  ${at}</span>
+                    <div class="reply-meta-row">
+                        <span class="reply-meta-text">${reply.createdByName || ''}  ${at}</span>
+                        <div class="reply-actions">
+                        ${depth < 2 ? `<button type="button" class="reply-reply-btn" data-reply-id="${reply.id}" data-depth="${depth}">回覆</button>` : ''}
+                        <button type="button" class="reply-resolve-btn" data-reply-id="${reply.id}">${reply.isResolved ? '重開' : '結案'}</button>
+                        ${pm ? `<button type="button" class="danger reply-del-btn" data-reply-id="${reply.id}">刪除</button>` : ''}
+                        </div>
                     </div>
                     <div class="reply-body"><div class="ql-editor ql-snow" style="padding:0;font-size:0.82rem;">${reply.content || ''}</div></div>
-                    <div class="reply-actions">
-                        ${depth < 2 ? `<button class="reply-reply-btn" data-reply-id="${reply.id}" data-depth="${depth}">回覆</button>` : ''}
-                        <button class="reply-resolve-btn" data-reply-id="${reply.id}">${reply.isResolved ? '重開' : '結案'}</button>
-                        ${pm ? `<button class="danger reply-del-btn" data-reply-id="${reply.id}">刪除</button>` : ''}
-                    </div>
                 </div>`;
             container.appendChild(item);
 
@@ -7590,24 +7622,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             // Reply button
             item.querySelector('.reply-reply-btn')?.addEventListener('click', () => {
-                const replyContainer = document.getElementById(`gl-replies-${guidelineId}`);
-                _showReplyInput(guidelineId, reply.id, depth + 1, replyContainer, item);
+                _showReplyInput(guidelineId, reply.id, depth + 1, root, item);
             });
             // Resolve/reopen
             item.querySelector('.reply-resolve-btn')?.addEventListener('click', async () => {
                 const newResolved = !reply.isResolved;
                 await DBService.resolveGuidelineReply(parseId(reply.id), getCurrentUserName(), newResolved);
-                await _loadAndRenderReplies(guidelineId, container);
+                await _loadAndRenderReplies(guidelineId, root);
             });
             // Delete
             item.querySelector('.reply-del-btn')?.addEventListener('click', async () => {
                 if (!confirm('確定刪除此回覆（及其下層回覆）？')) return;
                 await DBService.deleteGuidelineReply(parseId(reply.id));
-                await _loadAndRenderReplies(guidelineId, container);
+                await _loadAndRenderReplies(guidelineId, root);
             });
 
             // Render children
-            _renderReplyTree(guidelineId, container, allReplies, pm, reply.id, depth + 1);
+            _renderReplyTree(guidelineId, container, allReplies, pm, reply.id, depth + 1, root);
         });
     }
 
@@ -7620,16 +7651,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         area.appendChild(host);
         const actions = document.createElement('div');
         actions.className = 'reply-add-actions';
-        actions.innerHTML = `<button class="secondary-btn reply-cancel-btn">取消</button><button class="primary-btn reply-submit-btn">送出</button>`;
+        actions.innerHTML = `<button type="button" class="secondary-btn reply-cancel-btn">取消</button><button type="button" class="primary-btn reply-submit-btn">送出</button>`;
         area.appendChild(actions);
         if (afterEl) afterEl.after(area); else container.appendChild(area);
         const q = _makeQuill(host, REPLY_TOOLBAR, '輸入回覆…');
+        const submitBtn = area.querySelector('.reply-submit-btn');
         area.querySelector('.reply-cancel-btn').addEventListener('click', () => area.remove());
-        area.querySelector('.reply-submit-btn').addEventListener('click', async () => {
+        submitBtn.addEventListener('click', async () => {
             const html = q.root.innerHTML;
             if (!html || html === '<p><br></p>') return;
-            await DBService.addGuidelineReply({ guidelineId: parseId(guidelineId), parentReplyId: parentReplyId ? parseId(parentReplyId) : null, depth, content: html, createdByName: getCurrentUserName() });
-            await _loadAndRenderReplies(guidelineId, container);
+            submitBtn.disabled = true;
+            try {
+                await DBService.addGuidelineReply({ guidelineId: parseId(guidelineId), parentReplyId: parentReplyId ? parseId(parentReplyId) : null, depth, content: html, createdByName: getCurrentUserName() });
+                await _loadAndRenderReplies(guidelineId, container);
+            } catch (err) {
+                console.error(err);
+                alert(err && err.message ? String(err.message) : '送出失敗');
+                submitBtn.disabled = false;
+            }
         });
     }
 
@@ -7696,6 +7735,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         await DBService.deletePrivateNote(parseId(note.id)).catch(() => {});
                     }
                 }
+                await _refreshSharedInfoUi();
                 cleanup();
                 resolve(true);
             };
@@ -7721,7 +7761,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const pmAddBtn = document.getElementById('btnAddPmGuidelineModal');
         if (pmAddBtn) {
             pmAddBtn.style.display = isCatSharedMutator() ? '' : 'none';
-            pmAddBtn.onclick = async () => { await _addGuideline('pm_guideline'); await _reloadSharedInfoModal(projectId); };
+            pmAddBtn.onclick = async () => { await _addGuideline('pm_guideline', { listKey: 'modal' }); };
         }
         await _reloadSharedInfoModal(projectId, guidelines);
         document.getElementById('sharedInfoModal')?.classList.remove('hidden');
@@ -7733,13 +7773,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const pmList = document.getElementById('pmGuidelinesListModal');
         const shList = document.getElementById('sharedNotesListModal');
-        _renderGuidelinesList(guidelines.filter(g => g.type === 'pm_guideline'), pmList);
-        _renderGuidelinesList(guidelines.filter(g => g.type === 'shared_note'), shList);
+        _renderGuidelinesList(guidelines.filter(g => g.type === 'pm_guideline'), pmList, 'modal');
+        _renderGuidelinesList(guidelines.filter(g => g.type === 'shared_note'), shList, 'modal');
     }
 
     (function initSharedInfoModal() {
         document.getElementById('btnCloseSharedInfoModal')?.addEventListener('click', async () => {
             await _pruneEmptyNoteDrafts(_activeNoteProjectId);
+            await _loadSharedInfo();
             document.getElementById('sharedInfoModal')?.classList.add('hidden');
         });
     })();

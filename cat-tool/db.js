@@ -376,8 +376,10 @@ const DBService = {
         const row = await db.guidelines.get(guidelineId);
         if (!row) return;
         if (normalizeCatGuidelineContent(row.content) === normalizeCatGuidelineContent(content)) return;
-        const prevVersion = { content: row.content, createdByName: updaterName || row.createdByName, createdAt: row.updatedAt || row.createdAt };
-        const versions = [...(row.versions || []), prevVersion];
+        const versions = [...(row.versions || [])];
+        if (normalizeCatGuidelineContent(row.content) !== '') {
+            versions.push({ content: row.content, createdByName: updaterName || row.createdByName, createdAt: row.updatedAt || row.createdAt });
+        }
         return await db.guidelines.update(guidelineId, { content, versions, updatedAt: new Date().toISOString() });
     },
     async deleteGuideline(guidelineId) {

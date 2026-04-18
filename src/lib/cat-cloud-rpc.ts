@@ -447,12 +447,15 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .single();
       if (fetchErr) throw fetchErr;
       if (normalizeCatGuidelineContent(existing.content) === normalizeCatGuidelineContent(payload.content)) return;
-      const prevVersion = {
-        content: existing.content,
-        createdByName: payload.updaterName || existing.created_by_name,
-        createdAt: existing.updated_at,
-      };
-      const versions = [...((existing.versions as any[] | null) ?? []), prevVersion];
+      const baseVers = (existing.versions as any[] | null) ?? [];
+      const versions = [...baseVers];
+      if (normalizeCatGuidelineContent(existing.content) !== "") {
+        versions.push({
+          content: existing.content,
+          createdByName: payload.updaterName || existing.created_by_name,
+          createdAt: existing.updated_at,
+        });
+      }
       const { error } = await supabase
         .from("cat_guidelines")
         .update({ content: payload.content, versions, updated_at: nowIso() } as any)
