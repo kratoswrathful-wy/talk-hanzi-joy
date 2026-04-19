@@ -10521,11 +10521,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const modelSelect = document.getElementById('aiSettingsModel');
         const modelCustom = document.getElementById('aiSettingsModelCustom');
         const baseUrlEl = document.getElementById('aiSettingsBaseUrl');
-        const batchSizeEl = document.getElementById('aiSettingsBatchSize');
-
         if (apiKeyEl) apiKeyEl.value = settings.apiKey || '';
         if (baseUrlEl) baseUrlEl.value = settings.apiBaseUrl || '';
-        if (batchSizeEl) batchSizeEl.value = settings.batchSize || 20;
 
         // 設定模型選單的選取值
         function _setModelValue(model) {
@@ -10573,8 +10570,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await DBService.saveAiSettings({
                     apiKey: apiKeyEl?.value?.trim() || '',
                     model: _getSelectedModel(),
-                    apiBaseUrl: baseUrlEl?.value?.trim() || '',
-                    batchSize: parseInt(batchSizeEl?.value || '20', 10) || 20
+                    apiBaseUrl: baseUrlEl?.value?.trim() || ''
                 });
                 saveBtn.textContent = '已儲存 ✓';
                 setTimeout(() => { saveBtn.textContent = '儲存設定'; }, 2000);
@@ -10651,6 +10647,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!_isAiAllowed()) return;
         const allGuidelines = await DBService.getAiGuidelines();
         let allCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
+        // 懶播種：第一次進入時若無任何標籤，補植預設「通用」
+        if (allCategoryTags.length === 0) {
+            try {
+                const id = await DBService.addAiCategoryTag('通用');
+                allCategoryTags = [{ id, name: '通用', createdAt: new Date().toISOString() }];
+            } catch (_) { /* 可能已存在，忽略 */ }
+            if (allCategoryTags.length === 0) {
+                allCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
+            }
+        }
         const tabCategories = ['全部', ...allCategoryTags.map(t => t.name)];
         let activeCat = '全部';
 
@@ -10720,6 +10726,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         function updateMultiselectDropdown() {
             const dropdown = document.getElementById('aiGuidelineCategoryDropdown');
             if (!dropdown) return;
+            if (allCategoryTags.length === 0) {
+                dropdown.innerHTML = '<span style="font-size:0.8rem; color:#94a3b8; padding:0.4rem 0.6rem; display:block;">請先在上方建立類別標籤</span>';
+                return;
+            }
             const sortedTags = _sortTagNames(allCategoryTags.map(t => t.name));
             dropdown.innerHTML = sortedTags.map(name => `
                 <label class="ai-multiselect-option">
@@ -10962,11 +10972,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const openPickerBtn = document.getElementById('btnOpenAiGuidelinePicker');
         const addSpecialBtn = document.getElementById('btnAddAiSpecialInstruction');
 
-        const [allGuidelines, psettings, allCategoryTagsInTab] = await Promise.all([
+        const [allGuidelines, psettings] = await Promise.all([
             DBService.getAiGuidelines(),
-            DBService.getAiProjectSettings(currentProjectId),
-            DBService.getAiCategoryTags().catch(() => [])
+            DBService.getAiProjectSettings(currentProjectId)
         ]);
+        let allCategoryTagsInTab = await DBService.getAiCategoryTags().catch(() => []);
+        if (allCategoryTagsInTab.length === 0) {
+            try { await DBService.addAiCategoryTag('通用'); } catch (_) {}
+            allCategoryTagsInTab = await DBService.getAiCategoryTags().catch(() => []);
+        }
         const fileRec = currentFileId ? await DBService.getFile(currentFileId).catch(() => null) : null;
         const fileDomains = fileRec?.aiDomains ? [...fileRec.aiDomains] : [];
         let selectedGuidelineIds = new Set(psettings?.selectedGuidelineIds || []);
@@ -11263,9 +11277,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             function onKeydown(e) {
                 if (e.key === 'Escape') { e.preventDefault(); skipBtn?.click(); }
-                else if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); confirmBtn?.click(); }
             }
-            document.addEventListener('keydown', onKeydown);
+            // 延遲附加，避免觸發確認句段的 Ctrl+Enter 事件直接關閉視窗
+            setTimeout(() => document.addEventListener('keydown', onKeydown), 300);
             if (skipBtn) skipBtn.onclick = () => { cleanup(); resolve(null); };
             if (confirmBtn) confirmBtn.onclick = () => {
                 const data = { modTags: [...selectedModTags], categories: [...reviewCategories], editNotes: editNotes.filter(Boolean) };
@@ -11280,7 +11294,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     function _saveAiStyleExampleAsync(seg, segIdx, reviewData) {
         const aiDraftAtConfirm = seg.aiSuggestion || '';
         DBService.getFile(currentFileId).then(fileRec => {
-            return DBService.addAiStyleExample({
+            return DBService.upsertAiStyleExample({
+                segId: seg.id,
                 sourceLang: fileRec?.sourceLang || '',
                 targetLang: fileRec?.targetLang || '',
                 categories: reviewData.categories,
@@ -11551,7 +11566,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        const batchSize = settings.batchSize || 20;
+        const batchSize = 20;
         let processed = 0;
         const options = await _buildAiOptions(settings, config.batchNote);
         let allMissing = [];

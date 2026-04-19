@@ -159,6 +159,26 @@ db.version(12).stores({
     }
 });
 
+db.version(13).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, *changeLog, sourceLang, targetLang',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId',
+    wordCountReports: '++id, projectId, createdAt, label',
+    aiGuidelines: '++id, category, createdAt',
+    aiStyleExamples: '++id, sourceLang, targetLang, segId, createdAt',
+    aiSettings: '++id',
+    aiProjectSettings: '++id, projectId',
+    aiCategoryTags: '++id, name, createdAt'
+});
+
 /** 比對／空白判定：取 HTML 可見文字並壓縮空白，與 cat-cloud-rpc / app.js 邏輯一致 */
 function normalizeCatGuidelineContent(html) {
     if (html == null) return '';
@@ -692,8 +712,34 @@ const DBService = {
             editNotes: Array.isArray(entry.editNotes) ? entry.editNotes : [],
             contextPrev: entry.contextPrev || '',
             contextNext: entry.contextNext || '',
+            segId: entry.segId || null,
             createdAt: now
         });
+    },
+    async upsertAiStyleExample(entry) {
+        const now = new Date().toISOString();
+        const payload = {
+            sourceLang: entry.sourceLang || '',
+            targetLang: entry.targetLang || '',
+            categories: Array.isArray(entry.categories) ? entry.categories : [],
+            modTags: Array.isArray(entry.modTags) ? entry.modTags : [],
+            sourceText: entry.sourceText || '',
+            aiDraft: entry.aiDraft || '',
+            userFinal: entry.userFinal || '',
+            editNotes: Array.isArray(entry.editNotes) ? entry.editNotes : [],
+            contextPrev: entry.contextPrev || '',
+            contextNext: entry.contextNext || '',
+            segId: entry.segId || null,
+            updatedAt: now
+        };
+        if (entry.segId) {
+            const existing = await db.aiStyleExamples.where('segId').equals(entry.segId).first().catch(() => null);
+            if (existing) {
+                await db.aiStyleExamples.update(existing.id, payload);
+                return existing.id;
+            }
+        }
+        return await db.aiStyleExamples.add({ ...payload, createdAt: now });
     },
     async getAiStyleExamples(filters = {}) {
         let rows = await db.aiStyleExamples.orderBy('createdAt').reverse().toArray();
