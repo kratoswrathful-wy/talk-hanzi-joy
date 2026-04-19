@@ -166,17 +166,22 @@
                     return; // 跳過後面的單段邏輯
                 }
 
-                // 單個 mrk：從 mrk 直接抽取以保留行內 <g> tag（transparentG: false）
+                // 單個 mrk：從 seg-source（或 source）全體抽取，以捕捉包在 mrk 外的 <g> tag
+                // （若只從 mrk 節點抽取，mrk 外的 <g> 包裝層會被漏掉）
                 if (srcMrks.length === 1) {
                     const srcMrk = srcMrks[0];
                     const mid = srcMrk.getAttribute('mid') || '';
-                    const tgtMrk = collectSegMrks(targetNode)
-                        .find(m => m.getAttribute('mid') === mid) || null;
 
-                    const { text: srcTxt, tags: srcTags } =
-                        Xliff.extractTaggedText(srcMrk, { transparentG: false });
-                    const { text: tgtTxt, tags: tgtTags } = tgtMrk
-                        ? Xliff.extractTaggedText(tgtMrk, { transparentG: false })
+                    // 從 segSourceNode 全體抽取：<mrk> 本身會被當作未知元素遞迴，
+                    // 因此 mrk 內文字照常取出，而 mrk 外的 <g> 也會產生佔位符
+                    const srcExtractNode = segSourceNode || sourceNode;
+                    const { text: srcTxt, tags: srcTags } = srcExtractNode
+                        ? Xliff.extractTaggedText(srcExtractNode, { transparentG: false })
+                        : { text: '', tags: [] };
+
+                    // 目標語同樣從 targetNode 全體抽取
+                    const { text: tgtTxt, tags: tgtTags } = targetNode
+                        ? Xliff.extractTaggedText(targetNode, { transparentG: false })
                         : { text: '', tags: [] };
 
                     if (!srcTxt && !tgtTxt) return;
