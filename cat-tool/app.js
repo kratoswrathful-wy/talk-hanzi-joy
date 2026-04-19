@@ -1565,6 +1565,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             let payload = { view: 'viewDashboard' };
             if (inEditor) {
                 payload = { view: 'viewEditor', fileId: currentFileId };
+                if (currentProjectId != null && currentProjectId !== '') {
+                    payload.projectId = currentProjectId;
+                }
             } else if (activeView === 'viewProjectDetail' && currentProjectId != null) {
                 payload = { view: 'viewProjectDetail', projectId: currentProjectId };
             } else if (activeView === 'viewTmDetail' && currentTmId != null) {
@@ -4563,7 +4566,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         pendingRemoteBySegId.clear();
         const file = await DBService.getFile(fileId);
         if(!file) return alert('檔案不存在');
-        
+
+        const resolvedProjectId = file.projectId || currentProjectId;
+        if (resolvedProjectId) currentProjectId = resolvedProjectId;
+
         editorFileName.textContent = file.name;
         currentSegmentsList = await DBService.getSegmentsByFile(fileId);
 
@@ -4628,7 +4634,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.ActiveTbNames = {};
         // 記錄當前檔案的語言對，供 TM 篩選及寫入使用
         window.ActiveFileLangs = { sourceLang: file.sourceLang || '', targetLang: file.targetLang || '' };
-        const project = await DBService.getProject(file.projectId);
+        const project = await DBService.getProject(resolvedProjectId);
         window.ActiveReadTmIds = (project && Array.isArray(project.readTms)) ? project.readTms : [];
         if (project && project.readTms && project.readTms.length > 0) {
             for (const tmId of project.readTms) {
@@ -4839,9 +4845,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderCollabPresence();
         refreshNewTermPanel();
 
-        // Auto-load notes panel
-        if (file.projectId) {
-            loadEditorNotes(file.projectId).catch(console.warn);
+        // Auto-load notes panel（resolvedProjectId 含檔案無 projectId 時沿用 currentProjectId／還原路由）
+        if (resolvedProjectId) {
+            loadEditorNotes(resolvedProjectId).catch(console.warn);
         }
 
         activeView = 'viewEditor';
@@ -8841,6 +8847,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let _guidelineEditQuills = {}; // guideline id (string) → Quill（編輯準則／共用筆記中）
     let _activeNoteProjectId = null;
     let _notesPanelInitialized = false;
+    let _privateNoteSharePending = null;
 
     /** 團隊模式與 Supabase is_admin（pm/executive）一致，供共用資訊增刪改；離線模式皆可編輯 */
     function isCatSharedMutator() {
@@ -8868,6 +8875,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function privateNoteItemType(note) {
         return note && note.itemType === 'todo' ? 'todo' : 'note';
+    }
+
+    function _closePrivateNoteShareDialog() {
+        _privateNoteSharePending = null;
+        document.getElementById('privateNoteShareModal')?.classList.add('hidden');
+    }
+
+    function _openPrivateNoteShareDialog(note) {
+        if (!_activeNoteProjectId) return;
+        if (!note || privateNoteItemType(note) !== 'note') return;
+        const idStr = String(note.id);
+        const q = _privateNoteEditQuills[idStr];
+        const html = q ? q.root.innerHTML : (note.content || '');
+        if (isQuillHtmlEffectivelyEmpty(html)) {
+            alert('請先為此筆記輸入內容後再共用。');
+            return;
+        }
+        _privateNoteSharePending = { ...note, content: html };
+        document.getElementById('privateNoteShareModal')?.classList.remove('hidden');
     }
 
     /** 待辦 content 存純文字；相容舊資料若含 HTML 則取可見文字 */
@@ -9066,12 +9092,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             resizer.addEventListener('pointercancel', endNotes);
         }
 
-        // Share button
-        const shareBtn = document.getElementById('btnShareNotes');
-        if (shareBtn) {
-            shareBtn.addEventListener('click', () => _showNoteSharingModal(false));
-        }
-
         const addBtn = document.getElementById('btnAddPrivateNote');
         if (addBtn) {
             addBtn.addEventListener('click', async () => {
@@ -9116,6 +9136,53 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
+        document.getElementById('btnPrivateNoteShareCopy')?.addEventListener('click', async () => {
+            const note = _privateNoteSharePending;
+            if (!note || !_activeNoteProjectId) {
+                _closePrivateNoteShareDialog();
+                return;
+            }
+            try {
+                await DBService.addGuideline({
+                    projectId: _activeNoteProjectId,
+                    type: 'shared_note',
+                    content: note.content,
+                    createdByName: getCurrentUserName()
+                });
+                await _refreshSharedInfoUi();
+            } catch (err) {
+                console.error(err);
+                alert(err && err.message ? String(err.message) : '複製失敗');
+            }
+            _closePrivateNoteShareDialog();
+        });
+        document.getElementById('btnPrivateNoteShareMove')?.addEventListener('click', async () => {
+            const note = _privateNoteSharePending;
+            if (!note || !_activeNoteProjectId) {
+                _closePrivateNoteShareDialog();
+                return;
+            }
+            try {
+                await DBService.addGuideline({
+                    projectId: _activeNoteProjectId,
+                    type: 'shared_note',
+                    content: note.content,
+                    createdByName: getCurrentUserName()
+                });
+                delete _privateNoteEditQuills[String(note.id)];
+                await DBService.deletePrivateNote(parseId(note.id));
+                await _refreshSharedInfoUi();
+                await _loadPrivateNotes();
+            } catch (err) {
+                console.error(err);
+                alert(err && err.message ? String(err.message) : '移動失敗');
+            }
+            _closePrivateNoteShareDialog();
+        });
+        document.getElementById('btnPrivateNoteShareCancel')?.addEventListener('click', () => {
+            _closePrivateNoteShareDialog();
+        });
+
         // Add PM guideline
         const addPmBtn = document.getElementById('btnAddPmGuideline');
         if (addPmBtn) {
@@ -9148,8 +9215,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         _activeNoteProjectId = projectId;
         initNotesPanel();
-        const shareBtn = document.getElementById('btnShareNotes');
-        if (shareBtn) shareBtn.style.display = '';
         await Promise.all([_loadPrivateNotes(), _refreshSharedInfoUi()]);
     }
 
@@ -9195,6 +9260,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <div class="note-item-actions guideline-item-aside-actions pn-aside-${note.id}">
                             <button type="button" class="pn-edit-btn" title="編輯">✏️</button>
                             <button type="button" class="pn-del-btn danger" title="刪除">🗑</button>
+                            <button type="button" class="gl-reply-btn pn-share-btn" title="共用至共用資訊">共用</button>
                         </div>
                     </div>
                 </div>
@@ -9204,6 +9270,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ? `<div class="ql-editor ql-snow">${note.content}</div>`
             : '<div class="guideline-item-empty">（無內容）</div>';
         wrap.querySelector('.pn-edit-btn')?.addEventListener('click', () => _startPrivateNoteEdit(note, wrap));
+        wrap.querySelector('.pn-share-btn')?.addEventListener('click', () => _openPrivateNoteShareDialog(note));
         wrap.querySelector('.pn-del-btn')?.addEventListener('click', async () => {
             if (!confirm('確定刪除此筆記？')) return;
             delete _privateNoteEditQuills[String(note.id)];
@@ -9711,6 +9778,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             if (view === 'viewEditor' && data.fileId != null && data.fileId !== '') {
+                if (data.projectId != null && data.projectId !== '') {
+                    currentProjectId = data.projectId;
+                }
                 await openEditor(data.fileId);
                 const ve = document.getElementById('viewEditor');
                 if (!ve || ve.classList.contains('hidden')) {

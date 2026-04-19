@@ -572,14 +572,13 @@
                                     <button class="notes-tab-btn" data-notes-tab="tabSharedInfo">共用資訊</button>
                                 </div>
                                 <div style="display:flex; align-items:center; gap:0.4rem;">
-                                    <button type="button" id="btnShareNotes" class="notes-action-btn" title="共用筆記至共用資訊區" style="display:none;">共用</button>
                                     <button type="button" id="btnCollapseNotesPanel" class="notes-panel-collapse-btn" title="收合筆記面板">▼</button>
                                 </div>
                             </div>
                             <div class="notes-panel-body" id="notesPanelBody">
                                 <!-- Private Notes Tab -->
                                 <div class="notes-tab-content active" id="tabPrivateNotes">
-                                    <p style="font-size:0.78rem; color:#64748b; margin:0 0 0.5rem 0;">僅自己可見。離開編輯器時可針對<strong>筆記</strong>選擇是否複製／移動到共用資訊（待辦不會出現於該視窗）。</p>
+                                    <p style="font-size:0.78rem; color:#64748b; margin:0 0 0.5rem 0;">僅自己可見。每則<strong>筆記</strong>可點「共用」複製或移動到共用資訊；離開編輯器時亦可批次處理（待辦僅能於此區管理，不會進入離開時的共用視窗）。</p>
                                     <div class="shared-info-section">
                                         <div class="shared-info-section-header">
                                             <h4 class="shared-info-section-title">筆記</h4>
@@ -1288,6 +1287,19 @@
             <div style="display:flex; gap:0.5rem; justify-content:flex-end; flex-wrap:wrap; margin-top:1rem; flex-shrink:0;">
                 <button type="button" id="btnNoteSharingCancel" class="secondary-btn btn-sm">取消（留在編輯器）</button>
                 <button type="button" id="btnNoteSharingConfirm" class="primary-btn btn-sm">確認並離開</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 單則私人筆記：共用至共用資訊 -->
+    <div id="privateNoteShareModal" class="modal-overlay hidden">
+        <div class="modal-box" style="max-width:420px;">
+            <h3 style="margin-top:0;">將此筆記共用至共用資訊</h3>
+            <p style="font-size:0.88rem; color:#64748b; margin:0 0 0.75rem 0;">內容會出現在「共用資訊」分頁的共用筆記區。</p>
+            <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                <button type="button" id="btnPrivateNoteShareCopy" class="primary-btn btn-sm">複製到共用筆記</button>
+                <button type="button" id="btnPrivateNoteShareMove" class="secondary-btn btn-sm">移動到共用筆記</button>
+                <button type="button" id="btnPrivateNoteShareCancel" class="secondary-btn btn-sm">取消</button>
             </div>
         </div>
     </div>
