@@ -466,6 +466,79 @@
 
         transUnits.forEach((tu) => {
             const tuId = tu.getAttribute('id');
+
+            // ── sdlxliff 多段 TU：以 {tuId}#{mid} 格式逐 mrk 查找並回寫 ──────
+            // 新格式（重新匯入後）會在 segByTuId 裡找到 "{tuId}#firstMid"，
+            // 舊格式（合併匯入）只有純 tuId，走後面的單段相容邏輯。
+            if (format === 'sdlxliff' && tuId) {
+                let targetNode = tu.getElementsByTagName('target')[0];
+                const mrkSegs = targetNode
+                    ? Array.from(targetNode.getElementsByTagName('mrk'))
+                        .filter(m => m.getAttribute('mtype') === 'seg')
+                    : [];
+                const firstMid = mrkSegs.length > 0 ? mrkSegs[0].getAttribute('mid') : null;
+                const compositeKey = firstMid != null ? `${tuId}#${firstMid}` : null;
+                const isMultiSegFormat = compositeKey != null && segByTuId.has(compositeKey);
+
+                if (isMultiSegFormat && mrkSegs.length > 1) {
+                    if (!targetNode) {
+                        targetNode = xmlDoc.createElement('target');
+                        const sourceNode = tu.getElementsByTagName('source')[0];
+                        if (sourceNode && sourceNode.nextSibling) {
+                            tu.insertBefore(targetNode, sourceNode.nextSibling);
+                        } else {
+                            tu.appendChild(targetNode);
+                        }
+                    }
+
+                    // 逐 mrk 還原各自的譯文
+                    mrkSegs.forEach(mrk => {
+                        const mid = mrk.getAttribute('mid') || '';
+                        const seg = segByTuId.get(`${tuId}#${mid}`);
+                        if (!seg) return;
+
+                        const tags = seg.targetTags && seg.targetTags.length ? seg.targetTags : (seg.sourceTags || []);
+                        const repairedText = normalizeLegacyEncodedTagText(seg.targetText || '', seg.sourceTags || []);
+                        let restoredXml = replacePlaceholders(repairedText, tags, seg.sourceTags || []);
+                        if (/&lt;it\b/i.test(restoredXml)) {
+                            restoredXml = replaceEncodedItWithSourceXml(restoredXml, orderedInlineSourceTags(seg.sourceTags || []));
+                        }
+                        restoredXml = prepareRestoredFragmentForXmlParse(restoredXml);
+
+                        while (mrk.firstChild) mrk.removeChild(mrk.firstChild);
+                        if (restoredXml.trim()) {
+                            setXmlTargetContent(xmlDoc, mrk, restoredXml, { tuId: `${tuId}#${mid}` });
+                        }
+                    });
+
+                    // 更新 sdl:seg-defs 各 sdl:seg 的 conf 屬性
+                    const segDefsEl = Array.from(tu.getElementsByTagName('*'))
+                        .find(n => n.localName === 'seg-defs');
+                    if (segDefsEl) {
+                        mrkSegs.forEach(mrk => {
+                            const mid = mrk.getAttribute('mid') || '';
+                            const seg = segByTuId.get(`${tuId}#${mid}`);
+                            if (!seg) return;
+                            const sdlSeg = Array.from(segDefsEl.getElementsByTagName('*'))
+                                .find(n => n.localName === 'seg' && n.getAttribute('id') === mid);
+                            if (sdlSeg) {
+                                sdlSeg.setAttribute('conf', seg.status === 'confirmed' ? 'Translated' : 'Draft');
+                            }
+                        });
+                    }
+
+                    // target state：有任意句段已確認則標 final
+                    const anyConfirmed = mrkSegs.some(mrk => {
+                        const seg = segByTuId.get(`${tuId}#${mrk.getAttribute('mid') || ''}`);
+                        return seg && seg.status === 'confirmed';
+                    });
+                    targetNode.setAttribute('state', anyConfirmed ? 'final' : 'needs-translation');
+
+                    return; // 跳過後面的單段邏輯
+                }
+            }
+
+            // ── 單段邏輯（向下相容：一般 XLIFF / mqxliff / 舊格式 sdlxliff）──
             const seg = tuId ? segByTuId.get(tuId) : null;
             if (!seg) return;
 

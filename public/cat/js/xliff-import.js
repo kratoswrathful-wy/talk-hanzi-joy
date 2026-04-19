@@ -3,6 +3,9 @@
  * 標籤文字與 sourceTags/targetTags 交由 CatToolXliffTags.extractTaggedText。
  *
  * 載入順序：js/xliff-tag-pipeline.js → 本檔 → app.js
+ *
+ * sdlxliff 多段 TU：一個 trans-unit 可含多個 <mrk mtype="seg" mid="N">。
+ * 每個 mrk 對建立獨立 segment，idValue 格式為 {tuId}#{mid}。
  */
 (function (global) {
     'use strict';
@@ -59,6 +62,7 @@
         }
 
         const segments = [];
+        let segCounter = 0; // 全域句段計數器，確保 rowIdx 連續不重複
 
         const lowerFileName = (file.name || '').toLowerCase();
         const isMqxliffFile = lowerFileName.endsWith('.mqxliff') ||
@@ -68,10 +72,83 @@
         const isSdlxliffFile = lowerFileName.endsWith('.sdlxliff');
         const extractOpts = isSdlxliffFile ? { transparentG: true } : {};
 
-        transUnits.forEach((tu, idx) => {
+        transUnits.forEach((tu) => {
             const fallbackId = tu.getAttribute('id') || tu.getAttribute('resname') || tu.getAttribute('mq:unitId') || '';
             const sourceNode = tu.getElementsByTagName('source')[0];
             const targetNode = tu.getElementsByTagName('target')[0];
+
+            // ── sdlxliff 多段 TU 處理 ─────────────────────────────────────────
+            // SDL Trados 可在一個 trans-unit 內放多個 <mrk mtype="seg" mid="N">，
+            // 每個 mrk 代表一個獨立句段。若超過一個 mrk 則逐一建立 segment。
+            if (isSdlxliffFile) {
+                const srcMrks = Array.from(
+                    sourceNode ? sourceNode.getElementsByTagName('mrk') : []
+                ).filter(m => m.getAttribute('mtype') === 'seg');
+
+                if (srcMrks.length > 1) {
+                    // 取得 sdl:seg-defs，用於讀取各句段的確認狀態
+                    const segDefsEl = Array.from(tu.getElementsByTagName('*'))
+                        .find(n => n.localName === 'seg-defs');
+
+                    // TU 層級的系統鎖定（通常為 0，多段 TU 裡各 mrk 繼承）
+                    const mqLocked = tu.getAttribute('mq:locked');
+                    const isLockedSystem = !!(mqLocked && mqLocked.toLowerCase() === 'locked');
+
+                    srcMrks.forEach(srcMrk => {
+                        const mid = srcMrk.getAttribute('mid') || '';
+                        const tgtMrk = targetNode
+                            ? Array.from(targetNode.getElementsByTagName('mrk'))
+                                .find(m => m.getAttribute('mtype') === 'seg' && m.getAttribute('mid') === mid)
+                            : null;
+
+                        const { text: srcTxt, tags: srcTags } =
+                            Xliff.extractTaggedText(srcMrk, extractOpts);
+                        const { text: tgtTxt, tags: tgtTags } = tgtMrk
+                            ? Xliff.extractTaggedText(tgtMrk, extractOpts)
+                            : { text: '', tags: [] };
+
+                        if (!srcTxt && !tgtTxt) return;
+
+                        // 從 sdl:seg-defs 的 sdl:seg id=mid 讀取 conf 屬性
+                        let segStatus = 'unconfirmed';
+                        if (segDefsEl) {
+                            const sdlSeg = Array.from(segDefsEl.getElementsByTagName('*'))
+                                .find(n => n.localName === 'seg' && n.getAttribute('id') === mid);
+                            if (sdlSeg) {
+                                const conf = sdlSeg.getAttribute('conf') || '';
+                                if (['Translated', 'ApprovedTranslation', 'ApprovedSignOff'].includes(conf)) {
+                                    segStatus = 'confirmed';
+                                }
+                            }
+                        }
+
+                        segments.push({
+                            sheetName: 'XLIFF',
+                            rowIdx: segCounter++,
+                            colSrc: 0,
+                            colTgt: 0,
+                            idValue: `${fallbackId}#${mid}`,
+                            extraValue: '',
+                            sourceText: srcTxt,
+                            targetText: tgtTxt,
+                            isLocked: isLockedSystem,
+                            isLockedSystem,
+                            isLockedUser: false,
+                            status: segStatus,
+                            matchValue: null,
+                            importMatchKind: null,
+                            comments: [],
+                            sourceFormat: 'sdlxliff',
+                            confirmationRole: null,
+                            originalRole: null,
+                            sourceTags: srcTags,
+                            targetTags: tgtTags
+                        });
+                    });
+                    return; // 跳過後面的單段邏輯
+                }
+            }
+            // ── 單段 TU（一般 XLIFF / mqxliff / sdlxliff 單段）────────────────
 
             const { text: sourceText, tags: sourceTags } = sourceNode
                 ? Xliff.extractTaggedText(sourceNode, extractOpts) : { text: '', tags: [] };
@@ -140,6 +217,24 @@
                 }
             }
 
+            // sdlxliff 單段 TU：從 sdl:seg-defs 讀取確認狀態（比 <target state> 更精確）
+            if (isSdlxliffFile) {
+                const segDefsEl = Array.from(tu.getElementsByTagName('*'))
+                    .find(n => n.localName === 'seg-defs');
+                if (segDefsEl) {
+                    const sdlSegs = Array.from(segDefsEl.getElementsByTagName('*'))
+                        .filter(n => n.localName === 'seg');
+                    if (sdlSegs.length > 0) {
+                        const conf = sdlSegs[0].getAttribute('conf') || '';
+                        if (['Translated', 'ApprovedTranslation', 'ApprovedSignOff'].includes(conf)) {
+                            status = 'confirmed';
+                        } else {
+                            status = 'unconfirmed';
+                        }
+                    }
+                }
+            }
+
             const mqPercent = tu.getAttribute('mq:percent') ||
                               (targetNode && (targetNode.getAttribute('mq:percent') || targetNode.getAttribute('percent')));
             if (mqPercent && !Number.isNaN(parseInt(mqPercent, 10))) {
@@ -186,7 +281,7 @@
 
             segments.push({
                 sheetName: 'XLIFF',
-                rowIdx: idx,
+                rowIdx: segCounter++,
                 colSrc: 0,
                 colTgt: 0,
                 idValue: keyFromContext || fallbackId,
