@@ -120,9 +120,9 @@
                             .find(m => m.getAttribute('mid') === mid) || null;
 
                         const { text: srcTxt, tags: srcTags } =
-                            Xliff.extractTaggedText(srcMrk, extractOpts);
+                            Xliff.extractTaggedText(srcMrk, { transparentG: false });
                         const { text: tgtTxt, tags: tgtTags } = tgtMrk
-                            ? Xliff.extractTaggedText(tgtMrk, extractOpts)
+                            ? Xliff.extractTaggedText(tgtMrk, { transparentG: false })
                             : { text: '', tags: [] };
 
                         if (!srcTxt && !tgtTxt) return;
@@ -164,6 +164,65 @@
                         });
                     });
                     return; // 跳過後面的單段邏輯
+                }
+
+                // 單個 mrk：從 mrk 直接抽取以保留行內 <g> tag（transparentG: false）
+                if (srcMrks.length === 1) {
+                    const srcMrk = srcMrks[0];
+                    const mid = srcMrk.getAttribute('mid') || '';
+                    const tgtMrk = collectSegMrks(targetNode)
+                        .find(m => m.getAttribute('mid') === mid) || null;
+
+                    const { text: srcTxt, tags: srcTags } =
+                        Xliff.extractTaggedText(srcMrk, { transparentG: false });
+                    const { text: tgtTxt, tags: tgtTags } = tgtMrk
+                        ? Xliff.extractTaggedText(tgtMrk, { transparentG: false })
+                        : { text: '', tags: [] };
+
+                    if (!srcTxt && !tgtTxt) return;
+
+                    let segStatus = 'unconfirmed';
+                    const segDefsEl = Array.from(tu.getElementsByTagName('*'))
+                        .find(n => n.localName === 'seg-defs');
+                    if (segDefsEl) {
+                        const sdlSeg = Array.from(segDefsEl.getElementsByTagName('*'))
+                            .find(n => n.localName === 'seg' && n.getAttribute('id') === mid)
+                            || Array.from(segDefsEl.getElementsByTagName('*'))
+                                .find(n => n.localName === 'seg');
+                        if (sdlSeg) {
+                            const conf = sdlSeg.getAttribute('conf') || '';
+                            if (['Translated', 'ApprovedTranslation', 'ApprovedSignOff'].includes(conf)) {
+                                segStatus = 'confirmed';
+                            }
+                        }
+                    }
+
+                    const mqLocked = tu.getAttribute('mq:locked');
+                    const isLockedSystem = !!(mqLocked && mqLocked.toLowerCase() === 'locked');
+
+                    segments.push({
+                        sheetName: 'XLIFF',
+                        rowIdx: segCounter++,
+                        colSrc: 0,
+                        colTgt: 0,
+                        idValue: fallbackId,
+                        extraValue: '',
+                        sourceText: srcTxt,
+                        targetText: tgtTxt,
+                        isLocked: isLockedSystem,
+                        isLockedSystem,
+                        isLockedUser: false,
+                        status: segStatus,
+                        matchValue: null,
+                        importMatchKind: null,
+                        comments: [],
+                        sourceFormat: 'sdlxliff',
+                        confirmationRole: null,
+                        originalRole: null,
+                        sourceTags: srcTags,
+                        targetTags: tgtTags
+                    });
+                    return;
                 }
             }
             // ── 單段 TU（一般 XLIFF / mqxliff / sdlxliff 單段）────────────────

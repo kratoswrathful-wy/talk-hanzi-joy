@@ -247,7 +247,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         last_modified: nowIso(),
       } as any).eq("id", payload.projectId);
     case "db.getProjects": {
-      const { data } = await supabase.from("cat_projects").select("*").order("created_at", { ascending: true });
+      const { data } = await supabase.from("cat_projects").select("*").order("created_at", { ascending: true, nullsFirst: true });
       return (data ?? []).map(mapProjectRow);
     }
     case "db.getProject": {
@@ -278,7 +278,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       return data.id;
     }
     case "db.getFiles": {
-      const { data } = await supabase.from("cat_files").select("*").eq("project_id", payload.projectId).order("created_at", { ascending: true });
+      const { data } = await supabase.from("cat_files").select("*").eq("project_id", payload.projectId).order("created_at", { ascending: true, nullsFirst: true });
       return (data ?? []).map(mapFileRow);
     }
     case "db.getRecentFiles": {
@@ -615,7 +615,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     case "db.updateTMLangs":
       return await supabase.from("cat_tms").update({ source_langs: payload.sourceLangs ?? [], target_langs: payload.targetLangs ?? [], last_modified: nowIso() } as any).eq("id", payload.tmId);
     case "db.getTMs": {
-      const { data } = await supabase.from("cat_tms").select("*").order("created_at", { ascending: true });
+      const { data } = await supabase.from("cat_tms").select("*").order("created_at", { ascending: true, nullsFirst: true });
       return (data ?? []).map(mapTmRow);
     }
     case "db.getTM": {
@@ -724,7 +724,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     case "db.updateTBLangs":
       return await supabase.from("cat_tbs").update({ source_langs: payload.sourceLangs ?? [], target_langs: payload.targetLangs ?? [], last_modified: nowIso() } as any).eq("id", payload.tbId);
     case "db.getTBs": {
-      const { data } = await supabase.from("cat_tbs").select("*").order("created_at", { ascending: true });
+      const { data } = await supabase.from("cat_tbs").select("*").order("created_at", { ascending: true, nullsFirst: true });
       return (data ?? []).map(mapTbRow);
     }
     case "db.getTB": {

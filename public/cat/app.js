@@ -4945,6 +4945,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         seg.matchValue = bestScore.toString();
                         if (autoConfirm && bestScore >= 100) {
                             seg.status = 'confirmed';
+                            await DBService.updateSegmentStatus(seg.id, 'confirmed');
                         }
                         await DBService.updateSegmentTarget(seg.id, seg.targetText, { matchValue: seg.matchValue });
                         applyCount++;

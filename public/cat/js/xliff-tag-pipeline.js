@@ -402,19 +402,8 @@
         const mrkSegs = allMrk.filter(m => m.getAttribute('mtype') === 'seg');
         if (mrkSegs.length === 0) return false;
 
-        // 計算要填入 mrk 的文字內容：先去掉最外層的 <g> 佔位符 wrapper
-        let content = seg.targetText || '';
-        const gOpenTag = (tags || []).find(t =>
-            t && t.type === 'open' && typeof t.xml === 'string' && /^<g\b/i.test(t.xml.trim())
-        );
-        if (gOpenTag) {
-            const n = gOpenTag.num;
-            const gRe = new RegExp(`^\\{${n}\\}([\\s\\S]*)\\{\\/${n}\\}$`);
-            const m = content.match(gRe);
-            if (m) content = m[1].trim();
-        }
-
-        // 還原剩餘的內嵌標籤（ph、bpt/ept 等）
+        // 還原內嵌標籤（ph、bpt/ept、g 等）
+        const content = seg.targetText || '';
         const repaired = normalizeLegacyEncodedTagText(content, seg.sourceTags || []);
         let restored = replacePlaceholders(repaired, tags, seg.sourceTags || []);
         if (/&lt;it\b/i.test(restored)) {

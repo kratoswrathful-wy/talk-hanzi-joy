@@ -192,7 +192,7 @@ const DBService = {
     },
 
     async getProjects() {
-        return await db.projects.orderBy('createdAt').toArray();
+        return await db.projects.orderBy('id').toArray();
     },
 
     async getProject(projectId) {
@@ -240,7 +240,7 @@ const DBService = {
         // Dexie does not support chaining where().equals() with orderBy(). 
         // We fetch the array and sort it in memory.
         const files = await db.files.where('projectId').equals(projectId).toArray();
-        return files.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        return files.sort((a, b) => a.id - b.id);
     },
 
     async getRecentFiles(limit = 10) {
@@ -484,7 +484,7 @@ const DBService = {
             lastModified: new Date().toISOString()
         });
     },
-    async getTMs() { return await db.tms.orderBy('createdAt').toArray(); },
+    async getTMs() { return await db.tms.orderBy('id').toArray(); },
     async getTM(tmId) { return await db.tms.get(tmId); },
     async updateTMName(tmId, newName) { return await db.tms.update(tmId, { name: newName, lastModified: new Date().toISOString() }); },
     async patchTM(tmId, updates) { return await db.tms.update(tmId, { ...updates, lastModified: new Date().toISOString() }); },
@@ -557,7 +557,7 @@ const DBService = {
             lastModified: new Date().toISOString()
         });
     },
-    async getTBs() { return await db.tbs.orderBy('createdAt').toArray(); },
+    async getTBs() { return await db.tbs.orderBy('id').toArray(); },
     async getTB(tbId) { return await db.tbs.get(tbId); },
     async updateTBName(tbId, newName) {
         return await db.tbs.update(tbId, { name: newName, lastModified: new Date().toISOString() });
