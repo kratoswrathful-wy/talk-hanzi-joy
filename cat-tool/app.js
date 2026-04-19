@@ -10495,13 +10495,51 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function loadAiSettingsView() {
         const settings = await DBService.getAiSettings();
         const apiKeyEl = document.getElementById('aiSettingsApiKey');
-        const modelEl = document.getElementById('aiSettingsModel');
+        const modelSelect = document.getElementById('aiSettingsModel');
+        const modelCustom = document.getElementById('aiSettingsModelCustom');
         const baseUrlEl = document.getElementById('aiSettingsBaseUrl');
         const batchSizeEl = document.getElementById('aiSettingsBatchSize');
+
         if (apiKeyEl) apiKeyEl.value = settings.apiKey || '';
-        if (modelEl) modelEl.value = settings.model || 'gpt-4.1-mini';
         if (baseUrlEl) baseUrlEl.value = settings.apiBaseUrl || '';
         if (batchSizeEl) batchSizeEl.value = settings.batchSize || 20;
+
+        // 設定模型選單的選取值
+        function _setModelValue(model) {
+            if (!modelSelect) return;
+            const savedModel = model || 'gpt-4.1-mini';
+            let found = false;
+            for (const opt of modelSelect.options) {
+                if (opt.value === savedModel) { opt.selected = true; found = true; break; }
+            }
+            if (!found) {
+                // 不在清單中：選「自訂輸入」並填入文字欄
+                const customOpt = modelSelect.querySelector('option[value="__custom__"]');
+                if (customOpt) customOpt.selected = true;
+                if (modelCustom) { modelCustom.style.display = ''; modelCustom.value = savedModel; }
+            }
+        }
+        _setModelValue(settings.model);
+
+        // 自訂輸入切換
+        if (modelSelect) {
+            modelSelect.addEventListener('change', () => {
+                if (!modelCustom) return;
+                if (modelSelect.value === '__custom__') {
+                    modelCustom.style.display = '';
+                    modelCustom.focus();
+                } else {
+                    modelCustom.style.display = 'none';
+                }
+            });
+        }
+
+        // 讀取目前選取的模型名稱
+        function _getSelectedModel() {
+            if (!modelSelect) return 'gpt-4.1-mini';
+            if (modelSelect.value === '__custom__') return modelCustom?.value?.trim() || 'gpt-4.1-mini';
+            return modelSelect.value || 'gpt-4.1-mini';
+        }
 
         const saveBtn = document.getElementById('btnSaveAiSettings');
         const testBtn = document.getElementById('btnTestAiSettings');
@@ -10511,7 +10549,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             saveBtn.onclick = async () => {
                 await DBService.saveAiSettings({
                     apiKey: apiKeyEl?.value?.trim() || '',
-                    model: modelEl?.value?.trim() || 'gpt-4.1-mini',
+                    model: _getSelectedModel(),
                     apiBaseUrl: baseUrlEl?.value?.trim() || '',
                     batchSize: parseInt(batchSizeEl?.value || '20', 10) || 20
                 });
@@ -10519,18 +10557,68 @@ document.addEventListener('DOMContentLoaded', async () => {
                 setTimeout(() => { saveBtn.textContent = '儲存設定'; }, 2000);
             };
         }
+
         if (testBtn && testResult) {
             testBtn.onclick = async () => {
                 testResult.textContent = '測試中…';
                 testResult.style.color = '#64748b';
-                const s = await DBService.getAiSettings();
-                if (!s.apiKey) { testResult.textContent = '請先填入 API Key'; testResult.style.color = '#ef4444'; return; }
+                // 先儲存目前表單值再測試
+                const apiKey = apiKeyEl?.value?.trim() || '';
+                if (!apiKey) { testResult.textContent = '請先填入 API Key'; testResult.style.color = '#ef4444'; return; }
+                const baseUrl = (baseUrlEl?.value?.trim() || 'https://api.openai.com').replace(/\/$/, '');
+                const model = _getSelectedModel();
+
+                // 1. 嘗試用 Chat Completions 測試連線（不依賴 List models 權限）
                 try {
-                    const base = (s.apiBaseUrl || 'https://api.openai.com').replace(/\/$/, '');
-                    const r = await fetch(`${base}/v1/models`, { headers: { Authorization: `Bearer ${s.apiKey}` } });
-                    if (r.ok) { testResult.textContent = '連線成功 ✓'; testResult.style.color = '#16a34a'; }
-                    else { testResult.textContent = `連線失敗（HTTP ${r.status}）`; testResult.style.color = '#ef4444'; }
-                } catch (_) { testResult.textContent = '網路錯誤，請確認連線狀態'; testResult.style.color = '#ef4444'; }
+                    const r = await fetch(`${baseUrl}/v1/chat/completions`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                        body: JSON.stringify({ model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 })
+                    });
+                    if (r.ok || r.status === 400) {
+                        // 400 可能是參數問題但連線 OK；200 是正常回應
+                        testResult.textContent = `連線成功 ✓（${model}）`;
+                        testResult.style.color = '#16a34a';
+                    } else if (r.status === 401) {
+                        testResult.textContent = 'API Key 無效（HTTP 401）';
+                        testResult.style.color = '#ef4444';
+                        return;
+                    } else if (r.status === 404) {
+                        testResult.textContent = `模型不存在：${model}（HTTP 404）`;
+                        testResult.style.color = '#ef4444';
+                    } else {
+                        testResult.textContent = `連線失敗（HTTP ${r.status}）`;
+                        testResult.style.color = '#ef4444';
+                    }
+                } catch (_) {
+                    testResult.textContent = '網路錯誤，請確認連線狀態';
+                    testResult.style.color = '#ef4444';
+                    return;
+                }
+
+                // 2. 嘗試動態拉取模型清單（若有 List models 權限則更新選單）
+                try {
+                    const mr = await fetch(`${baseUrl}/v1/models`, {
+                        headers: { 'Authorization': `Bearer ${apiKey}` }
+                    });
+                    if (mr.ok) {
+                        const data = await mr.json();
+                        const gptModels = (data.data || [])
+                            .map(m => m.id)
+                            .filter(id => /^(gpt|o\d)/i.test(id))
+                            .sort();
+                        if (gptModels.length > 0) {
+                            const dynGroup = document.getElementById('aiModelOptDynamic');
+                            if (dynGroup) {
+                                dynGroup.innerHTML = gptModels.map(id => `<option value="${id}">${id}</option>`).join('');
+                                dynGroup.style.display = '';
+                                // 若目前選的 model 在動態清單裡，切換至動態選項
+                                const dynOpt = dynGroup.querySelector(`option[value="${model}"]`);
+                                if (dynOpt) dynOpt.selected = true;
+                            }
+                        }
+                    }
+                } catch (_) { /* 無 List models 權限，忽略 */ }
             };
         }
     }
