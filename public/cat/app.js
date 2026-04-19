@@ -8906,40 +8906,41 @@ document.addEventListener('DOMContentLoaded', async () => {
                 let excelSkipNoSheet = 0;
                 const couldWriteSegs = segs.filter((s) => !s.isLocked);
 
-                const _dbgWrites = [];
+                // SheetJS 0.20 讀入後有內部工作表 XML 快取；直接修改 cell 物件無法反映在 writeFile 輸出。
+                // 解法：將整張工作表轉成 AoA → 更新目標欄 → aoa_to_sheet 重建，再整張替換進 wb.Sheets。
+                const segsBySheet = new Map();
                 segs.forEach(s => {
-                    if (s.isLocked) {
-                        excelSkipLocked++;
-                        return;
-                    }
-                    const sheet = _resolveWorkbookSheet(wb, s.sheetName);
-                    if (!sheet) {
-                        excelSkipNoSheet++;
-                        return;
-                    }
-                    excelWriteCount++;
-                    const cellRef = XLSX.utils.encode_cell({ r: s.rowIdx, c: s.colTgt });
-
-                    const hasTags = s.targetTags && s.targetTags.length > 0;
-                    if (hasTags && XlsxRich) {
-                        // 有 Rich Text tag：還原為 OOXML 富文字
-                        const tags = s.targetTags.length > 0 ? s.targetTags : (s.sourceTags || []);
-                        const richXml = XlsxRich.buildRichTextXml(
-                            s.targetText || '',
-                            tags,
-                            s.baseRprXml || ''
-                        );
-                        const plainVal = (s.targetText || '').replace(/\{\/?\d+\}/g, '');
-                        sheet[cellRef] = { t: 's', v: plainVal, r: richXml };
-                    } else {
-                        // sheet_add_aoa 是 SheetJS 的正式寫入 API，確保 shared strings 正確更新
-                        XLSX.utils.sheet_add_aoa(sheet, [[s.targetText || '']], { origin: cellRef });
-                    }
-                    if (_dbgWrites.length < 3) {
-                        _dbgWrites.push(cellRef + ' sheet=' + s.sheetName + ' val=' + (sheet[cellRef] && sheet[cellRef].v || '').slice(0, 30));
-                    }
+                    if (s.isLocked) { excelSkipLocked++; return; }
+                    const k = String(s.sheetName || '');
+                    if (!segsBySheet.has(k)) segsBySheet.set(k, []);
+                    segsBySheet.get(k).push(s);
                 });
-                console.log('[EXPORT WRITE CHECK]', _dbgWrites.join(' | '));
+
+                for (const [segSheetName, sheetSegs] of segsBySheet) {
+                    // 找到工作簿中實際的 sheet 鍵（不區分大小寫）
+                    const actualName = (wb.SheetNames || []).find(n =>
+                        String(n || '').trim().toLowerCase() === segSheetName.trim().toLowerCase()
+                    ) || segSheetName;
+                    const sheet = wb.Sheets[actualName];
+                    if (!sheet) {
+                        excelSkipNoSheet += sheetSegs.length;
+                        continue;
+                    }
+
+                    // 整張轉 AoA（header:1 保留所有欄位；defval 填空字串避免 undefined）
+                    const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+                    for (const s of sheetSegs) {
+                        // 確保陣列有足夠的列/欄
+                        while (data.length <= s.rowIdx) data.push([]);
+                        while (data[s.rowIdx].length <= s.colTgt) data[s.rowIdx].push('');
+                        data[s.rowIdx][s.colTgt] = s.targetText || '';
+                        excelWriteCount++;
+                    }
+
+                    // 重建工作表並替換（aoa_to_sheet 從 JS 資料直接序列化，無快取問題）
+                    wb.Sheets[actualName] = XLSX.utils.aoa_to_sheet(data);
+                }
 
                 if (couldWriteSegs.length > 0 && excelWriteCount === 0) {
                     alert('匯出時無法寫入任何譯文儲存格（可能為工作表名稱與匯入時不一致，或資料異常）。已略過：鎖定 ' + excelSkipLocked + ' 句、找不到工作表 ' + excelSkipNoSheet + ' 句。');
