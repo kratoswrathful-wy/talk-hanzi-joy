@@ -136,6 +136,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     let progressRangeStart = null;
     let progressRangeEnd   = null;
 
+    // AI 輔助翻譯狀態
+    let aiModeActive = false;
+    let _aiReviewModalResolve = null; // Promise resolver for the AI review modal
+
     // Sidebar Toggle
     const sidebar = document.getElementById('sidebar');
     const btnToggleSidebar = document.getElementById('btnToggleSidebar');
@@ -929,10 +933,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    function _applyAiPmOnlyVisibility() {
+        const isPm = isCatSharedMutator();
+        document.querySelectorAll('.ai-pm-nav').forEach(el => { el.style.display = isPm ? '' : 'none'; });
+        document.querySelectorAll('.ai-pm-tab').forEach(el => { el.style.display = isPm ? '' : 'none'; });
+        const btnAiMode = document.getElementById('btnAiMode');
+        if (btnAiMode) btnAiMode.style.display = isPm ? '' : 'none';
+    }
+
     function enforceTeamRoleLayout() {
         if (!isTeamMode()) {
             if (btnProjectToolbarAssign) btnProjectToolbarAssign.style.display = 'none';
             if (btnProjectSplitAssign) btnProjectSplitAssign.style.display = '';
+            _applyAiPmOnlyVisibility();
             return;
         }
         const role = (window._tmsRole || '').toLowerCase();
@@ -960,6 +973,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 switchView('viewDashboard');
             }
         }
+        _applyAiPmOnlyVisibility();
     }
 
     function renderAssignedFilesView(assignments) {
@@ -1610,6 +1624,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             if(targetView === 'viewProjects') await loadProjectsList();
             if(targetView === 'viewTM') await loadTMList();
             if(targetView === 'viewTB') await loadTBList();
+            if(targetView === 'viewAiSettings') await loadAiSettingsView();
+            if(targetView === 'viewAiGuidelines') await loadAiGuidelinesView();
+            if(targetView === 'viewAiExamples') await loadAiExamplesView();
         });
     });
 
@@ -7525,6 +7542,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const nextFocus = getAfterConfirmFocusIndex(i);
                             focusTargetEditorAtSegmentIndex(nextFocus);
 
+                            // AI 修改說明視窗（AI 模式 + 有草稿 + 譯文有變動）
+                            if (wasUnconfirmed) await _maybeShowAiReviewModal(seg, i);
+
                             enqueueConfirmSideEffects(async () => {
                                 try {
                                     if (wasUnconfirmed) {
@@ -7631,6 +7651,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                             updateProgress();
                             const nextFocus = getAfterConfirmFocusIndex(i);
                             focusTargetEditorAtSegmentIndex(nextFocus);
+
+                            // AI 修改說明視窗（AI 模式 + 有草稿 + 譯文有變動）
+                            await _maybeShowAiReviewModal(seg, i);
 
                             const tmU = [];
                             const tmR = [];
@@ -9466,6 +9489,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (tabEl) tabEl.classList.add('active');
                 await _loadPrivateNotes();
                 await _refreshSharedInfoUi();
+                if (tabId === 'tabAiInstructions') await loadAiInstructionsTab();
             });
         });
 
@@ -10425,4 +10449,934 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
         }
     };
+
+    // =====================================================================
+    //  AI 輔助翻譯功能
+    // =====================================================================
+
+    // ---- AI Mode Toggle ----
+    (function initAiModeToggle() {
+        const btn = document.getElementById('btnAiMode');
+        const bar = document.getElementById('aiModeBar');
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+            aiModeActive = !aiModeActive;
+            btn.classList.toggle('active', aiModeActive);
+            if (bar) bar.style.display = aiModeActive ? 'flex' : 'none';
+        });
+        const batchBtn = document.getElementById('btnAiBatchTranslate');
+        if (batchBtn) batchBtn.addEventListener('click', () => openAiBatchModal());
+        const dismissToast = document.getElementById('btnDismissAiProgress');
+        if (dismissToast) dismissToast.addEventListener('click', () => { const t = document.getElementById('aiProgressToast'); if(t) t.style.display='none'; });
+    })();
+
+    // ---- AI Toast helper ----
+    function _showAiToast(msg, isError = false) {
+        const toast = document.getElementById('aiProgressToast');
+        const msgEl = document.getElementById('aiProgressMsg');
+        if (!toast || !msgEl) return;
+        msgEl.textContent = msg;
+        toast.style.background = isError ? '#dc2626' : '#1e293b';
+        toast.style.display = 'flex';
+    }
+    function _hideAiToast() {
+        const toast = document.getElementById('aiProgressToast');
+        if (toast) toast.style.display = 'none';
+    }
+
+    // ---- AI 設定 View ----
+    async function loadAiSettingsView() {
+        const settings = await DBService.getAiSettings();
+        const apiKeyEl = document.getElementById('aiSettingsApiKey');
+        const modelEl = document.getElementById('aiSettingsModel');
+        const baseUrlEl = document.getElementById('aiSettingsBaseUrl');
+        const batchSizeEl = document.getElementById('aiSettingsBatchSize');
+        if (apiKeyEl) apiKeyEl.value = settings.apiKey || '';
+        if (modelEl) modelEl.value = settings.model || 'gpt-4.1-mini';
+        if (baseUrlEl) baseUrlEl.value = settings.apiBaseUrl || '';
+        if (batchSizeEl) batchSizeEl.value = settings.batchSize || 20;
+
+        const saveBtn = document.getElementById('btnSaveAiSettings');
+        const testBtn = document.getElementById('btnTestAiSettings');
+        const testResult = document.getElementById('aiSettingsTestResult');
+
+        if (saveBtn) {
+            saveBtn.onclick = async () => {
+                await DBService.saveAiSettings({
+                    apiKey: apiKeyEl?.value?.trim() || '',
+                    model: modelEl?.value?.trim() || 'gpt-4.1-mini',
+                    apiBaseUrl: baseUrlEl?.value?.trim() || '',
+                    batchSize: parseInt(batchSizeEl?.value || '20', 10) || 20
+                });
+                saveBtn.textContent = '已儲存 ✓';
+                setTimeout(() => { saveBtn.textContent = '儲存設定'; }, 2000);
+            };
+        }
+        if (testBtn && testResult) {
+            testBtn.onclick = async () => {
+                testResult.textContent = '測試中…';
+                testResult.style.color = '#64748b';
+                const s = await DBService.getAiSettings();
+                if (!s.apiKey) { testResult.textContent = '請先填入 API Key'; testResult.style.color = '#ef4444'; return; }
+                try {
+                    const base = (s.apiBaseUrl || 'https://api.openai.com').replace(/\/$/, '');
+                    const r = await fetch(`${base}/v1/models`, { headers: { Authorization: `Bearer ${s.apiKey}` } });
+                    if (r.ok) { testResult.textContent = '連線成功 ✓'; testResult.style.color = '#16a34a'; }
+                    else { testResult.textContent = `連線失敗（HTTP ${r.status}）`; testResult.style.color = '#ef4444'; }
+                } catch (_) { testResult.textContent = '網路錯誤，請確認連線狀態'; testResult.style.color = '#ef4444'; }
+            };
+        }
+    }
+
+    // ---- 準則管理 View ----
+    async function loadAiGuidelinesView() {
+        if (!isCatSharedMutator()) return;
+        const allGuidelines = await DBService.getAiGuidelines();
+        const categories = ['全部', ...await DBService.getAiGuidelineCategories()];
+        let activeCat = '全部';
+
+        const tabBar = document.getElementById('aiGuidelinesTabBar');
+        const list = document.getElementById('aiGuidelinesList');
+        const catInput = document.getElementById('aiGuidelineNewCategory');
+        const catDatalist = document.getElementById('aiGuidelineCategoryList');
+        const mutexDatalist = document.getElementById('aiMutexGroupList');
+
+        function renderTabBar() {
+            if (!tabBar) return;
+            tabBar.innerHTML = categories.map(c =>
+                `<button class="ai-tab-btn${c === activeCat ? ' active' : ''}" data-cat="${_esc(c)}">${_esc(c)}</button>`
+            ).join('');
+            tabBar.querySelectorAll('.ai-tab-btn').forEach(b => {
+                b.addEventListener('click', () => { activeCat = b.getAttribute('data-cat'); renderTabBar(); renderList(); });
+            });
+        }
+
+        function renderList() {
+            if (!list) return;
+            const filtered = activeCat === '全部' ? allGuidelines : allGuidelines.filter(g => g.category === activeCat);
+            if (filtered.length === 0) { list.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; padding:0.5rem 0;">尚無準則條目。</p>'; return; }
+            list.innerHTML = filtered.map(g => `
+                <div class="ai-guideline-item" data-id="${g.id}">
+                    <div style="flex:1;">
+                        <div class="ai-guideline-item-content">${_esc(g.content)}</div>
+                        <div class="ai-guideline-item-meta">
+                            <span class="ai-badge selected">${_esc(g.category || '通用')}</span>
+                            ${g.mutexGroup ? `<span class="ai-badge" style="background:#fff7ed; border-color:#fdba74; color:#9a3412;">互斥：${_esc(g.mutexGroup)}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="ai-guideline-item-actions">
+                        <button class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
+                    </div>
+                </div>
+            `).join('');
+            list.querySelectorAll('[data-del]').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    if (!confirm('確定刪除此準則條目？')) return;
+                    const id = parseInt(btn.getAttribute('data-del'), 10);
+                    await DBService.deleteAiGuideline(id);
+                    const idx = allGuidelines.findIndex(g => g.id === id);
+                    if (idx >= 0) allGuidelines.splice(idx, 1);
+                    renderList();
+                });
+            });
+        }
+
+        // 更新 datalist
+        function updateDatalist() {
+            const cats = [...new Set(allGuidelines.map(g => g.category || '通用'))].sort();
+            if (catDatalist) catDatalist.innerHTML = cats.map(c => `<option value="${_esc(c)}">`).join('');
+            const mutexGroups = [...new Set(allGuidelines.map(g => g.mutexGroup).filter(Boolean))].sort();
+            if (mutexDatalist) mutexDatalist.innerHTML = mutexGroups.map(m => `<option value="${_esc(m)}">`).join('');
+        }
+
+        renderTabBar();
+        renderList();
+        updateDatalist();
+
+        const addBtn = document.getElementById('btnAddAiGuideline');
+        if (addBtn) {
+            addBtn.onclick = async () => {
+                const content = document.getElementById('aiGuidelineNewContent')?.value?.trim() || '';
+                const category = document.getElementById('aiGuidelineNewCategory')?.value?.trim() || '通用';
+                const mutexGroup = document.getElementById('aiGuidelineNewMutexGroup')?.value?.trim() || null;
+                if (!content) { alert('請輸入準則內容'); return; }
+                if (!isCatSharedMutator()) return;
+                const id = await DBService.addAiGuideline({ content, category, mutexGroup, sortOrder: allGuidelines.length });
+                const newRow = { id, content, category, mutexGroup: mutexGroup || null, sortOrder: allGuidelines.length };
+                allGuidelines.push(newRow);
+                document.getElementById('aiGuidelineNewContent').value = '';
+                document.getElementById('aiGuidelineNewMutexGroup').value = '';
+                if (!categories.includes(category)) { categories.push(category); categories.sort(); }
+                updateDatalist();
+                renderTabBar();
+                renderList();
+            };
+        }
+    }
+
+    // ---- AI 學習範例 View ----
+    async function loadAiExamplesView() {
+        const filterCatEl = document.getElementById('aiExampleFilterCategory');
+        const filterTagEl = document.getElementById('aiExampleFilterModTag');
+        const countEl = document.getElementById('aiExamplesCount');
+        const listEl = document.getElementById('aiExamplesList');
+        const emptyEl = document.getElementById('aiExamplesEmpty');
+
+        const all = await DBService.getAiStyleExamples();
+
+        // Populate filter dropdowns
+        const cats = [...new Set(all.flatMap(e => e.categories || []))].sort();
+        const tags = [...new Set(all.flatMap(e => e.modTags || []))].sort();
+        if (filterCatEl) {
+            filterCatEl.innerHTML = '<option value="">全部類別</option>' + cats.map(c => `<option value="${_esc(c)}">${_esc(c)}</option>`).join('');
+        }
+        if (filterTagEl) {
+            filterTagEl.innerHTML = '<option value="">全部修改類型</option>' + tags.map(t => `<option value="${_esc(t)}">${_esc(t)}</option>`).join('');
+        }
+
+        function render() {
+            const catF = filterCatEl?.value || '';
+            const tagF = filterTagEl?.value || '';
+            let rows = all;
+            if (catF) rows = rows.filter(e => Array.isArray(e.categories) && e.categories.includes(catF));
+            if (tagF) rows = rows.filter(e => Array.isArray(e.modTags) && e.modTags.includes(tagF));
+            if (countEl) countEl.textContent = `共 ${rows.length} 筆`;
+            if (!listEl) return;
+            if (rows.length === 0) { listEl.innerHTML = ''; if(emptyEl) emptyEl.style.display=''; return; }
+            if (emptyEl) emptyEl.style.display = 'none';
+            listEl.innerHTML = rows.map(ex => `
+                <div class="ai-example-item">
+                    <div class="ai-example-item-header">
+                        <span class="ai-example-source" title="${_esc(ex.sourceText)}">${_esc(ex.sourceText?.slice(0,60) || '')}</span>
+                        <div style="display:flex; gap:0.25rem; flex-wrap:wrap; flex-shrink:0;">
+                            ${(ex.categories||[]).map(c => `<span class="ai-badge selected" style="font-size:0.7rem;">${_esc(c)}</span>`).join('')}
+                            ${(ex.modTags||[]).map(t => `<span class="ai-badge selected-green" style="font-size:0.7rem;">${_esc(t)}</span>`).join('')}
+                        </div>
+                        <span style="flex-shrink:0; color:#94a3b8;">${new Date(ex.createdAt).toLocaleDateString()}</span>
+                        <button class="icon-btn ai-ex-toggle" data-id="${ex.id}" title="展開/收合" style="font-size:0.8rem;">▼</button>
+                        <button class="icon-btn ai-ex-del" data-id="${ex.id}" title="刪除" style="color:#ef4444;">✕</button>
+                    </div>
+                    <div class="ai-example-detail" id="aiExDetail_${ex.id}">
+                        <div class="ai-example-grid">
+                            <div class="ai-example-grid-col"><div class="ai-example-grid-col-label">原文</div>${_esc(ex.sourceText)}</div>
+                            <div class="ai-example-grid-col"><div class="ai-example-grid-col-label">AI 草稿</div>${_esc(ex.aiDraft)}</div>
+                            <div class="ai-example-grid-col"><div class="ai-example-grid-col-label">確認版本</div>${_esc(ex.userFinal)}</div>
+                        </div>
+                        ${(ex.editNotes||[]).filter(Boolean).length > 0 ? `<div style="font-size:0.8rem; color:#64748b; margin-top:0.3rem;">修改說明：${ex.editNotes.filter(Boolean).map(n=>'・'+_esc(n)).join(' ')}</div>` : ''}
+                        <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; margin-top:0.3rem;">
+                            <span style="font-size:0.75rem; color:#94a3b8;">類別：</span>
+                            <div class="ai-domain-badges ai-ex-cat-badges" data-id="${ex.id}">${(ex.categories||[]).map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('')}<button class="notes-add-btn ai-ex-edit-cat" data-id="${ex.id}" style="font-size:0.75rem;">＋ 編輯</button></div>
+                            <span style="font-size:0.75rem; color:#94a3b8; margin-left:0.5rem;">修改類型：</span>
+                            <div class="ai-domain-badges ai-ex-tag-badges" data-id="${ex.id}">${(ex.modTags||[]).map(t => `<span class="ai-badge selected-green">${_esc(t)}</span>`).join('')}<button class="notes-add-btn ai-ex-edit-tag" data-id="${ex.id}" style="font-size:0.75rem;">＋ 編輯</button></div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            listEl.querySelectorAll('.ai-ex-toggle').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const id = btn.getAttribute('data-id');
+                    const detail = document.getElementById(`aiExDetail_${id}`);
+                    if (detail) { detail.classList.toggle('open'); btn.textContent = detail.classList.contains('open') ? '▲' : '▼'; }
+                });
+            });
+            listEl.querySelectorAll('.ai-ex-del').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    if (!confirm('確定刪除此學習範例？')) return;
+                    const id = parseInt(btn.getAttribute('data-id'), 10);
+                    await DBService.deleteAiStyleExample(id);
+                    const idx = all.findIndex(e => e.id === id);
+                    if (idx >= 0) all.splice(idx, 1);
+                    render();
+                });
+            });
+            listEl.querySelectorAll('.ai-ex-edit-cat').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const id = parseInt(btn.getAttribute('data-id'), 10);
+                    const ex = all.find(e => e.id === id);
+                    if (!ex) return;
+                    const val = prompt('輸入類別（逗號分隔）', (ex.categories || []).join(', '));
+                    if (val === null) return;
+                    ex.categories = val.split(',').map(s => s.trim()).filter(Boolean);
+                    await DBService.updateAiStyleExample(id, { categories: ex.categories });
+                    render();
+                });
+            });
+            listEl.querySelectorAll('.ai-ex-edit-tag').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const id = parseInt(btn.getAttribute('data-id'), 10);
+                    const ex = all.find(e => e.id === id);
+                    if (!ex) return;
+                    const val = prompt('輸入修改類型標籤（逗號分隔）', (ex.modTags || []).join(', '));
+                    if (val === null) return;
+                    ex.modTags = val.split(',').map(s => s.trim()).filter(Boolean);
+                    await DBService.updateAiStyleExample(id, { modTags: ex.modTags });
+                    render();
+                });
+            });
+        }
+
+        if (filterCatEl) filterCatEl.addEventListener('change', render);
+        if (filterTagEl) filterTagEl.addEventListener('change', render);
+        render();
+    }
+
+    // ---- AI 指令 Tab ----
+    let _aiInstructionsInited = false;
+    async function loadAiInstructionsTab() {
+        if (!currentProjectId) return;
+
+        const domainBadges = document.getElementById('aiDomainBadges');
+        const selectedList = document.getElementById('aiSelectedGuidelinesList');
+        const specialList = document.getElementById('aiSpecialInstructionsList');
+        const openPickerBtn = document.getElementById('btnOpenAiGuidelinePicker');
+        const addSpecialBtn = document.getElementById('btnAddAiSpecialInstruction');
+
+        const [allGuidelines, psettings] = await Promise.all([
+            DBService.getAiGuidelines(),
+            DBService.getAiProjectSettings(currentProjectId)
+        ]);
+        const fileRec = currentFileId ? await DBService.getFile(currentFileId).catch(() => null) : null;
+        const fileDomains = fileRec?.aiDomains || [];
+        const cats = [...new Set(allGuidelines.map(g => g.category || '通用'))].sort();
+        let selectedGuidelineIds = new Set(psettings?.selectedGuidelineIds || []);
+        let specialInstructions = Array.isArray(psettings?.specialInstructions) ? [...psettings.specialInstructions] : [];
+
+        async function savePSettings() {
+            await DBService.saveAiProjectSettings(currentProjectId, {
+                selectedGuidelineIds: [...selectedGuidelineIds],
+                specialInstructions
+            });
+        }
+
+        // Render domain badges
+        function renderDomains() {
+            if (!domainBadges) return;
+            domainBadges.innerHTML = cats.map(c =>
+                `<span class="ai-badge${fileDomains.includes(c) ? ' selected' : ''}" data-cat="${_esc(c)}">${_esc(c)}</span>`
+            ).join('') + (cats.length === 0 ? '<span style="font-size:0.78rem; color:#94a3b8;">請先在準則管理建立準則條目。</span>' : '');
+            domainBadges.querySelectorAll('.ai-badge').forEach(badge => {
+                badge.addEventListener('click', async () => {
+                    const cat = badge.getAttribute('data-cat');
+                    const idx = fileDomains.indexOf(cat);
+                    if (idx >= 0) fileDomains.splice(idx, 1); else fileDomains.push(cat);
+                    badge.classList.toggle('selected', fileDomains.includes(cat));
+                    if (currentFileId) {
+                        await DBService.updateFile(currentFileId, { aiDomains: fileDomains }).catch(console.error);
+                    }
+                });
+            });
+        }
+
+        // Render selected guidelines
+        function renderSelectedGuidelines() {
+            if (!selectedList) return;
+            const selected = allGuidelines.filter(g => selectedGuidelineIds.has(g.id));
+            if (selected.length === 0) { selectedList.innerHTML = '<p style="font-size:0.78rem; color:#94a3b8; margin:0;">尚未選擇任何準則。</p>'; return; }
+            selectedList.innerHTML = selected.map(g => `
+                <div class="ai-selected-guideline-item">
+                    <span class="ai-selected-guideline-item-content">${_esc(g.content)}</span>
+                    <button class="ai-note-item-del" data-unselect="${g.id}" title="取消選擇">✕</button>
+                </div>
+            `).join('');
+            selectedList.querySelectorAll('[data-unselect]').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    selectedGuidelineIds.delete(parseInt(btn.getAttribute('data-unselect'), 10));
+                    renderSelectedGuidelines();
+                    await savePSettings();
+                });
+            });
+        }
+
+        // Render special instructions
+        function renderSpecialInstructions() {
+            if (!specialList) return;
+            if (specialInstructions.length === 0) { specialList.innerHTML = '<p style="font-size:0.78rem; color:#94a3b8; margin:0;">尚無特殊指示。</p>'; return; }
+            specialList.innerHTML = specialInstructions.map((s, idx) => `
+                <div class="ai-special-instruction-item">
+                    <span class="ai-special-instruction-content">${_esc(s.content)}</span>
+                    <button class="ai-note-item-del" data-delidx="${idx}" title="刪除">✕</button>
+                </div>
+            `).join('');
+            specialList.querySelectorAll('[data-delidx]').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const i = parseInt(btn.getAttribute('data-delidx'), 10);
+                    specialInstructions.splice(i, 1);
+                    renderSpecialInstructions();
+                    await savePSettings();
+                });
+            });
+        }
+
+        renderDomains();
+        renderSelectedGuidelines();
+        renderSpecialInstructions();
+
+        if (openPickerBtn && !_aiInstructionsInited) {
+            openPickerBtn.addEventListener('click', async () => {
+                const chosen = await openAiGuidelinePicker([...selectedGuidelineIds], allGuidelines);
+                if (chosen !== null) {
+                    selectedGuidelineIds = new Set(chosen);
+                    renderSelectedGuidelines();
+                    await savePSettings();
+                }
+            });
+            addSpecialBtn?.addEventListener('click', async () => {
+                const content = prompt('輸入特殊指示內容：');
+                if (!content || !content.trim()) return;
+                specialInstructions.push({ id: Date.now(), content: content.trim(), createdAt: new Date().toISOString() });
+                renderSpecialInstructions();
+                await savePSettings();
+            });
+            const goBtn = document.getElementById('btnGoToGuidelinesFromPicker');
+            if (goBtn) goBtn.addEventListener('click', (e) => { e.preventDefault(); switchView('viewAiGuidelines'); loadAiGuidelinesView(); });
+            _aiInstructionsInited = true;
+        }
+    }
+
+    // ---- 準則選擇器 Modal ----
+    function openAiGuidelinePicker(currentCheckedIds, allGuidelines) {
+        return new Promise(resolve => {
+            const modal = document.getElementById('aiGuidelinePickerModal');
+            const tabBar = document.getElementById('aiPickerTabBar');
+            const pickerList = document.getElementById('aiPickerList');
+            if (!modal) { resolve(null); return; }
+
+            const checked = new Set(currentCheckedIds);
+            const cats = ['全部', ...new Set(allGuidelines.map(g => g.category || '通用'))].sort((a, b) => a === '全部' ? -1 : b === '全部' ? 1 : a.localeCompare(b));
+            let activeCat = '全部';
+
+            function renderTabs() {
+                if (!tabBar) return;
+                tabBar.innerHTML = cats.map(c =>
+                    `<button class="ai-tab-btn${c === activeCat ? ' active' : ''}" data-cat="${_esc(c)}">${_esc(c)}</button>`
+                ).join('');
+                tabBar.querySelectorAll('.ai-tab-btn').forEach(b => {
+                    b.addEventListener('click', () => { activeCat = b.getAttribute('data-cat'); renderTabs(); renderList(); });
+                });
+            }
+
+            function renderList() {
+                if (!pickerList) return;
+                const filtered = activeCat === '全部' ? allGuidelines : allGuidelines.filter(g => g.category === activeCat);
+                if (filtered.length === 0) { pickerList.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem;">此類別尚無準則。</p>'; return; }
+                pickerList.innerHTML = filtered.map(g => `
+                    <label style="display:flex; align-items:flex-start; gap:0.5rem; padding:0.4rem 0.5rem; border-radius:5px; cursor:pointer; border:1px solid ${checked.has(g.id) ? '#3b82f6' : '#e2e8f0'}; background:${checked.has(g.id) ? '#eff6ff' : '#fff'};">
+                        <input type="checkbox" data-id="${g.id}" ${checked.has(g.id) ? 'checked' : ''} style="flex-shrink:0; margin-top:0.2rem;">
+                        <span style="font-size:0.85rem; color:#374151; line-height:1.5;">${_esc(g.content)}<span class="ai-badge" style="margin-left:0.4rem; vertical-align:middle;">${_esc(g.category||'通用')}</span></span>
+                    </label>
+                `).join('');
+                pickerList.querySelectorAll('input[type=checkbox]').forEach(cb => {
+                    cb.addEventListener('change', () => {
+                        const id = parseInt(cb.getAttribute('data-id'), 10);
+                        if (cb.checked) checked.add(id); else checked.delete(id);
+                        renderList();
+                    });
+                });
+            }
+
+            renderTabs();
+            renderList();
+            modal.classList.remove('hidden');
+
+            const quickAddBtn = document.getElementById('btnAiPickerQuickAdd');
+            if (quickAddBtn) {
+                quickAddBtn.onclick = async () => {
+                    const content = document.getElementById('aiPickerQuickContent')?.value?.trim() || '';
+                    const category = document.getElementById('aiPickerQuickCategory')?.value?.trim() || '通用';
+                    if (!content) return;
+                    const id = await DBService.addAiGuideline({ content, category, sortOrder: allGuidelines.length });
+                    allGuidelines.push({ id, content, category, sortOrder: allGuidelines.length });
+                    if (!cats.includes(category)) { cats.push(category); cats.sort(); }
+                    checked.add(id);
+                    document.getElementById('aiPickerQuickContent').value = '';
+                    renderTabs();
+                    renderList();
+                };
+            }
+
+            const closeBtn = document.getElementById('btnCloseAiGuidelinePicker');
+            const confirmBtn = document.getElementById('btnConfirmAiGuidelinePicker');
+            const cleanup = () => { modal.classList.add('hidden'); };
+            if (closeBtn) closeBtn.onclick = () => { cleanup(); resolve(null); };
+            if (confirmBtn) confirmBtn.onclick = () => { cleanup(); resolve([...checked]); };
+        });
+    }
+
+    // ---- AI 修改說明蓋板（showAiReviewModal） ----
+    // 輔助：簡易字元差異標記（返回 HTML）
+    function _diffHtml(a, b) {
+        if (!a || !b || a === b) return `<span style="color:#16a34a;">${_esc(b)}</span>`;
+        const ratio = window.CatAiTranslate ? window.CatAiTranslate.diffRatio(a, b) : 1;
+        if (ratio > 0.6) {
+            // 差異太大，整段換行顯示
+            return `<del style="color:#ef4444; background:#fee2e2;">${_esc(a)}</del> <ins style="color:#16a34a; background:#dcfce7; text-decoration:none;">${_esc(b)}</ins>`;
+        }
+        // 字元級差異
+        let html = '';
+        let ai = 0, bi = 0;
+        while (ai < a.length || bi < b.length) {
+            if (ai < a.length && bi < b.length && a[ai] === b[bi]) {
+                html += _esc(a[ai]); ai++; bi++;
+            } else if (bi < b.length && (ai >= a.length || a.indexOf(b[bi], ai) < 0 || b.indexOf(a[ai], bi) < 0)) {
+                html += `<ins style="background:#dcfce7; color:#16a34a; text-decoration:none;">${_esc(b[bi])}</ins>`; bi++;
+            } else {
+                html += `<del style="background:#fee2e2; color:#ef4444;">${_esc(a[ai])}</del>`; ai++;
+            }
+        }
+        return html;
+    }
+
+    function showAiReviewModal(seg) {
+        return new Promise(resolve => {
+            _aiReviewModalResolve = resolve;
+            const modal = document.getElementById('aiReviewModal');
+            if (!modal) { resolve(null); return; }
+
+            // Populate text columns
+            document.getElementById('aiReviewSource').textContent = seg.sourceText || '';
+            document.getElementById('aiReviewDraft').textContent = seg.aiSuggestion || '';
+            document.getElementById('aiReviewDiff').innerHTML = _diffHtml(seg.aiSuggestion || '', seg.targetText || '');
+            document.getElementById('aiReviewFinal').textContent = seg.targetText || '';
+            const segLabel = document.getElementById('aiReviewSegLabel');
+            if (segLabel && seg.idValue) segLabel.textContent = `(${seg.idValue})`;
+
+            // Mod tags
+            const modTagsEl = document.getElementById('aiReviewModTags');
+            const DEFAULT_MOD_TAGS = ['語氣調整', '術語統一', '語法修正', '風格一致', '用詞精準', '刪除冗詞', '增補語意', '格式調整'];
+            let selectedModTags = new Set();
+            if (modTagsEl) {
+                modTagsEl.innerHTML = DEFAULT_MOD_TAGS.map(t =>
+                    `<span class="ai-badge" data-tag="${_esc(t)}">${_esc(t)}</span>`
+                ).join('');
+                modTagsEl.querySelectorAll('.ai-badge').forEach(b => {
+                    b.addEventListener('click', () => {
+                        const tag = b.getAttribute('data-tag');
+                        if (selectedModTags.has(tag)) selectedModTags.delete(tag); else selectedModTags.add(tag);
+                        b.classList.toggle('selected-green', selectedModTags.has(tag));
+                    });
+                });
+            }
+
+            // Categories (inherit from file domains)
+            const catEl = document.getElementById('aiReviewCategories');
+            let reviewCategories = [];
+            if (catEl && currentFileId) {
+                DBService.getFile(currentFileId).then(fileRec => {
+                    const fileDomains = fileRec?.aiDomains || [];
+                    reviewCategories = [...fileDomains];
+                    DBService.getAiGuidelineCategories().then(cats => {
+                        catEl.innerHTML = cats.map(c =>
+                            `<span class="ai-badge${fileDomains.includes(c) ? ' selected' : ''}" data-cat="${_esc(c)}">${_esc(c)}</span>`
+                        ).join('');
+                        catEl.querySelectorAll('.ai-badge').forEach(b => {
+                            b.addEventListener('click', () => {
+                                const cat = b.getAttribute('data-cat');
+                                const idx = reviewCategories.indexOf(cat);
+                                if (idx >= 0) reviewCategories.splice(idx, 1); else reviewCategories.push(cat);
+                                b.classList.toggle('selected', reviewCategories.includes(cat));
+                            });
+                        });
+                    });
+                }).catch(() => {});
+            }
+
+            // Edit notes list
+            const notesList = document.getElementById('aiReviewNotesList');
+            const addNoteBtn = document.getElementById('btnAddAiReviewNote');
+            let editNotes = [];
+            if (notesList) notesList.innerHTML = '';
+            function renderNotesList() {
+                if (!notesList) return;
+                notesList.innerHTML = editNotes.map((n, idx) => `
+                    <div class="ai-note-item" data-noteidx="${idx}">
+                        <input type="text" value="${_esc(n)}" data-idx="${idx}" placeholder="說明修改原因…">
+                        <button class="ai-note-item-del" data-delidx="${idx}">✕</button>
+                    </div>
+                `).join('');
+                notesList.querySelectorAll('input').forEach(inp => {
+                    inp.addEventListener('change', () => { editNotes[parseInt(inp.getAttribute('data-idx'),10)] = inp.value; });
+                    inp.addEventListener('blur', () => {
+                        editNotes[parseInt(inp.getAttribute('data-idx'),10)] = inp.value;
+                        editNotes = editNotes.filter((n, i) => i === parseInt(inp.getAttribute('data-idx'),10) || n.trim());
+                        renderNotesList();
+                    });
+                    inp.focus();
+                });
+                notesList.querySelectorAll('.ai-note-item-del').forEach(btn => {
+                    btn.addEventListener('click', () => { editNotes.splice(parseInt(btn.getAttribute('data-delidx'),10),1); renderNotesList(); });
+                });
+            }
+            if (addNoteBtn) {
+                addNoteBtn.onclick = () => { editNotes.push(''); renderNotesList(); };
+            }
+
+            modal.classList.remove('hidden');
+
+            const skipBtn = document.getElementById('btnSkipAiReview');
+            const confirmBtn = document.getElementById('btnConfirmAiReview');
+            function cleanup() { modal.classList.add('hidden'); _aiReviewModalResolve = null; editNotes = []; selectedModTags = new Set(); if(notesList) notesList.innerHTML = ''; if(addNoteBtn) addNoteBtn.onclick = null; }
+            if (skipBtn) skipBtn.onclick = () => { cleanup(); resolve(null); };
+            if (confirmBtn) confirmBtn.onclick = () => {
+                const data = { modTags: [...selectedModTags], categories: [...reviewCategories], editNotes: editNotes.filter(Boolean) };
+                cleanup();
+                resolve(data);
+            };
+        });
+    }
+
+    // ---- AI 確認鉤子（內部輔助） ----
+    async function _maybeShowAiReviewModal(seg, segIdx) {
+        if (!aiModeActive) return;
+        if (!seg.aiSuggestion) return;
+        if (seg.targetText === seg.aiSuggestion) {
+            // 無修改：直接清除草稿即可
+            seg.aiSuggestion = null;
+            seg.aiSuggestionAt = null;
+            DBService.updateSegmentTarget(seg.id, seg.targetText, { aiSuggestion: null, aiSuggestionAt: null }).catch(console.error);
+            return;
+        }
+        const reviewData = await showAiReviewModal(seg);
+        if (reviewData) {
+            const fileRec = currentFileId ? await DBService.getFile(currentFileId).catch(() => null) : null;
+            DBService.addAiStyleExample({
+                sourceLang: fileRec?.sourceLang || '',
+                targetLang: fileRec?.targetLang || '',
+                categories: reviewData.categories,
+                modTags: reviewData.modTags,
+                sourceText: seg.sourceText || '',
+                aiDraft: seg.aiSuggestion || '',
+                userFinal: seg.targetText || '',
+                editNotes: reviewData.editNotes,
+                contextPrev: currentSegmentsList[segIdx - 1]?.sourceText || '',
+                contextNext: currentSegmentsList[segIdx + 1]?.sourceText || ''
+            }).catch(console.error);
+        }
+        seg.aiSuggestion = null;
+        seg.aiSuggestionAt = null;
+        DBService.updateSegmentTarget(seg.id, seg.targetText, { aiSuggestion: null, aiSuggestionAt: null }).catch(console.error);
+    }
+
+    // ---- AI 批次翻譯 Modal ----
+    function openAiBatchModal() {
+        const modal = document.getElementById('aiBatchModal');
+        if (!modal) return;
+        // 計算範圍統計
+        _updateBatchStats();
+        modal.classList.remove('hidden');
+
+        const cancelBtn = document.getElementById('btnCancelAiBatch');
+        const runBtn = document.getElementById('btnRunAiBatch');
+        const closeBtn = document.getElementById('btnCloseAiBatchModal');
+        const allFileChk = document.getElementById('aiBatchAllFile');
+
+        if (allFileChk) {
+            allFileChk.addEventListener('change', _updateBatchStats);
+            document.getElementById('aiBatchRangeStart')?.addEventListener('input', _updateBatchStats);
+            document.getElementById('aiBatchRangeEnd')?.addEventListener('input', _updateBatchStats);
+        }
+
+        function close() { modal.classList.add('hidden'); }
+        if (cancelBtn) cancelBtn.onclick = close;
+        if (closeBtn) closeBtn.onclick = close;
+        if (runBtn) runBtn.onclick = async () => {
+            close();
+            const config = {
+                allFile: document.getElementById('aiBatchAllFile')?.checked ?? true,
+                rangeStart: parseInt(document.getElementById('aiBatchRangeStart')?.value || '1', 10) || 1,
+                rangeEnd: parseInt(document.getElementById('aiBatchRangeEnd')?.value || '0', 10) || currentSegmentsList.length,
+                handleConfirmed: document.getElementById('aiBatchHandleConfirmed')?.value || 'skip',
+                handleUnconfirmed: document.getElementById('aiBatchHandleUnconfirmed')?.value || 'skip',
+                tmThreshold: parseInt(document.getElementById('aiBatchTmThreshold')?.value || '102', 10),
+                tmAction: document.getElementById('aiBatchTmAction')?.value || 'direct',
+                handleRepetitions: document.getElementById('aiBatchHandleRepetitions')?.value || 'yes',
+                batchNote: document.getElementById('aiBatchNote')?.value?.trim() || ''
+            };
+            await runAiBatchTranslate(config);
+        };
+    }
+
+    function _updateBatchStats() {
+        const statsEl = document.getElementById('aiBatchStats');
+        if (!statsEl || !currentSegmentsList) return;
+        const allFile = document.getElementById('aiBatchAllFile')?.checked ?? true;
+        const start = allFile ? 1 : (parseInt(document.getElementById('aiBatchRangeStart')?.value || '1', 10) || 1);
+        const end = allFile ? currentSegmentsList.length : (parseInt(document.getElementById('aiBatchRangeEnd')?.value || String(currentSegmentsList.length), 10) || currentSegmentsList.length);
+        const rangeSegs = currentSegmentsList.filter((s, i) => (i + 1) >= start && (i + 1) <= end);
+        const confirmed = rangeSegs.filter(s => s.status === 'confirmed').length;
+        const withText = rangeSegs.filter(s => s.status !== 'confirmed' && (s.targetText || '').trim()).length;
+        const empty = rangeSegs.length - confirmed - withText;
+        statsEl.textContent = `範圍內共 ${rangeSegs.length} 句，其中已確認 ${confirmed} 句、已輸入未確認 ${withText} 句、空白 ${empty} 句。`;
+    }
+
+    // ---- runAiBatchTranslate Orchestrator ----
+    async function runAiBatchTranslate(config) {
+        if (!currentSegmentsList || currentSegmentsList.length === 0) return;
+        _showAiToast('正在準備批次翻譯…');
+
+        const settings = await DBService.getAiSettings();
+        if (!settings.apiKey) {
+            _showAiToast('請先在「AI 設定」頁面填入 API Key', true);
+            return;
+        }
+
+        // Collect segments in range
+        const start = config.allFile ? 0 : (config.rangeStart - 1);
+        const end = config.allFile ? currentSegmentsList.length - 1 : (config.rangeEnd - 1);
+        let candidates = currentSegmentsList.filter((s, i) => i >= start && i <= end);
+
+        // Filter based on confirmed/unconfirmed settings
+        const toProcess = [];
+        const tmFillSegs = []; // segments to fill from TM
+
+        for (const seg of candidates) {
+            if (seg.isLocked) continue;
+            if (seg.status === 'confirmed') {
+                if (config.handleConfirmed === 'skip') continue;
+                if (config.handleConfirmed === 'ask') {
+                    // Will be handled in batch-ask flow — for now add to toProcess
+                }
+            } else if ((seg.targetText || '').trim()) {
+                if (config.handleUnconfirmed === 'skip') continue;
+                if (config.handleUnconfirmed === 'ask') {
+                    // handled below
+                }
+            }
+            toProcess.push(seg);
+        }
+
+        // TM filtering
+        const segsToBatchAsk = [];
+        const segsForAi = [];
+        const tmSegs = [];
+
+        if (config.tmThreshold < 102) {
+            const tmCache = window.ActiveTmCache || [];
+            const calcSim = window.calculateSimilarity || (() => 0);
+            for (const seg of toProcess) {
+                let bestMatch = null;
+                let bestScore = 0;
+                for (const tm of tmCache) {
+                    const score = calcSim(seg.sourceText || '', tm.sourceText || '') * 100;
+                    if (score > bestScore) { bestScore = score; bestMatch = tm; }
+                }
+                if (bestScore >= config.tmThreshold && bestMatch) {
+                    if (config.tmAction === 'ask') {
+                        segsToBatchAsk.push({ seg, tmText: bestMatch.targetText, score: bestScore });
+                    } else {
+                        // Direct apply TM
+                        seg.targetText = bestMatch.targetText;
+                        await DBService.updateSegmentTarget(seg.id, seg.targetText, {}).catch(console.error);
+                        tmSegs.push(seg);
+                    }
+                } else {
+                    segsForAi.push(seg);
+                }
+            }
+        } else {
+            segsForAi.push(...toProcess);
+        }
+
+        // Batch-ask for TM matches
+        if (segsToBatchAsk.length > 0) {
+            const chosen = await _showBatchAskModal(segsToBatchAsk.map(item => ({
+                seg: item.seg, existingText: item.seg.targetText, aiText: item.tmText, label: `TM ${Math.round(item.score)}%`
+            })), 'TM 比對結果確認');
+            for (const item of segsToBatchAsk) {
+                const choice = chosen?.find(c => c.segId === item.seg.id);
+                if (choice?.useAi) {
+                    item.seg.targetText = item.tmText;
+                    await DBService.updateSegmentTarget(item.seg.id, item.seg.targetText, {}).catch(console.error);
+                } else {
+                    segsForAi.push(item.seg);
+                }
+            }
+        }
+
+        // Batch-ask for confirmed/unconfirmed segments where asked
+        const confirmAskSegs = segsForAi.filter(s => (s.status === 'confirmed' && config.handleConfirmed === 'ask') || ((s.targetText||'').trim() && s.status !== 'confirmed' && config.handleUnconfirmed === 'ask'));
+        const finalAiSegs = segsForAi.filter(s => !confirmAskSegs.includes(s));
+
+        if (confirmAskSegs.length > 0) {
+            _showAiToast(`正在翻譯 ${confirmAskSegs.length} 句…（詢問確認）`);
+            const aiResult = await window.CatAiTranslate.translate(confirmAskSegs, await _buildAiOptions(settings, config.batchNote));
+            const aiMap = new Map(aiResult.results.map(r => [r.segId, r.translation]));
+            const askItems = confirmAskSegs.map(seg => ({ seg, existingText: seg.targetText, aiText: aiMap.get(seg.id) || '', label: '' }));
+            const chosen = await _showBatchAskModal(askItems, '選擇要保留的版本');
+            for (const item of askItems) {
+                const choice = chosen?.find(c => c.segId === item.seg.id);
+                if (choice?.useAi && item.aiText) {
+                    item.seg.targetText = item.aiText;
+                    item.seg.aiSuggestion = item.aiText;
+                    item.seg.aiSuggestionAt = new Date().toISOString();
+                    await DBService.updateSegmentTarget(item.seg.id, item.seg.targetText, { aiSuggestion: item.aiText, aiSuggestionAt: item.seg.aiSuggestionAt }).catch(console.error);
+                }
+            }
+        }
+
+        // Process AI segments in batches
+        if (finalAiSegs.length === 0 && tmSegs.length === 0) {
+            _showAiToast('批次翻譯完成（無需 AI 處理的句段）', false);
+            setTimeout(_hideAiToast, 3000);
+            rerenderCurrentSegments();
+            return;
+        }
+
+        const batchSize = settings.batchSize || 20;
+        let processed = 0;
+        const options = await _buildAiOptions(settings, config.batchNote);
+        let allMissing = [];
+
+        _showAiToast(`正在翻譯第 1/${Math.ceil(finalAiSegs.length/batchSize)} 批…`);
+
+        for (let i = 0; i < finalAiSegs.length; i += batchSize) {
+            const batch = finalAiSegs.slice(i, i + batchSize);
+            _showAiToast(`正在翻譯第 ${Math.ceil(i/batchSize)+1}/${Math.ceil(finalAiSegs.length/batchSize)} 批（${i+1}–${Math.min(i+batchSize, finalAiSegs.length)}）…`);
+            const result = await window.CatAiTranslate.translate(batch, options);
+            if (result.error && result.results.length === 0) {
+                _showAiToast(`翻譯失敗：${result.error}`, true);
+                return;
+            }
+            for (const r of result.results) {
+                const seg = batch.find(s => s.id === r.segId);
+                if (seg && r.translation) {
+                    seg.targetText = r.translation;
+                    seg.aiSuggestion = r.translation;
+                    seg.aiSuggestionAt = new Date().toISOString();
+                    await DBService.updateSegmentTarget(seg.id, seg.targetText, { aiSuggestion: r.translation, aiSuggestionAt: seg.aiSuggestionAt }).catch(console.error);
+                }
+            }
+            allMissing.push(...result.missing);
+            processed += result.results.length;
+        }
+
+        // Retry missing
+        if (allMissing.length > 0) {
+            _showAiToast(`重試 ${allMissing.length} 句未翻譯句段…`);
+            const retryResult = await window.CatAiTranslate.retryMissing(allMissing, finalAiSegs, options);
+            for (const r of retryResult.results) {
+                const seg = finalAiSegs.find(s => s.id === r.segId);
+                if (seg && r.translation) {
+                    seg.targetText = r.translation;
+                    seg.aiSuggestion = r.translation;
+                    seg.aiSuggestionAt = new Date().toISOString();
+                    await DBService.updateSegmentTarget(seg.id, seg.targetText, { aiSuggestion: r.translation, aiSuggestionAt: seg.aiSuggestionAt }).catch(console.error);
+                }
+            }
+        }
+
+        _showAiToast(`批次翻譯完成！共處理 ${processed} 句。`, false);
+        setTimeout(_hideAiToast, 4000);
+        rerenderCurrentSegments();
+    }
+
+    async function _buildAiOptions(settings, batchNote) {
+        const fileRec = currentFileId ? await DBService.getFile(currentFileId).catch(() => null) : null;
+        const fileDomains = fileRec?.aiDomains || [];
+        const psettings = currentProjectId ? await DBService.getAiProjectSettings(currentProjectId).catch(() => null) : null;
+        const selectedGuidelineIds = new Set(psettings?.selectedGuidelineIds || []);
+        const allGuidelines = await DBService.getAiGuidelines().catch(() => []);
+        const guidelines = allGuidelines.filter(g => selectedGuidelineIds.has(g.id));
+        const specialInstructions = psettings?.specialInstructions || [];
+        const combinedBatchNote = [batchNote, ...specialInstructions.map(s => s.content)].filter(Boolean).join('\n');
+        const styleExamples = await DBService.getAiStyleExamples({ categories: fileDomains, limit: 15 }).catch(() => []);
+        const tbTerms = (window.ActiveTbTerms || []).map(t => ({ source: t.source, target: t.target, note: t.note }));
+        return {
+            settings,
+            sourceLang: fileRec?.sourceLang || '',
+            targetLang: fileRec?.targetLang || '',
+            guidelines,
+            styleExamples,
+            tbTerms,
+            batchNote: combinedBatchNote
+        };
+    }
+
+    function rerenderCurrentSegments() {
+        // Update individual row target editors to reflect new AI translations
+        if (!gridBody) return;
+        currentSegmentsList.forEach(seg => {
+            const row = document.querySelector(`.grid-data-row[data-seg-id="${seg.id}"]`);
+            if (!row) return;
+            const ta = row.querySelector('.grid-textarea');
+            if (ta && document.activeElement !== ta) {
+                // contentEditable div: use innerHTML only if content changed
+                const current = ta.textContent || '';
+                if (current !== (seg.targetText || '')) {
+                    ta.textContent = seg.targetText || '';
+                }
+            }
+            // Add a subtle highlight to rows that received AI content
+            if (seg.aiSuggestion) {
+                row.style.outline = '2px solid #86efac';
+                row.title = 'AI 草稿已填入，請審閱後確認';
+            }
+        });
+        updateProgress();
+    }
+
+    // ---- Batch Ask Modal ----
+    function _showBatchAskModal(items, title = '請選擇要保留的版本') {
+        return new Promise(resolve => {
+            const modal = document.getElementById('aiBatchAskModal');
+            const listEl = document.getElementById('aiBatchAskList');
+            const titleEl = document.getElementById('aiBatchAskTitle');
+            const confirmBtn = document.getElementById('btnBatchAskConfirm');
+            const cancelBtn = document.getElementById('btnBatchAskCancel');
+            const selectAllAi = document.getElementById('btnBatchAskSelectAll');
+            const selectAllEx = document.getElementById('btnBatchAskSelectExisting');
+            if (!modal) { resolve(null); return; }
+            if (titleEl) titleEl.textContent = title;
+
+            if (listEl) {
+                listEl.innerHTML = items.map((item, idx) => `
+                    <div class="ai-ask-item">
+                        <div class="ai-ask-item-source">${_esc(item.seg.sourceText || '')}</div>
+                        <div class="ai-ask-versions">
+                            <label class="ai-ask-version-label" data-idx="${idx}" data-type="existing">
+                                <input type="radio" name="askChoice_${idx}" value="existing" ${!item.aiText ? 'checked' : ''}> 
+                                <span><strong>現有版本</strong><br><span style="color:#64748b;">${_esc(item.existingText || '（空白）')}</span></span>
+                            </label>
+                            <label class="ai-ask-version-label" data-idx="${idx}" data-type="ai">
+                                <input type="radio" name="askChoice_${idx}" value="ai" ${item.aiText ? 'checked' : ''}> 
+                                <span><strong>${item.label || 'AI 版本'}</strong><br><span style="color:#64748b;">${_esc(item.aiText || '（無）')}</span></span>
+                            </label>
+                        </div>
+                    </div>
+                `).join('');
+                listEl.querySelectorAll('.ai-ask-version-label').forEach(label => {
+                    label.addEventListener('click', () => label.classList.add('selected'));
+                });
+            }
+
+            modal.classList.remove('hidden');
+
+            if (selectAllAi) selectAllAi.onclick = () => {
+                listEl.querySelectorAll('input[value=ai]').forEach(r => { r.checked = true; });
+                listEl.querySelectorAll('.ai-ask-version-label').forEach(l => l.classList.toggle('selected', l.getAttribute('data-type') === 'ai'));
+            };
+            if (selectAllEx) selectAllEx.onclick = () => {
+                listEl.querySelectorAll('input[value=existing]').forEach(r => { r.checked = true; });
+                listEl.querySelectorAll('.ai-ask-version-label').forEach(l => l.classList.toggle('selected', l.getAttribute('data-type') === 'existing'));
+            };
+
+            function close() { modal.classList.add('hidden'); }
+            if (cancelBtn) cancelBtn.onclick = () => { close(); resolve(null); };
+            if (confirmBtn) confirmBtn.onclick = () => {
+                const results = items.map((item, idx) => {
+                    const radio = listEl.querySelector(`input[name=askChoice_${idx}]:checked`);
+                    return { segId: item.seg.id, useAi: radio?.value === 'ai' };
+                });
+                close();
+                resolve(results);
+            };
+        });
+    }
+
+    // ---- HTML escape helper (used throughout AI UI) ----
+    function _esc(str) {
+        if (str == null) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
 });

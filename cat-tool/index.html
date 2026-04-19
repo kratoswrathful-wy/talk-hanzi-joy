@@ -24,6 +24,9 @@
                 <a href="#" class="nav-item" data-view="viewProjects"><span class="nav-icon">📁</span><span class="nav-text">專案 (Projects)</span></a>
                 <a href="#" class="nav-item" data-view="viewTM"><span class="nav-icon">🧠</span><span class="nav-text">翻譯記憶庫 (TM)</span></a>
                 <a href="#" class="nav-item" data-view="viewTB"><span class="nav-icon">📘</span><span class="nav-text">術語庫 (TB)</span></a>
+                <a href="#" class="nav-item ai-pm-nav" data-view="viewAiGuidelines" style="display:none;"><span class="nav-icon">📋</span><span class="nav-text">準則管理</span></a>
+                <a href="#" class="nav-item ai-pm-nav" data-view="viewAiSettings" style="display:none;"><span class="nav-icon">🤖</span><span class="nav-text">AI 設定</span></a>
+                <a href="#" class="nav-item ai-pm-nav" data-view="viewAiExamples" style="display:none;"><span class="nav-icon">📚</span><span class="nav-text">AI 學習範例</span></a>
             </nav>
 
             <div class="sidebar-footer" id="btnUserProfile" style="cursor: pointer;" title="設定使用者名稱">
@@ -463,8 +466,15 @@
                         <button id="btnColSettings" class="icon-btn" title="設定">⚙️</button>
                         <button id="btnPreTranslate" class="primary-btn btn-sm">預先翻譯</button>
                         <button id="exportBtn" class="success-btn btn-sm">匯出檔案</button>
+                        <button id="btnAiMode" class="btn-sm ai-mode-btn" style="display:none;" title="AI 輔助翻譯模式">✨ AI 輔助</button>
                     </div>
                 </header>
+
+                <!-- AI Mode Bar (shown only when AI mode is active) -->
+                <div id="aiModeBar" class="ai-mode-bar" style="display:none;">
+                    <span class="ai-mode-bar-label">✨ AI 輔助模式啟用中</span>
+                    <button type="button" id="btnAiBatchTranslate" class="primary-btn btn-sm">批次 AI 翻譯…</button>
+                </div>
 
                 <!-- Editor Layout Wrapper -->
                 <div class="editor-layout-wrapper">
@@ -570,6 +580,7 @@
                                 <div class="notes-panel-tabs">
                                     <button class="notes-tab-btn active" data-notes-tab="tabPrivateNotes">私人筆記</button>
                                     <button class="notes-tab-btn" data-notes-tab="tabSharedInfo">共用資訊</button>
+                                    <button class="notes-tab-btn ai-pm-tab" data-notes-tab="tabAiInstructions" style="display:none;">AI 指令</button>
                                 </div>
                                 <div style="display:flex; align-items:center; gap:0.4rem;">
                                     <button type="button" id="btnCollapseNotesPanel" class="notes-panel-collapse-btn" title="收合筆記面板">▼</button>
@@ -608,6 +619,34 @@
                                             <h4 class="shared-info-section-title">共用筆記</h4>
                                         </div>
                                         <div id="sharedNotesList" class="notes-items-list"></div>
+                                    </div>
+                                </div>
+                                <!-- AI 指令 Tab -->
+                                <div class="notes-tab-content" id="tabAiInstructions">
+                                    <!-- 適用類別 -->
+                                    <div class="shared-info-section">
+                                        <div class="shared-info-section-header">
+                                            <h4 class="shared-info-section-title">適用類別</h4>
+                                        </div>
+                                        <p style="font-size:0.78rem; color:#64748b; margin:0 0 0.4rem 0;">選取的類別會篩選下方準則，並自動標記 AI 學習範例。</p>
+                                        <div id="aiDomainBadges" class="ai-domain-badges"></div>
+                                    </div>
+                                    <!-- 一般準則 -->
+                                    <div class="shared-info-section" style="margin-top:0.75rem;">
+                                        <div class="shared-info-section-header">
+                                            <h4 class="shared-info-section-title">一般準則</h4>
+                                            <button type="button" class="notes-add-btn" id="btnOpenAiGuidelinePicker">選擇準則…</button>
+                                        </div>
+                                        <div id="aiSelectedGuidelinesList" class="notes-items-list" style="font-size:0.82rem;"></div>
+                                    </div>
+                                    <!-- 特殊指示 -->
+                                    <div class="shared-info-section" style="margin-top:0.75rem;">
+                                        <div class="shared-info-section-header">
+                                            <h4 class="shared-info-section-title">特殊指示</h4>
+                                            <button type="button" class="notes-add-btn" id="btnAddAiSpecialInstruction">＋ 新增</button>
+                                        </div>
+                                        <p style="font-size:0.78rem; color:#64748b; margin:0 0 0.4rem 0;">針對本案件或即將處理部份的特殊情境說明，全專案共用。</p>
+                                        <div id="aiSpecialInstructionsList" class="notes-items-list"></div>
                                     </div>
                                 </div>
                             </div>
@@ -1401,10 +1440,274 @@
         </div>
     </div>
 
+    <!-- ====== AI 設定 View ====== -->
+    <section class="view-section hidden" id="viewAiSettings" style="padding:2rem; overflow-y:auto;">
+        <header class="view-header"><h1>AI 設定</h1></header>
+        <div style="max-width:560px; display:flex; flex-direction:column; gap:1.25rem;">
+            <div class="form-group">
+                <label class="form-label">API Key</label>
+                <input type="password" id="aiSettingsApiKey" class="form-input" placeholder="sk-…" autocomplete="off" style="font-family:monospace;">
+                <p style="font-size:0.78rem; color:#64748b; margin:0.25rem 0 0 0;">API Key 儲存於本機 IndexedDB，不會上傳至任何伺服器。</p>
+            </div>
+            <div class="form-group">
+                <label class="form-label">模型</label>
+                <input type="text" id="aiSettingsModel" class="form-input" placeholder="gpt-4.1-mini" value="gpt-4.1-mini">
+                <p style="font-size:0.78rem; color:#64748b; margin:0.25rem 0 0 0;">建議：gpt-4.1-mini（高 CP 值）、gpt-5.4-mini（新一代）、gpt-4.1-nano（最省費用）</p>
+            </div>
+            <div class="form-group">
+                <label class="form-label">API Base URL（選填）</label>
+                <input type="text" id="aiSettingsBaseUrl" class="form-input" placeholder="https://api.openai.com">
+                <p style="font-size:0.78rem; color:#64748b; margin:0.25rem 0 0 0;">留空則使用 OpenAI 預設端點。如使用相容 API（如本地 LM Studio），在此填入對應 URL。</p>
+            </div>
+            <div class="form-group">
+                <label class="form-label">批次大小（每次請求的句段數）</label>
+                <input type="number" id="aiSettingsBatchSize" class="form-input" value="20" min="5" max="50" style="width:120px;">
+            </div>
+            <div style="display:flex; align-items:center; gap:0.75rem;">
+                <button type="button" id="btnSaveAiSettings" class="primary-btn">儲存設定</button>
+                <button type="button" id="btnTestAiSettings" class="secondary-btn btn-sm">測試連線</button>
+                <span id="aiSettingsTestResult" style="font-size:0.85rem; color:#64748b;"></span>
+            </div>
+            <div style="border-top:1px solid #e2e8f0; padding-top:1rem;">
+                <p style="font-size:0.8rem; color:#94a3b8; margin:0;">
+                    ⚠️ 使用 AI 翻譯功能表示您理解：原文內容將傳送至所指定的 API 端點進行處理。
+                    請勿對保密等級不允許外傳的文件使用外部 API。
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ====== 準則管理 View ====== -->
+    <section class="view-section hidden" id="viewAiGuidelines" style="padding:2rem; overflow-y:auto;">
+        <header class="view-header" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem;">
+            <h1>準則管理</h1>
+        </header>
+        <!-- 類別篩選 tab bar -->
+        <div id="aiGuidelinesTabBar" class="ai-tab-bar" style="margin-bottom:1rem;"></div>
+        <!-- 準則清單 -->
+        <div id="aiGuidelinesList" style="display:flex; flex-direction:column; gap:0.5rem; margin-bottom:1.5rem; max-width:800px;"></div>
+        <!-- 新增區 -->
+        <div style="max-width:800px; border:1px solid #e2e8f0; border-radius:8px; padding:1rem; background:#f8fafc;">
+            <h4 style="margin:0 0 0.75rem 0; font-size:0.9rem; color:#374151;">新增準則條目</h4>
+            <div style="display:flex; flex-direction:column; gap:0.6rem;">
+                <textarea id="aiGuidelineNewContent" class="form-input" rows="2" placeholder="輸入準則內容（建議 1–2 句，例如：稱謂使用「你」而非「您」）" style="resize:vertical;"></textarea>
+                <div style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap;">
+                    <div style="display:flex; align-items:center; gap:0.4rem;">
+                        <label style="font-size:0.82rem; color:#374151; white-space:nowrap;">類別</label>
+                        <input type="text" id="aiGuidelineNewCategory" list="aiGuidelineCategoryList" class="form-input" placeholder="通用" style="width:140px;">
+                        <datalist id="aiGuidelineCategoryList"></datalist>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:0.4rem;">
+                        <label style="font-size:0.82rem; color:#374151; white-space:nowrap;">互斥群組</label>
+                        <input type="text" id="aiGuidelineNewMutexGroup" list="aiMutexGroupList" class="form-input" placeholder="（選填）" style="width:140px;">
+                        <datalist id="aiMutexGroupList"></datalist>
+                    </div>
+                    <button type="button" id="btnAddAiGuideline" class="primary-btn btn-sm">新增</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ====== AI 學習範例 View ====== -->
+    <section class="view-section hidden" id="viewAiExamples" style="padding:2rem; overflow-y:auto;">
+        <header class="view-header"><h1>AI 學習範例</h1></header>
+        <!-- 篩選列 -->
+        <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap; margin-bottom:1rem;">
+            <select id="aiExampleFilterCategory" class="form-input" style="width:160px;">
+                <option value="">全部類別</option>
+            </select>
+            <select id="aiExampleFilterModTag" class="form-input" style="width:160px;">
+                <option value="">全部修改類型</option>
+            </select>
+            <span id="aiExamplesCount" style="font-size:0.82rem; color:#64748b;"></span>
+        </div>
+        <!-- 清單 -->
+        <div id="aiExamplesList" style="display:flex; flex-direction:column; gap:0.75rem; max-width:960px;"></div>
+        <div id="aiExamplesEmpty" style="display:none; color:#94a3b8; font-size:0.9rem; padding:2rem 0;">尚無學習範例。開始使用 AI 輔助翻譯並修改 AI 草稿後，系統將在此累積學習資料。</div>
+    </section>
+
+    <!-- ====== AI 批次翻譯範圍選擇 Modal ====== -->
+    <div id="aiBatchModal" class="wizard-overlay hidden">
+        <div class="wizard-modal" style="max-width:600px;">
+            <div class="wizard-header">
+                <h3 style="margin:0;">AI 批次翻譯</h3>
+                <button type="button" class="close-btn" id="btnCloseAiBatchModal">×</button>
+            </div>
+            <div class="wizard-body" style="display:flex; flex-direction:column; gap:1rem;">
+                <!-- 範圍 -->
+                <div>
+                    <label class="form-label">翻譯範圍</label>
+                    <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+                        <label style="display:flex; align-items:center; gap:0.35rem; font-size:0.85rem; cursor:pointer;">
+                            <input type="checkbox" id="aiBatchAllFile"> 全文
+                        </label>
+                        <span style="font-size:0.85rem; color:#64748b;">或指定範圍：</span>
+                        <input type="number" id="aiBatchRangeStart" class="form-input" placeholder="起始句段編號" min="1" style="width:130px;">
+                        <span style="color:#64748b;">—</span>
+                        <input type="number" id="aiBatchRangeEnd" class="form-input" placeholder="結束句段編號" min="1" style="width:130px;">
+                    </div>
+                </div>
+                <!-- 已確認句段 -->
+                <div style="display:flex; align-items:center; gap:0.75rem;">
+                    <label class="form-label" style="margin:0; width:160px; flex-shrink:0;">已確認句段</label>
+                    <select id="aiBatchHandleConfirmed" class="form-input" style="flex:1;">
+                        <option value="skip">跳過</option>
+                        <option value="overwrite">覆蓋</option>
+                        <option value="ask">逐批詢問</option>
+                    </select>
+                </div>
+                <!-- 未確認已輸入句段 -->
+                <div style="display:flex; align-items:center; gap:0.75rem;">
+                    <label class="form-label" style="margin:0; width:160px; flex-shrink:0;">已輸入但未確認</label>
+                    <select id="aiBatchHandleUnconfirmed" class="form-input" style="flex:1;">
+                        <option value="skip">跳過</option>
+                        <option value="overwrite">覆蓋</option>
+                        <option value="ask">逐批詢問</option>
+                    </select>
+                </div>
+                <!-- TM 門檻 -->
+                <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+                    <label class="form-label" style="margin:0; width:160px; flex-shrink:0;">TM 套用門檻（%）</label>
+                    <input type="number" id="aiBatchTmThreshold" class="form-input" value="102" min="0" max="102" style="width:80px;">
+                    <span style="font-size:0.82rem; color:#64748b;">達門檻時：</span>
+                    <select id="aiBatchTmAction" class="form-input" style="width:140px;">
+                        <option value="direct">直接套用 TM</option>
+                        <option value="ask">逐批詢問</option>
+                    </select>
+                    <span style="font-size:0.78rem; color:#94a3b8;">（102 = 無條件使用 AI）</span>
+                </div>
+                <!-- 重複句段 -->
+                <div style="display:flex; align-items:center; gap:0.75rem;">
+                    <label class="form-label" style="margin:0; width:160px; flex-shrink:0;">重複句段</label>
+                    <select id="aiBatchHandleRepetitions" class="form-input" style="flex:1;">
+                        <option value="yes">自動帶入相同 AI 草稿</option>
+                        <option value="no">各自獨立翻譯</option>
+                        <option value="ask">逐批詢問</option>
+                    </select>
+                </div>
+                <!-- 單批特殊指示 -->
+                <div>
+                    <label class="form-label">本批特殊指示（選填，翻完後自動清除）</label>
+                    <textarea id="aiBatchNote" class="form-input" rows="2" placeholder="例如：這批句段是法律條款，請使用正式語氣…" style="resize:vertical;"></textarea>
+                </div>
+                <!-- 統計提示 -->
+                <div id="aiBatchStats" class="ai-batch-stats" style="font-size:0.82rem; color:#64748b; padding:0.5rem 0.75rem; background:#f1f5f9; border-radius:6px;"></div>
+            </div>
+            <div class="panel-footer" style="padding:1rem; display:flex; justify-content:flex-end; gap:0.5rem; border-top:1px solid #e2e8f0;">
+                <button type="button" id="btnCancelAiBatch" class="secondary-btn btn-sm">取消</button>
+                <button type="button" id="btnRunAiBatch" class="primary-btn btn-sm">開始翻譯</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====== AI 批次詢問 Modal（已確認/TM 覆蓋確認）====== -->
+    <div id="aiBatchAskModal" class="modal-overlay hidden" style="align-items:flex-start; padding-top:2rem;">
+        <div class="modal-box" style="max-width:min(1200px,96vw); width:96vw; max-height:90vh; display:flex; flex-direction:column;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem; flex-shrink:0;">
+                <h3 style="margin:0;" id="aiBatchAskTitle">請選擇要保留的版本</h3>
+                <div style="display:flex; gap:0.5rem;">
+                    <button type="button" id="btnBatchAskSelectAll" class="secondary-btn btn-sm">全選 AI 版本</button>
+                    <button type="button" id="btnBatchAskSelectExisting" class="secondary-btn btn-sm">全選現有版本</button>
+                </div>
+            </div>
+            <div id="aiBatchAskList" style="overflow-y:auto; flex:1; min-height:0; display:flex; flex-direction:column; gap:0.5rem;"></div>
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.75rem; flex-shrink:0; border-top:1px solid #e2e8f0; padding-top:0.75rem;">
+                <button type="button" id="btnBatchAskCancel" class="secondary-btn btn-sm">取消</button>
+                <button type="button" id="btnBatchAskConfirm" class="primary-btn btn-sm">套用選擇</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====== 修改說明蓋板視窗 ====== -->
+    <div id="aiReviewModal" class="modal-overlay hidden" style="align-items:flex-start; padding-top:2rem;">
+        <div class="modal-box ai-review-modal-box" style="max-width:min(1100px,96vw); width:92vw; max-height:90vh; display:flex; flex-direction:column;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem; flex-shrink:0;">
+                <h3 style="margin:0; font-size:1.05rem;">修改記錄 <span id="aiReviewSegLabel" style="font-size:0.82rem; color:#64748b; font-weight:400;"></span></h3>
+                <button type="button" id="btnSkipAiReview" class="secondary-btn btn-sm">略過不記錄</button>
+            </div>
+            <!-- 四欄對比 -->
+            <div class="ai-review-columns" style="flex-shrink:0;">
+                <div class="ai-review-col">
+                    <div class="ai-review-col-header">原文</div>
+                    <div id="aiReviewSource" class="ai-review-col-body"></div>
+                </div>
+                <div class="ai-review-col">
+                    <div class="ai-review-col-header">AI 草稿</div>
+                    <div id="aiReviewDraft" class="ai-review-col-body"></div>
+                </div>
+                <div class="ai-review-col">
+                    <div class="ai-review-col-header">追蹤修訂</div>
+                    <div id="aiReviewDiff" class="ai-review-col-body"></div>
+                </div>
+                <div class="ai-review-col">
+                    <div class="ai-review-col-header">確認版本</div>
+                    <div id="aiReviewFinal" class="ai-review-col-body"></div>
+                </div>
+            </div>
+            <div style="overflow-y:auto; flex:1; min-height:0; display:flex; flex-direction:column; gap:0.75rem; padding-top:0.75rem; border-top:1px solid #e2e8f0; margin-top:0.75rem;">
+                <!-- 修改類型標籤 -->
+                <div>
+                    <label class="form-label" style="font-size:0.8rem;">修改類型標籤（選填）</label>
+                    <div id="aiReviewModTags" class="ai-domain-badges"></div>
+                </div>
+                <!-- 適用類別 override -->
+                <div>
+                    <label class="form-label" style="font-size:0.8rem;">適用類別（繼承自檔案設定，可調整這筆記錄）</label>
+                    <div id="aiReviewCategories" class="ai-domain-badges"></div>
+                </div>
+                <!-- 修改說明條列 -->
+                <div>
+                    <label class="form-label" style="font-size:0.8rem;">修改說明（選填）</label>
+                    <div id="aiReviewNotesList" class="ai-notes-list"></div>
+                    <button type="button" id="btnAddAiReviewNote" class="notes-add-btn" style="margin-top:0.35rem;">＋ 新增說明</button>
+                </div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.75rem; flex-shrink:0; border-top:1px solid #e2e8f0; padding-top:0.75rem;">
+                <button type="button" id="btnConfirmAiReview" class="primary-btn btn-sm">完成記錄</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====== 準則選擇大型蓋板視窗 ====== -->
+    <div id="aiGuidelinePickerModal" class="modal-overlay hidden">
+        <div class="modal-box" style="max-width:min(800px,96vw); width:92vw; max-height:90vh; display:flex; flex-direction:column;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem; flex-shrink:0;">
+                <h3 style="margin:0;">選擇適用準則</h3>
+                <div style="display:flex; gap:0.5rem; align-items:center;">
+                    <a href="#" id="btnGoToGuidelinesFromPicker" style="font-size:0.82rem; color:#3b82f6;">→ 前往準則管理</a>
+                    <button type="button" id="btnCloseAiGuidelinePicker" class="secondary-btn btn-sm">取消</button>
+                </div>
+            </div>
+            <!-- 類別篩選 tab -->
+            <div id="aiPickerTabBar" class="ai-tab-bar" style="flex-shrink:0; margin-bottom:0.5rem;"></div>
+            <!-- 清單 -->
+            <div id="aiPickerList" style="overflow-y:auto; flex:1; min-height:0; display:flex; flex-direction:column; gap:0.35rem; padding:0.25rem 0;"></div>
+            <!-- 快速新增 -->
+            <div style="flex-shrink:0; border-top:1px solid #e2e8f0; padding-top:0.75rem; margin-top:0.75rem;">
+                <p style="font-size:0.78rem; color:#64748b; margin:0 0 0.4rem 0;">快速新增（儲存後立即出現在清單）：</p>
+                <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                    <input type="text" id="aiPickerQuickContent" class="form-input" placeholder="準則內容…" style="flex:1; min-width:200px;">
+                    <input type="text" id="aiPickerQuickCategory" list="aiGuidelineCategoryList" class="form-input" placeholder="類別" style="width:120px;">
+                    <button type="button" id="btnAiPickerQuickAdd" class="secondary-btn btn-sm">新增</button>
+                </div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.75rem; flex-shrink:0; border-top:1px solid #e2e8f0; padding-top:0.75rem;">
+                <button type="button" id="btnConfirmAiGuidelinePicker" class="primary-btn btn-sm">確認選擇</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====== AI 翻譯進度 / 錯誤 Toast ====== -->
+    <div id="aiProgressToast" class="ai-progress-toast" style="display:none;">
+        <span id="aiProgressMsg">正在翻譯…</span>
+        <button type="button" id="btnDismissAiProgress" style="background:none; border:none; cursor:pointer; color:#fff; font-size:1rem; padding:0 0 0 0.5rem;">✕</button>
+    </div>
+
     <script src="js/tm-utils.js"></script>
     <script src="js/data-provider.js"></script>
     <script src="db.js"></script>
     <script src="js/xliff-tag-pipeline.js"></script>
+    <script src="js/ai-translate.js"></script>
     <script src="js/xliff-import.js"></script>
     <script src="js/xlsx-rich-tags.js"></script>
     <script src="word-count-engine.js"></script>

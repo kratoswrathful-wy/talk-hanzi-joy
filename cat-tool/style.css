@@ -1536,3 +1536,331 @@ mark.tm-search-hit {
 .qa-clickable:hover {
     text-decoration: underline;
 }
+
+/* ============================================================
+   AI 輔助翻譯功能樣式
+   ============================================================ */
+
+/* AI 輔助按鈕（工具列） */
+.ai-mode-btn {
+    background: #f0fdf4;
+    color: #15803d;
+    border: 1.5px solid #86efac;
+    font-weight: 500;
+    transition: all 0.15s;
+}
+.ai-mode-btn:hover { background: #dcfce7; border-color: #4ade80; }
+.ai-mode-btn.active {
+    background: #15803d;
+    color: #fff;
+    border-color: #15803d;
+    box-shadow: 0 0 0 2px #86efac;
+}
+
+/* AI Mode Bar（編輯器工具列下方） */
+.ai-mode-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.4rem 1rem;
+    background: linear-gradient(90deg, #f0fdf4, #dcfce7);
+    border-bottom: 1px solid #86efac;
+    font-size: 0.85rem;
+    color: #15803d;
+    flex-shrink: 0;
+}
+.ai-mode-bar-label { font-weight: 500; }
+
+/* Badge 標籤元件（類別、修改類型） */
+.ai-domain-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    min-height: 28px;
+}
+.ai-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    cursor: pointer;
+    border: 1.5px solid #e2e8f0;
+    background: #f8fafc;
+    color: #475569;
+    user-select: none;
+    transition: all 0.12s;
+}
+.ai-badge:hover { border-color: #94a3b8; background: #f1f5f9; }
+.ai-badge.selected {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    color: #1d4ed8;
+    font-weight: 500;
+}
+.ai-badge.selected-green {
+    background: #f0fdf4;
+    border-color: #22c55e;
+    color: #15803d;
+    font-weight: 500;
+}
+
+/* Tab Bar（準則管理 / 準則選擇器） */
+.ai-tab-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 0.4rem;
+}
+.ai-tab-btn {
+    padding: 0.25rem 0.75rem;
+    border-radius: 6px 6px 0 0;
+    border: 1px solid transparent;
+    border-bottom: none;
+    background: transparent;
+    color: #64748b;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.12s;
+}
+.ai-tab-btn:hover { background: #f1f5f9; color: #374151; }
+.ai-tab-btn.active {
+    background: #fff;
+    border-color: #e2e8f0;
+    color: #1d4ed8;
+    font-weight: 600;
+    margin-bottom: -2px;
+    border-bottom: 2px solid #fff;
+}
+
+/* 準則條目（準則管理頁） */
+.ai-guideline-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 7px;
+    background: #fff;
+    font-size: 0.85rem;
+}
+.ai-guideline-item:hover { border-color: #cbd5e1; background: #f8fafc; }
+.ai-guideline-item-content { flex: 1; color: #374151; line-height: 1.5; }
+.ai-guideline-item-meta { display: flex; gap: 0.3rem; align-items: center; flex-wrap: wrap; margin-top: 0.3rem; }
+.ai-guideline-item-actions { display: flex; gap: 0.3rem; flex-shrink: 0; }
+
+/* 四欄對比視窗 */
+.ai-review-modal-box { }
+.ai-review-columns {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 0;
+}
+@media (max-width: 800px) {
+    .ai-review-columns { grid-template-columns: 1fr 1fr; }
+}
+.ai-review-col {
+    border: 1px solid #e2e8f0;
+    border-radius: 7px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.ai-review-col-header {
+    padding: 0.3rem 0.6rem;
+    background: #f1f5f9;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    border-bottom: 1px solid #e2e8f0;
+    flex-shrink: 0;
+}
+.ai-review-col-body {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    min-height: 60px;
+    word-break: break-word;
+}
+
+/* 修改說明條列 */
+.ai-notes-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+.ai-note-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.4rem;
+    border-radius: 5px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    font-size: 0.82rem;
+}
+.ai-note-item input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 0.82rem;
+    color: #374151;
+    outline: none;
+    font-family: inherit;
+}
+.ai-note-item-del {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #94a3b8;
+    font-size: 0.9rem;
+    padding: 0;
+    flex-shrink: 0;
+    line-height: 1;
+}
+.ai-note-item-del:hover { color: #ef4444; }
+
+/* 學習範例條目 */
+.ai-example-item {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+}
+.ai-example-item-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 0.78rem;
+    color: #64748b;
+}
+.ai-example-item-header .ai-example-source {
+    font-weight: 500;
+    color: #374151;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ai-example-detail {
+    display: none;
+    padding: 0.75rem;
+    font-size: 0.82rem;
+    gap: 0.5rem;
+    flex-direction: column;
+}
+.ai-example-detail.open { display: flex; }
+.ai-example-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+}
+.ai-example-grid-col {
+    border: 1px solid #e2e8f0;
+    border-radius: 5px;
+    padding: 0.4rem 0.5rem;
+}
+.ai-example-grid-col-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #94a3b8;
+    margin-bottom: 0.25rem;
+}
+
+/* 批次統計文字 */
+.ai-batch-stats { border-left: 3px solid #3b82f6; }
+
+/* 批次詢問條目 */
+.ai-ask-item {
+    border: 1px solid #e2e8f0;
+    border-radius: 7px;
+    padding: 0.6rem 0.75rem;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+}
+.ai-ask-item-source { font-weight: 500; color: #374151; margin-bottom: 0.2rem; }
+.ai-ask-versions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+.ai-ask-version-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    cursor: pointer;
+    padding: 0.4rem 0.5rem;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 5px;
+    background: #f8fafc;
+    transition: all 0.1s;
+}
+.ai-ask-version-label:hover { border-color: #3b82f6; background: #eff6ff; }
+.ai-ask-version-label.selected { border-color: #3b82f6; background: #eff6ff; }
+.ai-ask-version-label input[type=radio] { flex-shrink: 0; margin-top: 0.2rem; }
+
+/* AI Progress Toast */
+.ai-progress-toast {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 11000;
+    background: #1e293b;
+    color: #f1f5f9;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    min-width: 200px;
+}
+
+/* 選取的 AI 準則條目（AI 指令 tab 內） */
+.ai-selected-guideline-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    padding: 0.3rem 0.4rem;
+    border-radius: 5px;
+    font-size: 0.82rem;
+    color: #374151;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+}
+.ai-selected-guideline-item-content { flex: 1; line-height: 1.4; }
+
+/* 特殊指示條目 */
+.ai-special-instruction-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #fff;
+    font-size: 0.82rem;
+}
+.ai-special-instruction-content { flex: 1; line-height: 1.5; color: #374151; }
+
+/* form helpers（if not already defined） */
+.form-group { display: flex; flex-direction: column; gap: 0.35rem; }
+.form-label { font-size: 0.85rem; font-weight: 500; color: #374151; }
+.form-input {
+    padding: 0.45rem 0.65rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-family: inherit;
+    color: #374151;
+    background: #fff;
+    outline: none;
+    transition: border-color 0.1s;
+}
+.form-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }
