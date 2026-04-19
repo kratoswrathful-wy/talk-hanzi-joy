@@ -8761,6 +8761,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    function _resolveWorkbookSheet(wb, sheetName) {
+        if (!wb || !wb.Sheets || sheetName == null || sheetName === '') return null;
+        const s0 = String(sheetName).trim();
+        if (wb.Sheets[s0]) return wb.Sheets[s0];
+        const names = wb.SheetNames || [];
+        const lower = s0.toLowerCase();
+        for (let i = 0; i < names.length; i++) {
+            const n = names[i];
+            if (n != null && String(n).trim().toLowerCase() === lower) return wb.Sheets[n];
+        }
+        return null;
+    }
+
     exportBtn.addEventListener('click', async () => {
         if (!currentFileId) return;
         try {
@@ -8783,14 +8796,30 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await Xliff.exportXliffFamily(f, segs, currentFileFormat);
             } else {
                 // Excel 匯出：直接修改原工作簿以保留樣式與 Rich Text
+                if (!f.originalFileBuffer || !(f.originalFileBuffer.byteLength > 0)) {
+                    alert('無法匯出：遺失原始檔案內容，請確認檔案已自雲端完整同步後再試。');
+                    return;
+                }
                 const originalData = new Uint8Array(f.originalFileBuffer);
                 const wb = XLSX.read(originalData, { type: 'array' });
                 const XlsxRich = window.CatToolXlsxRichTags;
 
+                let excelWriteCount = 0;
+                let excelSkipLocked = 0;
+                let excelSkipNoSheet = 0;
+                const couldWriteSegs = segs.filter((s) => !s.isLocked);
+
                 segs.forEach(s => {
-                    if (s.isLocked) return;
-                    const sheet = wb.Sheets[s.sheetName];
-                    if (!sheet) return;
+                    if (s.isLocked) {
+                        excelSkipLocked++;
+                        return;
+                    }
+                    const sheet = _resolveWorkbookSheet(wb, s.sheetName);
+                    if (!sheet) {
+                        excelSkipNoSheet++;
+                        return;
+                    }
+                    excelWriteCount++;
                     const cellRef = XLSX.utils.encode_cell({ r: s.rowIdx, c: s.colTgt });
                     if (!sheet[cellRef]) sheet[cellRef] = { t: 's', v: '' };
 
@@ -8817,6 +8846,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         delete sheet[cellRef].h;
                     }
                 });
+
+                if (couldWriteSegs.length > 0 && excelWriteCount === 0) {
+                    alert('匯出時無法寫入任何譯文儲存格（可能為工作表名稱與匯入時不一致，或資料異常）。已略過：鎖定 ' + excelSkipLocked + ' 句、找不到工作表 ' + excelSkipNoSheet + ' 句。');
+                } else if (excelSkipNoSheet > 0) {
+                    console.warn('[CAT] Excel 匯出：部分句段找不到對應工作表，已略過', excelSkipNoSheet, '句');
+                }
 
                 XLSX.writeFile(wb, `Translated_${f.name}`);
             }
@@ -8848,6 +8883,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     let _activeNoteProjectId = null;
     let _notesPanelInitialized = false;
     let _privateNoteSharePending = null;
+
+    /** 私人筆記／共用資訊：優先 _activeNoteProjectId，否則沿用編輯器 currentProjectId */
+    function _notesProjectIdOrNull() {
+        const a = _activeNoteProjectId;
+        if (a != null && a !== '') return a;
+        const c = typeof currentProjectId !== 'undefined' ? currentProjectId : null;
+        return c != null && c !== '' ? c : null;
+    }
 
     /** 團隊模式與 Supabase is_admin（pm/executive）一致，供共用資訊增刪改；離線模式皆可編輯 */
     function isCatSharedMutator() {
@@ -8883,7 +8926,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function _openPrivateNoteShareDialog(note) {
-        if (!_activeNoteProjectId) return;
+        if (!_notesProjectIdOrNull()) return;
         if (!note || privateNoteItemType(note) !== 'note') return;
         const idStr = String(note.id);
         const q = _privateNoteEditQuills[idStr];
@@ -8924,8 +8967,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function _refreshSharedInfoUi() {
         await _loadSharedInfo();
         const m = document.getElementById('sharedInfoModal');
-        if (m && !m.classList.contains('hidden') && _activeNoteProjectId) {
-            await _reloadSharedInfoModal(_activeNoteProjectId);
+        const pid = _notesProjectIdOrNull();
+        if (m && !m.classList.contains('hidden') && pid) {
+            await _reloadSharedInfoModal(pid);
         }
     }
 
@@ -9037,7 +9081,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Tab switching（切換前先清掉空白草稿）
         panel.querySelectorAll('.notes-tab-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
-                await _pruneEmptyNoteDrafts(_activeNoteProjectId);
+                await _pruneEmptyNoteDrafts(_notesProjectIdOrNull());
                 panel.querySelectorAll('.notes-tab-btn').forEach(b => b.classList.remove('active'));
                 panel.querySelectorAll('.notes-tab-content').forEach(c => c.classList.remove('active'));
                 btn.classList.add('active');
@@ -9050,8 +9094,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'hidden' && _activeNoteProjectId) {
-                _pruneEmptyNoteDrafts(_activeNoteProjectId).catch(console.error);
+            const pid = _notesProjectIdOrNull();
+            if (document.visibilityState === 'hidden' && pid) {
+                _pruneEmptyNoteDrafts(pid).catch(console.error);
             }
         });
 
@@ -9095,56 +9140,75 @@ document.addEventListener('DOMContentLoaded', async () => {
         const addBtn = document.getElementById('btnAddPrivateNote');
         if (addBtn) {
             addBtn.addEventListener('click', async () => {
-                if (!_activeNoteProjectId) return;
-                const id = await DBService.addPrivateNote({
-                    projectId: _activeNoteProjectId,
-                    userId: '',
-                    content: '',
-                    createdByName: getCurrentUserName(),
-                    itemType: 'note'
-                });
-                await _loadPrivateNotes();
-                const wrap = document.getElementById(`private-note-item-${id}`);
-                if (wrap) {
-                    wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                    _startPrivateNoteEdit(
-                        { id, content: '', itemType: 'note', updatedAt: new Date().toISOString() },
-                        wrap
-                    );
+                const pid = _notesProjectIdOrNull();
+                if (!pid) {
+                    alert('無法判定專案，無法新增筆記。請從專案詳情開啟檔案，或重新整理後再試。');
+                    return;
+                }
+                try {
+                    const id = await DBService.addPrivateNote({
+                        projectId: pid,
+                        userId: '',
+                        content: '',
+                        createdByName: getCurrentUserName(),
+                        itemType: 'note'
+                    });
+                    await _loadPrivateNotes();
+                    const wrap = document.getElementById(`private-note-item-${id}`);
+                    if (wrap) {
+                        wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        _startPrivateNoteEdit(
+                            { id, content: '', itemType: 'note', updatedAt: new Date().toISOString() },
+                            wrap
+                        );
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert(err && err.message ? String(err.message) : '新增筆記失敗');
                 }
             });
         }
         const addTodoBtn = document.getElementById('btnAddPrivateTodo');
         if (addTodoBtn) {
             addTodoBtn.addEventListener('click', async () => {
-                if (!_activeNoteProjectId) return;
-                await DBService.addPrivateNote({
-                    projectId: _activeNoteProjectId,
-                    userId: '',
-                    content: '',
-                    createdByName: getCurrentUserName(),
-                    itemType: 'todo',
-                    todoDone: false
-                });
-                await _loadPrivateNotes();
-                const list = document.getElementById('privateNotesListTodos');
-                const last = list && list.querySelector('.private-todo-item:last-child .private-todo-input');
-                if (last) {
-                    last.focus();
-                    last.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                const pid = _notesProjectIdOrNull();
+                if (!pid) {
+                    alert('無法判定專案，無法新增待辦。請從專案詳情開啟檔案，或重新整理後再試。');
+                    return;
+                }
+                try {
+                    await DBService.addPrivateNote({
+                        projectId: pid,
+                        userId: '',
+                        content: '',
+                        createdByName: getCurrentUserName(),
+                        itemType: 'todo',
+                        todoDone: false
+                    });
+                    await _loadPrivateNotes();
+                    const list = document.getElementById('privateNotesListTodos');
+                    const last = list && list.querySelector('.private-todo-item:last-child .private-todo-input');
+                    if (last) {
+                        last.focus();
+                        last.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert(err && err.message ? String(err.message) : '新增待辦失敗');
                 }
             });
         }
 
         document.getElementById('btnPrivateNoteShareCopy')?.addEventListener('click', async () => {
             const note = _privateNoteSharePending;
-            if (!note || !_activeNoteProjectId) {
+            const pid = _notesProjectIdOrNull();
+            if (!note || !pid) {
                 _closePrivateNoteShareDialog();
                 return;
             }
             try {
                 await DBService.addGuideline({
-                    projectId: _activeNoteProjectId,
+                    projectId: pid,
                     type: 'shared_note',
                     content: note.content,
                     createdByName: getCurrentUserName()
@@ -9158,13 +9222,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         document.getElementById('btnPrivateNoteShareMove')?.addEventListener('click', async () => {
             const note = _privateNoteSharePending;
-            if (!note || !_activeNoteProjectId) {
+            const pid = _notesProjectIdOrNull();
+            if (!note || !pid) {
                 _closePrivateNoteShareDialog();
                 return;
             }
             try {
                 await DBService.addGuideline({
-                    projectId: _activeNoteProjectId,
+                    projectId: pid,
                     type: 'shared_note',
                     content: note.content,
                     createdByName: getCurrentUserName()
@@ -9187,7 +9252,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const addPmBtn = document.getElementById('btnAddPmGuideline');
         if (addPmBtn) {
             addPmBtn.addEventListener('click', async () => {
-                if (!_activeNoteProjectId) return;
+                const pid = _notesProjectIdOrNull();
+                if (!pid) {
+                    alert('無法判定專案，無法新增準則。請從專案詳情開啟檔案，或重新整理後再試。');
+                    return;
+                }
                 await _addGuideline('pm_guideline', { listKey: 'panel' });
             });
         }
@@ -9195,11 +9264,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function _addGuideline(type, opts) {
         const listKey = (opts && opts.listKey) || 'panel';
-        if (!_activeNoteProjectId) return;
-        const id = await DBService.addGuideline({ projectId: _activeNoteProjectId, type, content: '', createdByName: getCurrentUserName() });
+        const pid = _notesProjectIdOrNull();
+        if (!pid) {
+            alert('無法判定專案，無法新增共用資訊。請從專案詳情開啟檔案，或重新整理後再試。');
+            return;
+        }
+        let id;
+        try {
+            id = await DBService.addGuideline({ projectId: pid, type, content: '', createdByName: getCurrentUserName() });
+        } catch (err) {
+            console.error(err);
+            alert(err && err.message ? String(err.message) : '新增失敗');
+            return;
+        }
         await _refreshSharedInfoUi();
         let guidelines = [];
-        try { guidelines = await DBService.getGuidelinesByProject(_activeNoteProjectId); } catch (_) {}
+        try { guidelines = await DBService.getGuidelinesByProject(pid); } catch (_) {}
         const gl = guidelines.find(g => String(g.id) === String(id));
         const wrap = document.getElementById(`guideline-item-${listKey}-${id}`);
         if (gl && wrap && isCatSharedMutator()) {
@@ -9213,7 +9293,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (prev != null && projectId != null && String(prev) !== String(projectId)) {
             await _pruneEmptyNoteDrafts(prev);
         }
-        _activeNoteProjectId = projectId;
+        _activeNoteProjectId = projectId || currentProjectId;
         initNotesPanel();
         await Promise.all([_loadPrivateNotes(), _refreshSharedInfoUi()]);
     }
@@ -9221,9 +9301,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function _loadPrivateNotes() {
         const listNotes = document.getElementById('privateNotesListNotes');
         const listTodos = document.getElementById('privateNotesListTodos');
-        if (!listNotes || !listTodos || !_activeNoteProjectId) return;
+        const pid = _notesProjectIdOrNull();
+        if (!listNotes || !listTodos || !pid) return;
+        if (!_activeNoteProjectId) _activeNoteProjectId = pid;
         let notes = [];
-        try { notes = await DBService.getPrivateNotesByProject(_activeNoteProjectId, ''); } catch (_) {}
+        try { notes = await DBService.getPrivateNotesByProject(pid, ''); } catch (_) {}
         _noteQuills = {};
         Object.keys(_privateNoteEditQuills).forEach((k) => { delete _privateNoteEditQuills[k]; });
         const noteRows = notes.filter((n) => privateNoteItemType(n) === 'note');
@@ -9373,8 +9455,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ---- Shared info ----
     async function _loadSharedInfo() {
+        const pid = _notesProjectIdOrNull();
+        if (!pid) return;
         let guidelines = [];
-        try { guidelines = await DBService.getGuidelinesByProject(_activeNoteProjectId); } catch (_) {}
+        try { guidelines = await DBService.getGuidelinesByProject(pid); } catch (_) {}
         const pmList = document.getElementById('pmGuidelinesList');
         const shList = document.getElementById('sharedNotesList');
         const pmAddBtn = document.getElementById('btnAddPmGuideline');
@@ -9619,9 +9703,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ---- Sharing modal (exit flow) ----
     async function ensureNotesSharingResolved() {
-        if (!_activeNoteProjectId) return true;
+        const pid = _notesProjectIdOrNull();
+        if (!pid) return true;
         let notes = [];
-        try { notes = await DBService.getPrivateNotesByProject(_activeNoteProjectId, ''); } catch (_) {}
+        try { notes = await DBService.getPrivateNotesByProject(pid, ''); } catch (_) {}
         const noteRows = notes.filter((n) => privateNoteItemType(n) === 'note');
         const hasContent = noteRows.some(n => n.content && n.content !== '<p><br></p>' && String(n.content).trim());
         if (!hasContent) return true;
@@ -9629,8 +9714,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function _showNoteSharingModal(returnPromise) {
+        const pid = _notesProjectIdOrNull();
+        if (!pid) return true;
         let notes = [];
-        try { notes = await DBService.getPrivateNotesByProject(_activeNoteProjectId, ''); } catch (_) {}
+        try { notes = await DBService.getPrivateNotesByProject(pid, ''); } catch (_) {}
         notes = notes.filter(
             (n) => privateNoteItemType(n) === 'note' && n.content && n.content !== '<p><br></p>' && String(n.content).trim()
         );
@@ -9677,7 +9764,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const note = notes[i];
                     const chosen = items[i].querySelector(`input[name="nshare-${note.id}"]:checked`)?.value || 'keep';
                     if (chosen === 'copy' || chosen === 'move') {
-                        await DBService.addGuideline({ projectId: _activeNoteProjectId, type: 'shared_note', content: note.content, createdByName: getCurrentUserName() }).catch(() => {});
+                        await DBService.addGuideline({ projectId: pid, type: 'shared_note', content: note.content, createdByName: getCurrentUserName() }).catch(() => {});
                     }
                     if (chosen === 'move') {
                         await DBService.deletePrivateNote(parseId(note.id)).catch(() => {});
@@ -9691,7 +9778,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function autoSaveAllNotes() {
-        if (!_activeNoteProjectId) return;
+        if (!_notesProjectIdOrNull()) return;
         for (const [id, q] of Object.entries(_noteQuills)) {
             try { await DBService.updatePrivateNote(parseId(id), q.root.innerHTML); } catch (_) {}
         }
@@ -9730,7 +9817,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     (function initSharedInfoModal() {
         document.getElementById('btnCloseSharedInfoModal')?.addEventListener('click', async () => {
-            await _pruneEmptyNoteDrafts(_activeNoteProjectId);
+            await _pruneEmptyNoteDrafts(_notesProjectIdOrNull());
             await _loadSharedInfo();
             document.getElementById('sharedInfoModal')?.classList.add('hidden');
         });
