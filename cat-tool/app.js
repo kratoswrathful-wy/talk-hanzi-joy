@@ -8894,8 +8894,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return;
                 }
                 const originalData = new Uint8Array(f.originalFileBuffer);
-                // cellStyles：盡量讀入儲存格樣式；寫出時一併指定以保留底色／格式（Community 版仍可能有極限）
-                const wb = XLSX.read(originalData, { type: 'array', cellStyles: true, cellNF: true });
+                const wb = XLSX.read(originalData, { type: 'array' });
                 const XlsxRich = window.CatToolXlsxRichTags;
 
                 let excelWriteCount = 0;
@@ -8915,8 +8914,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     excelWriteCount++;
                     const cellRef = XLSX.utils.encode_cell({ r: s.rowIdx, c: s.colTgt });
-                    const prevCell = sheet[cellRef];
-                    const cell = prevCell && typeof prevCell === 'object' ? { ...prevCell } : {};
+                    const cell = {};
 
                     const hasTags = s.targetTags && s.targetTags.length > 0;
                     if (hasTags && XlsxRich) {
@@ -8932,13 +8930,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                         cell.t = 's';
                         cell.v = plainVal;
                         cell.r = richXml;
-                        delete cell.h; // 清除 SheetJS 快取的 html
                     } else {
-                        // 無 Rich Text tag：直接寫入純文字
+                        // 無 Rich Text tag：直接寫入純文字（cell.r 不設，避免 SheetJS 把純文字當 rich text XML）
                         cell.t = 's';
                         cell.v = s.targetText || '';
-                        cell.r = s.targetText || '';
-                        delete cell.h;
                     }
                     sheet[cellRef] = cell;
                 });
@@ -8949,7 +8944,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     console.warn('[CAT] Excel 匯出：部分句段找不到對應工作表，已略過', excelSkipNoSheet, '句');
                 }
 
-                XLSX.writeFile(wb, `Translated_${f.name}`, { bookType: 'xlsx', cellStyles: true });
+                XLSX.writeFile(wb, `Translated_${f.name}`, { bookType: 'xlsx' });
             }
         } catch (e) {
             alert('匯出發生錯誤: ' + e.message);
