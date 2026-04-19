@@ -9,7 +9,7 @@
     // ---- 錯誤訊息對照 ----
     const ERROR_MESSAGES = {
         invalid_api_key:      'API Key 無效或已過期，請至「AI 設定」重新輸入。',
-        insufficient_quota:   '帳戶額度已用盡，請至 OpenAI 後台充值後再試。',
+        insufficient_quota:   '帳號額度已用盡，請至 OpenAI 後台儲值後再試。',
         rate_limit_exceeded:  '請求速率超過上限，請稍後再試。',
         context_length_exceeded: '提示內容過長，請縮短準則或減少批次大小後再試。',
         model_not_found:      '指定的模型不存在，請至「AI 設定」確認模型名稱。',
