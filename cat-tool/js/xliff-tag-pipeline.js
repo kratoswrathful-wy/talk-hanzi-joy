@@ -40,11 +40,13 @@
                 if (child.nodeType !== 1) continue;
                 const ln = child.localName;
 
-                if (ln === 'ph' || ln === 'it') {
+                if (ln === 'ph' || ln === 'it' || ln === 'x') {
                     counter++;
                     const ph = `{${counter}}`;
                     const rawDisplay = child.getAttribute('displaytext') || child.textContent || '';
-                    const display = rawDisplay.length > 25 ? rawDisplay.substring(0, 25) + '…' : rawDisplay || ph;
+                    const ctypeDisplay = child.getAttribute('ctype') || child.getAttribute('type') || '';
+                    const meaningfulRaw = (rawDisplay && rawDisplay !== '{}') ? rawDisplay : ctypeDisplay;
+                    const display = meaningfulRaw.length > 25 ? meaningfulRaw.substring(0, 25) + '…' : meaningfulRaw || ph;
                     const xml = new XMLSerializer().serializeToString(child);
                     tags.push({ ph, xml, display, type: 'standalone', pairNum: counter, num: counter });
                     text += ph;
@@ -54,7 +56,9 @@
                     bptMap[id] = counter;
                     const ph = `{${counter}}`;
                     const rawDisplay = child.textContent || '';
-                    const display = rawDisplay.length > 25 ? rawDisplay.substring(0, 25) + '…' : rawDisplay || `<${counter}>`;
+                    const ctypeBpt = child.getAttribute('ctype') || child.getAttribute('type') || '';
+                    const meaningfulBpt = (rawDisplay && rawDisplay !== '{}') ? rawDisplay : ctypeBpt;
+                    const display = meaningfulBpt.length > 25 ? meaningfulBpt.substring(0, 25) + '…' : meaningfulBpt || `<${counter}>`;
                     const xml = new XMLSerializer().serializeToString(child);
                     tags.push({ ph, xml, display, type: 'open', pairNum: counter, num: counter });
                     text += ph;
@@ -63,7 +67,9 @@
                     const num = bptMap[id] !== undefined ? bptMap[id] : ++counter;
                     const ph = `{/${num}}`;
                     const rawDisplay = child.textContent || '';
-                    const display = rawDisplay.length > 25 ? rawDisplay.substring(0, 25) + '…' : rawDisplay || `</${num}>`;
+                    const ctypeEpt = child.getAttribute('ctype') || child.getAttribute('type') || '';
+                    const meaningfulEpt = (rawDisplay && rawDisplay !== '{}') ? rawDisplay : ctypeEpt;
+                    const display = meaningfulEpt.length > 25 ? meaningfulEpt.substring(0, 25) + '…' : meaningfulEpt || `</${num}>`;
                     const xml = new XMLSerializer().serializeToString(child);
                     tags.push({ ph, xml, display, type: 'close', pairNum: num, num });
                     text += ph;
