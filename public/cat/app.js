@@ -7204,13 +7204,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 document.querySelectorAll('.grid-data-row').forEach(r => r.classList.remove('active-row'));
                 row.classList.add('active-row');
                 lastEditedRowIdx = seg.rowIdx;
-                // 選取狀態更新原則：
-                // 只有在使用者主動切換到新目標時才更新選取，以下情況跳過：
-                // 1. 批次操作進行中（isBatchOpInProgress）
-                // 2. 目前句段已在多選清單中（焦點由 DOM 操作觸發，非使用者點擊新目標）
-                // 這確保批次操作、快速鍵等不會破壞選取狀態
-                const isAlreadyInMultiSelect = selectedRowIds.has(seg.id) && selectedRowIds.size > 1;
-                if (!isBatchOpInProgress && !isAlreadyInMultiSelect) {
+                // 選取狀態更新原則：批次操作進行中時不更新選取；
+                // 其餘情況（包含點選多選範圍內的句段）均清除選取並改為只選當前句段
+                if (!isBatchOpInProgress) {
                     selectedRowIds.clear();
                     selectedRowIds.add(seg.id);
                     document.querySelectorAll('.grid-data-row').forEach(r => {
