@@ -305,37 +305,42 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
 
     case "db.addSegments": {
       if (!Array.isArray(payload.segmentsArray) || payload.segmentsArray.length === 0) return 0;
-      const { error: segInsertError, count: segCount } = await supabase.from("cat_segments").insert(
-        payload.segmentsArray.map((s: any) => {
-          const isLockedUser = !!s.isLockedUser;
-          const isLockedSystem = !!s.isLockedSystem;
-          const isLocked = !!(s.isLocked ?? (isLockedUser || isLockedSystem));
-          return {
-            file_id: s.fileId,
-            sheet_name: s.sheetName ?? "Sheet1",
-            row_idx: s.rowIdx ?? 0,
-            col_src: s.colSrc ?? null,
-            col_tgt: s.colTgt ?? null,
-            id_value: s.idValue ?? null,
-            extra_value: s.extraValue ?? null,
-            source_text: s.sourceText ?? "",
-            target_text: s.targetText ?? "",
-            is_locked_user: isLockedUser,
-            is_locked_system: isLockedSystem,
-            is_locked: isLocked,
-            status: s.status ?? "",
-            editor_note: s.editorNote ?? "",
-            match_value: coerceMatchValueForDb(s.matchValue),
-            created_at: nowIso(),
-            last_modified: nowIso(),
-          };
-        }) as any
-      );
-      if (segInsertError) throw segInsertError;
-      return segCount ?? payload.segmentsArray.length;
+      const BATCH = 500;
+      const rows = payload.segmentsArray.map((s: any) => {
+        const isLockedUser = !!s.isLockedUser;
+        const isLockedSystem = !!s.isLockedSystem;
+        const isLocked = !!(s.isLocked ?? (isLockedUser || isLockedSystem));
+        return {
+          file_id: s.fileId,
+          sheet_name: s.sheetName ?? "Sheet1",
+          row_idx: s.rowIdx ?? 0,
+          col_src: s.colSrc ?? null,
+          col_tgt: s.colTgt ?? null,
+          id_value: s.idValue ?? null,
+          extra_value: s.extraValue ?? null,
+          source_text: s.sourceText ?? "",
+          target_text: s.targetText ?? "",
+          is_locked_user: isLockedUser,
+          is_locked_system: isLockedSystem,
+          is_locked: isLocked,
+          status: s.status ?? "",
+          editor_note: s.editorNote ?? "",
+          match_value: coerceMatchValueForDb(s.matchValue),
+          created_at: nowIso(),
+          last_modified: nowIso(),
+        };
+      });
+      let totalCount = 0;
+      for (let i = 0; i < rows.length; i += BATCH) {
+        const chunk = rows.slice(i, i + BATCH);
+        const { error, count } = await supabase.from("cat_segments").insert(chunk as any);
+        if (error) throw error;
+        totalCount += count ?? chunk.length;
+      }
+      return totalCount;
     }
     case "db.getSegmentsByFile": {
-      const { data } = await supabase.from("cat_segments").select("*").eq("file_id", payload.fileId).order("row_idx", { ascending: true });
+      const { data } = await supabase.from("cat_segments").select("*").eq("file_id", payload.fileId).order("row_idx", { ascending: true }).limit(10000);
       return (data ?? []).map(mapSegmentRow);
     }
     case "db.updateSegmentTarget": {
