@@ -8906,6 +8906,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 let excelSkipNoSheet = 0;
                 const couldWriteSegs = segs.filter((s) => !s.isLocked);
 
+                const _dbgWrites = [];
                 segs.forEach(s => {
                     if (s.isLocked) {
                         excelSkipLocked++;
@@ -8918,7 +8919,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     excelWriteCount++;
                     const cellRef = XLSX.utils.encode_cell({ r: s.rowIdx, c: s.colTgt });
-                    const cell = {};
 
                     const hasTags = s.targetTags && s.targetTags.length > 0;
                     if (hasTags && XlsxRich) {
@@ -8929,18 +8929,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                             tags,
                             s.baseRprXml || ''
                         );
-                        // 純文字備份值（去掉佔位符）
                         const plainVal = (s.targetText || '').replace(/\{\/?\d+\}/g, '');
-                        cell.t = 's';
-                        cell.v = plainVal;
-                        cell.r = richXml;
+                        sheet[cellRef] = { t: 's', v: plainVal, r: richXml };
                     } else {
-                        // 無 Rich Text tag：直接寫入純文字（cell.r 不設，避免 SheetJS 把純文字當 rich text XML）
-                        cell.t = 's';
-                        cell.v = s.targetText || '';
+                        // sheet_add_aoa 是 SheetJS 的正式寫入 API，確保 shared strings 正確更新
+                        XLSX.utils.sheet_add_aoa(sheet, [[s.targetText || '']], { origin: cellRef });
                     }
-                    sheet[cellRef] = cell;
+                    if (_dbgWrites.length < 3) {
+                        _dbgWrites.push(cellRef + ' sheet=' + s.sheetName + ' val=' + (sheet[cellRef] && sheet[cellRef].v || '').slice(0, 30));
+                    }
                 });
+                console.log('[EXPORT WRITE CHECK]', _dbgWrites.join(' | '));
 
                 if (couldWriteSegs.length > 0 && excelWriteCount === 0) {
                     alert('匯出時無法寫入任何譯文儲存格（可能為工作表名稱與匯入時不一致，或資料異常）。已略過：鎖定 ' + excelSkipLocked + ' 句、找不到工作表 ' + excelSkipNoSheet + ' 句。');
