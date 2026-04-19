@@ -7222,7 +7222,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             rowInnerContent += `<div class="col-target" style="position:relative;">
                 <div class="rt-editor grid-textarea" contenteditable="${effectiveLocked ? 'false' : 'true'}" spellcheck="false">${targetHtml}</div>
             </div>`;
-            rowInnerContent += `<div class="col-extra" style="padding:0.5rem; font-size:0.8rem; color:#2563eb; word-break:break-all;">${seg.extraValue || ''}</div>`;
+            rowInnerContent += `<div class="col-extra" style="padding:0.5rem; font-size:0.8rem; color:#2563eb; word-break:break-all; white-space:pre-wrap;">${seg.extraValue || ''}</div>`;
             
             // New Columns: Repetition and Match
             // repModeSeg defaults to global repMode
