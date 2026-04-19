@@ -8776,7 +8776,61 @@ document.addEventListener('DOMContentLoaded', async () => {
         return null;
     }
 
-    /** Excel 匯出前：將畫面上譯文欄內容寫入 DB，避免 debounce 未完成時匯出仍為舊 target_text */
+    /**
+     * 匯出用譯文：優先編輯器 DOM → currentSegmentsList → DB 句段，避免 DB 未跟上時新舊交雜。
+     */
+    function resolveExportTargetPayload(seg) {
+        const grid = document.getElementById('gridBody');
+        if (grid) {
+            const rowList = grid.querySelectorAll('.grid-data-row');
+            for (let i = 0; i < rowList.length; i++) {
+                const row = rowList[i];
+                if (String(parseId(row.dataset.segId)) !== String(seg.id)) continue;
+                const targetInput = row.querySelector('.col-target .grid-textarea');
+                if (!targetInput) break;
+                if (targetInput.getAttribute('contenteditable') === 'false') break;
+                const merged = currentSegmentsList.find((x) => String(x.id) === String(seg.id));
+                const targetText = extractTextFromEditor(targetInput);
+                const targetTags = (merged && merged.targetTags && merged.targetTags.length)
+                    ? merged.targetTags
+                    : (seg.targetTags || []);
+                const sourceTags = merged ? (merged.sourceTags || seg.sourceTags) : seg.sourceTags;
+                const baseRprXml = merged && merged.baseRprXml != null ? merged.baseRprXml : seg.baseRprXml;
+                return { targetText, targetTags, sourceTags, baseRprXml };
+            }
+        }
+        const merged = currentSegmentsList.find((x) => String(x.id) === String(seg.id));
+        if (merged) {
+            return {
+                targetText: merged.targetText || '',
+                targetTags: (merged.targetTags && merged.targetTags.length) ? merged.targetTags : (seg.targetTags || []),
+                sourceTags: merged.sourceTags || seg.sourceTags,
+                baseRprXml: merged.baseRprXml != null ? merged.baseRprXml : seg.baseRprXml
+            };
+        }
+        return {
+            targetText: seg.targetText || '',
+            targetTags: seg.targetTags || [],
+            sourceTags: seg.sourceTags,
+            baseRprXml: seg.baseRprXml
+        };
+    }
+
+    function segmentsWithEditorTargetsForExport(dbSegs) {
+        if (!Array.isArray(dbSegs)) return dbSegs;
+        return dbSegs.map((seg) => {
+            const p = resolveExportTargetPayload(seg);
+            return {
+                ...seg,
+                targetText: p.targetText,
+                targetTags: p.targetTags,
+                sourceTags: p.sourceTags != null ? p.sourceTags : seg.sourceTags,
+                baseRprXml: p.baseRprXml != null ? p.baseRprXml : seg.baseRprXml
+            };
+        });
+    }
+
+    /** 匯出前：將畫面上譯文欄內容寫入 DB，避免 debounce 未完成時匯出仍為舊 target_text */
     async function flushTargetEditorsToDbForExport() {
         if (!currentFileId || !currentSegmentsList || !currentSegmentsList.length) return;
         const grid = document.getElementById('gridBody');
@@ -8804,12 +8858,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!currentFileId) return;
         try {
             exportBtn.disabled = true; exportBtn.textContent = '匯出中...';
-            const isXliffFamily = currentFileFormat === 'xliff' || currentFileFormat === 'mqxliff' || currentFileFormat === 'sdlxliff';
-            if (!isXliffFamily) {
-                await flushTargetEditorsToDbForExport();
-            }
+            await flushTargetEditorsToDbForExport();
             const f    = await DBService.getFile(currentFileId);
-            const segs = await DBService.getSegmentsByFile(currentFileId);
+            const rawSegs = await DBService.getSegmentsByFile(currentFileId);
+            const segs = segmentsWithEditorTargetsForExport(rawSegs);
 
             const tagIssues = (Xliff && typeof Xliff.validateExportTags === 'function')
                 ? Xliff.validateExportTags(segs)
