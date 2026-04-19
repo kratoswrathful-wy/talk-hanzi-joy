@@ -9552,7 +9552,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return;
                 }
                 try {
-                    await DBService.addPrivateNote({
+                    const id = await DBService.addPrivateNote({
                         projectId: pid,
                         userId: '',
                         content: '',
@@ -9561,11 +9561,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         todoDone: false
                     });
                     await _loadPrivateNotes();
-                    const list = document.getElementById('privateNotesListTodos');
-                    const last = list && list.querySelector('.private-todo-item:last-child .private-todo-input');
-                    if (last) {
-                        last.focus();
-                        last.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    const wrap = document.getElementById(`private-todo-item-${id}`);
+                    if (wrap) {
+                        wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        _startPrivateTodoEdit(
+                            { id, content: '', itemType: 'todo', todoDone: false, updatedAt: new Date().toISOString() },
+                            wrap
+                        );
                     }
                 } catch (err) {
                     console.error(err);
