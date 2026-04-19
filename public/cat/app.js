@@ -8777,55 +8777,66 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     /**
-     * 匯出用譯文：優先編輯器 DOM → currentSegmentsList → DB 句段，避免 DB 未跟上時新舊交雜。
+     * 匯出用譯文：先以 currentSegmentsList 為完整基底（與編輯器狀態一致），再以 DOM 覆寫可編輯列，
+     * 避免逐句掃描列時遺漏或與 DB 快照混用造成新舊交雜。
      */
-    function resolveExportTargetPayload(seg) {
+    function buildExportTargetMap() {
+        const map = new Map();
+        if (Array.isArray(currentSegmentsList)) {
+            for (let i = 0; i < currentSegmentsList.length; i++) {
+                const s = currentSegmentsList[i];
+                map.set(String(s.id), {
+                    targetText: s.targetText || '',
+                    targetTags: Array.isArray(s.targetTags) ? s.targetTags : [],
+                    sourceTags: s.sourceTags,
+                    baseRprXml: s.baseRprXml
+                });
+            }
+        }
         const grid = document.getElementById('gridBody');
         if (grid) {
             const rowList = grid.querySelectorAll('.grid-data-row');
             for (let i = 0; i < rowList.length; i++) {
                 const row = rowList[i];
-                if (String(parseId(row.dataset.segId)) !== String(seg.id)) continue;
+                const sid = String(parseId(row.dataset.segId));
                 const targetInput = row.querySelector('.col-target .grid-textarea');
-                if (!targetInput) break;
-                if (targetInput.getAttribute('contenteditable') === 'false') break;
-                const merged = currentSegmentsList.find((x) => String(x.id) === String(seg.id));
-                const targetText = extractTextFromEditor(targetInput);
-                const targetTags = (merged && merged.targetTags && merged.targetTags.length)
-                    ? merged.targetTags
-                    : (seg.targetTags || []);
-                const sourceTags = merged ? (merged.sourceTags || seg.sourceTags) : seg.sourceTags;
-                const baseRprXml = merged && merged.baseRprXml != null ? merged.baseRprXml : seg.baseRprXml;
-                return { targetText, targetTags, sourceTags, baseRprXml };
+                if (!targetInput || targetInput.getAttribute('contenteditable') === 'false') continue;
+                const domText = extractTextFromEditor(targetInput);
+                const merged = currentSegmentsList && currentSegmentsList.find((x) => String(x.id) === sid);
+                const base = map.get(sid) || { targetText: '', targetTags: [], sourceTags: undefined, baseRprXml: undefined };
+                map.set(sid, {
+                    targetText: domText,
+                    targetTags: (merged && merged.targetTags && merged.targetTags.length)
+                        ? merged.targetTags
+                        : (base.targetTags || []),
+                    sourceTags: merged ? (merged.sourceTags || base.sourceTags) : base.sourceTags,
+                    baseRprXml: merged && merged.baseRprXml != null ? merged.baseRprXml : base.baseRprXml
+                });
             }
         }
-        const merged = currentSegmentsList.find((x) => String(x.id) === String(seg.id));
-        if (merged) {
-            return {
-                targetText: merged.targetText || '',
-                targetTags: (merged.targetTags && merged.targetTags.length) ? merged.targetTags : (seg.targetTags || []),
-                sourceTags: merged.sourceTags || seg.sourceTags,
-                baseRprXml: merged.baseRprXml != null ? merged.baseRprXml : seg.baseRprXml
-            };
-        }
-        return {
-            targetText: seg.targetText || '',
-            targetTags: seg.targetTags || [],
-            sourceTags: seg.sourceTags,
-            baseRprXml: seg.baseRprXml
-        };
+        return map;
     }
 
     function segmentsWithEditorTargetsForExport(dbSegs) {
         if (!Array.isArray(dbSegs)) return dbSegs;
+        const exportMap = buildExportTargetMap();
         return dbSegs.map((seg) => {
-            const p = resolveExportTargetPayload(seg);
+            const p = exportMap.get(String(seg.id));
+            if (p) {
+                return {
+                    ...seg,
+                    targetText: p.targetText,
+                    targetTags: p.targetTags,
+                    sourceTags: p.sourceTags != null ? p.sourceTags : seg.sourceTags,
+                    baseRprXml: p.baseRprXml != null ? p.baseRprXml : seg.baseRprXml
+                };
+            }
             return {
                 ...seg,
-                targetText: p.targetText,
-                targetTags: p.targetTags,
-                sourceTags: p.sourceTags != null ? p.sourceTags : seg.sourceTags,
-                baseRprXml: p.baseRprXml != null ? p.baseRprXml : seg.baseRprXml
+                targetText: seg.targetText || '',
+                targetTags: seg.targetTags || [],
+                sourceTags: seg.sourceTags,
+                baseRprXml: seg.baseRprXml
             };
         });
     }
@@ -8883,7 +8894,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return;
                 }
                 const originalData = new Uint8Array(f.originalFileBuffer);
-                const wb = XLSX.read(originalData, { type: 'array' });
+                // cellStyles：盡量讀入儲存格樣式；寫出時一併指定以保留底色／格式（Community 版仍可能有極限）
+                const wb = XLSX.read(originalData, { type: 'array', cellStyles: true, cellNF: true });
                 const XlsxRich = window.CatToolXlsxRichTags;
 
                 let excelWriteCount = 0;
@@ -8903,7 +8915,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     excelWriteCount++;
                     const cellRef = XLSX.utils.encode_cell({ r: s.rowIdx, c: s.colTgt });
-                    if (!sheet[cellRef]) sheet[cellRef] = { t: 's', v: '' };
+                    const prevCell = sheet[cellRef];
+                    const cell = prevCell && typeof prevCell === 'object' ? { ...prevCell } : {};
 
                     const hasTags = s.targetTags && s.targetTags.length > 0;
                     if (hasTags && XlsxRich) {
@@ -8916,17 +8929,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                         );
                         // 純文字備份值（去掉佔位符）
                         const plainVal = (s.targetText || '').replace(/\{\/?\d+\}/g, '');
-                        sheet[cellRef].t = 's';
-                        sheet[cellRef].v = plainVal;
-                        sheet[cellRef].r = richXml;
-                        delete sheet[cellRef].h; // 清除 SheetJS 快取的 html
+                        cell.t = 's';
+                        cell.v = plainVal;
+                        cell.r = richXml;
+                        delete cell.h; // 清除 SheetJS 快取的 html
                     } else {
                         // 無 Rich Text tag：直接寫入純文字
-                        sheet[cellRef].t = 's';
-                        sheet[cellRef].v = s.targetText || '';
-                        sheet[cellRef].r = s.targetText || '';
-                        delete sheet[cellRef].h;
+                        cell.t = 's';
+                        cell.v = s.targetText || '';
+                        cell.r = s.targetText || '';
+                        delete cell.h;
                     }
+                    sheet[cellRef] = cell;
                 });
 
                 if (couldWriteSegs.length > 0 && excelWriteCount === 0) {
@@ -8935,7 +8949,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     console.warn('[CAT] Excel 匯出：部分句段找不到對應工作表，已略過', excelSkipNoSheet, '句');
                 }
 
-                XLSX.writeFile(wb, `Translated_${f.name}`);
+                XLSX.writeFile(wb, `Translated_${f.name}`, { bookType: 'xlsx', cellStyles: true });
             }
         } catch (e) {
             alert('匯出發生錯誤: ' + e.message);
