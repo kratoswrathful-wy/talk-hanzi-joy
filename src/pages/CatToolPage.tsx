@@ -223,7 +223,9 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
       .neq("status", "cancelled")
       .order("assigned_at", { ascending: false });
 
-    iframe.contentWindow.postMessage(
+    const liveWindow = iframeRef.current?.contentWindow;
+    if (!liveWindow) return;
+    liveWindow.postMessage(
       {
         type: "TMS_ASSIGNMENTS",
         payload: {
@@ -268,7 +270,9 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         roles: rolesByUserId.get(p.id) ?? [],
       }));
 
-    iframe.contentWindow.postMessage(
+    const liveWindow = iframeRef.current?.contentWindow;
+    if (!liveWindow) return;
+    liveWindow.postMessage(
       {
         type: "TMS_ASSIGNABLE_USERS",
         payload: {
