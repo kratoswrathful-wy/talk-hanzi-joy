@@ -438,6 +438,13 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     display: none;
 }
 .panel-content.active { display: block; overflow-y: auto; }
+/* QA tab：flex 容器 */
+#tabQA.panel-content.active {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+}
 /* CAT：比對結果 + 追蹤修訂 + 可調高度 */
 #tabCAT.panel-content.active {
     display: flex;
@@ -1169,26 +1176,34 @@ mark.search-match {
     align-self: flex-start;
     padding-top: 0.12rem;
 }
-.private-todo-input {
-    width: 100%;
-    box-sizing: border-box;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    padding: 0.15rem 0.35rem;
+.private-todo-body {
     font-size: 0.85rem;
-    line-height: 1.45;
-    background: transparent;
+    line-height: 1.5;
     color: #1e293b;
+    padding: 0.15rem 0.35rem;
+    min-height: 1.6rem;
+    word-break: break-word;
 }
-.private-todo-input:hover { border-color: #e2e8f0; }
-.private-todo-input:focus {
-    outline: none;
-    border-color: #94a3b8;
-    background: #fff;
-}
-.private-todo-item.is-done .private-todo-input {
+.private-todo-item.is-done .private-todo-body .private-todo-text {
     text-decoration: line-through;
     color: #94a3b8;
+}
+.private-todo-edit-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #94a3b8;
+    border-radius: 4px;
+    padding: 0.25rem 0.4rem;
+    font-size: 0.85rem;
+    line-height: 1.45;
+    resize: vertical;
+    font-family: inherit;
+    background: #fff;
+    color: #1e293b;
+}
+.private-todo-edit-textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
 }
 
 /* 版本記錄 */
@@ -1410,6 +1425,40 @@ mark.tm-search-hit {
 }
 
 /* ── QA 分頁 ─────────────────────────────────────────── */
+.qa-check-group {
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+.qa-collapse-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+    text-align: left;
+}
+.qa-collapse-btn:hover { background: #f1f5f9; }
+.qa-collapse-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.1rem 0.75rem 0.4rem;
+}
+.qa-check-label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    color: #475569;
+    cursor: pointer;
+}
+.qa-range-input:disabled { opacity: 0.45; }
 .qa-options-bar {
     display: flex;
     align-items: center;

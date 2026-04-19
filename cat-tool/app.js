@@ -8391,48 +8391,76 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function runQaChecks(segs, options) {
-        const { fromIdx, toIdx, includeLocked } = options || {};
+        const { fromIdx, toIdx, includeLocked,
+                checkTerms = true, checkTags = true, checkConsistency = true } = options || {};
         const results = [];
 
         // 依原始排序（globalId or rowIdx+1）決定範圍索引
         const originalOrdered = [...segs].sort((a, b) => (a.rowIdx ?? 0) - (b.rowIdx ?? 0));
 
+        // 先建立範圍內有譯文的句段清單（供一致性檢查用）
+        const filteredSegs = [];
         for (let oi = 0; oi < originalOrdered.length; oi++) {
             const s = originalOrdered[oi];
-            const gid = s.globalId || (s.rowIdx + 1);
-            const rangeIdx = oi + 1; // 1-based
-
+            const rangeIdx = oi + 1;
             if (fromIdx != null && rangeIdx < fromIdx) continue;
             if (toIdx != null && rangeIdx > toIdx) continue;
             if (!includeLocked && (isDynamicForbidden(s) || s.isLockedUser)) continue;
-            if (!s.targetText || !s.targetText.trim()) continue; // 未譯跳過
+            if (!s.targetText || !s.targetText.trim()) continue;
+            filteredSegs.push({ s, gid: s.globalId || (s.rowIdx + 1) });
+        }
 
+        // 譯文一致性：建立 sourceText → Set<targetText>
+        let consistencyMap = null;
+        if (checkConsistency) {
+            consistencyMap = new Map();
+            for (const { s } of filteredSegs) {
+                const src = (s.sourceText || '').trim();
+                if (!src) continue;
+                if (!consistencyMap.has(src)) consistencyMap.set(src, new Set());
+                consistencyMap.get(src).add((s.targetText || '').trim());
+            }
+        }
+
+        for (const { s, gid } of filteredSegs) {
             // Tag 完整性檢查
-            const srcIds = (s.sourceTags || []).map(t => String(t.id ?? t.num ?? t.index ?? ''));
-            const tgtIds = (s.targetTags || []).map(t => String(t.id ?? t.num ?? t.index ?? ''));
-            if (srcIds.length > 0) {
-                const srcSet = new Set(srcIds);
-                const tgtSet = new Set(tgtIds);
-                const missing = srcIds.filter(id => id && !tgtSet.has(id));
-                const extra = tgtIds.filter(id => id && !srcSet.has(id));
-                const hasMissing = [...new Set(missing)].length > 0;
-                const hasExtra = [...new Set(extra)].length > 0;
-                if (hasMissing || hasExtra) {
-                    const detail = hasMissing
-                        ? '缺少 tag：{' + [...new Set(missing)].join('}, {') + '}'
-                        : '多餘 tag：{' + [...new Set(extra)].join('}, {') + '}';
-                    results.push({ segId: s.id, gid, type: 'Tag 檢查', info: detail, key: `${gid}:tag` });
+            if (checkTags) {
+                const srcIds = (s.sourceTags || []).map(t => String(t.id ?? t.num ?? t.index ?? ''));
+                const tgtIds = (s.targetTags || []).map(t => String(t.id ?? t.num ?? t.index ?? ''));
+                if (srcIds.length > 0) {
+                    const srcSet = new Set(srcIds);
+                    const tgtSet = new Set(tgtIds);
+                    const missing = srcIds.filter(id => id && !tgtSet.has(id));
+                    const extra = tgtIds.filter(id => id && !srcSet.has(id));
+                    const hasMissing = [...new Set(missing)].length > 0;
+                    const hasExtra = [...new Set(extra)].length > 0;
+                    if (hasMissing || hasExtra) {
+                        const detail = hasMissing
+                            ? '缺少 tag：{' + [...new Set(missing)].join('}, {') + '}'
+                            : '多餘 tag：{' + [...new Set(extra)].join('}, {') + '}';
+                        results.push({ segId: s.id, gid, type: 'Tag 檢查', info: detail, key: `${gid}:tag` });
+                    }
                 }
             }
 
             // TB 術語未套用
-            if (window.ActiveTbTerms && window.ActiveTbTerms.length > 0) {
+            if (checkTerms && window.ActiveTbTerms && window.ActiveTbTerms.length > 0) {
                 for (const term of window.ActiveTbTerms) {
                     if (!term.source || !term.target) continue;
                     if ((s.sourceText || '').includes(term.source) && !(s.targetText || '').includes(term.target)) {
                         const detail = `「${term.source}」→「${term.target}」`;
                         results.push({ segId: s.id, gid, type: '術語未套用', info: detail, key: `${gid}:tb:${term.source}` });
                     }
+                }
+            }
+
+            // 譯文一致性
+            if (checkConsistency && consistencyMap) {
+                const src = (s.sourceText || '').trim();
+                const variants = src ? consistencyMap.get(src) : null;
+                if (variants && variants.size > 1) {
+                    results.push({ segId: s.id, gid, type: '譯文不一致',
+                        info: `此原文有 ${variants.size} 種不同譯文`, key: `${gid}:consistency` });
                 }
             }
         }
@@ -8448,6 +8476,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const hideIgnored = document.getElementById('qaHideIgnored')?.checked;
         const tagCount = _qaResults.filter(r => r.type === 'Tag 檢查').length;
         const tbCount = _qaResults.filter(r => r.type === '術語未套用').length;
+        const conCount = _qaResults.filter(r => r.type === '譯文不一致').length;
 
         if (_qaResults.length === 0) {
             table.style.display = 'none';
@@ -8457,7 +8486,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         statusEl.style.color = '#b45309';
-        statusEl.textContent = `發現 ${_qaResults.length} 個問題（Tag: ${tagCount}，術語: ${tbCount}）`;
+        const parts = [];
+        if (tagCount) parts.push(`Tag: ${tagCount}`);
+        if (tbCount) parts.push(`術語: ${tbCount}`);
+        if (conCount) parts.push(`一致性: ${conCount}`);
+        statusEl.textContent = `發現 ${_qaResults.length} 個問題（${parts.join('，')}）`;
         table.style.display = '';
 
         tbody.innerHTML = '';
@@ -8506,16 +8539,48 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // QA 折疊檢查項目
+    const btnQaCollapse = document.getElementById('btnQaCollapseChecks');
+    if (btnQaCollapse) {
+        btnQaCollapse.addEventListener('click', () => {
+            const body = document.getElementById('qaChecksBody');
+            if (!body) return;
+            const collapsed = body.style.display === 'none';
+            body.style.display = collapsed ? '' : 'none';
+            btnQaCollapse.textContent = (collapsed ? '▾' : '▸') + ' 檢查項目';
+        });
+    }
+
+    // QA 句段範圍核取方塊（啟用/停用輸入框）
+    const qaUseRangeCb = document.getElementById('qaUseRange');
+    const qaRangeFromEl = document.getElementById('qaRangeFrom');
+    const qaRangeToEl = document.getElementById('qaRangeTo');
+    if (qaUseRangeCb) {
+        qaUseRangeCb.addEventListener('change', () => {
+            const enabled = qaUseRangeCb.checked;
+            if (qaRangeFromEl) qaRangeFromEl.disabled = !enabled;
+            if (qaRangeToEl) qaRangeToEl.disabled = !enabled;
+            if (!enabled) {
+                if (qaRangeFromEl) qaRangeFromEl.value = '';
+                if (qaRangeToEl) qaRangeToEl.value = '';
+            }
+        });
+    }
+
     // QA 按鈕事件
     const btnRunQA = document.getElementById('btnRunQA');
     if (btnRunQA) {
         btnRunQA.addEventListener('click', () => {
-            const fromVal = document.getElementById('qaRangeFrom')?.value;
-            const toVal = document.getElementById('qaRangeTo')?.value;
+            const useRange = document.getElementById('qaUseRange')?.checked ?? false;
+            const fromVal = useRange ? document.getElementById('qaRangeFrom')?.value : null;
+            const toVal = useRange ? document.getElementById('qaRangeTo')?.value : null;
             const fromIdx = fromVal ? parseInt(fromVal, 10) : null;
             const toIdx = toVal ? parseInt(toVal, 10) : null;
             const includeLocked = document.getElementById('qaIncludeLocked')?.checked ?? false;
-            _qaResults = runQaChecks(currentSegmentsList, { fromIdx, toIdx, includeLocked });
+            const checkTerms = document.getElementById('qaCheckTerms')?.checked ?? true;
+            const checkTags = document.getElementById('qaCheckTags')?.checked ?? true;
+            const checkConsistency = document.getElementById('qaCheckConsistency')?.checked ?? true;
+            _qaResults = runQaChecks(currentSegmentsList, { fromIdx, toIdx, includeLocked, checkTerms, checkTags, checkConsistency });
             renderQaResults();
         });
     }
@@ -9619,7 +9684,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         _noteQuills = {};
         Object.keys(_privateNoteEditQuills).forEach((k) => { delete _privateNoteEditQuills[k]; });
         const noteRows = notes.filter((n) => privateNoteItemType(n) === 'note');
-        const todoRows = notes.filter((n) => privateNoteItemType(n) === 'todo');
+        const todoRows = notes
+            .filter((n) => privateNoteItemType(n) === 'todo')
+            .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
         listNotes.innerHTML = '';
         listTodos.innerHTML = '';
         if (!noteRows.length) {
@@ -9724,28 +9791,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <input type="checkbox" class="private-todo-cb" ${done ? 'checked' : ''} aria-label="完成待辦">
                 </div>
                 <div class="guideline-item-main">
-                    <input type="text" class="private-todo-input" value="${textVal}" placeholder="待辦內容…" spellcheck="false">
+                    <div class="private-todo-body" id="pt-body-${note.id}">${textVal
+                        ? `<span class="private-todo-text">${textVal}</span>`
+                        : '<span class="guideline-item-empty">（無內容）</span>'}</div>
                 </div>
                 <div class="guideline-item-aside">
                     <div class="guideline-item-aside-inner">
                         <span class="guideline-item-meta-combined">${at}</span>
-                        <div class="note-item-actions guideline-item-aside-actions">
+                        <div class="note-item-actions guideline-item-aside-actions pt-aside-${note.id}">
+                            <button type="button" class="pt-edit-btn" title="編輯">✏️</button>
                             <button type="button" class="pt-del-btn danger" title="刪除">🗑</button>
                         </div>
                     </div>
                 </div>
             </div>`;
         const cb = wrap.querySelector('.private-todo-cb');
-        const input = wrap.querySelector('.private-todo-input');
-        let saveTimer = null;
-        const saveText = async () => {
-            const t = input ? input.value : '';
-            await DBService.updatePrivateNote(parseId(note.id), { content: t });
-        };
-        input?.addEventListener('input', () => {
-            clearTimeout(saveTimer);
-            saveTimer = setTimeout(saveText, 450);
-        });
         cb?.addEventListener('change', async () => {
             const checked = !!cb.checked;
             wrap.classList.toggle('is-done', checked);
@@ -9755,12 +9815,51 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.error(err);
             }
         });
+        wrap.querySelector('.pt-edit-btn')?.addEventListener('click', () => _startPrivateTodoEdit(note, wrap));
         wrap.querySelector('.pt-del-btn')?.addEventListener('click', async () => {
             if (!confirm('確定刪除此待辦？')) return;
             await DBService.deletePrivateNote(parseId(note.id));
             await _loadPrivateNotes();
         });
         return wrap;
+    }
+
+    function _startPrivateTodoEdit(note, wrap) {
+        const bodyEl = wrap.querySelector(`#pt-body-${note.id}`);
+        if (!bodyEl) return;
+        const currentText = todoPlainTextFromStored(note.content);
+        bodyEl.innerHTML = '';
+        const ta = document.createElement('textarea');
+        ta.className = 'private-todo-edit-textarea';
+        ta.value = currentText;
+        ta.placeholder = '待辦內容…';
+        ta.rows = 3;
+        bodyEl.appendChild(ta);
+        ta.focus();
+        ta.setSelectionRange(ta.value.length, ta.value.length);
+        const acts = wrap.querySelector(`.pt-aside-${note.id}`) || wrap.querySelector('.note-item-actions');
+        if (acts) {
+            acts.innerHTML = `
+                <button type="button" class="pt-save-btn primary-btn btn-sm">儲存</button>
+                <button type="button" class="pt-cancel-btn secondary-btn btn-sm">取消</button>`;
+        }
+        wrap.querySelector('.pt-save-btn')?.addEventListener('click', async () => {
+            const t = ta.value.trim();
+            try {
+                await DBService.updatePrivateNote(parseId(note.id), { content: t });
+                await _loadPrivateNotes();
+            } catch (err) {
+                console.error(err);
+                alert(err && err.message ? String(err.message) : '儲存失敗');
+            }
+        });
+        wrap.querySelector('.pt-cancel-btn')?.addEventListener('click', async () => {
+            const t = ta.value.trim();
+            if (!t && !todoPlainTextFromStored(note.content).trim()) {
+                try { await DBService.deletePrivateNote(parseId(note.id)); } catch (_) {}
+            }
+            await _loadPrivateNotes();
+        });
     }
 
     // ---- Shared info ----

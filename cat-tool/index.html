@@ -669,13 +669,23 @@
                                 <div id="newTermStatus" style="font-size:0.8rem; color:#16a34a; margin-top:0.35rem; display:none;"></div>
                             </div>
                         </div>
-                        <div class="panel-content" id="tabQA" style="display:flex; flex-direction:column; gap:0; padding:0; overflow:hidden;">
+                        <div class="panel-content" id="tabQA">
+                            <!-- QA 可折疊檢查項目 -->
+                            <div class="qa-check-group">
+                                <button class="qa-collapse-btn" id="btnQaCollapseChecks">▾ 檢查項目</button>
+                                <div class="qa-collapse-body" id="qaChecksBody">
+                                    <label class="qa-check-label"><input type="checkbox" id="qaCheckTerms" checked> 術語是否有遺漏或錯誤</label>
+                                    <label class="qa-check-label"><input type="checkbox" id="qaCheckTags" checked> Tag 是否有遺漏</label>
+                                    <label class="qa-check-label"><input type="checkbox" id="qaCheckConsistency" checked> 原文相同但譯文不一致</label>
+                                </div>
+                            </div>
                             <!-- QA 選項列 -->
                             <div class="qa-options-bar">
-                                <span class="qa-label">句段範圍：</span>
-                                <input type="number" id="qaRangeFrom" class="qa-range-input" min="1" placeholder="起始">
+                                <input type="checkbox" id="qaUseRange" title="勾選後僅檢查指定範圍的句段，取消勾選則檢查所有句段">
+                                <span class="qa-label" title="以原始匯入順序的句段編號為準，不受篩選排序影響" style="cursor:help;">句段範圍：</span>
+                                <input type="number" id="qaRangeFrom" class="qa-range-input" min="1" placeholder="起始" disabled>
                                 <span class="qa-label" style="padding:0 2px;">—</span>
-                                <input type="number" id="qaRangeTo" class="qa-range-input" min="1" placeholder="結束">
+                                <input type="number" id="qaRangeTo" class="qa-range-input" min="1" placeholder="結束" disabled>
                                 <label class="qa-label" style="margin-left:0.5rem; display:flex; align-items:center; gap:3px;">
                                     <input type="checkbox" id="qaIncludeLocked"> 含鎖定
                                 </label>
@@ -732,7 +742,7 @@
                             <div>句段：<span id="statusBarSegments" style="font-weight:600; color:#111;">0 / 0</span></div>
                             <div>字數 (Words)：<span id="statusBarWords" style="font-weight:600; color:#111;">0 / 0</span></div>
                         </div>
-                        <button id="btnProgressRange" title="設定統計範圍" style="margin-left:0.4rem; background:none; border:none; cursor:pointer; font-size:0.88rem; color:#64748b; padding:0 0.2rem; line-height:1; position:relative; z-index:1;">⚙</button>
+                        <button id="btnProgressRange" title="設定統計範圍" style="margin-left:0.5rem; background:none; border:1px solid #cbd5e1; border-radius:4px; cursor:pointer; font-size:0.78rem; color:#64748b; padding:2px 8px; line-height:1.5; position:relative; z-index:1; white-space:nowrap;">調整統計範圍</button>
                     </div>
                     <div id="progressRangeLabel" style="font-size:0.78rem; color:#7c3aed; display:none; font-weight:500;"></div>
                     <div style="flex:1; text-align:right;">快捷鍵: <kbd style="background:#e2e8f0; padding:2px 6px; border-radius:4px; color:#334155;">Ctrl+Enter</kbd> 確認句段並跳至下一行</div>
