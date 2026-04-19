@@ -2164,7 +2164,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        files.forEach(f => {
+        files.forEach((f, idx) => {
             const tr = document.createElement('tr');
             const nameEsc = (f.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const modStr = f.lastModified ? new Date(f.lastModified).toLocaleString('zh-TW') : '—';
@@ -2199,7 +2199,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const assignTitle = assignPlain.replace(/"/g, '&quot;');
             tr.innerHTML = `
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="project-file-row-cb" data-id="${f.id}"></td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${f.id}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${idx + 1}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="edit-file-btn" data-id="${f.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a></td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${fileLangHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:80px;">${roleStr}</td>
@@ -5000,6 +5000,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let sfPresets = JSON.parse(localStorage.getItem('catToolSfPresets') || '{}');
     let lastEditedRowIdx = null; // Track cursor position
     let selectedRowIds = new Set(); // Track selected segment IDs
+    /** 若設為數字，renderEditorSegments 結束後將焦點移到該句段譯文欄 */
+    let _pendingFocusSegIdxAfterRender = null;
     let lastSelectedRowIdx = null; // Track last clicked for Shift-select
     let isBatchOpInProgress = false; // 批次操作進行中時，阻止 focusin 清除選取狀態
     
@@ -5665,7 +5667,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function getSegmentFieldText(seg, segIdx, fieldKey) {
-        const row = document.querySelectorAll('.grid-data-row')[segIdx];
+        const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : document.querySelectorAll('.grid-data-row');
+        const row = rows[segIdx];
         if (fieldKey === 'target' && row) {
             const ta = row.querySelector('.grid-textarea');
             if (ta) return extractTextFromEditor(ta);
@@ -5842,7 +5845,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (st !== undefined) seg.status = st;
         if (tags !== undefined) seg.targetTags = tags ? tags.map(t => ({ ...t })) : [];
 
-        const row = document.querySelectorAll('.grid-data-row')[segIdx];
+        const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : document.querySelectorAll('.grid-data-row');
+        const row = rows[segIdx];
         if (row) {
             const ta = row.querySelector('.grid-textarea');
             if (ta) {
@@ -5911,7 +5915,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const seg = currentSegmentsList[segIdx];
             const snap = isUndo ? it.beforeSnap : it.afterSnap;
             applySegSnapshotToModel(seg, snap);
-            const row = document.querySelectorAll('.grid-data-row')[segIdx];
+            const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : document.querySelectorAll('.grid-data-row');
+            const row = rows[segIdx];
             if (row) {
                 const ta = row.querySelector('.grid-textarea');
                 if (ta) {
@@ -6083,7 +6088,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function setSegmentFieldText(seg, segIdx, fieldKey, newText) {
-        const row = document.querySelectorAll('.grid-data-row')[segIdx];
+        const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : document.querySelectorAll('.grid-data-row');
+        const row = rows[segIdx];
         if (fieldKey === 'target') {
             seg.targetText = newText;
             if (row) {
@@ -6223,18 +6229,89 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    function updateSfReplaceAllButtonLabel() {
+        if (!btnSfReplaceAll) return;
+        const multi = selectedRowIds && selectedRowIds.size > 1;
+        btnSfReplaceAll.textContent = multi ? '在選取範圍取代' : '全部取代';
+    }
+
+    function unconfirmSegmentVisualAfterReplace(seg, segIdx) {
+        seg.status = 'unconfirmed';
+        const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+        const row = rows[segIdx];
+        if (row) {
+            row.style.backgroundColor = '';
+            row.classList.remove('row-bg-confirmed');
+            const si = row.querySelector('.status-icon');
+            if (si) {
+                si.classList.remove('done');
+                if (currentFileFormat === 'mqxliff') si.innerHTML = '';
+            }
+        }
+        const ex = currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {};
+        DBService.updateSegmentStatus(seg.id, 'unconfirmed', ex).catch(console.error);
+    }
+
+    const AFTER_CONFIRM_NAV_KEY = 'catToolAfterConfirmNav';
+    let confirmSideEffectChain = Promise.resolve();
+
+    function enqueueConfirmSideEffects(fn) {
+        confirmSideEffectChain = confirmSideEffectChain.then(() => fn()).catch((err) => console.error(err));
+        return confirmSideEffectChain;
+    }
+
+    function getAfterConfirmNavMode() {
+        return localStorage.getItem(AFTER_CONFIRM_NAV_KEY) || 'nextUnconfirmed';
+    }
+
+    function rowIndexHasEditableTarget(segIdx) {
+        const s = currentSegmentsList[segIdx];
+        if (!s) return false;
+        return !isDynamicForbidden(s) && !s.isLockedUser;
+    }
+
+    /** @returns {number|null} 下一個焦點句段索引，無則 null */
+    function getAfterConfirmFocusIndex(currentIndex) {
+        const mode = getAfterConfirmNavMode();
+        const n = currentSegmentsList.length;
+        if (n === 0) return null;
+        if (mode === 'nextRow') {
+            for (let j = currentIndex + 1; j < n; j++) {
+                if (rowIndexHasEditableTarget(j)) return j;
+            }
+            return null;
+        }
+        for (let j = currentIndex + 1; j < n; j++) {
+            const s = currentSegmentsList[j];
+            if (s && s.status !== 'confirmed' && rowIndexHasEditableTarget(j)) return j;
+        }
+        return null;
+    }
+
+    function focusTargetEditorAtSegmentIndex(segIdx) {
+        if (segIdx == null || segIdx < 0) return;
+        const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+        const row = rows[segIdx];
+        if (!row) return;
+        const ed = row.querySelector('.grid-textarea');
+        if (ed && ed.contentEditable !== 'false') {
+            row.scrollIntoView({ block: 'nearest' });
+            ed.focus();
+        }
+    }
+
     async function performReplaceAll() {
         const term = sfInput.value;
         const replaceTerm = sfReplaceInput ? sfReplaceInput.value : '';
         if (!term || !currentSegmentsList.length) return;
-        const rows = document.querySelectorAll('.grid-data-row');
-        const hasSelection = selectedRowIds && selectedRowIds.size > 0;
+        const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+        const multiSelection = selectedRowIds && selectedRowIds.size > 1;
         const pending = [];
         currentSegmentsList.forEach((seg, segIdx) => {
             if (seg.isLocked) return;
             const row = rows[segIdx];
-            if (hasSelection && !selectedRowIds.has(seg.id)) return;
-            if (!hasSelection && row && row.style.display === 'none') return;
+            if (multiSelection && !selectedRowIds.has(seg.id)) return;
+            if (!multiSelection && row && row.style.display === 'none') return;
             const text = getSegmentFieldText(seg, segIdx, 'target');
             const newText = doReplaceInText(text, term, replaceTerm, sfUseRegexChecked, false);
             if (newText !== text) pending.push({ seg, segIdx, text, newText });
@@ -6248,15 +6325,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         const bundle = [];
         let replacedCount = 0;
         pending.forEach((p) => {
+            const oldStatus = p.seg.status;
+            const newStatus = oldStatus === 'confirmed' ? 'unconfirmed' : oldStatus;
             bundle.push({
                 kind: 'target',
                 segmentId: p.seg.id,
                 oldTarget: p.text,
                 newTarget: p.newText,
                 oldMatchValue: p.seg.matchValue,
-                newMatchValue: p.seg.matchValue
+                newMatchValue: p.seg.matchValue,
+                oldStatus,
+                newStatus
             });
             setSegmentFieldText(p.seg, p.segIdx, 'target', p.newText);
+            if (oldStatus === 'confirmed') {
+                unconfirmSegmentVisualAfterReplace(p.seg, p.segIdx);
+            }
             replacedCount++;
         });
         if (bundle.length) pushUndoEntry({ kind: 'compound', entries: bundle });
@@ -6539,37 +6623,63 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const s = currentSegmentsList[idx];
                 beforeSnapshots[s.id] = snapshotSegForUndo(s);
             });
-            let tmU = [];
-            let tmR = [];
             for (const i of indices) {
                 const seg = currentSegmentsList[i];
                 if (seg.status !== 'confirmed') {
                     seg.status = 'confirmed';
                     if (currentFileFormat === 'mqxliff') seg.confirmationRole = resolveConfirmationRole(seg);
-                    const extra = currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {};
-                    await DBService.updateSegmentStatus(seg.id, seg.status, extra);
                 }
-                mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
-                if (seg.repetitionType) mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
             }
-            const afterSnapshots = {};
-            touchAll.forEach(idx => {
-                const s = currentSegmentsList[idx];
-                afterSnapshots[s.id] = snapshotSegForUndo(s);
+            const dbWaits = [];
+            indices.forEach((i) => {
+                const seg = currentSegmentsList[i];
+                const bs = beforeSnapshots[seg.id];
+                if (bs && bs.status !== 'confirmed' && seg.status === 'confirmed') {
+                    const extra = currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {};
+                    dbWaits.push(DBService.updateSegmentStatus(seg.id, seg.status, extra));
+                }
             });
-            let changed = tmU.length > 0 || tmR.length > 0;
-            for (const id of Object.keys(beforeSnapshots)) {
-                if (JSON.stringify(beforeSnapshots[id]) !== JSON.stringify(afterSnapshots[id])) changed = true;
-            }
-            if (changed) {
-                pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
-            }
+            await Promise.all(dbWaits);
+            const lastIdx = indices.length ? indices[indices.length - 1] : 0;
+            const focusIdx = getAfterConfirmFocusIndex(lastIdx);
+            _pendingFocusSegIdxAfterRender = focusIdx;
             updateProgress();
             renderEditorSegments();
-            const ar = document.querySelector('.grid-data-row.active-row');
-            const aid = ar ? parseId(ar.dataset.segId) : null;
-            const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
-            if (activeSeg) renderLiveTmMatches(activeSeg);
+
+            enqueueConfirmSideEffects(async () => {
+                try {
+                    const tmU = [];
+                    const tmR = [];
+                    for (const i of indices) {
+                        const seg = currentSegmentsList[i];
+                        mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
+                        if (seg.repetitionType) mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
+                    }
+                    const afterSnapshots = {};
+                    touchAll.forEach(idx => {
+                        const s = currentSegmentsList[idx];
+                        afterSnapshots[s.id] = snapshotSegForUndo(s);
+                    });
+                    let changed = tmU.length > 0 || tmR.length > 0;
+                    for (const id of Object.keys(beforeSnapshots)) {
+                        if (JSON.stringify(beforeSnapshots[id]) !== JSON.stringify(afterSnapshots[id])) changed = true;
+                    }
+                    if (changed) {
+                        pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
+                    }
+                    updateProgress();
+                    const keepId = focusIdx != null && currentSegmentsList[focusIdx] ? currentSegmentsList[focusIdx].id : null;
+                    renderEditorSegments();
+                    if (keepId != null) {
+                        const idx2 = currentSegmentsList.findIndex(s => s.id === keepId);
+                        queueMicrotask(() => focusTargetEditorAtSegmentIndex(idx2 >= 0 ? idx2 : null));
+                    }
+                    const ar = document.querySelector('.grid-data-row.active-row');
+                    const aid = ar ? parseId(ar.dataset.segId) : null;
+                    const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
+                    if (activeSeg) renderLiveTmMatches(activeSeg);
+                } catch (err) { console.error(err); }
+            });
         })();
     }, true);
 
@@ -7225,6 +7335,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if (selectedRowIds.has(rId)) r.classList.add('selected-row');
                             else r.classList.remove('selected-row');
                         });
+                        updateSfReplaceAllButtonLabel();
                     });
                 }
 
@@ -7360,67 +7471,74 @@ document.addEventListener('DOMContentLoaded', async () => {
                     markEmptySegUserEdited(seg.id);
                 });
 
-                // Ctrl+Enter logic
-                targetInput.addEventListener('keydown', async (e) => {
+                // Ctrl+Enter logic（先焦點，再於背景寫入 DB／TM／傳播／undo）
+                targetInput.addEventListener('keydown', (e) => {
                     if (e.ctrlKey && e.key === 'Enter') {
                         e.preventDefault();
-                        const conflictOk = await resolvePendingRemoteConflict(seg, row, targetInput);
-                        if (!conflictOk) {
-                            queueMicrotask(() => targetInput.focus());
-                            return;
-                        }
-                        const touch = collectConfirmTouchIndices(i);
-                        const beforeSnapshots = {};
-                        touch.forEach(idx => {
-                            const s = currentSegmentsList[idx];
-                            beforeSnapshots[s.id] = snapshotSegForUndo(s);
-                        });
-                        let tmU = [];
-                        let tmR = [];
-                        if (seg.status !== 'confirmed') {
-                            seg.status = 'confirmed';
-                            statusIcon.classList.add('done');
-                            if (!effectiveLocked) row.style.backgroundColor = '#f0fdf4';
-                            if (currentFileFormat === 'mqxliff') {
-                                seg.confirmationRole = resolveConfirmationRole(seg);
+                        void (async () => {
+                            const conflictOk = await resolvePendingRemoteConflict(seg, row, targetInput);
+                            if (!conflictOk) {
+                                queueMicrotask(() => targetInput.focus());
+                                return;
                             }
-                            if (currentFileFormat === 'mqxliff') {
-                                const role = seg.confirmationRole || 'T';
-                                if (role === 'R1') {
-                                    statusIcon.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
-                                } else if (role === 'R2') {
-                                    statusIcon.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
-                                } else {
-                                    statusIcon.innerHTML = '&#10003;';
+                            const touch = collectConfirmTouchIndices(i);
+                            const beforeSnapshots = {};
+                            touch.forEach(idx => {
+                                const s = currentSegmentsList[idx];
+                                beforeSnapshots[s.id] = snapshotSegForUndo(s);
+                            });
+                            const wasUnconfirmed = seg.status !== 'confirmed';
+                            const tmU = [];
+                            const tmR = [];
+                            if (seg.status !== 'confirmed') {
+                                seg.status = 'confirmed';
+                                statusIcon.classList.add('done');
+                                if (!effectiveLocked) row.style.backgroundColor = '#f0fdf4';
+                                if (currentFileFormat === 'mqxliff') {
+                                    seg.confirmationRole = resolveConfirmationRole(seg);
                                 }
+                                if (currentFileFormat === 'mqxliff') {
+                                    const role = seg.confirmationRole || 'T';
+                                    if (role === 'R1') {
+                                        statusIcon.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
+                                    } else if (role === 'R2') {
+                                        statusIcon.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
+                                    } else {
+                                        statusIcon.innerHTML = '&#10003;';
+                                    }
+                                }
+                                updateProgress();
                             }
-                            await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
-                            updateProgress();
-                        }
-                        if (seg.status === 'confirmed') {
-                            mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
-                        }
-                        if (seg.repetitionType) {
-                            mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
-                        }
-                        const afterSnapshots = {};
-                        touch.forEach(idx => {
-                            const s = currentSegmentsList[idx];
-                            afterSnapshots[s.id] = snapshotSegForUndo(s);
-                        });
-                        let changed = tmU.length > 0 || tmR.length > 0;
-                        for (const id of Object.keys(beforeSnapshots)) {
-                            if (JSON.stringify(beforeSnapshots[id]) !== JSON.stringify(afterSnapshots[id])) changed = true;
-                        }
-                        if (changed) {
-                            pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
-                        }
+                            const nextFocus = getAfterConfirmFocusIndex(i);
+                            focusTargetEditorAtSegmentIndex(nextFocus);
 
-                        const nextRow = row.nextElementSibling;
-                        if (nextRow) {
-                            const nextEditor = nextRow.querySelector('.grid-textarea');
-                            if (nextEditor && nextEditor.contentEditable !== 'false') nextEditor.focus();
-                        }
+                            enqueueConfirmSideEffects(async () => {
+                                try {
+                                    if (wasUnconfirmed) {
+                                        await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
+                                        updateProgress();
+                                    }
+                                    if (seg.status === 'confirmed') {
+                                        mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
+                                    }
+                                    if (seg.repetitionType) {
+                                        mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
+                                    }
+                                    const afterSnapshots = {};
+                                    touch.forEach(idx => {
+                                        const s = currentSegmentsList[idx];
+                                        afterSnapshots[s.id] = snapshotSegForUndo(s);
+                                    });
+                                    let changed = tmU.length > 0 || tmR.length > 0;
+                                    for (const id of Object.keys(beforeSnapshots)) {
+                                        if (JSON.stringify(beforeSnapshots[id]) !== JSON.stringify(afterSnapshots[id])) changed = true;
+                                    }
+                                    if (changed) {
+                                        pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
+                                    }
+                                } catch (err) { console.error(err); }
+                            });
+                        })();
                     } else if (e.ctrlKey && e.key === 'ArrowUp') {
                         e.preventDefault();
                         const prevRow = row.previousElementSibling;
@@ -7463,56 +7581,67 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
 
                 // Click icon to toggle
-                statusIcon.addEventListener('click', async () => {
+                statusIcon.addEventListener('click', () => {
                     const willConfirm = seg.status !== 'confirmed';
                     if (willConfirm) {
-                        const targetTa = row.querySelector('.grid-textarea');
-                        if (targetTa) {
-                            const conflictOk = await resolvePendingRemoteConflict(seg, row, targetTa);
-                            if (!conflictOk) {
-                                queueMicrotask(() => targetTa.focus());
-                                return;
+                        void (async () => {
+                            const targetTa = row.querySelector('.grid-textarea');
+                            if (targetTa) {
+                                const conflictOk = await resolvePendingRemoteConflict(seg, row, targetTa);
+                                if (!conflictOk) {
+                                    queueMicrotask(() => targetTa.focus());
+                                    return;
+                                }
                             }
-                        }
-                        const touch = collectConfirmTouchIndices(i);
-                        const beforeSnapshots = {};
-                        touch.forEach(idx => {
-                            const s = currentSegmentsList[idx];
-                            beforeSnapshots[s.id] = snapshotSegForUndo(s);
-                        });
-                        seg.status = 'confirmed';
-                        statusIcon.classList.add('done');
-                        if (!effectiveLocked) row.style.backgroundColor = '#f0fdf4';
-                        if (currentFileFormat === 'mqxliff') {
-                            seg.confirmationRole = resolveConfirmationRole(seg);
-                        }
-                        if (currentFileFormat === 'mqxliff') {
-                            const role = seg.confirmationRole || 'T';
-                            if (role === 'R1') {
-                                statusIcon.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
-                            } else if (role === 'R2') {
-                                statusIcon.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
-                            } else {
-                                statusIcon.innerHTML = '&#10003;';
+                            const touch = collectConfirmTouchIndices(i);
+                            const beforeSnapshots = {};
+                            touch.forEach(idx => {
+                                const s = currentSegmentsList[idx];
+                                beforeSnapshots[s.id] = snapshotSegForUndo(s);
+                            });
+                            seg.status = 'confirmed';
+                            statusIcon.classList.add('done');
+                            if (!effectiveLocked) row.style.backgroundColor = '#f0fdf4';
+                            if (currentFileFormat === 'mqxliff') {
+                                seg.confirmationRole = resolveConfirmationRole(seg);
                             }
-                        }
-                        await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
-                        let tmU = [];
-                        let tmR = [];
-                        mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
-                        if (seg.repetitionType) mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
-                        const afterSnapshots = {};
-                        touch.forEach(idx => {
-                            const s = currentSegmentsList[idx];
-                            afterSnapshots[s.id] = snapshotSegForUndo(s);
-                        });
-                        let changed = tmU.length > 0 || tmR.length > 0;
-                        for (const id of Object.keys(beforeSnapshots)) {
-                            if (JSON.stringify(beforeSnapshots[id]) !== JSON.stringify(afterSnapshots[id])) changed = true;
-                        }
-                        if (changed) {
-                            pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
-                        }
+                            if (currentFileFormat === 'mqxliff') {
+                                const role = seg.confirmationRole || 'T';
+                                if (role === 'R1') {
+                                    statusIcon.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
+                                } else if (role === 'R2') {
+                                    statusIcon.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
+                                } else {
+                                    statusIcon.innerHTML = '&#10003;';
+                                }
+                            }
+                            updateProgress();
+                            const nextFocus = getAfterConfirmFocusIndex(i);
+                            focusTargetEditorAtSegmentIndex(nextFocus);
+
+                            const tmU = [];
+                            const tmR = [];
+                            enqueueConfirmSideEffects(async () => {
+                                try {
+                                    await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
+                                    updateProgress();
+                                    mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
+                                    if (seg.repetitionType) mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
+                                    const afterSnapshots = {};
+                                    touch.forEach(idx => {
+                                        const s = currentSegmentsList[idx];
+                                        afterSnapshots[s.id] = snapshotSegForUndo(s);
+                                    });
+                                    let changed = tmU.length > 0 || tmR.length > 0;
+                                    for (const id of Object.keys(beforeSnapshots)) {
+                                        if (JSON.stringify(beforeSnapshots[id]) !== JSON.stringify(afterSnapshots[id])) changed = true;
+                                    }
+                                    if (changed) {
+                                        pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
+                                    }
+                                } catch (err) { console.error(err); }
+                            });
+                        })();
                     } else {
                         const beforeSnap = snapshotSegForUndo(seg);
                         seg.status = 'unconfirmed';
@@ -7521,11 +7650,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                             statusIcon.innerHTML = '';
                         }
                         row.style.backgroundColor = '';
-                        await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
                         const afterSnap = snapshotSegForUndo(seg);
                         pushUndoEntry({ kind: 'segmentState', items: [{ id: seg.id, beforeSnap, afterSnap }] });
+                        enqueueConfirmSideEffects(async () => {
+                            await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
+                        });
+                        updateProgress();
                     }
-                    updateProgress();
                 });
             }
             fragment.appendChild(row);
@@ -7534,6 +7665,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         gridBody.appendChild(fragment);
         updateProgress();
         applyCollabFocusOutlines();
+        updateSfReplaceAllButtonLabel();
+        if (_pendingFocusSegIdxAfterRender != null) {
+            const pi = _pendingFocusSegIdxAfterRender;
+            _pendingFocusSegIdxAfterRender = null;
+            queueMicrotask(() => focusTargetEditorAtSegmentIndex(pi));
+        }
     }
 
     /**
@@ -8022,7 +8159,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const closeMenu = () => { if(contextMenu) contextMenu.remove(); document.removeEventListener('click', closeMenu); };
         document.addEventListener('click', closeMenu);
 
-        document.getElementById('ctxBatchConfirm').addEventListener('click', async () => {
+        document.getElementById('ctxBatchConfirm').addEventListener('click', () => {
             const ids = Array.from(selectedRowIds);
             const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
             const touchAll = new Set();
@@ -8035,44 +8172,74 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const s = currentSegmentsList[idx];
                 beforeSnapshots[s.id] = snapshotSegForUndo(s);
             });
-            let tmU = [];
-            let tmR = [];
             for (let s of toUpdate) {
                 s.status = 'confirmed';
                 if (currentFileFormat === 'mqxliff') {
                     s.confirmationRole = resolveConfirmationRole(s);
                 }
-                await DBService.updateSegmentStatus(s.id, 'confirmed', currentFileFormat === 'mqxliff' && s.confirmationRole ? { confirmationRole: s.confirmationRole } : {});
-                const idx = currentSegmentsList.indexOf(s);
-                mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(s, idx >= 0 ? idx : 0));
-                if (s.repetitionType) mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(s, idx >= 0 ? idx : 0));
             }
-            const afterSnapshots = {};
-            touchAll.forEach(idx => {
-                const s = currentSegmentsList[idx];
-                afterSnapshots[s.id] = snapshotSegForUndo(s);
+            const indices = toUpdate.map(s => currentSegmentsList.indexOf(s)).filter((ix) => ix >= 0).sort((a, b) => a - b);
+            const maxIdx = indices.length ? Math.max(...indices) : -1;
+            const dbWaits = [];
+            toUpdate.forEach((s) => {
+                const bs = beforeSnapshots[s.id];
+                if (bs && bs.status !== 'confirmed') {
+                    dbWaits.push(DBService.updateSegmentStatus(s.id, 'confirmed', currentFileFormat === 'mqxliff' && s.confirmationRole ? { confirmationRole: s.confirmationRole } : {}));
+                }
             });
-            let changed = tmU.length > 0 || tmR.length > 0;
-            for (const id of Object.keys(beforeSnapshots)) {
-                if (JSON.stringify(beforeSnapshots[id]) !== JSON.stringify(afterSnapshots[id])) changed = true;
-            }
-            if (changed) {
-                pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
-            }
-            renderEditorSegments();
+            void (async () => {
+                await Promise.all(dbWaits);
+                const focusIdx = maxIdx >= 0 ? getAfterConfirmFocusIndex(maxIdx) : null;
+                _pendingFocusSegIdxAfterRender = focusIdx;
+                updateProgress();
+                renderEditorSegments();
+
+                enqueueConfirmSideEffects(async () => {
+                    try {
+                        const tmU = [];
+                        const tmR = [];
+                        for (const i of indices) {
+                            const seg = currentSegmentsList[i];
+                            mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
+                            if (seg.repetitionType) mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
+                        }
+                        const afterSnapshots = {};
+                        touchAll.forEach(idx => {
+                            const s = currentSegmentsList[idx];
+                            afterSnapshots[s.id] = snapshotSegForUndo(s);
+                        });
+                        let changed = tmU.length > 0 || tmR.length > 0;
+                        for (const id of Object.keys(beforeSnapshots)) {
+                            if (JSON.stringify(beforeSnapshots[id]) !== JSON.stringify(afterSnapshots[id])) changed = true;
+                        }
+                        if (changed) {
+                            pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
+                        }
+                        updateProgress();
+                        const keepId = focusIdx != null && currentSegmentsList[focusIdx] ? currentSegmentsList[focusIdx].id : null;
+                        renderEditorSegments();
+                        if (keepId != null) {
+                            const idx2 = currentSegmentsList.findIndex(s => s.id === keepId);
+                            queueMicrotask(() => focusTargetEditorAtSegmentIndex(idx2 >= 0 ? idx2 : null));
+                        }
+                    } catch (err) { console.error(err); }
+                });
+            })();
         });
 
-        document.getElementById('ctxBatchUnconfirm').addEventListener('click', async () => {
+        document.getElementById('ctxBatchUnconfirm').addEventListener('click', () => {
             const ids = Array.from(selectedRowIds);
             const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
             const items = [];
+            const dbWaits = [];
             for (let s of toUpdate) {
                 const beforeSnap = snapshotSegForUndo(s);
                 s.status = 'unconfirmed';
-                await DBService.updateSegmentStatus(s.id, 'unconfirmed');
+                dbWaits.push(DBService.updateSegmentStatus(s.id, 'unconfirmed'));
                 items.push({ id: s.id, beforeSnap, afterSnap: snapshotSegForUndo(s) });
             }
             if (items.length) pushUndoEntry({ kind: 'segmentState', items });
+            void Promise.all(dbWaits).then(() => {}).catch(console.error);
             renderEditorSegments();
         });
 
@@ -8472,6 +8639,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const pct = localStorage.getItem('catToolEmptySegTmMinPct') || '70';
         if (emptySegModeSelect) emptySegModeSelect.value = mode;
         if (emptySegTmMinPctInput) emptySegTmMinPctInput.value = pct;
+        const nav = localStorage.getItem(AFTER_CONFIRM_NAV_KEY) || 'nextUnconfirmed';
+        document.querySelectorAll('input[name="afterConfirmNav"]').forEach((el) => {
+            el.checked = el.value === nav;
+        });
     }
 
     if (btnColSettings) btnColSettings.addEventListener('click', () => {
@@ -8493,6 +8664,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const n = Math.min(100, Math.max(0, Number.isFinite(v) ? v : 70));
             localStorage.setItem('catToolEmptySegTmMinPct', String(n));
         }
+        const navEl = document.querySelector('input[name="afterConfirmNav"]:checked');
+        const nav = navEl && (navEl.value === 'nextRow' || navEl.value === 'nextUnconfirmed') ? navEl.value : 'nextUnconfirmed';
+        localStorage.setItem(AFTER_CONFIRM_NAV_KEY, nav);
         applyColSettings();
         viewSettingsModal.classList.add('hidden');
     });
@@ -8515,8 +8689,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         colSettings = defaultCols;
         localStorage.setItem('catToolEmptySegMode', 'off');
         localStorage.setItem('catToolEmptySegTmMinPct', '70');
+        localStorage.setItem(AFTER_CONFIRM_NAV_KEY, 'nextUnconfirmed');
         if (emptySegModeSelect) emptySegModeSelect.value = 'off';
         if (emptySegTmMinPctInput) emptySegTmMinPctInput.value = '70';
+        document.querySelectorAll('input[name="afterConfirmNav"]').forEach((el) => {
+            el.checked = el.value === 'nextUnconfirmed';
+        });
         renderColSettings();
     });
 

@@ -156,7 +156,7 @@
                                             <input type="checkbox" id="projectFilesSelectAll" aria-label="全選">
                                         </label>
                                     </th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">序號</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:130px;">語言對</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:80px;">預設身分</th>
@@ -516,7 +516,7 @@
                                         <input type="text" id="sfReplaceInput" class="sf-input sf-replace-input" placeholder="取代為…" autocomplete="off">
                                     </div>
                                     <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceThis" title="取代目前選取的搜尋目標；若無選取則跳到最近的下一個目標再取代。完成後會跳到下一個選取目標。">取代這個</button>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceAll" title="取代目前顯示的有效句段中所有搜尋目標。若有選取句段，則只取代選取句段內的所有搜尋目標。">取代全部</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceAll" title="取代目前顯示的有效句段中所有相符內容。僅選取一句時視同未選取（全部取代）；同時選取兩句以上時只處理選取範圍。">全部取代</button>
                                     <span id="sfMatchCount" class="sf-cell sf-match-count">0/0</span>
                                 </div>
                             </div>
@@ -775,6 +775,20 @@
                             </label>
                         </div>
                         <button class="secondary-btn btn-sm" id="btnApplyRepMode" style="margin-top: 0.5rem; width: 100%;">套用至所有句段</button>
+                    </div>
+
+                    <div style="padding: 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+                        <strong style="display:block; margin-bottom: 0.5rem; font-size: 0.9rem;">確認句段後的焦點</strong>
+                        <div style="display:flex; flex-direction:column; gap: 0.4rem; font-size: 0.85rem;">
+                            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;" title="確認後將焦點移到下一個尚未確認且可編輯的句段">
+                                <input type="radio" name="afterConfirmNav" value="nextUnconfirmed" checked>
+                                下一個尚未確認的句段（預設）
+                            </label>
+                            <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer;" title="確認後將焦點移到視覺順序的下一列可編輯譯文">
+                                <input type="radio" name="afterConfirmNav" value="nextRow">
+                                下一句段（依列表順序）
+                            </label>
+                        </div>
                     </div>
 
                     <div style="padding: 0.75rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
