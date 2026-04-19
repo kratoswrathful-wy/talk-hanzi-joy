@@ -8893,9 +8893,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     alert('無法匯出：遺失原始檔案內容，請確認檔案已自雲端完整同步後再試。');
                     return;
                 }
-                console.log('[EXPORT DEBUG] currentSegmentsList sample:', Array.isArray(currentSegmentsList) && currentSegmentsList.slice(0, 5).map(s => ({ id: String(s.id).slice(-8), rowIdx: s.rowIdx, colTgt: s.colTgt, sheetName: s.sheetName, targetText: (s.targetText || '').slice(0, 40) })));
-                console.log('[EXPORT DEBUG] rawSegs sample:', Array.isArray(rawSegs) && rawSegs.slice(0, 5).map(s => ({ id: String(s.id).slice(-8), rowIdx: s.rowIdx, colTgt: s.colTgt, sheetName: s.sheetName, targetText: (s.targetText || '').slice(0, 40) })));
-                console.log('[EXPORT DEBUG] segs sample:', Array.isArray(segs) && segs.slice(0, 5).map(s => ({ id: String(s.id).slice(-8), rowIdx: s.rowIdx, colTgt: s.colTgt, sheetName: s.sheetName, targetText: (s.targetText || '').slice(0, 40) })));
+                const _dbgFmt = (arr) => Array.isArray(arr) ? arr.slice(0, 5).map(s => String(s.id).slice(-6) + ' r' + s.rowIdx + ' c' + s.colTgt + ' | ' + (s.targetText || '').slice(0, 50)).join('\n') : String(arr);
+                console.log('[EXPORT DEBUG] currentSegmentsList:\n' + _dbgFmt(currentSegmentsList));
+                console.log('[EXPORT DEBUG] rawSegs:\n' + _dbgFmt(rawSegs));
+                console.log('[EXPORT DEBUG] segs:\n' + _dbgFmt(segs));
                 const originalData = new Uint8Array(f.originalFileBuffer);
                 const wb = XLSX.read(originalData, { type: 'array' });
                 const XlsxRich = window.CatToolXlsxRichTags;
