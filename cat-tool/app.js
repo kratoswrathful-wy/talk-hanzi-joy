@@ -138,8 +138,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // AI 輔助翻譯狀態
     let aiModeActive = false;
+    let _recordManualTranslations = false; // Whether to record style examples for pure manual translations
     let _aiReviewModalResolve = null; // Promise resolver for the AI review modal
-
+    
     // Sidebar Toggle
     const sidebar = document.getElementById('sidebar');
     const btnToggleSidebar = document.getElementById('btnToggleSidebar');
@@ -403,7 +404,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const afterSnap = snapshotSegForUndo(seg);
                 if (JSON.stringify(beforeSnap) !== JSON.stringify(afterSnap)) {
                     pushUndoEntry({ kind: 'segmentState', items: [{ id: seg.id, beforeSnap, afterSnap }] });
-                }
+            }
             }
             updateProgress();
         } finally {
@@ -1275,11 +1276,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 showTmsProfileCard();
             } else {
                 // Standalone 模式：開啟名稱設定 modal（原有行為）
-                const currentName = localStorage.getItem('localCatUserProfile') || '';
-                openNamingModal('setUserProfile', '設定使用者名稱', '請輸入您的名字 (將用於 TM 寫入紀錄)', null, currentName);
+            const currentName = localStorage.getItem('localCatUserProfile') || '';
+            openNamingModal('setUserProfile', '設定使用者名稱', '請輸入您的名字 (將用於 TM 寫入紀錄)', null, currentName);
             }
         });
-
+        
         // Initial setup（standalone 模式下若已設定名稱，顯示於左下角）
         const startName = localStorage.getItem('localCatUserProfile');
         if (startName && !window._tmsManagedIdentity) {
@@ -1943,7 +1944,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const tms = await DBService.getTMs();
         const projectTmListBody = document.getElementById('projectTmListBody');
         if (!projectTmListBody) return;
-
+        
         if (tms.length === 0) {
             projectTmListBody.innerHTML = '<tr><td colspan="4" style="padding:0.75rem; color:#64748b;">系統中目前沒有任何翻譯記憶庫。請至 TM 管理頁面新增。</td></tr>';
             return;
@@ -4125,28 +4126,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (isExcel) {
             if (wizardOverlay) wizardOverlay.classList.remove('hidden');
-            const reader = new FileReader();
+        const reader = new FileReader();
             reader.onload = (ev) => {
                 excelRawBuffer = ev.target.result;
-                const data = new Uint8Array(excelRawBuffer);
-                excelWorkbook = XLSX.read(data, { type: 'array' });
+            const data = new Uint8Array(excelRawBuffer);
+            excelWorkbook = XLSX.read(data, { type: 'array' });
+            
+            sheetList.innerHTML = '';
+            excelWorkbook.SheetNames.forEach(name => {
+                excelDataBySheet[name] = XLSX.utils.sheet_to_json(excelWorkbook.Sheets[name], { header: 1, defval: '' });
+                const lbl = document.createElement('label');
+                lbl.innerHTML = `<input type="checkbox" class="sheet-checkbox" value="${name}" checked> <span>${name}</span>`;
+                sheetList.appendChild(lbl);
+                lbl.style.display = 'block'; lbl.style.marginBottom = '0.5rem';
+            });
 
-                sheetList.innerHTML = '';
-                excelWorkbook.SheetNames.forEach(name => {
-                    excelDataBySheet[name] = XLSX.utils.sheet_to_json(excelWorkbook.Sheets[name], { header: 1, defval: '' });
-                    const lbl = document.createElement('label');
-                    lbl.innerHTML = `<input type="checkbox" class="sheet-checkbox" value="${name}" checked> <span>${name}</span>`;
-                    sheetList.appendChild(lbl);
-                    lbl.style.display = 'block'; lbl.style.marginBottom = '0.5rem';
-                });
-
-                const checkboxes = document.querySelectorAll('.sheet-checkbox');
+            const checkboxes = document.querySelectorAll('.sheet-checkbox');
                 selectAllSheets.addEventListener('change', (evt) => checkboxes.forEach(cb => cb.checked = evt.target.checked));
-                checkboxes.forEach(cb => cb.addEventListener('change', () => selectAllSheets.checked = Array.from(checkboxes).every(c => c.checked)));
+            checkboxes.forEach(cb => cb.addEventListener('change', () => selectAllSheets.checked = Array.from(checkboxes).every(c => c.checked)));
 
-                showWizardStep('wizardStep2');
-            };
-            reader.readAsArrayBuffer(file);
+            showWizardStep('wizardStep2');
+        };
+        reader.readAsArrayBuffer(file);
         } else if (isXliffLike) {
             const isMqxliff = lowerName.endsWith('.mqxliff');
             if (isMqxliff) {
@@ -4597,7 +4598,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const resolvedProjectId = file.projectId || currentProjectId;
         if (resolvedProjectId) currentProjectId = resolvedProjectId;
-
+        
         editorFileName.textContent = file.name;
         currentSegmentsList = await DBService.getSegmentsByFile(fileId);
 
@@ -5488,29 +5489,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         const statuses = Array.from(document.querySelectorAll('.sf-status-cb:checked')).map(cb => cb.value);
         const tmVal = document.getElementById('sfTmMatch').value;
         const isInvert = btnSfInvert.classList.contains('active');
-        const hasUiFilter = (term || statuses.length > 0 || tmVal || isInvert);
-        const isEvalMatch = evaluateSegment(seg, term, scopes, sfUseRegexChecked, isInvert, statuses, tmVal);
-        let r_finalMatch = true;
-        if (sfFilterGroups.length > 0) {
-            if (!hasUiFilter) {
-                r_finalMatch = evaluateSegment(seg, sfFilterGroups[0].term, sfFilterGroups[0].scopes, sfFilterGroups[0].isRegex, sfFilterGroups[0].isInvert, sfFilterGroups[0].statuses, sfFilterGroups[0].tmVal);
+            const hasUiFilter = (term || statuses.length > 0 || tmVal || isInvert);
+            const isEvalMatch = evaluateSegment(seg, term, scopes, sfUseRegexChecked, isInvert, statuses, tmVal);
+            let r_finalMatch = true;
+            if (sfFilterGroups.length > 0) {
+                if (!hasUiFilter) {
+                    r_finalMatch = evaluateSegment(seg, sfFilterGroups[0].term, sfFilterGroups[0].scopes, sfFilterGroups[0].isRegex, sfFilterGroups[0].isInvert, sfFilterGroups[0].statuses, sfFilterGroups[0].tmVal);
                 for (let i = 1; i < sfFilterGroups.length; i++) {
-                    const g = sfFilterGroups[i];
-                    const m = evaluateSegment(seg, g.term, g.scopes, g.isRegex, g.isInvert, g.statuses, g.tmVal);
-                    if (g.op === 'AND') r_finalMatch = r_finalMatch && m;
+                        const g = sfFilterGroups[i];
+                        const m = evaluateSegment(seg, g.term, g.scopes, g.isRegex, g.isInvert, g.statuses, g.tmVal);
+                        if (g.op === 'AND') r_finalMatch = r_finalMatch && m;
                     if (g.op === 'OR') r_finalMatch = r_finalMatch || m;
+                    }
+                } else {
+                    r_finalMatch = isEvalMatch;
+                for (let i = 0; i < sfFilterGroups.length; i++) {
+                        const g = sfFilterGroups[i];
+                        const m = evaluateSegment(seg, g.term, g.scopes, g.isRegex, g.isInvert, g.statuses, g.tmVal);
+                        if (g.op === 'AND') r_finalMatch = r_finalMatch && m;
+                    if (g.op === 'OR') r_finalMatch = r_finalMatch || m;
+                    }
                 }
             } else {
-                r_finalMatch = isEvalMatch;
-                for (let i = 0; i < sfFilterGroups.length; i++) {
-                    const g = sfFilterGroups[i];
-                    const m = evaluateSegment(seg, g.term, g.scopes, g.isRegex, g.isInvert, g.statuses, g.tmVal);
-                    if (g.op === 'AND') r_finalMatch = r_finalMatch && m;
-                    if (g.op === 'OR') r_finalMatch = r_finalMatch || m;
-                }
-            }
-        } else {
-            r_finalMatch = hasUiFilter ? isEvalMatch : true;
+                r_finalMatch = hasUiFilter ? isEvalMatch : true;
         }
         return r_finalMatch;
     }
@@ -5697,7 +5698,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         
         if (!isSfSearchControlActive()) {
-            match.rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        match.rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     }
 
@@ -5947,14 +5948,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         for (const it of entry.items) {
             const segIdx = currentSegmentsList.findIndex(s => s.id === it.id);
             if (segIdx === -1) continue;
-            const seg = currentSegmentsList[segIdx];
+        const seg = currentSegmentsList[segIdx];
             const snap = isUndo ? it.beforeSnap : it.afterSnap;
             applySegSnapshotToModel(seg, snap);
             const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : document.querySelectorAll('.grid-data-row');
             const row = rows[segIdx];
-            if (row) {
-                const ta = row.querySelector('.grid-textarea');
-                if (ta) {
+        if (row) {
+            const ta = row.querySelector('.grid-textarea');
+            if (ta) {
                     ta.innerHTML = buildTaggedHtml(seg.targetText, seg.targetTags || seg.sourceTags || []);
                     updateTagColors(row, seg.targetText);
                 }
@@ -6701,18 +6702,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     if (changed) {
                         pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
-                    }
-                    updateProgress();
+            }
+            updateProgress();
                     const keepId = focusIdx != null && currentSegmentsList[focusIdx] ? currentSegmentsList[focusIdx].id : null;
-                    renderEditorSegments();
+            renderEditorSegments();
                     if (keepId != null) {
                         const idx2 = currentSegmentsList.findIndex(s => s.id === keepId);
                         queueMicrotask(() => focusTargetEditorAtSegmentIndex(idx2 >= 0 ? idx2 : null));
                     }
-                    const ar = document.querySelector('.grid-data-row.active-row');
+            const ar = document.querySelector('.grid-data-row.active-row');
                     const aid = ar ? parseId(ar.dataset.segId) : null;
-                    const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
-                    if (activeSeg) renderLiveTmMatches(activeSeg);
+            const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
+            if (activeSeg) renderLiveTmMatches(activeSeg);
                 } catch (err) { console.error(err); }
             });
         })();
@@ -7330,15 +7331,32 @@ document.addEventListener('DOMContentLoaded', async () => {
                             else selectedRowIds.add(seg.id);
                             lastSelectedRowIdx = i;
                         } 
-                        // Shift click - range selection (extends from last anchor, clears previous)
-                        else if (e.shiftKey && lastSelectedRowIdx !== null) {
+                        // Shift click - range selection (extends from currently focused/edited segment)
+                        else if (e.shiftKey && (lastEditedRowIdx !== null || lastSelectedRowIdx !== null)) {
                             selectedRowIds.clear();
-                            const start = Math.min(lastSelectedRowIdx, i);
-                            const end = Math.max(lastSelectedRowIdx, i);
+                            const anchor = lastEditedRowIdx ?? lastSelectedRowIdx;
+                            const start = Math.min(anchor, i);
+                            const end = Math.max(anchor, i);
                             for (let j = start; j <= end; j++) {
                                 const s = currentSegmentsList[j];
                                 if (!isDynamicForbidden(s) && !s.isLockedUser) selectedRowIds.add(s.id);
                             }
+                        } 
+                        // Normal click within existing multi-select - collapse to this segment and focus it
+                        else if (selectedRowIds.has(seg.id) && selectedRowIds.size > 1) {
+                            selectedRowIds.clear();
+                            selectedRowIds.add(seg.id);
+                            lastSelectedRowIdx = i;
+                            document.querySelectorAll('.grid-data-row').forEach(r => r.classList.remove('active-row'));
+                            row.classList.add('active-row');
+                            document.querySelectorAll('.grid-data-row').forEach(r => {
+                                const rId = parseId(r.dataset.segId);
+                                if (selectedRowIds.has(rId)) r.classList.add('selected-row');
+                                else r.classList.remove('selected-row');
+                            });
+                            targetInput?.focus();
+                            updateSfReplaceAllButtonLabel();
+                            return;
                         } 
                         // Normal click - clear and select one
                         else {
@@ -7356,7 +7374,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const activeRow = document.querySelector('.grid-data-row.active-row');
                             if (activeRow) {
                         const activeSegId = parseId(activeRow.dataset.segId);
-                        if (!selectedRowIds.has(activeSegId)) {
+                                if (!selectedRowIds.has(activeSegId)) {
                                     activeRow.classList.remove('active-row');
                                     const focused = document.activeElement;
                                     if (focused && focused.classList.contains('grid-textarea')) focused.blur();
@@ -7527,23 +7545,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const wasUnconfirmed = seg.status !== 'confirmed';
                             const tmU = [];
                             const tmR = [];
-                            if (seg.status !== 'confirmed') {
-                                seg.status = 'confirmed';
-                                statusIcon.classList.add('done');
-                                if (!effectiveLocked) row.style.backgroundColor = '#f0fdf4';
-                                if (currentFileFormat === 'mqxliff') {
-                                    seg.confirmationRole = resolveConfirmationRole(seg);
-                                }
-                                if (currentFileFormat === 'mqxliff') {
-                                    const role = seg.confirmationRole || 'T';
-                                    if (role === 'R1') {
-                                        statusIcon.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
-                                    } else if (role === 'R2') {
-                                        statusIcon.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
+                        if (seg.status !== 'confirmed') {
+                            seg.status = 'confirmed';
+                            statusIcon.classList.add('done');
+                            if (!effectiveLocked) row.style.backgroundColor = '#f0fdf4';
+                            if (currentFileFormat === 'mqxliff') {
+                                seg.confirmationRole = resolveConfirmationRole(seg);
+                            }
+                            if (currentFileFormat === 'mqxliff') {
+                                const role = seg.confirmationRole || 'T';
+                                if (role === 'R1') {
+                                    statusIcon.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
+                                } else if (role === 'R2') {
+                                    statusIcon.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
                                     } else {
-                                        statusIcon.innerHTML = '&#10003;';
-                                    }
+                                    statusIcon.innerHTML = '&#10003;';
                                 }
+                            }
                                 updateProgress();
                             }
                             const nextFocus = getAfterConfirmFocusIndex(i);
@@ -7555,13 +7573,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                             enqueueConfirmSideEffects(async () => {
                                 try {
                                     if (wasUnconfirmed) {
-                                        await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
-                                        updateProgress();
-                                    }
-                                    if (seg.status === 'confirmed') {
+                            await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
+                            updateProgress();
+                        }
+                        if (seg.status === 'confirmed') {
                                         mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
-                                    }
-                                    if (seg.repetitionType) {
+                        }
+                        if (seg.repetitionType) {
                                         mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
                                     }
                                     const afterSnapshots = {};
@@ -7640,21 +7658,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 beforeSnapshots[s.id] = snapshotSegForUndo(s);
                             });
                             seg.status = 'confirmed';
-                            statusIcon.classList.add('done');
-                            if (!effectiveLocked) row.style.backgroundColor = '#f0fdf4';
-                            if (currentFileFormat === 'mqxliff') {
-                                seg.confirmationRole = resolveConfirmationRole(seg);
+                        statusIcon.classList.add('done');
+                        if (!effectiveLocked) row.style.backgroundColor = '#f0fdf4';
+                        if (currentFileFormat === 'mqxliff') {
+                            seg.confirmationRole = resolveConfirmationRole(seg);
+                        }
+                        if (currentFileFormat === 'mqxliff') {
+                            const role = seg.confirmationRole || 'T';
+                            if (role === 'R1') {
+                                statusIcon.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
+                            } else if (role === 'R2') {
+                                statusIcon.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
+                            } else {
+                                statusIcon.innerHTML = '&#10003;';
                             }
-                            if (currentFileFormat === 'mqxliff') {
-                                const role = seg.confirmationRole || 'T';
-                                if (role === 'R1') {
-                                    statusIcon.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
-                                } else if (role === 'R2') {
-                                    statusIcon.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
-                                } else {
-                                    statusIcon.innerHTML = '&#10003;';
-                                }
-                            }
+                        }
                             updateProgress();
                             const nextFocus = getAfterConfirmFocusIndex(i);
                             focusTargetEditorAtSegmentIndex(nextFocus);
@@ -7696,9 +7714,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const afterSnap = snapshotSegForUndo(seg);
                         pushUndoEntry({ kind: 'segmentState', items: [{ id: seg.id, beforeSnap, afterSnap }] });
                         enqueueConfirmSideEffects(async () => {
-                            await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
+                    await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
                         });
-                        updateProgress();
+                    updateProgress();
                     }
                 });
             }
@@ -8128,7 +8146,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         textarea.focus();
         if (el && el.style) {
-            el.style.opacity = 0.5;
+        el.style.opacity = 0.5;
             setTimeout(() => { el.style.opacity = 1; }, 300);
         }
     };
@@ -8235,7 +8253,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const focusIdx = maxIdx >= 0 ? getAfterConfirmFocusIndex(maxIdx) : null;
                 _pendingFocusSegIdxAfterRender = focusIdx;
                 updateProgress();
-                renderEditorSegments();
+            renderEditorSegments();
 
                 enqueueConfirmSideEffects(async () => {
                     try {
@@ -8334,7 +8352,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const total = baseline.length;
         const sessionValid = currentSegmentsList.filter(s => !(isDynamicForbidden(s) || s.isLockedUser) && inProgressRange(s));
         const translated = sessionValid.filter(s => s.status === 'confirmed').length;
-
+        
         let totalWords = 0;
         let confirmedWords = 0;
         baseline.forEach(s => { totalWords += countWords(s.sourceText); });
@@ -8894,7 +8912,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             item.dataset.index = String(index);
             item.style.cssText = 'display:flex; align-items:center; justify-content:space-between; padding:0.5rem; background:white; border:1px solid #cbd5e1; border-radius:4px;';
             const isStatus = c.id === 'col-status';
-
+            
             item.innerHTML = `
                 <div style="display:flex; align-items:center; gap:0.5rem; flex:1; min-width:0;">
                     <span class="col-drag-handle" style="color:#94a3b8; user-select:none;" title="${isStatus ? '狀態欄固定於最右' : '拖曳排序'}">${isStatus ? '🔒' : '☰'}</span>
@@ -8942,7 +8960,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!colSettings[from] || !colSettings[to]) return;
             if (colSettings[from].id === 'col-status' || colSettings[to].id === 'col-status') {
                 ensureStatusColumnLast();
-                renderColSettings();
+            renderColSettings();
                 return;
             }
             const [moved] = colSettings.splice(from, 1);
@@ -10473,8 +10491,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         const batchBtn = document.getElementById('btnAiBatchTranslate');
         if (batchBtn) batchBtn.addEventListener('click', () => openAiBatchModal());
+        const scanBtn = document.getElementById('btnAiScanFullText');
+        if (scanBtn) scanBtn.addEventListener('click', () => openAiScanModal());
+        const chkManual = document.getElementById('chkRecordManual');
+        if (chkManual) chkManual.onchange = e => { _recordManualTranslations = e.target.checked; };
         const dismissToast = document.getElementById('btnDismissAiProgress');
         if (dismissToast) dismissToast.addEventListener('click', () => { const t = document.getElementById('aiProgressToast'); if(t) t.style.display='none'; });
+        const clearReportBtn = document.getElementById('btnClearAiReport');
+        if (clearReportBtn) clearReportBtn.addEventListener('click', () => {
+            const rc = document.getElementById('aiReportContent');
+            if (rc) rc.innerHTML = '<span style="color:#94a3b8;">尚無報告。請使用 AI 模式列的「掃描全文」功能。</span>';
+        });
     })();
 
     // ---- AI Toast helper ----
@@ -10627,84 +10654,197 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function loadAiGuidelinesView() {
         if (!_isAiAllowed()) return;
         const allGuidelines = await DBService.getAiGuidelines();
-        const categories = ['全部', ...await DBService.getAiGuidelineCategories()];
+        let allCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
+        const tabCategories = ['全部', ...allCategoryTags.map(t => t.name)];
         let activeCat = '全部';
 
         const tabBar = document.getElementById('aiGuidelinesTabBar');
         const list = document.getElementById('aiGuidelinesList');
-        const catInput = document.getElementById('aiGuidelineNewCategory');
-        const catDatalist = document.getElementById('aiGuidelineCategoryList');
         const mutexDatalist = document.getElementById('aiMutexGroupList');
 
+        // ---- 類別標籤管理 ----
+        function renderCategoryTagsList() {
+            const tagsListEl = document.getElementById('aiCategoryTagsList');
+            if (!tagsListEl) return;
+            if (allCategoryTags.length === 0) {
+                tagsListEl.innerHTML = '<span style="font-size:0.8rem; color:#94a3b8;">尚無標籤。</span>';
+                return;
+            }
+            tagsListEl.innerHTML = allCategoryTags.map(t => `
+                <span class="ai-category-tag-chip">
+                    ${_esc(t.name)}
+                    ${t.name !== '通用' ? `<button class="ai-tag-chip-del" data-tagid="${t.id}" title="刪除標籤">✕</button>` : ''}
+                </span>
+            `).join('');
+            tagsListEl.querySelectorAll('.ai-tag-chip-del').forEach(btn => {
+                btn.onclick = async () => {
+                    const id = parseInt(btn.getAttribute('data-tagid'), 10);
+                    if (!confirm('確定刪除此類別標籤？（不會影響已有的準則條目）')) return;
+                    await DBService.deleteAiCategoryTag(id).catch(console.error);
+                    allCategoryTags = allCategoryTags.filter(t => t.id !== id);
+                    renderCategoryTagsList();
+                    updateMultiselectDropdown();
+                };
+            });
+        }
+
+        const addTagBtn = document.getElementById('btnAddCategoryTag');
+        if (addTagBtn) {
+            addTagBtn.onclick = async () => {
+                const input = document.getElementById('aiNewCategoryTagInput');
+                const name = input?.value?.trim() || '';
+                if (!name) return;
+                try {
+                    const id = await DBService.addAiCategoryTag(name);
+                    allCategoryTags.push({ id, name, createdAt: new Date().toISOString() });
+                    if (input) input.value = '';
+                    renderCategoryTagsList();
+                    updateMultiselectDropdown();
+                } catch (err) {
+                    alert('新增標籤失敗：' + err.message);
+                }
+            };
+        }
+
+        // ---- 多選類別下拉 ----
+        let selectedNewCategories = ['通用'];
+
+        function _sortTagNames(names) {
+            return [...names].sort((a, b) => a.localeCompare(b, 'zh-Hant-TW', { sensitivity: 'base' }));
+        }
+
+        function updateMultiselectDisplay() {
+            const display = document.getElementById('aiGuidelineCategoryDisplay');
+            const hidden = document.getElementById('aiGuidelineNewCategory');
+            const label = selectedNewCategories.length > 0 ? selectedNewCategories.join(', ') : '通用';
+            if (display) display.textContent = label;
+            if (hidden) hidden.value = selectedNewCategories.join(',') || '通用';
+        }
+
+        function updateMultiselectDropdown() {
+            const dropdown = document.getElementById('aiGuidelineCategoryDropdown');
+            if (!dropdown) return;
+            const sortedTags = _sortTagNames(allCategoryTags.map(t => t.name));
+            dropdown.innerHTML = sortedTags.map(name => `
+                <label class="ai-multiselect-option">
+                    <input type="checkbox" value="${_esc(name)}" ${selectedNewCategories.includes(name) ? 'checked' : ''}> ${_esc(name)}
+                </label>
+            `).join('');
+            dropdown.querySelectorAll('input[type=checkbox]').forEach(cb => {
+                cb.onchange = () => {
+                    const val = cb.value;
+                    if (cb.checked) { if (!selectedNewCategories.includes(val)) selectedNewCategories.push(val); }
+                    else { selectedNewCategories = selectedNewCategories.filter(c => c !== val); }
+                    updateMultiselectDisplay();
+                };
+            });
+        }
+
+        const selector = document.getElementById('aiGuidelineCategorySelector');
+        const dropdown = document.getElementById('aiGuidelineCategoryDropdown');
+        if (selector) {
+            selector.onclick = (e) => {
+                e.stopPropagation();
+                dropdown?.classList.toggle('hidden');
+            };
+        }
+        document.addEventListener('click', function closeDd(e) {
+            if (dropdown && !dropdown.contains(e.target) && e.target !== selector) {
+                dropdown.classList.add('hidden');
+            }
+        }, { capture: false });
+
+        updateMultiselectDropdown();
+        updateMultiselectDisplay();
+        renderCategoryTagsList();
+
+        // ---- 準則清單 tab bar ----
         function renderTabBar() {
             if (!tabBar) return;
-            tabBar.innerHTML = categories.map(c =>
+            tabBar.innerHTML = tabCategories.map(c =>
                 `<button class="ai-tab-btn${c === activeCat ? ' active' : ''}" data-cat="${_esc(c)}">${_esc(c)}</button>`
             ).join('');
             tabBar.querySelectorAll('.ai-tab-btn').forEach(b => {
-                b.addEventListener('click', () => { activeCat = b.getAttribute('data-cat'); renderTabBar(); renderList(); });
+                b.onclick = () => { activeCat = b.getAttribute('data-cat'); renderTabBar(); renderList(); };
             });
+        }
+
+        function _normalizeCategory(cat) {
+            if (!cat) return ['通用'];
+            try { const parsed = JSON.parse(cat); if (Array.isArray(parsed)) return parsed; } catch (_) {}
+            return [cat];
         }
 
         function renderList() {
             if (!list) return;
-            const filtered = activeCat === '全部' ? allGuidelines : allGuidelines.filter(g => g.category === activeCat);
+            const filtered = activeCat === '全部' ? allGuidelines : allGuidelines.filter(g => _normalizeCategory(g.category).includes(activeCat));
             if (filtered.length === 0) { list.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; padding:0.5rem 0;">尚無準則條目。</p>'; return; }
-            list.innerHTML = filtered.map(g => `
-                <div class="ai-guideline-item" data-id="${g.id}">
-                    <div style="flex:1;">
-                        <div class="ai-guideline-item-content">${_esc(g.content)}</div>
-                        <div class="ai-guideline-item-meta">
-                            <span class="ai-badge selected">${_esc(g.category || '通用')}</span>
-                            ${g.mutexGroup ? `<span class="ai-badge" style="background:#fff7ed; border-color:#fdba74; color:#9a3412;">互斥：${_esc(g.mutexGroup)}</span>` : ''}
+            list.innerHTML = filtered.map(g => {
+                const cats = _normalizeCategory(g.category);
+                const catBadges = cats.map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
+                return `
+                    <div class="ai-guideline-item" data-id="${g.id}">
+                        <div style="flex:1;">
+                            <div class="ai-guideline-item-content">${_esc(g.content)}</div>
+                            <div class="ai-guideline-item-meta">
+                                ${catBadges}
+                                ${g.mutexGroup ? `<span class="ai-badge" style="background:#fff7ed; border-color:#fdba74; color:#9a3412;">互斥：${_esc(g.mutexGroup)}</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="ai-guideline-item-actions">
+                            <button class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
                         </div>
                     </div>
-                    <div class="ai-guideline-item-actions">
-                        <button class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
-                    </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
             list.querySelectorAll('[data-del]').forEach(btn => {
-                btn.addEventListener('click', async () => {
+                btn.onclick = async () => {
                     if (!confirm('確定刪除此準則條目？')) return;
                     const id = parseInt(btn.getAttribute('data-del'), 10);
                     await DBService.deleteAiGuideline(id);
                     const idx = allGuidelines.findIndex(g => g.id === id);
                     if (idx >= 0) allGuidelines.splice(idx, 1);
                     renderList();
-                });
+                };
             });
         }
 
-        // 更新 datalist
-        function updateDatalist() {
-            const cats = [...new Set(allGuidelines.map(g => g.category || '通用'))].sort();
-            if (catDatalist) catDatalist.innerHTML = cats.map(c => `<option value="${_esc(c)}">`).join('');
+        function updateMutexDatalist() {
             const mutexGroups = [...new Set(allGuidelines.map(g => g.mutexGroup).filter(Boolean))].sort();
             if (mutexDatalist) mutexDatalist.innerHTML = mutexGroups.map(m => `<option value="${_esc(m)}">`).join('');
         }
 
         renderTabBar();
         renderList();
-        updateDatalist();
+        updateMutexDatalist();
 
         const addBtn = document.getElementById('btnAddAiGuideline');
         if (addBtn) {
             addBtn.onclick = async () => {
-                const content = document.getElementById('aiGuidelineNewContent')?.value?.trim() || '';
-                const category = document.getElementById('aiGuidelineNewCategory')?.value?.trim() || '通用';
-                const mutexGroup = document.getElementById('aiGuidelineNewMutexGroup')?.value?.trim() || null;
-                if (!content) { alert('請輸入準則內容'); return; }
-                if (!_isAiAllowed()) return;
-                const id = await DBService.addAiGuideline({ content, category, mutexGroup, sortOrder: allGuidelines.length });
-                const newRow = { id, content, category, mutexGroup: mutexGroup || null, sortOrder: allGuidelines.length };
-                allGuidelines.push(newRow);
-                document.getElementById('aiGuidelineNewContent').value = '';
-                document.getElementById('aiGuidelineNewMutexGroup').value = '';
-                if (!categories.includes(category)) { categories.push(category); categories.sort(); }
-                updateDatalist();
-                renderTabBar();
-                renderList();
+                try {
+                    const content = document.getElementById('aiGuidelineNewContent')?.value?.trim() || '';
+                    const categoryVal = selectedNewCategories.length > 0 ? JSON.stringify(selectedNewCategories) : '通用';
+                    const category = categoryVal;
+                    const mutexGroup = document.getElementById('aiGuidelineNewMutexGroup')?.value?.trim() || null;
+                    if (!content) { alert('請輸入準則內容'); return; }
+                    if (!_isAiAllowed()) return;
+                    const id = await DBService.addAiGuideline({ content, category, mutexGroup, sortOrder: allGuidelines.length });
+                    const newRow = { id, content, category, mutexGroup: mutexGroup || null, sortOrder: allGuidelines.length };
+                    allGuidelines.push(newRow);
+                    document.getElementById('aiGuidelineNewContent').value = '';
+                    document.getElementById('aiGuidelineNewMutexGroup').value = '';
+                    selectedNewCategories = ['通用'];
+                    updateMultiselectDropdown();
+                    updateMultiselectDisplay();
+                    // update tab bar with new categories if needed
+                    _normalizeCategory(category).forEach(c => { if (!tabCategories.includes(c)) tabCategories.push(c); });
+                    updateMutexDatalist();
+                    renderTabBar();
+                    renderList();
+                } catch (err) {
+                    alert('新增準則失敗：' + err.message);
+                    console.error(err);
+                }
             };
         }
     }
@@ -10817,7 +10957,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // ---- AI 指令 Tab ----
-    let _aiInstructionsInited = false;
     async function loadAiInstructionsTab() {
         if (!currentProjectId) return;
 
@@ -10827,39 +10966,44 @@ document.addEventListener('DOMContentLoaded', async () => {
         const openPickerBtn = document.getElementById('btnOpenAiGuidelinePicker');
         const addSpecialBtn = document.getElementById('btnAddAiSpecialInstruction');
 
-        const [allGuidelines, psettings] = await Promise.all([
+        const [allGuidelines, psettings, allCategoryTagsInTab] = await Promise.all([
             DBService.getAiGuidelines(),
-            DBService.getAiProjectSettings(currentProjectId)
+            DBService.getAiProjectSettings(currentProjectId),
+            DBService.getAiCategoryTags().catch(() => [])
         ]);
         const fileRec = currentFileId ? await DBService.getFile(currentFileId).catch(() => null) : null;
-        const fileDomains = fileRec?.aiDomains || [];
-        const cats = [...new Set(allGuidelines.map(g => g.category || '通用'))].sort();
+        const fileDomains = fileRec?.aiDomains ? [...fileRec.aiDomains] : [];
         let selectedGuidelineIds = new Set(psettings?.selectedGuidelineIds || []);
         let specialInstructions = Array.isArray(psettings?.specialInstructions) ? [...psettings.specialInstructions] : [];
 
-        async function savePSettings() {
-            await DBService.saveAiProjectSettings(currentProjectId, {
+        function savePSettings() {
+            DBService.saveAiProjectSettings(currentProjectId, {
                 selectedGuidelineIds: [...selectedGuidelineIds],
                 specialInstructions
-            });
+            }).catch(console.error);
         }
 
-        // Render domain badges
+        // Render domain badges — show ALL defined tags; active=highlighted, inactive=grayed
         function renderDomains() {
             if (!domainBadges) return;
-            domainBadges.innerHTML = cats.map(c =>
-                `<span class="ai-badge${fileDomains.includes(c) ? ' selected' : ''}" data-cat="${_esc(c)}">${_esc(c)}</span>`
-            ).join('') + (cats.length === 0 ? '<span style="font-size:0.78rem; color:#94a3b8;">請先在準則管理建立準則條目。</span>' : '');
+            if (allCategoryTagsInTab.length === 0) {
+                domainBadges.innerHTML = '<span style="font-size:0.78rem; color:#94a3b8;">請先在準則管理建立類別標籤。</span>';
+                return;
+            }
+            domainBadges.innerHTML = allCategoryTagsInTab.map(t =>
+                `<span class="ai-badge${fileDomains.includes(t.name) ? ' selected' : ' inactive'}" data-cat="${_esc(t.name)}">${_esc(t.name)}</span>`
+            ).join('');
             domainBadges.querySelectorAll('.ai-badge').forEach(badge => {
-                badge.addEventListener('click', async () => {
+                badge.onclick = () => {
                     const cat = badge.getAttribute('data-cat');
                     const idx = fileDomains.indexOf(cat);
                     if (idx >= 0) fileDomains.splice(idx, 1); else fileDomains.push(cat);
                     badge.classList.toggle('selected', fileDomains.includes(cat));
+                    badge.classList.toggle('inactive', !fileDomains.includes(cat));
                     if (currentFileId) {
-                        await DBService.updateFile(currentFileId, { aiDomains: fileDomains }).catch(console.error);
+                        DBService.updateFile(currentFileId, { aiDomains: [...fileDomains] }).catch(console.error);
                     }
-                });
+                };
             });
         }
 
@@ -10875,11 +11019,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
             `).join('');
             selectedList.querySelectorAll('[data-unselect]').forEach(btn => {
-                btn.addEventListener('click', async () => {
+                btn.onclick = () => {
                     selectedGuidelineIds.delete(parseInt(btn.getAttribute('data-unselect'), 10));
                     renderSelectedGuidelines();
-                    await savePSettings();
-                });
+                    savePSettings();
+                };
             });
         }
 
@@ -10907,26 +11051,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderSelectedGuidelines();
         renderSpecialInstructions();
 
-        if (openPickerBtn && !_aiInstructionsInited) {
-            openPickerBtn.addEventListener('click', async () => {
+        if (openPickerBtn) {
+            openPickerBtn.onclick = async () => {
                 const chosen = await openAiGuidelinePicker([...selectedGuidelineIds], allGuidelines);
                 if (chosen !== null) {
                     selectedGuidelineIds = new Set(chosen);
                     renderSelectedGuidelines();
-                    await savePSettings();
+                    savePSettings();
                 }
-            });
-            addSpecialBtn?.addEventListener('click', async () => {
-                const content = prompt('輸入特殊指示內容：');
-                if (!content || !content.trim()) return;
-                specialInstructions.push({ id: Date.now(), content: content.trim(), createdAt: new Date().toISOString() });
-                renderSpecialInstructions();
-                await savePSettings();
-            });
-            const goBtn = document.getElementById('btnGoToGuidelinesFromPicker');
-            if (goBtn) goBtn.addEventListener('click', (e) => { e.preventDefault(); switchView('viewAiGuidelines'); loadAiGuidelinesView(); });
-            _aiInstructionsInited = true;
+            };
         }
+        if (addSpecialBtn) {
+            addSpecialBtn.onclick = () => {
+                specialInstructions.push({ id: Date.now(), content: '', enabled: true, createdAt: new Date().toISOString() });
+                renderSpecialInstructions(true);
+                savePSettings();
+            };
+        }
+        const goBtn = document.getElementById('btnGoToGuidelinesFromPicker');
+        if (goBtn) goBtn.onclick = (e) => { e.preventDefault(); switchView('viewAiGuidelines'); loadAiGuidelinesView(); };
     }
 
     // ---- 準則選擇器 Modal ----
@@ -11053,28 +11196,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
 
-            // Categories (inherit from file domains)
+            // Categories — declared here; populated later near modal.classList.remove('hidden')
             const catEl = document.getElementById('aiReviewCategories');
             let reviewCategories = [];
-            if (catEl && currentFileId) {
-                DBService.getFile(currentFileId).then(fileRec => {
-                    const fileDomains = fileRec?.aiDomains || [];
-                    reviewCategories = [...fileDomains];
-                    DBService.getAiGuidelineCategories().then(cats => {
-                        catEl.innerHTML = cats.map(c =>
-                            `<span class="ai-badge${fileDomains.includes(c) ? ' selected' : ''}" data-cat="${_esc(c)}">${_esc(c)}</span>`
-                        ).join('');
-                        catEl.querySelectorAll('.ai-badge').forEach(b => {
-                            b.addEventListener('click', () => {
-                                const cat = b.getAttribute('data-cat');
-                                const idx = reviewCategories.indexOf(cat);
-                                if (idx >= 0) reviewCategories.splice(idx, 1); else reviewCategories.push(cat);
-                                b.classList.toggle('selected', reviewCategories.includes(cat));
-                            });
-                        });
-                    });
-                }).catch(() => {});
-            }
+            if (catEl) catEl.innerHTML = '';
 
             // Edit notes list
             const notesList = document.getElementById('aiReviewNotesList');
@@ -11106,11 +11231,45 @@ document.addEventListener('DOMContentLoaded', async () => {
                 addNoteBtn.onclick = () => { editNotes.push(''); renderNotesList(); };
             }
 
+            // Use aiCategoryTags as the tag source instead of deriving from guidelines
+            if (catEl && currentFileId) {
+                DBService.getFile(currentFileId).then(fileRec => {
+                    const fileDomains = fileRec?.aiDomains || [];
+                    reviewCategories = [...fileDomains];
+                    DBService.getAiCategoryTags().then(allTags => {
+                        catEl.innerHTML = allTags.map(t =>
+                            `<span class="ai-badge${fileDomains.includes(t.name) ? ' selected' : ''}" data-cat="${_esc(t.name)}">${_esc(t.name)}</span>`
+                        ).join('');
+                        catEl.querySelectorAll('.ai-badge').forEach(b => {
+                            b.addEventListener('click', () => {
+                                const cat = b.getAttribute('data-cat');
+                                const idx = reviewCategories.indexOf(cat);
+                                if (idx >= 0) reviewCategories.splice(idx, 1); else reviewCategories.push(cat);
+                                b.classList.toggle('selected', reviewCategories.includes(cat));
+                            });
+                        });
+                    }).catch(() => {});
+                }).catch(() => {});
+            }
+
             modal.classList.remove('hidden');
 
             const skipBtn = document.getElementById('btnSkipAiReview');
             const confirmBtn = document.getElementById('btnConfirmAiReview');
-            function cleanup() { modal.classList.add('hidden'); _aiReviewModalResolve = null; editNotes = []; selectedModTags = new Set(); if(notesList) notesList.innerHTML = ''; if(addNoteBtn) addNoteBtn.onclick = null; }
+            function cleanup() {
+                modal.classList.add('hidden');
+                document.removeEventListener('keydown', onKeydown);
+                _aiReviewModalResolve = null;
+                editNotes = [];
+                selectedModTags = new Set();
+                if (notesList) notesList.innerHTML = '';
+                if (addNoteBtn) addNoteBtn.onclick = null;
+            }
+            function onKeydown(e) {
+                if (e.key === 'Escape') { e.preventDefault(); skipBtn?.click(); }
+                else if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); confirmBtn?.click(); }
+            }
+            document.addEventListener('keydown', onKeydown);
             if (skipBtn) skipBtn.onclick = () => { cleanup(); resolve(null); };
             if (confirmBtn) confirmBtn.onclick = () => {
                 const data = { modTags: [...selectedModTags], categories: [...reviewCategories], editNotes: editNotes.filter(Boolean) };
@@ -11121,38 +11280,117 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // ---- AI 確認鉤子（內部輔助） ----
-    async function _maybeShowAiReviewModal(seg, segIdx) {
-        if (!aiModeActive) return;
-        if (!seg.aiSuggestion) return;
-        if (seg.targetText === seg.aiSuggestion) {
-            // 無修改：直接清除草稿即可
-            seg.aiSuggestion = null;
-            seg.aiSuggestionAt = null;
-            DBService.updateSegmentTarget(seg.id, seg.targetText, { aiSuggestion: null, aiSuggestionAt: null }).catch(console.error);
-            return;
-        }
-        const reviewData = await showAiReviewModal(seg);
-        if (reviewData) {
-            const fileRec = currentFileId ? await DBService.getFile(currentFileId).catch(() => null) : null;
-            DBService.addAiStyleExample({
+
+    function _saveAiStyleExampleAsync(seg, segIdx, reviewData) {
+        const aiDraftAtConfirm = seg.aiSuggestion || '';
+        DBService.getFile(currentFileId).then(fileRec => {
+            return DBService.addAiStyleExample({
                 sourceLang: fileRec?.sourceLang || '',
                 targetLang: fileRec?.targetLang || '',
                 categories: reviewData.categories,
                 modTags: reviewData.modTags,
                 sourceText: seg.sourceText || '',
-                aiDraft: seg.aiSuggestion || '',
+                aiDraft: aiDraftAtConfirm,
                 userFinal: seg.targetText || '',
                 editNotes: reviewData.editNotes,
                 contextPrev: currentSegmentsList[segIdx - 1]?.sourceText || '',
                 contextNext: currentSegmentsList[segIdx + 1]?.sourceText || ''
-            }).catch(console.error);
+            });
+        }).catch(console.error);
+    }
+
+    async function _maybeShowAiReviewModal(seg, segIdx) {
+        if (!aiModeActive) return;
+        const hadAiDraft = !!seg.aiSuggestion;
+        const reviewData = await showAiReviewModal(seg);
+        if (reviewData && (hadAiDraft || _recordManualTranslations)) {
+            _saveAiStyleExampleAsync(seg, segIdx, reviewData);
         }
-        seg.aiSuggestion = null;
-        seg.aiSuggestionAt = null;
-        DBService.updateSegmentTarget(seg.id, seg.targetText, { aiSuggestion: null, aiSuggestionAt: null }).catch(console.error);
+        if (hadAiDraft) {
+            seg.aiSuggestion = null;
+            seg.aiSuggestionAt = null;
+            DBService.updateSegmentTarget(seg.id, seg.targetText, { aiSuggestion: null, aiSuggestionAt: null }).catch(console.error);
+        }
     }
 
     // ---- AI 批次翻譯 Modal ----
+    // ---- 掃描全文 ----
+    async function openAiScanModal() {
+        const modal = document.getElementById('aiScanModal');
+        if (!modal) return;
+        const promptInput = document.getElementById('aiScanPromptInput');
+        if (promptInput) promptInput.value = '';
+        modal.classList.remove('hidden');
+
+        return new Promise(resolve => {
+            const cancelBtn = document.getElementById('btnCancelAiScan');
+            const confirmBtn = document.getElementById('btnConfirmAiScan');
+            function close() { modal.classList.add('hidden'); resolve(null); }
+            if (cancelBtn) cancelBtn.onclick = close;
+            if (confirmBtn) confirmBtn.onclick = async () => {
+                modal.classList.add('hidden');
+                const extraPrompt = promptInput?.value?.trim() || '';
+                await _showAiScanConfirm(extraPrompt);
+                resolve();
+            };
+        });
+    }
+
+    async function _showAiScanConfirm(extraPrompt) {
+        const confirmModal = document.getElementById('aiScanConfirmModal');
+        const infoEl = document.getElementById('aiScanEstimateInfo');
+        if (!confirmModal || !infoEl) return;
+
+        const settings = await DBService.getAiSettings();
+        const segments = currentSegmentsList || [];
+        const est = window.CatAiTranslate?.estimateScanTokens?.(segments, extraPrompt) || {};
+        const { estimatedTokens = 0, willTruncate = false, keptCount = segments.length, totalCount = segments.length } = est;
+
+        let infoHtml = `句段總數：<b>${totalCount}</b> 條<br>估算 Token 數：<b>${estimatedTokens.toLocaleString()}</b>`;
+        if (willTruncate) {
+            infoHtml += `<br><span style="color:#b45309;">⚠ 內容超過模型限制，將自動截斷，僅保留前後共 <b>${keptCount}</b> 條。</span>`;
+        } else {
+            infoHtml += `<br><span style="color:#15803d;">✓ 全文均在模型限制內，可完整送出。</span>`;
+        }
+        infoEl.innerHTML = infoHtml;
+        confirmModal.classList.remove('hidden');
+
+        return new Promise(resolve => {
+            const cancelBtn = document.getElementById('btnCancelAiScanConfirm');
+            const submitBtn = document.getElementById('btnSubmitAiScan');
+            function close() { confirmModal.classList.add('hidden'); resolve(null); }
+            if (cancelBtn) cancelBtn.onclick = close;
+            if (submitBtn) submitBtn.onclick = async () => {
+                confirmModal.classList.add('hidden');
+                await _runAiScan(settings, extraPrompt);
+                resolve();
+            };
+        });
+    }
+
+    async function _runAiScan(settings, extraPrompt) {
+        if (!settings?.apiKey) { _showAiToast('請先在「AI 設定」填入 API Key', true); return; }
+        _showAiToast('正在掃描全文，請稍候…');
+        try {
+            const aiOptions = await _buildAiOptions(settings, '');
+            const report = await window.CatAiTranslate.scanFullText(currentSegmentsList || [], {
+                settings,
+                extraPrompt,
+                guidelines: aiOptions.guidelines,
+                styleExamples: aiOptions.styleExamples,
+                tbTerms: aiOptions.tbTerms
+            });
+            const rc = document.getElementById('aiReportContent');
+            if (rc) rc.textContent = report;
+            // 切換至 AI 報告 tab
+            const reportTab = document.querySelector('[data-notes-tab="tabAiReport"]');
+            if (reportTab) reportTab.click();
+            _hideAiToast();
+        } catch (err) {
+            _showAiToast('掃描失敗：' + err.message, true);
+        }
+    }
+
     function openAiBatchModal() {
         const modal = document.getElementById('aiBatchModal');
         if (!modal) return;
@@ -11400,11 +11638,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (current !== (seg.targetText || '')) {
                     ta.textContent = seg.targetText || '';
                 }
-            }
-            // Add a subtle highlight to rows that received AI content
-            if (seg.aiSuggestion) {
-                row.style.outline = '2px solid #86efac';
-                row.title = 'AI 草稿已填入，請審閱後確認';
             }
         });
         updateProgress();

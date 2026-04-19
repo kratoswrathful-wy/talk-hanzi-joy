@@ -134,6 +134,31 @@ db.version(11).stores({
     });
 });
 
+db.version(12).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, *changeLog, sourceLang, targetLang',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId',
+    wordCountReports: '++id, projectId, createdAt, label',
+    aiGuidelines: '++id, category, createdAt',
+    aiStyleExamples: '++id, sourceLang, targetLang, createdAt',
+    aiSettings: '++id',
+    aiProjectSettings: '++id, projectId',
+    aiCategoryTags: '++id, name, createdAt'
+}).upgrade(async tx => {
+    const existing = await tx.table('aiCategoryTags').toArray();
+    if (existing.length === 0) {
+        await tx.table('aiCategoryTags').add({ name: '通用', createdAt: new Date().toISOString() });
+    }
+});
+
 /** 比對／空白判定：取 HTML 可見文字並壓縮空白，與 cat-cloud-rpc / app.js 邏輯一致 */
 function normalizeCatGuidelineContent(html) {
     if (html == null) return '';
@@ -726,6 +751,20 @@ const DBService = {
         } else {
             return await db.aiProjectSettings.add({ projectId, selectedGuidelineIds: [], specialInstructions: [], ...patch });
         }
+    },
+
+    // ---- AI Category Tags ----
+    async getAiCategoryTags() {
+        return await db.aiCategoryTags.orderBy('createdAt').toArray();
+    },
+    async addAiCategoryTag(name) {
+        if (!name || !name.trim()) throw new Error('標籤名稱不得空白');
+        const existing = await db.aiCategoryTags.toArray();
+        if (existing.some(t => t.name === name.trim())) throw new Error('標籤已存在');
+        return await db.aiCategoryTags.add({ name: name.trim(), createdAt: new Date().toISOString() });
+    },
+    async deleteAiCategoryTag(id) {
+        return await db.aiCategoryTags.delete(id);
     },
 
     // Expose tables directly if needed for custom queries or bulk operations outside this service

@@ -105,6 +105,60 @@ db.version(10).stores({
     wordCountReports: '++id, projectId, createdAt, label'
 });
 
+// v11：AI 輔助翻譯功能
+// - aiGuidelines：全系統共用的準則條目庫（content、category、mutexGroup）
+// - aiStyleExamples：累積的風格學習範例（source/aiDraft/userFinal + modTags + categories）
+// - aiSettings：全系統 AI 設定（API key、model 等），永遠只存 id=1 的單筆記錄
+// - aiProjectSettings：每專案的 AI 指令設定（已勾選準則、特殊指示）
+// - files：新增 aiDomains[]（非索引，記錄該檔案適用的類別）
+db.version(11).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, *changeLog, sourceLang, targetLang',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId',
+    wordCountReports: '++id, projectId, createdAt, label',
+    aiGuidelines: '++id, category, createdAt',
+    aiStyleExamples: '++id, sourceLang, targetLang, createdAt',
+    aiSettings: '++id',
+    aiProjectSettings: '++id, projectId'
+}).upgrade(tx => {
+    return tx.files.toCollection().modify(f => {
+        if (!Array.isArray(f.aiDomains)) f.aiDomains = [];
+    });
+});
+
+db.version(12).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, *changeLog, sourceLang, targetLang',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId',
+    wordCountReports: '++id, projectId, createdAt, label',
+    aiGuidelines: '++id, category, createdAt',
+    aiStyleExamples: '++id, sourceLang, targetLang, createdAt',
+    aiSettings: '++id',
+    aiProjectSettings: '++id, projectId',
+    aiCategoryTags: '++id, name, createdAt'
+}).upgrade(async tx => {
+    const existing = await tx.table('aiCategoryTags').toArray();
+    if (existing.length === 0) {
+        await tx.table('aiCategoryTags').add({ name: '通用', createdAt: new Date().toISOString() });
+    }
+});
+
 /** 比對／空白判定：取 HTML 可見文字並壓縮空白，與 cat-cloud-rpc / app.js 邏輯一致 */
 function normalizeCatGuidelineContent(html) {
     if (html == null) return '';
@@ -589,6 +643,128 @@ const DBService = {
     },
     async deleteWordCountReport(id) {
         return await db.wordCountReports.delete(id);
+    },
+
+    // ---- AI Guidelines（全系統共用準則條目庫）----
+    async addAiGuideline(entry) {
+        const now = new Date().toISOString();
+        return await db.aiGuidelines.add({
+            content: entry.content || '',
+            category: entry.category || '通用',
+            mutexGroup: entry.mutexGroup || null,
+            sortOrder: entry.sortOrder || 0,
+            createdAt: now
+        });
+    },
+    async getAiGuidelines(filters = {}) {
+        let rows = await db.aiGuidelines.orderBy('sortOrder').toArray();
+        if (filters.category) rows = rows.filter(r => r.category === filters.category);
+        return rows;
+    },
+    async updateAiGuideline(id, patch) {
+        const allowed = {};
+        if (patch.category !== undefined) allowed.category = patch.category;
+        if (patch.mutexGroup !== undefined) allowed.mutexGroup = patch.mutexGroup;
+        if (patch.sortOrder !== undefined) allowed.sortOrder = patch.sortOrder;
+        if (patch.content !== undefined) allowed.content = patch.content;
+        return await db.aiGuidelines.update(id, allowed);
+    },
+    async deleteAiGuideline(id) {
+        return await db.aiGuidelines.delete(id);
+    },
+    async getAiGuidelineCategories() {
+        const rows = await db.aiGuidelines.toArray();
+        const cats = [...new Set(rows.map(r => r.category || '通用'))].sort();
+        return cats;
+    },
+
+    // ---- AI Style Examples（風格學習範例）----
+    async addAiStyleExample(entry) {
+        const now = new Date().toISOString();
+        return await db.aiStyleExamples.add({
+            sourceLang: entry.sourceLang || '',
+            targetLang: entry.targetLang || '',
+            categories: Array.isArray(entry.categories) ? entry.categories : [],
+            modTags: Array.isArray(entry.modTags) ? entry.modTags : [],
+            sourceText: entry.sourceText || '',
+            aiDraft: entry.aiDraft || '',
+            userFinal: entry.userFinal || '',
+            editNotes: Array.isArray(entry.editNotes) ? entry.editNotes : [],
+            contextPrev: entry.contextPrev || '',
+            contextNext: entry.contextNext || '',
+            createdAt: now
+        });
+    },
+    async getAiStyleExamples(filters = {}) {
+        let rows = await db.aiStyleExamples.orderBy('createdAt').reverse().toArray();
+        if (filters.sourceLang) rows = rows.filter(r => r.sourceLang === filters.sourceLang);
+        if (filters.targetLang) rows = rows.filter(r => r.targetLang === filters.targetLang);
+        if (Array.isArray(filters.categories) && filters.categories.length > 0) {
+            rows = rows.filter(r =>
+                Array.isArray(r.categories) && filters.categories.some(c => r.categories.includes(c))
+            );
+        }
+        if (typeof filters.limit === 'number' && filters.limit > 0) rows = rows.slice(0, filters.limit);
+        return rows;
+    },
+    async updateAiStyleExample(id, patch) {
+        const allowed = {};
+        if (Array.isArray(patch.modTags)) allowed.modTags = patch.modTags;
+        if (Array.isArray(patch.categories)) allowed.categories = patch.categories;
+        if (Array.isArray(patch.editNotes)) allowed.editNotes = patch.editNotes;
+        return await db.aiStyleExamples.update(id, allowed);
+    },
+    async deleteAiStyleExample(id) {
+        return await db.aiStyleExamples.delete(id);
+    },
+
+    // ---- AI Settings（全系統 API 設定，永遠維持 id=1 的單筆記錄）----
+    async getAiSettings() {
+        try {
+            const row = await db.aiSettings.get(1);
+            return row || { id: 1, apiKey: '', apiBaseUrl: '', model: 'gpt-4.1-mini', batchSize: 20 };
+        } catch (_) {
+            return { id: 1, apiKey: '', apiBaseUrl: '', model: 'gpt-4.1-mini', batchSize: 20 };
+        }
+    },
+    async saveAiSettings(settings) {
+        const existing = await db.aiSettings.get(1);
+        if (existing) {
+            return await db.aiSettings.update(1, { ...settings, id: 1 });
+        } else {
+            return await db.aiSettings.put({ ...settings, id: 1 });
+        }
+    },
+
+    // ---- AI Project Settings（每專案 AI 指令：已勾選準則 ID、特殊指示）----
+    async getAiProjectSettings(projectId) {
+        if (!projectId) return null;
+        const rows = await db.aiProjectSettings.where('projectId').equals(projectId).toArray();
+        if (rows.length > 0) return rows[0];
+        return { projectId, selectedGuidelineIds: [], specialInstructions: [] };
+    },
+    async saveAiProjectSettings(projectId, patch) {
+        if (!projectId) return;
+        const rows = await db.aiProjectSettings.where('projectId').equals(projectId).toArray();
+        if (rows.length > 0) {
+            return await db.aiProjectSettings.update(rows[0].id, { ...patch });
+        } else {
+            return await db.aiProjectSettings.add({ projectId, selectedGuidelineIds: [], specialInstructions: [], ...patch });
+        }
+    },
+
+    // ---- AI Category Tags ----
+    async getAiCategoryTags() {
+        return await db.aiCategoryTags.orderBy('createdAt').toArray();
+    },
+    async addAiCategoryTag(name) {
+        if (!name || !name.trim()) throw new Error('標籤名稱不得空白');
+        const existing = await db.aiCategoryTags.toArray();
+        if (existing.some(t => t.name === name.trim())) throw new Error('標籤已存在');
+        return await db.aiCategoryTags.add({ name: name.trim(), createdAt: new Date().toISOString() });
+    },
+    async deleteAiCategoryTag(id) {
+        return await db.aiCategoryTags.delete(id);
     },
 
     // Expose tables directly if needed for custom queries or bulk operations outside this service

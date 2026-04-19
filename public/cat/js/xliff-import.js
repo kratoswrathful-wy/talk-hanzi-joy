@@ -179,8 +179,14 @@
                         ? Xliff.extractTaggedText(srcExtractNode, { transparentG: false })
                         : { text: '', tags: [] };
 
-                    // 目標語同樣從 targetNode 全體抽取
-                    const { text: tgtTxt, tags: tgtTags } = targetNode
+                    // 目標語：先確認 mrk 有實際內容，避免空 mrk 產生多餘的 {1}{/1}
+                    const tgtMrk = targetNode
+                        ? (collectSegMrks(targetNode).find(m => m.getAttribute('mid') === mid) || null)
+                        : null;
+                    const tgtHasContent = tgtMrk
+                        ? tgtMrk.textContent.trim() !== ''
+                        : (targetNode ? targetNode.textContent.trim() !== '' : false);
+                    const { text: tgtTxt, tags: tgtTags } = (targetNode && tgtHasContent)
                         ? Xliff.extractTaggedText(targetNode, { transparentG: false })
                         : { text: '', tags: [] };
 
