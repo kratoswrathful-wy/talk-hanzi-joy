@@ -340,8 +340,23 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       return totalCount;
     }
     case "db.getSegmentsByFile": {
-      const { data } = await supabase.from("cat_segments").select("*").eq("file_id", payload.fileId).order("row_idx", { ascending: true }).limit(10000);
-      return (data ?? []).map(mapSegmentRow);
+      const PAGE = 1000;
+      let allData: any[] = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("cat_segments")
+          .select("*")
+          .eq("file_id", payload.fileId)
+          .order("row_idx", { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        allData = allData.concat(data);
+        if (data.length < PAGE) break;
+        from += PAGE;
+      }
+      return allData.map(mapSegmentRow);
     }
     case "db.updateSegmentTarget": {
       const ex = segmentExtraCamelToSnake(payload.extra);
