@@ -933,12 +933,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // AI 功能僅限執行長（executive）；本機離線模式視為通過
+    function _isAiAllowed() {
+        if (!isTeamMode()) return true;
+        const role = (window._tmsRole || '').toLowerCase();
+        return role === 'executive';
+    }
+
     function _applyAiPmOnlyVisibility() {
-        const isPm = isCatSharedMutator();
-        document.querySelectorAll('.ai-pm-nav').forEach(el => { el.style.display = isPm ? '' : 'none'; });
-        document.querySelectorAll('.ai-pm-tab').forEach(el => { el.style.display = isPm ? '' : 'none'; });
+        const allowed = _isAiAllowed();
+        document.querySelectorAll('.ai-pm-nav').forEach(el => { el.style.display = allowed ? '' : 'none'; });
+        document.querySelectorAll('.ai-pm-tab').forEach(el => { el.style.display = allowed ? '' : 'none'; });
         const btnAiMode = document.getElementById('btnAiMode');
-        if (btnAiMode) btnAiMode.style.display = isPm ? '' : 'none';
+        if (btnAiMode) btnAiMode.style.display = allowed ? '' : 'none';
     }
 
     function enforceTeamRoleLayout() {
@@ -10530,7 +10537,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ---- 準則管理 View ----
     async function loadAiGuidelinesView() {
-        if (!isCatSharedMutator()) return;
+        if (!_isAiAllowed()) return;
         const allGuidelines = await DBService.getAiGuidelines();
         const categories = ['全部', ...await DBService.getAiGuidelineCategories()];
         let activeCat = '全部';
@@ -10600,7 +10607,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const category = document.getElementById('aiGuidelineNewCategory')?.value?.trim() || '通用';
                 const mutexGroup = document.getElementById('aiGuidelineNewMutexGroup')?.value?.trim() || null;
                 if (!content) { alert('請輸入準則內容'); return; }
-                if (!isCatSharedMutator()) return;
+                if (!_isAiAllowed()) return;
                 const id = await DBService.addAiGuideline({ content, category, mutexGroup, sortOrder: allGuidelines.length });
                 const newRow = { id, content, category, mutexGroup: mutexGroup || null, sortOrder: allGuidelines.length };
                 allGuidelines.push(newRow);
