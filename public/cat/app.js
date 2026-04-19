@@ -132,6 +132,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const viewSections = document.querySelectorAll('.view-section');
     let currentFileId = null;
 
+    // 進度條統計範圍（null = 不限；1-based，依原始 rowIdx 排序後的位置）
+    let progressRangeStart = null;
+    let progressRangeEnd   = null;
+
     // Sidebar Toggle
     const sidebar = document.getElementById('sidebar');
     const btnToggleSidebar = document.getElementById('btnToggleSidebar');
@@ -8285,9 +8289,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 點擊按鈕、快速鍵或其他操作不會清除選取狀態。
 
     function updateProgress() {
-        const baseline = currentSegmentsList.filter(s => !isBaselineForbidden(s));
+        // 依 rowIdx 排序，取得「原始排序索引」（不受當前篩選或排序影響）
+        const originalOrdered = [...currentSegmentsList].sort((a, b) => (a.rowIdx ?? 0) - (b.rowIdx ?? 0));
+        const inProgressRange = (s) => {
+            if (progressRangeStart == null && progressRangeEnd == null) return true;
+            const idx = originalOrdered.indexOf(s) + 1; // 1-based
+            const lo = progressRangeStart ?? 1;
+            const hi = progressRangeEnd ?? originalOrdered.length;
+            return idx >= lo && idx <= hi;
+        };
+
+        const baseline = currentSegmentsList.filter(s => !isBaselineForbidden(s) && inProgressRange(s));
         const total = baseline.length;
-        const sessionValid = currentSegmentsList.filter(s => !(isDynamicForbidden(s) || s.isLockedUser));
+        const sessionValid = currentSegmentsList.filter(s => !(isDynamicForbidden(s) || s.isLockedUser) && inProgressRange(s));
         const translated = sessionValid.filter(s => s.status === 'confirmed').length;
 
         let totalWords = 0;
@@ -8305,6 +8319,207 @@ document.addEventListener('DOMContentLoaded', async () => {
         const pctEl = document.getElementById('statusBarPercent');
         if (pctEl) pctEl.textContent = `${wordPct.toFixed(0)}%`;
     }
+
+    // ── 進度條統計範圍按鈕 ───────────────────────────────────────────────────
+
+    (function initProgressRangeUI() {
+        const btnRange = document.getElementById('btnProgressRange');
+        const popup = document.getElementById('progressRangePopup');
+        const fromInput = document.getElementById('progressRangeFrom');
+        const toInput = document.getElementById('progressRangeTo');
+        const btnApply = document.getElementById('btnApplyProgressRange');
+        const btnReset = document.getElementById('btnResetProgressRange');
+        const rangeLabel = document.getElementById('progressRangeLabel');
+        if (!btnRange || !popup) return;
+
+        btnRange.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isHidden = popup.classList.contains('hidden');
+            popup.classList.toggle('hidden', !isHidden);
+            if (!isHidden) return;
+            // 填入目前範圍值
+            if (fromInput) fromInput.value = progressRangeStart ?? '';
+            if (toInput) toInput.value = progressRangeEnd ?? '';
+        });
+
+        // 點其他地方關閉
+        document.addEventListener('click', (e) => {
+            if (!popup.contains(e.target) && e.target !== btnRange) {
+                popup.classList.add('hidden');
+            }
+        });
+
+        btnApply?.addEventListener('click', () => {
+            const lo = fromInput && fromInput.value ? parseInt(fromInput.value, 10) : null;
+            const hi = toInput && toInput.value ? parseInt(toInput.value, 10) : null;
+            progressRangeStart = (lo != null && lo > 0) ? lo : null;
+            progressRangeEnd   = (hi != null && hi > 0) ? hi : null;
+            popup.classList.add('hidden');
+            updateProgress();
+            if (rangeLabel) {
+                if (progressRangeStart != null || progressRangeEnd != null) {
+                    rangeLabel.textContent = `[範圍 ${progressRangeStart ?? '1'}–${progressRangeEnd ?? '末'}]`;
+                    rangeLabel.style.display = '';
+                } else {
+                    rangeLabel.style.display = 'none';
+                }
+            }
+        });
+
+        btnReset?.addEventListener('click', () => {
+            progressRangeStart = null;
+            progressRangeEnd = null;
+            if (fromInput) fromInput.value = '';
+            if (toInput) toInput.value = '';
+            popup.classList.add('hidden');
+            if (rangeLabel) rangeLabel.style.display = 'none';
+            updateProgress();
+        });
+    })();
+
+    // ── QA ──────────────────────────────────────────────────────────────────
+
+    let _qaResults = [];
+    const _qaIgnoredSet = new Set(); // key: `${gid}:${type}:${detail}`
+
+    function _qaJumpToSegment(segId) {
+        const row = document.querySelector(`.grid-data-row[data-seg-id="${segId}"]`);
+        if (!row) { alert('句段目前不在可見列表中（可能被篩選隱藏），請移除篩選後再試。'); return; }
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const ta = row.querySelector('.grid-textarea');
+        if (ta) ta.focus();
+    }
+
+    function runQaChecks(segs, options) {
+        const { fromIdx, toIdx, includeLocked } = options || {};
+        const results = [];
+
+        // 依原始排序（globalId or rowIdx+1）決定範圍索引
+        const originalOrdered = [...segs].sort((a, b) => (a.rowIdx ?? 0) - (b.rowIdx ?? 0));
+
+        for (let oi = 0; oi < originalOrdered.length; oi++) {
+            const s = originalOrdered[oi];
+            const gid = s.globalId || (s.rowIdx + 1);
+            const rangeIdx = oi + 1; // 1-based
+
+            if (fromIdx != null && rangeIdx < fromIdx) continue;
+            if (toIdx != null && rangeIdx > toIdx) continue;
+            if (!includeLocked && (isDynamicForbidden(s) || s.isLockedUser)) continue;
+            if (!s.targetText || !s.targetText.trim()) continue; // 未譯跳過
+
+            // Tag 完整性檢查
+            const srcIds = (s.sourceTags || []).map(t => String(t.id ?? t.num ?? t.index ?? ''));
+            const tgtIds = (s.targetTags || []).map(t => String(t.id ?? t.num ?? t.index ?? ''));
+            if (srcIds.length > 0) {
+                const srcSet = new Set(srcIds);
+                const tgtSet = new Set(tgtIds);
+                const missing = srcIds.filter(id => id && !tgtSet.has(id));
+                const extra = tgtIds.filter(id => id && !srcSet.has(id));
+                const hasMissing = [...new Set(missing)].length > 0;
+                const hasExtra = [...new Set(extra)].length > 0;
+                if (hasMissing || hasExtra) {
+                    const detail = hasMissing
+                        ? '缺少 tag：{' + [...new Set(missing)].join('}, {') + '}'
+                        : '多餘 tag：{' + [...new Set(extra)].join('}, {') + '}';
+                    results.push({ segId: s.id, gid, type: 'Tag 檢查', info: detail, key: `${gid}:tag` });
+                }
+            }
+
+            // TB 術語未套用
+            if (window.ActiveTbTerms && window.ActiveTbTerms.length > 0) {
+                for (const term of window.ActiveTbTerms) {
+                    if (!term.source || !term.target) continue;
+                    if ((s.sourceText || '').includes(term.source) && !(s.targetText || '').includes(term.target)) {
+                        const detail = `「${term.source}」→「${term.target}」`;
+                        results.push({ segId: s.id, gid, type: '術語未套用', info: detail, key: `${gid}:tb:${term.source}` });
+                    }
+                }
+            }
+        }
+        return results;
+    }
+
+    function renderQaResults() {
+        const tbody = document.getElementById('qaResultsBody');
+        const table = document.getElementById('qaResultsTable');
+        const statusEl = document.getElementById('qaStatus');
+        if (!tbody || !table || !statusEl) return;
+
+        const hideIgnored = document.getElementById('qaHideIgnored')?.checked;
+        const tagCount = _qaResults.filter(r => r.type === 'Tag 檢查').length;
+        const tbCount = _qaResults.filter(r => r.type === '術語未套用').length;
+
+        if (_qaResults.length === 0) {
+            table.style.display = 'none';
+            statusEl.textContent = '✓ 無發現問題';
+            statusEl.style.color = '#16a34a';
+            return;
+        }
+
+        statusEl.style.color = '#b45309';
+        statusEl.textContent = `發現 ${_qaResults.length} 個問題（Tag: ${tagCount}，術語: ${tbCount}）`;
+        table.style.display = '';
+
+        tbody.innerHTML = '';
+        for (const r of _qaResults) {
+            const isIgnored = _qaIgnoredSet.has(r.key);
+            if (hideIgnored && isIgnored) continue;
+            const tr = document.createElement('tr');
+            tr.className = 'qa-row' + (isIgnored ? ' is-ignored' : '');
+            tr.dataset.qaKey = r.key;
+
+            const tdNum = document.createElement('td');
+            tdNum.className = 'qa-td-num qa-clickable';
+            tdNum.textContent = r.gid;
+            tdNum.title = '點擊跳至句段';
+            tdNum.addEventListener('click', () => _qaJumpToSegment(r.segId));
+
+            const tdType = document.createElement('td');
+            tdType.className = 'qa-td-type';
+            tdType.textContent = r.type;
+
+            const tdInfo = document.createElement('td');
+            tdInfo.className = 'qa-td-info qa-clickable';
+            tdInfo.textContent = r.info;
+            tdInfo.title = '點擊跳至句段';
+            tdInfo.addEventListener('click', () => _qaJumpToSegment(r.segId));
+
+            const tdIgnore = document.createElement('td');
+            tdIgnore.className = 'qa-td-ignore';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = isIgnored;
+            cb.addEventListener('change', () => {
+                if (cb.checked) _qaIgnoredSet.add(r.key); else _qaIgnoredSet.delete(r.key);
+                tr.classList.toggle('is-ignored', cb.checked);
+                if (document.getElementById('qaHideIgnored')?.checked && cb.checked) {
+                    tr.style.display = 'none';
+                }
+            });
+            tdIgnore.appendChild(cb);
+
+            tr.appendChild(tdNum);
+            tr.appendChild(tdType);
+            tr.appendChild(tdInfo);
+            tr.appendChild(tdIgnore);
+            tbody.appendChild(tr);
+        }
+    }
+
+    // QA 按鈕事件
+    const btnRunQA = document.getElementById('btnRunQA');
+    if (btnRunQA) {
+        btnRunQA.addEventListener('click', () => {
+            const fromVal = document.getElementById('qaRangeFrom')?.value;
+            const toVal = document.getElementById('qaRangeTo')?.value;
+            const fromIdx = fromVal ? parseInt(fromVal, 10) : null;
+            const toIdx = toVal ? parseInt(toVal, 10) : null;
+            const includeLocked = document.getElementById('qaIncludeLocked')?.checked ?? false;
+            _qaResults = runQaChecks(currentSegmentsList, { fromIdx, toIdx, includeLocked });
+            renderQaResults();
+        });
+    }
+    document.getElementById('qaHideIgnored')?.addEventListener('change', renderQaResults);
 
     // ── TM Concordance Search ────────────────────────────────────────────────
 

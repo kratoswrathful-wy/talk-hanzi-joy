@@ -1408,3 +1408,82 @@ mark.tm-search-hit {
     line-height: 1.45;
     background: #fff;
 }
+
+/* ── QA 分頁 ─────────────────────────────────────────── */
+.qa-options-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.4rem 0.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+    flex-wrap: wrap;
+}
+.qa-action-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.3rem 0.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+.qa-label {
+    font-size: 0.82rem;
+    color: #475569;
+}
+.qa-range-input {
+    width: 56px;
+    padding: 2px 4px;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    font-size: 0.82rem;
+}
+.qa-status-bar {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.82rem;
+    color: #64748b;
+    border-bottom: 1px solid #f1f5f9;
+    min-height: 28px;
+}
+.qa-results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+.qa-results-table thead th {
+    position: sticky;
+    top: 0;
+    background: #f1f5f9;
+    font-weight: 600;
+    color: #334155;
+    padding: 0.3rem 0.4rem;
+    border-bottom: 1px solid #e2e8f0;
+    text-align: left;
+}
+.qa-th-num    { width: 2.5rem; }
+.qa-th-type   { width: 6rem; }
+.qa-th-info   { }
+.qa-th-ignore { width: 2.5rem; text-align: center; }
+.qa-results-table td {
+    padding: 0.3rem 0.4rem;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+    line-height: 1.35;
+}
+.qa-td-ignore { text-align: center; }
+.qa-td-type {
+    color: #7c3aed;
+    white-space: nowrap;
+}
+.qa-row:hover td { background: #f8f7ff; }
+.qa-row.is-ignored td {
+    opacity: 0.38;
+    text-decoration: line-through;
+}
+.qa-clickable {
+    cursor: pointer;
+    color: var(--primary-color, #2563eb);
+}
+.qa-clickable:hover {
+    text-decoration: underline;
+}
