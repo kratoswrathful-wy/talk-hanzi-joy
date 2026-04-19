@@ -72,18 +72,38 @@
         const isSdlxliffFile = lowerFileName.endsWith('.sdlxliff');
         const extractOpts = isSdlxliffFile ? { transparentG: true } : {};
 
+        // sdlxliff 專用：以 localName 做遞迴搜尋，找出所有 <mrk mtype="seg"> 元素。
+        // 使用 localName 而非 getElementsByTagName 以避免 XML namespace 問題。
+        function collectSegMrks(node) {
+            const results = [];
+            if (!node) return results;
+            for (const child of Array.from(node.childNodes)) {
+                if (child.nodeType !== 1) continue;
+                if (child.localName === 'mrk' && child.getAttribute('mtype') === 'seg')
+                    results.push(child);
+                results.push(...collectSegMrks(child));
+            }
+            return results;
+        }
+
         transUnits.forEach((tu) => {
             const fallbackId = tu.getAttribute('id') || tu.getAttribute('resname') || tu.getAttribute('mq:unitId') || '';
             const sourceNode = tu.getElementsByTagName('source')[0];
             const targetNode = tu.getElementsByTagName('target')[0];
 
             // ── sdlxliff 多段 TU 處理 ─────────────────────────────────────────
-            // SDL Trados 可在一個 trans-unit 內放多個 <mrk mtype="seg" mid="N">，
-            // 每個 mrk 代表一個獨立句段。若超過一個 mrk 則逐一建立 segment。
+            // SDL Trados 可在一個 trans-unit 內放多個 <mrk mtype="seg" mid="N">。
+            // 重要：SDL Trados 通常將 mrk 放在 <seg-source> 而非 <source> 中；
+            // <source> 只含純文字（無 mrk），mrk 在 <seg-source>（或 <target>）。
+            // 偵測順序：source → seg-source（找到 mrk 就停止）。
             if (isSdlxliffFile) {
-                const srcMrks = Array.from(
-                    sourceNode ? sourceNode.getElementsByTagName('mrk') : []
-                ).filter(m => m.getAttribute('mtype') === 'seg');
+                const segSourceNode = Array.from(tu.childNodes)
+                    .find(n => n.nodeType === 1 && n.localName === 'seg-source') || null;
+
+                let srcMrks = collectSegMrks(sourceNode);
+                if (srcMrks.length === 0 && segSourceNode) {
+                    srcMrks = collectSegMrks(segSourceNode);
+                }
 
                 if (srcMrks.length > 1) {
                     // 取得 sdl:seg-defs，用於讀取各句段的確認狀態
@@ -96,10 +116,8 @@
 
                     srcMrks.forEach(srcMrk => {
                         const mid = srcMrk.getAttribute('mid') || '';
-                        const tgtMrk = targetNode
-                            ? Array.from(targetNode.getElementsByTagName('mrk'))
-                                .find(m => m.getAttribute('mtype') === 'seg' && m.getAttribute('mid') === mid)
-                            : null;
+                        const tgtMrk = collectSegMrks(targetNode)
+                            .find(m => m.getAttribute('mid') === mid) || null;
 
                         const { text: srcTxt, tags: srcTags } =
                             Xliff.extractTaggedText(srcMrk, extractOpts);
