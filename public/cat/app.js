@@ -7408,18 +7408,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                     updateProgress();
                     clearTimeout(targetDebounceTimer);
                     targetDebounceTimer = setTimeout(async () => {
+                        const latest = extractTextFromEditor(targetInput);
                         const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
-                        if (oldVal !== newVal) {
-                            pushEditorUndo(seg.id, oldVal, newVal, {
+                        if (oldVal !== latest) {
+                            pushEditorUndo(seg.id, oldVal, latest, {
                                 oldMatchValue: editorUndoMatchStart[seg.id],
                                 newMatchValue: seg.matchValue,
                                 oldStatus: editorUndoStatusStart[seg.id],
                                 newStatus: seg.status
                             });
-                            editorUndoEditStart[seg.id] = newVal;
+                            editorUndoEditStart[seg.id] = latest;
                         }
-                        await DBService.updateSegmentTarget(seg.id, newVal);
-                        emitCollabEdit('commit', seg, newVal);
+                        seg.targetText = latest;
+                        await DBService.updateSegmentTarget(seg.id, latest);
+                        emitCollabEdit('commit', seg, latest);
                     }, 500);
                 });
 
@@ -8774,10 +8776,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         return null;
     }
 
+    /** Excel 匯出前：將畫面上譯文欄內容寫入 DB，避免 debounce 未完成時匯出仍為舊 target_text */
+    async function flushTargetEditorsToDbForExport() {
+        if (!currentFileId || !currentSegmentsList || !currentSegmentsList.length) return;
+        const grid = document.getElementById('gridBody');
+        if (!grid) return;
+        const rows = grid.querySelectorAll('.grid-data-row');
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const targetInput = row.querySelector('.col-target .grid-textarea');
+            if (!targetInput || targetInput.getAttribute('contenteditable') === 'false') continue;
+            const sid = parseId(row.dataset.segId);
+            const seg = currentSegmentsList.find((s) => String(s.id) === String(sid));
+            if (!seg) continue;
+            const latest = extractTextFromEditor(targetInput);
+            if (latest === (seg.targetText || '')) continue;
+            seg.targetText = latest;
+            try {
+                await DBService.updateSegmentTarget(seg.id, latest);
+            } catch (err) {
+                console.error('[CAT] flushTargetEditorsToDbForExport', err);
+            }
+        }
+    }
+
     exportBtn.addEventListener('click', async () => {
         if (!currentFileId) return;
         try {
             exportBtn.disabled = true; exportBtn.textContent = '匯出中...';
+            const isXliffFamily = currentFileFormat === 'xliff' || currentFileFormat === 'mqxliff' || currentFileFormat === 'sdlxliff';
+            if (!isXliffFamily) {
+                await flushTargetEditorsToDbForExport();
+            }
             const f    = await DBService.getFile(currentFileId);
             const segs = await DBService.getSegmentsByFile(currentFileId);
 
