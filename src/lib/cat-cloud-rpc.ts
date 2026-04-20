@@ -42,7 +42,16 @@ function segmentExtraCamelToSnake(extra: Record<string, unknown> | null | undefi
   } else if ("isLockedUser" in e || "isLockedSystem" in e) {
     out.is_locked = !!e.isLockedUser || !!e.isLockedSystem;
   }
+  if ("targetTags" in e) out.target_tags = Array.isArray(e.targetTags) ? e.targetTags : [];
   return out;
+}
+
+function tryParseJson<T>(v: unknown, fallback: T): T {
+  if (Array.isArray(v)) return v as unknown as T;
+  if (typeof v === "string" && v) {
+    try { return JSON.parse(v) as T; } catch { /* ignore */ }
+  }
+  return fallback;
 }
 
 const mapProjectRow = (r: any) => ({
@@ -90,6 +99,8 @@ const mapSegmentRow = (r: any) => {
     extraValue: r.extra_value,
     sourceText: r.source_text ?? "",
     targetText: r.target_text ?? "",
+    sourceTags: tryParseJson<unknown[]>(r.source_tags, []),
+    targetTags: tryParseJson<unknown[]>(r.target_tags, []),
     isLocked,
     isLockedUser,
     isLockedSystem,
@@ -320,6 +331,8 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           extra_value: s.extraValue ?? null,
           source_text: s.sourceText ?? "",
           target_text: s.targetText ?? "",
+          source_tags: Array.isArray(s.sourceTags) ? s.sourceTags : [],
+          target_tags: Array.isArray(s.targetTags) ? s.targetTags : [],
           is_locked_user: isLockedUser,
           is_locked_system: isLockedSystem,
           is_locked: isLocked,
