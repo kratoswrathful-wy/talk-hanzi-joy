@@ -7,6 +7,7 @@ globs:
   - "public/cat/app.js"
   - "public/cat/js/xliff-tag-pipeline.js"
   - "public/cat/js/xliff-import.js"
+  - "src/lib/cat-cloud-rpc.ts"
 alwaysApply: false
 ---
 
@@ -86,8 +87,26 @@ sdlxliff 匯出**不可**直接替換整個 `<target>` 內容，必須：
 - sdlxliff：`<mrk mtype="seg">` 內的 `<ph>` / `<g>`
 - 一般 XLIFF：`<ph>` 元素
 
+### 6. 禁止從 `cat-cloud-rpc.ts` 移除 `source_tags` / `target_tags` 映射
+
+Team 模式下，tags 透過 cloud RPC 存入 Supabase。以下兩處缺一不可：
+
+```typescript
+// db.addSegments — 寫入
+source_tags: Array.isArray(s.sourceTags) ? s.sourceTags : [],
+target_tags: Array.isArray(s.targetTags) ? s.targetTags : [],
+
+// mapSegmentRow — 讀回
+sourceTags: tryParseJson(r.source_tags, []),
+targetTags: tryParseJson(r.target_tags, []),
+```
+
+`segmentExtraCamelToSnake` 也必須保留 `targetTags` → `target_tags` 的映射，
+否則 `updateSegmentTarget` 呼叫時 targetTags 更新會被靜默丟棄。
+
 ## 參考
 
 - 完整架構：`docs/XLIFF_TAG_PIPELINE.md`
 - Pipeline 模組：`cat-tool/js/xliff-tag-pipeline.js`（標頭有 CRITICAL 警告）
 - 匯入模組：`cat-tool/js/xliff-import.js`
+- Team 模式 RPC：`src/lib/cat-cloud-rpc.ts`
