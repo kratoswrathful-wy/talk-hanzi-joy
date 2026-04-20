@@ -1439,6 +1439,16 @@
             </div>
             <div class="wizard-body" style="max-height:55vh; overflow:auto;">
                 <p style="margin:0 0 0.5rem 0; color:#64748b; font-size:0.88rem;">依勾選檔案原文的<strong>加權字數</strong>切份（句段順序不變、不切半句）；可填各份目標加權，留白則將剩餘加權均分給未填的份。本工具不會送出指派或變更 TMS 權限。</p>
+                <div style="display:flex; flex-wrap:wrap; gap:1rem; margin-bottom:0.5rem;">
+                    <label style="display:flex; align-items:center; gap:0.35rem; font-size:0.88rem; cursor:pointer;">
+                        <input type="checkbox" id="splitHintIncludeLocked" checked>
+                        納入鎖定句段
+                    </label>
+                </div>
+                <div style="margin-bottom:0.75rem;">
+                    <div style="font-weight:600; font-size:0.88rem; margin-bottom:0.35rem;">比對用 TM（勾選後依相符度套用折扣加權）</div>
+                    <div id="splitHintTmCheckboxes" style="display:flex; flex-direction:column; gap:0.35rem; max-height:110px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:6px; padding:0.5rem;"></div>
+                </div>
                 <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.75rem;">
                     <label style="font-size:0.9rem;">分成</label>
                     <input type="number" id="splitHintPartsInput" min="2" max="99" value="2" style="width:4rem; padding:0.35rem 0.5rem; border:1px solid #e2e8f0; border-radius:6px;">

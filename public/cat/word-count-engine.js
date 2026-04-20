@@ -181,6 +181,7 @@
         stripTags,
         normKey,
         weightedUnits,
-        analyze
+        analyze,
+        _bestTmSimilarity: bestTmSimilarity
     };
 })(typeof window !== 'undefined' ? window : globalThis);

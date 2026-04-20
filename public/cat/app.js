@@ -182,6 +182,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnSplitHintRun = document.getElementById('btnSplitHintRun');
     const splitHintQuotaContainer = document.getElementById('splitHintQuotaContainer');
     const splitAssignTableWrap = document.getElementById('splitAssignTableWrap');
+    const splitHintIncludeLocked = document.getElementById('splitHintIncludeLocked');
+    const splitHintTmCheckboxes = document.getElementById('splitHintTmCheckboxes');
     const highMatchGuardModal = document.getElementById('highMatchGuardModal');
     const highMatchGuardMessage = document.getElementById('highMatchGuardMessage');
     const btnHighMatchGuardOk = document.getElementById('btnHighMatchGuardOk');
@@ -2516,6 +2518,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         const n = Math.max(2, Math.min(99, parseInt(parts, 10) || 2));
         wrap.innerHTML = '<div style="padding:0.75rem;color:#64748b;">計算中…</div>';
 
+        const includeLocked = !!(splitHintIncludeLocked && splitHintIncludeLocked.checked);
+
+        // Build TM norm list from checked TMs
+        const TM_DISCOUNT = { tm100: 0.1, repetition: 0.1, tm8599: 0.6, tm7584: 0.75, tmLow: 1.0, newWords: 1.0 };
+        let tmNormList = [];
+        const useTm = !!(splitHintTmCheckboxes && splitHintTmCheckboxes.querySelector('.split-hint-tm-cb:checked'));
+        if (useTm && window.WordCountEngine) {
+            const checked = splitHintTmCheckboxes.querySelectorAll('.split-hint-tm-cb:checked');
+            for (const cb of checked) {
+                const tmId = cb.value;
+                if (!tmId) continue;
+                const segs = await DBService.getTMSegments(tmId);
+                segs.forEach((s) => {
+                    const nk = WordCountEngine.normKey(s.sourceText);
+                    if (nk) tmNormList.push(nk);
+                });
+            }
+        }
+        const tmExact = new Set(tmNormList.filter(Boolean));
+
         const fileRows = [];
         for (const fid of fileIds) {
             const segs = await DBService.getSegmentsByFile(fid);
@@ -2527,11 +2549,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const flat = [];
         let totalW = 0;
+        const seenSrc = new Map();
         fileRows.forEach((fr) => {
             fr.segs.forEach((s, i) => {
-                const w = (window.WordCountEngine && window.WordCountEngine.weightedUnits)
-                    ? window.WordCountEngine.weightedUnits(s.sourceText || '')
-                    : 0;
+                const isLocked = !!(s.isLocked || s.isLockedUser || s.isLockedSystem);
+                if (!includeLocked && isLocked) return;
+                const WCE = window.WordCountEngine;
+                const rawW = (WCE && WCE.weightedUnits) ? WCE.weightedUnits(s.sourceText || '') : 0;
+                let w = rawW;
+                if (useTm && WCE && tmNormList.length) {
+                    const srcN = WCE.normKey(s.sourceText || '');
+                    let bucketKey = 'newWords';
+                    if (tmExact.has(srcN)) {
+                        bucketKey = 'tm100';
+                    } else if (seenSrc.has(srcN)) {
+                        bucketKey = 'repetition';
+                    } else {
+                        seenSrc.set(srcN, true);
+                        const sim = WCE._bestTmSimilarity(srcN, tmNormList);
+                        if (sim >= 0.995) bucketKey = 'tm100';
+                        else if (sim >= 0.85) bucketKey = 'tm8599';
+                        else if (sim >= 0.75) bucketKey = 'tm7584';
+                        else if (sim > 0.01) bucketKey = 'tmLow';
+                        else bucketKey = 'newWords';
+                    }
+                    w = rawW * (TM_DISCOUNT[bucketKey] ?? 1.0);
+                } else {
+                    const srcN = WCE ? WCE.normKey(s.sourceText || '') : (s.sourceText || '');
+                    seenSrc.set(srcN, true);
+                }
                 totalW += w;
                 flat.push({ fileName: fr.name, rowInFile: i + 1, weight: w });
             });
@@ -2548,7 +2594,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const partSlices = partitionFlatByQuotas(flat, qres.quotas, n);
 
-        let html = `<p style="margin:0 0 0.5rem 0; font-size:0.85rem; color:#64748b;">勾選檔案合計 <strong>${totalSegs}</strong> 句、加權約 <strong>${fmtSplitHintNum(totalW)}</strong>；分為 <strong>${n}</strong> 份（僅供參考）：</p>`;
+        const tmNote = (useTm && tmNormList.length) ? '（已套用 TM 折扣）' : '';
+        const lockedNote = includeLocked ? '' : '、已略過鎖定句段';
+        let html = `<p style="margin:0 0 0.5rem 0; font-size:0.85rem; color:#64748b;">勾選檔案合計 <strong>${totalSegs}</strong> 句${lockedNote}、加權約 <strong>${fmtSplitHintNum(totalW)}</strong>${tmNote}；分為 <strong>${n}</strong> 份（僅供參考）：</p>`;
         html += '<table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.85rem;"><thead><tr style="background:#f1f5f9;">';
         html += '<th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0;">份次</th>';
         html += '<th style="text-align:right; padding:0.45rem; border:1px solid #e2e8f0;">目標加權</th>';
@@ -2572,7 +2620,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         wrap.innerHTML = html;
     }
 
-    function openSplitHintModal() {
+    async function openSplitHintModal() {
         const ids = getSelectedProjectFileIds();
         if (!ids.length) {
             alert('請先勾選檔案。');
@@ -2584,6 +2632,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderSplitHintQuotaRows(n);
         if (splitAssignTableWrap) {
             splitAssignTableWrap.innerHTML = '<div style="padding:0.75rem; color:#64748b; font-size:0.88rem;">設定份數與選填配額後，按「開始計算」。</div>';
+        }
+        // Populate TM checkboxes
+        if (splitHintTmCheckboxes && currentProjectId) {
+            const p = await DBService.getProject(currentProjectId);
+            const readTms = (p && p.readTms) ? p.readTms : [];
+            const allTms = await DBService.getTMs();
+            splitHintTmCheckboxes.innerHTML = readTms.length ? readTms.map((tid) => {
+                const tm = allTms.find((t) => String(t.id) === String(tid));
+                const name = tm ? (tm.name || `TM #${tid}`) : `TM #${tid}`;
+                const safe = String(name).replace(/</g, '&lt;');
+                return `<label style="display:flex; align-items:center; gap:0.35rem; font-size:0.86rem; cursor:pointer;">
+                    <input type="checkbox" class="split-hint-tm-cb" value="${tid}" checked> ${safe}
+                </label>`;
+            }).join('') : '<span style="color:#64748b; font-size:0.86rem;">專案尚未掛載讀取 TM（加權以原文字數計算）</span>';
         }
         if (splitAssignModal) splitAssignModal.classList.remove('hidden');
     }
