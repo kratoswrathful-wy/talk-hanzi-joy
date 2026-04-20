@@ -370,6 +370,18 @@
                 </div>
                 <div id="tbDetailInfoBlock" style="margin-bottom:1rem; padding:0.75rem 1rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
                     <div style="margin-bottom:0.5rem;"><strong>目前術語表總數：</strong><span id="tbTermCount">0</span>（有編號之術語筆數）</div>
+                    <div style="margin-bottom:0.5rem; display:flex; align-items:center; gap:1.25rem; flex-wrap:wrap;">
+                        <strong>比對設定</strong>
+                        <label style="display:flex; align-items:center; gap:0.3rem; cursor:pointer; font-weight:normal;">
+                            <input type="checkbox" id="tbMatchCaseInsensitive" checked>
+                            <span>不區分大小寫（預設）</span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:0.3rem; cursor:pointer; font-weight:normal;">
+                            <input type="checkbox" id="tbMatchWholeWord">
+                            <span>全字匹配</span>
+                        </label>
+                        <span style="color:#64748b; font-size:0.82rem;">設定會即時儲存並影響 CAT 介面的術語比對與 QA 檢查</span>
+                    </div>
                     <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
                         <strong>變更紀錄</strong>
                         <button type="button" class="secondary-btn btn-sm" id="btnTbChangeLogExpand" style="font-size:0.8rem;">展開全部紀錄</button>
@@ -461,6 +473,7 @@
                         <button id="btnCopySourceToTarget" class="icon-btn" title="將原文複製到譯文 (Ctrl+Insert)&#10;支援批次：選取多個句段後點擊" style="font-size:1rem;">⬇</button>
                         <button id="btnClearTarget" class="icon-btn" title="清除譯文 (Ctrl+Delete)&#10;支援批次：選取多個句段後點擊" style="font-size:1rem;">✕</button>
                         <button id="btnTagCollapse" class="icon-btn" title="展開標籤 (Ctrl+Shift+T)" style="font-size:0.8rem; font-family:monospace;">{…}</button>
+                        <button id="btnShowNonPrint" class="icon-btn" title="顯示 / 隱藏非列印字元" style="font-size:1rem;">¶</button>
                         <button id="btnTagGroupMode" class="icon-btn active" title="標籤群組插入：已停用（F8 固定插入單一 tag）" style="font-size:0.8rem;">T⁺</button>
                         <button id="btnShortcuts" class="icon-btn" title="快捷鍵設定">⌨️</button>
                         <button id="btnColSettings" class="icon-btn" title="設定">⚙️</button>
@@ -492,28 +505,28 @@
                                     <!-- Row 1 -->
                                     <div class="sf-cell sf-cell-mode">
                                         <div class="sf-mode-toggle">
-                                            <button id="sfModeSearch" class="sf-mode-btn active" title="搜尋"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
-                                            <button id="sfModeFilter" class="sf-mode-btn" title="篩選"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></button>
+                                            <button id="sfModeSearch" class="sf-mode-btn active" title="搜尋" tabindex="-1"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
+                                            <button id="sfModeFilter" class="sf-mode-btn" title="篩選" tabindex="-1"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></button>
                                         </div>
                                     </div>
                                     <div class="sf-cell sf-cell-invert">
-                                        <button class="icon-btn btn-sm sf-invert-btn sf-invert-disabled" id="btnSfInvert" title="不包含" style="font-weight:bold; font-size:1rem;">¬</button>
+                                        <button class="icon-btn btn-sm sf-invert-btn sf-invert-disabled" id="btnSfInvert" title="不包含" style="font-weight:bold; font-size:1rem;" tabindex="-1">¬</button>
                                     </div>
                                     <span class="sf-cell sf-cell-label">尋找：</span>
                                     <div class="sf-cell sf-cell-input">
-                                        <input type="text" id="sfInput" class="sf-input" placeholder="對焦到此處 (Ctrl+F)" autocomplete="off">
+                                        <input type="text" id="sfInput" class="sf-input" placeholder="對焦到此處 (Ctrl+F)" autocomplete="off" tabindex="1">
                                     </div>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfPrev" title="上一個符合項目">上一個</button>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfNext" title="下一個符合項目">下一個</button>
-                                    <button class="sf-cell icon-btn btn-sm sf-clear-nav-btn" id="btnSfClearNav" title="清除所有條件並回到最後編輯位置">✖</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfPrev" title="上一個符合項目" tabindex="3">上一個</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfNext" title="下一個符合項目" tabindex="4">下一個</button>
+                                    <button class="sf-cell icon-btn btn-sm sf-clear-nav-btn" id="btnSfClearNav" title="清除所有條件並回到最後編輯位置 (Alt+F)" tabindex="5">✖</button>
                                     <!-- Row 2 -->
                                     <div class="sf-cell sf-cell-mode mq-role-hidden" id="sfCellModeRow2">
-                                        <button class="icon-btn btn-sm" id="btnToggleAdvancedSF" title="進階篩選">▼</button>
+                                        <button class="icon-btn btn-sm" id="btnToggleAdvancedSF" title="進階篩選" tabindex="-1">▼</button>
                                         <span id="mqRoleIcon" class="mq-role-icon" style="display:none;" title="作業中身分：T">✓</span>
                                     </div>
                                     <div class="sf-cell sf-cell-invert">
                                         <div class="sf-options-popover-wrap" style="position:relative;">
-                                            <button class="icon-btn btn-sm" id="btnSfOptionsPopover" title="搜尋範圍與選項">⋯</button>
+                                            <button class="icon-btn btn-sm" id="btnSfOptionsPopover" title="搜尋範圍與選項" tabindex="-1">⋯</button>
                                             <div class="sf-options-popover hidden" id="sfOptionsPopover">
                                                 <div class="sf-options-popover-inner">
                                                     <label class="sf-options-row"><input type="checkbox" value="source" class="sf-scope-cb" checked> 原文</label>
@@ -527,10 +540,10 @@
                                     </div>
                                     <span class="sf-cell sf-cell-label">取代：</span>
                                     <div class="sf-cell sf-cell-input">
-                                        <input type="text" id="sfReplaceInput" class="sf-input sf-replace-input" placeholder="取代為…" autocomplete="off">
+                                        <input type="text" id="sfReplaceInput" class="sf-input sf-replace-input" placeholder="取代為…" autocomplete="off" tabindex="2">
                                     </div>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceThis" title="取代目前選取的搜尋目標；若無選取則跳到最近的下一個目標再取代。完成後會跳到下一個選取目標。">取代這個</button>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceAll" title="取代目前顯示的有效句段中所有相符內容。僅選取一句時視同未選取（全部取代）；同時選取兩句以上時只處理選取範圍。">全部取代</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceThis" title="取代目前選取的搜尋目標；若無選取則跳到最近的下一個目標再取代。完成後會跳到下一個選取目標。" tabindex="-1">取代這個</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceAll" title="取代目前顯示的有效句段中所有相符內容。僅選取一句時視同未選取（全部取代）；同時選取兩句以上時只處理選取範圍。" tabindex="-1">全部取代</button>
                                     <span id="sfMatchCount" class="sf-cell sf-match-count">0/0</span>
                                 </div>
                             </div>
@@ -931,47 +944,63 @@
         
         <!-- Shortcuts Modal -->
         <div class="wizard-overlay hidden" id="shortcutsModal">
-            <div class="wizard-modal" style="max-width: 400px;">
+            <div class="wizard-modal" style="max-width:660px;">
                 <div class="wizard-header">
-                    <h3 style="margin:0; font-size:1.25rem;">快捷鍵設定</h3>
+                    <h3 style="margin:0; font-size:1.25rem;">快捷鍵</h3>
                     <button class="close-btn" id="btnCloseShortcuts">×</button>
                 </div>
-                <div class="wizard-body" style="display:flex; flex-direction:column; gap:0.75rem;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span>確認/取消確認句段</span><input type="text" value="Ctrl + Enter" disabled style="width:120px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
-                    </div>
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span>跳到上一句段</span><input type="text" value="Ctrl + ↑" disabled style="width:120px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
-                    </div>
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span>跳到下一句段</span><input type="text" value="Ctrl + ↓" disabled style="width:120px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
-                    </div>
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span>全選句段</span><input type="text" value="Ctrl + Shift + A" disabled style="width:120px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
+                <div class="wizard-body" style="display:flex; flex-direction:column; gap:0.75rem; max-height:70vh; overflow-y:auto;">
+                    <!-- 固定快捷鍵（不可改）-->
+                    <div style="font-size:0.8rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">固定快捷鍵</div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.4rem 1.5rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                            <span style="font-size:0.88rem;">確認 / 取消確認句段</span><input type="text" value="Ctrl + Enter" disabled class="sc-key-input">
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                            <span style="font-size:0.88rem;">跳到上一句段</span><input type="text" value="Ctrl + ↑" disabled class="sc-key-input">
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                            <span style="font-size:0.88rem;">跳到下一句段</span><input type="text" value="Ctrl + ↓" disabled class="sc-key-input">
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                            <span style="font-size:0.88rem;">全選句段</span><input type="text" value="Ctrl + Shift + A" disabled class="sc-key-input">
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                            <span style="font-size:0.88rem;">插入下一個缺漏標籤</span><input type="text" value="F8" disabled class="sc-key-input">
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                            <span style="font-size:0.88rem;">切換標籤展開 / 收起</span><input type="text" value="Ctrl + Shift + T" disabled class="sc-key-input">
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                            <span style="font-size:0.88rem;">清除譯文中所有標籤</span><input type="text" value="Ctrl + F8" disabled class="sc-key-input">
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                            <span style="font-size:0.88rem;">將原文複製到譯文</span><input type="text" value="Ctrl + Insert" disabled class="sc-key-input">
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                            <span style="font-size:0.88rem;">清除譯文</span><input type="text" value="Ctrl + Delete" disabled class="sc-key-input">
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                            <span style="font-size:0.88rem;">套用右側 CAT 第 N 筆建議</span><input type="text" value="Ctrl + 1～9" disabled class="sc-key-input">
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                            <span style="font-size:0.88rem;">復原 / 取消復原</span><input type="text" value="Ctrl + Z / Y" disabled class="sc-key-input">
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                            <span style="font-size:0.88rem;">在 CAT 列表移動選取</span><input type="text" value="Alt + ↑ / ↓" disabled class="sc-key-input">
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                            <span style="font-size:0.88rem;">搜尋 / 篩選對焦</span><input type="text" value="Ctrl + F" disabled class="sc-key-input">
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                            <span style="font-size:0.88rem;">TM 索引一致性搜尋</span><input type="text" value="Ctrl + K" disabled class="sc-key-input">
+                        </div>
                     </div>
                     <hr style="border:none; border-top:1px solid #e2e8f0; margin:0.25rem 0;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span>插入下一個缺漏標籤（或群組）</span><input type="text" value="F8" disabled style="width:120px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
-                    </div>
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span>切換標籤展開 / 收起</span><input type="text" value="Ctrl + Shift + T" disabled style="width:120px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
-                    </div>
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span>清除譯文中所有標籤</span><input type="text" value="Ctrl + F8" disabled style="width:120px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
-                    </div>
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span>將原文複製到譯文</span><input type="text" value="Ctrl + Insert" disabled style="width:120px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
-                    </div>
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span>清除譯文</span><input type="text" value="Ctrl + Delete" disabled style="width:120px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
-                    </div>
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span>套用右側 CAT 第 N 筆建議</span><input type="text" value="Ctrl + 1～9" disabled style="width:120px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
-                    </div>
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span>復原／取消復原</span><input type="text" value="Ctrl + Z／Y 或 Ctrl + Shift + Z" disabled style="width:140px; text-align:center; padding:0.4rem; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:4px;">
-                    </div>
-                    <p style="font-size:0.8rem; color:#64748b; margin-top:1rem;">*此版本提供固定快捷鍵，未來將開放自訂。</p>
+                    <!-- 可自訂快捷鍵 -->
+                    <div style="font-size:0.8rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">可自訂快捷鍵</div>
+                    <div id="customShortcutRows" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+                    <p style="font-size:0.8rem; color:#94a3b8; margin:0.25rem 0 0 0;">點「錄製」後按下任意組合鍵即可設定；「重設」恢復預設值。</p>
                 </div>
             </div>
         </div>

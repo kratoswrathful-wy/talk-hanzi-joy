@@ -335,9 +335,108 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnShortcuts = document.getElementById('btnShortcuts');
     const shortcutsModal = document.getElementById('shortcutsModal');
     const btnCloseShortcuts = document.getElementById('btnCloseShortcuts');
-    
+
+    // ---- 可自訂快捷鍵 Registry ----
+    const CUSTOM_SC_KEY = 'catToolCustomShortcuts';
+    const CUSTOM_SC_DEFS = [
+        { id: 'clearFilter', label: '清除篩選並回到最後編輯位置', def: { ctrl:false, alt:true, shift:false, key:'f' } },
+        { id: 'quickNewTerm', label: '快速填入新增術語', def: { ctrl:true, alt:false, shift:false, key:'q' } },
+    ];
+
+    function _scFormat(sc) {
+        const parts = [];
+        if (sc.ctrl) parts.push('Ctrl');
+        if (sc.alt) parts.push('Alt');
+        if (sc.shift) parts.push('Shift');
+        parts.push(sc.key.toUpperCase());
+        return parts.join(' + ');
+    }
+
+    function loadCustomShortcuts() {
+        try {
+            const raw = localStorage.getItem(CUSTOM_SC_KEY);
+            return raw ? JSON.parse(raw) : {};
+        } catch (_) { return {}; }
+    }
+
+    function saveCustomShortcut(id, sc) {
+        const data = loadCustomShortcuts();
+        data[id] = sc;
+        localStorage.setItem(CUSTOM_SC_KEY, JSON.stringify(data));
+    }
+
+    function getCustomShortcut(id) {
+        const data = loadCustomShortcuts();
+        const def = CUSTOM_SC_DEFS.find(d => d.id === id);
+        return data[id] || (def && def.def) || null;
+    }
+
+    function renderCustomShortcutRows() {
+        const container = document.getElementById('customShortcutRows');
+        if (!container) return;
+        container.innerHTML = '';
+        CUSTOM_SC_DEFS.forEach(def => {
+            const sc = getCustomShortcut(def.id);
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; gap:0.5rem;';
+            row.dataset.scId = def.id;
+            const label = document.createElement('span');
+            label.style.fontSize = '0.88rem';
+            label.textContent = def.label;
+            const keyInput = document.createElement('input');
+            keyInput.type = 'text';
+            keyInput.value = _scFormat(sc);
+            keyInput.readOnly = true;
+            keyInput.className = 'sc-key-input sc-custom-input';
+            keyInput.style.width = '110px';
+            keyInput.style.cursor = 'default';
+            const recordBtn = document.createElement('button');
+            recordBtn.type = 'button';
+            recordBtn.className = 'secondary-btn btn-sm';
+            recordBtn.textContent = '錄製';
+            recordBtn.style.flexShrink = '0';
+            recordBtn.addEventListener('click', () => {
+                if (row.classList.contains('sc-recording')) return;
+                row.classList.add('sc-recording');
+                keyInput.value = '等待按鍵…';
+                const handler = (e) => {
+                    const modOnly = ['Control','Alt','Shift','Meta'].includes(e.key);
+                    if (modOnly) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const newSc = { ctrl: e.ctrlKey, alt: e.altKey, shift: e.shiftKey, key: e.key.length === 1 ? e.key.toLowerCase() : e.key };
+                    saveCustomShortcut(def.id, newSc);
+                    keyInput.value = _scFormat(newSc);
+                    row.classList.remove('sc-recording');
+                    document.removeEventListener('keydown', handler, true);
+                };
+                document.addEventListener('keydown', handler, true);
+            });
+            const resetBtn = document.createElement('button');
+            resetBtn.type = 'button';
+            resetBtn.className = 'secondary-btn btn-sm';
+            resetBtn.textContent = '重設';
+            resetBtn.style.flexShrink = '0';
+            resetBtn.addEventListener('click', () => {
+                const data = loadCustomShortcuts();
+                delete data[def.id];
+                localStorage.setItem(CUSTOM_SC_KEY, JSON.stringify(data));
+                keyInput.value = _scFormat(def.def);
+                row.classList.remove('sc-recording');
+            });
+            const btns = document.createElement('div');
+            btns.style.cssText = 'display:flex; gap:0.3rem; flex-shrink:0;';
+            btns.append(recordBtn, resetBtn);
+            row.append(label, keyInput, btns);
+            container.appendChild(row);
+        });
+    }
+
     if (btnShortcuts) {
-        btnShortcuts.addEventListener('click', () => shortcutsModal.classList.remove('hidden'));
+        btnShortcuts.addEventListener('click', () => {
+            renderCustomShortcutRows();
+            shortcutsModal.classList.remove('hidden');
+        });
         btnCloseShortcuts.addEventListener('click', () => shortcutsModal.classList.add('hidden'));
     }
 
@@ -437,6 +536,75 @@ document.addEventListener('DOMContentLoaded', async () => {
                 editorGrid.classList.toggle('tags-collapsed', !tagsExpanded);
             }
             btnTagCollapse.title = tagsExpanded ? '收起標籤 (Ctrl+Shift+T)' : '展開標籤 (Ctrl+Shift+T)';
+        });
+    }
+
+    // 非列印字元顯示切換按鈕
+    {
+        const _NP_KEY = 'catToolShowNonPrint';
+        const btnShowNonPrint = document.getElementById('btnShowNonPrint');
+        const editorGridEl = document.getElementById('editorGrid');
+        let _showNonPrint = localStorage.getItem(_NP_KEY) === '1';
+        if (editorGridEl) editorGridEl.classList.toggle('show-non-print', _showNonPrint);
+        if (btnShowNonPrint) {
+            btnShowNonPrint.classList.toggle('active', _showNonPrint);
+            btnShowNonPrint.addEventListener('click', () => {
+                _showNonPrint = !_showNonPrint;
+                localStorage.setItem(_NP_KEY, _showNonPrint ? '1' : '0');
+                if (editorGridEl) editorGridEl.classList.toggle('show-non-print', _showNonPrint);
+                btnShowNonPrint.classList.toggle('active', _showNonPrint);
+                applyNonPrintMarkersAll();
+            });
+        }
+    }
+
+    /** 掃描所有譯文 contenteditable，插入非列印字元標記 */
+    function applyNonPrintMarkersAll() {
+        const editorGrid = document.getElementById('editorGrid');
+        if (!editorGrid || !editorGrid.classList.contains('show-non-print')) return;
+        editorGrid.querySelectorAll('.grid-textarea[contenteditable]').forEach(applyNonPrintMarkers);
+    }
+
+    /**
+     * 在 contenteditable 元素的文字節點中插入非列印字元標記 span。
+     * 僅在 show-non-print 模式下有視覺效果（CSS 控制 display）。
+     * 注意：此函式不應被頻繁呼叫，僅在渲染後或切換時呼叫。
+     */
+    function applyNonPrintMarkers(el) {
+        // 標記 <br>（換行）
+        el.querySelectorAll('br:not(.np-br)').forEach(br => {
+            const mark = document.createElement('span');
+            mark.className = 'non-print-marker';
+            mark.textContent = '¶';
+            mark.contentEditable = 'false';
+            br.parentNode.insertBefore(mark, br);
+            br.classList.add('np-br');
+        });
+        // 標記普通空格和 NBSP（文字節點）—— 跳過 non-print-marker 本身
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+            acceptNode: n => n.parentElement?.classList.contains('non-print-marker') || n.parentElement?.classList.contains('tag-chip')
+                ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+        });
+        const textNodes = [];
+        let node;
+        while ((node = walker.nextNode())) textNodes.push(node);
+        textNodes.forEach(tn => {
+            if (!tn.textContent.match(/[ \t\u00A0\u200B]/)) return;
+            const frag = document.createDocumentFragment();
+            const parts = tn.textContent.split(/([ \t\u00A0\u200B])/);
+            parts.forEach(part => {
+                if (part === ' ' || part === '\t' || part === '\u00A0' || part === '\u200B') {
+                    frag.appendChild(document.createTextNode(part));
+                    const mark = document.createElement('span');
+                    mark.className = 'non-print-marker';
+                    mark.contentEditable = 'false';
+                    mark.textContent = part === ' ' ? '·' : part === '\t' ? '→' : part === '\u00A0' ? '°' : '​​⁰';
+                    frag.appendChild(mark);
+                } else {
+                    frag.appendChild(document.createTextNode(part));
+                }
+            });
+            tn.parentNode.replaceChild(frag, tn);
         });
     }
 
@@ -3052,9 +3220,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         tbChangeLogShowAll = false;
         if (detailTbName) detailTbName.textContent = tb.name || `TB #${tbId}`;
         applyTbTypeUI(tb);
+        // 同步比對設定 checkboxes
+        const flags = tb.matchFlags || { caseInsensitive: true, wholeWord: false };
+        const ciCb = document.getElementById('tbMatchCaseInsensitive');
+        const wwCb = document.getElementById('tbMatchWholeWord');
+        if (ciCb) ciCb.checked = flags.caseInsensitive !== false;
+        if (wwCb) wwCb.checked = !!flags.wholeWord;
         switchView('viewTbDetail');
         await loadTbTermsList();
     }
+
+    // 術語比對設定 checkbox → 即時儲存
+    ['tbMatchCaseInsensitive', 'tbMatchWholeWord'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('change', async () => {
+            if (!currentTbId) return;
+            const ci = document.getElementById('tbMatchCaseInsensitive')?.checked ?? true;
+            const ww = document.getElementById('tbMatchWholeWord')?.checked ?? false;
+            await DBService.updateTB(currentTbId, { matchFlags: { caseInsensitive: ci, wholeWord: ww } });
+        });
+    });
 
     function matchTermSearch(term, q) {
         if (!q) return true;
@@ -3063,6 +3249,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         const t = (term.target || '').toLowerCase();
         const n = (term.note || '').toLowerCase();
         return s.includes(k) || t.includes(k) || n.includes(k);
+    }
+
+    /**
+     * 判斷 haystack 是否包含 needle，依 flags 決定大小寫和全字匹配。
+     * flags: { caseInsensitive: boolean, wholeWord: boolean }
+     * 預設不區分大小寫（caseInsensitive=true），不要求全字（wholeWord=false）
+     */
+    function termMatches(haystack, needle, flags) {
+        if (!needle) return false;
+        const ci = flags && flags.caseInsensitive !== false; // default true
+        const ww = !!(flags && flags.wholeWord);
+        const h = ci ? haystack.toLowerCase() : haystack;
+        const n = ci ? needle.toLowerCase() : needle;
+        if (ww) {
+            const escaped = n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            try {
+                return new RegExp(`(?:^|\\W)${escaped}(?:\\W|$)`).test(h);
+            } catch (_) {
+                return h.includes(n);
+            }
+        }
+        return h.includes(n);
     }
 
     function syncTbTermSelectAllLabel() {
@@ -4796,6 +5004,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 無論術語數量多寡，先記錄 TB 名稱供 UI 顯示
             window.ActiveTbNames[full.id] = full.name || `TB #${full.id}`;
             const terms = full.terms ? full.terms : [];
+            const tbMatchFlags = full.matchFlags || { caseInsensitive: true, wholeWord: false };
             terms.forEach(t => {
                 if (t && ((t.source && t.source.trim()) || (t.target && t.target.trim())))
                     window.ActiveTbTerms.push({
@@ -4803,7 +5012,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         target: (t.target || '').trim(),
                         note: (t.note || '').trim(),
                         tbId: full.id,
-                        tbName: full.name || `TB #${full.id}`
+                        tbName: full.name || `TB #${full.id}`,
+                        matchFlags: tbMatchFlags
                     });
             });
         }
@@ -5433,6 +5643,42 @@ document.addEventListener('DOMContentLoaded', async () => {
                 runTmConcordanceSearch();
             } else if (tmSearchInput) {
                 tmSearchInput.focus();
+            }
+        }
+        // 可自訂快捷鍵：清除篩選（clearFilter）
+        {
+            const _sc = getCustomShortcut('clearFilter');
+            if (_sc && currentFileId &&
+                !!e.ctrlKey === !!_sc.ctrl && !!e.altKey === !!_sc.alt && !!e.shiftKey === !!_sc.shift &&
+                (e.key.length === 1 ? e.key.toLowerCase() : e.key) === _sc.key) {
+                e.preventDefault();
+                document.getElementById('btnSfClearNav')?.click();
+            }
+        }
+        // 可自訂快捷鍵：快速填入新增術語（quickNewTerm）
+        {
+            const _sc = getCustomShortcut('quickNewTerm');
+            if (_sc && currentFileId &&
+                !!e.ctrlKey === !!_sc.ctrl && !!e.altKey === !!_sc.alt && !!e.shiftKey === !!_sc.shift &&
+                (e.key.length === 1 ? e.key.toLowerCase() : e.key) === _sc.key) {
+                e.preventDefault();
+                const _sel = window.getSelection();
+                const _selText = _sel ? _sel.toString().trim() : '';
+                const _activeEl = document.activeElement;
+                const _inSource = !!_activeEl?.closest('.col-source');
+                const _inTarget = !!_activeEl?.closest('.col-target');
+                if (_selText) {
+                    if (_inSource) {
+                        const _srcEl = document.getElementById('newTermSource');
+                        if (_srcEl) _srcEl.value = _selText;
+                    } else if (_inTarget) {
+                        const _tgtEl = document.getElementById('newTermTarget');
+                        if (_tgtEl) _tgtEl.value = _selText;
+                    }
+                }
+                document.querySelector('.tab-btn[data-tab="tabNewTerm"]')?.click();
+                const _focusId = _inTarget ? 'newTermTarget' : 'newTermSource';
+                setTimeout(() => document.getElementById(_focusId)?.focus(), 50);
             }
         }
         function editorUndoHotkeyAllowed() {
@@ -8029,7 +8275,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 window.ActiveTbTerms.forEach(term => {
                     const termSrc = term.source || '';
                     if (!termSrc) return;
-                    if (src === termSrc || src.includes(termSrc)) {
+                    if (termMatches(src, termSrc, term.matchFlags)) {
                         matches.push({
                             type: 'TB',
                             sourceText: term.source,
@@ -8601,7 +8847,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (checkTerms && window.ActiveTbTerms && window.ActiveTbTerms.length > 0) {
                 for (const term of window.ActiveTbTerms) {
                     if (!term.source || !term.target) continue;
-                    if ((s.sourceText || '').includes(term.source) && !(s.targetText || '').includes(term.target)) {
+                    if (termMatches(s.sourceText || '', term.source, term.matchFlags) &&
+                        !termMatches(s.targetText || '', term.target, term.matchFlags)) {
                         const detail = `「${term.source}」→「${term.target}」`;
                         results.push({ segId: s.id, gid, type: '術語未套用', info: detail, key: `${gid}:tb:${term.source}` });
                     }
@@ -10705,7 +10952,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     });
                     if (r.ok || r.status === 400) {
                         // 400 可能是參數問題但連線 OK；200 是正常回應
-                        testResult.textContent = `連線成功 ✓（${model}）`;
+                        await DBService.saveAiSettings({ apiKey, model, apiBaseUrl: baseUrl });
+                        testResult.textContent = `連線成功，已自動儲存 ✓（${model}）`;
                         testResult.style.color = '#16a34a';
                     } else if (r.status === 401) {
                         testResult.textContent = 'API Key 無效（HTTP 401）';

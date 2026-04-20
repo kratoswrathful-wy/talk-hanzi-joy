@@ -767,20 +767,41 @@ const DBService = {
 
     // ---- AI Settings（全系統 API 設定，永遠維持 id=1 的單筆記錄）----
     async getAiSettings() {
+        const _LS_KEY = 'catToolAiSettings';
+        const _DEFAULT = { id: 1, apiKey: '', apiBaseUrl: '', model: 'gpt-4.1-mini', batchSize: 20 };
         try {
+            // localStorage 為主要儲存媒介（跨 team/offline DB 不遺失）
+            const lsRaw = localStorage.getItem(_LS_KEY);
+            if (lsRaw) {
+                const lsData = JSON.parse(lsRaw);
+                return { ..._DEFAULT, ...lsData };
+            }
+            // Fallback：從 IndexedDB 讀取舊資料（相容升級）
             const row = await db.aiSettings.get(1);
-            return row || { id: 1, apiKey: '', apiBaseUrl: '', model: 'gpt-4.1-mini', batchSize: 20 };
-        } catch (_) {
-            return { id: 1, apiKey: '', apiBaseUrl: '', model: 'gpt-4.1-mini', batchSize: 20 };
-        }
+            if (row && row.apiKey) {
+                // 搬移到 localStorage
+                localStorage.setItem(_LS_KEY, JSON.stringify({ ...row }));
+                return row;
+            }
+        } catch (_) { /* ignore */ }
+        return { ..._DEFAULT };
     },
     async saveAiSettings(settings) {
-        const existing = await db.aiSettings.get(1);
-        if (existing) {
-            return await db.aiSettings.update(1, { ...settings, id: 1 });
-        } else {
-            return await db.aiSettings.put({ ...settings, id: 1 });
-        }
+        const _LS_KEY = 'catToolAiSettings';
+        try {
+            const existing = (localStorage.getItem(_LS_KEY) && JSON.parse(localStorage.getItem(_LS_KEY))) || {};
+            const merged = { ...existing, ...settings };
+            localStorage.setItem(_LS_KEY, JSON.stringify(merged));
+        } catch (_) { /* ignore */ }
+        // 同步寫入 IndexedDB（相容性）
+        try {
+            const existing = await db.aiSettings.get(1);
+            if (existing) {
+                await db.aiSettings.update(1, { ...settings, id: 1 });
+            } else {
+                await db.aiSettings.put({ ...settings, id: 1 });
+            }
+        } catch (_) { /* ignore */ }
     },
 
     // ---- AI Project Settings（每專案 AI 指令：已勾選準則 ID、特殊指示）----

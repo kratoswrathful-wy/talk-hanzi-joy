@@ -1967,3 +1967,36 @@ mark.tm-search-hit {
     transition: border-color 0.1s;
 }
 .form-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }
+
+/* 快捷鍵 modal — 固定鍵 input */
+.sc-key-input {
+    width: 110px;
+    flex-shrink: 0;
+    text-align: center;
+    padding: 0.3rem 0.4rem;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    font-size: 0.82rem;
+    color: #475569;
+}
+/* 可自訂快捷鍵 — 錄製中狀態 */
+.sc-recording .sc-custom-input {
+    background: #fef9c3;
+    border-color: #ca8a04;
+    animation: sc-blink 0.8s step-end infinite;
+}
+@keyframes sc-blink {
+    0%, 100% { opacity:1; }
+    50% { opacity:0.5; }
+}
+
+/* 非列印字元標記 */
+.non-print-marker {
+    display: none;
+    color: #94a3b8;
+    font-size: 0.72em;
+    pointer-events: none;
+    user-select: none;
+}
+.show-non-print .non-print-marker { display: inline; }

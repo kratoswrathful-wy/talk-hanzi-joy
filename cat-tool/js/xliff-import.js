@@ -341,6 +341,29 @@
                         text: (c.textContent || '').trim()
                     })).filter(c => c.text);
                 }
+                // mqxliff 的 <note> 和 <mq:comment> 元素都是 memoQ 自動產生的重複資訊
+                // （<comment> 被 getElementsByTagName 匹配到 <mq:comment>，內容和 structuredComments 重複）
+                // 改為使用 structuredComments 去重後的文字作為 extraValue
+                if (structuredComments.length > 0) {
+                    const seen = new Set();
+                    const dedupedParts = [];
+                    structuredComments.forEach(sc => {
+                        const t = sc.text.trim();
+                        if (t && !seen.has(t)) {
+                            seen.add(t);
+                            dedupedParts.push(t);
+                        }
+                    });
+                    extraValue = dedupedParts.join('\n');
+                } else if (extraParts.length > 0) {
+                    // 無 structuredComments 時保留 note 內容（移除重複行）
+                    const seen = new Set();
+                    extraValue = extraParts.filter(p => {
+                        if (seen.has(p)) return false;
+                        seen.add(p);
+                        return true;
+                    }).join('\n');
+                }
             }
 
             let status = 'unconfirmed';
