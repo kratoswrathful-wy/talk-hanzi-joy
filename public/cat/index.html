@@ -165,6 +165,7 @@
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:80px;">預設身分</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; min-width:120px; max-width:220px;">指派</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">最後修改</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:160px;">進度</th>
                                 </tr>
                             </thead>
                             <tbody id="filesListBody"></tbody>
@@ -434,6 +435,16 @@
                     <input type="text" id="tbTermEditTarget" placeholder="譯文" style="padding:0.4rem 0.5rem; border:1px solid #cbd5e1; border-radius:6px;">
                     <label style="font-size:0.9rem;">備註</label>
                     <textarea id="tbTermEditNote" placeholder="備註（選填）" rows="3" style="padding:0.4rem 0.5rem; border:1px solid #cbd5e1; border-radius:6px; resize:vertical;"></textarea>
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:0.6rem 0.75rem; display:flex; gap:1.5rem; flex-wrap:wrap;">
+                        <label style="display:flex; align-items:center; gap:0.3rem; font-size:0.88rem; cursor:pointer; font-weight:normal;">
+                            <input type="checkbox" id="tbTermEditCaseInsensitive" checked>
+                            不區分大小寫
+                        </label>
+                        <label style="display:flex; align-items:center; gap:0.3rem; font-size:0.88rem; cursor:pointer; font-weight:normal;">
+                            <input type="checkbox" id="tbTermEditWholeWord">
+                            全字匹配
+                        </label>
+                    </div>
                 </div>
                 <div class="panel-footer" style="padding:1rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; background:#f8fafc;">
                     <button type="button" class="secondary-btn" id="btnCancelTbTermEdit">取消</button>
@@ -505,28 +516,28 @@
                                     <!-- Row 1 -->
                                     <div class="sf-cell sf-cell-mode">
                                         <div class="sf-mode-toggle">
-                                            <button id="sfModeSearch" class="sf-mode-btn active" title="搜尋" tabindex="-1"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
-                                            <button id="sfModeFilter" class="sf-mode-btn" title="篩選" tabindex="-1"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></button>
+                                            <button id="sfModeSearch" class="sf-mode-btn active" title="搜尋" tabindex="8"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
+                                            <button id="sfModeFilter" class="sf-mode-btn" title="篩選" tabindex="9"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></button>
                                         </div>
                                     </div>
                                     <div class="sf-cell sf-cell-invert">
-                                        <button class="icon-btn btn-sm sf-invert-btn sf-invert-disabled" id="btnSfInvert" title="不包含" style="font-weight:bold; font-size:1rem;" tabindex="-1">¬</button>
+                                        <button class="icon-btn btn-sm sf-invert-btn sf-invert-disabled" id="btnSfInvert" title="不包含" style="font-weight:bold; font-size:1rem;" tabindex="10">¬</button>
                                     </div>
                                     <span class="sf-cell sf-cell-label">尋找：</span>
                                     <div class="sf-cell sf-cell-input">
-                                        <input type="text" id="sfInput" class="sf-input" placeholder="對焦到此處 (Ctrl+F)" autocomplete="off" tabindex="1">
+                                        <input type="text" id="sfInput" class="sf-input" placeholder="對焦到此處 (Ctrl+F)" autocomplete="off" tabindex="13">
                                     </div>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfPrev" title="上一個符合項目" tabindex="3">上一個</button>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfNext" title="下一個符合項目" tabindex="4">下一個</button>
-                                    <button class="sf-cell icon-btn btn-sm sf-clear-nav-btn" id="btnSfClearNav" title="清除所有條件並回到最後編輯位置 (Alt+F)" tabindex="5">✖</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfPrev" title="上一個符合項目" tabindex="14">上一個</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfNext" title="下一個符合項目" tabindex="15">下一個</button>
+                                    <button class="sf-cell icon-btn btn-sm sf-clear-nav-btn" id="btnSfClearNav" title="清除所有條件並回到最後編輯位置 (Alt+F)" tabindex="19">✖</button>
                                     <!-- Row 2 -->
                                     <div class="sf-cell sf-cell-mode mq-role-hidden" id="sfCellModeRow2">
-                                        <button class="icon-btn btn-sm" id="btnToggleAdvancedSF" title="進階篩選" tabindex="-1">▼</button>
+                                        <button class="icon-btn btn-sm" id="btnToggleAdvancedSF" title="進階篩選" tabindex="11">▼</button>
                                         <span id="mqRoleIcon" class="mq-role-icon" style="display:none;" title="作業中身分：T">✓</span>
                                     </div>
                                     <div class="sf-cell sf-cell-invert">
                                         <div class="sf-options-popover-wrap" style="position:relative;">
-                                            <button class="icon-btn btn-sm" id="btnSfOptionsPopover" title="搜尋範圍與選項" tabindex="-1">⋯</button>
+                                            <button class="icon-btn btn-sm" id="btnSfOptionsPopover" title="搜尋範圍與選項" tabindex="12">⋯</button>
                                             <div class="sf-options-popover hidden" id="sfOptionsPopover">
                                                 <div class="sf-options-popover-inner">
                                                     <label class="sf-options-row"><input type="checkbox" value="source" class="sf-scope-cb" checked> 原文</label>
@@ -540,10 +551,10 @@
                                     </div>
                                     <span class="sf-cell sf-cell-label">取代：</span>
                                     <div class="sf-cell sf-cell-input">
-                                        <input type="text" id="sfReplaceInput" class="sf-input sf-replace-input" placeholder="取代為…" autocomplete="off" tabindex="2">
+                                        <input type="text" id="sfReplaceInput" class="sf-input sf-replace-input" placeholder="取代為…" autocomplete="off" tabindex="16">
                                     </div>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceThis" title="取代目前選取的搜尋目標；若無選取則跳到最近的下一個目標再取代。完成後會跳到下一個選取目標。" tabindex="-1">取代這個</button>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceAll" title="取代目前顯示的有效句段中所有相符內容。僅選取一句時視同未選取（全部取代）；同時選取兩句以上時只處理選取範圍。" tabindex="-1">全部取代</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceThis" title="取代目前選取的搜尋目標；若無選取則跳到最近的下一個目標再取代。完成後會跳到下一個選取目標。" tabindex="17">取代這個</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceAll" title="取代目前顯示的有效句段中所有相符內容。僅選取一句時視同未選取（全部取代）；同時選取兩句以上時只處理選取範圍。" tabindex="18">全部取代</button>
                                     <span id="sfMatchCount" class="sf-cell sf-match-count">0/0</span>
                                 </div>
                             </div>
@@ -729,7 +740,15 @@
                                 <label style="font-size:0.82rem; color:#475569; display:block; margin-bottom:2px;">譯文</label>
                                 <input type="text" id="newTermTarget" style="width:100%; padding:0.3rem 0.45rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; margin-bottom:0.4rem; box-sizing:border-box;">
                                 <label style="font-size:0.82rem; color:#475569; display:block; margin-bottom:2px;">備註</label>
-                                <input type="text" id="newTermNote" style="width:100%; padding:0.3rem 0.45rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; margin-bottom:0.6rem; box-sizing:border-box;">
+                                <input type="text" id="newTermNote" style="width:100%; padding:0.3rem 0.45rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; margin-bottom:0.4rem; box-sizing:border-box;">
+                                <div style="display:flex; gap:1rem; margin-bottom:0.5rem; flex-wrap:wrap;">
+                                    <label style="display:flex; align-items:center; gap:0.25rem; font-size:0.82rem; cursor:pointer;">
+                                        <input type="checkbox" id="newTermCaseInsensitive" checked> 不區分大小寫
+                                    </label>
+                                    <label style="display:flex; align-items:center; gap:0.25rem; font-size:0.82rem; cursor:pointer;">
+                                        <input type="checkbox" id="newTermWholeWord"> 全字匹配
+                                    </label>
+                                </div>
                                 <div style="text-align:right;">
                                     <button class="primary-btn btn-sm" id="btnAddNewTerm">新增術語</button>
                                 </div>

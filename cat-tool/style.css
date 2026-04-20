@@ -1981,9 +1981,9 @@ mark.tm-search-hit {
     color: #475569;
 }
 /* 可自訂快捷鍵 — 錄製中狀態 */
-.sc-recording .sc-custom-input {
-    background: #fef9c3;
-    border-color: #ca8a04;
+.sc-recording-active {
+    background: #fef9c3 !important;
+    border-color: #ca8a04 !important;
     animation: sc-blink 0.8s step-end infinite;
 }
 @keyframes sc-blink {
