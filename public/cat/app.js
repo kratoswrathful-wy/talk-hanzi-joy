@@ -11663,6 +11663,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 handleUnconfirmed: document.getElementById('aiBatchHandleUnconfirmed')?.value || 'skip',
                 tmThreshold: parseInt(document.getElementById('aiBatchTmThreshold')?.value || '102', 10),
                 tmAction: document.getElementById('aiBatchTmAction')?.value || 'direct',
+                tmRefThreshold: parseInt(document.getElementById('aiBatchTmRefThreshold')?.value || '0', 10),
                 handleRepetitions: document.getElementById('aiBatchHandleRepetitions')?.value || 'yes',
                 batchNote: document.getElementById('aiBatchNote')?.value?.trim() || ''
             };
@@ -11764,6 +11765,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } else {
                     segsForAi.push(item.seg);
                 }
+            }
+        }
+
+        // Attach TM reference hints for segments going to AI
+        if (config.tmRefThreshold > 0) {
+            const tmCache = window.ActiveTmCache || [];
+            const calcSim = window.calculateSimilarity || (() => 0);
+            for (const seg of segsForAi) {
+                let bestMatch = null, bestScore = 0;
+                for (const tm of tmCache) {
+                    const score = calcSim(seg.sourceText || '', tm.sourceText || '') * 100;
+                    if (score > bestScore) { bestScore = score; bestMatch = tm; }
+                }
+                seg._tmHint = (bestScore >= config.tmRefThreshold && bestMatch)
+                    ? { score: Math.round(bestScore), targetText: bestMatch.targetText }
+                    : null;
             }
         }
 

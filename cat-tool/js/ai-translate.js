@@ -151,6 +151,7 @@
             if (seg.contextPrev) user += `前文: ${seg.contextPrev}\n`;
             user += `原文: ${seg.source}\n`;
             if (seg.contextNext) user += `後文: ${seg.contextNext}\n`;
+            if (seg.tmHint) user += `TM 參考（${seg.tmHint.score}%）：${seg.tmHint.targetText}\n`;
             user += '\n';
         });
 
@@ -237,7 +238,8 @@
                 keys: seg.keys || [],
                 extraValue: seg.extraValue || '',
                 contextPrev: seg.contextPrev || '',
-                contextNext: seg.contextNext || ''
+                contextNext: seg.contextNext || '',
+                tmHint: seg._tmHint || null
             };
         });
 
