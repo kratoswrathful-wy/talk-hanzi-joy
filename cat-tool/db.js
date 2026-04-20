@@ -677,7 +677,8 @@ const DBService = {
         });
     },
     async getAiGuidelines(filters = {}) {
-        let rows = await db.aiGuidelines.orderBy('sortOrder').toArray();
+        let rows = await db.aiGuidelines.toArray();
+        rows.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
         if (filters.category) rows = rows.filter(r => r.category === filters.category);
         return rows;
     },
