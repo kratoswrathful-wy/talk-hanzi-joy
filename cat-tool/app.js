@@ -1902,7 +1902,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             await DBService.addModuleLog('projects', summary);
         }
-        alert('翻譯記憶庫設定已儲存！');
     }
 
     async function commitProjectTbMounts(readTbs, writeTb) {
@@ -1938,7 +1937,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await DBService.addModuleLog('projects', entry);
             }
         }
-        alert('術語庫設定已儲存！');
     }
 
     /** 專案頁：僅顯示已掛載 TM（唯讀） */
@@ -2004,7 +2002,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 body.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">系統中尚無 TM。</td></tr>';
                 return;
             }
-            tms.forEach(tm => {
+            tms.forEach((tm, idx) => {
                 const isRead = readTms.has(tm.id);
                 const isWrite = writeTms.has(tm.id);
                 const nameEsc = (tm.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -2015,7 +2013,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     : '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td style="padding:0.45rem; border:1px solid #e2e8f0;">${tm.id}</td>
+                    <td style="padding:0.45rem; border:1px solid #e2e8f0;">${idx + 1}</td>
                     <td style="padding:0.45rem; border:1px solid #e2e8f0;">${nameEsc}</td>
                     <td style="padding:0.45rem; border:1px solid #e2e8f0; font-size:0.8rem;">${tmLangHtml}</td>
                     <td style="padding:0.45rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="checkbox" class="tm-read-cb-picker" data-id="${tm.id}" ${isRead ? 'checked' : ''}> 讀取</label></td>
@@ -2102,7 +2100,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 body.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">系統中尚無 TB。</td></tr>';
                 return;
             }
-            tbs.forEach(tb => {
+            tbs.forEach((tb, idx) => {
                 const isRead = readTbs.has(tb.id);
                 const isWrite = writeTb === tb.id;
                 const nameEsc = (tb.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -2113,7 +2111,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     : '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td style="padding:0.45rem; border:1px solid #e2e8f0;">${tb.id}</td>
+                    <td style="padding:0.45rem; border:1px solid #e2e8f0;">${idx + 1}</td>
                     <td style="padding:0.45rem; border:1px solid #e2e8f0;">${nameEsc}</td>
                     <td style="padding:0.45rem; border:1px solid #e2e8f0; font-size:0.8rem;">${tbLangHtml}</td>
                     <td style="padding:0.45rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="checkbox" class="tb-read-cb-picker" data-id="${tb.id}" ${isRead ? 'checked' : ''}> 讀取</label></td>
@@ -2140,9 +2138,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnOpenProjectTmPicker')?.addEventListener('click', () => { openProjectTmPickerModal(); });
     document.getElementById('btnOpenProjectTbPicker')?.addEventListener('click', () => { openProjectTbPickerModal(); });
     document.getElementById('btnCloseProjectTmPicker')?.addEventListener('click', closeProjectTmPickerModal);
-    document.getElementById('btnProjectTmPickerCancel')?.addEventListener('click', closeProjectTmPickerModal);
+    document.getElementById('btnProjectTmPickerCancel')?.addEventListener('click', () => { _projectSetupMode = false; closeProjectTmPickerModal(); });
     document.getElementById('btnCloseProjectTbPicker')?.addEventListener('click', closeProjectTbPickerModal);
-    document.getElementById('btnProjectTbPickerCancel')?.addEventListener('click', closeProjectTbPickerModal);
+    document.getElementById('btnProjectTbPickerCancel')?.addEventListener('click', () => { _projectSetupMode = false; closeProjectTbPickerModal(); });
+
+    document.getElementById('btnProjectTmPickerAddNew')?.addEventListener('click', async () => {
+        closeProjectTmPickerModal();
+        const proj = currentProjectId ? (await DBService.getProject(currentProjectId) || {}) : {};
+        openNamingModal('createTM', '新增翻譯記憶庫 (TM)', 'TM 名稱', null, '', {
+            sourceLangs: proj.sourceLangs || [],
+            targetLangs: proj.targetLangs || []
+        });
+    });
+
+    document.getElementById('btnProjectTbPickerAddNew')?.addEventListener('click', async () => {
+        closeProjectTbPickerModal();
+        const proj = currentProjectId ? (await DBService.getProject(currentProjectId) || {}) : {};
+        openNamingModal('createTB', '新增術語庫 (TB)', 'TB 名稱', null, '', {
+            sourceLangs: proj.sourceLangs || [],
+            targetLangs: proj.targetLangs || []
+        });
+    });
 
     document.getElementById('btnProjectTmPickerConfirm')?.addEventListener('click', async () => {
         if (!currentProjectId) return;
@@ -2154,6 +2170,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         closeProjectTmPickerModal();
         const p = await DBService.getProject(currentProjectId);
         if (p) await loadProjectTms(p);
+        if (_projectSetupMode) {
+            openProjectTbPickerModal();
+        }
     });
 
     document.getElementById('btnProjectTbPickerConfirm')?.addEventListener('click', async () => {
@@ -2163,6 +2182,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const writeRadio = document.querySelector('input[name="tb-write-radio-picker"]:checked');
         const writeTb = writeRadio ? parseId(writeRadio.value) : null;
         await commitProjectTbMounts(readTbs, writeTb);
+        _projectSetupMode = false;
         closeProjectTbPickerModal();
         const p = await DBService.getProject(currentProjectId);
         if (p) await loadProjectTbs(p);
@@ -2807,7 +2827,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        items.forEach(it => {
+        items.forEach((it, idx) => {
             const tr = document.createElement('tr');
             const nameEsc = (it.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const srcLangs = it.sourceLangs || [];
@@ -2817,7 +2837,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 : '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
             tr.innerHTML = `
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="resource-row-cb" data-id="${it.id}"></td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${it.id}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:40px;">${idx + 1}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;">
                     <button class="link-btn resource-name" data-id="${it.id}" style="background:none;border:none;padding:0;color:var(--primary-color);cursor:pointer;text-decoration:underline;">${nameEsc}</button>
                 </td>
@@ -3125,7 +3145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const note = (term.note || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').substring(0, 80);
             tr.innerHTML = `
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="tb-term-row-cb" data-term-index="${idx}"></td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${num}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:40px;">${num}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:200px; overflow:hidden; text-overflow:ellipsis;" title="${src}">${src || '—'}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:200px; overflow:hidden; text-overflow:ellipsis;" title="${tgt}">${tgt || '—'}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:180px; overflow:hidden; text-overflow:ellipsis; font-size:0.85rem; color:#64748b;" title="${(term.note || '').replace(/</g, '&lt;')}">${note || '—'}</td>
@@ -3806,13 +3826,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             tmSegmentsListBody.appendChild(tr);
             return;
         }
-        segments.forEach(seg => {
+        segments.forEach((seg, idx) => {
             const tr = document.createElement('tr');
             const src = (seg.sourceText || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const tgt = (seg.targetText || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             tr.innerHTML = `
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="tm-segment-row-cb" data-id="${seg.id}"></td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${seg.id}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:40px;">${idx + 1}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:280px; overflow:hidden; text-overflow:ellipsis;" title="${src}">${src || '—'}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:280px; overflow:hidden; text-overflow:ellipsis;" title="${tgt}">${tgt || '—'}</td>
             `;
@@ -4054,6 +4074,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 語言選擇容器參照（Modal 內部動態填入）
     let _namingModalSrcLangsCb = null;
     let _namingModalTgtLangsCb = null;
+    let _projectSetupMode = false;
 
     function openNamingModal(action, title, label, idArg = null, defaultName = '', existingEntity = null) {
         namingActionContext = { action, idArg };
@@ -4103,6 +4124,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             await appendProjectChangeLog(id, entry);
             await DBService.addModuleLog('projects', entry);
+            namingModal.classList.add('hidden');
+            await loadProjectsList();
+            _projectSetupMode = true;
+            await openProjectDetail(id);
+            openProjectTmPickerModal();
+            return;
         } else if (action === 'renameProject') {
             const old = await DBService.getProject(idArg);
             await DBService.updateProjectName(idArg, val);
@@ -4139,8 +4166,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         namingModal.classList.add('hidden');
         if(action.includes('Project')) await loadProjectsList();
-        if(action === 'createTM') await loadTMList();
-        if(action === 'createTB') await loadTBList();
+        if(action === 'createTM') {
+            await loadTMList();
+            if (_projectSetupMode) openProjectTmPickerModal();
+        }
+        if(action === 'createTB') {
+            await loadTBList();
+            if (_projectSetupMode) openProjectTbPickerModal();
+        }
     });
 
     // ==========================================

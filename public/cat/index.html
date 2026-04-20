@@ -247,7 +247,7 @@
                                         <input type="checkbox" id="tmListSelectAll" aria-label="全選">
                                     </label>
                                 </th>
-                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:40px;">#</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:220px;">語言對</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">建立日期</th>
@@ -291,7 +291,7 @@
                                         <input type="checkbox" id="tmSegmentsSelectAll" aria-label="全選">
                                     </label>
                                 </th>
-                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:40px;">#</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">原文</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">譯文</th>
                             </tr>
@@ -332,7 +332,7 @@
                                         <input type="checkbox" id="tbListSelectAll" aria-label="全選">
                                     </label>
                                 </th>
-                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:40px;">#</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:220px;">語言對</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">建立日期</th>
@@ -396,7 +396,7 @@
                                         <input type="checkbox" id="tbTermSelectAll" aria-label="全選">
                                     </label>
                                 </th>
-                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">ID</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:40px;">#</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">原文</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">譯文</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">備註</th>
@@ -1185,7 +1185,7 @@
                         <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.88rem;">
                             <thead>
                                 <tr style="background:#f1f5f9;">
-                                    <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0;">ID</th>
+                                    <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0; width:36px;">#</th>
                                     <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0;">名稱</th>
                                     <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0; width:180px;">語言對</th>
                                     <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0; width:100px;">讀取</th>
@@ -1195,9 +1195,12 @@
                             <tbody id="projectTmPickerBody"></tbody>
                         </table>
                     </div>
-                    <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
-                        <button type="button" class="secondary-btn" id="btnProjectTmPickerCancel">取消</button>
-                        <button type="button" class="primary-btn" id="btnProjectTmPickerConfirm">確定</button>
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                        <button type="button" class="secondary-btn btn-sm" id="btnProjectTmPickerAddNew">+ 新增 TM</button>
+                        <div style="display:flex; gap:0.5rem;">
+                            <button type="button" class="secondary-btn" id="btnProjectTmPickerCancel">取消</button>
+                            <button type="button" class="primary-btn" id="btnProjectTmPickerConfirm">確定</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1216,7 +1219,7 @@
                         <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.88rem;">
                             <thead>
                                 <tr style="background:#f1f5f9;">
-                                    <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0;">ID</th>
+                                    <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0; width:36px;">#</th>
                                     <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0;">名稱</th>
                                     <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0; width:180px;">語言對</th>
                                     <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0; width:100px;">讀取</th>
@@ -1226,9 +1229,12 @@
                             <tbody id="projectTbPickerBody"></tbody>
                         </table>
                     </div>
-                    <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
-                        <button type="button" class="secondary-btn" id="btnProjectTbPickerCancel">取消</button>
-                        <button type="button" class="primary-btn" id="btnProjectTbPickerConfirm">確定</button>
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                        <button type="button" class="secondary-btn btn-sm" id="btnProjectTbPickerAddNew">+ 新增 TB</button>
+                        <div style="display:flex; gap:0.5rem;">
+                            <button type="button" class="secondary-btn" id="btnProjectTbPickerCancel">取消</button>
+                            <button type="button" class="primary-btn" id="btnProjectTbPickerConfirm">確定</button>
+                        </div>
                     </div>
                 </div>
             </div>
