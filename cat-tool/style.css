@@ -1868,7 +1868,6 @@ mark.tm-search-hit {
 }
 .ai-special-instruction-item:has(.ai-si-checkbox:not(:checked)) .ai-special-instruction-content {
     color: #94a3b8;
-    text-decoration: line-through;
 }
 
 /* inactive badge — grayed out, used in AI 指令 適用類別 */

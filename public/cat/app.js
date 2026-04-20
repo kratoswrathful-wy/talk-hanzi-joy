@@ -10657,12 +10657,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 allCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
             }
         }
-        const tabCategories = ['全部', ...allCategoryTags.map(t => t.name)];
-        let activeCat = '全部';
-
-        const tabBar = document.getElementById('aiGuidelinesTabBar');
         const list = document.getElementById('aiGuidelinesList');
         const mutexDatalist = document.getElementById('aiMutexGroupList');
+
+        // Filter/sort state
+        let filterCat = '';
+        let filterMutex = '';
+        let sortKey = 'order';
 
         // ---- 類別標籤管理 ----
         function renderCategoryTagsList() {
@@ -10686,6 +10687,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     allCategoryTags = allCategoryTags.filter(t => t.id !== id);
                     renderCategoryTagsList();
                     updateMultiselectDropdown();
+                    updateFilterBarOptions();
                 };
             });
         }
@@ -10702,6 +10704,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (input) input.value = '';
                     renderCategoryTagsList();
                     updateMultiselectDropdown();
+                    updateFilterBarOptions();
                 } catch (err) {
                     alert('新增標籤失敗：' + err.message);
                 }
@@ -10764,45 +10767,114 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateMultiselectDisplay();
         renderCategoryTagsList();
 
-        // ---- 準則清單 tab bar ----
-        function renderTabBar() {
-            if (!tabBar) return;
-            tabBar.innerHTML = tabCategories.map(c =>
-                `<button class="ai-tab-btn${c === activeCat ? ' active' : ''}" data-cat="${_esc(c)}">${_esc(c)}</button>`
-            ).join('');
-            tabBar.querySelectorAll('.ai-tab-btn').forEach(b => {
-                b.onclick = () => { activeCat = b.getAttribute('data-cat'); renderTabBar(); renderList(); };
-            });
-        }
-
+        // ---- 篩選/排序工具列 ----
         function _normalizeCategory(cat) {
             if (!cat) return ['通用'];
             try { const parsed = JSON.parse(cat); if (Array.isArray(parsed)) return parsed; } catch (_) {}
             return [cat];
         }
 
+        function updateFilterBarOptions() {
+            const catSel = document.getElementById('aiGuidelinesFilterCat');
+            const mutexSel = document.getElementById('aiGuidelinesFilterMutex');
+            if (catSel) {
+                const currentCat = catSel.value;
+                catSel.innerHTML = '<option value="">全部類別</option>' +
+                    allCategoryTags.map(t => `<option value="${_esc(t.name)}" ${currentCat === t.name ? 'selected' : ''}>${_esc(t.name)}</option>`).join('');
+            }
+            if (mutexSel) {
+                const currentMutex = mutexSel.value;
+                const mutexGroups = [...new Set(allGuidelines.map(g => g.mutexGroup).filter(Boolean))].sort();
+                mutexSel.innerHTML = '<option value="">全部群組</option><option value="__none__"' + (currentMutex === '__none__' ? ' selected' : '') + '>無互斥群組</option>' +
+                    mutexGroups.map(m => `<option value="${_esc(m)}" ${currentMutex === m ? 'selected' : ''}>${_esc(m)}</option>`).join('');
+            }
+        }
+
+        const catFilterEl = document.getElementById('aiGuidelinesFilterCat');
+        const mutexFilterEl = document.getElementById('aiGuidelinesFilterMutex');
+        const sortEl = document.getElementById('aiGuidelinesSort');
+        if (catFilterEl) catFilterEl.onchange = () => { filterCat = catFilterEl.value; renderList(); };
+        if (mutexFilterEl) mutexFilterEl.onchange = () => { filterMutex = mutexFilterEl.value; renderList(); };
+        if (sortEl) sortEl.onchange = () => { sortKey = sortEl.value; renderList(); };
+
+        updateFilterBarOptions();
+
+        // ---- 準則清單 ----
         function renderList() {
             if (!list) return;
-            const filtered = activeCat === '全部' ? allGuidelines : allGuidelines.filter(g => _normalizeCategory(g.category).includes(activeCat));
-            if (filtered.length === 0) { list.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; padding:0.5rem 0;">尚無準則條目。</p>'; return; }
-            list.innerHTML = filtered.map(g => {
-                const cats = _normalizeCategory(g.category);
-                const catBadges = cats.map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
-                return `
-                    <div class="ai-guideline-item" data-id="${g.id}">
-                        <div style="flex:1;">
-                            <div class="ai-guideline-item-content">${_esc(g.content)}</div>
-                            <div class="ai-guideline-item-meta">
-                                ${catBadges}
-                                ${g.mutexGroup ? `<span class="ai-badge" style="background:#fff7ed; border-color:#fdba74; color:#9a3412;">互斥：${_esc(g.mutexGroup)}</span>` : ''}
+            // Apply filters
+            let filtered = allGuidelines.filter(g => {
+                if (filterCat && !_normalizeCategory(g.category).includes(filterCat)) return false;
+                if (filterMutex === '__none__' && g.mutexGroup) return false;
+                if (filterMutex && filterMutex !== '__none__' && g.mutexGroup !== filterMutex) return false;
+                return true;
+            });
+            // Apply sort
+            if (sortKey === 'cat') {
+                filtered = [...filtered].sort((a, b) => {
+                    const ca = _normalizeCategory(a.category)[0];
+                    const cb = _normalizeCategory(b.category)[0];
+                    return ca.localeCompare(cb, 'zh-Hant-TW');
+                });
+            } else if (sortKey === 'content') {
+                filtered = [...filtered].sort((a, b) => a.content.localeCompare(b.content, 'zh-Hant-TW'));
+            }
+            // else 'order' — keep existing order (already sorted by sortOrder from DB)
+
+            if (filtered.length === 0) { list.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; padding:0.5rem 0;">尚無符合條件的準則。</p>'; return; }
+
+            // Group by mutexGroup
+            const renderedGroups = new Set();
+            const items = [];
+            filtered.forEach(g => {
+                if (g.mutexGroup) {
+                    if (!renderedGroups.has(g.mutexGroup)) {
+                        renderedGroups.add(g.mutexGroup);
+                        const groupMembers = filtered.filter(x => x.mutexGroup === g.mutexGroup);
+                        items.push({ type: 'mutex', name: g.mutexGroup, guidelines: groupMembers });
+                    }
+                } else {
+                    items.push({ type: 'single', g });
+                }
+            });
+
+            list.innerHTML = items.map(item => {
+                if (item.type === 'single') {
+                    const g = item.g;
+                    const catBadges = _normalizeCategory(g.category).map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
+                    return `
+                        <div class="ai-guideline-item" data-id="${g.id}">
+                            <div style="flex:1;">
+                                <div class="ai-guideline-item-content">${_esc(g.content)}</div>
+                                <div class="ai-guideline-item-meta">${catBadges}</div>
                             </div>
-                        </div>
-                        <div class="ai-guideline-item-actions">
-                            <button class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
-                        </div>
-                    </div>
-                `;
+                            <div class="ai-guideline-item-actions">
+                                <button class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
+                            </div>
+                        </div>`;
+                } else {
+                    return `
+                        <div style="border:1px solid #fdba74; border-radius:8px; background:#fff7ed; padding:0.6rem 0.75rem; max-width:800px;">
+                            <div style="font-size:0.8rem; font-weight:700; color:#9a3412; margin-bottom:0.5rem;">互斥群組：${_esc(item.name)}</div>
+                            <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                                ${item.guidelines.map(g => {
+                                    const catBadges = _normalizeCategory(g.category).map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
+                                    return `
+                                        <div class="ai-guideline-item" data-id="${g.id}" style="background:#fff; border-radius:5px; border:1px solid #fed7aa;">
+                                            <div style="flex:1;">
+                                                <div class="ai-guideline-item-content">${_esc(g.content)}</div>
+                                                <div class="ai-guideline-item-meta">${catBadges}</div>
+                                            </div>
+                                            <div class="ai-guideline-item-actions">
+                                                <button class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
+                                            </div>
+                                        </div>`;
+                                }).join('')}
+                            </div>
+                        </div>`;
+                }
             }).join('');
+
             list.querySelectorAll('[data-del]').forEach(btn => {
                 btn.onclick = async () => {
                     if (!confirm('確定刪除此準則條目？')) return;
@@ -10810,6 +10882,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     await DBService.deleteAiGuideline(id);
                     const idx = allGuidelines.findIndex(g => g.id === id);
                     if (idx >= 0) allGuidelines.splice(idx, 1);
+                    updateFilterBarOptions();
                     renderList();
                 };
             });
@@ -10820,7 +10893,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (mutexDatalist) mutexDatalist.innerHTML = mutexGroups.map(m => `<option value="${_esc(m)}">`).join('');
         }
 
-        renderTabBar();
         renderList();
         updateMutexDatalist();
 
@@ -10842,10 +10914,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     selectedNewCategories = ['通用'];
                     updateMultiselectDropdown();
                     updateMultiselectDisplay();
-                    // update tab bar with new categories if needed
-                    _normalizeCategory(category).forEach(c => { if (!tabCategories.includes(c)) tabCategories.push(c); });
+                    updateFilterBarOptions();
                     updateMutexDatalist();
-                    renderTabBar();
                     renderList();
                 } catch (err) {
                     alert('新增準則失敗：' + err.message);
@@ -11040,21 +11110,62 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Render special instructions
         function renderSpecialInstructions() {
             if (!specialList) return;
-            if (specialInstructions.length === 0) { specialList.innerHTML = '<p style="font-size:0.78rem; color:#94a3b8; margin:0;">尚無特殊指示。</p>'; return; }
-            specialList.innerHTML = specialInstructions.map((s, idx) => `
-                <div class="ai-special-instruction-item">
-                    <span class="ai-special-instruction-content">${_esc(s.content)}</span>
-                    <button class="ai-note-item-del" data-delidx="${idx}" title="刪除">✕</button>
-                </div>
-            `).join('');
-            specialList.querySelectorAll('[data-delidx]').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    const i = parseInt(btn.getAttribute('data-delidx'), 10);
-                    specialInstructions.splice(i, 1);
-                    renderSpecialInstructions();
-                    await savePSettings();
+            // Preserve any in-progress new-item editor
+            const newItemEditor = specialList.querySelector('.si-new-item');
+            if (specialInstructions.length === 0) {
+                specialList.innerHTML = '<p style="font-size:0.78rem; color:#94a3b8; margin:0;">尚無特殊指示。</p>';
+            } else {
+                specialList.innerHTML = specialInstructions.map((s, idx) => `
+                    <div class="ai-special-instruction-item" data-si-idx="${idx}">
+                        <input type="checkbox" class="ai-si-checkbox" data-idx="${idx}" ${s.enabled !== false ? 'checked' : ''}>
+                        <span class="ai-special-instruction-content">${_esc(s.content)}</span>
+                        <div style="display:flex; gap:0.25rem; flex-shrink:0; margin-left:auto;">
+                            <button class="si-edit-btn" data-idx="${idx}" title="編輯" style="background:none; border:none; cursor:pointer; color:#64748b; padding:0.1rem 0.3rem; font-size:0.8rem;">✏</button>
+                            <button class="ai-note-item-del si-del-btn" data-idx="${idx}" title="刪除">✕</button>
+                        </div>
+                    </div>
+                `).join('');
+                specialList.querySelectorAll('.ai-si-checkbox').forEach(cb => {
+                    cb.onchange = () => {
+                        const i = parseInt(cb.getAttribute('data-idx'), 10);
+                        specialInstructions[i].enabled = cb.checked;
+                        savePSettings();
+                    };
                 });
-            });
+                specialList.querySelectorAll('.si-edit-btn').forEach(btn => {
+                    btn.onclick = () => {
+                        const i = parseInt(btn.getAttribute('data-idx'), 10);
+                        const item = specialList.querySelector(`[data-si-idx="${i}"]`);
+                        if (!item) return;
+                        const currentContent = specialInstructions[i].content;
+                        item.innerHTML = `
+                            <textarea class="form-input si-edit-ta" rows="2" style="flex:1; font-size:0.82rem; resize:vertical;">${_esc(currentContent)}</textarea>
+                            <div style="display:flex; gap:0.25rem; flex-shrink:0; margin-left:0.3rem;">
+                                <button class="primary-btn btn-sm si-save-btn">儲存</button>
+                                <button class="secondary-btn btn-sm si-cancel-btn">取消</button>
+                            </div>`;
+                        const ta = item.querySelector('.si-edit-ta');
+                        ta?.focus();
+                        ta?.setSelectionRange(ta.value.length, ta.value.length);
+                        item.querySelector('.si-save-btn').onclick = () => {
+                            specialInstructions[i].content = ta.value.trim();
+                            savePSettings();
+                            renderSpecialInstructions();
+                        };
+                        item.querySelector('.si-cancel-btn').onclick = () => renderSpecialInstructions();
+                    };
+                });
+                specialList.querySelectorAll('.si-del-btn').forEach(btn => {
+                    btn.onclick = () => {
+                        const i = parseInt(btn.getAttribute('data-idx'), 10);
+                        specialInstructions.splice(i, 1);
+                        savePSettings();
+                        renderSpecialInstructions();
+                    };
+                });
+            }
+            // Re-append the new-item editor if it was open
+            if (newItemEditor) specialList.appendChild(newItemEditor);
         }
 
         renderDomains();
@@ -11073,9 +11184,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (addSpecialBtn) {
             addSpecialBtn.onclick = () => {
-                specialInstructions.push({ id: Date.now(), content: '', enabled: true, createdAt: new Date().toISOString() });
-                renderSpecialInstructions(true);
-                savePSettings();
+                // Remove any existing new-item editor first
+                specialList.querySelector('.si-new-item')?.remove();
+                // Remove the "no instructions" placeholder if present
+                specialList.querySelector('p')?.remove();
+                const newItem = document.createElement('div');
+                newItem.className = 'ai-special-instruction-item si-new-item';
+                newItem.innerHTML = `
+                    <textarea class="form-input si-new-ta" rows="2" placeholder="特殊指示內容…" style="flex:1; font-size:0.82rem; resize:vertical;"></textarea>
+                    <div style="display:flex; gap:0.25rem; flex-shrink:0; margin-left:0.3rem;">
+                        <button class="primary-btn btn-sm si-new-save">儲存</button>
+                        <button class="secondary-btn btn-sm si-new-cancel">取消</button>
+                    </div>`;
+                specialList.appendChild(newItem);
+                const ta = newItem.querySelector('.si-new-ta');
+                ta?.focus();
+                newItem.querySelector('.si-new-save').onclick = () => {
+                    const val = ta.value.trim();
+                    if (val) {
+                        specialInstructions.push({ id: Date.now(), content: val, enabled: true, createdAt: new Date().toISOString() });
+                        savePSettings();
+                    }
+                    renderSpecialInstructions();
+                };
+                newItem.querySelector('.si-new-cancel').onclick = () => {
+                    newItem.remove();
+                    if (specialInstructions.length === 0) renderSpecialInstructions();
+                };
             };
         }
         const goBtn = document.getElementById('btnGoToGuidelinesFromPicker');
@@ -11090,30 +11225,74 @@ document.addEventListener('DOMContentLoaded', async () => {
             const pickerList = document.getElementById('aiPickerList');
             if (!modal) { resolve(null); return; }
 
-            const checked = new Set(currentCheckedIds);
-            const cats = ['全部', ...new Set(allGuidelines.map(g => g.category || '通用'))].sort((a, b) => a === '全部' ? -1 : b === '全部' ? 1 : a.localeCompare(b));
-            let activeCat = '全部';
-
-            function renderTabs() {
-                if (!tabBar) return;
-                tabBar.innerHTML = cats.map(c =>
-                    `<button class="ai-tab-btn${c === activeCat ? ' active' : ''}" data-cat="${_esc(c)}">${_esc(c)}</button>`
-                ).join('');
-                tabBar.querySelectorAll('.ai-tab-btn').forEach(b => {
-                    b.addEventListener('click', () => { activeCat = b.getAttribute('data-cat'); renderTabs(); renderList(); });
-                });
+            // Parse category stored as JSON array or plain string
+            function _parseCatNames(cat) {
+                if (!cat) return ['通用'];
+                try { const p = JSON.parse(cat); if (Array.isArray(p)) return p; } catch (_) {}
+                return [cat];
             }
+
+            const checked = new Set(currentCheckedIds);
+
+            // Build mutex group map
+            const mutexGroupsMap = {};
+            allGuidelines.forEach(g => {
+                if (g.mutexGroup) {
+                    if (!mutexGroupsMap[g.mutexGroup]) mutexGroupsMap[g.mutexGroup] = [];
+                    mutexGroupsMap[g.mutexGroup].push(g);
+                }
+            });
+            // Enforce mutex on initial load: keep only the first checked per group
+            Object.values(mutexGroupsMap).forEach(group => {
+                const checkedInGroup = group.filter(g => checked.has(g.id));
+                if (checkedInGroup.length > 1) checkedInGroup.slice(1).forEach(g => checked.delete(g.id));
+            });
+
+            // Clear tab bar (not used)
+            if (tabBar) tabBar.innerHTML = '';
 
             function renderList() {
                 if (!pickerList) return;
-                const filtered = activeCat === '全部' ? allGuidelines : allGuidelines.filter(g => g.category === activeCat);
-                if (filtered.length === 0) { pickerList.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem;">此類別尚無準則。</p>'; return; }
-                pickerList.innerHTML = filtered.map(g => `
-                    <label style="display:flex; align-items:flex-start; gap:0.5rem; padding:0.4rem 0.5rem; border-radius:5px; cursor:pointer; border:1px solid ${checked.has(g.id) ? '#3b82f6' : '#e2e8f0'}; background:${checked.has(g.id) ? '#eff6ff' : '#fff'};">
-                        <input type="checkbox" data-id="${g.id}" ${checked.has(g.id) ? 'checked' : ''} style="flex-shrink:0; margin-top:0.2rem;">
-                        <span style="font-size:0.85rem; color:#374151; line-height:1.5;">${_esc(g.content)}<span class="ai-badge" style="margin-left:0.4rem; vertical-align:middle;">${_esc(g.category||'通用')}</span></span>
-                    </label>
-                `).join('');
+                if (allGuidelines.length === 0) { pickerList.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem;">尚無準則條目。</p>'; return; }
+
+                const renderedGroups = new Set();
+                const items = [];
+                allGuidelines.forEach(g => {
+                    if (g.mutexGroup) {
+                        if (!renderedGroups.has(g.mutexGroup)) {
+                            renderedGroups.add(g.mutexGroup);
+                            items.push({ type: 'mutex', name: g.mutexGroup, guidelines: mutexGroupsMap[g.mutexGroup] });
+                        }
+                    } else {
+                        items.push({ type: 'single', g });
+                    }
+                });
+
+                pickerList.innerHTML = items.map(item => {
+                    if (item.type === 'single') {
+                        const g = item.g;
+                        const catLabel = _parseCatNames(g.category).join(', ');
+                        const isCk = checked.has(g.id);
+                        return `<label style="display:flex; align-items:flex-start; gap:0.5rem; padding:0.4rem 0.5rem; border-radius:5px; cursor:pointer; border:1px solid ${isCk ? '#3b82f6' : '#e2e8f0'}; background:${isCk ? '#eff6ff' : '#fff'};">
+                            <input type="checkbox" data-id="${g.id}" ${isCk ? 'checked' : ''} style="flex-shrink:0; margin-top:0.2rem;">
+                            <span style="font-size:0.85rem; color:#374151; line-height:1.5;">${_esc(g.content)}<span class="ai-badge" style="margin-left:0.4rem; vertical-align:middle;">${_esc(catLabel)}</span></span>
+                        </label>`;
+                    } else {
+                        const groupGuidelines = item.guidelines;
+                        return `<div style="border:1px solid #fdba74; border-radius:6px; background:#fff7ed; padding:0.5rem 0.6rem; display:flex; flex-direction:column; gap:0.3rem;">
+                            <div style="font-size:0.75rem; font-weight:600; color:#9a3412; margin-bottom:0.15rem;">互斥群組：${_esc(item.name)}</div>
+                            ${groupGuidelines.map(g => {
+                                const catLabel = _parseCatNames(g.category).join(', ');
+                                const isCk = checked.has(g.id);
+                                return `<label style="display:flex; align-items:flex-start; gap:0.5rem; padding:0.3rem 0.4rem; border-radius:4px; cursor:pointer; border:1px solid ${isCk ? '#3b82f6' : 'transparent'}; background:${isCk ? '#eff6ff' : '#fff'};">
+                                    <input type="radio" name="mutex-picker-${_esc(item.name)}" data-id="${g.id}" data-mutex="${_esc(item.name)}" ${isCk ? 'checked' : ''} style="flex-shrink:0; margin-top:0.2rem;">
+                                    <span style="font-size:0.85rem; color:#374151; line-height:1.5;">${_esc(g.content)}<span class="ai-badge" style="margin-left:0.4rem; vertical-align:middle;">${_esc(catLabel)}</span></span>
+                                </label>`;
+                            }).join('')}
+                        </div>`;
+                    }
+                }).join('');
+
                 pickerList.querySelectorAll('input[type=checkbox]').forEach(cb => {
                     cb.addEventListener('change', () => {
                         const id = parseInt(cb.getAttribute('data-id'), 10);
@@ -11121,9 +11300,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                         renderList();
                     });
                 });
+                pickerList.querySelectorAll('input[type=radio]').forEach(rb => {
+                    rb.addEventListener('change', () => {
+                        const id = parseInt(rb.getAttribute('data-id'), 10);
+                        const groupName = rb.getAttribute('data-mutex');
+                        if (mutexGroupsMap[groupName]) mutexGroupsMap[groupName].forEach(g => checked.delete(g.id));
+                        if (rb.checked) checked.add(id);
+                        renderList();
+                    });
+                });
             }
 
-            renderTabs();
             renderList();
             modal.classList.remove('hidden');
 
@@ -11135,10 +11322,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (!content) return;
                     const id = await DBService.addAiGuideline({ content, category, sortOrder: allGuidelines.length });
                     allGuidelines.push({ id, content, category, sortOrder: allGuidelines.length });
-                    if (!cats.includes(category)) { cats.push(category); cats.sort(); }
                     checked.add(id);
                     document.getElementById('aiPickerQuickContent').value = '';
-                    renderTabs();
                     renderList();
                 };
             }

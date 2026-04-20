@@ -640,7 +640,7 @@
                                     <div class="shared-info-section" style="margin-top:0.75rem;">
                                         <div class="shared-info-section-header">
                                             <h4 class="shared-info-section-title">一般準則</h4>
-                                            <button type="button" class="notes-add-btn" id="btnOpenAiGuidelinePicker">選擇準則…</button>
+                                            <button type="button" class="notes-add-btn" id="btnOpenAiGuidelinePicker">選擇準則</button>
                                         </div>
                                         <div id="aiSelectedGuidelinesList" class="notes-items-list" style="font-size:0.82rem;"></div>
                                     </div>
@@ -648,7 +648,7 @@
                                     <div class="shared-info-section" style="margin-top:0.75rem;">
                                         <div class="shared-info-section-header">
                                             <h4 class="shared-info-section-title">特殊指示</h4>
-                                            <button type="button" class="notes-add-btn" id="btnAddAiSpecialInstruction">＋ 新增</button>
+                                            <button type="button" class="notes-add-btn" id="btnAddAiSpecialInstruction">＋ 新增指示</button>
                                         </div>
                                         <p style="font-size:0.78rem; color:#64748b; margin:0 0 0.4rem 0;">針對本案件或即將處理部份的特殊情境說明，全專案共用。</p>
                                         <div id="aiSpecialInstructionsList" class="notes-items-list"></div>
@@ -869,7 +869,20 @@
                     </div>
                 </div>
 
-                <div id="aiGuidelinesTabBar" class="ai-tab-bar" style="margin-bottom:1rem;"></div>
+                <div id="aiGuidelinesFilterBar" style="display:flex; gap:0.5rem; align-items:center; margin-bottom:1rem; flex-wrap:wrap;">
+                    <select id="aiGuidelinesFilterCat" class="form-input" style="width:auto; min-width:110px; padding:0.3rem 0.5rem; font-size:0.82rem;">
+                        <option value="">全部類別</option>
+                    </select>
+                    <select id="aiGuidelinesFilterMutex" class="form-input" style="width:auto; min-width:110px; padding:0.3rem 0.5rem; font-size:0.82rem;">
+                        <option value="">全部群組</option>
+                        <option value="__none__">無互斥群組</option>
+                    </select>
+                    <select id="aiGuidelinesSort" class="form-input" style="width:auto; min-width:130px; padding:0.3rem 0.5rem; font-size:0.82rem;">
+                        <option value="order">依建立順序</option>
+                        <option value="cat">依類別</option>
+                        <option value="content">依內容（A–Z）</option>
+                    </select>
+                </div>
                 <div id="aiGuidelinesList" style="display:flex; flex-direction:column; gap:0.5rem; margin-bottom:1.5rem; max-width:800px;"></div>
                 <div style="max-width:800px; border:1px solid #e2e8f0; border-radius:8px; padding:1rem; background:#f8fafc;">
                     <h4 style="margin:0 0 0.75rem 0; font-size:0.9rem; color:#374151;">新增準則條目</h4>
