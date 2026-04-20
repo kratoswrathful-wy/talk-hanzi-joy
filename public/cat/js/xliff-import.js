@@ -240,6 +240,60 @@
             const { text: targetText, tags: targetTags } = targetNode
                 ? Xliff.extractTaggedText(targetNode, extractOpts) : { text: '', tags: [] };
 
+            // mqxliff literal-placeholder 模式：有些 memoQ 檔案把行內 tag 直接以
+            // 純文字 {1}、{2}… 存入 XML（不使用 <ph> 等 XLIFF 元素）。
+            // extractTaggedText 掃不到元素 → sourceTags=[]；但文字裡已有 {N}。
+            // 此時合成 synthetic tags，讓 UI 顯示 pill、F8 可插入。
+            // xml 欄位直接存 "{N}" 本身，export 時 replacePlaceholders 會把 {N}
+            // 換回 "{N}"，memoQ 即可正確讀取（literal round-trip）。
+            if (isMqxliffFile && sourceTags.length === 0 && /\{\/?\d+\}/.test(sourceText)) {
+                const seenNums = new Set();
+                for (const m of sourceText.matchAll(/\{(\d+)\}/g)) {
+                    const n = parseInt(m[1], 10);
+                    if (!seenNums.has(n)) {
+                        seenNums.add(n);
+                        sourceTags.push({
+                            ph: `{${n}}`, xml: `{${n}}`,
+                            display: `{${n}}`, type: 'standalone',
+                            pairNum: n, num: n
+                        });
+                    }
+                }
+                // 成對 {N}/{/N}
+                for (const m of sourceText.matchAll(/\{\/(\d+)\}/g)) {
+                    const n = parseInt(m[1], 10);
+                    sourceTags.push({
+                        ph: `{/${n}}`, xml: `{/${n}}`,
+                        display: `{/${n}}`, type: 'close',
+                        pairNum: n, num: n
+                    });
+                    // 確保對應的 open tag 存在
+                    const openExists = sourceTags.some(t => t.ph === `{${n}}` && t.type !== 'close');
+                    if (!openExists) {
+                        sourceTags.push({
+                            ph: `{${n}}`, xml: `{${n}}`,
+                            display: `{${n}}`, type: 'open',
+                            pairNum: n, num: n
+                        });
+                    } else {
+                        // 把已加入的 standalone 改為 open
+                        const st = sourceTags.find(t => t.ph === `{${n}}` && t.type === 'standalone');
+                        if (st) st.type = 'open';
+                    }
+                }
+            }
+
+            // target 端同樣處理：若 sourceTags 已合成（literal 模式），
+            // targetTags 也應從 sourceTags 複製對應項目（保持 xml="{N}" round-trip）。
+            if (isMqxliffFile && sourceTags.length > 0 && targetTags.length === 0 && targetText) {
+                const presentPhs = new Set((targetText.match(/\{\/?\d+\}/g) || []));
+                for (const t of sourceTags) {
+                    if (presentPhs.has(t.ph)) {
+                        targetTags.push({ ...t });
+                    }
+                }
+            }
+
             if (!sourceText && !targetText) return;
 
             let keyFromContext = '';

@@ -194,11 +194,43 @@ bptMap[id] = counter;          // bpt 時存入
 const num = bptMap[id] ?? ++counter;  // ept 時查表
 ```
 
-### 4.3 舊資料問題
+### 4.3 memoQ Literal Placeholder 格式
 
-若 mqxliff 是在 `<x>` 元素處理和 `ctype` fallback 加入**之前**匯入的，`sourceTags` 可能為 `null` 或 `undefined`，導致 pill 無法顯示。
+**部分 memoQ 檔案不使用 XLIFF XML 元素**，而是把行內 tag 直接以純文字存入 XML：
 
-解法：**刪除舊記錄並重新匯入**，現有的 `extractTaggedText` 會正確擷取所有 tag。
+```xml
+<!-- XML element 格式（extractTaggedText 能處理）-->
+<source><ph id="1" displaytext="{0}"/> days</source>
+
+<!-- Literal text 格式（extractTaggedText 掃不到任何元素）-->
+<source>{1} days</source>
+```
+
+Literal 格式的行為：
+- `extractTaggedText` 找不到任何 `<ph>`，回傳 `tags=[]`
+- 但 `text = "{1} days"`（文字本身就有佔位符）
+- 不加處理 → pill 不顯示
+
+**解法**（已實作在 `xliff-import.js`）：
+若 `isMqxliffFile && sourceTags.length === 0 && text 含 {N}`，合成 synthetic tags：
+
+```javascript
+sourceTags.push({
+    ph: `{${n}}`, xml: `{${n}}`,   // xml = literal text 本身
+    display: `{${n}}`, type: 'standalone',
+    pairNum: n, num: n
+});
+```
+
+`xml` 欄位存 `{N}` 純文字，export 時 `replacePlaceholders("{1}", [{ph:"{1}", xml:"{1}"}])` → `{1}`（原樣寫回），memoQ 可正確讀取（literal round-trip）。
+
+**numbering**：memoQ XML 裡存的是 1-based `{1}`；memoQ UI 顯示 0-based `{0}`（自動減 1）。兩者都是正常的，不需要轉換。
+
+### 4.4 舊資料問題
+
+若 mqxliff 是在上述任何修正加入**之前**匯入的，`sourceTags` 可能為 `null` 或 `undefined`，導致 pill 無法顯示。
+
+解法：**刪除舊記錄並重新匯入**，現有的匯入流程會正確擷取所有 tag。
 
 ---
 
@@ -279,6 +311,21 @@ seg.targetText ("…{1}…")
 **原因**：`extractTaggedText` 只處理 `ph` / `it`，未包含 `x`（XLIFF standalone placeholder）。
 
 **修法**：在 `if (ln === 'ph' || ln === 'it')` 加入 `|| ln === 'x'`。
+
+---
+
+### [2025-04] mqxliff Literal Placeholder 格式無法顯示 pill
+
+**症狀**：重新匯入 mqxliff 後，`{1} days` / `{1}:{2}:{3}` 仍顯示純文字，無 pill。
+
+**原因**：這類 mqxliff 把行內 tag 存為純文字 `{1}` 而非 `<ph>` XML 元素。
+`extractTaggedText` 只掃 XML 元素，回傳 `sourceTags=[]`。
+`buildTaggedHtml("{1} days", [])` → 純文字輸出。
+
+**修法**：在 `xliff-import.js` 單段路徑加入後處理：
+若 `isMqxliffFile && sourceTags.length === 0 && text 含 {N}`，
+合成 `{ ph:"{N}", xml:"{N}", display:"{N}", type:"standalone" }`，
+export 時 `replacePlaceholders` 把 `{N}` 換回 xml=`{N}`，原樣寫回 XML（literal round-trip）。
 
 ---
 
