@@ -362,7 +362,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (rowEl) {
             const editor = rowEl.querySelector('.grid-textarea');
             if (editor) {
-                editor.innerHTML = buildTaggedHtml(newText, seg.targetTags || seg.sourceTags || []);
+                editor.innerHTML = buildTaggedHtml(newText, effectiveTags(seg));
                 updateTagColors(rowEl, newText);
             }
             if (op === 'clear') applyMatchCellVisual(rowEl, '');
@@ -809,7 +809,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         seg.matchValue = undefined;
         pendingRemoteBySegId.delete(String(seg.id));
         if (editor) {
-            editor.innerHTML = buildTaggedHtml(remoteText, seg.targetTags || seg.sourceTags || []);
+            editor.innerHTML = buildTaggedHtml(remoteText, effectiveTags(seg));
         }
         if (row) {
             updateTagColors(row, remoteText);
@@ -898,8 +898,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (whoEl) whoEl.textContent = pending.whoLabel || '其他成員';
-        mineEl.innerHTML = buildTaggedHtml(localText, seg.targetTags || seg.sourceTags || []);
-        theirsEl.innerHTML = buildTaggedHtml(pending.text, seg.targetTags || seg.sourceTags || []);
+        mineEl.innerHTML = buildTaggedHtml(localText, effectiveTags(seg));
+        theirsEl.innerHTML = buildTaggedHtml(pending.text, effectiveTags(seg));
         radioMine.checked = true;
         radioTheirs.checked = false;
 
@@ -5295,7 +5295,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const stripped = seg.targetText.replace(/\{\/?\d+\}/g, '');
                     seg.targetText = stripped;
                     seg.matchValue = undefined;
-                    activeEditor.innerHTML = buildTaggedHtml(stripped, seg.targetTags || seg.sourceTags || []);
+                    activeEditor.innerHTML = buildTaggedHtml(stripped, effectiveTags(seg));
                     updateTagColors(activeRow, stripped);
                     refreshTagNextHighlight(activeRow);
                     applyMatchCellVisual(activeRow, '');
@@ -5409,7 +5409,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                  return text.replace(/\{\/?\d+\}/g, m => map[m] !== undefined ? map[m] : m);
              };
              const srcExpanded = expandTags(seg.sourceText || '', seg.sourceTags);
-             const tgtExpanded = expandTags(seg.targetText || '', seg.targetTags || seg.sourceTags);
+             const tgtExpanded = expandTags(seg.targetText || '', effectiveTags(seg));
              if(scopes.includes('source') && (checkMatch(seg.sourceText || '') || checkMatch(srcExpanded))) textMatch = true;
              if(scopes.includes('target') && (checkMatch(seg.targetText || '') || checkMatch(tgtExpanded))) textMatch = true;
              if(scopes.includes('extra') && checkMatch(seg.extraValue || '')) textMatch = true;
@@ -5584,7 +5584,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const targetEditor = row.querySelector('.grid-textarea');
             if (targetEditor) {
                 const currentText = seg.targetText || '';
-                targetEditor.innerHTML = buildTaggedHtml(currentText, seg.targetTags || seg.sourceTags || []);
+                targetEditor.innerHTML = buildTaggedHtml(currentText, effectiveTags(seg));
             }
 
             // --- Apply Highlighting ---
@@ -5886,7 +5886,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (row) {
             const ta = row.querySelector('.grid-textarea');
             if (ta) {
-                ta.innerHTML = buildTaggedHtml(tgt, seg.targetTags || seg.sourceTags || []);
+                ta.innerHTML = buildTaggedHtml(tgt, effectiveTags(seg));
                 updateTagColors(row, tgt);
             }
             applyMatchCellVisual(row, seg.matchValue);
@@ -5956,7 +5956,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (row) {
             const ta = row.querySelector('.grid-textarea');
             if (ta) {
-                    ta.innerHTML = buildTaggedHtml(seg.targetText, seg.targetTags || seg.sourceTags || []);
+                    ta.innerHTML = buildTaggedHtml(seg.targetText, effectiveTags(seg));
                     updateTagColors(row, seg.targetText);
                 }
                 applyMatchCellVisual(row, seg.matchValue);
@@ -6131,7 +6131,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (row) {
                 const ta = row.querySelector('.grid-textarea');
                 if (ta) {
-                    ta.innerHTML = buildTaggedHtml(newText, seg.targetTags || seg.sourceTags || []);
+                    ta.innerHTML = buildTaggedHtml(newText, effectiveTags(seg));
                     updateTagColors(row, newText);
                 }
             }
@@ -6606,7 +6606,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (rows[j]) {
                 const ta = rows[j].querySelector('.grid-textarea');
                 if (ta) {
-                    ta.innerHTML = buildTaggedHtml(tgt, other.targetTags || other.sourceTags || []);
+                    ta.innerHTML = buildTaggedHtml(tgt, effectiveTags(other));
                     updateTagColors(rows[j], tgt);
                 }
                 const si = rows[j].querySelector('.status-icon');
@@ -6730,6 +6730,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function escapeHtml(s) {
         return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    /**
+     * 回傳用於「目標欄」渲染的 tags 陣列。
+     *
+     * 不可寫成 seg.targetTags || seg.sourceTags：空陣列 [] 是 truthy，
+     * 用 || 無法 fallback 到 sourceTags，導致 tag pill 消失。
+     * 凡是要把 targetTags/sourceTags 傳給 buildTaggedHtml 的地方，
+     * 一律呼叫此 helper。
+     */
+    function effectiveTags(seg) {
+        return (seg.targetTags && seg.targetTags.length > 0)
+            ? seg.targetTags
+            : (seg.sourceTags || []);
     }
 
     /**
@@ -7095,7 +7109,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             seg.targetText = best.targetText;
             seg.matchValue = String(Math.round(best.score));
-            targetInput.innerHTML = buildTaggedHtml(seg.targetText, seg.targetTags || seg.sourceTags || []);
+            targetInput.innerHTML = buildTaggedHtml(seg.targetText, effectiveTags(seg));
             updateTagColors(row, seg.targetText);
             applyMatchCellVisual(row, seg.matchValue);
             await DBService.updateSegmentTarget(seg.id, seg.targetText, { matchValue: seg.matchValue, targetTags: seg.targetTags });
@@ -7103,7 +7117,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             seg.targetTags = (seg.sourceTags || []).map(t => ({ ...t }));
             seg.targetText = seg.sourceText;
             seg.matchValue = undefined;
-            targetInput.innerHTML = buildTaggedHtml(seg.targetText, seg.targetTags || seg.sourceTags || []);
+            targetInput.innerHTML = buildTaggedHtml(seg.targetText, effectiveTags(seg));
             updateTagColors(row, seg.targetText);
             applyMatchCellVisual(row, '');
             await DBService.updateSegmentTarget(seg.id, seg.targetText, { targetTags: seg.targetTags, matchValue: '' });
@@ -7114,7 +7128,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 seg.targetText = best.targetText;
                 seg.matchValue = String(Math.round(best.score));
-                targetInput.innerHTML = buildTaggedHtml(seg.targetText, seg.targetTags || seg.sourceTags || []);
+                targetInput.innerHTML = buildTaggedHtml(seg.targetText, effectiveTags(seg));
                 updateTagColors(row, seg.targetText);
                 applyMatchCellVisual(row, seg.matchValue);
                 await DBService.updateSegmentTarget(seg.id, seg.targetText, { matchValue: seg.matchValue, targetTags: seg.targetTags });
@@ -7122,7 +7136,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 seg.targetTags = (seg.sourceTags || []).map(t => ({ ...t }));
                 seg.targetText = seg.sourceText;
                 seg.matchValue = undefined;
-                targetInput.innerHTML = buildTaggedHtml(seg.targetText, seg.targetTags || seg.sourceTags || []);
+                targetInput.innerHTML = buildTaggedHtml(seg.targetText, effectiveTags(seg));
                 updateTagColors(row, seg.targetText);
                 applyMatchCellVisual(row, '');
                 await DBService.updateSegmentTarget(seg.id, seg.targetText, { targetTags: seg.targetTags, matchValue: '' });
@@ -7240,7 +7254,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             const sourceHtml = buildTaggedHtml(seg.sourceText, seg.sourceTags || [], true);
             rowInnerContent += `<div class="col-source"><div class="rt-editor" contenteditable="false">${sourceHtml}</div></div>`;
-            const targetHtml = buildTaggedHtml(seg.targetText, seg.targetTags || seg.sourceTags || []);
+            const targetHtml = buildTaggedHtml(seg.targetText, effectiveTags(seg));
             rowInnerContent += `<div class="col-target" style="position:relative;">
                 <div class="rt-editor grid-textarea" contenteditable="${effectiveLocked ? 'false' : 'true'}" spellcheck="false">${targetHtml}</div>
             </div>`;
@@ -7418,13 +7432,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const attempted = extractTextFromEditor(targetInput);
                         const prevVal = seg.targetText || '';
                         if (attempted !== prevVal) {
-                            targetInput.innerHTML = buildTaggedHtml(prevVal, seg.targetTags || seg.sourceTags || []);
+                            targetInput.innerHTML = buildTaggedHtml(prevVal, effectiveTags(seg));
                             refreshTagNextHighlight(row);
                             const ok = await showHighMatchEditConfirmModal(seg);
                             if (!ok) return;
                             highMatchEditConfirmedIds.add(seg.id);
                             skipHighMatchInputGuard = true;
-                            targetInput.innerHTML = buildTaggedHtml(attempted, seg.targetTags || seg.sourceTags || []);
+                            targetInput.innerHTML = buildTaggedHtml(attempted, effectiveTags(seg));
                             refreshTagNextHighlight(row);
                             targetInput.dispatchEvent(new Event('input', { bubbles: true }));
                             skipHighMatchInputGuard = false;
@@ -8114,7 +8128,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let newTarget;
         if (type === 'TM') {
             newTarget = text;
-            textarea.innerHTML = buildTaggedHtml(text, seg.targetTags || seg.sourceTags || []);
+            textarea.innerHTML = buildTaggedHtml(text, effectiveTags(seg));
             updateTagColors(activeRow, text);
         } else {
             textarea.focus();
@@ -11116,12 +11130,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                 specialList.innerHTML = '<p style="font-size:0.78rem; color:#94a3b8; margin:0;">尚無特殊指示。</p>';
             } else {
                 specialList.innerHTML = specialInstructions.map((s, idx) => `
-                    <div class="ai-special-instruction-item" data-si-idx="${idx}">
-                        <input type="checkbox" class="ai-si-checkbox" data-idx="${idx}" ${s.enabled !== false ? 'checked' : ''}>
-                        <span class="ai-special-instruction-content">${_esc(s.content)}</span>
-                        <div style="display:flex; gap:0.25rem; flex-shrink:0; margin-left:auto;">
-                            <button class="si-edit-btn" data-idx="${idx}" title="編輯" style="background:none; border:none; cursor:pointer; color:#64748b; padding:0.1rem 0.3rem; font-size:0.8rem;">✏</button>
-                            <button class="ai-note-item-del si-del-btn" data-idx="${idx}" title="刪除">✕</button>
+                    <div class="guideline-item" data-si-idx="${idx}">
+                        <div class="guideline-item-row">
+                            <div class="private-todo-check">
+                                <input type="checkbox" class="ai-si-checkbox private-todo-cb" data-idx="${idx}" ${s.enabled !== false ? 'checked' : ''} aria-label="啟用指示">
+                            </div>
+                            <div class="guideline-item-main">
+                                <div class="private-todo-body" id="si-body-${idx}">
+                                    ${s.content ? `<span class="private-todo-text">${_esc(s.content)}</span>` : '<span class="guideline-item-empty">（無內容）</span>'}
+                                </div>
+                            </div>
+                            <div class="guideline-item-aside">
+                                <div class="guideline-item-aside-inner">
+                                    <div class="note-item-actions guideline-item-aside-actions si-actions-${idx}">
+                                        <button type="button" class="pt-edit-btn si-edit-btn" data-idx="${idx}" title="編輯">✏️</button>
+                                        <button type="button" class="pt-del-btn danger si-del-btn" data-idx="${idx}" title="刪除">🗑</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 `).join('');
@@ -11137,22 +11163,30 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const i = parseInt(btn.getAttribute('data-idx'), 10);
                         const item = specialList.querySelector(`[data-si-idx="${i}"]`);
                         if (!item) return;
-                        const currentContent = specialInstructions[i].content;
-                        item.innerHTML = `
-                            <textarea class="form-input si-edit-ta" rows="2" style="flex:1; font-size:0.82rem; resize:vertical;">${_esc(currentContent)}</textarea>
-                            <div style="display:flex; gap:0.25rem; flex-shrink:0; margin-left:0.3rem;">
-                                <button class="primary-btn btn-sm si-save-btn">儲存</button>
-                                <button class="secondary-btn btn-sm si-cancel-btn">取消</button>
-                            </div>`;
-                        const ta = item.querySelector('.si-edit-ta');
-                        ta?.focus();
-                        ta?.setSelectionRange(ta.value.length, ta.value.length);
-                        item.querySelector('.si-save-btn').onclick = () => {
-                            specialInstructions[i].content = ta.value.trim();
-                            savePSettings();
-                            renderSpecialInstructions();
-                        };
-                        item.querySelector('.si-cancel-btn').onclick = () => renderSpecialInstructions();
+                        const bodyEl = item.querySelector(`#si-body-${i}`);
+                        const actsEl = item.querySelector(`.si-actions-${i}`);
+                        if (bodyEl) {
+                            bodyEl.innerHTML = '';
+                            const ta = document.createElement('textarea');
+                            ta.className = 'private-todo-edit-textarea';
+                            ta.value = specialInstructions[i].content;
+                            ta.placeholder = '特殊指示內容…';
+                            ta.rows = 3;
+                            bodyEl.appendChild(ta);
+                            ta.focus();
+                            ta.setSelectionRange(ta.value.length, ta.value.length);
+                            if (actsEl) {
+                                actsEl.innerHTML = `
+                                    <button type="button" class="primary-btn btn-sm si-save-btn">儲存</button>
+                                    <button type="button" class="secondary-btn btn-sm si-cancel-btn">取消</button>`;
+                                actsEl.querySelector('.si-save-btn').onclick = () => {
+                                    specialInstructions[i].content = ta.value.trim();
+                                    savePSettings();
+                                    renderSpecialInstructions();
+                                };
+                                actsEl.querySelector('.si-cancel-btn').onclick = () => renderSpecialInstructions();
+                            }
+                        }
                     };
                 });
                 specialList.querySelectorAll('.si-del-btn').forEach(btn => {
@@ -11189,12 +11223,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Remove the "no instructions" placeholder if present
                 specialList.querySelector('p')?.remove();
                 const newItem = document.createElement('div');
-                newItem.className = 'ai-special-instruction-item si-new-item';
+                newItem.className = 'guideline-item si-new-item';
                 newItem.innerHTML = `
-                    <textarea class="form-input si-new-ta" rows="2" placeholder="特殊指示內容…" style="flex:1; font-size:0.82rem; resize:vertical;"></textarea>
-                    <div style="display:flex; gap:0.25rem; flex-shrink:0; margin-left:0.3rem;">
-                        <button class="primary-btn btn-sm si-new-save">儲存</button>
-                        <button class="secondary-btn btn-sm si-new-cancel">取消</button>
+                    <div class="guideline-item-row">
+                        <div class="private-todo-check"></div>
+                        <div class="guideline-item-main">
+                            <div class="private-todo-body">
+                                <textarea class="private-todo-edit-textarea si-new-ta" rows="3" placeholder="特殊指示內容…"></textarea>
+                            </div>
+                        </div>
+                        <div class="guideline-item-aside">
+                            <div class="guideline-item-aside-inner">
+                                <div class="note-item-actions guideline-item-aside-actions">
+                                    <button type="button" class="primary-btn btn-sm si-new-save">儲存</button>
+                                    <button type="button" class="secondary-btn btn-sm si-new-cancel">取消</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>`;
                 specialList.appendChild(newItem);
                 const ta = newItem.querySelector('.si-new-ta');
@@ -11829,10 +11874,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!row) return;
             const ta = row.querySelector('.grid-textarea');
             if (ta && document.activeElement !== ta) {
-                // contentEditable div: use innerHTML only if content changed
-                const current = ta.textContent || '';
-                if (current !== (seg.targetText || '')) {
-                    ta.textContent = seg.targetText || '';
+                const newHtml = buildTaggedHtml(seg.targetText || '', effectiveTags(seg));
+                if (ta.innerHTML !== newHtml) {
+                    ta.innerHTML = newHtml;
+                    updateTagColors(row, seg.targetText || '');
                 }
             }
         });
