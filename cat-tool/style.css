@@ -2000,3 +2000,4 @@ mark.tm-search-hit {
     user-select: none;
 }
 .show-non-print .non-print-marker { display: inline; }
+.np-end-marker { color: #b0bec5; }

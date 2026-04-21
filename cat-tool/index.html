@@ -128,6 +128,7 @@
                     <h1 id="detailProjectName" class="page-title" style="margin:0.5rem 0 0 0; font-size:1.5rem; font-weight:700;">專案名稱</h1>
                     <div id="detailProjectLangs" style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap; font-size:0.85rem; margin-top:0.2rem;"></div>
                     <div class="table-page-actions" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                        <button class="secondary-btn btn-sm" id="btnRenameProjectDetail">更名</button>
                         <button class="primary-btn btn-sm" id="btnAddFileModal">+ 匯入檔案</button>
                     </div>
                 </header>
@@ -266,10 +267,13 @@
                     <button class="secondary-btn" id="btnBackToTms">← 返回 TM 清單</button>
                     <h1 id="detailTmName" class="page-title" style="margin:0.5rem 0 0 0; font-size:1.5rem; font-weight:700;">TM 名稱</h1>
                     <div class="table-page-actions" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                        <button class="secondary-btn btn-sm" id="btnRenameTmDetail">更名</button>
                         <input type="file" id="tmImportInput" accept=".xlsx,.xls,.csv,.tmx" style="display:none;">
                         <button class="primary-btn btn-sm" id="btnImportTmFile">匯入檔案 (Excel/CSV/TMX)</button>
+                        <button class="secondary-btn btn-sm" id="btnExportTm">匯出</button>
                         <button class="danger-btn btn-sm" id="btnClearTmSegments">清空記憶庫</button>
                     </div>
+                    <div id="tmRelatedProjects" style="margin-top:0.75rem; font-size:0.88rem; color:#64748b;"></div>
                 </header>
                 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:1rem; margin-bottom:1rem; font-size:0.9rem;">
                     <strong>總句段數：</strong> <span id="tmSegmentCount">0</span>
@@ -371,28 +375,19 @@
                 </div>
                 <div id="tbDetailInfoBlock" style="margin-bottom:1rem; padding:0.75rem 1rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; font-size:0.9rem;">
                     <div style="margin-bottom:0.5rem;"><strong>目前術語表總數：</strong><span id="tbTermCount">0</span>（有編號之術語筆數）</div>
-                    <div style="margin-bottom:0.5rem; display:flex; align-items:center; gap:1.25rem; flex-wrap:wrap;">
-                        <strong>比對設定</strong>
-                        <label style="display:flex; align-items:center; gap:0.3rem; cursor:pointer; font-weight:normal;">
-                            <input type="checkbox" id="tbMatchCaseInsensitive" checked>
-                            <span>不區分大小寫（預設）</span>
-                        </label>
-                        <label style="display:flex; align-items:center; gap:0.3rem; cursor:pointer; font-weight:normal;">
-                            <input type="checkbox" id="tbMatchWholeWord">
-                            <span>全字匹配</span>
-                        </label>
-                        <span style="color:#64748b; font-size:0.82rem;">設定會即時儲存並影響 CAT 介面的術語比對與 QA 檢查</span>
-                    </div>
                     <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
                         <strong>變更紀錄</strong>
                         <button type="button" class="secondary-btn btn-sm" id="btnTbChangeLogExpand" style="font-size:0.8rem;">展開全部紀錄</button>
                     </div>
                     <ul id="tbChangeLog" style="margin:0.25rem 0 0 1.25rem; padding:0; max-height:120px; overflow-y:auto;"></ul>
                 </div>
+                <div id="tbRelatedProjects" style="margin-bottom:0.75rem; font-size:0.88rem; color:#64748b;"></div>
                 <div style="margin-bottom:1rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
+                    <button class="secondary-btn btn-sm" id="btnRenameTbDetail">更名</button>
                     <input type="file" id="tbImportInput" accept=".xlsx,.tbx,.sdltbx,.csv" style="display:none;">
                     <button class="primary-btn btn-sm" id="btnTbAddTerm">+ 新增術語</button>
                     <button class="primary-btn btn-sm" id="btnTbImportFile">匯入檔案 (Excel/TBX/CSV)</button>
+                    <button class="secondary-btn btn-sm" id="btnExportTb">匯出</button>
                     <button class="danger-btn btn-sm" id="btnTbDeleteSelected">刪除所選</button>
                     <button class="secondary-btn btn-sm" id="btnTbImportOnline">擷取線上表單</button>
                 </div>
@@ -413,6 +408,7 @@
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">原文</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">譯文</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">備註</th>
+                                <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:110px;">比對屬性</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:80px;">操作</th>
                             </tr>
                         </thead>
@@ -437,12 +433,12 @@
                     <textarea id="tbTermEditNote" placeholder="備註（選填）" rows="3" style="padding:0.4rem 0.5rem; border:1px solid #cbd5e1; border-radius:6px; resize:vertical;"></textarea>
                     <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:0.6rem 0.75rem; display:flex; gap:1.5rem; flex-wrap:wrap;">
                         <label style="display:flex; align-items:center; gap:0.3rem; font-size:0.88rem; cursor:pointer; font-weight:normal;">
-                            <input type="checkbox" id="tbTermEditCaseInsensitive" checked>
-                            不區分大小寫
+                            <input type="checkbox" id="tbTermEditCaseInsensitive">
+                            區分大小寫
                         </label>
                         <label style="display:flex; align-items:center; gap:0.3rem; font-size:0.88rem; cursor:pointer; font-weight:normal;">
                             <input type="checkbox" id="tbTermEditWholeWord">
-                            全字匹配
+                            精確比對
                         </label>
                     </div>
                 </div>
@@ -743,10 +739,10 @@
                                 <input type="text" id="newTermNote" style="width:100%; padding:0.3rem 0.45rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem; margin-bottom:0.4rem; box-sizing:border-box;">
                                 <div style="display:flex; gap:1rem; margin-bottom:0.5rem; flex-wrap:wrap;">
                                     <label style="display:flex; align-items:center; gap:0.25rem; font-size:0.82rem; cursor:pointer;">
-                                        <input type="checkbox" id="newTermCaseInsensitive" checked> 不區分大小寫
+                                        <input type="checkbox" id="newTermCaseInsensitive"> 區分大小寫
                                     </label>
                                     <label style="display:flex; align-items:center; gap:0.25rem; font-size:0.82rem; cursor:pointer;">
-                                        <input type="checkbox" id="newTermWholeWord"> 全字匹配
+                                        <input type="checkbox" id="newTermWholeWord"> 精確比對
                                     </label>
                                 </div>
                                 <div style="text-align:right;">
@@ -1156,6 +1152,30 @@
             </div>
         </div>
 
+        <!-- TM/TB 匯出 Modal -->
+        <div class="wizard-overlay hidden" id="exportResourceModal">
+            <div class="wizard-modal" style="max-width:480px;">
+                <div class="wizard-header">
+                    <h3 id="exportResourceModalTitle" style="margin:0; font-size:1.15rem;">匯出</h3>
+                    <button class="close-btn" id="btnCloseExportResourceModal">&times;</button>
+                </div>
+                <div class="wizard-body" style="display:flex; flex-direction:column; gap:1rem;">
+                    <div>
+                        <strong style="font-size:0.9rem;">格式</strong>
+                        <div id="exportFormatOptions" style="display:flex; gap:1rem; margin-top:0.5rem; flex-wrap:wrap;"></div>
+                    </div>
+                    <div>
+                        <strong style="font-size:0.9rem;">匯出欄位</strong>
+                        <div id="exportAttrOptions" style="display:flex; gap:0.75rem; margin-top:0.5rem; flex-wrap:wrap;"></div>
+                    </div>
+                </div>
+                <div class="panel-footer" style="padding:1rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; background:#f8fafc;">
+                    <button type="button" class="secondary-btn" id="btnCancelExportResource">取消</button>
+                    <button type="button" class="primary-btn" id="btnConfirmExportResource">匯出</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Basic Naming Modal (Used for Project/TM/TB/rename) -->
         <div class="wizard-overlay hidden" id="namingModal">
             <div class="wizard-modal" style="max-width: min(780px, 95vw);">
@@ -1238,6 +1258,9 @@
                                     <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0; width:180px;">語言對</th>
                                     <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0; width:100px;">讀取</th>
                                     <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0; width:100px;">寫入</th>
+                                    <th style="text-align:left; padding:0.45rem; border:1px solid #e2e8f0; width:120px; white-space:nowrap;">
+                                        減值 <span id="tmPenaltyHelpBtn" style="cursor:help; color:#94a3b8; font-weight:normal;">?</span>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody id="projectTmPickerBody"></tbody>

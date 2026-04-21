@@ -376,7 +376,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!container) return;
         container.innerHTML = '';
         // 使用 CSS Grid 讓標籤欄和 key input 欄寬度對齊
-        container.style.cssText = 'display:grid; grid-template-columns:1fr 120px auto; gap:0.4rem 0.5rem; align-items:center;';
+        container.style.cssText = 'display:grid; grid-template-columns:1fr 120px auto; gap:0.4rem 1rem; align-items:center;';
         CUSTOM_SC_DEFS.forEach(def => {
             const sc = getCustomShortcut(def.id);
             // label, keyInput, btns 各佔一格（grid row，不用額外 wrapper div）
@@ -590,16 +590,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         let node;
         while ((node = walker.nextNode())) textNodes.push(node);
         textNodes.forEach(tn => {
-            if (!tn.textContent.match(/[ \t\u00A0\u200B]/)) return;
+            if (!tn.textContent.match(/[ \t\u00A0\u200B\u3000]/)) return;
             const frag = document.createDocumentFragment();
-            const parts = tn.textContent.split(/([ \t\u00A0\u200B])/);
+            const parts = tn.textContent.split(/([ \t\u00A0\u200B\u3000])/);
             parts.forEach(part => {
-                if (part === ' ' || part === '\t' || part === '\u00A0' || part === '\u200B') {
+                if (part === ' ' || part === '\t' || part === '\u00A0' || part === '\u200B' || part === '\u3000') {
                     frag.appendChild(document.createTextNode(part));
                     const mark = document.createElement('span');
                     mark.className = 'non-print-marker';
                     mark.contentEditable = 'false';
-                    mark.textContent = part === ' ' ? '·' : part === '\t' ? '→' : part === '\u00A0' ? '°' : '​​⁰';
+                    mark.textContent = part === ' ' ? '·' : part === '\t' ? '→' : part === '\u00A0' ? '°' : part === '\u3000' ? '□' : '⁰';
                     frag.appendChild(mark);
                 } else {
                     frag.appendChild(document.createTextNode(part));
@@ -607,6 +607,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             tn.parentNode.replaceChild(frag, tn);
         });
+        // 固定段落結束標記（無論文字內容為何，始終顯示 ¶）
+        if (!el.querySelector('.np-end-marker')) {
+            const endMark = document.createElement('span');
+            endMark.className = 'non-print-marker np-end-marker';
+            endMark.contentEditable = 'false';
+            endMark.textContent = '¶';
+            el.appendChild(endMark);
+        }
     }
 
     // 標籤群組插入模式切換按鈕
@@ -2160,26 +2168,70 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // 減值 Tooltip
+    {
+        const PENALTY_TOOLTIP_HTML = `<div style="font-size:0.82rem; line-height:1.5;">
+<strong>減值（Penalty）說明</strong><br>
+將此 TM 的比對分數扣除固定百分點，使可信度<br>較低的 TM 在結果列表中自動排在主要 TM 後面。<br>
+<strong>顯示分數 = 原始分數 − 減值</strong><br><br>
+<table style="border-collapse:collapse; font-size:0.8rem;">
+<tr style="background:#f1f5f9;"><th style="padding:2px 6px; border:1px solid #cbd5e1;">使用場景</th><th style="padding:2px 6px; border:1px solid #cbd5e1;">建議減值</th></tr>
+<tr><td style="padding:2px 6px; border:1px solid #e2e8f0;">主要專案 TM</td><td style="padding:2px 6px; border:1px solid #e2e8f0;">0%</td></tr>
+<tr><td style="padding:2px 6px; border:1px solid #e2e8f0;">同客戶其他專案 TM</td><td style="padding:2px 6px; border:1px solid #e2e8f0;">3–5%</td></tr>
+<tr><td style="padding:2px 6px; border:1px solid #e2e8f0;">舊版或存檔 TM</td><td style="padding:2px 6px; border:1px solid #e2e8f0;">5–10%</td></tr>
+<tr><td style="padding:2px 6px; border:1px solid #e2e8f0;">同領域其他客戶 TM</td><td style="padding:2px 6px; border:1px solid #e2e8f0;">10–20%</td></tr>
+<tr><td style="padding:2px 6px; border:1px solid #e2e8f0;">跨領域參考 TM</td><td style="padding:2px 6px; border:1px solid #e2e8f0;">20–30%</td></tr>
+<tr><td style="padding:2px 6px; border:1px solid #e2e8f0;">機器翻譯（MT）</td><td style="padding:2px 6px; border:1px solid #e2e8f0;">25–35%</td></tr>
+</table></div>`;
+        let _penTooltipEl = null;
+        function _showPenaltyTooltip(anchorEl) {
+            if (!_penTooltipEl) {
+                _penTooltipEl = document.createElement('div');
+                _penTooltipEl.style.cssText = 'position:fixed; z-index:9999; background:#fff; border:1px solid #cbd5e1; border-radius:8px; padding:0.75rem 1rem; box-shadow:0 4px 16px rgba(0,0,0,0.15); max-width:340px; pointer-events:none;';
+                document.body.appendChild(_penTooltipEl);
+            }
+            _penTooltipEl.innerHTML = PENALTY_TOOLTIP_HTML;
+            _penTooltipEl.style.display = 'block';
+            const rect = anchorEl.getBoundingClientRect();
+            _penTooltipEl.style.left = `${Math.min(rect.left, window.innerWidth - 360)}px`;
+            _penTooltipEl.style.top = `${rect.bottom + 6}px`;
+        }
+        function _hidePenaltyTooltip() {
+            if (_penTooltipEl) _penTooltipEl.style.display = 'none';
+        }
+        document.addEventListener('mouseover', e => {
+            if (e.target && e.target.id === 'tmPenaltyHelpBtn') _showPenaltyTooltip(e.target);
+        });
+        document.addEventListener('mouseout', e => {
+            if (e.target && e.target.id === 'tmPenaltyHelpBtn') _hidePenaltyTooltip();
+        });
+    }
+
+    const PENALTY_OPTIONS = [0, 5, 10, 15, 20, 25, 30];
+
     function fillProjectTmPickerTable(project) {
         const body = document.getElementById('projectTmPickerBody');
         if (!body) return;
         const readTms = new Set(project.readTms || []);
         const writeTms = new Set(project.writeTms || []);
+        const tmPenalties = project.tmPenalties || {};
         body.innerHTML = '';
         DBService.getTMs().then(tms => {
             if (!tms.length) {
-                body.innerHTML = '<tr><td colspan="5" style="padding:0.75rem; color:#64748b;">系統中尚無 TM。</td></tr>';
+                body.innerHTML = '<tr><td colspan="6" style="padding:0.75rem; color:#64748b;">系統中尚無 TM。</td></tr>';
                 return;
             }
             tms.forEach((tm, idx) => {
                 const isRead = readTms.has(tm.id);
                 const isWrite = writeTms.has(tm.id);
+                const curPenalty = tmPenalties[tm.id] ?? 0;
                 const nameEsc = (tm.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 const tmSrcLangs = tm.sourceLangs || [];
                 const tmTgtLangs = tm.targetLangs || [];
                 const tmLangHtml = (tmSrcLangs.length || tmTgtLangs.length)
                     ? `${langBadgeHtml(tmSrcLangs)} <span style="color:#94a3b8;">→</span> ${langBadgeHtml(tmTgtLangs)}`
                     : '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
+                const penaltyOpts = PENALTY_OPTIONS.map(v => `<option value="${v}" ${v === curPenalty ? 'selected' : ''}>${v}%</option>`).join('');
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td style="padding:0.45rem; border:1px solid #e2e8f0;">${idx + 1}</td>
@@ -2187,7 +2239,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <td style="padding:0.45rem; border:1px solid #e2e8f0; font-size:0.8rem;">${tmLangHtml}</td>
                     <td style="padding:0.45rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="checkbox" class="tm-read-cb-picker" data-id="${tm.id}" ${isRead ? 'checked' : ''}> 讀取</label></td>
                     <td style="padding:0.45rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="checkbox" class="tm-write-cb-picker" data-id="${tm.id}" ${isWrite ? 'checked' : ''}> 寫入</label></td>
+                    <td style="padding:0.45rem; border:1px solid #e2e8f0;"><select class="tm-penalty-picker" data-id="${tm.id}" ${!isRead ? 'disabled' : ''} style="padding:0.2rem 0.3rem; border:1px solid #cbd5e1; border-radius:4px; font-size:0.85rem;">${penaltyOpts}</select></td>
                 `;
+                // 讀取 checkbox 控制 penalty select 啟用/停用
+                const readCb = tr.querySelector('.tm-read-cb-picker');
+                const penaltySelect = tr.querySelector('.tm-penalty-picker');
+                readCb.addEventListener('change', () => { penaltySelect.disabled = !readCb.checked; });
                 body.appendChild(tr);
             });
         });
@@ -2333,8 +2390,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!currentProjectId) return;
         const readTms = [];
         const writeTms = [];
+        const tmPenalties = {};
         document.querySelectorAll('.tm-read-cb-picker:checked').forEach(cb => readTms.push(parseId(cb.getAttribute('data-id'))));
         document.querySelectorAll('.tm-write-cb-picker:checked').forEach(cb => writeTms.push(parseId(cb.getAttribute('data-id'))));
+        document.querySelectorAll('.tm-penalty-picker').forEach(sel => {
+            const id = parseId(sel.getAttribute('data-id'));
+            const val = parseInt(sel.value, 10) || 0;
+            if (id) tmPenalties[id] = val;
+        });
+        // 儲存減值到專案
+        await DBService.patchProject(currentProjectId, { tmPenalties });
         await commitProjectTmMounts(readTms, writeTms);
         closeProjectTmPickerModal();
         const p = await DBService.getProject(currentProjectId);
@@ -2455,15 +2520,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         await Promise.all(files.map(async (f) => {
             try {
                 const segs = await DBService.getSegmentsByFile(f.id);
-                const total = segs.length;
-                const confirmed = segs.filter(s => s.status === 'confirmed').length;
+                const total = segs.reduce((a, s) => a + countWords(s.sourceText || ''), 0);
+                const confirmed = segs.filter(s => s.status === 'confirmed')
+                                      .reduce((a, s) => a + countWords(s.sourceText || ''), 0);
                 const pct = total === 0 ? 0 : Math.round(confirmed / total * 100);
                 const cell = filesListBody?.querySelector(`.file-progress-cell[data-file-id="${f.id}"]`);
                 if (!cell) return;
                 cell.innerHTML = `
                     <div style="position:relative; background:#e2e8f0; border-radius:4px; height:18px; min-width:80px;">
                         <div style="position:absolute; top:0; left:0; bottom:0; width:${pct}%; background:var(--success-color); border-radius:4px; transition:width 0.3s;"></div>
-                        <span style="position:relative; z-index:1; font-size:0.77rem; padding:0 6px; line-height:18px; white-space:nowrap; color:#1e293b;">${pct}% (${confirmed}/${total})</span>
+                        <span style="position:relative; z-index:1; font-size:0.77rem; padding:0 6px; line-height:18px; white-space:nowrap; color:#1e293b;">${pct}% (${confirmed}/${total} 字)</span>
                     </div>`;
             } catch (_) { /* team mode 或空檔案時靜默失敗 */ }
         }));
@@ -3036,7 +3102,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${langHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.85rem; color:#64748b;">${new Date(it.createdAt).toLocaleDateString()}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; white-space:nowrap;">
-                    <button class="secondary-btn btn-sm manage-btn" data-id="${it.id}">更名</button>
+                    <button class="secondary-btn btn-sm manage-btn" data-id="${it.id}" data-name="${nameEsc}">更名</button>
                 </td>
             `;
             listContainerElement.appendChild(tr);
@@ -3057,7 +3123,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         listContainerElement.querySelectorAll('.manage-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const id = parseId(btn.getAttribute('data-id'));
-                if (id) openDetail(id);
+                const name = (btn.getAttribute('data-name') || '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+                if (!id) return;
+                if (loaderMethod === 'getTMs') openNamingModal('renameTM', 'TM 更名', '新 TM 名稱', id, name);
+                else if (loaderMethod === 'getTBs') openNamingModal('renameTB', 'TB 更名', '新 TB 名稱', id, name);
             });
         });
 
@@ -3244,27 +3313,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         tbChangeLogShowAll = false;
         if (detailTbName) detailTbName.textContent = tb.name || `TB #${tbId}`;
         applyTbTypeUI(tb);
-        // 同步比對設定 checkboxes
-        const flags = tb.matchFlags || { caseInsensitive: true, wholeWord: false };
-        const ciCb = document.getElementById('tbMatchCaseInsensitive');
-        const wwCb = document.getElementById('tbMatchWholeWord');
-        if (ciCb) ciCb.checked = flags.caseInsensitive !== false;
-        if (wwCb) wwCb.checked = !!flags.wholeWord;
         switchView('viewTbDetail');
         await loadTbTermsList();
+        await loadTbRelatedProjects(tbId);
     }
 
-    // 術語比對設定 checkbox → 即時儲存
-    ['tbMatchCaseInsensitive', 'tbMatchWholeWord'].forEach(id => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.addEventListener('change', async () => {
-            if (!currentTbId) return;
-            const ci = document.getElementById('tbMatchCaseInsensitive')?.checked ?? true;
-            const ww = document.getElementById('tbMatchWholeWord')?.checked ?? false;
-            await DBService.updateTB(currentTbId, { matchFlags: { caseInsensitive: ci, wholeWord: ww } });
-        });
-    });
+    // TB 層級比對設定已移至術語層級，不再需要此監聽器
 
     function matchTermSearch(term, q) {
         if (!q) return true;
@@ -3276,7 +3330,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     /**
-     * 判斷 haystack 是否包含 needle，依 flags 決定大小寫和全字匹配。
+     * 判斷 haystack 是否包含 needle，依 flags 決定大小寫和精確比對。
      * flags: { caseInsensitive: boolean, wholeWord: boolean }
      * 預設不區分大小寫（caseInsensitive=true），不要求全字（wholeWord=false）
      */
@@ -3375,12 +3429,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             const src = (term.source || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const tgt = (term.target || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const note = (term.note || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').substring(0, 80);
+            const mf = term.matchFlags || { caseInsensitive: true, wholeWord: false };
+            const isCaseSensitive = mf.caseInsensitive === false;
+            const isExact = !!mf.wholeWord;
             tr.innerHTML = `
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="tb-term-row-cb" data-term-index="${idx}"></td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:40px;">${num}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:200px; overflow:hidden; text-overflow:ellipsis;" title="${src}">${src || '—'}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:200px; overflow:hidden; text-overflow:ellipsis;" title="${tgt}">${tgt || '—'}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:180px; overflow:hidden; text-overflow:ellipsis; font-size:0.85rem; color:#64748b;" title="${(term.note || '').replace(/</g, '&lt;')}">${note || '—'}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; white-space:nowrap; font-size:0.82rem;">
+                    <label style="display:flex; align-items:center; gap:0.2rem; cursor:default;" title="區分大小寫（唯讀，進編輯頁面才能修改）">
+                        <input type="checkbox" ${isCaseSensitive ? 'checked' : ''} disabled> 區分大小寫
+                    </label>
+                    <label style="display:flex; align-items:center; gap:0.2rem; cursor:default; margin-top:0.15rem;" title="精確比對（唯讀，進編輯頁面才能修改）">
+                        <input type="checkbox" ${isExact ? 'checked' : ''} disabled> 精確比對
+                    </label>
+                </td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; white-space:nowrap;">
                     <button type="button" class="secondary-btn btn-sm tb-term-edit-btn" data-term-index="${idx}">編輯</button>
                 </td>
@@ -3398,14 +3463,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (tbTermEditSource) tbTermEditSource.value = t.source || '';
                 if (tbTermEditTarget) tbTermEditTarget.value = t.target || '';
                 if (tbTermEditNote) tbTermEditNote.value = t.note || '';
-                // 術語層級 matchFlags（繼承 TB 預設）
+                // 術語層級 matchFlags（預設系統值：caseInsensitive: true, wholeWord: false）
                 {
-                    const tb = await DBService.getTB(currentTbId);
-                    const tbFlags = tb && tb.matchFlags ? tb.matchFlags : { caseInsensitive: true, wholeWord: false };
-                    const flags = t.matchFlags || tbFlags;
+                    const sysDefault = { caseInsensitive: true, wholeWord: false };
+                    const flags = t.matchFlags || sysDefault;
                     const ciCb = document.getElementById('tbTermEditCaseInsensitive');
                     const wwCb = document.getElementById('tbTermEditWholeWord');
-                    if (ciCb) ciCb.checked = flags.caseInsensitive !== false;
+                    // 「區分大小寫」勾選 = caseInsensitive: false
+                    if (ciCb) ciCb.checked = flags.caseInsensitive === false;
                     if (wwCb) wwCb.checked = !!flags.wholeWord;
                 }
                 if (tbTermEditModal) tbTermEditModal.classList.remove('hidden');
@@ -3481,9 +3546,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const src = (tbTermEditSource && tbTermEditSource.value.trim()) || '';
             const tgt = (tbTermEditTarget && tbTermEditTarget.value.trim()) || '';
             const note = (tbTermEditNote && tbTermEditNote.value.trim()) || '';
-            const ci = document.getElementById('tbTermEditCaseInsensitive')?.checked ?? true;
+            // 勾選「區分大小寫」→ caseInsensitive: false；預設不勾選 → caseInsensitive: true
+            const caseSensitiveChecked = document.getElementById('tbTermEditCaseInsensitive')?.checked ?? false;
             const ww = document.getElementById('tbTermEditWholeWord')?.checked ?? false;
-            const termMatchFlags = { caseInsensitive: ci, wholeWord: ww };
+            const termMatchFlags = { caseInsensitive: !caseSensitiveChecked, wholeWord: ww };
             const userName = localStorage.getItem('localCatUserProfile') || 'Unknown User';
             const now = new Date().toISOString();
             const tb = await DBService.getTB(currentTbId);
@@ -3513,13 +3579,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (tbTermEditSource) tbTermEditSource.value = '';
             if (tbTermEditTarget) tbTermEditTarget.value = '';
             if (tbTermEditNote) tbTermEditNote.value = '';
-            // 以 TB 層級設定為新術語預設
-            const tb = await DBService.getTB(currentTbId);
-            const tbFlags = tb && tb.matchFlags ? tb.matchFlags : { caseInsensitive: true, wholeWord: false };
+            // 系統預設：不區分大小寫（caseInsensitive: true），不精確比對（wholeWord: false）
+            // 「區分大小寫」checkbox 預設不勾選
             const ciCb = document.getElementById('tbTermEditCaseInsensitive');
             const wwCb = document.getElementById('tbTermEditWholeWord');
-            if (ciCb) ciCb.checked = tbFlags.caseInsensitive !== false;
-            if (wwCb) wwCb.checked = !!tbFlags.wholeWord;
+            if (ciCb) ciCb.checked = false;
+            if (wwCb) wwCb.checked = false;
             if (tbTermEditModal) tbTermEditModal.classList.remove('hidden');
         });
     }
@@ -4057,6 +4122,63 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if(btnBackToTms) btnBackToTms.addEventListener('click', () => switchView('viewTM'));
 
+    // 詳細頁更名按鈕
+    document.getElementById('btnRenameTmDetail')?.addEventListener('click', () => {
+        if (!currentTmId) return;
+        const name = detailTmName ? detailTmName.textContent : '';
+        openNamingModal('renameTM', 'TM 更名', '新 TM 名稱', currentTmId, name);
+    });
+    document.getElementById('btnRenameTbDetail')?.addEventListener('click', () => {
+        if (!currentTbId) return;
+        const name = detailTbName ? detailTbName.textContent : '';
+        openNamingModal('renameTB', 'TB 更名', '新 TB 名稱', currentTbId, name);
+    });
+    document.getElementById('btnRenameProjectDetail')?.addEventListener('click', () => {
+        if (!currentProjectId) return;
+        const name = detailProjectName ? detailProjectName.textContent : '';
+        openNamingModal('renameProject', '專案更名', '新專案名稱', currentProjectId, name);
+    });
+
+    async function loadTmRelatedProjects(tmId) {
+        const el = document.getElementById('tmRelatedProjects');
+        if (!el) return;
+        const projects = await DBService.getProjects();
+        const related = projects.filter(p =>
+            (p.readTms && p.readTms.includes(tmId)) ||
+            (p.writeTms && p.writeTms.includes(tmId))
+        );
+        if (!related.length) { el.innerHTML = ''; return; }
+        el.innerHTML = '<strong>使用此 TM 的專案：</strong> ' +
+            related.map(p => `<a href="#" class="related-proj-link" data-proj-id="${p.id}" style="color:var(--primary-color); text-decoration:underline; margin-right:0.5rem;">${(p.name || '').replace(/</g, '&lt;')}</a>`).join('');
+        el.querySelectorAll('.related-proj-link').forEach(a => {
+            a.addEventListener('click', e => {
+                e.preventDefault();
+                const pid = parseId(a.getAttribute('data-proj-id'));
+                if (pid) openProjectDetail(pid);
+            });
+        });
+    }
+
+    async function loadTbRelatedProjects(tbId) {
+        const el = document.getElementById('tbRelatedProjects');
+        if (!el) return;
+        const projects = await DBService.getProjects();
+        const related = projects.filter(p =>
+            (p.readTbs && p.readTbs.includes(tbId)) ||
+            (p.writeTb === tbId)
+        );
+        if (!related.length) { el.innerHTML = ''; return; }
+        el.innerHTML = '<strong>使用此 TB 的專案：</strong> ' +
+            related.map(p => `<a href="#" class="related-proj-link" data-proj-id="${p.id}" style="color:var(--primary-color); text-decoration:underline; margin-right:0.5rem;">${(p.name || '').replace(/</g, '&lt;')}</a>`).join('');
+        el.querySelectorAll('.related-proj-link').forEach(a => {
+            a.addEventListener('click', e => {
+                e.preventDefault();
+                const pid = parseId(a.getAttribute('data-proj-id'));
+                if (pid) openProjectDetail(pid);
+            });
+        });
+    }
+
     async function openTmDetail(tmId) {
         currentTmId = tmId;
         const tm = await DBService.getTM(tmId);
@@ -4065,6 +4187,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         switchView('viewTmDetail');
         await loadTmSegments();
         await updateTmDetailChangeLog(tm);
+        await loadTmRelatedProjects(tmId);
     }
 
     async function loadTmSegments() {
@@ -4131,6 +4254,135 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (tmSegmentsListBody) {
         tmSegmentsListBody.addEventListener('change', (e) => {
             if (e.target.matches('.tm-segment-row-cb')) syncTmSegmentsSelectAll();
+        });
+    }
+
+    // ==========================================
+    // TM/TB 匯出
+    // ==========================================
+    {
+        let _exportType = 'TM'; // 'TM' or 'TB'
+        const exportModal = document.getElementById('exportResourceModal');
+        const exportFormatOptions = document.getElementById('exportFormatOptions');
+        const exportAttrOptions = document.getElementById('exportAttrOptions');
+        const exportModalTitle = document.getElementById('exportResourceModalTitle');
+
+        function _openExportModal(type) {
+            _exportType = type;
+            if (exportModalTitle) exportModalTitle.textContent = type === 'TM' ? '匯出翻譯記憶庫' : '匯出術語庫';
+            if (exportFormatOptions) {
+                const fmts = type === 'TM' ? ['TMX', 'Excel'] : ['TBX', 'Excel'];
+                exportFormatOptions.innerHTML = fmts.map((f, i) =>
+                    `<label style="display:flex; align-items:center; gap:0.3rem; cursor:pointer;">
+                        <input type="radio" name="exportFmt" value="${f}" ${i === 0 ? 'checked' : ''}> ${f}
+                    </label>`
+                ).join('');
+            }
+            if (exportAttrOptions) {
+                const attrs = type === 'TM'
+                    ? [{ id: 'src', label: '原文', locked: true }, { id: 'tgt', label: '譯文', locked: true }, { id: 'createdAt', label: '建立時間' }, { id: 'createdBy', label: '作者' }]
+                    : [{ id: 'src', label: '原文', locked: true }, { id: 'tgt', label: '譯文', locked: true }, { id: 'note', label: '備註' }, { id: 'matchFlags', label: '比對屬性' }];
+                exportAttrOptions.innerHTML = attrs.map(a =>
+                    `<label style="display:flex; align-items:center; gap:0.3rem; cursor:${a.locked ? 'default' : 'pointer'};">
+                        <input type="checkbox" name="exportAttr" value="${a.id}" ${a.locked ? 'checked disabled' : 'checked'}> ${a.label}
+                    </label>`
+                ).join('');
+            }
+            if (exportModal) exportModal.classList.remove('hidden');
+        }
+
+        document.getElementById('btnExportTm')?.addEventListener('click', () => _openExportModal('TM'));
+        document.getElementById('btnExportTb')?.addEventListener('click', () => _openExportModal('TB'));
+        document.getElementById('btnCloseExportResourceModal')?.addEventListener('click', () => exportModal?.classList.add('hidden'));
+        document.getElementById('btnCancelExportResource')?.addEventListener('click', () => exportModal?.classList.add('hidden'));
+
+        document.getElementById('btnConfirmExportResource')?.addEventListener('click', async () => {
+            const fmt = exportFormatOptions?.querySelector('input[name="exportFmt"]:checked')?.value || '';
+            const attrs = new Set(Array.from(exportAttrOptions?.querySelectorAll('input[name="exportAttr"]:checked') || []).map(cb => cb.value));
+            exportModal?.classList.add('hidden');
+
+            function _dlBlob(content, filename, mime) {
+                const blob = new Blob([content], { type: mime });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+            }
+
+            function _escXml(s) {
+                return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            }
+
+            if (_exportType === 'TM') {
+                const tm = await DBService.getTM(currentTmId);
+                if (!tm) return alert('無法取得 TM 資料');
+                const segs = await DBService.getTMSegments(currentTmId);
+                const srcLang = (tm.sourceLangs || [])[0] || 'zh-TW';
+                const tgtLang = (tm.targetLangs || [])[0] || 'en-US';
+                const safeName = (tm.name || 'export').replace(/[^a-zA-Z0-9_\-\u4e00-\u9fff]/g, '_');
+
+                if (fmt === 'TMX') {
+                    const tus = segs.map(s => {
+                        let tu = `  <tu>\n    <tuv xml:lang="${_escXml(srcLang)}"><seg>${_escXml(s.sourceText)}</seg></tuv>\n    <tuv xml:lang="${_escXml(tgtLang)}"><seg>${_escXml(s.targetText)}</seg></tuv>`;
+                        if (attrs.has('createdAt') && s.createdAt) tu += `\n    <prop type="creationdate">${_escXml(s.createdAt)}</prop>`;
+                        if (attrs.has('createdBy') && s.createdBy) tu += `\n    <prop type="createdby">${_escXml(s.createdBy)}</prop>`;
+                        tu += '\n  </tu>';
+                        return tu;
+                    }).join('\n');
+                    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<tmx version="1.4">\n  <header creationtool="1UP TMS" srclang="${_escXml(srcLang)}" datatype="plaintext"/>\n  <body>\n${tus}\n  </body>\n</tmx>`;
+                    _dlBlob(xml, `${safeName}.tmx`, 'text/xml;charset=utf-8');
+                } else {
+                    const header = ['原文', '譯文'];
+                    if (attrs.has('createdAt')) header.push('建立時間');
+                    if (attrs.has('createdBy')) header.push('作者');
+                    const rows = [header, ...segs.map(s => {
+                        const row = [s.sourceText || '', s.targetText || ''];
+                        if (attrs.has('createdAt')) row.push(s.createdAt ? new Date(s.createdAt).toLocaleString('zh-TW', { hour12: false }) : '');
+                        if (attrs.has('createdBy')) row.push(s.createdBy || '');
+                        return row;
+                    })];
+                    const ws = XLSX.utils.aoa_to_sheet(rows);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, 'TM');
+                    XLSX.writeFile(wb, `${safeName}.xlsx`);
+                }
+            } else {
+                const tb = await DBService.getTB(currentTbId);
+                if (!tb) return alert('無法取得 TB 資料');
+                const terms = (tb.terms || []);
+                const srcLang = (tb.sourceLangs || [])[0] || 'zh-TW';
+                const tgtLang = (tb.targetLangs || [])[0] || 'en-US';
+                const safeName = (tb.name || 'export').replace(/[^a-zA-Z0-9_\-\u4e00-\u9fff]/g, '_');
+
+                if (fmt === 'TBX') {
+                    const concepts = terms.map((t, i) => {
+                        let c = `  <conceptEntry id="c${i + 1}">\n    <langSec xml:lang="${_escXml(srcLang)}"><termSec><term>${_escXml(t.source)}</term></termSec></langSec>\n    <langSec xml:lang="${_escXml(tgtLang)}"><termSec><term>${_escXml(t.target)}</term></termSec></langSec>`;
+                        if (attrs.has('note') && t.note) c += `\n    <note>${_escXml(t.note)}</note>`;
+                        c += '\n  </conceptEntry>';
+                        return c;
+                    }).join('\n');
+                    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<tbx type="TBX-Basic" style="dca" xml:lang="en" xmlns="urn:iso:std:iso:30042:ed-2">\n  <tbxHeader><fileDesc><sourceDesc><p>1UP TMS Export</p></sourceDesc></fileDesc></tbxHeader>\n  <text><body>\n${concepts}\n  </body></text>\n</tbx>`;
+                    _dlBlob(xml, `${safeName}.tbx`, 'text/xml;charset=utf-8');
+                } else {
+                    const header = ['原文', '譯文'];
+                    if (attrs.has('note')) header.push('備註');
+                    if (attrs.has('matchFlags')) { header.push('區分大小寫'); header.push('精確比對'); }
+                    const rows = [header, ...terms.map(t => {
+                        const mf = t.matchFlags || { caseInsensitive: true, wholeWord: false };
+                        const row = [t.source || '', t.target || ''];
+                        if (attrs.has('note')) row.push(t.note || '');
+                        if (attrs.has('matchFlags')) { row.push(mf.caseInsensitive === false ? '是' : '否'); row.push(mf.wholeWord ? '是' : '否'); }
+                        return row;
+                    })];
+                    const ws = XLSX.utils.aoa_to_sheet(rows);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, 'TB');
+                    XLSX.writeFile(wb, `${safeName}.xlsx`);
+                }
+            }
         });
     }
 
@@ -4410,8 +4662,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             await appendTBChangeLog(id, entry);
             await DBService.addModuleLog('tb', entry);
-        }
-        else if (action === 'setUserProfile') {
+        } else if (action === 'renameTM') {
+            await DBService.updateTMName(idArg, val);
+            const entry = makeBaseLogEntry('rename', 'tm', { entityId: idArg, entityName: val });
+            await appendTMChangeLog(idArg, entry);
+            await DBService.addModuleLog('tm', entry);
+            if (detailTmName && currentTmId === idArg) detailTmName.textContent = val;
+        } else if (action === 'renameTB') {
+            await DBService.updateTBName(idArg, val);
+            const entry = makeBaseLogEntry('rename', 'tb', { entityId: idArg, entityName: val });
+            await appendTBChangeLog(idArg, entry);
+            await DBService.addModuleLog('tb', entry);
+            if (detailTbName && currentTbId === idArg) detailTbName.textContent = val;
+        } else if (action === 'setUserProfile') {
             localStorage.setItem('localCatUserProfile', val);
             document.getElementById('displayUserName').textContent = val;
         }
@@ -4426,6 +4689,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             await loadTBList();
             if (_projectSetupMode) openProjectTbPickerModal();
         }
+        if (action === 'renameTM') await loadTMList();
+        if (action === 'renameTB') await loadTBList();
     });
 
     // ==========================================
@@ -5008,9 +5273,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.ActiveReadTmIds = [];
         window.ActiveReadTbIds = [];
         window.ActiveTbNames = {};
+        window.ActiveTmPenalties = {};
         // 記錄當前檔案的語言對，供 TM 篩選及寫入使用
         window.ActiveFileLangs = { sourceLang: file.sourceLang || '', targetLang: file.targetLang || '' };
         const project = await DBService.getProject(resolvedProjectId);
+        window.ActiveTmPenalties = (project && project.tmPenalties) ? project.tmPenalties : {};
         window.ActiveReadTmIds = (project && Array.isArray(project.readTms)) ? project.readTms : [];
         if (project && project.readTms && project.readTms.length > 0) {
             for (const tmId of project.readTms) {
@@ -5048,7 +5315,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 無論術語數量多寡，先記錄 TB 名稱供 UI 顯示
             window.ActiveTbNames[full.id] = full.name || `TB #${full.id}`;
             const terms = full.terms ? full.terms : [];
-            const tbMatchFlags = full.matchFlags || { caseInsensitive: true, wholeWord: false };
+            const _sysDefault = { caseInsensitive: true, wholeWord: false };
             terms.forEach(t => {
                 if (t && ((t.source && t.source.trim()) || (t.target && t.target.trim())))
                     window.ActiveTbTerms.push({
@@ -5057,7 +5324,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         note: (t.note || '').trim(),
                         tbId: full.id,
                         tbName: full.name || `TB #${full.id}`,
-                        matchFlags: t.matchFlags || tbMatchFlags  // 術語層級優先，TB 為預設
+                        matchFlags: t.matchFlags || _sysDefault  // 術語層級優先，fallback 系統預設
                     });
             });
         }
@@ -5303,14 +5570,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                     let bestMatch = null;
                     let bestScore = 0;
 
+                    const _batchPenalties = window.ActiveTmPenalties || {};
                     if (window.ActiveTmCache && window.ActiveTmCache.length > 0) {
                         for (const tms of window.ActiveTmCache) {
                             const sim = calculateSimilarity(seg.sourceText, tms.sourceText);
-                            if (sim > bestScore) {
-                                bestScore = sim;
+                            const penalty = _batchPenalties[tms._tmId] ?? 0;
+                            const effectiveScore = Math.max(0, sim - penalty);
+                            if (effectiveScore > bestScore) {
+                                bestScore = effectiveScore;
                                 bestMatch = tms;
                             }
-                            if (bestScore === 101) break; 
+                            if (bestScore >= 101) break;
                         }
                     }
 
@@ -7454,9 +7724,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     function pickBestTmForAuto(seg) {
         if (!window.ActiveTmCache || !window.ActiveTmCache.length || !seg.sourceText) return null;
         const rawTm = [];
+        const _activePenalties = window.ActiveTmPenalties || {};
         window.ActiveTmCache.forEach(tms => {
             const sim = calculateSimilarity(seg.sourceText, tms.sourceText);
-            if (sim >= 50) rawTm.push({ ...tms, score: sim, type: 'TM' });
+            const penalty = (_activePenalties[tms._tmId] ?? 0);
+            const effectiveScore = Math.max(0, sim - penalty);
+            if (sim >= 50) rawTm.push({ ...tms, score: effectiveScore, _rawScore: sim, type: 'TM' });
         });
         if (!rawTm.length) return null;
         const bySource = new Map();
@@ -8294,10 +8567,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             let matches = [];
             if (hasTm) {
                 const rawTm = [];
+                const _activePenalties = window.ActiveTmPenalties || {};
             window.ActiveTmCache.forEach(tms => {
                 const sim = calculateSimilarity(seg.sourceText, tms.sourceText);
+                const penalty = (_activePenalties[tms._tmId] ?? 0) / 100;
+                const effectiveScore = Math.max(0, Math.round((sim - penalty * 100)));
                 if (sim >= 50) {
-                        rawTm.push({ ...tms, score: sim, type: 'TM' });
+                        rawTm.push({ ...tms, score: effectiveScore, _rawScore: sim, type: 'TM' });
                     } else if (tms.sourceText && tms.sourceText.length >= 2 && seg.sourceText.includes(tms.sourceText)) {
                         rawTm.push({ ...tms, score: 'S', type: 'Fragment' });
                     }
@@ -9214,9 +9490,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const src = (document.getElementById('newTermSource')?.value || '').trim();
             const tgt = (document.getElementById('newTermTarget')?.value || '').trim();
             const note = (document.getElementById('newTermNote')?.value || '').trim();
-            const ci = document.getElementById('newTermCaseInsensitive')?.checked ?? true;
+            // 勾選「區分大小寫」→ caseInsensitive: false；預設不勾選 → caseInsensitive: true
+            const caseSensitiveChecked = document.getElementById('newTermCaseInsensitive')?.checked ?? false;
             const ww = document.getElementById('newTermWholeWord')?.checked ?? false;
-            const termMatchFlags = { caseInsensitive: ci, wholeWord: ww };
+            const termMatchFlags = { caseInsensitive: !caseSensitiveChecked, wholeWord: ww };
             if (!src && !tgt) { alert('請至少填入原文或譯文。'); return; }
             const tb = await DBService.getTB(writeTbId);
             if (!tb) { alert('找不到寫入目標術語庫。'); return; }
@@ -12130,11 +12407,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (config.tmThreshold < 102) {
             const tmCache = window.ActiveTmCache || [];
             const calcSim = window.calculateSimilarity || (() => 0);
+            const _aiTmPenalties = window.ActiveTmPenalties || {};
             for (const seg of toProcess) {
                 let bestMatch = null;
                 let bestScore = 0;
                 for (const tm of tmCache) {
-                    const score = calcSim(seg.sourceText || '', tm.sourceText || '') * 100;
+                    const rawScore = calcSim(seg.sourceText || '', tm.sourceText || '') * 100;
+                    const penalty = _aiTmPenalties[tm._tmId] ?? 0;
+                    const score = Math.max(0, rawScore - penalty);
                     if (score > bestScore) { bestScore = score; bestMatch = tm; }
                 }
                 if (bestScore >= config.tmThreshold && bestMatch) {
@@ -12174,10 +12454,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (config.tmRefThreshold > 0) {
             const tmCache = window.ActiveTmCache || [];
             const calcSim = window.calculateSimilarity || (() => 0);
+            const _aiPenalties = window.ActiveTmPenalties || {};
             for (const seg of segsForAi) {
                 let bestMatch = null, bestScore = 0;
                 for (const tm of tmCache) {
-                    const score = calcSim(seg.sourceText || '', tm.sourceText || '') * 100;
+                    const rawScore = calcSim(seg.sourceText || '', tm.sourceText || '') * 100;
+                    const penalty = _aiPenalties[tm._tmId] ?? 0;
+                    const score = Math.max(0, rawScore - penalty);
                     if (score > bestScore) { bestScore = score; bestMatch = tm; }
                 }
                 seg._tmHint = (bestScore >= config.tmRefThreshold && bestMatch)
