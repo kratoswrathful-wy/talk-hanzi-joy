@@ -12412,7 +12412,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 let bestMatch = null;
                 let bestScore = 0;
                 for (const tm of tmCache) {
-                    const rawScore = calcSim(seg.sourceText || '', tm.sourceText || '') * 100;
+                    const rawScore = calcSim(seg.sourceText || '', tm.sourceText || '');
                     const penalty = _aiTmPenalties[tm._tmId] ?? 0;
                     const score = Math.max(0, rawScore - penalty);
                     if (score > bestScore) { bestScore = score; bestMatch = tm; }
@@ -12458,7 +12458,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             for (const seg of segsForAi) {
                 let bestMatch = null, bestScore = 0;
                 for (const tm of tmCache) {
-                    const rawScore = calcSim(seg.sourceText || '', tm.sourceText || '') * 100;
+                    const rawScore = calcSim(seg.sourceText || '', tm.sourceText || '');
                     const penalty = _aiPenalties[tm._tmId] ?? 0;
                     const score = Math.max(0, rawScore - penalty);
                     if (score > bestScore) { bestScore = score; bestMatch = tm; }

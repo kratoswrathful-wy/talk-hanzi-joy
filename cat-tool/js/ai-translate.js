@@ -165,9 +165,10 @@
 
     /**
      * 送出翻譯請求。
-     * @returns {{ results: [{idx, translation}], missing: [idx], error: string|null }}
+     * @param {boolean} jsonMode - true（預設）時要求 JSON 回傳格式；false 時回傳純文字（用於掃描）
+     * @returns {{ results: [{idx, translation}], missing: [idx], error: string|null, content?: string }}
      */
-    async function callApi(messages, settings) {
+    async function callApi(messages, settings, jsonMode = true) {
         const { apiKey, apiBaseUrl, model } = settings;
         const baseUrl = (apiBaseUrl || 'https://api.openai.com').replace(/\/$/, '');
         const url = `${baseUrl}/v1/chat/completions`;
@@ -183,7 +184,7 @@
                 body: JSON.stringify({
                     model: model || 'gpt-4.1-mini',
                     messages,
-                    response_format: { type: 'json_object' },
+                    ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
                     temperature: 0.3
                 })
             });
@@ -198,8 +199,13 @@
             return { results: [], missing: [], error: friendlyError(null, resp.status, body) };
         }
 
-        // 解析 JSON
         const raw = body?.choices?.[0]?.message?.content || '';
+
+        if (!jsonMode) {
+            return { results: [], missing: [], error: null, content: raw };
+        }
+
+        // 解析 JSON（翻譯模式）
         let parsed;
         try {
             parsed = JSON.parse(raw);
@@ -391,9 +397,9 @@
             { role: 'user', content: userMsg }
         ];
 
-        const result = await callApi(messages, settings);
-        if (result.error) throw new Error(friendlyError(result.error, result.status, result.body));
-        const content = result.data?.choices?.[0]?.message?.content;
+        const result = await callApi(messages, settings, false);
+        if (result.error) throw new Error(result.error);
+        const content = result.content;
         if (!content) throw new Error('AI 未回傳報告內容');
         return content.trim();
     }
