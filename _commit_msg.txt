@@ -1,0 +1,4 @@
+fix: 移除選取句段時譯文欄的額外 inset 框線
+
+.rt-editor:focus 的 box-shadow inset 會在 active-row 外框之外再疊一個方框。
+改為 outline: none，保留整行外框作為唯一選取指示。

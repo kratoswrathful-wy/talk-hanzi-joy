@@ -786,8 +786,7 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     cursor: text;
 }
 .rt-editor[contenteditable="true"]:focus {
-    box-shadow: inset 0 0 0 2px #818cf8;
-    border-radius: 2px;
+    outline: none;
 }
 
 /* 標籤晶片基礎（字級與編輯器一致，避免 0.75em 疊在 0.9rem 上過小） */
