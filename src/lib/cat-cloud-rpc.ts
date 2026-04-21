@@ -699,8 +699,24 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       return null;
     }
     case "db.getTMSegments": {
-      const { data } = await supabase.from("cat_tm_segments").select("*").eq("tm_id", payload.tmId);
-      return (data ?? []).map(mapTmSegmentRow);
+      // PostgREST 預設 max_rows（常為 1000）；未分頁時只回第一頁，導致 TM 比對／頁面遺漏句段
+      const pageSize = 1000;
+      const rows: any[] = [];
+      let offset = 0;
+      for (;;) {
+        const { data, error } = await supabase
+          .from("cat_tm_segments")
+          .select("*")
+          .eq("tm_id", payload.tmId)
+          .order("id", { ascending: true })
+          .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        const batch = data ?? [];
+        rows.push(...batch);
+        if (batch.length < pageSize) break;
+        offset += pageSize;
+      }
+      return rows.map(mapTmSegmentRow);
     }
     case "db.getTMSegmentById": {
       const { data } = await supabase.from("cat_tm_segments").select("*").eq("id", payload.id).maybeSingle();

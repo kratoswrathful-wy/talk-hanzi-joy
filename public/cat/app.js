@@ -8474,14 +8474,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function syncSegmentToWriteTmsOnConfirm(seg, rowIdx) {
         const undo = [];
         const redo = [];
-        console.log('[TM-DBG] syncSegmentToWriteTmsOnConfirm called', { status: seg?.status, src: seg?.sourceText?.slice(0,20), tgt: seg?.targetText?.slice(0,20), writeTms: window.ActiveWriteTms });
-        if (!seg || seg.status !== 'confirmed') { console.log('[TM-DBG] skip: not confirmed'); return { undo, redo }; }
-        if (!window.ActiveWriteTms || window.ActiveWriteTms.length === 0) { console.log('[TM-DBG] skip: no write TMs'); return { undo, redo }; }
+        if (!seg || seg.status !== 'confirmed') return { undo, redo };
+        if (!window.ActiveWriteTms || window.ActiveWriteTms.length === 0) return { undo, redo };
         // 跳過原文或譯文為空的句段，避免寫入無意義的空記錄
-        if (!seg.sourceText || !seg.targetText) { console.log('[TM-DBG] skip: empty src/tgt'); return { undo, redo }; }
+        if (!seg.sourceText || !seg.targetText) return { undo, redo };
         let i = typeof rowIdx === 'number' ? rowIdx : currentSegmentsList.indexOf(seg);
         if (i < 0) i = currentSegmentsList.findIndex(s => s.id === seg.id);
-        if (i < 0) { console.log('[TM-DBG] skip: seg not found in list'); return { undo, redo }; }
+        if (i < 0) return { undo, redo };
         const creator = localStorage.getItem('localCatUserProfile') || 'Unknown User';
         const prjEl = document.getElementById('detailProjectName');
         const fEl = document.getElementById('editorFileName');
@@ -8506,7 +8505,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tmRow = await DBService.getTM(tmId);
             const tmName = tmRow ? tmRow.name : `TM #${tmId}`;
             const dbExisting = await DBService.getTMSegments(tmId);
-            console.log('[TM-DBG] tmId:', tmId, 'dbExisting count:', dbExisting.length);
             // 本 session 剛加入的條目可能尚未反映在 DB 查詢結果中（PostgREST read-after-write 時序問題）
             // 補入快取中屬於此 TM 且 DB 尚未回傳的條目，避免重複 addTMSegment
             const dbIds = new Set(dbExisting.map(s => s.id));
@@ -8524,14 +8522,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!segSrc && !segTgt) return true;
                 return segSrc === srcLang && segTgt === tgtLang;
             });
-            console.log('[TM-DBG] match found:', !!match, match ? { id: match.id, src: match.sourceText?.slice(0,20), tgt: match.targetText?.slice(0,20), srcLang: match.sourceLang, tgtLang: match.targetLang } : null);
             if (!match) {
                 const metaFull = { ...metaBase, changeLog: [] };
                 let newId;
                 try {
-                    console.log('[TM-DBG] calling addTMSegment', { tmId, src: seg.sourceText?.slice(0,20) });
                     newId = await DBService.addTMSegment(tmId, seg.sourceText, seg.targetText, metaFull);
-                    console.log('[TM-DBG] addTMSegment returned newId:', newId);
                 } catch (addErr) {
                     console.error('[TM Write] addTMSegment 失敗:', addErr, { tmId, sourceText: seg.sourceText });
                     continue;
