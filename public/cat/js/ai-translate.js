@@ -217,6 +217,118 @@
         return { results: translations, missing: [], error: null };
     }
 
+    /**
+     * 一般 JSON 物件回傳（用於 QA 等非翻譯格式）。
+     * @returns {{ data: Object|null, error: string|null }}
+     */
+    async function callApiJsonObject(messages, settings) {
+        const { apiKey, apiBaseUrl, model } = settings;
+        const baseUrl = (apiBaseUrl || 'https://api.openai.com').replace(/\/$/, '');
+        const url = `${baseUrl}/v1/chat/completions`;
+
+        let resp;
+        try {
+            resp = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: model || 'gpt-4.1-mini',
+                    messages,
+                    response_format: { type: 'json_object' },
+                    temperature: 0.2
+                })
+            });
+        } catch (_) {
+            return { data: null, error: ERROR_MESSAGES.network_error };
+        }
+
+        let body;
+        try { body = await resp.json(); } catch (_) { body = null; }
+
+        if (!resp.ok) {
+            return { data: null, error: friendlyError(null, resp.status, body) };
+        }
+
+        const raw = body?.choices?.[0]?.message?.content || '';
+        let parsed;
+        try {
+            parsed = JSON.parse(raw);
+        } catch (_) {
+            return { data: null, error: ERROR_MESSAGES.parse_error };
+        }
+        return { data: parsed, error: null };
+    }
+
+    const QA_TYPO_BATCH = 24;
+
+    /**
+     * 僅依「譯文」檢查一般中文錯字／打字／缺多字／形近字（不送原文）。
+     * @param {Array<{ segId, gid, targetText }>} items
+     * @param {Object} settings - 同 translate（apiKey, apiBaseUrl, model）
+     * @returns {{ issues: Array<{ segId, gid, detail: string }>, error: string|null }}
+     */
+    async function qaChineseTypos(items, settings) {
+        const issues = [];
+        if (!items || items.length === 0) return { issues, error: null };
+        if (!settings || !settings.apiKey) {
+            return { issues, error: 'API Key 未設定，請至「AI 設定」填入 API Key。' };
+        }
+
+        const CJK = /[\u4E00-\u9FFF\u3400-\u4DBF]/;
+
+        for (let off = 0; off < items.length; off += QA_TYPO_BATCH) {
+            const slice = items.slice(off, off + QA_TYPO_BATCH);
+            const payload = [];
+            let lines = '';
+            slice.forEach((it, j) => {
+                const { clean } = stripTags(it.targetText || '');
+                payload.push({ segId: it.segId, gid: it.gid, clean, j });
+                lines += `[#${j}] 譯文：${clean}\n`;
+            });
+
+            const n = slice.length;
+            const system = `你是中文譯文校對助理。以下每一條只提供「譯文」（沒有原文），請只檢查譯文中是否出現：
+明顯錯字、缺字、多字、嚴重打字錯誤、易混淆形近字（限一般中文書寫）。
+
+請勿檢查：翻譯是否正確、英文拼字、數字與格式、風格潤飾、專有名詞是否合理。
+若該條譯文幾乎沒有中文（例如僅英文或數字），一律視為無需檢查，issues 留空。
+
+請嚴格只輸出一個 JSON 物件（不要 markdown），格式：
+{"findings":[{"i":0,"issues":""},{"i":1,"issues":"..."}]}
+- findings 必須剛好 ${n} 筆，i 為 0 到 ${n - 1} 的整數且由小到大。
+- 無問題時 issues 必須為空字串 ""。
+- 有問題時 issues 為一句繁體中文（建議 60 字以內）。`;
+
+            const user = `共 ${n} 條譯文，請逐條檢查：\n\n${lines}`;
+
+            const res = await callApiJsonObject(
+                [{ role: 'system', content: system }, { role: 'user', content: user }],
+                settings
+            );
+            if (res.error) return { issues, error: res.error };
+
+            const findings = Array.isArray(res.data?.findings) ? res.data.findings : [];
+            const byI = new Map();
+            for (const f of findings) {
+                const i = Number(f.i);
+                if (Number.isFinite(i)) byI.set(i, String(f.issues || '').trim());
+            }
+
+            for (let j = 0; j < n; j++) {
+                const row = payload[j];
+                const note = byI.get(j) || '';
+                if (!note) continue;
+                if (!CJK.test(row.clean)) continue;
+                issues.push({ segId: row.segId, gid: row.gid, detail: note });
+            }
+        }
+
+        return { issues, error: null };
+    }
+
     // ---- 主要 translate 函式 ----
 
     /**
@@ -412,6 +524,7 @@
         diffRatio,
         friendlyError,
         scanFullText,
-        estimateScanTokens
+        estimateScanTokens,
+        qaChineseTypos
     };
 })();

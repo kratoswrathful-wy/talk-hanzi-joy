@@ -210,6 +210,9 @@ button { font-family: inherit; cursor: pointer; }
     position: absolute; right: 6px; bottom: 4px; font-size: 0.8rem; opacity: 0.8;
 }
 .grid-data-row.active-row { outline: 2px solid var(--primary-color); outline-offset: -2px; z-index: 10; position: relative; background: #eff6ff; }
+/* 同時選取 + 編輯中：勿疊 outline 與選取偽元素邊框，避免交界線變粗 */
+.grid-data-row.active-row.selected-row { outline: none; }
+.grid-data-row.selected-row.active-row::after { border-color: var(--primary-color); }
 
 .col-id {
     cursor: pointer; user-select: none; transition: background 0.1s;

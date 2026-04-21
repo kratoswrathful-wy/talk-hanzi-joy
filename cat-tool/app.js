@@ -430,7 +430,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             container.append(label, keyInput, btns);
         });
     }
-
+    
     if (btnShortcuts) {
         btnShortcuts.addEventListener('click', () => {
             renderCustomShortcutRows();
@@ -8722,7 +8722,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 undo.push({ op: 'update', tmId, id: match.id, oldTarget, oldChangeLog });
                 redo.push({ op: 'update', tmId, id: match.id, newTarget: seg.targetText, newChangeLog: prevLog });
                 try {
-                    await DBService.updateTMSegment(match.id, seg.targetText, { changeLog: prevLog });
+                await DBService.updateTMSegment(match.id, seg.targetText, { changeLog: prevLog });
                 } catch (updErr) {
                     console.error('[TM Write] updateTMSegment 失敗:', updErr, { id: match.id });
                     continue;
@@ -9353,9 +9353,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (ta) ta.focus();
     }
 
+    function _qaStripTagsPlain(raw) {
+        const Xliff = window.CatToolXliffTags;
+        if (Xliff && raw) {
+            try {
+                const r = Xliff.extractTaggedText(raw);
+                if (r && typeof r.clean === 'string') return r.clean;
+            } catch (_) { /* ignore */ }
+        }
+        return raw || '';
+    }
+
+    function _qaNormFwDigits(s) {
+        return String(s || '').replace(/[\uFF10-\uFF19]/g, ch =>
+            String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+    }
+
+    function _qaDigitRunsFromPlain(clean) {
+        const n = _qaNormFwDigits(clean);
+        return (n.match(/\d+/g) || []).slice();
+    }
+
     function runQaChecks(segs, options) {
         const { fromIdx, toIdx, includeLocked,
-                checkTerms = true, checkTags = true, checkConsistency = true } = options || {};
+                checkTerms = true, checkTags = true, checkConsistency = true, checkNumbers = true } = options || {};
         const results = [];
 
         // 依原始排序（globalId or rowIdx+1）決定範圍索引
@@ -9427,8 +9448,30 @@ document.addEventListener('DOMContentLoaded', async () => {
                         info: `此原文有 ${variants.size} 種不同譯文`, key: `${gid}:consistency` });
                 }
             }
+
+            // 數字序列：去 tag 後依出現順序擷取連續數字，須與原文完全一致
+            if (checkNumbers) {
+                const srcRuns = _qaDigitRunsFromPlain(_qaStripTagsPlain(s.sourceText || ''));
+                const tgtRuns = _qaDigitRunsFromPlain(_qaStripTagsPlain(s.targetText || ''));
+                if (srcRuns.length > 0 || tgtRuns.length > 0) {
+                    let same = srcRuns.length === tgtRuns.length;
+                    if (same) {
+                        for (let di = 0; di < srcRuns.length; di++) {
+                            if (srcRuns[di] !== tgtRuns[di]) { same = false; break; }
+                        }
+                    }
+                    if (!same) {
+                        const fmt = arr => (arr.length ? arr.join('、') : '（無）');
+                        results.push({
+                            segId: s.id, gid, type: '數字不相符',
+                            info: `原文數字序列：${fmt(srcRuns)}；譯文：${fmt(tgtRuns)}`,
+                            key: `${gid}:digits`
+                        });
+                    }
+                }
+            }
         }
-        return results;
+        return { results, filteredSegs };
     }
 
     function renderQaResults() {
@@ -9441,6 +9484,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const tagCount = _qaResults.filter(r => r.type === 'Tag 檢查').length;
         const tbCount = _qaResults.filter(r => r.type === '術語未套用').length;
         const conCount = _qaResults.filter(r => r.type === '譯文不一致').length;
+        const numCount = _qaResults.filter(r => r.type === '數字不相符').length;
+        const typoCount = _qaResults.filter(r => r.type === '錯字／打字').length;
 
         if (_qaResults.length === 0) {
             table.style.display = 'none';
@@ -9454,6 +9499,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (tagCount) parts.push(`Tag: ${tagCount}`);
         if (tbCount) parts.push(`術語: ${tbCount}`);
         if (conCount) parts.push(`一致性: ${conCount}`);
+        if (numCount) parts.push(`數字: ${numCount}`);
+        if (typoCount) parts.push(`錯字: ${typoCount}`);
         statusEl.textContent = `發現 ${_qaResults.length} 個問題（${parts.join('，')}）`;
         table.style.display = '';
 
@@ -9534,7 +9581,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // QA 按鈕事件
     const btnRunQA = document.getElementById('btnRunQA');
     if (btnRunQA) {
-        btnRunQA.addEventListener('click', () => {
+        btnRunQA.addEventListener('click', async () => {
             const useRange = document.getElementById('qaUseRange')?.checked ?? false;
             const fromVal = useRange ? document.getElementById('qaRangeFrom')?.value : null;
             const toVal = useRange ? document.getElementById('qaRangeTo')?.value : null;
@@ -9544,8 +9591,54 @@ document.addEventListener('DOMContentLoaded', async () => {
             const checkTerms = document.getElementById('qaCheckTerms')?.checked ?? true;
             const checkTags = document.getElementById('qaCheckTags')?.checked ?? true;
             const checkConsistency = document.getElementById('qaCheckConsistency')?.checked ?? true;
-            _qaResults = runQaChecks(currentSegmentsList, { fromIdx, toIdx, includeLocked, checkTerms, checkTags, checkConsistency });
-            renderQaResults();
+            const checkNumbers = document.getElementById('qaCheckNumbers')?.checked ?? true;
+            const checkTypos = document.getElementById('qaCheckTypos')?.checked ?? false;
+            const statusEl = document.getElementById('qaStatus');
+
+            btnRunQA.disabled = true;
+            try {
+                const { results, filteredSegs } = runQaChecks(currentSegmentsList, {
+                    fromIdx, toIdx, includeLocked, checkTerms, checkTags, checkConsistency, checkNumbers
+                });
+                _qaResults = results;
+
+                if (checkTypos) {
+                    if (statusEl) {
+                        statusEl.textContent = '執行本地檢查完成，錯字檢查（AI）進行中…';
+                        statusEl.style.color = '#64748b';
+                    }
+                    const settings = await DBService.getAiSettings();
+                    if (!settings?.apiKey) {
+                        alert('已勾選「錯字／打字（中文，AI）」，但未設定 API Key。請至「AI 設定」填入。');
+                    } else if (typeof window.CatAiTranslate?.qaChineseTypos !== 'function') {
+                        alert('AI 模組未載入，無法執行錯字檢查。');
+                    } else {
+                        const typoItems = filteredSegs.map(({ s, gid }) => ({
+                            segId: s.id,
+                            gid,
+                            targetText: s.targetText || ''
+                        }));
+                        const typoOut = await window.CatAiTranslate.qaChineseTypos(typoItems, settings);
+                        if (typoOut.error) {
+                            alert(typoOut.error);
+                        } else {
+                            for (const it of typoOut.issues) {
+                                _qaResults.push({
+                                    segId: it.segId,
+                                    gid: it.gid,
+                                    type: '錯字／打字',
+                                    info: it.detail,
+                                    key: `${it.gid}:typo`
+                                });
+                            }
+                        }
+                    }
+                }
+
+                renderQaResults();
+            } finally {
+                btnRunQA.disabled = false;
+            }
         });
     }
     document.getElementById('qaHideIgnored')?.addEventListener('change', renderQaResults);
