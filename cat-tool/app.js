@@ -2417,9 +2417,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             const val = parseInt(sel.value, 10) || 0;
             if (id) tmPenalties[id] = val;
         });
-        // 儲存減值到專案
-        await DBService.patchProject(currentProjectId, { tmPenalties });
+        // 先儲存 TM 掛載（readTms / writeTms），再儲存減值，避免兩次部分更新互相覆蓋
         await commitProjectTmMounts(readTms, writeTms);
+        await DBService.patchProject(currentProjectId, { tmPenalties });
+        // 立即同步記憶體，讓編輯器不需重新載入檔案即可生效
+        window.ActiveTmPenalties = { ...tmPenalties };
+        window.ActiveWriteTms = writeTms.slice();
+        window.ActiveReadTmIds = readTms.slice();
         closeProjectTmPickerModal();
         const p = await DBService.getProject(currentProjectId);
         if (p) await loadProjectTms(p);
@@ -8236,6 +8240,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 queueMicrotask(() => targetInput.focus());
                                 return;
                             }
+                            // 確認前先從 DOM 同步最新譯文，確保 TM 寫入的是當前內容
+                            if (targetDebounceTimer) {
+                                clearTimeout(targetDebounceTimer);
+                                targetDebounceTimer = null;
+                            }
+                            const latestTarget = extractTextFromEditor(targetInput);
+                            if (latestTarget !== seg.targetText) {
+                                seg.targetText = latestTarget;
+                                DBService.updateSegmentTarget(seg.id, latestTarget).catch(console.error);
+                            }
                             const touch = collectConfirmTouchIndices(i);
                             const beforeSnapshots = {};
                             touch.forEach(idx => {
@@ -8350,6 +8364,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     queueMicrotask(() => targetTa.focus());
                                     return;
                                 }
+                                // 同步最新譯文到 seg.targetText
+                                if (targetDebounceTimer) {
+                                    clearTimeout(targetDebounceTimer);
+                                    targetDebounceTimer = null;
+                                }
+                                const latestTarget = extractTextFromEditor(targetTa);
+                                if (latestTarget !== seg.targetText) {
+                                    seg.targetText = latestTarget;
+                                    DBService.updateSegmentTarget(seg.id, latestTarget).catch(console.error);
+                                }
                             }
                             const touch = collectConfirmTouchIndices(i);
                             const beforeSnapshots = {};
@@ -8452,16 +8476,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         const redo = [];
         if (!seg || seg.status !== 'confirmed') return { undo, redo };
         if (!window.ActiveWriteTms || window.ActiveWriteTms.length === 0) return { undo, redo };
+        // 跳過原文或譯文為空的句段，避免寫入無意義的空記錄
+        if (!seg.sourceText || !seg.targetText) return { undo, redo };
         let i = typeof rowIdx === 'number' ? rowIdx : currentSegmentsList.indexOf(seg);
         if (i < 0) i = currentSegmentsList.findIndex(s => s.id === seg.id);
         if (i < 0) return { undo, redo };
         const creator = localStorage.getItem('localCatUserProfile') || 'Unknown User';
         const prjEl = document.getElementById('detailProjectName');
         const fEl = document.getElementById('editorFileName');
-        const prjName = prjEl ? prjEl.textContent : '';
-        const fName = fEl ? fEl.textContent : '';
-        const prevS = i > 0 ? currentSegmentsList[i - 1].sourceText : '';
-        const nextS = i < currentSegmentsList.length - 1 ? currentSegmentsList[i + 1].sourceText : '';
+        const prjName = prjEl ? (prjEl.textContent || '').trim() : '';
+        const fName = fEl ? (fEl.textContent || '').trim() : '';
+        const prevS = i > 0 ? (currentSegmentsList[i - 1].sourceText || '') : '';
+        const nextS = i < currentSegmentsList.length - 1 ? (currentSegmentsList[i + 1].sourceText || '') : '';
         const key = seg.keys && seg.keys.length > 0 ? seg.keys[0] : '';
         const fileLangs = window.ActiveFileLangs || {};
         const metaBase = {
@@ -8491,7 +8517,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             if (!match) {
                 const metaFull = { ...metaBase, changeLog: [] };
-                const newId = await DBService.addTMSegment(tmId, seg.sourceText, seg.targetText, metaFull);
+                let newId;
+                try {
+                    newId = await DBService.addTMSegment(tmId, seg.sourceText, seg.targetText, metaFull);
+                } catch (addErr) {
+                    console.error('[TM Write] addTMSegment 失敗:', addErr, { tmId, sourceText: seg.sourceText });
+                    continue;
+                }
                 undo.push({ op: 'delete', tmId, id: newId });
                 redo.push({ op: 'create', tmId, sourceText: seg.sourceText, targetText: seg.targetText, meta: metaFull });
                 const full = await DBService.getTMSegmentById(newId);
@@ -8519,7 +8551,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
                 undo.push({ op: 'update', tmId, id: match.id, oldTarget, oldChangeLog });
                 redo.push({ op: 'update', tmId, id: match.id, newTarget: seg.targetText, newChangeLog: prevLog });
-                await DBService.updateTMSegment(match.id, seg.targetText, { changeLog: prevLog });
+                try {
+                    await DBService.updateTMSegment(match.id, seg.targetText, { changeLog: prevLog });
+                } catch (updErr) {
+                    console.error('[TM Write] updateTMSegment 失敗:', updErr, { id: match.id });
+                    continue;
+                }
                 window.ActiveTmCache.forEach(tms => {
                     if (tms.id === match.id || (tms._tmId === tmId && tms.sourceText === seg.sourceText)) {
                         tms.targetText = seg.targetText;
