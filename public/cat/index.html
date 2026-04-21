@@ -867,6 +867,11 @@
                         <input type="text" id="aiSettingsBaseUrl" class="form-input" placeholder="https://api.openai.com">
                         <p style="font-size:0.78rem; color:#64748b; margin:0.25rem 0 0 0;">留空則使用 OpenAI 預設端點。如使用相容 API（如本地 LM Studio），在此填入對應 URL。</p>
                     </div>
+                    <div class="form-group">
+                        <label class="form-label">每批句段數</label>
+                        <input type="number" id="aiSettingsBatchSize" class="form-input" min="1" max="100" value="20" style="width:100px;">
+                        <p style="font-size:0.78rem; color:#64748b; margin:0.25rem 0 0 0;">AI 翻譯時每次送出的句段數量，建議 10–30。數字越大每批 context 越豐富，但若超出模型限制會出錯。</p>
+                    </div>
                     <div style="display:flex; align-items:center; gap:0.75rem;">
                         <button type="button" id="btnSaveAiSettings" class="primary-btn">儲存設定</button>
                         <button type="button" id="btnTestAiSettings" class="secondary-btn btn-sm">測試連線</button>

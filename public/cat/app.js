@@ -462,7 +462,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (rowEl) {
             const editor = rowEl.querySelector('.grid-textarea');
             if (editor) {
-                editor.innerHTML = buildTaggedHtml(newText, effectiveTags(seg));
+                setEditorHtml(editor, buildTaggedHtml(newText, effectiveTags(seg)));
                 updateTagColors(rowEl, newText);
             }
             if (op === 'clear') applyMatchCellVisual(rowEl, '');
@@ -561,11 +561,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     function applyNonPrintMarkersAll() {
         const editorGrid = document.getElementById('editorGrid');
         if (!editorGrid || !editorGrid.classList.contains('show-non-print')) return;
-        editorGrid.querySelectorAll('.grid-textarea[contenteditable]').forEach(applyNonPrintMarkers);
+        // 同時處理原文欄（.col-source .rt-editor）和譯文欄（.col-target .rt-editor）
+        editorGrid.querySelectorAll('.col-source .rt-editor, .col-target .rt-editor').forEach(applyNonPrintMarkers);
     }
 
     /**
-     * 在 contenteditable 元素的文字節點中插入非列印字元標記 span。
+     * 在 rt-editor 元素的文字節點中插入非列印字元標記 span。
      * 僅在 show-non-print 模式下有視覺效果（CSS 控制 display）。
      * 使用 data-np-applied 旗標防止重複插入。
      */
@@ -576,15 +577,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         el.querySelectorAll('br:not(.np-br)').forEach(br => {
             const mark = document.createElement('span');
             mark.className = 'non-print-marker';
-            mark.textContent = '¶';
+            mark.textContent = '↵';
             mark.contentEditable = 'false';
             br.parentNode.insertBefore(mark, br);
             br.classList.add('np-br');
         });
-        // 標記普通空格和 NBSP（文字節點）—— 跳過 non-print-marker 本身
+        // 標記普通空格和 NBSP（文字節點）—— 跳過 non-print-marker 本身和標籤 chip
         const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
-            acceptNode: n => n.parentElement?.classList.contains('non-print-marker') || n.parentElement?.classList.contains('tag-chip')
-                ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+            acceptNode: n => {
+                const p = n.parentElement;
+                if (!p) return NodeFilter.FILTER_ACCEPT;
+                if (p.classList.contains('non-print-marker')) return NodeFilter.FILTER_REJECT;
+                if (p.classList.contains('rt-tag') || p.classList.contains('tag-num') || p.classList.contains('tag-content')) return NodeFilter.FILTER_REJECT;
+                return NodeFilter.FILTER_ACCEPT;
+            }
         });
         const textNodes = [];
         let node;
@@ -614,6 +620,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             endMark.contentEditable = 'false';
             endMark.textContent = '¶';
             el.appendChild(endMark);
+        }
+    }
+
+    /**
+     * 設定 rt-editor 的 innerHTML，並在非列印字元模式開啟時自動重新套用標記。
+     * 凡是會覆寫 editor innerHTML 的地方都應使用此函數，以確保 data-np-applied 正確清除。
+     */
+    function setEditorHtml(el, html) {
+        if (!el) return;
+        el.innerHTML = html;
+        el.removeAttribute('data-np-applied');
+        if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
+            requestAnimationFrame(() => applyNonPrintMarkers(el));
         }
     }
 
@@ -988,7 +1007,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         seg.matchValue = undefined;
         pendingRemoteBySegId.delete(String(seg.id));
         if (editor) {
-            editor.innerHTML = buildTaggedHtml(remoteText, effectiveTags(seg));
+            setEditorHtml(editor, buildTaggedHtml(remoteText, effectiveTags(seg)));
         }
         if (row) {
             updateTagColors(row, remoteText);
@@ -5914,7 +5933,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const stripped = seg.targetText.replace(/\{\/?\d+\}/g, '');
                     seg.targetText = stripped;
                     seg.matchValue = undefined;
-                    activeEditor.innerHTML = buildTaggedHtml(stripped, effectiveTags(seg));
+                    setEditorHtml(activeEditor, buildTaggedHtml(stripped, effectiveTags(seg)));
                     updateTagColors(activeRow, stripped);
                     refreshTagNextHighlight(activeRow);
                     applyMatchCellVisual(activeRow, '');
@@ -6245,7 +6264,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const targetEditor = row.querySelector('.grid-textarea');
             if (targetEditor) {
                 const currentText = seg.targetText || '';
-                targetEditor.innerHTML = buildTaggedHtml(currentText, effectiveTags(seg));
+                setEditorHtml(targetEditor, buildTaggedHtml(currentText, effectiveTags(seg)));
             }
 
             // --- Apply Highlighting ---
@@ -6547,7 +6566,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (row) {
             const ta = row.querySelector('.grid-textarea');
             if (ta) {
-                ta.innerHTML = buildTaggedHtml(tgt, effectiveTags(seg));
+                setEditorHtml(ta, buildTaggedHtml(tgt, effectiveTags(seg)));
                 updateTagColors(row, tgt);
             }
             applyMatchCellVisual(row, seg.matchValue);
@@ -6617,7 +6636,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (row) {
             const ta = row.querySelector('.grid-textarea');
             if (ta) {
-                    ta.innerHTML = buildTaggedHtml(seg.targetText, effectiveTags(seg));
+                    setEditorHtml(ta, buildTaggedHtml(seg.targetText, effectiveTags(seg)));
                     updateTagColors(row, seg.targetText);
                 }
                 applyMatchCellVisual(row, seg.matchValue);
@@ -6792,7 +6811,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (row) {
                 const ta = row.querySelector('.grid-textarea');
                 if (ta) {
-                    ta.innerHTML = buildTaggedHtml(newText, effectiveTags(seg));
+                    setEditorHtml(ta, buildTaggedHtml(newText, effectiveTags(seg)));
                     updateTagColors(row, newText);
                 }
             }
@@ -7267,7 +7286,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (rows[j]) {
                 const ta = rows[j].querySelector('.grid-textarea');
                 if (ta) {
-                    ta.innerHTML = buildTaggedHtml(tgt, effectiveTags(other));
+                    setEditorHtml(ta, buildTaggedHtml(tgt, effectiveTags(other)));
                     updateTagColors(rows[j], tgt);
                 }
                 const si = rows[j].querySelector('.status-icon');
@@ -7775,7 +7794,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             seg.targetText = best.targetText;
             seg.matchValue = String(Math.round(best.score));
-            targetInput.innerHTML = buildTaggedHtml(seg.targetText, effectiveTags(seg));
+            setEditorHtml(targetInput, buildTaggedHtml(seg.targetText, effectiveTags(seg)));
             updateTagColors(row, seg.targetText);
             applyMatchCellVisual(row, seg.matchValue);
             await DBService.updateSegmentTarget(seg.id, seg.targetText, { matchValue: seg.matchValue, targetTags: seg.targetTags });
@@ -7783,7 +7802,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             seg.targetTags = (seg.sourceTags || []).map(t => ({ ...t }));
             seg.targetText = seg.sourceText;
             seg.matchValue = undefined;
-            targetInput.innerHTML = buildTaggedHtml(seg.targetText, effectiveTags(seg));
+            setEditorHtml(targetInput, buildTaggedHtml(seg.targetText, effectiveTags(seg)));
             updateTagColors(row, seg.targetText);
             applyMatchCellVisual(row, '');
             await DBService.updateSegmentTarget(seg.id, seg.targetText, { targetTags: seg.targetTags, matchValue: '' });
@@ -7794,7 +7813,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 seg.targetText = best.targetText;
                 seg.matchValue = String(Math.round(best.score));
-                targetInput.innerHTML = buildTaggedHtml(seg.targetText, effectiveTags(seg));
+                setEditorHtml(targetInput, buildTaggedHtml(seg.targetText, effectiveTags(seg)));
                 updateTagColors(row, seg.targetText);
                 applyMatchCellVisual(row, seg.matchValue);
                 await DBService.updateSegmentTarget(seg.id, seg.targetText, { matchValue: seg.matchValue, targetTags: seg.targetTags });
@@ -7802,7 +7821,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 seg.targetTags = (seg.sourceTags || []).map(t => ({ ...t }));
                 seg.targetText = seg.sourceText;
                 seg.matchValue = undefined;
-                targetInput.innerHTML = buildTaggedHtml(seg.targetText, effectiveTags(seg));
+                setEditorHtml(targetInput, buildTaggedHtml(seg.targetText, effectiveTags(seg)));
                 updateTagColors(row, seg.targetText);
                 applyMatchCellVisual(row, '');
                 await DBService.updateSegmentTarget(seg.id, seg.targetText, { targetTags: seg.targetTags, matchValue: '' });
@@ -8098,13 +8117,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const attempted = extractTextFromEditor(targetInput);
                         const prevVal = seg.targetText || '';
                         if (attempted !== prevVal) {
-                            targetInput.innerHTML = buildTaggedHtml(prevVal, effectiveTags(seg));
+                            setEditorHtml(targetInput, buildTaggedHtml(prevVal, effectiveTags(seg)));
                             refreshTagNextHighlight(row);
                             const ok = await showHighMatchEditConfirmModal(seg);
                             if (!ok) return;
                             highMatchEditConfirmedIds.add(seg.id);
                             skipHighMatchInputGuard = true;
-                            targetInput.innerHTML = buildTaggedHtml(attempted, effectiveTags(seg));
+                            setEditorHtml(targetInput, buildTaggedHtml(attempted, effectiveTags(seg)));
                             refreshTagNextHighlight(row);
                             targetInput.dispatchEvent(new Event('input', { bubbles: true }));
                             skipHighMatchInputGuard = false;
@@ -8177,6 +8196,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                         emitCollabEdit('commit', seg, newVal);
                     }
                     emitCollabEdit('end', seg, null);
+                    // 使用者離開後，若非列印字元模式開啟，清除旗標讓標記重新套用至新輸入的空格
+                    if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
+                        targetInput.removeAttribute('data-np-applied');
+                        requestAnimationFrame(() => applyNonPrintMarkers(targetInput));
+                    }
                 });
 
                 // Intercept paste：
@@ -8801,7 +8825,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let newTarget;
         if (type === 'TM') {
             newTarget = text;
-            textarea.innerHTML = buildTaggedHtml(text, effectiveTags(seg));
+            setEditorHtml(textarea, buildTaggedHtml(text, effectiveTags(seg)));
             updateTagColors(activeRow, text);
         } else {
             textarea.focus();
@@ -11213,8 +11237,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const modelSelect = document.getElementById('aiSettingsModel');
         const modelCustom = document.getElementById('aiSettingsModelCustom');
         const baseUrlEl = document.getElementById('aiSettingsBaseUrl');
+        const batchSizeEl = document.getElementById('aiSettingsBatchSize');
         if (apiKeyEl) apiKeyEl.value = settings.apiKey || '';
         if (baseUrlEl) baseUrlEl.value = settings.apiBaseUrl || '';
+        if (batchSizeEl) batchSizeEl.value = settings.batchSize ?? 20;
 
         // 設定模型選單的選取值
         function _setModelValue(model) {
@@ -11259,10 +11285,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (saveBtn) {
             saveBtn.onclick = async () => {
+                const bsRaw = parseInt(batchSizeEl?.value || '20', 10);
                 await DBService.saveAiSettings({
                     apiKey: apiKeyEl?.value?.trim() || '',
                     model: _getSelectedModel(),
-                    apiBaseUrl: baseUrlEl?.value?.trim() || ''
+                    apiBaseUrl: baseUrlEl?.value?.trim() || '',
+                    batchSize: Number.isFinite(bsRaw) && bsRaw >= 1 ? bsRaw : 20
                 });
                 saveBtn.textContent = '已儲存 ✓';
                 setTimeout(() => { saveBtn.textContent = '儲存設定'; }, 2000);
@@ -12498,7 +12526,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        const batchSize = 20;
+        const batchSize = (settings.batchSize && settings.batchSize >= 1) ? settings.batchSize : 20;
         let processed = 0;
         const options = await _buildAiOptions(settings, config.batchNote);
         let allMissing = [];
