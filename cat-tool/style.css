@@ -76,6 +76,20 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
 .view-section { flex: 1; display: flex; flex-direction: column;}
 .hidden { display: none !important; }
 
+/* 開檔／長操作 loading（#catLoadingOverlay 內） */
+.cat-loading-spinner {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto;
+  border: 3px solid #e2e8f0;
+  border-top-color: var(--primary-color, #6366f1);
+  border-radius: 50%;
+  animation: cat-loading-spin 0.75s linear infinite;
+}
+@keyframes cat-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* Buttons & Common */
 button { font-family: inherit; cursor: pointer; }
 .primary-btn, .secondary-btn, .danger-btn, .success-btn {

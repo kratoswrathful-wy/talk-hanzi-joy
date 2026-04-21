@@ -12,6 +12,12 @@
     <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 </head>
 <body>
+    <div id="catLoadingOverlay" style="display:none;position:fixed;inset:0;z-index:99998;background:rgba(15,23,42,0.5);align-items:center;justify-content:center;flex-direction:column;">
+        <div style="background:#fff;padding:1.5rem 2.25rem;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,0.18);text-align:center;min-width:220px;">
+            <div class="cat-loading-spinner" aria-hidden="true"></div>
+            <p id="catLoadingOverlayText" style="margin:1rem 0 0;font-size:0.95rem;color:#334155;font-weight:500;">載入中…</p>
+        </div>
+    </div>
     <div class="app-layout" id="appLayout">
         <!-- Sidebar Navigation -->
         <aside class="sidebar" id="sidebar">
@@ -271,12 +277,14 @@
                         <input type="file" id="tmImportInput" accept=".xlsx,.xls,.csv,.tmx" style="display:none;">
                         <button class="primary-btn btn-sm" id="btnImportTmFile">匯入檔案 (Excel/CSV/TMX)</button>
                         <button class="secondary-btn btn-sm" id="btnExportTm">匯出</button>
+                        <button class="danger-btn btn-sm" id="btnDeleteTmSegmentsSelected">刪除所選</button>
+                        <button type="button" class="secondary-btn btn-sm" id="btnTmDupFilter" title="僅顯示原文與譯文皆與其他列完全相同的句段">重複內容篩選</button>
                         <button class="danger-btn btn-sm" id="btnClearTmSegments">清空記憶庫</button>
                     </div>
                     <div id="tmRelatedProjects" style="margin-top:0.75rem; font-size:0.88rem; color:#64748b;"></div>
                 </header>
                 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:1rem; margin-bottom:1rem; font-size:0.9rem;">
-                    <strong>總句段數：</strong> <span id="tmSegmentCount">0</span>
+                    <strong>總句段數：</strong> <span id="tmSegmentCount">0</span><span id="tmSegmentCountHint" style="color:#64748b;font-weight:normal;"></span>
                 </div>
                 <div id="tmDetailChangeLogBlock" style="margin:0 0 1rem 0;">
                     <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem 1rem; font-size:0.9rem;">
@@ -296,6 +304,7 @@
                                         <input type="checkbox" id="tmSegmentsSelectAll" aria-label="全選">
                                     </label>
                                 </th>
+                                <th style="text-align:center; padding:0.5rem; border:1px solid #e2e8f0; width:44px;" title="展開詳細資訊">　</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:40px;">#</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">原文</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">譯文</th>

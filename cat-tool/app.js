@@ -1211,10 +1211,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const projectId = btn.getAttribute('data-project-id');
                 const assignmentId = btn.getAttribute('data-assignment-id');
                 if (!fileId) return;
-                if (projectId) {
-                    currentProjectId = projectId;
-                    await openProjectDetail(projectId);
-                }
+                if (projectId) currentProjectId = projectId;
                 await openEditor(fileId);
                 if (assignmentId) {
                     window.parent.postMessage({
@@ -1883,7 +1880,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const fileId = parseId(el.getAttribute('data-file-id'));
                         const file = await DBService.getFile(fileId);
                         if (!file) return;
-                        await openProjectDetail(file.projectId);
+                        if (file.projectId) currentProjectId = file.projectId;
                         await openEditor(fileId);
                     });
                 });
@@ -4139,9 +4136,115 @@ document.addEventListener('DOMContentLoaded', async () => {
     const tmImportInput = document.getElementById('tmImportInput');
     const detailTmName = document.getElementById('detailTmName');
     const tmSegmentCount = document.getElementById('tmSegmentCount');
+    const tmSegmentCountHint = document.getElementById('tmSegmentCountHint');
     const tmSegmentsListBody = document.getElementById('tmSegmentsListBody');
     const tmSegmentsSelectAll = document.getElementById('tmSegmentsSelectAll');
     const btnClearTmSegments = document.getElementById('btnClearTmSegments');
+    const btnDeleteTmSegmentsSelected = document.getElementById('btnDeleteTmSegmentsSelected');
+    const btnTmDupFilter = document.getElementById('btnTmDupFilter');
+    let tmSegmentsFullCache = [];
+    let tmDupFilterActive = false;
+
+    function _tmSegDupPairKey(seg) {
+        return (seg.sourceText || '') + '\u0000' + (seg.targetText || '');
+    }
+    function _tmSegFilterDuplicatesOnly(segments) {
+        const counts = new Map();
+        for (const s of segments) {
+            const k = _tmSegDupPairKey(s);
+            counts.set(k, (counts.get(k) || 0) + 1);
+        }
+        return segments.filter(s => counts.get(_tmSegDupPairKey(s)) > 1);
+    }
+    function _tmSegEscHtml(s) {
+        return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+    function _tmSegUpdateDupFilterButton() {
+        if (!btnTmDupFilter) return;
+        btnTmDupFilter.textContent = tmDupFilterActive ? '顯示全部句段' : '重複內容篩選';
+        btnTmDupFilter.classList.toggle('primary-btn', tmDupFilterActive);
+        btnTmDupFilter.classList.toggle('secondary-btn', !tmDupFilterActive);
+    }
+    function renderTmSegmentsTable(displayList) {
+        if (!tmSegmentsListBody) return;
+        tmSegmentsListBody.innerHTML = '';
+        const total = tmSegmentsFullCache.length;
+        if (tmSegmentCount) tmSegmentCount.textContent = String(total);
+        if (tmSegmentCountHint) {
+            tmSegmentCountHint.textContent = tmDupFilterActive && total
+                ? `（篩選中：${displayList.length} 筆，原文+譯文與其他列完全相同）`
+                : '';
+        }
+        if (!displayList.length) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td colspan="5" style="padding:0.75rem; color:#64748b;">' +
+                (total ? '沒有符合條件的句段。' : '此記憶庫尚無內容。') + '</td>';
+            tmSegmentsListBody.appendChild(tr);
+            syncTmSegmentsSelectAll();
+            return;
+        }
+        displayList.forEach((seg, idx) => {
+            const src = _tmSegEscHtml(seg.sourceText || '');
+            const tgt = _tmSegEscHtml(seg.targetText || '');
+            const sid = String(seg.id || '').replace(/"/g, '');
+            const createdAt = seg.createdAt ? new Date(seg.createdAt).toLocaleString('zh-TW') : '—';
+            const createdBy = _tmSegEscHtml(seg.createdBy || '');
+            const prevS = _tmSegEscHtml(seg.prevSegment || '');
+            const nextS = _tmSegEscHtml(seg.nextSegment || '');
+            const wFile = seg.writtenFile || '';
+            const wProj = seg.writtenProject || '';
+            const keyDisp = _tmSegEscHtml(seg.key || '');
+            const fileLink = wFile
+                ? `<a href="#" class="tm-seg-file-link" data-wproj="${encodeURIComponent(wProj)}" data-wfile="${encodeURIComponent(wFile)}" style="color:var(--primary-color);text-decoration:underline;">${_tmSegEscHtml(wFile)}</a>`
+                : '—';
+            const trMain = document.createElement('tr');
+            trMain.className = 'tm-seg-main-row';
+            trMain.dataset.segId = sid;
+            trMain.innerHTML = `
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="tm-segment-row-cb" data-id="${sid}"></td>
+                <td style="padding:0.35rem; border:1px solid #e2e8f0; text-align:center;">
+                    <button type="button" class="secondary-btn btn-sm tm-seg-expand-btn" data-seg-id="${sid}" aria-expanded="false" title="展開／收合" style="min-width:2rem;padding:0.2rem 0.35rem;">▶</button>
+                </td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:40px;">${idx + 1}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:280px; overflow:hidden; text-overflow:ellipsis;" title="${src}">${src || '—'}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:280px; overflow:hidden; text-overflow:ellipsis;" title="${tgt}">${tgt || '—'}</td>
+            `;
+            const trDet = document.createElement('tr');
+            trDet.className = 'tm-seg-detail-row hidden';
+            trDet.dataset.segId = sid;
+            trDet.innerHTML = `
+                <td colspan="5" style="padding:0.65rem 0.85rem; border:1px solid #e2e8f0; background:#f8fafc; font-size:0.82rem; color:#334155; line-height:1.55;">
+                    <div><strong>建立者：</strong>${createdBy || '—'}</div>
+                    <div><strong>建立時間：</strong>${createdAt}</div>
+                    <div><strong>Key：</strong>${keyDisp || '—'}</div>
+                    <div><strong>上一句（原文）：</strong>${prevS || '—'}</div>
+                    <div><strong>下一句（原文）：</strong>${nextS || '—'}</div>
+                    <div><strong>來源專案（寫入時）：</strong>${_tmSegEscHtml(wProj) || '—'}</div>
+                    <div><strong>來源檔案：</strong>${fileLink}</div>
+                </td>
+            `;
+            tmSegmentsListBody.appendChild(trMain);
+            tmSegmentsListBody.appendChild(trDet);
+        });
+        syncTmSegmentsSelectAll();
+    }
+    async function tryOpenTmSourceFileFromMeta(writtenProject, writtenFile) {
+        const fn = (writtenFile || '').trim();
+        if (!fn) { alert('此筆無來源檔案名稱。'); return; }
+        const pn = (writtenProject || '').trim();
+        const projects = await DBService.getProjects();
+        const pool = pn ? projects.filter(p => (p.name || '').trim() === pn) : projects;
+        for (const p of pool) {
+            const files = await DBService.getFiles(p.id);
+            const hit = files.find(f => (f.name || '').trim() === fn);
+            if (hit) {
+                currentProjectId = p.id;
+                await openEditor(hit.id);
+                return;
+            }
+        }
+        alert('找不到對應檔案（依寫入時的專案名稱與檔名比對）。若專案或檔名已更名，請從專案檔案清單手動開啟。');
+    }
 
     if(btnBackToTms) btnBackToTms.addEventListener('click', () => switchView('viewTM'));
 
@@ -4204,6 +4307,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function openTmDetail(tmId) {
         currentTmId = tmId;
+        tmDupFilterActive = false;
+        _tmSegUpdateDupFilterButton();
         const tm = await DBService.getTM(tmId);
         if(!tm) return switchView('viewTM');
         detailTmName.textContent = tm.name;
@@ -4216,27 +4321,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function loadTmSegments() {
         if(!currentTmId || !tmSegmentsListBody) return;
         const segments = await DBService.getTMSegments(currentTmId);
-        tmSegmentCount.textContent = segments.length;
-        tmSegmentsListBody.innerHTML = '';
-        if(segments.length === 0) {
-            const tr = document.createElement('tr');
-            tr.innerHTML = '<td colspan="4" style="padding:0.75rem; color:#64748b;">此記憶庫尚無內容。</td>';
-            tmSegmentsListBody.appendChild(tr);
-            return;
-        }
-        segments.forEach((seg, idx) => {
-            const tr = document.createElement('tr');
-            const src = (seg.sourceText || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            const tgt = (seg.targetText || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            tr.innerHTML = `
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="tm-segment-row-cb" data-id="${seg.id}"></td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:40px;">${idx + 1}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:280px; overflow:hidden; text-overflow:ellipsis;" title="${src}">${src || '—'}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:280px; overflow:hidden; text-overflow:ellipsis;" title="${tgt}">${tgt || '—'}</td>
-            `;
-            tmSegmentsListBody.appendChild(tr);
-        });
-        syncTmSegmentsSelectAll();
+        tmSegmentsFullCache = segments;
+        const display = tmDupFilterActive ? _tmSegFilterDuplicatesOnly(segments) : segments;
+        renderTmSegmentsTable(display);
     }
 
     async function updateTmDetailChangeLog(tm) {
@@ -4278,7 +4365,67 @@ document.addEventListener('DOMContentLoaded', async () => {
         tmSegmentsListBody.addEventListener('change', (e) => {
             if (e.target.matches('.tm-segment-row-cb')) syncTmSegmentsSelectAll();
         });
+        tmSegmentsListBody.addEventListener('click', (e) => {
+            const exp = e.target.closest('.tm-seg-expand-btn');
+            if (exp) {
+                e.preventDefault();
+                const sid = exp.getAttribute('data-seg-id');
+                if (!sid) return;
+                const detailRow = tmSegmentsListBody.querySelector(`tr.tm-seg-detail-row[data-seg-id="${sid}"]`);
+                if (!detailRow) return;
+                const open = detailRow.classList.contains('hidden');
+                detailRow.classList.toggle('hidden', !open);
+                exp.setAttribute('aria-expanded', open ? 'true' : 'false');
+                exp.textContent = open ? '▼' : '▶';
+                return;
+            }
+            const fl = e.target.closest('.tm-seg-file-link');
+            if (fl) {
+                e.preventDefault();
+                let wproj = '';
+                let wfile = '';
+                try { wproj = decodeURIComponent(fl.getAttribute('data-wproj') || ''); } catch (_) { wproj = fl.getAttribute('data-wproj') || ''; }
+                try { wfile = decodeURIComponent(fl.getAttribute('data-wfile') || ''); } catch (_) { wfile = fl.getAttribute('data-wfile') || ''; }
+                void tryOpenTmSourceFileFromMeta(wproj, wfile);
+            }
+        });
     }
+
+    btnTmDupFilter?.addEventListener('click', () => {
+        tmDupFilterActive = !tmDupFilterActive;
+        _tmSegUpdateDupFilterButton();
+        const display = tmDupFilterActive ? _tmSegFilterDuplicatesOnly(tmSegmentsFullCache) : tmSegmentsFullCache;
+        renderTmSegmentsTable(display);
+    });
+
+    btnDeleteTmSegmentsSelected?.addEventListener('click', async () => {
+        if (!currentTmId || !tmSegmentsListBody) return;
+        const ids = Array.from(tmSegmentsListBody.querySelectorAll('.tm-segment-row-cb:checked'))
+            .map(cb => cb.getAttribute('data-id'))
+            .filter(Boolean);
+        if (!ids.length) {
+            alert('請先勾選要刪除的句段。');
+            return;
+        }
+        if (!confirm(`確定要刪除所選的 ${ids.length} 筆句段嗎？此動作無法復原。`)) return;
+        for (const id of ids) {
+            await DBService.deleteTMSegment(parseId(id));
+        }
+        const tm = await DBService.getTM(currentTmId);
+        if (tm) {
+            const entry = makeBaseLogEntry('delete', 'tm-segment', {
+                entityId: currentTmId,
+                entityName: tm.name || `TM #${currentTmId}`,
+                extra: { deletedCount: ids.length }
+            });
+            await appendTMChangeLog(currentTmId, entry);
+            await DBService.addModuleLog('tm', entry);
+            await updateTmDetailChangeLog(tm);
+        }
+        tmDupFilterActive = false;
+        _tmSegUpdateDupFilterButton();
+        await loadTmSegments();
+    });
 
     // ==========================================
     // TM/TB 匯出
@@ -5215,7 +5362,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         return getSessionConfirmRole();
     }
 
+    function showCatLoadingOverlay(msg) {
+        const el = document.getElementById('catLoadingOverlay');
+        const t = document.getElementById('catLoadingOverlayText');
+        if (t && msg != null) t.textContent = msg;
+        if (el) el.style.display = 'flex';
+    }
+    function hideCatLoadingOverlay() {
+        const el = document.getElementById('catLoadingOverlay');
+        if (el) el.style.display = 'none';
+    }
+
     async function openEditor(fileId) {
+        showCatLoadingOverlay('正在載入檔案…');
+        try {
         if (collabCurrentFileId && String(collabCurrentFileId) !== String(fileId)) {
             leaveCollabForCurrentFile();
         }
@@ -5520,6 +5680,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         activeView = 'viewEditor';
         persistCatRoute();
+        } finally {
+            hideCatLoadingOverlay();
+        }
     }
 
     btnExitEditor.addEventListener('click', async () => {
