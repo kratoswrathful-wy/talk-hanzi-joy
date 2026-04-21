@@ -8504,7 +8504,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tmId = rawTmId;
             const tmRow = await DBService.getTM(tmId);
             const tmName = tmRow ? tmRow.name : `TM #${tmId}`;
-            const existing = await DBService.getTMSegments(tmId);
+            const dbExisting = await DBService.getTMSegments(tmId);
+            // 本 session 剛加入的條目可能尚未反映在 DB 查詢結果中（PostgREST read-after-write 時序問題）
+            // 補入快取中屬於此 TM 且 DB 尚未回傳的條目，避免重複 addTMSegment
+            const dbIds = new Set(dbExisting.map(s => s.id));
+            const sessionAdds = (window.ActiveTmCache || []).filter(
+                t => t._tmId === tmId && !dbIds.has(t.id)
+            );
+            const existing = [...dbExisting, ...sessionAdds];
             const srcLang = metaBase.sourceLang.toLowerCase();
             const tgtLang = metaBase.targetLang.toLowerCase();
             const match = existing.find(tms => {

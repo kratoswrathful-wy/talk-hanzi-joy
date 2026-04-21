@@ -64,6 +64,7 @@ const mapProjectRow = (r: any) => ({
   readTbs: r.read_tbs ?? [],
   writeTb: r.write_tb ?? null,
   changeLog: r.change_log ?? [],
+  tmPenalties: r.tm_penalties ?? {},
   assignmentId: r.assignment_id ?? null,
   env: r.env ?? "production",
   createdAt: r.created_at,
@@ -255,6 +256,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         ...(payload.updates?.readTms != null ? { read_tms: payload.updates.readTms } : {}),
         ...(payload.updates?.writeTms != null ? { write_tms: payload.updates.writeTms } : {}),
         ...(payload.updates?.changeLog != null ? { change_log: payload.updates.changeLog } : {}),
+        ...(payload.updates?.tmPenalties != null ? { tm_penalties: payload.updates.tmPenalties } : {}),
         last_modified: nowIso(),
       } as any).eq("id", payload.projectId);
     case "db.getProjects": {
