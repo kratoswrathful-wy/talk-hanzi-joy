@@ -8370,20 +8370,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (targetDebounceTimer) {
                         clearTimeout(targetDebounceTimer);
                         targetDebounceTimer = null;
-                        const newVal = extractTextFromEditor(targetInput);
-                        const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
-                        if (oldVal !== newVal) {
-                            pushEditorUndo(seg.id, oldVal, newVal, {
-                                oldMatchValue: editorUndoMatchStart[seg.id],
-                                newMatchValue: seg.matchValue,
-                                oldStatus: editorUndoStatusStart[seg.id],
-                                newStatus: seg.status
-                            });
-                            editorUndoEditStart[seg.id] = newVal;
-                        }
-                        seg.targetText = newVal;
+                    }
+                    const newVal = extractTextFromEditor(targetInput);
+                    const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
+                    if (oldVal !== newVal) {
+                        pushEditorUndo(seg.id, oldVal, newVal, {
+                            oldMatchValue: editorUndoMatchStart[seg.id],
+                            newMatchValue: seg.matchValue,
+                            oldStatus: editorUndoStatusStart[seg.id],
+                            newStatus: seg.status
+                        });
+                        editorUndoEditStart[seg.id] = newVal;
+                    }
+                    seg.targetText = newVal;
+                    try {
                         await DBService.updateSegmentTarget(seg.id, newVal);
                         emitCollabEdit('commit', seg, newVal);
+                    } catch (err) {
+                        console.error('[譯文欄失焦寫庫失敗]', err, seg.id);
                     }
                     emitCollabEdit('end', seg, null);
                     // 使用者離開後，若非列印字元模式開啟，清除旗標讓標記重新套用至新輸入的空格
@@ -8416,7 +8420,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     markEmptySegUserEdited(seg.id);
                 });
 
-                // Ctrl+Enter logic（先焦點，再於背景寫入 DB／TM／傳播／undo）
+                // Ctrl+Enter logic（先從 DOM 強制寫庫，再執行確認／TM／傳播／undo）
                 targetInput.addEventListener('keydown', (e) => {
                     if (e.ctrlKey && e.key === 'Enter') {
                         e.preventDefault();
@@ -8426,15 +8430,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 queueMicrotask(() => targetInput.focus());
                                 return;
                             }
-                            // 確認前先從 DOM 同步最新譯文，確保 TM 寫入的是當前內容
                             if (targetDebounceTimer) {
                                 clearTimeout(targetDebounceTimer);
                                 targetDebounceTimer = null;
                             }
                             const latestTarget = extractTextFromEditor(targetInput);
-                            if (latestTarget !== seg.targetText) {
-                                seg.targetText = latestTarget;
-                                DBService.updateSegmentTarget(seg.id, latestTarget).catch(console.error);
+                            seg.targetText = latestTarget;
+                            try {
+                                await DBService.updateSegmentTarget(seg.id, latestTarget);
+                            } catch (err) {
+                                console.error('[Ctrl+Enter 確認前寫庫失敗]', err, seg.id);
                             }
                             const touch = collectConfirmTouchIndices(i);
                             const beforeSnapshots = {};
@@ -8550,15 +8555,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     queueMicrotask(() => targetTa.focus());
                                     return;
                                 }
-                                // 同步最新譯文到 seg.targetText
                                 if (targetDebounceTimer) {
                                     clearTimeout(targetDebounceTimer);
                                     targetDebounceTimer = null;
                                 }
                                 const latestTarget = extractTextFromEditor(targetTa);
-                                if (latestTarget !== seg.targetText) {
-                                    seg.targetText = latestTarget;
-                                    DBService.updateSegmentTarget(seg.id, latestTarget).catch(console.error);
+                                seg.targetText = latestTarget;
+                                try {
+                                    await DBService.updateSegmentTarget(seg.id, latestTarget);
+                                } catch (err) {
+                                    console.error('[狀態圖示確認前寫庫失敗]', err, seg.id);
                                 }
                             }
                             const touch = collectConfirmTouchIndices(i);
