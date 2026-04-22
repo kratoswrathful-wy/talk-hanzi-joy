@@ -9607,7 +9607,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     const settings = await DBService.getAiSettings();
                     if (!settings?.apiKey) {
-                        alert('已勾選「錯字／打字（中文，AI）」，但未設定 API Key。請至「AI 設定」填入。');
+                        alert('已勾選「錯字（由 AI 檢查）」，但未設定 API Key。請至「AI 設定」填入。');
                     } else if (typeof window.CatAiTranslate?.qaChineseTypos !== 'function') {
                         alert('AI 模組未載入，無法執行錯字檢查。');
                     } else {
@@ -12254,6 +12254,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (val) {
                         specialInstructions.push({ id: Date.now(), content: val, enabled: true, createdAt: new Date().toISOString() });
                         savePSettings();
+                        newItem.remove();
                     }
                     renderSpecialInstructions();
                 };
