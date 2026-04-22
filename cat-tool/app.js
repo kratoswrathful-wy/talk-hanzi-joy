@@ -5374,7 +5374,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function openEditor(fileId) {
-        showCatLoadingOverlay('正在載入檔案…');
         try {
         if (collabCurrentFileId && String(collabCurrentFileId) !== String(fileId)) {
             leaveCollabForCurrentFile();
@@ -5393,35 +5392,34 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const resolvedProjectId = file.projectId || currentProjectId;
         if (resolvedProjectId) currentProjectId = resolvedProjectId;
-        
-        editorFileName.textContent = file.name;
-        currentSegmentsList = await DBService.getSegmentsByFile(fileId);
 
-        // 推斷目前檔案格式，供狀態與樣式判斷使用
+        editorFileName.textContent = file.name;
+
+        // 先判斷格式與 mq 身分（mqxliff 須先選身分；全螢幕載入層 z-index 高於身分視窗，會擋住操作故延後顯示）
         const lowerName = (file.name || '').toLowerCase();
         if (lowerName.endsWith('.mqxliff')) currentFileFormat = 'mqxliff';
         else if (lowerName.endsWith('.sdlxliff')) currentFileFormat = 'sdlxliff';
         else if (lowerName.endsWith('.xlf') || lowerName.endsWith('.xliff')) currentFileFormat = 'xliff';
         else currentFileFormat = 'excel';
 
-        // 設定統計基準身分（用 defaultMqRole；非 mqxliff 則為 null）
         currentFileDefaultMqRole = currentFileFormat === 'mqxliff'
             ? (file.defaultMqRole === 'T' ? 'T_ALLOW_R1' : (file.defaultMqRole || 'T_ALLOW_R1'))
             : null;
 
-        // mqxliff：每次開啟都詢問當次作業身分，預設為匯入時選擇的身分
         if (currentFileFormat === 'mqxliff') {
-            // Backward compat: old 'T' maps to 'T_ALLOW_R1'
             const rawDefault = file.defaultMqRole === 'T' ? 'T_ALLOW_R1' : (file.defaultMqRole || 'T_ALLOW_R1');
             const importDefault = rawDefault;
             const role = await showMqRoleModal({ defaultRole: importDefault });
-            if (role === null) return; // 使用者取消，不開啟編輯器
+            if (role === null) return;
             currentMqConfirmationRole = role;
             if (!file.defaultMqRole) {
                 await DBService.updateFile(fileId, { defaultMqRole: role });
                 file.defaultMqRole = role;
             }
         }
+
+        showCatLoadingOverlay('正在載入檔案…');
+        currentSegmentsList = await DBService.getSegmentsByFile(fileId);
 
         // 設定／顯示 mqxliff 作業中身分圖示（篩選圖示正下方，與周遭圖示同大）
         const mqRoleIcon = document.getElementById('mqRoleIcon');
