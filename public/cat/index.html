@@ -30,9 +30,9 @@
                 <a href="#" class="nav-item" data-view="viewProjects"><span class="nav-icon">📁</span><span class="nav-text">專案 (Projects)</span></a>
                 <a href="#" class="nav-item" data-view="viewTM"><span class="nav-icon">🧠</span><span class="nav-text">翻譯記憶庫 (TM)</span></a>
                 <a href="#" class="nav-item" data-view="viewTB"><span class="nav-icon">📘</span><span class="nav-text">術語庫 (TB)</span></a>
-                <a href="#" class="nav-item ai-pm-nav" data-view="viewAiGuidelines" style="display:none;"><span class="nav-icon">📋</span><span class="nav-text">準則管理</span></a>
-                <a href="#" class="nav-item ai-pm-nav" data-view="viewAiSettings" style="display:none;"><span class="nav-icon">🤖</span><span class="nav-text">AI 設定</span></a>
-                <a href="#" class="nav-item ai-pm-nav" data-view="viewAiExamples" style="display:none;"><span class="nav-icon">📚</span><span class="nav-text">AI 學習範例</span></a>
+                <a href="#" class="nav-item ai-guidelines-nav" data-view="viewAiGuidelines" style="display:none;"><span class="nav-icon">📋</span><span class="nav-text">準則管理</span></a>
+                <a href="#" class="nav-item ai-exec-nav" data-view="viewAiSettings" style="display:none;"><span class="nav-icon">🤖</span><span class="nav-text">AI 管理</span></a>
+                <a href="#" class="nav-item ai-guidelines-nav" data-view="viewAiExamples" style="display:none;"><span class="nav-icon">📚</span><span class="nav-text">AI 學習範例</span></a>
             </nav>
 
             <div class="sidebar-footer" id="btnUserProfile" style="cursor: pointer;" title="設定使用者名稱">
@@ -613,8 +613,7 @@
                                 <div class="notes-panel-tabs">
                                     <button class="notes-tab-btn active" data-notes-tab="tabPrivateNotes">私人筆記</button>
                                     <button class="notes-tab-btn" data-notes-tab="tabSharedInfo">共用資訊</button>
-                                    <button class="notes-tab-btn ai-pm-tab" data-notes-tab="tabAiInstructions" style="display:none;">AI 指令</button>
-                                    <button class="notes-tab-btn ai-pm-tab" data-notes-tab="tabAiReport" style="display:none;">AI 報告</button>
+                                    <button class="notes-tab-btn ai-translator-ui" data-notes-tab="tabAiReport" style="display:none;">AI 報告</button>
                                 </div>
                                 <div style="display:flex; align-items:center; gap:0.4rem;">
                                     <button type="button" id="btnCollapseNotesPanel" class="notes-panel-collapse-btn" title="收合筆記面板">▼</button>
@@ -624,63 +623,90 @@
                                 <!-- Private Notes Tab -->
                                 <div class="notes-tab-content active" id="tabPrivateNotes">
                                     <p style="font-size:0.78rem; color:#64748b; margin:0 0 0.5rem 0;">僅自己可見。每則<strong>筆記</strong>可點「共用」複製或移動到共用資訊；離開編輯器時亦可批次處理（待辦僅能於此區管理，不會進入離開時的共用視窗）。</p>
-                                    <div class="shared-info-section">
-                                        <div class="shared-info-section-header">
-                                            <h4 class="shared-info-section-title">筆記</h4>
-                                            <button type="button" class="notes-add-btn" id="btnAddPrivateNote">＋ 新增筆記</button>
+                                    <div class="cat-notes-dual-col">
+                                        <div class="cat-notes-col">
+                                            <div class="shared-info-section">
+                                                <div class="shared-info-section-header">
+                                                    <h4 class="shared-info-section-title">筆記</h4>
+                                                    <button type="button" class="notes-add-btn" id="btnAddPrivateNote">＋ 新增筆記</button>
+                                                </div>
+                                                <div id="privateNotesListNotes" class="notes-items-list"></div>
+                                            </div>
                                         </div>
-                                        <div id="privateNotesListNotes" class="notes-items-list"></div>
-                                    </div>
-                                    <div class="shared-info-section" style="margin-top:0.75rem;">
-                                        <div class="shared-info-section-header">
-                                            <h4 class="shared-info-section-title">待辦事項</h4>
-                                            <button type="button" class="notes-add-btn" id="btnAddPrivateTodo">＋ 新增待辦</button>
+                                        <div class="cat-notes-col">
+                                            <div class="shared-info-section">
+                                                <div class="shared-info-section-header">
+                                                    <h4 class="shared-info-section-title">待辦事項</h4>
+                                                    <button type="button" class="notes-add-btn" id="btnAddPrivateTodo">＋ 新增待辦</button>
+                                                </div>
+                                                <div id="privateNotesListTodos" class="notes-items-list"></div>
+                                            </div>
                                         </div>
-                                        <div id="privateNotesListTodos" class="notes-items-list"></div>
                                     </div>
                                 </div>
                                 <!-- Shared Info Tab -->
                                 <div class="notes-tab-content" id="tabSharedInfo">
-                                    <div class="shared-info-section">
-                                        <div class="shared-info-section-header">
-                                            <h4 class="shared-info-section-title">翻譯準則</h4>
-                                            <button type="button" class="notes-add-btn pm-only-ui" id="btnAddPmGuideline" style="display:none;">＋ 新增準則</button>
+                                    <div class="cat-notes-dual-col">
+                                        <div class="cat-notes-col" id="tabSharedInfoLeft">
+                                            <div class="shared-info-section">
+                                                <div class="shared-info-section-header">
+                                                    <h4 class="shared-info-section-title">適用類別</h4>
+                                                </div>
+                                                <p style="font-size:0.78rem; color:#64748b; margin:0 0 0.4rem 0;">選取的類別會篩選風格學習與下述準則參考，並用於範例標記。</p>
+                                                <div id="aiDomainBadges" class="ai-domain-badges"></div>
+                                            </div>
+                                            <div class="shared-info-section" style="margin-top:0.6rem;">
+                                                <div class="shared-info-section-header">
+                                                    <h4 class="shared-info-section-title">庫內翻譯準則</h4>
+                                                    <span class="pm-only-ui" style="display:inline-flex; gap:0.35rem;">
+                                                        <button type="button" class="notes-add-btn" id="btnOpenAiGuidelinePicker">選擇準則</button>
+                                                        <button type="button" class="secondary-btn btn-sm" id="btnApplyDefaultGuidelines" title="以庫內勾選的預設條目覆寫本專案選取">套用預設</button>
+                                                    </span>
+                                                </div>
+                                                <div id="aiSelectedGuidelinesList" class="notes-items-list" style="font-size:0.82rem;"></div>
+                                            </div>
+                                            <div class="shared-info-section" style="margin-top:0.6rem;">
+                                                <div class="shared-info-section-header">
+                                                    <h4 class="shared-info-section-title">庫內文風偏好</h4>
+                                                    <span class="pm-only-ui" style="display:inline-flex; gap:0.35rem;">
+                                                        <button type="button" class="notes-add-btn" id="btnOpenAiStyleGuidelinePicker">選擇文風</button>
+                                                        <button type="button" class="secondary-btn btn-sm" id="btnApplyDefaultStyles">套用預設</button>
+                                                    </span>
+                                                </div>
+                                                <div id="aiSelectedStyleGuidelinesList" class="notes-items-list" style="font-size:0.82rem;"></div>
+                                            </div>
+                                            <div class="shared-info-section" style="margin-top:0.6rem;">
+                                                <div class="shared-info-section-header">
+                                                    <h4 class="shared-info-section-title">專案內手打翻譯準則</h4>
+                                                    <button type="button" class="notes-add-btn pm-only-ui" id="btnAddPmGuideline" style="display:none;">＋ 新增</button>
+                                                </div>
+                                                <div id="pmGuidelinesList" class="notes-items-list"></div>
+                                            </div>
+                                            <div class="shared-info-section pm-only-ui" id="fileSeriesExceptionSection" style="margin-top:0.6rem; display:none;">
+                                                <div class="shared-info-section-header">
+                                                    <h4 class="shared-info-section-title">同系列檔案例外</h4>
+                                                </div>
+                                                <p style="font-size:0.75rem; color:#64748b; margin:0 0 0.35rem 0;">僅針對<strong>本檔</strong>的額外說明（併入送 AI 提示）。全員可見，PM+ 可編修。</p>
+                                                <textarea id="aiFileSeriesExceptionInput" class="form-input" rows="2" style="width:100%; font-size:0.82rem;" placeholder="本檔系列專屬用語、例外不翻譯說明…"></textarea>
+                                                <button type="button" class="primary-btn btn-sm" id="btnSaveAiFileSeriesException" style="margin-top:0.35rem;">儲存本檔例外</button>
+                                            </div>
                                         </div>
-                                        <div id="pmGuidelinesList" class="notes-items-list"></div>
-                                    </div>
-                                    <div class="shared-info-section" style="margin-top:0.75rem;">
-                                        <div class="shared-info-section-header">
-                                            <h4 class="shared-info-section-title">共用筆記</h4>
+                                        <div class="cat-notes-col" id="tabSharedInfoRight">
+                                            <div class="shared-info-section">
+                                                <div class="shared-info-section-header">
+                                                    <h4 class="shared-info-section-title">本案特殊指示</h4>
+                                                    <button type="button" class="notes-add-btn pm-only-ui" id="btnAddAiSpecialInstruction" style="display:none;">＋ 新增指示</button>
+                                                </div>
+                                                <p style="font-size:0.78rem; color:#64748b; margin:0 0 0.4rem 0;">全專案共用。PM+ 可增刪；可勾選啟用。</p>
+                                                <div id="aiSpecialInstructionsList" class="notes-items-list"></div>
+                                            </div>
+                                            <div class="shared-info-section" style="margin-top:0.6rem;">
+                                                <div class="shared-info-section-header">
+                                                    <h4 class="shared-info-section-title">共用筆記</h4>
+                                                </div>
+                                                <div id="sharedNotesList" class="notes-items-list"></div>
+                                            </div>
                                         </div>
-                                        <div id="sharedNotesList" class="notes-items-list"></div>
-                                    </div>
-                                </div>
-                                <!-- AI 指令 Tab -->
-                                <div class="notes-tab-content" id="tabAiInstructions">
-                                    <!-- 適用類別 -->
-                                    <div class="shared-info-section">
-                                        <div class="shared-info-section-header">
-                                            <h4 class="shared-info-section-title">適用類別</h4>
-                                        </div>
-                                        <p style="font-size:0.78rem; color:#64748b; margin:0 0 0.4rem 0;">選取的類別會篩選下方準則，並自動標記 AI 學習範例。</p>
-                                        <div id="aiDomainBadges" class="ai-domain-badges"></div>
-                                    </div>
-                                    <!-- 一般準則 -->
-                                    <div class="shared-info-section" style="margin-top:0.75rem;">
-                                        <div class="shared-info-section-header">
-                                            <h4 class="shared-info-section-title">一般準則</h4>
-                                            <button type="button" class="notes-add-btn" id="btnOpenAiGuidelinePicker">選擇準則</button>
-                                        </div>
-                                        <div id="aiSelectedGuidelinesList" class="notes-items-list" style="font-size:0.82rem;"></div>
-                                    </div>
-                                    <!-- 特殊指示 -->
-                                    <div class="shared-info-section" style="margin-top:0.75rem;">
-                                        <div class="shared-info-section-header">
-                                            <h4 class="shared-info-section-title">特殊指示</h4>
-                                            <button type="button" class="notes-add-btn" id="btnAddAiSpecialInstruction">＋ 新增指示</button>
-                                        </div>
-                                        <p style="font-size:0.78rem; color:#64748b; margin:0 0 0.4rem 0;">針對本案件或即將處理部份的特殊情境說明，全專案共用。</p>
-                                        <div id="aiSpecialInstructionsList" class="notes-items-list"></div>
                                     </div>
                                 </div>
                                 <!-- AI 報告 Tab -->
@@ -844,12 +870,18 @@
 
             <!-- ====== AI 設定 View ====== -->
             <section class="view-section hidden" id="viewAiSettings" style="padding:2rem; overflow-y:auto;">
-                <header class="view-header"><h1>AI 設定</h1></header>
-                <div style="max-width:560px; display:flex; flex-direction:column; gap:1.25rem;">
+                <header class="view-header"><h1>AI 管理</h1></header>
+                <div id="viewAiSettingsInner" style="max-width:640px; display:flex; flex-direction:column; gap:1.25rem;">
+                    <p style="font-size:0.8rem; color:#64748b; margin:0;">全系統可經主站 <code style="font-size:0.78rem;">/api/cat-openai</code> 代打 OpenAI（<code>OPENAI_API_KEY</code> 僅在伺服器）。以下金鑰為<strong>本機與自架 API 備用</strong>。僅執行官可編修管理項目。</p>
                     <div class="form-group">
-                        <label class="form-label">API Key</label>
+                        <label class="form-label" style="display:flex; align-items:center; gap:0.5rem;">
+                            <input type="checkbox" id="aiSettingsPreferProxy" checked> 盡量使用主站代打（無須自填金鑰時可勾選）
+                        </label>
+                    </div>
+                    <div class="form-group" id="aiSettingsApiKeyGroup">
+                        <label class="form-label">API Key（自設／備用，選填）</label>
                         <input type="password" id="aiSettingsApiKey" class="form-input" placeholder="sk-…" autocomplete="off" style="font-family:monospace;">
-                        <p style="font-size:0.78rem; color:#64748b; margin:0.25rem 0 0 0;">API Key 儲存於本機 IndexedDB，不會上傳至任何伺服器。</p>
+                        <p style="font-size:0.78rem; color:#64748b; margin:0.25rem 0 0 0;">寫入本機瀏覽器儲存。代打不通時用於直連。</p>
                     </div>
                     <div class="form-group">
                         <label class="form-label">模型</label>
@@ -882,6 +914,15 @@
                         <label class="form-label">每批句段數</label>
                         <input type="number" id="aiSettingsBatchSize" class="form-input" min="1" max="100" value="20" style="width:100px;">
                         <p style="font-size:0.78rem; color:#64748b; margin:0.25rem 0 0 0;">AI 翻譯時每次送出的句段數量，建議 10–30。數字越大每批 context 越豐富，但若超出模型限制會出錯。</p>
+                    </div>
+                    <div class="form-group" id="aiPromptsExecBlock">
+                        <h4 style="font-size:0.9rem; margin:0 0 0.5rem 0; color:#334155;">可編系統提示（選填，置於內建提示之前）</h4>
+                        <label class="form-label" style="font-size:0.8rem;">翻譯前綴</label>
+                        <textarea id="aiPromptTranslatePrefix" class="form-input" rows="2" placeholder="可留空" style="resize:vertical; font-size:0.85rem;"></textarea>
+                        <label class="form-label" style="font-size:0.8rem; margin-top:0.5rem;">全文掃描前綴</label>
+                        <textarea id="aiPromptScanPrefix" class="form-input" rows="2" placeholder="可留空" style="resize:vertical; font-size:0.85rem;"></textarea>
+                        <label class="form-label" style="font-size:0.8rem; margin-top:0.5rem;">錯字檢查（可覆寫內建檢查說明；須能輸出與內建相同之 JSON 結尾）</label>
+                        <textarea id="aiPromptTypoSystem" class="form-input" rows="3" placeholder="可留空則用內建" style="resize:vertical; font-size:0.85rem;"></textarea>
                     </div>
                     <div style="display:flex; align-items:center; gap:0.75rem;">
                         <button type="button" id="btnSaveAiSettings" class="primary-btn">儲存設定</button>
@@ -921,6 +962,11 @@
                         <option value="">全部群組</option>
                         <option value="__none__">無互斥群組</option>
                     </select>
+                    <select id="aiGuidelinesFilterScope" class="form-input" style="width:auto; min-width:100px; padding:0.3rem 0.5rem; font-size:0.82rem;">
+                        <option value="">翻譯+文風</option>
+                        <option value="translation">翻譯</option>
+                        <option value="style">文風</option>
+                    </select>
                     <select id="aiGuidelinesSort" class="form-input" style="width:auto; min-width:130px; padding:0.3rem 0.5rem; font-size:0.82rem;">
                         <option value="order">依建立順序</option>
                         <option value="cat">依類別</option>
@@ -943,10 +989,20 @@
                                 <input type="hidden" id="aiGuidelineNewCategory" value="通用">
                             </div>
                             <div style="display:flex; align-items:center; gap:0.4rem;">
-                                <label style="font-size:0.82rem; color:#374151; white-space:nowrap;">互斥群組</label>
-                                <input type="text" id="aiGuidelineNewMutexGroup" list="aiMutexGroupList" class="form-input" placeholder="（選填）" style="width:140px;">
+                                <label style="font-size:0.82rem; color:#374151; white-space:nowrap;">互斥</label>
+                                <input type="text" id="aiGuidelineNewMutexGroup" list="aiMutexGroupList" class="form-input" placeholder="（選填）" style="width:100px;">
                                 <datalist id="aiMutexGroupList"></datalist>
                             </div>
+                            <div style="display:flex; align-items:center; gap:0.35rem;">
+                                <label style="font-size:0.8rem; color:#374151;">性質</label>
+                                <select id="aiGuidelineNewScope" class="form-input" style="width:auto; padding:0.25rem 0.4rem; font-size:0.8rem;">
+                                    <option value="translation">翻譯準則</option>
+                                    <option value="style">文風偏好</option>
+                                </select>
+                            </div>
+                            <label style="display:flex; align-items:center; gap:0.3rem; font-size:0.8rem; color:#374151;">
+                                <input type="checkbox" id="aiGuidelineNewIsDefault"> 預設條目
+                            </label>
                             <button type="button" id="btnAddAiGuideline" class="primary-btn btn-sm">新增</button>
                         </div>
                     </div>
@@ -1852,7 +1908,8 @@
                     <button type="button" id="btnAiPickerQuickAdd" class="secondary-btn btn-sm">新增</button>
                 </div>
             </div>
-            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.75rem; flex-shrink:0; border-top:1px solid #e2e8f0; padding-top:0.75rem;">
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.75rem; flex-shrink:0; border-top:1px solid #e2e8f0; padding-top:0.75rem; flex-wrap:wrap;">
+                <button type="button" id="btnAiPickerApplyDefaults" class="secondary-btn btn-sm" title="只保留庫內標示為預設的條目">套用預設條目</button>
                 <button type="button" id="btnConfirmAiGuidelinePicker" class="primary-btn btn-sm">確認選擇</button>
             </div>
         </div>
@@ -1877,6 +1934,17 @@
         <div class="modal-box" style="max-width:480px; width:92vw;">
             <h3 style="margin:0 0 0.75rem 0;">確認送出</h3>
             <div id="aiScanEstimateInfo" style="font-size:0.85rem; color:#475569; margin-bottom:1rem; line-height:1.7;"></div>
+            <div class="form-group" style="margin-bottom:0.75rem; font-size:0.85rem; color:#334155;">
+                <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer;">
+                    <input type="checkbox" id="aiReportOverwrite" checked> 覆寫目前同檔報告（預設）
+                </label>
+                <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; margin-top:0.35rem;">
+                    <input type="checkbox" id="aiReportKeepPrevious"> 将上一份完整報告存入歷程（可勾選併寫）
+                </label>
+                <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; margin-top:0.35rem;">
+                    <input type="checkbox" id="aiReportAppendMode"> 併入同一份文件（不覆寫、接續在後）
+                </label>
+            </div>
             <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.5rem;">
                 <button type="button" id="btnCancelAiScanConfirm" class="secondary-btn">取消</button>
                 <button type="button" id="btnSubmitAiScan" class="primary-btn">送出</button>

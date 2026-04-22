@@ -1188,19 +1188,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // AI 功能僅限執行長（executive）；本機離線模式視為通過
-    function _isAiAllowed() {
+    function _isCatExecutive() {
         if (!isTeamMode()) return true;
-        const role = (window._tmsRole || '').toLowerCase();
-        return role === 'executive';
+        return (window._tmsRole || '').toLowerCase() === 'executive';
     }
-
+    function _isCatPmOrExecutive() {
+        if (!isTeamMode()) return true;
+        const r = (window._tmsRole || '').toLowerCase();
+        return r === 'pm' || r === 'executive';
+    }
     function _applyAiPmOnlyVisibility() {
-        const allowed = _isAiAllowed();
-        document.querySelectorAll('.ai-pm-nav').forEach(el => { el.style.display = allowed ? '' : 'none'; });
-        document.querySelectorAll('.ai-pm-tab').forEach(el => { el.style.display = allowed ? '' : 'none'; });
+        const exec = _isCatExecutive();
+        const pmOrExec = _isCatPmOrExecutive();
+        document.querySelectorAll('.ai-exec-nav').forEach(el => { el.style.display = exec ? '' : 'none'; });
+        document.querySelectorAll('.ai-guidelines-nav').forEach(el => { el.style.display = pmOrExec ? '' : 'none'; });
+        document.querySelectorAll('.ai-translator-ui').forEach(el => { el.style.display = ''; });
         const btnAiMode = document.getElementById('btnAiMode');
-        if (btnAiMode) btnAiMode.style.display = allowed ? '' : 'none';
+        if (btnAiMode) btnAiMode.style.display = '';
     }
 
     function enforceTeamRoleLayout() {
@@ -2447,7 +2451,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnProjectTmPickerAddNew')?.addEventListener('click', async () => {
         closeProjectTmPickerModal();
         const proj = currentProjectId ? (await DBService.getProject(currentProjectId) || {}) : {};
-        openNamingModal('createTM', '新增翻譯記憶庫 (TM)', 'TM 名稱', null, '', {
+        openNamingModal('createTM', '新增翻譯記憶庫 (TM)', 'TM 名稱', null, (proj.name || '').trim() || '未命名專案', {
             sourceLangs: proj.sourceLangs || [],
             targetLangs: proj.targetLangs || []
         });
@@ -2456,7 +2460,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnProjectTbPickerAddNew')?.addEventListener('click', async () => {
         closeProjectTbPickerModal();
         const proj = currentProjectId ? (await DBService.getProject(currentProjectId) || {}) : {};
-        openNamingModal('createTB', '新增術語庫 (TB)', 'TB 名稱', null, '', {
+        openNamingModal('createTB', '新增術語庫 (TB)', 'TB 名稱', null, (proj.name || '').trim() || '未命名專案', {
             sourceLangs: proj.sourceLangs || [],
             targetLangs: proj.targetLangs || []
         });
@@ -4874,6 +4878,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (action === 'createProject') {
             const id = await DBService.createProject(val, srcLangs, tgtLangs);
+            try { await DBService.applyDefaultAiProjectSettingsForNewProject(id); } catch (e) { console.warn(e); }
             const entry = makeBaseLogEntry('create', 'project', {
                 entityId: id,
                 entityName: val
@@ -9620,7 +9625,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const tbCount = _qaResults.filter(r => r.type === '術語未套用').length;
         const conCount = _qaResults.filter(r => r.type === '譯文不一致').length;
         const numCount = _qaResults.filter(r => r.type === '數字不相符').length;
-        const typoCount = _qaResults.filter(r => r.type === '錯字／打字').length;
+        const typoCount = _qaResults.filter(r => (r.type === '錯字' || r.type === '錯字／打字')).length;
 
         if (_qaResults.length === 0) {
             table.style.display = 'none';
@@ -9655,7 +9660,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const tdType = document.createElement('td');
             tdType.className = 'qa-td-type';
-            tdType.textContent = r.type;
+            tdType.textContent = (r.type === '錯字／打字' || r.type === '錯字/打字') ? '錯字' : r.type;
 
             const tdInfo = document.createElement('td');
             tdInfo.className = 'qa-td-info qa-clickable';
@@ -9743,8 +9748,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         statusEl.style.color = '#64748b';
                     }
                     const settings = await DBService.getAiSettings();
-                    if (!settings?.apiKey) {
-                        alert('已勾選「錯字（由 AI 檢查）」，但未設定 API Key。請至「AI 設定」填入。');
+                    if (!settings?.apiKey && settings?.preferOpenAiProxy === false) {
+                        alert('已勾選「錯字（由 AI 檢查）」，但無法連線 AI。請至「AI 管理」設定。');
                     } else if (typeof window.CatAiTranslate?.qaChineseTypos !== 'function') {
                         alert('AI 模組未載入，無法執行錯字檢查。');
                     } else {
@@ -9761,7 +9766,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 _qaResults.push({
                                     segId: it.segId,
                                     gid: it.gid,
-                                    type: '錯字／打字',
+                                    type: '錯字',
                                     info: it.detail,
                                     key: `${it.gid}:typo`
                                 });
@@ -10537,6 +10542,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** 側欄共用資訊 + 若共用資訊 Modal 開啟則一併重繪 */
     async function _refreshSharedInfoUi() {
         await _loadSharedInfo();
+        await loadSharedInfoAiPanel();
         const m = document.getElementById('sharedInfoModal');
         const pid = _notesProjectIdOrNull();
         if (m && !m.classList.contains('hidden') && pid) {
@@ -10661,7 +10667,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (tabEl) tabEl.classList.add('active');
                 await _loadPrivateNotes();
                 await _refreshSharedInfoUi();
-                if (tabId === 'tabAiInstructions') await loadAiInstructionsTab();
+                if (tabId === 'tabSharedInfo') await loadSharedInfoAiPanel();
+                if (tabId === 'tabAiReport') await _loadFileAiReportToPanel();
             });
         });
 
@@ -10869,7 +10876,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         _activeNoteProjectId = projectId || currentProjectId;
         initNotesPanel();
-        await Promise.all([_loadPrivateNotes(), _refreshSharedInfoUi()]);
+        await Promise.all([_loadPrivateNotes(), _refreshSharedInfoUi(), _loadFileAiReportToPanel()]);
     }
 
     async function _loadPrivateNotes() {
@@ -11646,9 +11653,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const dismissToast = document.getElementById('btnDismissAiProgress');
         if (dismissToast) dismissToast.addEventListener('click', () => { const t = document.getElementById('aiProgressToast'); if(t) t.style.display='none'; });
         const clearReportBtn = document.getElementById('btnClearAiReport');
-        if (clearReportBtn) clearReportBtn.addEventListener('click', () => {
-            const rc = document.getElementById('aiReportContent');
-            if (rc) rc.innerHTML = '<span style="color:#94a3b8;">尚無報告。請使用 AI 模式列的「掃描全文」功能。</span>';
+        if (clearReportBtn) clearReportBtn.addEventListener('click', async () => {
+            if (!currentFileId) return;
+            if (!confirm('清除本檔保存的 AI 報告與歷程？')) return;
+            try {
+                await DBService.clearFileAiReport(currentFileId);
+                await _loadFileAiReportToPanel();
+            } catch (e) { console.error(e); }
         });
     })();
 
@@ -11669,14 +11680,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ---- AI 設定 View ----
     async function loadAiSettingsView() {
         const settings = await DBService.getAiSettings();
+        const exec = _isCatExecutive();
         const apiKeyEl = document.getElementById('aiSettingsApiKey');
         const modelSelect = document.getElementById('aiSettingsModel');
         const modelCustom = document.getElementById('aiSettingsModelCustom');
         const baseUrlEl = document.getElementById('aiSettingsBaseUrl');
         const batchSizeEl = document.getElementById('aiSettingsBatchSize');
-        if (apiKeyEl) apiKeyEl.value = settings.apiKey || '';
-        if (baseUrlEl) baseUrlEl.value = settings.apiBaseUrl || '';
-        if (batchSizeEl) batchSizeEl.value = settings.batchSize ?? 20;
+        const preferProxyEl = document.getElementById('aiSettingsPreferProxy');
+        const pt = settings.prompts || {};
+        const prTr = document.getElementById('aiPromptTranslatePrefix');
+        const prSc = document.getElementById('aiPromptScanPrefix');
+        const prTy = document.getElementById('aiPromptTypoSystem');
+        if (preferProxyEl) preferProxyEl.checked = settings.preferOpenAiProxy !== false;
+        if (prTr) prTr.value = pt.translateSystemPrefix || '';
+        if (prSc) prSc.value = pt.scanSystemPrefix || '';
+        if (prTy) prTy.value = pt.typoSystem || '';
+        if (prTr) prTr.readOnly = prSc.readOnly = prTy.readOnly = !exec;
+        if (preferProxyEl) preferProxyEl.disabled = !exec;
+        const exBlock = document.getElementById('aiPromptsExecBlock');
+        if (exBlock) exBlock.style.opacity = exec ? '1' : '0.65';
+        if (apiKeyEl) { apiKeyEl.value = settings.apiKey || ''; apiKeyEl.readOnly = !exec; }
+        if (baseUrlEl) { baseUrlEl.value = settings.apiBaseUrl || ''; baseUrlEl.readOnly = !exec; }
+        if (batchSizeEl) { batchSizeEl.value = settings.batchSize ?? 20; batchSizeEl.readOnly = !exec; }
+        if (modelSelect) modelSelect.disabled = !exec;
+        if (modelCustom) modelCustom.readOnly = !exec;
+        const saveBtn0 = document.getElementById('btnSaveAiSettings');
+        if (saveBtn0) saveBtn0.style.display = exec ? '' : 'none';
+        const testBtn0 = document.getElementById('btnTestAiSettings');
+        if (testBtn0) testBtn0.style.display = exec ? '' : 'none';
 
         // 設定模型選單的選取值
         function _setModelValue(model) {
@@ -11721,12 +11752,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (saveBtn) {
             saveBtn.onclick = async () => {
+                if (!_isCatExecutive()) return;
                 const bsRaw = parseInt(batchSizeEl?.value || '20', 10);
                 await DBService.saveAiSettings({
                     apiKey: apiKeyEl?.value?.trim() || '',
                     model: _getSelectedModel(),
                     apiBaseUrl: baseUrlEl?.value?.trim() || '',
-                    batchSize: Number.isFinite(bsRaw) && bsRaw >= 1 ? bsRaw : 20
+                    batchSize: Number.isFinite(bsRaw) && bsRaw >= 1 ? bsRaw : 20,
+                    preferOpenAiProxy: preferProxyEl ? preferProxyEl.checked : true,
+                    prompts: {
+                        translateSystemPrefix: prTr?.value?.trim() || '',
+                        scanSystemPrefix: prSc?.value?.trim() || '',
+                        typoSystem: prTy?.value?.trim() || ''
+                    }
                 });
                 saveBtn.textContent = '已儲存 ✓';
                 setTimeout(() => { saveBtn.textContent = '儲存設定'; }, 2000);
@@ -11735,11 +11773,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (testBtn && testResult) {
             testBtn.onclick = async () => {
+                if (!_isCatExecutive()) return;
                 testResult.textContent = '測試中…';
                 testResult.style.color = '#64748b';
                 // 先儲存目前表單值再測試
                 const apiKey = apiKeyEl?.value?.trim() || '';
-                if (!apiKey) { testResult.textContent = '請先填入 API Key'; testResult.style.color = '#ef4444'; return; }
+                if (!apiKey) { testResult.textContent = '若僅用主站代打可不填，改以佈署環境變數測試。若要直連測試請先填入本機金鑰'; testResult.style.color = '#b45309'; return; }
                 const baseUrl = (baseUrlEl?.value?.trim() || 'https://api.openai.com').replace(/\/$/, '');
                 const model = _getSelectedModel();
 
@@ -11801,7 +11840,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ---- 準則管理 View ----
     async function loadAiGuidelinesView() {
-        if (!_isAiAllowed()) return;
+        if (!_isCatPmOrExecutive()) return;
         const allGuidelines = await DBService.getAiGuidelines();
         let allCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
         // 懶播種：第一次進入時若無任何標籤，補植預設「通用」
@@ -11820,6 +11859,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Filter/sort state
         let filterCat = '';
         let filterMutex = '';
+        let filterScope = '';
         let sortKey = 'order';
 
         // ---- 類別標籤管理 ----
@@ -11949,9 +11989,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const catFilterEl = document.getElementById('aiGuidelinesFilterCat');
         const mutexFilterEl = document.getElementById('aiGuidelinesFilterMutex');
+        const scopeFilterEl = document.getElementById('aiGuidelinesFilterScope');
         const sortEl = document.getElementById('aiGuidelinesSort');
         if (catFilterEl) catFilterEl.onchange = () => { filterCat = catFilterEl.value; renderList(); };
         if (mutexFilterEl) mutexFilterEl.onchange = () => { filterMutex = mutexFilterEl.value; renderList(); };
+        if (scopeFilterEl) scopeFilterEl.onchange = () => { filterScope = scopeFilterEl.value; renderList(); };
         if (sortEl) sortEl.onchange = () => { sortKey = sortEl.value; renderList(); };
 
         updateFilterBarOptions();
@@ -11964,6 +12006,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (filterCat && !_normalizeCategory(g.category).includes(filterCat)) return false;
                 if (filterMutex === '__none__' && g.mutexGroup) return false;
                 if (filterMutex && filterMutex !== '__none__' && g.mutexGroup !== filterMutex) return false;
+                const sc = (g.scope || 'translation') === 'style' ? 'style' : 'translation';
+                if (filterScope === 'translation' && sc !== 'translation') return false;
+                if (filterScope === 'style' && sc !== 'style') return false;
                 return true;
             });
             // Apply sort
@@ -11999,13 +12044,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (item.type === 'single') {
                     const g = item.g;
                     const catBadges = _normalizeCategory(g.category).map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
+                    const scLabel = (g.scope || 'translation') === 'style' ? '文風' : '翻譯';
+                    const defLabel = g.isDefault ? ' <span class="ai-badge" style="background:#e0e7ff;">預設</span>' : '';
                     return `
                         <div class="ai-guideline-item" data-id="${g.id}">
                             <div style="flex:1;">
-                                <div class="ai-guideline-item-content">${_esc(g.content)}</div>
+                                <div class="ai-guideline-item-content"><span class="ai-badge" style="margin-right:0.35rem;">${scLabel}</span>${defLabel}<br>${_esc(g.content)}</div>
                                 <div class="ai-guideline-item-meta">${catBadges}</div>
                             </div>
-                            <div class="ai-guideline-item-actions">
+                            <div class="ai-guideline-item-actions" style="display:flex; flex-direction:column; gap:0.25rem; align-items:flex-end;">
+                                <label style="font-size:0.72rem; display:flex; align-items:center; gap:0.2rem; cursor:pointer;">
+                                    <input type="checkbox" class="ag-toggle-default" data-gid="${g.id}" ${g.isDefault ? 'checked' : ''}/> 預設
+                                </label>
                                 <button class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
                             </div>
                         </div>`;
@@ -12043,6 +12093,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                     renderList();
                 };
             });
+            list.querySelectorAll('.ag-toggle-default').forEach(cb => {
+                cb.onchange = async () => {
+                    const gid = parseInt(cb.getAttribute('data-gid'), 10);
+                    try {
+                        await DBService.updateAiGuideline(gid, { isDefault: cb.checked });
+                        const row = allGuidelines.find(g => g.id === gid);
+                        if (row) row.isDefault = cb.checked;
+                    } catch (e) { console.error(e); }
+                };
+            });
         }
 
         function updateMutexDatalist() {
@@ -12061,10 +12121,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const categoryVal = selectedNewCategories.length > 0 ? JSON.stringify(selectedNewCategories) : '通用';
                     const category = categoryVal;
                     const mutexGroup = document.getElementById('aiGuidelineNewMutexGroup')?.value?.trim() || null;
+                    const scopeEl = document.getElementById('aiGuidelineNewScope');
+                    const scope = (scopeEl && scopeEl.value === 'style') ? 'style' : 'translation';
+                    const isDefault = !!(document.getElementById('aiGuidelineNewIsDefault')?.checked);
                     if (!content) { alert('請輸入準則內容'); return; }
-                    if (!_isAiAllowed()) return;
-                    const id = await DBService.addAiGuideline({ content, category, mutexGroup, sortOrder: allGuidelines.length });
-                    const newRow = { id, content, category, mutexGroup: mutexGroup || null, sortOrder: allGuidelines.length };
+                    if (!_isCatPmOrExecutive()) return;
+                    const id = await DBService.addAiGuideline({ content, category, mutexGroup, sortOrder: allGuidelines.length, scope, isDefault });
+                    const newRow = { id, content, category, mutexGroup: mutexGroup || null, sortOrder: allGuidelines.length, scope, isDefault };
                     allGuidelines.push(newRow);
                     document.getElementById('aiGuidelineNewContent').value = '';
                     document.getElementById('aiGuidelineNewMutexGroup').value = '';
@@ -12189,20 +12252,56 @@ document.addEventListener('DOMContentLoaded', async () => {
         render();
     }
 
-    // ---- AI 指令 Tab ----
-    async function loadAiInstructionsTab() {
+    async function _loadFileAiReportToPanel() {
+        const rc = document.getElementById('aiReportContent');
+        if (!rc) return;
+        if (!currentFileId) {
+            rc.innerHTML = '<span style="color:#94a3b8;">開啟檔案後會顯示該檔保存的掃描報告。</span>';
+            return;
+        }
+        try {
+            const row = await DBService.getFileAiReportRow(currentFileId);
+            if (row && row.text != null && String(row.text).trim() !== '') {
+                let out = String(row.text);
+                if (Array.isArray(row.history) && row.history.length) {
+                    out += '\n\n── 歷程（先前版本）──\n';
+                    out += row.history.map(h => (h && h.at ? `[${h.at}]\n` : '') + (h && h.text != null ? h.text : '')).filter(Boolean).join('\n\n');
+                }
+                rc.textContent = out;
+            } else {
+                rc.innerHTML = '<span style="color:#94a3b8;">尚無此檔的保存報告。可使用 AI 列的「掃描全文」。</span>';
+            }
+        } catch (_) {
+            rc.textContent = '讀取報告失敗';
+        }
+    }
+
+    // ---- 共用資訊分頁內：AI 準則、文風、特殊指示、檔案例外 ----
+    async function loadSharedInfoAiPanel() {
         if (!currentProjectId) return;
 
         const domainBadges = document.getElementById('aiDomainBadges');
         const selectedList = document.getElementById('aiSelectedGuidelinesList');
+        const selectedStyleList = document.getElementById('aiSelectedStyleGuidelinesList');
         const specialList = document.getElementById('aiSpecialInstructionsList');
         const openPickerBtn = document.getElementById('btnOpenAiGuidelinePicker');
+        const openStyleBtn = document.getElementById('btnOpenAiStyleGuidelinePicker');
         const addSpecialBtn = document.getElementById('btnAddAiSpecialInstruction');
+        const btnDefG = document.getElementById('btnApplyDefaultGuidelines');
+        const btnDefS = document.getElementById('btnApplyDefaultStyles');
+        const fileExSec = document.getElementById('fileSeriesExceptionSection');
+        const fileExTa = document.getElementById('aiFileSeriesExceptionInput');
+        const fileExSave = document.getElementById('btnSaveAiFileSeriesException');
+        document.querySelectorAll('#tabSharedInfo .pm-only-ui').forEach(el => {
+            el.style.display = isCatSharedMutator() ? '' : 'none';
+        });
 
         const [allGuidelines, psettings] = await Promise.all([
             DBService.getAiGuidelines(),
             DBService.getAiProjectSettings(currentProjectId)
         ]);
+        const allTranslation = allGuidelines.filter(g => (g.scope || 'translation') === 'translation');
+        const allStyle = allGuidelines.filter(g => (g.scope || 'style') === 'style');
         let allCategoryTagsInTab = await DBService.getAiCategoryTags().catch(() => []);
         if (allCategoryTagsInTab.length === 0) {
             try { await DBService.addAiCategoryTag('通用'); } catch (_) {}
@@ -12210,12 +12309,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const fileRec = currentFileId ? await DBService.getFile(currentFileId).catch(() => null) : null;
         const fileDomains = fileRec?.aiDomains ? [...fileRec.aiDomains] : [];
-        let selectedGuidelineIds = new Set(psettings?.selectedGuidelineIds || []);
+        let selectedGuidelineIds = new Set((psettings?.selectedGuidelineIds || []).map(Number));
+        let selectedStyleIds = new Set((psettings?.selectedStyleGuidelineIds || []).map(Number));
         let specialInstructions = Array.isArray(psettings?.specialInstructions) ? [...psettings.specialInstructions] : [];
+        if (fileExSec) fileExSec.style.display = currentFileId ? '' : 'none';
+        if (fileExTa) {
+            fileExTa.value = (fileRec && fileRec.aiSeriesException != null) ? String(fileRec.aiSeriesException) : '';
+            fileExTa.readOnly = !isCatSharedMutator();
+        }
+        if (fileExSave) fileExSave.style.display = isCatSharedMutator() ? '' : 'none';
+        if (fileExSave && !fileExSave._bound) {
+            fileExSave._bound = true;
+            fileExSave.addEventListener('click', async () => {
+                if (!currentFileId || !isCatSharedMutator()) return;
+                const v = fileExTa?.value?.trim() != null ? String(fileExTa.value) : '';
+                try {
+                    await DBService.updateFile(currentFileId, { aiSeriesException: v });
+                } catch (e) { console.error(e); alert('儲存失敗'); }
+            });
+        }
 
         function savePSettings() {
             DBService.saveAiProjectSettings(currentProjectId, {
                 selectedGuidelineIds: [...selectedGuidelineIds],
+                selectedStyleGuidelineIds: [...selectedStyleIds],
                 specialInstructions
             }).catch(console.error);
         }
@@ -12244,21 +12361,39 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
-        // Render selected guidelines
         function renderSelectedGuidelines() {
             if (!selectedList) return;
-            const selected = allGuidelines.filter(g => selectedGuidelineIds.has(g.id));
-            if (selected.length === 0) { selectedList.innerHTML = '<p style="font-size:0.78rem; color:#94a3b8; margin:0;">尚未選擇任何準則。</p>'; return; }
+            const selected = allTranslation.filter(g => selectedGuidelineIds.has(g.id));
+            if (selected.length === 0) { selectedList.innerHTML = '<p style="font-size:0.78rem; color:#94a3b8; margin:0;">尚未選擇任何翻譯準則。</p>'; return; }
             selectedList.innerHTML = selected.map(g => `
                 <div class="ai-selected-guideline-item">
                     <span class="ai-selected-guideline-item-content">${_esc(g.content)}</span>
-                    <button class="ai-note-item-del" data-unselect="${g.id}" title="取消選擇">✕</button>
+                    ${isCatSharedMutator() ? `<button class="ai-note-item-del" data-unselect="${g.id}" title="取消選擇">✕</button>` : ''}
                 </div>
             `).join('');
             selectedList.querySelectorAll('[data-unselect]').forEach(btn => {
                 btn.onclick = () => {
                     selectedGuidelineIds.delete(parseInt(btn.getAttribute('data-unselect'), 10));
                     renderSelectedGuidelines();
+                    savePSettings();
+                };
+            });
+        }
+
+        function renderSelectedStyleGuidelines() {
+            if (!selectedStyleList) return;
+            const selected = allStyle.filter(g => selectedStyleIds.has(g.id));
+            if (selected.length === 0) { selectedStyleList.innerHTML = '<p style="font-size:0.78rem; color:#94a3b8; margin:0;">尚未選擇文風條目。</p>'; return; }
+            selectedStyleList.innerHTML = selected.map(g => `
+                <div class="ai-selected-guideline-item">
+                    <span class="ai-selected-guideline-item-content">${_esc(g.content)}</span>
+                    ${isCatSharedMutator() ? `<button class="ai-note-item-del" data-unselect-style="${g.id}" title="取消選擇">✕</button>` : ''}
+                </div>
+            `).join('');
+            selectedStyleList.querySelectorAll('[data-unselect-style]').forEach(btn => {
+                btn.onclick = () => {
+                    selectedStyleIds.delete(parseInt(btn.getAttribute('data-unselect-style'), 10));
+                    renderSelectedStyleGuidelines();
                     savePSettings();
                 };
             });
@@ -12347,14 +12482,46 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         renderDomains();
         renderSelectedGuidelines();
+        renderSelectedStyleGuidelines();
         renderSpecialInstructions();
+
+        if (btnDefG) {
+            btnDefG.onclick = async () => {
+                if (!isCatSharedMutator()) return;
+                const defIds = allTranslation.filter(g => g.isDefault).map(g => g.id);
+                selectedGuidelineIds = new Set(defIds);
+                renderSelectedGuidelines();
+                savePSettings();
+            };
+        }
+        if (btnDefS) {
+            btnDefS.onclick = async () => {
+                if (!isCatSharedMutator()) return;
+                const defIds = allStyle.filter(g => g.isDefault).map(g => g.id);
+                selectedStyleIds = new Set(defIds);
+                renderSelectedStyleGuidelines();
+                savePSettings();
+            };
+        }
 
         if (openPickerBtn) {
             openPickerBtn.onclick = async () => {
-                const chosen = await openAiGuidelinePicker([...selectedGuidelineIds], allGuidelines);
+                if (!isCatSharedMutator()) return;
+                const chosen = await openAiGuidelinePicker([...selectedGuidelineIds], allTranslation, { scope: 'translation' });
                 if (chosen !== null) {
                     selectedGuidelineIds = new Set(chosen);
                     renderSelectedGuidelines();
+                    savePSettings();
+                }
+            };
+        }
+        if (openStyleBtn) {
+            openStyleBtn.onclick = async () => {
+                if (!isCatSharedMutator()) return;
+                const chosen = await openAiGuidelinePicker([...selectedStyleIds], allStyle, { scope: 'style' });
+                if (chosen !== null) {
+                    selectedStyleIds = new Set(chosen);
+                    renderSelectedStyleGuidelines();
                     savePSettings();
                 }
             };
@@ -12407,11 +12574,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // ---- 準則選擇器 Modal ----
-    function openAiGuidelinePicker(currentCheckedIds, allGuidelines) {
+    /** @param options {{ scope?: 'translation'|'style' }} */
+    function openAiGuidelinePicker(currentCheckedIds, allGuidelines, options) {
         return new Promise(resolve => {
             const modal = document.getElementById('aiGuidelinePickerModal');
             const tabBar = document.getElementById('aiPickerTabBar');
             const pickerList = document.getElementById('aiPickerList');
+            const titleEl = modal ? modal.querySelector('h3') : null;
+            if (titleEl) {
+                const sc = options && options.scope === 'style' ? '文風偏好' : '翻譯準則';
+                titleEl.textContent = `選擇適用${sc}`;
+            }
             if (!modal) { resolve(null); return; }
 
             // Parse category stored as JSON array or plain string
@@ -12509,10 +12682,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const content = document.getElementById('aiPickerQuickContent')?.value?.trim() || '';
                     const category = document.getElementById('aiPickerQuickCategory')?.value?.trim() || '通用';
                     if (!content) return;
-                    const id = await DBService.addAiGuideline({ content, category, sortOrder: allGuidelines.length });
-                    allGuidelines.push({ id, content, category, sortOrder: allGuidelines.length });
+                    const scope = options && options.scope === 'style' ? 'style' : 'translation';
+                    const id = await DBService.addAiGuideline({ content, category, sortOrder: allGuidelines.length, scope });
+                    allGuidelines.push({ id, content, category, sortOrder: allGuidelines.length, scope });
                     checked.add(id);
                     document.getElementById('aiPickerQuickContent').value = '';
+                    renderList();
+                };
+            }
+
+            const applyDefBtn = document.getElementById('btnAiPickerApplyDefaults');
+            if (applyDefBtn) {
+                applyDefBtn.onclick = () => {
+                    checked.clear();
+                    allGuidelines.forEach(g => {
+                        if (g.isDefault) checked.add(g.id);
+                    });
                     renderList();
                 };
             }
@@ -12731,6 +12916,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const est = window.CatAiTranslate?.estimateScanTokens?.(segments, extraPrompt) || {};
         const { estimatedTokens = 0, willTruncate = false, keptCount = segments.length, totalCount = segments.length } = est;
 
+        const ow = document.getElementById('aiReportOverwrite');
+        const kph = document.getElementById('aiReportKeepPrevious');
+        const apd = document.getElementById('aiReportAppendMode');
+        if (ow) ow.checked = true;
+        if (kph) kph.checked = false;
+        if (apd) apd.checked = false;
+
         let infoHtml = `句段總數：<b>${totalCount}</b> 條<br>估算 Token 數：<b>${estimatedTokens.toLocaleString()}</b>`;
         if (willTruncate) {
             infoHtml += `<br><span style="color:#b45309;">⚠ 內容超過模型限制，將自動截斷，僅保留前後共 <b>${keptCount}</b> 條。</span>`;
@@ -12746,15 +12938,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             function close() { confirmModal.classList.add('hidden'); resolve(null); }
             if (cancelBtn) cancelBtn.onclick = close;
             if (submitBtn) submitBtn.onclick = async () => {
+                const overwrite = document.getElementById('aiReportOverwrite')?.checked !== false;
+                const keepPrevious = document.getElementById('aiReportKeepPrevious')?.checked;
+                const appendMode = document.getElementById('aiReportAppendMode')?.checked;
                 confirmModal.classList.add('hidden');
-                await _runAiScan(settings, extraPrompt);
+                await _runAiScan(settings, extraPrompt, { overwrite, keepPrevious, appendMode });
                 resolve();
             };
         });
     }
 
-    async function _runAiScan(settings, extraPrompt) {
-        if (!settings?.apiKey) { _showAiToast('請先在「AI 設定」填入 API Key', true); return; }
+    async function _runAiScan(settings, extraPrompt, reportOpts) {
+        if (!settings || (settings.preferOpenAiProxy === false && !settings.apiKey)) {
+            _showAiToast('請先在「AI 管理」設定可連線方式或 API Key', true);
+            return;
+        }
         _showAiToast('正在掃描全文，請稍候…');
         try {
             const aiOptions = await _buildAiOptions(settings, '');
@@ -12762,12 +12960,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                 settings,
                 extraPrompt,
                 guidelines: aiOptions.guidelines,
+                styleGuidelines: aiOptions.styleGuidelines,
                 styleExamples: aiOptions.styleExamples,
                 tbTerms: aiOptions.tbTerms
             });
             const rc = document.getElementById('aiReportContent');
             if (rc) rc.textContent = report;
-            // 切換至 AI 報告 tab
+            if (currentFileId && reportOpts) {
+                const wantAppend = reportOpts.appendMode || !reportOpts.overwrite;
+                await DBService.saveFileAiReport(currentFileId, {
+                    text: report,
+                    mode: wantAppend ? 'append' : 'replace',
+                    keepPreviousInHistory: !wantAppend && !!reportOpts.keepPrevious
+                });
+            }
+            if (rc) _loadFileAiReportToPanel();
             const reportTab = document.querySelector('[data-notes-tab="tabAiReport"]');
             if (reportTab) reportTab.click();
             _hideAiToast();
@@ -13015,21 +13222,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         const fileRec = currentFileId ? await DBService.getFile(currentFileId).catch(() => null) : null;
         const fileDomains = fileRec?.aiDomains || [];
         const psettings = currentProjectId ? await DBService.getAiProjectSettings(currentProjectId).catch(() => null) : null;
-        const selectedGuidelineIds = new Set(psettings?.selectedGuidelineIds || []);
+        const selectedGuidelineIds = new Set((psettings?.selectedGuidelineIds || []).map(Number));
+        const selectedStyleIds = new Set((psettings?.selectedStyleGuidelineIds || []).map(Number));
         const allGuidelines = await DBService.getAiGuidelines().catch(() => []);
-        const guidelines = allGuidelines.filter(g => selectedGuidelineIds.has(g.id));
+        const guidelines = allGuidelines.filter(g => (g.scope || 'translation') === 'translation' && selectedGuidelineIds.has(g.id));
+        const styleGuidelines = allGuidelines.filter(g => (g.scope || '') === 'style' && selectedStyleIds.has(g.id));
         const specialInstructions = psettings?.specialInstructions || [];
-        const combinedBatchNote = [batchNote, ...specialInstructions.map(s => s.content)].filter(Boolean).join('\n');
+        const ex = (fileRec && fileRec.aiSeriesException) ? String(fileRec.aiSeriesException).trim() : '';
+        const combinedBatchNote = [batchNote, ...specialInstructions.filter(s => s && s.enabled !== false).map(s => s.content), ex].filter(Boolean).join('\n');
         const styleExamples = await DBService.getAiStyleExamples({ categories: fileDomains, limit: 15 }).catch(() => []);
         const tbTerms = (window.ActiveTbTerms || []).map(t => ({ source: t.source, target: t.target, note: t.note }));
+        const pr = (settings && settings.prompts) ? settings.prompts : {};
         return {
             settings,
             sourceLang: fileRec?.sourceLang || '',
             targetLang: fileRec?.targetLang || '',
             guidelines,
+            styleGuidelines,
             styleExamples,
             tbTerms,
-            batchNote: combinedBatchNote
+            batchNote: combinedBatchNote,
+            systemPrefix: (pr && pr.translateSystemPrefix) || ''
         };
     }
 

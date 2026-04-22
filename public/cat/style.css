@@ -1999,6 +1999,22 @@ mark.tm-search-hit {
 .ai-multiselect-option:hover { background: #f1f5f9; }
 .ai-multiselect-option input[type=checkbox] { cursor: pointer; }
 
+/* 筆記分頁：左右雙欄 */
+.cat-notes-dual-col {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    align-items: flex-start;
+}
+.cat-notes-dual-col .cat-notes-col {
+    flex: 1 1 200px;
+    min-width: 0;
+}
+@media (max-width: 640px) {
+    .cat-notes-dual-col { flex-direction: column; }
+    .cat-notes-dual-col .cat-notes-col { flex: 1 1 auto; width: 100%; }
+}
+
 /* AI 報告 tab content */
 #tabAiReport #aiReportContent {
     font-family: 'Courier New', Courier, monospace;

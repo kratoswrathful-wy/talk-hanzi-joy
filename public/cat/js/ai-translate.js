@@ -87,20 +87,29 @@
             sourceLang = '',
             targetLang = '',
             guidelines = [],
+            styleGuidelines = [],
             styleExamples = [],
             tbTerms = [],
-            batchNote = ''
+            batchNote = '',
+            systemPrefix = ''
         } = options;
 
         const srcLabel = sourceLang ? sourceLang.toUpperCase() : '原文語言';
         const tgtLabel = targetLang ? targetLang.toUpperCase() : '目標語言';
 
-        let system = `你是專業的 ${srcLabel}→${tgtLabel} 翻譯人員，請嚴格依照以下指示進行翻譯。\n`;
+        let system = (systemPrefix && String(systemPrefix).trim() ? String(systemPrefix).trim() + '\n\n' : '') +
+            `你是專業的 ${srcLabel}→${tgtLabel} 翻譯人員，請嚴格依照以下指示進行翻譯。\n`;
 
         // 翻譯準則
         if (guidelines.length > 0) {
             system += '\n【翻譯準則】\n';
             guidelines.forEach((g, i) => {
+                system += `${i + 1}. ${g.content}\n`;
+            });
+        }
+        if (Array.isArray(styleGuidelines) && styleGuidelines.length > 0) {
+            system += '\n【文風偏好】\n';
+            styleGuidelines.forEach((g, i) => {
                 system += `${i + 1}. ${g.content}\n`;
             });
         }
@@ -163,40 +172,67 @@
 
     // ---- API 呼叫 ----
 
+    function _openAiBody(settings, messages, extra = {}) {
+        const model = settings.model || 'gpt-4.1-mini';
+        return {
+            model,
+            messages,
+            ...extra,
+            temperature: extra.temperature != null ? extra.temperature : 0.3
+        };
+    }
+
+    /**
+     * 優先走同源 /api/cat-openai（主站帶金鑰）；失敗或 4xx/5xx 則在具本機 Key 時改直連。
+     */
+    async function postChatCompletions(settings, openaiBody) {
+        const useProxy = settings.preferOpenAiProxy !== false;
+        const baseOrigin = (typeof location !== 'undefined' && location.origin) ? location.origin : '';
+        if (useProxy) {
+            try {
+                const resp = await fetch(baseOrigin + '/api/cat-openai', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ openaiPath: '/v1/chat/completions', openaiBody })
+                });
+                if (resp.ok) return { resp, fromProxy: true };
+            } catch (_) { /* 本機靜態檔或無此路由 */ }
+        }
+        const apiKey = settings.apiKey;
+        if (!apiKey) {
+            return { resp: { ok: false, status: 0, async json() { return {}; } }, fromProxy: false, noKey: true };
+        }
+        const baseUrl = (settings.apiBaseUrl || 'https://api.openai.com').replace(/\/$/, '');
+        const resp = await fetch(`${baseUrl}/v1/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify(openaiBody)
+        });
+        return { resp, fromProxy: false, noKey: false };
+    }
+
     /**
      * 送出翻譯請求。
      * @param {boolean} jsonMode - true（預設）時要求 JSON 回傳格式；false 時回傳純文字（用於掃描）
      * @returns {{ results: [{idx, translation}], missing: [idx], error: string|null, content?: string }}
      */
     async function callApi(messages, settings, jsonMode = true) {
-        const { apiKey, apiBaseUrl, model } = settings;
-        const baseUrl = (apiBaseUrl || 'https://api.openai.com').replace(/\/$/, '');
-        const url = `${baseUrl}/v1/chat/completions`;
-
-        let resp;
-        try {
-            resp = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model: model || 'gpt-4.1-mini',
-                    messages,
-                    ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
-                    temperature: 0.3
-                })
-            });
-        } catch (netErr) {
-            return { results: [], missing: [], error: ERROR_MESSAGES.network_error };
-        }
-
+        const openaiBody = _openAiBody(settings, messages, {
+            ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
+            temperature: 0.3
+        });
+        const { resp, fromProxy, noKey } = await postChatCompletions(settings, openaiBody);
         let body;
         try { body = await resp.json(); } catch (_) { body = null; }
 
-        if (!resp.ok) {
-            return { results: [], missing: [], error: friendlyError(null, resp.status, body) };
+        if (!resp || !resp.ok) {
+            if (noKey) {
+                return { results: [], missing: [], error: '未設定存取方式：主站 /api 不可用，且本機未填 API Key。請在「AI 管理」處理。' };
+            }
+            return { results: [], missing: [], error: friendlyError(null, resp && resp.status, body) };
         }
 
         const raw = body?.choices?.[0]?.message?.content || '';
@@ -205,7 +241,6 @@
             return { results: [], missing: [], error: null, content: raw };
         }
 
-        // 解析 JSON（翻譯模式）
         let parsed;
         try {
             parsed = JSON.parse(raw);
@@ -222,34 +257,19 @@
      * @returns {{ data: Object|null, error: string|null }}
      */
     async function callApiJsonObject(messages, settings) {
-        const { apiKey, apiBaseUrl, model } = settings;
-        const baseUrl = (apiBaseUrl || 'https://api.openai.com').replace(/\/$/, '');
-        const url = `${baseUrl}/v1/chat/completions`;
-
-        let resp;
-        try {
-            resp = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model: model || 'gpt-4.1-mini',
-                    messages,
-                    response_format: { type: 'json_object' },
-                    temperature: 0.2
-                })
-            });
-        } catch (_) {
-            return { data: null, error: ERROR_MESSAGES.network_error };
-        }
-
+        const openaiBody = _openAiBody(settings, messages, {
+            response_format: { type: 'json_object' },
+            temperature: 0.2
+        });
+        const { resp, noKey } = await postChatCompletions(settings, openaiBody);
         let body;
         try { body = await resp.json(); } catch (_) { body = null; }
 
-        if (!resp.ok) {
-            return { data: null, error: friendlyError(null, resp.status, body) };
+        if (!resp || !resp.ok) {
+            if (noKey) {
+                return { data: null, error: '未設定存取方式。請在「AI 管理」處理。' };
+            }
+            return { data: null, error: friendlyError(null, resp && resp.status, body) };
         }
 
         const raw = body?.choices?.[0]?.message?.content || '';
@@ -273,11 +293,12 @@
     async function qaChineseTypos(items, settings) {
         const issues = [];
         if (!items || items.length === 0) return { issues, error: null };
-        if (!settings || !settings.apiKey) {
-            return { issues, error: 'API Key 未設定，請至「AI 設定」填入 API Key。' };
+        if (!settings || (!settings.apiKey && settings.preferOpenAiProxy === false)) {
+            return { issues, error: 'API 未設定，請至「AI 管理」處理。' };
         }
 
         const CJK = /[\u4E00-\u9FFF\u3400-\u4DBF]/;
+        const customTypo = (settings.prompts && String(settings.prompts.typoSystem || '').trim()) || '';
 
         for (let off = 0; off < items.length; off += QA_TYPO_BATCH) {
             const slice = items.slice(off, off + QA_TYPO_BATCH);
@@ -290,17 +311,19 @@
             });
 
             const n = slice.length;
-            const system = `你是中文譯文校對助理。以下每一條只提供「譯文」（沒有原文），請只檢查譯文中是否出現：
+            const jsonFormatBlock = `請嚴格只輸出一個 JSON 物件（不要 markdown），格式：
+{"findings":[{"i":0,"issues":""},{"i":1,"issues":"..."}]}
+- findings 必須剛好 ${n} 筆，i 為 0 到 ${n - 1} 的整數且由小到大。
+- 無問題時 issues 必須為空字串 ""。
+- 有問題時 issues 為一句繁體中文（建議 60 字以內）。`;
+            const defaultRole = `你是中文譯文校對助理。以下每一條只提供「譯文」（沒有原文），請只檢查譯文中是否出現：
 明顯錯字、缺字、多字、嚴重打字錯誤、易混淆形近字（限一般中文書寫）。
 
 請勿檢查：翻譯是否正確、英文拼字、數字與格式、風格潤飾、專有名詞是否合理。
 若該條譯文幾乎沒有中文（例如僅英文或數字），一律視為無需檢查，issues 留空。
 
-請嚴格只輸出一個 JSON 物件（不要 markdown），格式：
-{"findings":[{"i":0,"issues":""},{"i":1,"issues":"..."}]}
-- findings 必須剛好 ${n} 筆，i 為 0 到 ${n - 1} 的整數且由小到大。
-- 無問題時 issues 必須為空字串 ""。
-- 有問題時 issues 為一句繁體中文（建議 60 字以內）。`;
+` + jsonFormatBlock;
+            const system = customTypo ? (customTypo + '\n\n' + jsonFormatBlock) : defaultRole;
 
             const user = `共 ${n} 條譯文，請逐條檢查：\n\n${lines}`;
 
@@ -341,8 +364,8 @@
         if (!segments || segments.length === 0) return { results: [], missing: [], error: null };
 
         const settings = options.settings || {};
-        if (!settings.apiKey) {
-            return { results: [], missing: [], error: 'API Key 未設定，請至「AI 設定」填入 API Key。' };
+        if (!settings.apiKey && settings.preferOpenAiProxy === false) {
+            return { results: [], missing: [], error: 'API Key 未設定，請至「AI 管理」填入。' };
         }
 
         // 建立 idx → segment 對照，並 strip tags
@@ -365,9 +388,11 @@
             sourceLang: options.sourceLang,
             targetLang: options.targetLang,
             guidelines: options.guidelines || [],
+            styleGuidelines: options.styleGuidelines || [],
             styleExamples: options.styleExamples || [],
             tbTerms: options.tbTerms || [],
-            batchNote: options.batchNote || ''
+            batchNote: options.batchNote || '',
+            systemPrefix: options.systemPrefix || (settings.prompts && settings.prompts.translateSystemPrefix) || ''
         });
 
         const apiResult = await callApi(messages, settings);
@@ -463,7 +488,7 @@
      * @returns {string} 報告文字
      */
     async function scanFullText(segments, options) {
-        const { settings, extraPrompt = '', guidelines = [], styleExamples = [], tbTerms = [] } = options;
+        const { settings, extraPrompt = '', guidelines = [], styleGuidelines = [], styleExamples = [], tbTerms = [] } = options;
 
         // 截斷：保留前後各半，去除中間
         const est = estimateScanTokens(segments, extraPrompt);
@@ -475,9 +500,9 @@
             segsToSend = [...front, { sourceText: '…（中段已截斷）…', targetText: '' }, ...back];
         }
 
-        // 組裝系統提示
-        let systemParts = [
-            '你是一位翻譯分析助理。請根據以下提供的原文與（部分）譯文，產生一份詳細的翻譯分析報告。',
+        const scanPre = (settings && settings.prompts && String(settings.prompts.scanSystemPrefix || '').trim()) || '';
+        const systemParts = [
+            scanPre || '你是一位翻譯分析助理。請根據以下提供的原文與（部分）譯文，產生一份詳細的翻譯分析報告。',
             '報告應包含以下各節：',
             '1. 整體文件性質與風格建議',
             '2. 建議套用的翻譯準則（請以條列方式說明原因）',
@@ -487,7 +512,10 @@
         ];
 
         if (guidelines && guidelines.length > 0) {
-            systemParts.push('\n目前已定義的準則：\n' + guidelines.map(g => `- ${g.content}`).join('\n'));
+            systemParts.push('\n目前已定義的翻譯準則：\n' + guidelines.map(g => `- ${g.content}`).join('\n'));
+        }
+        if (Array.isArray(styleGuidelines) && styleGuidelines.length > 0) {
+            systemParts.push('\n文風偏好：\n' + styleGuidelines.map(g => `- ${g.content}`).join('\n'));
         }
         if (tbTerms && tbTerms.length > 0) {
             systemParts.push('\n術語庫：\n' + tbTerms.slice(0, 50).map(t => `${t.source} → ${t.target}`).join('\n'));

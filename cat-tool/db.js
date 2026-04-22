@@ -202,6 +202,42 @@ db.version(14).stores({
     aiCategoryTags: '++id, name, createdAt'
 });
 
+// v15：文風／預設條目、檔案層系列例外、AI 報告持久化
+// - aiGuidelines：scope（translation|style）、isDefault
+// - files：aiSeriesException（同檔系列例外，字串，非索引）
+// - fileAiReports：每檔最新報告內文與歷程
+db.version(15).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, sourceLang, targetLang',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId',
+    wordCountReports: '++id, projectId, createdAt, label',
+    aiGuidelines: '++id, category, createdAt, scope, isDefault',
+    aiStyleExamples: '++id, sourceLang, targetLang, segId, createdAt',
+    aiSettings: '++id',
+    aiProjectSettings: '++id, projectId',
+    aiCategoryTags: '++id, name, createdAt',
+    fileAiReports: 'fileId, updatedAt'
+}).upgrade(async tx => {
+    await tx.aiGuidelines.toCollection().modify(g => {
+        if (g.scope == null) g.scope = 'translation';
+        if (g.isDefault == null) g.isDefault = false;
+    });
+    await tx.files.toCollection().modify(f => {
+        if (f.aiSeriesException == null) f.aiSeriesException = '';
+    });
+    await tx.aiProjectSettings.toCollection().modify(s => {
+        if (!Array.isArray(s.selectedStyleGuidelineIds)) s.selectedStyleGuidelineIds = [];
+    });
+});
+
 /** 比對／空白判定：取 HTML 可見文字並壓縮空白，與 cat-cloud-rpc / app.js 邏輯一致 */
 function normalizeCatGuidelineContent(html) {
     if (html == null) return '';
@@ -691,11 +727,14 @@ const DBService = {
     // ---- AI Guidelines（全系統共用準則條目庫）----
     async addAiGuideline(entry) {
         const now = new Date().toISOString();
+        const scope = entry.scope === 'style' ? 'style' : 'translation';
         return await db.aiGuidelines.add({
             content: entry.content || '',
             category: entry.category || '通用',
             mutexGroup: entry.mutexGroup || null,
             sortOrder: entry.sortOrder || 0,
+            scope,
+            isDefault: !!entry.isDefault,
             createdAt: now
         });
     },
@@ -703,6 +742,9 @@ const DBService = {
         let rows = await db.aiGuidelines.toArray();
         rows.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
         if (filters.category) rows = rows.filter(r => r.category === filters.category);
+        if (filters.scope === 'style' || filters.scope === 'translation') {
+            rows = rows.filter(r => (r.scope || 'translation') === filters.scope);
+        }
         return rows;
     },
     async updateAiGuideline(id, patch) {
@@ -711,6 +753,8 @@ const DBService = {
         if (patch.mutexGroup !== undefined) allowed.mutexGroup = patch.mutexGroup;
         if (patch.sortOrder !== undefined) allowed.sortOrder = patch.sortOrder;
         if (patch.content !== undefined) allowed.content = patch.content;
+        if (patch.scope === 'style' || patch.scope === 'translation') allowed.scope = patch.scope;
+        if (patch.isDefault !== undefined) allowed.isDefault = !!patch.isDefault;
         return await db.aiGuidelines.update(id, allowed);
     },
     async deleteAiGuideline(id) {
@@ -788,42 +832,97 @@ const DBService = {
         return await db.aiStyleExamples.delete(id);
     },
 
+    async getFileAiReportRow(fileId) {
+        if (!fileId) return null;
+        return await db.fileAiReports.get(fileId) || null;
+    },
+    /**
+     * @param {Object} opts - { text, mode?: 'replace'|'append', keepPreviousInHistory?: boolean }
+     */
+    async saveFileAiReport(fileId, opts) {
+        if (!fileId) return;
+        const now = new Date().toISOString();
+        const prev = await db.fileAiReports.get(fileId);
+        const oldText = prev && prev.text != null ? String(prev.text) : '';
+        const newText = opts.text != null ? String(opts.text) : '';
+        let history = Array.isArray(prev?.history) ? prev.history.slice() : [];
+        const mode = opts.mode || 'replace';
+        if (mode === 'append' && oldText) {
+            const combined = oldText + '\n\n— ' + new Date().toLocaleString('zh-TW', { hour12: false }) + ' —\n\n' + newText;
+            await db.fileAiReports.put({ fileId, text: combined, history, updatedAt: now });
+            return;
+        }
+        if (oldText && opts.keepPreviousInHistory) {
+            history = [{ at: now, text: oldText }, ...history].slice(0, 50);
+        }
+        await db.fileAiReports.put({ fileId, text: newText, history, updatedAt: now });
+    },
+    async clearFileAiReport(fileId) {
+        if (!fileId) return;
+        await db.fileAiReports.delete(fileId);
+    },
+
     // ---- AI Settings（全系統 API 設定，永遠維持 id=1 的單筆記錄）----
+    _defaultAiSettingsRow() {
+        return {
+            id: 1,
+            apiKey: '',
+            apiBaseUrl: '',
+            model: 'gpt-4.1-mini',
+            batchSize: 20,
+            preferOpenAiProxy: true,
+            prompts: {
+                translateSystemPrefix: '',
+                scanSystemPrefix: '',
+                typoSystem: ''
+            }
+        };
+    },
+    _mergeAiSettingsPatch(existing, settings) {
+        const base = this._defaultAiSettingsRow();
+        const e = { ...base, ...(existing || {}) };
+        const s = { ...(settings || {}) };
+        const out = { ...e, ...s };
+        out.prompts = { ...e.prompts, ...(s.prompts && typeof s.prompts === 'object' ? s.prompts : {}) };
+        return out;
+    },
     async getAiSettings() {
         const _LS_KEY = 'catToolAiSettings';
-        const _DEFAULT = { id: 1, apiKey: '', apiBaseUrl: '', model: 'gpt-4.1-mini', batchSize: 20 };
+        const _def = this._defaultAiSettingsRow();
+        const normalize = (raw) => {
+            if (!raw || typeof raw !== 'object') return { ..._def };
+            const o = { ..._def, ...raw };
+            o.prompts = { ..._def.prompts, ...(raw.prompts && typeof raw.prompts === 'object' ? raw.prompts : {}) };
+            return o;
+        };
         try {
-            // localStorage 為主要儲存媒介（跨 team/offline DB 不遺失）
             const lsRaw = localStorage.getItem(_LS_KEY);
             if (lsRaw) {
                 const lsData = JSON.parse(lsRaw);
-                return { ..._DEFAULT, ...lsData };
+                return normalize(lsData);
             }
-            // Fallback：從 IndexedDB 讀取舊資料（相容升級）
             const row = await db.aiSettings.get(1);
-            if (row && row.apiKey) {
-                // 搬移到 localStorage
-                localStorage.setItem(_LS_KEY, JSON.stringify({ ...row }));
-                return row;
+            if (row && (row.apiKey || row.model)) {
+                const n = normalize(row);
+                localStorage.setItem(_LS_KEY, JSON.stringify(n));
+                return n;
             }
         } catch (_) { /* ignore */ }
-        return { ..._DEFAULT };
+        return { ..._def };
     },
     async saveAiSettings(settings) {
         const _LS_KEY = 'catToolAiSettings';
+        let merged = null;
         try {
             const existing = (localStorage.getItem(_LS_KEY) && JSON.parse(localStorage.getItem(_LS_KEY))) || {};
-            const merged = { ...existing, ...settings };
+            merged = this._mergeAiSettingsPatch(existing, settings);
             localStorage.setItem(_LS_KEY, JSON.stringify(merged));
         } catch (_) { /* ignore */ }
-        // 同步寫入 IndexedDB（相容性）
         try {
-            const existing = await db.aiSettings.get(1);
-            if (existing) {
-                await db.aiSettings.update(1, { ...settings, id: 1 });
-            } else {
-                await db.aiSettings.put({ ...settings, id: 1 });
-            }
+            const idbEx = await db.aiSettings.get(1);
+            const m = merged || this._mergeAiSettingsPatch(idbEx, settings);
+            if (idbEx) await db.aiSettings.update(1, { ...m, id: 1 });
+            else await db.aiSettings.put({ ...m, id: 1 });
         } catch (_) { /* ignore */ }
     },
 
@@ -831,8 +930,12 @@ const DBService = {
     async getAiProjectSettings(projectId) {
         if (!projectId) return null;
         const rows = await db.aiProjectSettings.where('projectId').equals(projectId).toArray();
-        if (rows.length > 0) return rows[0];
-        return { projectId, selectedGuidelineIds: [], specialInstructions: [] };
+        if (rows.length > 0) {
+            const r = rows[0];
+            if (!Array.isArray(r.selectedStyleGuidelineIds)) r.selectedStyleGuidelineIds = [];
+            return r;
+        }
+        return { projectId, selectedGuidelineIds: [], selectedStyleGuidelineIds: [], specialInstructions: [] };
     },
     async saveAiProjectSettings(projectId, patch) {
         if (!projectId) return;
@@ -840,7 +943,26 @@ const DBService = {
         if (rows.length > 0) {
             return await db.aiProjectSettings.update(rows[0].id, { ...patch });
         } else {
-            return await db.aiProjectSettings.add({ projectId, selectedGuidelineIds: [], specialInstructions: [], ...patch });
+            return await db.aiProjectSettings.add({
+                projectId,
+                selectedGuidelineIds: [],
+                selectedStyleGuidelineIds: [],
+                specialInstructions: [],
+                ...patch
+            });
+        }
+    },
+    /** 新專案依庫內 isDefault 帶入勾選的準則／文風 id */
+    async applyDefaultAiProjectSettingsForNewProject(projectId) {
+        if (!projectId) return;
+        const all = await db.aiGuidelines.toArray();
+        const defT = all.filter(g => (g.scope || 'translation') === 'translation' && g.isDefault).map(g => g.id);
+        const defS = all.filter(g => g.scope === 'style' && g.isDefault).map(g => g.id);
+        if (defT.length || defS.length) {
+            await this.saveAiProjectSettings(projectId, {
+                selectedGuidelineIds: defT,
+                selectedStyleGuidelineIds: defS
+            });
         }
     },
 
