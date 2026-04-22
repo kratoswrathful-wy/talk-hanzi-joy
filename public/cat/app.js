@@ -3028,6 +3028,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     (function initHighMatchGuardModal() {
         function closeHm() {
+            highMatchGuardFocusSegId = null;
             if (highMatchGuardModal) highMatchGuardModal.classList.add('hidden');
             const r = highMatchModalPromiseResolver;
             highMatchModalPromiseResolver = null;
@@ -3037,7 +3038,28 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (highMatchGuardModal) highMatchGuardModal.classList.add('hidden');
             const r = highMatchModalPromiseResolver;
             highMatchModalPromiseResolver = null;
+            const focusSegId = highMatchGuardFocusSegId;
+            highMatchGuardFocusSegId = null;
             if (r) r(true);
+            if (focusSegId != null) {
+                requestAnimationFrame(() => {
+                    const row = document.querySelector(`.grid-data-row[data-seg-id="${focusSegId}"]`);
+                    const ed = row && row.querySelector('.grid-textarea');
+                    if (ed && ed.getAttribute('contenteditable') !== 'false') {
+                        ed.focus();
+                        try {
+                            const range = document.createRange();
+                            range.selectNodeContents(ed);
+                            range.collapse(false);
+                            const sel = window.getSelection();
+                            if (sel) {
+                                sel.removeAllRanges();
+                                sel.addRange(range);
+                            }
+                        } catch (_) { /* ignore */ }
+                    }
+                });
+            }
         }
         if (btnHighMatchGuardOk) btnHighMatchGuardOk.addEventListener('click', okHm);
         if (btnHighMatchGuardCancel) btnHighMatchGuardCancel.addEventListener('click', closeHm);
@@ -5835,6 +5857,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let sfFilterLockedSpecHash = '';
     const highMatchEditConfirmedIds = new Set();
     let highMatchModalPromiseResolver = null;
+    /** 「仍要編輯」確認後要還原焦點的句段 id（僅單句提示時設定；批次為 null） */
+    let highMatchGuardFocusSegId = null;
     let highMatchInputGuardBusy = false;
     let sfPresets = JSON.parse(localStorage.getItem('catToolSfPresets') || '{}');
     let lastEditedRowIdx = null; // Track cursor position
@@ -7053,6 +7077,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 resolve(true);
                 return;
             }
+            highMatchGuardFocusSegId = seg && seg.id != null ? seg.id : null;
             highMatchModalPromiseResolver = resolve;
             const mv = seg && seg.matchValue != null ? String(seg.matchValue) : '';
             const ik = seg && seg.importMatchKind ? String(seg.importMatchKind) : '';
