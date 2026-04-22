@@ -141,12 +141,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     let _recordManualTranslations = false; // Whether to record style examples for pure manual translations
     let _aiReviewModalResolve = null; // Promise resolver for the AI review modal
     
-    // Sidebar Toggle
+    // Sidebar Toggle（與 getSessionRouteStorageKey 的 catStorage 分鍵，刷新後還原收合狀態）
     const sidebar = document.getElementById('sidebar');
     const btnToggleSidebar = document.getElementById('btnToggleSidebar');
 
-    btnToggleSidebar.addEventListener('click', () => {
+    function getCatSidebarSessionKey() {
+        try {
+            const s = (new URLSearchParams(window.location.search).get('catStorage') || 'offline').toLowerCase();
+            return `catToolSidebarV1_${s}`;
+        } catch (_) {
+            return 'catToolSidebarV1_offline';
+        }
+    }
+    function persistCatSidebarState() {
+        try {
+            const el = document.getElementById('sidebar');
+            if (!el) return;
+            sessionStorage.setItem(getCatSidebarSessionKey(), el.classList.contains('collapsed') ? '1' : '0');
+        } catch (_) { /* ignore */ }
+    }
+    function applyCatSidebarState() {
+        try {
+            const el = document.getElementById('sidebar');
+            if (!el) return;
+            const v = sessionStorage.getItem(getCatSidebarSessionKey());
+            if (v === '1') el.classList.add('collapsed');
+            else if (v === '0') el.classList.remove('collapsed');
+        } catch (_) { /* ignore */ }
+    }
+
+    btnToggleSidebar?.addEventListener('click', () => {
+        if (!sidebar) return;
         sidebar.classList.toggle('collapsed');
+        persistCatSidebarState();
     });
 
     // --- 儀表板 ---
@@ -319,6 +346,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnExitEditor = document.getElementById('btnExitEditor');
     const editorFileName = document.getElementById('editorFileName');
     const gridBody = document.getElementById('gridBody');
+
+    function isGridDataRowFilterVisible(row) {
+        return !!(row && row.style && row.style.display !== 'none');
+    }
+
+    /** 篩選下已隱藏列自 selectedRowIds 剔除，並同步 .selected-row 與「在選取範圍取代」文案。 */
+    function syncSelectedRowIdsWithVisibleGrid() {
+        if (sfMode !== 'filter' || !gridBody) return;
+        if (!selectedRowIds || selectedRowIds.size === 0) return;
+        const gRows = gridBody.querySelectorAll('.grid-data-row');
+        let changed = false;
+        gRows.forEach((r) => {
+            if (isGridDataRowFilterVisible(r)) return;
+            const sid = parseId(r.dataset.segId);
+            if (selectedRowIds.has(sid)) {
+                selectedRowIds.delete(sid);
+                changed = true;
+            }
+        });
+        if (!changed) return;
+        gRows.forEach((r) => {
+            const rId = parseId(r.dataset.segId);
+            if (selectedRowIds.has(rId)) r.classList.add('selected-row');
+            else r.classList.remove('selected-row');
+        });
+        updateSfReplaceAllButtonLabel();
+    }
+
     const progressFill = document.getElementById('progressFill');
     const exportBtn = document.getElementById('exportBtn');
     const viewSettingsModal = document.getElementById('viewSettingsModal');
@@ -488,6 +543,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 for (const seg of currentSegmentsList) {
                     if (targetIds.has(seg.id)) {
                         const rowEl = document.querySelector(`.grid-data-row[data-seg-id="${seg.id}"]`);
+                        if (!isGridDataRowFilterVisible(rowEl)) continue;
                         const beforeSnap = snapshotSegForUndo(seg);
                         await applySegmentTextOp(seg, rowEl, op);
                         items.push({ id: seg.id, beforeSnap, afterSnap: snapshotSegForUndo(seg) });
@@ -1834,6 +1890,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     window.addEventListener('beforeunload', (e) => {
+        try { persistCatRoute(); } catch (_) { /* ignore */ }
+        try { persistCatSidebarState(); } catch (_) { /* ignore */ }
         leaveCollabForCurrentFile();
         const viewEditorEl = document.getElementById('viewEditor');
         if (!currentFileId || !viewEditorEl || viewEditorEl.classList.contains('hidden')) return;
@@ -1841,6 +1899,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         autoSaveAllNotes().catch(() => {});
     });
     window.addEventListener('pagehide', () => {
+        try { persistCatRoute(); } catch (_) { /* ignore */ }
+        try { persistCatSidebarState(); } catch (_) { /* ignore */ }
         leaveCollabForCurrentFile();
         autoSaveAllNotes().catch(() => {});
     });
@@ -5968,8 +6028,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     let tagsExpanded = false;
 
     /**
+     * 在原文佔位符由左到右順序中，找第一個譯文尚未帶入的缺漏 tag（F8 與 tag-next 高亮與本邏輯一致）。
+     */
+    function getFirstMissingTagInSourceOrder(sourceText, sourceTags, presentPhs) {
+        const byPh = new Map();
+        (sourceTags || []).forEach(t => { if (t && t.ph) byPh.set(t.ph, t); });
+        const phSeq = String(sourceText || '').match(/\{\/?\d+\}/g) || [];
+        for (const ph of phSeq) {
+            if (presentPhs.has(ph)) continue;
+            const t = byPh.get(ph);
+            if (t) return t;
+        }
+        return null;
+    }
+
+    /**
      * F8 插入規則：
-     * - 無論如何都只插入「下一個缺漏 tag」（單一 tag）。
+     * - 無論如何都只插入「下一個缺漏 tag」（單一 tag）— 下一位依原文佔位順序。
      * - 只有在「有選取文字」且「下一個缺漏為 open，並且其 close 也同樣缺漏」時，
      *   才在選取範圍前後插入一對 open/close。
      * - 有選取且下一個是 standalone（或 close 等非成對情況）→ 用該單一 tag 取代選取文字。
@@ -5982,14 +6057,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const currentText = extractTextFromEditor(editorDiv) || seg.targetText || '';
         const presentPhs = new Set((currentText.match(/\{\/?\d+\}/g) || []));
 
-        // 找出所有缺漏標籤（依 ph 是否存在）
         const missingTags = sourceTags.filter(t => !presentPhs.has(t.ph));
         if (!missingTags.length) return;
 
-        // 選出「下一個」缺漏：用 num 最小；同 num 優先 open
-        const firstMissing = missingTags.reduce(
-            (a, b) => a.num < b.num ? a : (a.num === b.num && a.type === 'open' ? a : b)
-        );
+        const firstMissing = getFirstMissingTagInSourceOrder(seg.sourceText || '', sourceTags, presentPhs)
+            || missingTags.reduce(
+                (a, b) => a.num < b.num ? a : (a.num === b.num && a.type === 'open' ? a : b)
+            );
 
         const sel = window.getSelection();
         const hasSelection = sel && !sel.isCollapsed && editorDiv.contains(sel.anchorNode);
@@ -6054,14 +6128,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** 建立單個標籤的 span 元素（用於游標插入）。 */
     function buildTagSpan(tag) {
         const span = document.createElement('span');
-        const color = (tag.type === 'open' || tag.type === 'close')
-            ? TAG_PAIR_COLORS[(tag.pairNum - 1) % TAG_PAIR_COLORS.length] : undefined;
         span.className = 'rt-tag' + (tag.type === 'open' ? ' rt-tag-s' : tag.type === 'close' ? ' rt-tag-e' : '');
         span.setAttribute('data-ph', tag.ph);
-        span.setAttribute('data-pair', tag.pairNum);
+        if (tag.pairNum != null) span.setAttribute('data-pair', tag.pairNum);
         span.contentEditable = 'false';
-        if (color) span.style.setProperty('--tag-color', color);
-        span.innerHTML = `<span class="tag-num">${tag.num}</span><span class="tag-content">${escapeHtml(tag.display)}</span>`;
+        if (tag.type === 'close') {
+            span.innerHTML = `<span class="tag-e-pad" aria-hidden="true">\u00A0\u00A0</span><span class="tag-content">${escapeHtml(tag.display)}</span><span class="tag-num">${tag.num}</span>`;
+        } else {
+            span.innerHTML = `<span class="tag-num">${tag.num}</span><span class="tag-content">${escapeHtml(tag.display)}</span>`;
+        }
         return span;
     }
 
@@ -6074,8 +6149,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'a') {
             e.preventDefault();
             selectedRowIds.clear();
-            currentSegmentsList.forEach(s => { if (!isDynamicForbidden(s) && !s.isLockedUser) selectedRowIds.add(s.id); });
-            document.querySelectorAll('.grid-data-row').forEach(r => {
+            const gRows = document.querySelectorAll('.grid-data-row');
+            currentSegmentsList.forEach((s, idx) => {
+                if (isDynamicForbidden(s) || s.isLockedUser) return;
+                if (!isGridDataRowFilterVisible(gRows[idx])) return;
+                selectedRowIds.add(s.id);
+            });
+            document.querySelectorAll('.grid-data-row').forEach((r) => {
                 const rId = parseId(r.dataset.segId);
                 if (selectedRowIds.has(rId)) r.classList.add('selected-row');
                 else r.classList.remove('selected-row');
@@ -6531,6 +6611,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         });
+
+        if (sfMode === 'filter') {
+            syncSelectedRowIdsWithVisibleGrid();
+        }
 
         sfMatchCount.textContent = sfSearchMatches.length > 0 ? `1 / ${sfSearchMatches.length}` : `0 / 0`;
         if(sfSearchMatches.length > 0) {
@@ -7216,8 +7300,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         currentSegmentsList.forEach((seg, segIdx) => {
             if (seg.isLocked) return;
             const row = rows[segIdx];
+            if (!isGridDataRowFilterVisible(row)) return;
             if (multiSelection && !selectedRowIds.has(seg.id)) return;
-            if (!multiSelection && row && row.style.display === 'none') return;
             const text = getSegmentFieldText(seg, segIdx, 'target');
             const newText = doReplaceInText(text, term, replaceTerm, sfUseRegexChecked, false);
             if (newText !== text) pending.push({ seg, segIdx, text, newText });
@@ -7517,11 +7601,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.preventDefault();
         e.stopPropagation();
         (async () => {
+            const gRows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
             const indices = [];
             currentSegmentsList.forEach((s, idx) => {
-                if (selectedRowIds.has(s.id) && !isDynamicForbidden(s) && !s.isLockedUser) indices.push(idx);
+                if (!selectedRowIds.has(s.id) || isDynamicForbidden(s) || s.isLockedUser) return;
+                if (!isGridDataRowFilterVisible(gRows[idx])) return;
+                indices.push(idx);
             });
             indices.sort((a, b) => a - b);
+            if (indices.length === 0) return;
             const touchAll = new Set();
             indices.forEach(i => collectConfirmTouchIndices(i).forEach(x => touchAll.add(x)));
             const beforeSnapshots = {};
@@ -7546,7 +7634,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             });
             await Promise.all(dbWaits);
-            const lastIdx = indices.length ? indices[indices.length - 1] : 0;
+            const lastIdx = indices[indices.length - 1];
             const focusIdx = getAfterConfirmFocusIndex(lastIdx);
             _pendingFocusSegIdxAfterRender = focusIdx;
             updateProgress();
@@ -7626,28 +7714,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             return escapeHtml(text).replace(/\n/g, '<br>');
         }
         const tagMap = {};
-        const pairColorMap = {};
-        let pairColorIdx = 0;
-        tags.forEach(t => {
-            tagMap[t.ph] = t;
-            if ((t.type === 'open' || t.type === 'close') && !(t.pairNum in pairColorMap)) {
-                pairColorMap[t.pairNum] = TAG_PAIR_COLORS[pairColorIdx++ % TAG_PAIR_COLORS.length];
-            }
-        });
+        tags.forEach(t => { tagMap[t.ph] = t; });
 
         let html = '';
         const parts = text.split(/(\{\/?\d+\})/);
         for (const part of parts) {
             const tag = tagMap[part];
             if (tag) {
-                const color = (tag.type === 'open' || tag.type === 'close')
-                    ? pairColorMap[tag.pairNum] : undefined;
-                const colorStyle = color ? `--tag-color:${color};` : '';
+                const pairAttr = tag.pairNum != null ? ` data-pair="${tag.pairNum}"` : '';
                 const cls = 'rt-tag' +
                     (tag.type === 'open' ? ' rt-tag-s' : tag.type === 'close' ? ' rt-tag-e' : '');
-                html += `<span class="${cls}" data-ph="${escapeHtml(tag.ph)}" data-pair="${tag.pairNum}" style="${colorStyle}" contenteditable="false">`;
-                html += `<span class="tag-num">${tag.num}</span>`;
-                html += `<span class="tag-content">${escapeHtml(tag.display)}</span>`;
+                html += `<span class="${cls}" data-ph="${escapeHtml(tag.ph)}"${pairAttr} contenteditable="false">`;
+                if (tag.type === 'close') {
+                    html += '<span class="tag-e-pad" aria-hidden="true">\u00A0\u00A0</span>';
+                    html += `<span class="tag-content">${escapeHtml(tag.display)}</span>`;
+                    html += `<span class="tag-num">${tag.num}</span>`;
+                } else {
+                    html += `<span class="tag-num">${tag.num}</span>`;
+                    html += `<span class="tag-content">${escapeHtml(tag.display)}</span>`;
+                }
                 html += `</span>`;
             } else {
                 html += escapeHtml(part).replace(/\n/g, '<br>');
@@ -7860,9 +7945,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const missingTags = sourceTags.filter(t => !presentPhs.has(t.ph));
         if (!missingTags.length) return null;
 
-        const firstMissing = missingTags.reduce(
-            (a, b) => a.num < b.num ? a : (a.num === b.num && a.type === 'open' ? a : b)
-        );
+        const firstMissing = getFirstMissingTagInSourceOrder(seg.sourceText || '', sourceTags, presentPhs)
+            || missingTags.reduce(
+                (a, b) => a.num < b.num ? a : (a.num === b.num && a.type === 'open' ? a : b)
+            );
 
         const sel = window.getSelection();
         const hasSelection = sel && !sel.isCollapsed && editorDiv.contains(sel.anchorNode);
@@ -8213,7 +8299,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         // Ctrl click - toggle individual
                         if (e.ctrlKey || e.metaKey) {
                             if (selectedRowIds.has(seg.id)) selectedRowIds.delete(seg.id);
-                            else selectedRowIds.add(seg.id);
+                            else if (isGridDataRowFilterVisible(row)) selectedRowIds.add(seg.id);
                             lastSelectedRowIdx = i;
                         } 
                         // Shift click - range selection (extends from currently focused/edited segment)
@@ -8222,9 +8308,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const anchor = lastEditedRowIdx ?? lastSelectedRowIdx;
                             const start = Math.min(anchor, i);
                             const end = Math.max(anchor, i);
+                            const gRowsB = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
                             for (let j = start; j <= end; j++) {
                                 const s = currentSegmentsList[j];
-                                if (!isDynamicForbidden(s) && !s.isLockedUser) selectedRowIds.add(s.id);
+                                if (isDynamicForbidden(s) || s.isLockedUser) continue;
+                                if (!isGridDataRowFilterVisible(gRowsB[j])) continue;
+                                selectedRowIds.add(s.id);
                             }
                         } 
                         // Normal click within existing multi-select - collapse to this segment and focus it
@@ -9163,8 +9252,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         const closeMenu = () => { if(contextMenu) contextMenu.remove(); document.removeEventListener('click', closeMenu); };
         document.addEventListener('click', closeMenu);
 
+        const filterBatchIdsToVisible = (idList) => {
+            const allRows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+            return idList.filter((id) => {
+                const s = currentSegmentsList.find((x) => x && x.id === id);
+                if (!s || isDynamicForbidden(s) || s.isLockedUser) return false;
+                const idx = currentSegmentsList.indexOf(s);
+                if (idx < 0) return false;
+                return isGridDataRowFilterVisible(allRows[idx]);
+            });
+        };
+
         document.getElementById('ctxBatchConfirm').addEventListener('click', () => {
-            const ids = Array.from(selectedRowIds);
+            const ids = filterBatchIdsToVisible(Array.from(selectedRowIds));
             const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
             const touchAll = new Set();
             toUpdate.forEach(s => {
@@ -9232,7 +9332,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         document.getElementById('ctxBatchUnconfirm').addEventListener('click', () => {
-            const ids = Array.from(selectedRowIds);
+            const ids = filterBatchIdsToVisible(Array.from(selectedRowIds));
             const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
             const items = [];
             const dbWaits = [];
@@ -9248,7 +9348,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         document.getElementById('ctxLockSegments').addEventListener('click', async () => {
-            const ids = Array.from(selectedRowIds);
+            const ids = filterBatchIdsToVisible(Array.from(selectedRowIds));
             const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
             const items = [];
             for (let s of toUpdate) {
@@ -9262,8 +9362,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         document.getElementById('ctxUnlockSegments').addEventListener('click', async () => {
-            const ids = Array.from(selectedRowIds);
-            const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && s.isLockedUser);
+            const rawIds = Array.from(selectedRowIds);
+            const allRowsU = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+            const toUpdate = currentSegmentsList.filter((s) => {
+                if (!rawIds.includes(s.id) || !s.isLockedUser) return false;
+                const idx = currentSegmentsList.indexOf(s);
+                if (idx < 0) return false;
+                return isGridDataRowFilterVisible(allRowsU[idx]);
+            });
             const items = [];
             for (let s of toUpdate) {
                 const beforeSnap = snapshotSegForUndo(s);
@@ -11384,6 +11490,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     await restoreCatRouteFromSession();
+    applyCatSidebarState();
 
     window.CatMigrationTools = {
         async exportOfflineSnapshot() {

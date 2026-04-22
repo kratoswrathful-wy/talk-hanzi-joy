@@ -838,6 +838,46 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 }
 .rt-tag-e {
     clip-path: polygon(12% 0, 100% 0, 100% 100%, 12% 100%, 0 50%);
+    display: inline-flex;
+    align-items: center;
+    flex-direction: row;
+    gap: 0.2em;
+    position: relative;
+    z-index: 0;
+}
+.rt-tag-e .tag-e-pad,
+.rt-tag-e .tag-content,
+.rt-tag-e .tag-num {
+    position: relative;
+    z-index: 1;
+}
+
+/* 關閉段收起：序號置右、略過左側箭頭；展開：左兩格空白＋內文＋序號 */
+#editorGrid:not(.tags-expanded) .rt-tag-e {
+    justify-content: flex-end;
+    gap: 0;
+}
+#editorGrid:not(.tags-expanded) .rt-tag-e .tag-e-pad,
+#editorGrid:not(.tags-expanded) .rt-tag-e .tag-content {
+    display: none !important;
+    width: 0 !important;
+    max-width: 0 !important;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+#editorGrid:not(.tags-expanded) .rt-tag-e .tag-num {
+    min-width: 0;
+}
+#editorGrid.tags-expanded .rt-tag-e {
+    justify-content: flex-start;
+    gap: 0.2em;
+}
+#editorGrid.tags-expanded .rt-tag-e .tag-e-pad {
+    display: inline-block;
+    min-width: 2ch;
+    width: 2ch;
+    flex-shrink: 0;
 }
 
 .rt-tag-s::before,
