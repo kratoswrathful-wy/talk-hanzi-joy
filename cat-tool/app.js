@@ -502,7 +502,7 @@ document.addEventListener('DOMContentLoaded', async () => {
      * - clear：清除 targetText 及 targetTags
      */
     async function applySegmentTextOp(seg, rowEl, op) {
-        if (!seg || isDynamicForbidden(seg) || seg.isLockedUser) return;
+        if (!seg || isTargetWriteProtected(seg)) return;
         markEmptySegUserEdited(seg.id);
 
         const newText = op === 'copy-source' ? seg.sourceText : '';
@@ -1080,6 +1080,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (remoteText == null) return;
         const seg = getSegmentById(segId);
         if (!seg) return;
+        if (isTargetWriteProtected(seg)) return;
 
         const { row, editor } = getSegmentEditor(segId);
         const activeEditor = document.activeElement && document.activeElement.classList
@@ -1169,14 +1170,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return;
                 }
                 if (pickTheirs) {
-                    applyRemoteTextToSegmentUiAndDb(seg, row, targetInput, pending.text);
-                    DBService.updateSegmentTarget(seg.id, pending.text, { matchValue: '' }).catch((err) => {
-                        console.error('[collab] apply chosen remote failed', err);
-                    });
-                    editorUndoEditStart[seg.id] = seg.targetText;
-                    editorUndoMatchStart[seg.id] = seg.matchValue;
-                    updateProgress();
-                    renderLiveTmMatches(seg).catch(() => {});
+                    if (isTargetWriteProtected(seg)) {
+                        pendingRemoteBySegId.delete(key);
+                    } else {
+                        applyRemoteTextToSegmentUiAndDb(seg, row, targetInput, pending.text);
+                        DBService.updateSegmentTarget(seg.id, pending.text, { matchValue: '' }).catch((err) => {
+                            console.error('[collab] apply chosen remote failed', err);
+                        });
+                        editorUndoEditStart[seg.id] = seg.targetText;
+                        editorUndoMatchStart[seg.id] = seg.matchValue;
+                        updateProgress();
+                        renderLiveTmMatches(seg).catch(() => {});
+                    }
                 } else {
                     pendingRemoteBySegId.delete(key);
                 }
@@ -5437,6 +5442,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         return computeForbiddenForRole(seg, currentMqConfirmationRole);
     }
 
+    /** 譯文欄是否禁止寫入（與格線 effectiveLocked 一致；勿單用 seg.isLocked） */
+    function isTargetWriteProtected(seg) {
+        if (!seg) return true;
+        return !!(isDynamicForbidden(seg) || seg.isLockedUser);
+    }
+
     // 計算句段在目前 session 下應使用的 confirmationRole
     function resolveConfirmationRole(seg) {
         if (seg.originalRole) {
@@ -5835,7 +5846,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 let applyCount = 0;
                 for (const seg of affectedSegments) {
-                    if (seg.isLocked) continue;
+                    if (isTargetWriteProtected(seg)) continue;
                     if (!overwrite && seg.targetText.trim() !== '') continue;
 
                     let bestMatch = null;
@@ -6156,7 +6167,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             selectedRowIds.clear();
             const gRows = document.querySelectorAll('.grid-data-row');
             currentSegmentsList.forEach((s, idx) => {
-                if (isDynamicForbidden(s) || s.isLockedUser) return;
                 if (!isGridDataRowFilterVisible(gRows[idx])) return;
                 selectedRowIds.add(s.id);
             });
@@ -7084,6 +7094,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function setSegmentFieldText(seg, segIdx, fieldKey, newText) {
         const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : document.querySelectorAll('.grid-data-row');
         const row = rows[segIdx];
+        if (fieldKey === 'target' && isTargetWriteProtected(seg)) return;
         if (fieldKey === 'target') {
             seg.targetText = newText;
             if (row) {
@@ -7197,8 +7208,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const seg = currentSegmentsList[match.segIdx];
         if (!seg) return;
 
-        // 若目前命中在鎖定句段中：不做取代，只把焦點移到下一個譯文命中
-        if (seg.isLocked) {
+        // 若目前句段禁止寫入：不做取代，只把焦點移到下一個譯文命中
+        if (isTargetWriteProtected(seg)) {
             const nextIdx = findNextTargetMatchIndex(idx + 1);
             sfActiveMatchIdx = nextIdx >= 0 ? nextIdx : idx; // 若沒有下一個，就留在原處
             updateMatchHighlightFocus();
@@ -7303,7 +7314,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const multiSelection = selectedRowIds && selectedRowIds.size > 1;
         const pending = [];
         currentSegmentsList.forEach((seg, segIdx) => {
-            if (seg.isLocked) return;
+            if (isTargetWriteProtected(seg)) return;
             const row = rows[segIdx];
             if (!isGridDataRowFilterVisible(row)) return;
             if (multiSelection && !selectedRowIds.has(seg.id)) return;
@@ -8057,7 +8068,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!targetInput || targetInput.getAttribute('contenteditable') === 'false') return;
         const raw = extractTextFromEditor(targetInput);
         if ((raw || '').trim() !== '') return;
-        if (isDynamicForbidden(seg) || seg.isLockedUser) return;
+        if (isTargetWriteProtected(seg)) return;
         if (emptySegUserEditedIds.has(seg.id)) return;
         if (emptySegAutoConsumedIds.has(seg.id)) return;
 
@@ -8292,85 +8303,71 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             });
 
-            if(!effectiveLocked) {
-                
-                // ID Click Selection Logic
-                const idCell = row.querySelector('.col-id');
-                if (idCell) {
-                    // ID セルクリック時はフォーカス移動を防ぎ focusin による選取上書きを回避
-                    idCell.addEventListener('mousedown', (e) => e.preventDefault());
-                    idCell.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        // Ctrl click - toggle individual
-                        if (e.ctrlKey || e.metaKey) {
-                            if (selectedRowIds.has(seg.id)) selectedRowIds.delete(seg.id);
-                            else if (isGridDataRowFilterVisible(row)) selectedRowIds.add(seg.id);
-                            lastSelectedRowIdx = i;
-                        } 
-                        // Shift click - range selection (extends from currently focused/edited segment)
-                        else if (e.shiftKey && (lastEditedRowIdx !== null || lastSelectedRowIdx !== null)) {
-                            selectedRowIds.clear();
-                            const anchor = lastEditedRowIdx ?? lastSelectedRowIdx;
-                            const start = Math.min(anchor, i);
-                            const end = Math.max(anchor, i);
-                            const gRowsB = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
-                            for (let j = start; j <= end; j++) {
-                                const s = currentSegmentsList[j];
-                                if (isDynamicForbidden(s) || s.isLockedUser) continue;
-                                if (!isGridDataRowFilterVisible(gRowsB[j])) continue;
-                                selectedRowIds.add(s.id);
-                            }
-                        } 
-                        // Normal click within existing multi-select - collapse to this segment and focus it
-                        else if (selectedRowIds.has(seg.id) && selectedRowIds.size > 1) {
-                            selectedRowIds.clear();
-                            selectedRowIds.add(seg.id);
-                            lastSelectedRowIdx = i;
-                            document.querySelectorAll('.grid-data-row').forEach(r => r.classList.remove('active-row'));
-                            row.classList.add('active-row');
-                            document.querySelectorAll('.grid-data-row').forEach(r => {
-                                const rId = parseId(r.dataset.segId);
-                                if (selectedRowIds.has(rId)) r.classList.add('selected-row');
-                                else r.classList.remove('selected-row');
-                            });
-                            targetInput?.focus();
-                            updateSfReplaceAllButtonLabel();
-                            return;
-                        } 
-                        // Normal click - clear and select one
-                        else {
-                            selectedRowIds.clear();
-                            selectedRowIds.add(seg.id);
-                            lastSelectedRowIdx = i;
-                            // 清除其他列的 active-row 樣式，並解除編輯焦點
-                            document.querySelectorAll('.grid-data-row').forEach(r => r.classList.remove('active-row'));
-                            const focused = document.activeElement;
-                            if (focused && focused.classList.contains('grid-textarea')) focused.blur();
+            // ID 欄多選：鎖定／禁止編輯列仍可依相同方式（Ctrl／Shift）選取
+            const idCell = row.querySelector('.col-id');
+            if (idCell) {
+                idCell.addEventListener('mousedown', (e) => e.preventDefault());
+                idCell.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (e.ctrlKey || e.metaKey) {
+                        if (selectedRowIds.has(seg.id)) selectedRowIds.delete(seg.id);
+                        else if (isGridDataRowFilterVisible(row)) selectedRowIds.add(seg.id);
+                        lastSelectedRowIdx = i;
+                    } else if (e.shiftKey && (lastEditedRowIdx !== null || lastSelectedRowIdx !== null)) {
+                        selectedRowIds.clear();
+                        const anchor = lastEditedRowIdx ?? lastSelectedRowIdx;
+                        const start = Math.min(anchor, i);
+                        const end = Math.max(anchor, i);
+                        const gRowsB = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+                        for (let j = start; j <= end; j++) {
+                            const s = currentSegmentsList[j];
+                            if (!isGridDataRowFilterVisible(gRowsB[j])) continue;
+                            selectedRowIds.add(s.id);
                         }
-
-                        // Ctrl / Shift 點擊後：若原 active-row 不在新選取中，一併清除
-                        if (e.ctrlKey || e.metaKey || e.shiftKey) {
-                            const activeRow = document.querySelector('.grid-data-row.active-row');
-                            if (activeRow) {
-                        const activeSegId = parseId(activeRow.dataset.segId);
-                                if (!selectedRowIds.has(activeSegId)) {
-                                    activeRow.classList.remove('active-row');
-                                    const focused = document.activeElement;
-                                    if (focused && focused.classList.contains('grid-textarea')) focused.blur();
-                                }
-                            }
-                        }
-                        
-                        // Render visually using data-seg-id
+                    } else if (selectedRowIds.has(seg.id) && selectedRowIds.size > 1) {
+                        selectedRowIds.clear();
+                        selectedRowIds.add(seg.id);
+                        lastSelectedRowIdx = i;
+                        document.querySelectorAll('.grid-data-row').forEach(r => r.classList.remove('active-row'));
+                        row.classList.add('active-row');
                         document.querySelectorAll('.grid-data-row').forEach(r => {
                             const rId = parseId(r.dataset.segId);
                             if (selectedRowIds.has(rId)) r.classList.add('selected-row');
                             else r.classList.remove('selected-row');
                         });
+                        if (!effectiveLocked) targetInput?.focus();
                         updateSfReplaceAllButtonLabel();
-                    });
-                }
+                        return;
+                    } else {
+                        selectedRowIds.clear();
+                        selectedRowIds.add(seg.id);
+                        lastSelectedRowIdx = i;
+                        document.querySelectorAll('.grid-data-row').forEach(r => r.classList.remove('active-row'));
+                        const focused = document.activeElement;
+                        if (focused && focused.classList.contains('grid-textarea')) focused.blur();
+                    }
 
+                    if (e.ctrlKey || e.metaKey || e.shiftKey) {
+                        const activeRow = document.querySelector('.grid-data-row.active-row');
+                        if (activeRow) {
+                            const activeSegId = parseId(activeRow.dataset.segId);
+                            if (!selectedRowIds.has(activeSegId)) {
+                                activeRow.classList.remove('active-row');
+                                const focused = document.activeElement;
+                                if (focused && focused.classList.contains('grid-textarea')) focused.blur();
+                            }
+                        }
+                    }
+                    document.querySelectorAll('.grid-data-row').forEach(r => {
+                        const rId = parseId(r.dataset.segId);
+                        if (selectedRowIds.has(rId)) r.classList.add('selected-row');
+                        else r.classList.remove('selected-row');
+                    });
+                    updateSfReplaceAllButtonLabel();
+                });
+            }
+
+            if (!effectiveLocked) {
                 let targetDebounceTimer;
                 let skipHighMatchInputGuard = false;
                 targetInput.addEventListener('focus', async () => {
@@ -8917,7 +8914,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const hasTm = window.ActiveTmCache && window.ActiveTmCache.length > 0;
         const hasTb = window.ActiveTbTerms && window.ActiveTbTerms.length > 0;
-        if (!seg.isLocked && (hasTm || hasTb)) {
+        if (!isTargetWriteProtected(seg) && (hasTm || hasTb)) {
             let matches = [];
             if (hasTm) {
                 const rawTm = [];
@@ -9115,7 +9112,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         } else {
             const _isConfigured = (window.ActiveReadTmIds?.length > 0) || (window.ActiveReadTbIds?.length > 0);
-            const _noDataMsg = seg.isLocked ? '此句段已鎖定'
+            const _noDataMsg = isTargetWriteProtected(seg) ? '此句段已鎖定或禁止編輯'
                 : _isConfigured ? '已掛載 TM / TB，目前無相符的比對結果'
                 : '目前未掛載 TM 或術語庫，或請先選取句段';
             searchResultsDOM.innerHTML = `<div style="padding: 1rem; color: #64748b; font-size: 0.9rem; text-align: center;">${_noDataMsg}</div>`;
@@ -9143,6 +9140,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const rowIdx = Array.from(document.querySelectorAll('.grid-data-row')).indexOf(activeRow);
         if (rowIdx < 0 || !currentSegmentsList[rowIdx]) return;
         const seg = currentSegmentsList[rowIdx];
+        if (isTargetWriteProtected(seg)) return;
         if (segmentNeedsHighMatchGuard(seg)) {
             const ok = await showHighMatchEditConfirmModal(seg);
             if (!ok) return;
@@ -10385,13 +10383,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 let excelWriteCount = 0;
                 let excelSkipLocked = 0;
                 let excelSkipNoSheet = 0;
-                const couldWriteSegs = segs.filter((s) => !s.isLocked);
+                const couldWriteSegs = segs.filter((s) => !isTargetWriteProtected(s));
 
                 // SheetJS 0.20 讀入後有內部工作表 XML 快取；直接修改 cell 物件無法反映在 writeFile 輸出。
                 // 解法：將整張工作表轉成 AoA → 更新目標欄 → aoa_to_sheet 重建，再整張替換進 wb.Sheets。
                 const segsBySheet = new Map();
                 segs.forEach(s => {
-                    if (s.isLocked) { excelSkipLocked++; return; }
+                    if (isTargetWriteProtected(s)) { excelSkipLocked++; return; }
                     const k = String(s.sheetName || '');
                     if (!segsBySheet.has(k)) segsBySheet.set(k, []);
                     segsBySheet.get(k).push(s);
@@ -11836,6 +11834,41 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } catch (_) { /* 無 List models 權限，忽略 */ }
             };
         }
+
+        const fileDomHint = document.getElementById('aiSettingsFileDomainsHint');
+        const fileDomBadges = document.getElementById('aiSettingsFileDomainBadges');
+        if (fileDomBadges) {
+            if (!currentFileId) {
+                if (fileDomHint) {
+                    fileDomHint.textContent = '於編輯器中開啟專案檔案後，可在此切換本檔適用的類別標籤（影響風格學習篩選與範例標記）。';
+                }
+                fileDomBadges.innerHTML = '<span style="font-size:0.78rem; color:#94a3b8;">請先從專案開啟一個檔案。</span>';
+            } else {
+                if (fileDomHint) fileDomHint.textContent = '點擊以切換本檔啟用類別。';
+                let tags = await DBService.getAiCategoryTags().catch(() => []);
+                if (tags.length === 0) {
+                    try { await DBService.addAiCategoryTag('通用'); } catch (_) { /*  */ }
+                    tags = await DBService.getAiCategoryTags().catch(() => []);
+                }
+                const fileRec = await DBService.getFile(currentFileId).catch(() => null);
+                const fileDomains = fileRec?.aiDomains ? [...fileRec.aiDomains] : [];
+                const renderFileDomainBadges = () => {
+                    fileDomBadges.innerHTML = tags.map(t =>
+                        `<span class="ai-badge${fileDomains.includes(t.name) ? ' selected' : ' inactive'}" data-cat="${_esc(t.name)}" style="cursor:pointer;" role="button" tabindex="0">${_esc(t.name)}</span>`
+                    ).join('');
+                    fileDomBadges.querySelectorAll('.ai-badge').forEach(badge => {
+                        badge.onclick = () => {
+                            const cat = badge.getAttribute('data-cat');
+                            const idx = fileDomains.indexOf(cat);
+                            if (idx >= 0) fileDomains.splice(idx, 1); else fileDomains.push(cat);
+                            renderFileDomainBadges();
+                            DBService.updateFile(currentFileId, { aiDomains: [...fileDomains] }).catch(console.error);
+                        };
+                    });
+                };
+                renderFileDomainBadges();
+            }
+        }
     }
 
     // ---- 準則管理 View ----
@@ -11853,60 +11886,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 allCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
             }
         }
-        const list = document.getElementById('aiGuidelinesList');
-        const mutexDatalist = document.getElementById('aiMutexGroupList');
+        const listTranslation = document.getElementById('aiGuidelinesListTranslation');
+        const listStyle = document.getElementById('aiGuidelinesListStyle');
+        const mutexGroupSelect = document.getElementById('aiGuidelineNewMutexGroupSelect');
 
         // Filter/sort state
         let filterCat = '';
         let filterMutex = '';
-        let filterScope = '';
         let sortKey = 'order';
-
-        // ---- 類別標籤管理 ----
-        function renderCategoryTagsList() {
-            const tagsListEl = document.getElementById('aiCategoryTagsList');
-            if (!tagsListEl) return;
-            if (allCategoryTags.length === 0) {
-                tagsListEl.innerHTML = '<span style="font-size:0.8rem; color:#94a3b8;">尚無標籤。</span>';
-                return;
-            }
-            tagsListEl.innerHTML = allCategoryTags.map(t => `
-                <span class="ai-category-tag-chip">
-                    ${_esc(t.name)}
-                    ${t.name !== '通用' ? `<button class="ai-tag-chip-del" data-tagid="${t.id}" title="刪除標籤">✕</button>` : ''}
-                </span>
-            `).join('');
-            tagsListEl.querySelectorAll('.ai-tag-chip-del').forEach(btn => {
-                btn.onclick = async () => {
-                    const id = parseInt(btn.getAttribute('data-tagid'), 10);
-                    if (!confirm('確定刪除此類別標籤？（不會影響已有的準則條目）')) return;
-                    await DBService.deleteAiCategoryTag(id).catch(console.error);
-                    allCategoryTags = allCategoryTags.filter(t => t.id !== id);
-                    renderCategoryTagsList();
-                    updateMultiselectDropdown();
-                    updateFilterBarOptions();
-                };
-            });
-        }
-
-        const addTagBtn = document.getElementById('btnAddCategoryTag');
-        if (addTagBtn) {
-            addTagBtn.onclick = async () => {
-                const input = document.getElementById('aiNewCategoryTagInput');
-                const name = input?.value?.trim() || '';
-                if (!name) return;
-                try {
-                    const id = await DBService.addAiCategoryTag(name);
-                    allCategoryTags.push({ id, name, createdAt: new Date().toISOString() });
-                    if (input) input.value = '';
-                    renderCategoryTagsList();
-                    updateMultiselectDropdown();
-                    updateFilterBarOptions();
-                } catch (err) {
-                    alert('新增標籤失敗：' + err.message);
-                }
-            };
-        }
 
         // ---- 多選類別下拉 ----
         let selectedNewCategories = ['通用'];
@@ -11927,7 +11914,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const dropdown = document.getElementById('aiGuidelineCategoryDropdown');
             if (!dropdown) return;
             if (allCategoryTags.length === 0) {
-                dropdown.innerHTML = '<span style="font-size:0.8rem; color:#94a3b8; padding:0.4rem 0.6rem; display:block;">請先在上方建立類別標籤</span>';
+                dropdown.innerHTML = '<span style="font-size:0.8rem; color:#94a3b8; padding:0.4rem 0.6rem; display:block;">尚無類別（將自動補上「通用」）</span>';
                 return;
             }
             const sortedTags = _sortTagNames(allCategoryTags.map(t => t.name));
@@ -11962,7 +11949,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         updateMultiselectDropdown();
         updateMultiselectDisplay();
-        renderCategoryTagsList();
 
         // ---- 篩選/排序工具列 ----
         function _normalizeCategory(cat) {
@@ -11989,43 +11975,37 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const catFilterEl = document.getElementById('aiGuidelinesFilterCat');
         const mutexFilterEl = document.getElementById('aiGuidelinesFilterMutex');
-        const scopeFilterEl = document.getElementById('aiGuidelinesFilterScope');
         const sortEl = document.getElementById('aiGuidelinesSort');
         if (catFilterEl) catFilterEl.onchange = () => { filterCat = catFilterEl.value; renderList(); };
         if (mutexFilterEl) mutexFilterEl.onchange = () => { filterMutex = mutexFilterEl.value; renderList(); };
-        if (scopeFilterEl) scopeFilterEl.onchange = () => { filterScope = scopeFilterEl.value; renderList(); };
         if (sortEl) sortEl.onchange = () => { sortKey = sortEl.value; renderList(); };
 
         updateFilterBarOptions();
 
-        // ---- 準則清單 ----
-        function renderList() {
-            if (!list) return;
-            // Apply filters
-            let filtered = allGuidelines.filter(g => {
-                if (filterCat && !_normalizeCategory(g.category).includes(filterCat)) return false;
-                if (filterMutex === '__none__' && g.mutexGroup) return false;
-                if (filterMutex && filterMutex !== '__none__' && g.mutexGroup !== filterMutex) return false;
-                const sc = (g.scope || 'translation') === 'style' ? 'style' : 'translation';
-                if (filterScope === 'translation' && sc !== 'translation') return false;
-                if (filterScope === 'style' && sc !== 'style') return false;
-                return true;
-            });
-            // Apply sort
-            if (sortKey === 'cat') {
-                filtered = [...filtered].sort((a, b) => {
-                    const ca = _normalizeCategory(a.category)[0];
-                    const cb = _normalizeCategory(b.category)[0];
-                    return ca.localeCompare(cb, 'zh-Hant-TW');
-                });
-            } else if (sortKey === 'content') {
-                filtered = [...filtered].sort((a, b) => a.content.localeCompare(b.content, 'zh-Hant-TW'));
+        async function applyMutexGroupDefault(groupName, enable) {
+            const members = allGuidelines.filter(g => g && g.mutexGroup === groupName).sort((a, b) => a.id - b.id);
+            if (members.length === 0) return;
+            if (enable) {
+                for (let i = 0; i < members.length; i++) {
+                    const want = i === 0;
+                    const m = members[i];
+                    if (!!m.isDefault === want) continue;
+                    await DBService.updateAiGuideline(m.id, { isDefault: want });
+                    const row = allGuidelines.find(x => x.id === m.id);
+                    if (row) row.isDefault = want;
+                }
+            } else {
+                for (const m of members) {
+                    if (!m.isDefault) continue;
+                    await DBService.updateAiGuideline(m.id, { isDefault: false });
+                    const row = allGuidelines.find(x => x.id === m.id);
+                    if (row) row.isDefault = false;
+                }
             }
-            // else 'order' — keep existing order (already sorted by sortOrder from DB)
+        }
 
-            if (filtered.length === 0) { list.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; padding:0.5rem 0;">尚無符合條件的準則。</p>'; return; }
-
-            // Group by mutexGroup
+        // ---- 準則清單（翻譯／文風兩欄） ----
+        function buildItemsFromFiltered(filtered) {
             const renderedGroups = new Set();
             const items = [];
             filtered.forEach(g => {
@@ -12039,50 +12019,63 @@ document.addEventListener('DOMContentLoaded', async () => {
                     items.push({ type: 'single', g });
                 }
             });
+            return items;
+        }
 
-            list.innerHTML = items.map(item => {
+        function columnHtmlFromItems(items) {
+            return items.map(item => {
                 if (item.type === 'single') {
                     const g = item.g;
                     const catBadges = _normalizeCategory(g.category).map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
-                    const scLabel = (g.scope || 'translation') === 'style' ? '文風' : '翻譯';
                     const defLabel = g.isDefault ? ' <span class="ai-badge" style="background:#e0e7ff;">預設</span>' : '';
                     return `
                         <div class="ai-guideline-item" data-id="${g.id}">
                             <div style="flex:1;">
-                                <div class="ai-guideline-item-content"><span class="ai-badge" style="margin-right:0.35rem;">${scLabel}</span>${defLabel}<br>${_esc(g.content)}</div>
+                                <div class="ai-guideline-item-content">${defLabel}<br>${_esc(g.content)}</div>
                                 <div class="ai-guideline-item-meta">${catBadges}</div>
                             </div>
                             <div class="ai-guideline-item-actions" style="display:flex; flex-direction:column; gap:0.25rem; align-items:flex-end;">
                                 <label style="font-size:0.72rem; display:flex; align-items:center; gap:0.2rem; cursor:pointer;">
                                     <input type="checkbox" class="ag-toggle-default" data-gid="${g.id}" ${g.isDefault ? 'checked' : ''}/> 預設
                                 </label>
-                                <button class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
-                            </div>
-                        </div>`;
-                } else {
-                    return `
-                        <div style="border:1px solid #fdba74; border-radius:8px; background:#fff7ed; padding:0.6rem 0.75rem; max-width:800px;">
-                            <div style="font-size:0.8rem; font-weight:700; color:#9a3412; margin-bottom:0.5rem;">互斥群組：${_esc(item.name)}</div>
-                            <div style="display:flex; flex-direction:column; gap:0.35rem;">
-                                ${item.guidelines.map(g => {
-                                    const catBadges = _normalizeCategory(g.category).map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
-                                    return `
-                                        <div class="ai-guideline-item" data-id="${g.id}" style="background:#fff; border-radius:5px; border:1px solid #fed7aa;">
-                                            <div style="flex:1;">
-                                                <div class="ai-guideline-item-content">${_esc(g.content)}</div>
-                                                <div class="ai-guideline-item-meta">${catBadges}</div>
-                                            </div>
-                                            <div class="ai-guideline-item-actions">
-                                                <button class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
-                                            </div>
-                                        </div>`;
-                                }).join('')}
+                                <button type="button" class="secondary-btn btn-sm ag-join-mutex" data-join-gid="${g.id}" style="font-size:0.72rem;">加入群組</button>
+                                <button type="button" class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
                             </div>
                         </div>`;
                 }
+                const gMembers = [...item.guidelines].sort((a, b) => a.id - b.id);
+                const anyDef = gMembers.some(g => g.isDefault);
+                return `
+                    <div style="border:1px solid #fdba74; border-radius:8px; background:#fff7ed; padding:0.6rem 0.75rem;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.35rem; margin-bottom:0.45rem;">
+                            <div style="font-size:0.8rem; font-weight:700; color:#9a3412;">互斥群組：${_esc(item.name)}</div>
+                            <label style="font-size:0.72rem; display:flex; align-items:center; gap:0.3rem; cursor:pointer; color:#9a3412;">
+                                <input type="checkbox" class="ag-mutex-group-default" data-mutex="${_esc(item.name)}" ${anyDef ? 'checked' : ''}/> 預設條目
+                            </label>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                            ${gMembers.map(g => {
+                                const catBadges = _normalizeCategory(g.category).map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
+                                return `
+                                    <div class="ai-guideline-item" data-id="${g.id}" style="background:#fff; border-radius:5px; border:1px solid #fed7aa;">
+                                        <div style="flex:1;">
+                                            <div class="ai-guideline-item-content">${_esc(g.content)}</div>
+                                            <div class="ai-guideline-item-meta">${catBadges}</div>
+                                        </div>
+                                        <div class="ai-guideline-item-actions" style="display:flex; flex-direction:column; gap:0.25rem; align-items:flex-end;">
+                                            <button type="button" class="secondary-btn btn-sm ag-leave-mutex" data-leave-gid="${g.id}" style="font-size:0.72rem;">脫離群組</button>
+                                            <button type="button" class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
+                                        </div>
+                                    </div>`;
+                            }).join('')}
+                        </div>
+                    </div>`;
             }).join('');
+        }
 
-            list.querySelectorAll('[data-del]').forEach(btn => {
+        function wireColumn(listEl) {
+            if (!listEl) return;
+            listEl.querySelectorAll('[data-del]').forEach(btn => {
                 btn.onclick = async () => {
                     if (!confirm('確定刪除此準則條目？')) return;
                     const id = parseInt(btn.getAttribute('data-del'), 10);
@@ -12090,10 +12083,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const idx = allGuidelines.findIndex(g => g.id === id);
                     if (idx >= 0) allGuidelines.splice(idx, 1);
                     updateFilterBarOptions();
+                    updateMutexSelectOptions();
                     renderList();
                 };
             });
-            list.querySelectorAll('.ag-toggle-default').forEach(cb => {
+            listEl.querySelectorAll('.ag-toggle-default').forEach(cb => {
                 cb.onchange = async () => {
                     const gid = parseInt(cb.getAttribute('data-gid'), 10);
                     try {
@@ -12103,15 +12097,101 @@ document.addEventListener('DOMContentLoaded', async () => {
                     } catch (e) { console.error(e); }
                 };
             });
+            listEl.querySelectorAll('.ag-mutex-group-default').forEach(cb => {
+                cb.onchange = async () => {
+                    const name = cb.getAttribute('data-mutex') || '';
+                    if (!name) return;
+                    try {
+                        await applyMutexGroupDefault(name, cb.checked);
+                    } catch (e) { console.error(e); }
+                    renderList();
+                };
+            });
+            listEl.querySelectorAll('.ag-leave-mutex').forEach(btn => {
+                btn.onclick = async () => {
+                    const id = parseInt(btn.getAttribute('data-leave-gid'), 10);
+                    if (!id || !confirm('確定讓此條目脫離互斥群組？')) return;
+                    try {
+                        await DBService.updateAiGuideline(id, { mutexGroup: null, isDefault: false });
+                        const row = allGuidelines.find(g => g.id === id);
+                        if (row) { row.mutexGroup = null; row.isDefault = false; }
+                    } catch (e) { console.error(e); }
+                    updateMutexSelectOptions();
+                    renderList();
+                };
+            });
+            listEl.querySelectorAll('.ag-join-mutex').forEach(btn => {
+                btn.onclick = async () => {
+                    const id = parseInt(btn.getAttribute('data-join-gid'), 10);
+                    if (!id) return;
+                    const raw = window.prompt('請輸入要加入的互斥群組名稱（須與他條目一致才能互斥）：', '');
+                    if (raw == null) return;
+                    const name = raw.trim();
+                    if (!name) return;
+                    try {
+                        await DBService.updateAiGuideline(id, { mutexGroup: name, isDefault: false });
+                        const row = allGuidelines.find(g => g.id === id);
+                        if (row) { row.mutexGroup = name; row.isDefault = false; }
+                    } catch (e) { console.error(e); }
+                    updateMutexSelectOptions();
+                    updateFilterBarOptions();
+                    renderList();
+                };
+            });
         }
 
-        function updateMutexDatalist() {
+        function renderList() {
+            if (!listTranslation && !listStyle) return;
+            let filtered = allGuidelines.filter(g => {
+                if (filterCat && !_normalizeCategory(g.category).includes(filterCat)) return false;
+                if (filterMutex === '__none__' && g.mutexGroup) return false;
+                if (filterMutex && filterMutex !== '__none__' && g.mutexGroup !== filterMutex) return false;
+                return true;
+            });
+            if (sortKey === 'cat') {
+                filtered = [...filtered].sort((a, b) => {
+                    const ca = _normalizeCategory(a.category)[0];
+                    const cb = _normalizeCategory(b.category)[0];
+                    return ca.localeCompare(cb, 'zh-Hant-TW');
+                });
+            } else if (sortKey === 'content') {
+                filtered = [...filtered].sort((a, b) => a.content.localeCompare(b.content, 'zh-Hant-TW'));
+            }
+
+            const tFiltered = filtered.filter(g => (g.scope || 'translation') !== 'style');
+            const sFiltered = filtered.filter(g => (g.scope || 'translation') === 'style');
+            if (listTranslation) {
+                if (tFiltered.length === 0) {
+                    listTranslation.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; padding:0.25rem 0;">尚無符合條件的翻譯準則。</p>';
+                } else {
+                    const itemsT = buildItemsFromFiltered(tFiltered);
+                    listTranslation.innerHTML = columnHtmlFromItems(itemsT);
+                }
+            }
+            if (listStyle) {
+                if (sFiltered.length === 0) {
+                    listStyle.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; padding:0.25rem 0;">尚無符合條件的文風條目。</p>';
+                } else {
+                    const itemsS = buildItemsFromFiltered(sFiltered);
+                    listStyle.innerHTML = columnHtmlFromItems(itemsS);
+                }
+            }
+            wireColumn(listTranslation);
+            wireColumn(listStyle);
+        }
+
+        function updateMutexSelectOptions() {
+            if (!mutexGroupSelect) return;
+            const current = mutexGroupSelect.value;
             const mutexGroups = [...new Set(allGuidelines.map(g => g.mutexGroup).filter(Boolean))].sort();
-            if (mutexDatalist) mutexDatalist.innerHTML = mutexGroups.map(m => `<option value="${_esc(m)}">`).join('');
+            mutexGroupSelect.innerHTML = '<option value="">無互斥群組</option>' +
+                mutexGroups.map(m => `<option value="${_esc(m)}">${_esc(m)}</option>`).join('');
+            const has = Array.from(mutexGroupSelect.options).some(o => o.value === current);
+            mutexGroupSelect.value = has ? current : '';
         }
 
         renderList();
-        updateMutexDatalist();
+        updateMutexSelectOptions();
 
         const addBtn = document.getElementById('btnAddAiGuideline');
         if (addBtn) {
@@ -12120,7 +12200,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const content = document.getElementById('aiGuidelineNewContent')?.value?.trim() || '';
                     const categoryVal = selectedNewCategories.length > 0 ? JSON.stringify(selectedNewCategories) : '通用';
                     const category = categoryVal;
-                    const mutexGroup = document.getElementById('aiGuidelineNewMutexGroup')?.value?.trim() || null;
+                    const mSel = document.getElementById('aiGuidelineNewMutexGroupSelect');
+                    const mVal = mSel && mSel.value != null ? String(mSel.value).trim() : '';
+                    const mutexGroup = mVal || null;
                     const scopeEl = document.getElementById('aiGuidelineNewScope');
                     const scope = (scopeEl && scopeEl.value === 'style') ? 'style' : 'translation';
                     const isDefault = !!(document.getElementById('aiGuidelineNewIsDefault')?.checked);
@@ -12129,13 +12211,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const id = await DBService.addAiGuideline({ content, category, mutexGroup, sortOrder: allGuidelines.length, scope, isDefault });
                     const newRow = { id, content, category, mutexGroup: mutexGroup || null, sortOrder: allGuidelines.length, scope, isDefault };
                     allGuidelines.push(newRow);
+                    if (mutexGroup && isDefault) {
+                        const inGroup = allGuidelines.filter(g => g && g.mutexGroup === mutexGroup).sort((a, b) => a.id - b.id);
+                        for (const m of inGroup) {
+                            const should = m.id === id;
+                            if (!!m.isDefault !== should) {
+                                await DBService.updateAiGuideline(m.id, { isDefault: should });
+                                const r = allGuidelines.find(x => x.id === m.id);
+                                if (r) r.isDefault = should;
+                            }
+                        }
+                    }
                     document.getElementById('aiGuidelineNewContent').value = '';
-                    document.getElementById('aiGuidelineNewMutexGroup').value = '';
+                    if (mSel) mSel.value = '';
                     selectedNewCategories = ['通用'];
                     updateMultiselectDropdown();
                     updateMultiselectDisplay();
                     updateFilterBarOptions();
-                    updateMutexDatalist();
+                    updateMutexSelectOptions();
                     renderList();
                 } catch (err) {
                     alert('新增準則失敗：' + err.message);
@@ -12280,7 +12373,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function loadSharedInfoAiPanel() {
         if (!currentProjectId) return;
 
-        const domainBadges = document.getElementById('aiDomainBadges');
         const selectedList = document.getElementById('aiSelectedGuidelinesList');
         const selectedStyleList = document.getElementById('aiSelectedStyleGuidelinesList');
         const specialList = document.getElementById('aiSpecialInstructionsList');
@@ -12302,13 +12394,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ]);
         const allTranslation = allGuidelines.filter(g => (g.scope || 'translation') === 'translation');
         const allStyle = allGuidelines.filter(g => (g.scope || 'style') === 'style');
-        let allCategoryTagsInTab = await DBService.getAiCategoryTags().catch(() => []);
-        if (allCategoryTagsInTab.length === 0) {
-            try { await DBService.addAiCategoryTag('通用'); } catch (_) {}
-            allCategoryTagsInTab = await DBService.getAiCategoryTags().catch(() => []);
-        }
         const fileRec = currentFileId ? await DBService.getFile(currentFileId).catch(() => null) : null;
-        const fileDomains = fileRec?.aiDomains ? [...fileRec.aiDomains] : [];
         let selectedGuidelineIds = new Set((psettings?.selectedGuidelineIds || []).map(Number));
         let selectedStyleIds = new Set((psettings?.selectedStyleGuidelineIds || []).map(Number));
         let specialInstructions = Array.isArray(psettings?.specialInstructions) ? [...psettings.specialInstructions] : [];
@@ -12335,30 +12421,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 selectedStyleGuidelineIds: [...selectedStyleIds],
                 specialInstructions
             }).catch(console.error);
-        }
-
-        // Render domain badges — show ALL defined tags; active=highlighted, inactive=grayed
-        function renderDomains() {
-            if (!domainBadges) return;
-            if (allCategoryTagsInTab.length === 0) {
-                domainBadges.innerHTML = '<span style="font-size:0.78rem; color:#94a3b8;">請先在準則管理建立類別標籤。</span>';
-                return;
-            }
-            domainBadges.innerHTML = allCategoryTagsInTab.map(t =>
-                `<span class="ai-badge${fileDomains.includes(t.name) ? ' selected' : ' inactive'}" data-cat="${_esc(t.name)}">${_esc(t.name)}</span>`
-            ).join('');
-            domainBadges.querySelectorAll('.ai-badge').forEach(badge => {
-                badge.onclick = () => {
-                    const cat = badge.getAttribute('data-cat');
-                    const idx = fileDomains.indexOf(cat);
-                    if (idx >= 0) fileDomains.splice(idx, 1); else fileDomains.push(cat);
-                    badge.classList.toggle('selected', fileDomains.includes(cat));
-                    badge.classList.toggle('inactive', !fileDomains.includes(cat));
-                    if (currentFileId) {
-                        DBService.updateFile(currentFileId, { aiDomains: [...fileDomains] }).catch(console.error);
-                    }
-                };
-            });
         }
 
         function renderSelectedGuidelines() {
@@ -12480,7 +12542,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (newItemEditor) specialList.appendChild(newItemEditor);
         }
 
-        renderDomains();
         renderSelectedGuidelines();
         renderSelectedStyleGuidelines();
         renderSpecialInstructions();
@@ -13056,7 +13117,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const tmFillSegs = []; // segments to fill from TM
 
         for (const seg of candidates) {
-            if (seg.isLocked) continue;
+            if (isTargetWriteProtected(seg)) continue;
             if (seg.status === 'confirmed') {
                 if (config.handleConfirmed === 'skip') continue;
                 if (config.handleConfirmed === 'ask') {

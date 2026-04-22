@@ -623,7 +623,7 @@
                                 <!-- Private Notes Tab -->
                                 <div class="notes-tab-content active" id="tabPrivateNotes">
                                     <p style="font-size:0.78rem; color:#64748b; margin:0 0 0.5rem 0;">僅自己可見。每則<strong>筆記</strong>可點「共用」複製或移動到共用資訊；離開編輯器時亦可批次處理（待辦僅能於此區管理，不會進入離開時的共用視窗）。</p>
-                                    <div class="cat-notes-dual-col">
+                                    <div class="cat-notes-dual-col cat-notes-dual-col--ruled">
                                         <div class="cat-notes-col">
                                             <div class="shared-info-section">
                                                 <div class="shared-info-section-header">
@@ -646,16 +646,9 @@
                                 </div>
                                 <!-- Shared Info Tab -->
                                 <div class="notes-tab-content" id="tabSharedInfo">
-                                    <div class="cat-notes-dual-col">
+                                    <div class="cat-notes-dual-col cat-notes-dual-col--ruled">
                                         <div class="cat-notes-col" id="tabSharedInfoLeft">
                                             <div class="shared-info-section">
-                                                <div class="shared-info-section-header">
-                                                    <h4 class="shared-info-section-title">適用類別</h4>
-                                                </div>
-                                                <p style="font-size:0.78rem; color:#64748b; margin:0 0 0.4rem 0;">選取的類別會篩選風格學習與下述準則參考，並用於範例標記。</p>
-                                                <div id="aiDomainBadges" class="ai-domain-badges"></div>
-                                            </div>
-                                            <div class="shared-info-section" style="margin-top:0.6rem;">
                                                 <div class="shared-info-section-header">
                                                     <h4 class="shared-info-section-title">庫內翻譯準則</h4>
                                                     <span class="pm-only-ui" style="display:inline-flex; gap:0.35rem;">
@@ -873,6 +866,11 @@
                 <header class="view-header"><h1>AI 管理</h1></header>
                 <div id="viewAiSettingsInner" style="max-width:640px; display:flex; flex-direction:column; gap:1.25rem;">
                     <p style="font-size:0.8rem; color:#64748b; margin:0;">全系統可經主站 <code style="font-size:0.78rem;">/api/cat-openai</code> 代打 OpenAI（<code>OPENAI_API_KEY</code> 僅在伺服器）。以下金鑰為<strong>本機與自架 API 備用</strong>。僅執行官可編修管理項目。</p>
+                    <div id="aiSettingsFileDomainsSection" class="form-group" style="border:1px solid #e2e8f0; border-radius:8px; padding:0.85rem 1rem; background:#f8fafc;">
+                        <h4 style="font-size:0.9rem; margin:0 0 0.35rem 0; color:#334155;">目前檔案的適用類別</h4>
+                        <p id="aiSettingsFileDomainsHint" style="font-size:0.78rem; color:#64748b; margin:0 0 0.5rem 0;">於編輯器中開啟專案檔案後，可在此切換本檔適用的類別標籤（影響風格學習篩選與範例標記）。</p>
+                        <div id="aiSettingsFileDomainBadges" class="ai-domain-badges" style="min-height:1.5rem;"></div>
+                    </div>
                     <div class="form-group">
                         <label class="form-label" style="display:flex; align-items:center; gap:0.5rem;">
                             <input type="checkbox" id="aiSettingsPreferProxy" checked> 盡量使用主站代打（無須自填金鑰時可勾選）
@@ -944,17 +942,7 @@
                     <h1>準則管理</h1>
                 </header>
 
-                <!-- 類別標籤管理 -->
-                <div style="max-width:800px; border:1px solid #e2e8f0; border-radius:8px; padding:1rem; background:#f8fafc; margin-bottom:1.5rem;">
-                    <h4 style="margin:0 0 0.75rem 0; font-size:0.9rem; color:#374151;">類別標籤管理</h4>
-                    <div id="aiCategoryTagsList" style="display:flex; flex-wrap:wrap; gap:0.4rem; margin-bottom:0.75rem; min-height:1.5rem;"></div>
-                    <div style="display:flex; gap:0.5rem; align-items:center;">
-                        <input type="text" id="aiNewCategoryTagInput" class="form-input" placeholder="新標籤名稱…" style="width:180px;">
-                        <button type="button" id="btnAddCategoryTag" class="secondary-btn btn-sm">新增</button>
-                    </div>
-                </div>
-
-                <div id="aiGuidelinesFilterBar" style="display:flex; gap:0.5rem; align-items:center; margin-bottom:1rem; flex-wrap:wrap;">
+                <div id="aiGuidelinesFilterBar" style="display:flex; gap:0.5rem; align-items:center; margin-bottom:1rem; flex-wrap:wrap; max-width:1000px;">
                     <select id="aiGuidelinesFilterCat" class="form-input" style="width:auto; min-width:110px; padding:0.3rem 0.5rem; font-size:0.82rem;">
                         <option value="">全部類別</option>
                     </select>
@@ -962,18 +950,22 @@
                         <option value="">全部群組</option>
                         <option value="__none__">無互斥群組</option>
                     </select>
-                    <select id="aiGuidelinesFilterScope" class="form-input" style="width:auto; min-width:100px; padding:0.3rem 0.5rem; font-size:0.82rem;">
-                        <option value="">翻譯+文風</option>
-                        <option value="translation">翻譯</option>
-                        <option value="style">文風</option>
-                    </select>
                     <select id="aiGuidelinesSort" class="form-input" style="width:auto; min-width:130px; padding:0.3rem 0.5rem; font-size:0.82rem;">
                         <option value="order">依建立順序</option>
                         <option value="cat">依類別</option>
                         <option value="content">依內容（A–Z）</option>
                     </select>
                 </div>
-                <div id="aiGuidelinesList" style="display:flex; flex-direction:column; gap:0.5rem; margin-bottom:1.5rem; max-width:800px;"></div>
+                <div class="ai-guidelines-two-cols" style="display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; max-width:1000px; margin-bottom:1.5rem; align-items:start;">
+                    <div>
+                        <h2 style="font-size:0.95rem; margin:0 0 0.5rem 0; color:#1e3a5f; font-weight:700;">庫內翻譯準則</h2>
+                        <div id="aiGuidelinesListTranslation" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+                    </div>
+                    <div>
+                        <h2 style="font-size:0.95rem; margin:0 0 0.5rem 0; color:#1e3a5f; font-weight:700;">庫內文風偏好</h2>
+                        <div id="aiGuidelinesListStyle" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+                    </div>
+                </div>
                 <div style="max-width:800px; border:1px solid #e2e8f0; border-radius:8px; padding:1rem; background:#f8fafc;">
                     <h4 style="margin:0 0 0.75rem 0; font-size:0.9rem; color:#374151;">新增準則條目</h4>
                     <div style="display:flex; flex-direction:column; gap:0.6rem;">
@@ -989,9 +981,10 @@
                                 <input type="hidden" id="aiGuidelineNewCategory" value="通用">
                             </div>
                             <div style="display:flex; align-items:center; gap:0.4rem;">
-                                <label style="font-size:0.82rem; color:#374151; white-space:nowrap;">互斥</label>
-                                <input type="text" id="aiGuidelineNewMutexGroup" list="aiMutexGroupList" class="form-input" placeholder="（選填）" style="width:100px;">
-                                <datalist id="aiMutexGroupList"></datalist>
+                                <label style="font-size:0.82rem; color:#374151; white-space:nowrap;">互斥群組</label>
+                                <select id="aiGuidelineNewMutexGroupSelect" class="form-input" style="min-width:140px; max-width:200px; padding:0.3rem 0.45rem; font-size:0.82rem;">
+                                    <option value="">無互斥群組</option>
+                                </select>
                             </div>
                             <div style="display:flex; align-items:center; gap:0.35rem;">
                                 <label style="font-size:0.8rem; color:#374151;">性質</label>

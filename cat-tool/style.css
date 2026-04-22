@@ -2010,9 +2010,39 @@ mark.tm-search-hit {
     flex: 1 1 200px;
     min-width: 0;
 }
+/* 雙欄中間 1px 實線（與表頭 / 區塊分割線同系） */
+.cat-notes-dual-col--ruled {
+    gap: 0;
+    align-items: stretch;
+}
+.cat-notes-dual-col--ruled .cat-notes-col:not(:first-child) {
+    border-left: 1px solid #e2e8f0;
+    padding-left: 0.75rem;
+    box-sizing: border-box;
+}
+.cat-notes-dual-col--ruled .cat-notes-col:first-child {
+    padding-right: 0.75rem;
+    box-sizing: border-box;
+}
+@media (max-width: 900px) {
+    .ai-guidelines-two-cols {
+        grid-template-columns: 1fr !important;
+    }
+}
+
 @media (max-width: 640px) {
     .cat-notes-dual-col { flex-direction: column; }
     .cat-notes-dual-col .cat-notes-col { flex: 1 1 auto; width: 100%; }
+    .cat-notes-dual-col--ruled .cat-notes-col:not(:first-child) {
+        border-left: none;
+        border-top: 1px solid #e2e8f0;
+        padding-left: 0;
+        padding-top: 0.75rem;
+        margin-top: 0.5rem;
+    }
+    .cat-notes-dual-col--ruled .cat-notes-col:first-child {
+        padding-right: 0;
+    }
 }
 
 /* AI 報告 tab content */
