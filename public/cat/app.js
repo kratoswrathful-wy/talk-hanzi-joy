@@ -4863,6 +4863,50 @@ document.addEventListener('DOMContentLoaded', async () => {
     let _namingModalTgtLangsCb = null;
     let _projectSetupMode = false;
 
+    /** 分階段重建階4：新建專案後短引導，再開 TM 選擇或略過。 */
+    async function showNewProjectWelcome(projectId) {
+        const modal = document.getElementById('projectWelcomeModal');
+        const hl = document.getElementById('projectWelcomeHeadline');
+        const ul = document.getElementById('projectWelcomeBullets');
+        if (!modal || !hl || !ul) {
+            openProjectTmPickerModal();
+            return;
+        }
+        const p = await DBService.getProject(projectId);
+        const name = p && p.name ? String(p.name) : '專案';
+        hl.textContent = `「${name}」已儲存。`;
+        const sl = p && Array.isArray(p.sourceLangs) ? p.sourceLangs : [];
+        const tl = p && Array.isArray(p.targetLangs) ? p.targetLangs : [];
+        const lines = [];
+        if (sl.length) lines.push(`原文可用語言：${sl.join('、')}`);
+        else lines.push('原文語言：專案層未指定（不選表示匯入時可再限縮）');
+        if (tl.length) lines.push(`譯文可用語言：${tl.join('、')}`);
+        else lines.push('譯文語言：專案層未指定（不選表示匯入時可再限縮）');
+        lines.push('若啟用系統預設，已嘗試套用專案 AI 相關預設（見 AI 管理／準則）。');
+        const escLi = (t) => {
+            const s = String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+            return `<li>${s}</li>`;
+        };
+        ul.innerHTML = lines.map(escLi).join('');
+        modal.classList.remove('hidden');
+    }
+
+    function closeProjectWelcomeModal(clearSetupFlow) {
+        document.getElementById('projectWelcomeModal')?.classList.add('hidden');
+        if (clearSetupFlow) _projectSetupMode = false;
+    }
+
+    document.getElementById('btnProjectWelcomeNext')?.addEventListener('click', () => {
+        document.getElementById('projectWelcomeModal')?.classList.add('hidden');
+        openProjectTmPickerModal();
+    });
+    document.getElementById('btnProjectWelcomeSkip')?.addEventListener('click', () => {
+        closeProjectWelcomeModal(true);
+    });
+    document.getElementById('btnCloseProjectWelcome')?.addEventListener('click', () => {
+        closeProjectWelcomeModal(true);
+    });
+
     function openNamingModal(action, title, label, idArg = null, defaultName = '', existingEntity = null) {
         namingActionContext = { action, idArg };
         namingModalTitle.textContent = title;
@@ -4916,7 +4960,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             await loadProjectsList();
             _projectSetupMode = true;
             await openProjectDetail(id);
-            openProjectTmPickerModal();
+            await showNewProjectWelcome(id);
             return;
         } else if (action === 'renameProject') {
             const old = await DBService.getProject(idArg);
@@ -13403,29 +13447,49 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    async function _refreshAiBatchStyleCategoryList() {
+        const wrap = document.getElementById('aiBatchStyleCategoryWrap');
+        if (!wrap) return;
+        const all = await DBService.getAiStyleExamples();
+        const cats = [...new Set(all.flatMap(e => (Array.isArray(e.categories) ? e.categories : [])))].filter(Boolean).sort((a, b) => String(a).localeCompare(String(b), 'zh-Hant'));
+        const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+        wrap.innerHTML = cats.length
+            ? cats.map(c => `<label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;font-size:0.8rem;max-width:100%;"><input type="checkbox" class="ai-batch-style-cat-cb" value="${esc(c)}"> <span style="overflow:hidden;text-overflow:ellipsis;">${esc(c)}</span></label>`).join('')
+            : '<span style="font-size:0.8rem;color:#94a3b8;">（尚無學習範例類型，可到側欄「AI 學習範例」為範例加上類型）</span>';
+    }
+
     function openAiBatchModal() {
         const modal = document.getElementById('aiBatchModal');
         if (!modal) return;
-        // 計算範圍統計
+        const fileMode = document.getElementById('aiBatchStyleModeFile');
+        const customMode = document.getElementById('aiBatchStyleModeCustom');
+        const catWrap = document.getElementById('aiBatchStyleCategoryWrap');
+        if (fileMode) fileMode.checked = true;
+        if (customMode) customMode.checked = false;
+        if (catWrap) {
+            catWrap.classList.add('hidden');
+        }
+        _refreshAiBatchStyleCategoryList().then(() => {}).catch(() => {});
         _updateBatchStats();
         modal.classList.remove('hidden');
 
         const cancelBtn = document.getElementById('btnCancelAiBatch');
         const runBtn = document.getElementById('btnRunAiBatch');
         const closeBtn = document.getElementById('btnCloseAiBatchModal');
-        const allFileChk = document.getElementById('aiBatchAllFile');
-
-        if (allFileChk) {
-            allFileChk.addEventListener('change', _updateBatchStats);
-            document.getElementById('aiBatchRangeStart')?.addEventListener('input', _updateBatchStats);
-            document.getElementById('aiBatchRangeEnd')?.addEventListener('input', _updateBatchStats);
-        }
 
         function close() { modal.classList.add('hidden'); }
         if (cancelBtn) cancelBtn.onclick = close;
         if (closeBtn) closeBtn.onclick = close;
         if (runBtn) runBtn.onclick = async () => {
             close();
+            const styleModeCustom = document.getElementById('aiBatchStyleModeCustom')?.checked;
+            const customCats = [];
+            if (styleModeCustom) {
+                document.querySelectorAll('#aiBatchStyleCategoryWrap .ai-batch-style-cat-cb:checked').forEach(cb => {
+                    if (cb.value) customCats.push(cb.value);
+                });
+            }
+            const styleExampleFilter = { mode: styleModeCustom ? 'custom' : 'file', categories: customCats };
             const config = {
                 allFile: document.getElementById('aiBatchAllFile')?.checked ?? true,
                 rangeStart: parseInt(document.getElementById('aiBatchRangeStart')?.value || '1', 10) || 1,
@@ -13436,7 +13500,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tmAction: document.getElementById('aiBatchTmAction')?.value || 'direct',
                 tmRefThreshold: parseInt(document.getElementById('aiBatchTmRefThreshold')?.value || '0', 10),
                 handleRepetitions: document.getElementById('aiBatchHandleRepetitions')?.value || 'yes',
-                batchNote: document.getElementById('aiBatchNote')?.value?.trim() || ''
+                batchNote: document.getElementById('aiBatchNote')?.value?.trim() || '',
+                styleExampleFilter
             };
             await runAiBatchTranslate(config);
         };
@@ -13454,6 +13519,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         const empty = rangeSegs.length - confirmed - withText;
         statsEl.textContent = `範圍內共 ${rangeSegs.length} 句，其中已確認 ${confirmed} 句、已輸入未確認 ${withText} 句、空白 ${empty} 句。`;
     }
+
+    (function bindAiBatchModalRangeAndStyle() {
+        document.getElementById('aiBatchAllFile')?.addEventListener('change', _updateBatchStats);
+        document.getElementById('aiBatchRangeStart')?.addEventListener('input', _updateBatchStats);
+        document.getElementById('aiBatchRangeEnd')?.addEventListener('input', _updateBatchStats);
+        document.getElementById('aiBatchStyleModeFile')?.addEventListener('change', () => {
+            if (document.getElementById('aiBatchStyleModeFile')?.checked) {
+                document.getElementById('aiBatchStyleCategoryWrap')?.classList.add('hidden');
+            }
+        });
+        document.getElementById('aiBatchStyleModeCustom')?.addEventListener('change', () => {
+            if (document.getElementById('aiBatchStyleModeCustom')?.checked) {
+                document.getElementById('aiBatchStyleCategoryWrap')?.classList.remove('hidden');
+            }
+        });
+    })();
 
     // ---- runAiBatchTranslate Orchestrator ----
     async function runAiBatchTranslate(config) {
@@ -13567,7 +13648,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (confirmAskSegs.length > 0) {
             _showAiToast(`正在翻譯 ${confirmAskSegs.length} 句…（詢問確認）`);
-            const aiResult = await window.CatAiTranslate.translate(confirmAskSegs, await _buildAiOptions(settings, config.batchNote));
+            const aiResult = await window.CatAiTranslate.translate(confirmAskSegs, await _buildAiOptions(settings, config.batchNote, config.styleExampleFilter));
             const aiMap = new Map(aiResult.results.map(r => [r.segId, r.translation]));
             const askItems = confirmAskSegs.map(seg => ({ seg, existingText: seg.targetText, aiText: aiMap.get(seg.id) || '', label: '' }));
             const chosen = await _showBatchAskModal(askItems, '選擇要保留的版本');
@@ -13592,7 +13673,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const batchSize = (settings.batchSize && settings.batchSize >= 1) ? settings.batchSize : 20;
         let processed = 0;
-        const options = await _buildAiOptions(settings, config.batchNote);
+        const options = await _buildAiOptions(settings, config.batchNote, config.styleExampleFilter);
         let allMissing = [];
 
         _showAiToast(`正在翻譯第 1/${Math.ceil(finalAiSegs.length/batchSize)} 批…`);
@@ -13638,9 +13719,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         rerenderCurrentSegments();
     }
 
-    async function _buildAiOptions(settings, batchNote) {
+    async function _buildAiOptions(settings, batchNote, styleExampleFilter) {
         const fileRec = currentFileId ? await DBService.getFile(currentFileId).catch(() => null) : null;
         const fileDomains = fileRec?.aiDomains || [];
+        let styleCats;
+        if (styleExampleFilter && styleExampleFilter.mode === 'custom') {
+            styleCats = Array.isArray(styleExampleFilter.categories) ? styleExampleFilter.categories : [];
+        } else {
+            styleCats = fileDomains;
+        }
         const psettings = currentProjectId ? await DBService.getAiProjectSettings(currentProjectId).catch(() => null) : null;
         const selectedGuidelineIds = new Set((psettings?.selectedGuidelineIds || []).map(Number));
         const selectedStyleIds = new Set((psettings?.selectedStyleGuidelineIds || []).map(Number));
@@ -13650,7 +13737,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const specialInstructions = psettings?.specialInstructions || [];
         const ex = (fileRec && fileRec.aiSeriesException) ? String(fileRec.aiSeriesException).trim() : '';
         const combinedBatchNote = [batchNote, ...specialInstructions.filter(s => s && s.enabled !== false).map(s => s.content), ex].filter(Boolean).join('\n');
-        const styleExamples = await DBService.getAiStyleExamples({ categories: fileDomains, limit: 15 }).catch(() => []);
+        const styleExamples = await DBService.getAiStyleExamples({
+            categories: styleCats,
+            limit: 15,
+            sourceLang: fileRec?.sourceLang || undefined,
+            targetLang: fileRec?.targetLang || undefined
+        }).catch(() => []);
         const tbTerms = (window.ActiveTbTerms || []).map(t => ({ source: t.source, target: t.target, note: t.note }));
         const pr = (settings && settings.prompts) ? settings.prompts : {};
         return {

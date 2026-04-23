@@ -76,6 +76,10 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
 .view-section { flex: 1; display: flex; flex-direction: column;}
 .hidden { display: none !important; }
 
+#aiBatchStyleCategoryWrap:not(.hidden) {
+  display: flex !important;
+}
+
 /* 開檔／長操作 loading（#catLoadingOverlay 內） */
 .cat-loading-spinner {
   width: 40px;
