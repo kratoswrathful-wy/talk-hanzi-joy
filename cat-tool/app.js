@@ -8719,13 +8719,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 targetInput.addEventListener('mouseup', () => refreshTagNextHighlight(row));
                 targetInput.addEventListener('keyup', () => refreshTagNextHighlight(row));
                 targetInput.addEventListener('blur', async () => {
+                    // 在任一 await 前快照：Ctrl+Enter  await 期間可能已 isConfirming=false，仍應抑止重複寫庫
+                    const wasConfirming = isConfirming;
                     refreshTagNextHighlight(row);
                     const conflictOk = await resolvePendingRemoteConflict(seg, row, targetInput);
                     if (!conflictOk) {
                         queueMicrotask(() => targetInput.focus());
                         return;
                     }
-                    if (isConfirming) {
+                    if (wasConfirming) {
                         emitCollabEdit('end', seg, null);
                         if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
                             targetInput.removeAttribute('data-np-applied');
