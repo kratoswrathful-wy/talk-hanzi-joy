@@ -4736,6 +4736,79 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    function _decodeTmxFileToString(buffer) {
+        const bytes = new Uint8Array(buffer);
+        let encoding = 'utf-8';
+        if (bytes.length >= 2) {
+            if (bytes[0] === 0xFF && bytes[1] === 0xFE) encoding = 'utf-16le';
+            else if (bytes[0] === 0xFE && bytes[1] === 0xFF) encoding = 'utf-16be';
+        }
+        return new TextDecoder(encoding).decode(buffer);
+    }
+    function _tmxLangNorm(s) {
+        return (s || '').toLowerCase().replace(/_/g, '-').trim();
+    }
+    function _tmxLangMatch(tuvLang, wanted) {
+        const a = _tmxLangNorm(tuvLang);
+        const w = _tmxLangNorm(wanted);
+        if (!a || !w) return false;
+        if (a === w) return true;
+        return a.split('-')[0] === w.split('-')[0];
+    }
+    function _tmxStripMemoQChInSeg(segEl) {
+        if (!segEl) return;
+        const doc = segEl.ownerDocument;
+        const chs = Array.from(segEl.getElementsByTagName('*')).filter(e => e.localName === 'ch');
+        for (const el of chs) {
+            const v = el.getAttribute('val');
+            let r = '';
+            if (v != null && v !== '') {
+                if (v === '\\t' || v === '\t') r = '\t';
+                else if (v === '\\n' || v === '\n') r = '\n';
+                else if (v === '\\r' || v === '\r') r = '\r';
+                else r = v;
+            }
+            el.parentNode.replaceChild(doc.createTextNode(r), el);
+        }
+    }
+    function _tmxExtractSegText(seg) {
+        if (!seg) return '';
+        const clone = seg.cloneNode(true);
+        _tmxStripMemoQChInSeg(clone);
+        if (window.CatToolXliffTags && typeof window.CatToolXliffTags.extractTaggedText === 'function') {
+            try {
+                return (window.CatToolXliffTags.extractTaggedText(clone).text || '').replace(/\u00a0/g, ' ').trim();
+            } catch (err) {
+                console.warn('TMX extractTaggedText', err);
+            }
+        }
+        return (clone.textContent || '').trim();
+    }
+    function _tmxPickSourceTargetSegs(tu, tmSourceLang, tmTargetLang) {
+        const tuvs = Array.from(tu.getElementsByTagName('tuv'));
+        if (tuvs.length < 2) return { sourceSeg: null, targetSeg: null };
+        const pickSeg = (tuv) => { const a = tuv.getElementsByTagName('seg'); return a.length ? a[0] : null; };
+        let iSrc = -1;
+        let iTgt = -1;
+        tuvs.forEach((t, i) => {
+            const lang = t.getAttribute('xml:lang') || t.getAttribute('lang') || '';
+            if (iSrc < 0 && _tmxLangMatch(lang, tmSourceLang)) iSrc = i;
+        });
+        tuvs.forEach((t, i) => {
+            const lang = t.getAttribute('xml:lang') || t.getAttribute('lang') || '';
+            if (iTgt < 0 && i !== iSrc && _tmxLangMatch(lang, tmTargetLang)) iTgt = i;
+        });
+        if (iSrc < 0) iSrc = 0;
+        if (iTgt < 0) {
+            for (let j = 0; j < tuvs.length; j++) {
+                if (j !== iSrc) { iTgt = j; break; }
+            }
+        }
+        if (iTgt < 0) iTgt = Math.min(1, tuvs.length - 1);
+        if (iSrc === iTgt && tuvs.length > 1) iTgt = iSrc === 0 ? 1 : 0;
+        return { sourceSeg: pickSeg(tuvs[iSrc]), targetSeg: pickSeg(tuvs[iTgt]) };
+    }
+
     if(btnImportTmFile) {
         btnImportTmFile.addEventListener('click', () => tmImportInput.click());
     }
@@ -4751,38 +4824,59 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             try {
                 if (ext === 'tmx') {
-                    const text = await file.text();
+                    const buffer = await file.arrayBuffer();
+                    const text = _decodeTmxFileToString(buffer);
                     const parser = new DOMParser();
                     const xmlDoc = parser.parseFromString(text, 'text/xml');
-                    
+                    const parseErr = xmlDoc.querySelector('parsererror');
+                    if (parseErr) {
+                        const msg = (parseErr.textContent || '').trim().slice(0, 200);
+                        throw new Error('TMX 檔案格式無效，無法解析' + (msg ? '：' + msg : '。'));
+                    }
+                    const tm = await DBService.getTM(currentTmId);
+                    const hdr = xmlDoc.getElementsByTagName('header')[0];
+                    const headerSrclang = hdr && (hdr.getAttribute('srclang') || '') || '';
+                    let tmSourceLang = (tm && tm.sourceLangs && tm.sourceLangs[0]) || headerSrclang || '';
+                    let tmTargetLang = (tm && tm.targetLangs && tm.targetLangs[0]) || '';
+                    if (!tmTargetLang) {
+                        const propEls = hdr ? hdr.getElementsByTagName('prop') : [];
+                        for (let pi = 0; pi < propEls.length; pi++) {
+                            const typ = (propEls[pi].getAttribute('type') || '').toLowerCase();
+                            if (typ === 'targetlang' || typ === 'target language') {
+                                const c = (propEls[pi].textContent || '').trim();
+                                if (c) { tmTargetLang = c; break; }
+                            }
+                        }
+                    }
+                    if (!tmSourceLang) tmSourceLang = 'en-us';
+                    if (!tmTargetLang) tmTargetLang = 'zh-tw';
+
                     const tuNodes = xmlDoc.getElementsByTagName('tu');
-                    for(let i=0; i<tuNodes.length; i++) {
+                    for (let i = 0; i < tuNodes.length; i++) {
                         const tu = tuNodes[i];
                         const tuvNodes = tu.getElementsByTagName('tuv');
-                        if(tuvNodes.length >= 2) {
-                            // Basic assumption: 1st is source, 2nd is target
-                            const sourceSeg = tuvNodes[0].getElementsByTagName('seg')[0];
-                            const targetSeg = tuvNodes[1].getElementsByTagName('seg')[0];
-                            if(sourceSeg && targetSeg) {
-                                const creator = localStorage.getItem('localCatUserProfile') || 'Unknown User';
-                                const ts = new Date().toLocaleString();
-                                const changeMsg = `${ts} - ${creator} (以檔案匯入) 建立`;
-
-                                parsedSegments.push({
-                                    tmId: currentTmId,
-                                    sourceText: sourceSeg.textContent || '',
-                                    targetText: targetSeg.textContent || '',
-                                    key: '',
-                                    prevSegment: '',
-                                    nextSegment: '',
-                                    writtenFile: '',
-                                    writtenProject: '',
-                                    createdBy: `${creator} (以檔案匯入)`,
-                                    changeLog: [changeMsg],
-                                    createdAt: new Date().toISOString(),
-                                    lastModified: new Date().toISOString()
-                                });
-                            }
+                        if (tuvNodes.length < 2) continue;
+                        const { sourceSeg, targetSeg } = _tmxPickSourceTargetSegs(tu, tmSourceLang, tmTargetLang);
+                        if (sourceSeg && targetSeg) {
+                            const creator = localStorage.getItem('localCatUserProfile') || 'Unknown User';
+                            const ts = new Date().toLocaleString();
+                            const changeMsg = `${ts} - ${creator} (以檔案匯入) 建立`;
+                            const sourceText = _tmxExtractSegText(sourceSeg);
+                            const targetText = _tmxExtractSegText(targetSeg);
+                            parsedSegments.push({
+                                tmId: currentTmId,
+                                sourceText,
+                                targetText,
+                                key: '',
+                                prevSegment: '',
+                                nextSegment: '',
+                                writtenFile: '',
+                                writtenProject: '',
+                                createdBy: `${creator} (以檔案匯入)`,
+                                changeLog: [changeMsg],
+                                createdAt: new Date().toISOString(),
+                                lastModified: new Date().toISOString()
+                            });
                         }
                     }
                 } else if (['xlsx', 'xls', 'csv'].includes(ext)) {
@@ -7935,6 +8029,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         return html;
     }
 
+    /** TM 比對表等：無 tags 中繼時，將 {N}/{/N} 顯示為與編輯器相近的佔位樣式。 */
+    function htmlForTmPlainWithPlaceholders(raw) {
+        if (raw == null || raw === '') return '';
+        const t = String(raw);
+        const parts = t.split(/(\{\/?\d+\})/);
+        let html = '';
+        for (const part of parts) {
+            if (/^\{\d+\}$/.test(part)) {
+                const n = part.slice(1, -1);
+                html += `<span class="rt-tag rt-tag-s" contenteditable="false"><span class="tag-num">${escapeHtml(n)}</span><span class="tag-content" style="min-width:1rem;">${escapeHtml(part)}</span></span>`;
+            } else if (/^\{\/\d+\}$/.test(part)) {
+                const n = part.slice(2, -1);
+                html += `<span class="rt-tag rt-tag-e" contenteditable="false"><span class="tag-e-pad" aria-hidden="true">\u00A0\u00A0</span><span class="tag-content" style="min-width:1rem;">${escapeHtml(part)}</span><span class="tag-num">${escapeHtml(n)}</span></span>`;
+            } else {
+                html += escapeHtml(part).replace(/\n/g, '<br>');
+            }
+        }
+        return html;
+    }
+
     /**
      * 從 contenteditable div 提取純文字（含 {N} 佔位符），忽略 <mark> 等裝飾元素。
      */
@@ -9526,7 +9640,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         ${m._dupes.map(d => {
                             const tStr = d.lastModified || d.createdAt ? new Date(d.lastModified || d.createdAt).toLocaleString('zh-TW', { hour12: false }) : '';
                             const tnm = (d.tmName || '').replace(/</g, '&lt;');
-                            const tt = (d.targetText || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                            const tt = htmlForTmPlainWithPlaceholders(d.targetText || '');
                             return `<div class="cat-tm-dupe-line"><strong>${tnm}</strong> · ${tStr}<br>譯文：${tt}</div>`;
                         }).join('')}
                     </div>` : '';
@@ -9538,9 +9652,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                          onclick="handleCatResultClick(this, ${idx})"
                          ondblclick="handleCatResultApply(this, '${m.type}', \`${tgtEsc}\`, ${m.type === 'TM' ? m.score : 'undefined'}, ${idx})">
                         <div class="result-cell result-cell--index">${idx + 1}</div>
-                        <div class="result-cell result-cell--source">${m.sourceText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+                        <div class="result-cell result-cell--source">${htmlForTmPlainWithPlaceholders(m.sourceText)}</div>
                         <div class="result-cell result-cell--score" style="${scoreBg}">${scoreInner}</div>
-                        <div class="result-cell result-cell--target">${m.targetText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+                        <div class="result-cell result-cell--target">${htmlForTmPlainWithPlaceholders(m.targetText)}</div>
                             </div>
                     ${dupPanel}
                     </div>

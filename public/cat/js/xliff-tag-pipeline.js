@@ -52,7 +52,7 @@
                     text += ph;
                 } else if (ln === 'bpt') {
                     counter++;
-                    const id = child.getAttribute('id') || String(counter);
+                    const id = child.getAttribute('id') || child.getAttribute('i') || String(counter);
                     bptMap[id] = counter;
                     const ph = `{${counter}}`;
                     const rawDisplay = child.textContent || '';
@@ -63,7 +63,7 @@
                     tags.push({ ph, xml, display, type: 'open', pairNum: counter, num: counter });
                     text += ph;
                 } else if (ln === 'ept') {
-                    const id = child.getAttribute('id') || '';
+                    const id = child.getAttribute('id') || child.getAttribute('i') || '';
                     const num = bptMap[id] !== undefined ? bptMap[id] : ++counter;
                     const ph = `{/${num}}`;
                     const rawDisplay = child.textContent || '';
