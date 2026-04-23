@@ -52,6 +52,7 @@ npm run dev
 
 ## 開發者 / 交接
 
+- **[AGENTS.md](AGENTS.md)** — AI／新協作者捷徑（含 **CAT：`cat-tool` → `sync:cat` → `public/cat`**）  
 - **[docs/HANDOFF.md](docs/HANDOFF.md)** — 架構重點、設定載入、已知問題與必留修正  
 - **[docs/CODEMAP.md](docs/CODEMAP.md)** — 功能與檔案對照  
 
@@ -63,6 +64,17 @@ npm run dev
 # 驗證正式建置
 npm run build
 ```
+
+### CAT 內嵌編譯器（`/cat`）— 單一來源
+
+Vanilla **CAT 靜態資產**請**只改 [`cat-tool/`](cat-tool/)**，不要只長期手改 `public/cat/`（會被覆寫）。
+
+| 時機 | 做法 |
+|------|------|
+| 改完 `cat-tool` 後 | 專案根執行 **`npm run sync:cat`**，並**一併提交** `cat-tool` 與 `public/cat` |
+| 正式建置 | `prebuild` 已掛 `sync:cat`，`npm run build` 前會自動同步 |
+
+**風險**：`sync:cat` 會整夾刪除再複製到 `public/cat`；只改 `public/cat` 而未併入 `cat-tool` 的內容，下次 sync 即消失。速覽：[`AGENTS.md`](AGENTS.md)、[`cat-tool/README.md`](cat-tool/README.md)。
 
 ## What technologies are used for this project?
 

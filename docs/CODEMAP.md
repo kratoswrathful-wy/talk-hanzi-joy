@@ -10,6 +10,14 @@
 | 側欄 / 外層 | `src/components/AppLayout.tsx`、`AppSidebar.tsx` |
 | 個人檔案 | `src/pages/ProfilePage.tsx`（`useAuth` 須含 `isAdmin` 等，見 `HANDOFF.md`） |
 
+## CAT 內嵌編譯器（`/cat`）
+
+| 項目 | 位置 |
+|------|------|
+| **唯一原始碼目錄** | `cat-tool/`（`app.js`、`db.js`、`index.html`、`js/`、`style.css` 等） |
+| 靜態輸出（勿單獨當真相長改） | `public/cat/`（由 `npm run sync:cat`、腳本 `scripts/sync-cat.mjs` 覆寫；`prebuild` 會跑） |
+| 捷徑說明 | 根目錄 `AGENTS.md`、`.cursor/rules/cat-tool-source.mdc` |
+
 ## 案件
 
 | 項目 | 位置 |

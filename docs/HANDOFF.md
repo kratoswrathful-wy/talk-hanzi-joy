@@ -14,6 +14,7 @@
 
 | 路徑 | 用途 |
 |------|------|
+| **`cat-tool/`**、**`public/cat/`** | 內嵌 CAT（`/cat`）；**只改 `cat-tool`**，改後 `npm run sync:cat` 並一併提交（見根目錄 **`AGENTS.md`**） |
 | `src/App.tsx` | 路由、認證後版面、`initSettings()` |
 | `src/pages/` | 各功能頁（案件、費用、設定等） |
 | `src/stores/` | 前端狀態與持久化（設定、選項、UI 按鈕樣式等） |

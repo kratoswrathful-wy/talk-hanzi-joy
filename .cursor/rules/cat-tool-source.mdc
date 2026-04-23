@@ -1,0 +1,33 @@
+---
+description: CAT 以 cat-tool 為單一來源，勿只手改 public/cat；變更後須 sync 並一併提交。
+globs:
+  - "cat-tool/**"
+  - "public/cat/**"
+  - "scripts/sync-cat.mjs"
+alwaysApply: false
+---
+
+# CAT：`cat-tool/` → `public/cat/`
+
+## 單一真相
+
+- **只改** `cat-tool/` 內的 `index.html`、`app.js`、`db.js`、`style.css`、`js/`、`lib/` 等**執行**檔。
+- **`public/cat/`** 由 `scripts/sync-cat.mjs` **刪除後整夾複製**產生；靜態路徑由 Vite 提供 `/cat/*`。
+
+## 變更後必做
+
+1. 專案根執行：`npm run sync:cat`
+2. **提交時包含** `cat-tool/**` 與同步後的 `public/cat/**`（兩邊一併進版控）。
+
+## 建置
+
+- `prebuild` 已掛 `sync:cat`；`npm run build` 前會自動同步，正式部署不應漏檔（須有跑 npm 的 prebuild）。
+
+## 風險
+
+- **只改 `public/cat` 不回寫 `cat-tool`**：下次 `sync:cat` 或他人建置時**內容會被覆寫**。
+- **只提交 `cat-tool` 未跑 sync**：他人直接依賴靜態 `public/cat` 預覽時可能看舊檔，故建議兩邊一併提交。
+
+## 延伸
+
+- `AGENTS.md` · `cat-tool/README.md` · `docs/CAT 轉移.md`

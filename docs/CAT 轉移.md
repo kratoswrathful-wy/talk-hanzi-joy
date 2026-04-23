@@ -1,5 +1,7 @@
 # CAT 工具整合至線上 TMS — 轉移文件
 
+> **單一來源（必讀）**：內嵌 CAT 的**唯一修改處**為儲存庫內 [`cat-tool/`](../cat-tool/)，部署靜態路徑為經 **`npm run sync:cat`** 複製到 [`public/cat/`](../public/cat/)（`prebuild` 會自動執行）。請勿只長期手改 `public/cat`；變更後請 sync 並**一併提交**兩邊。速覽：根目錄 [**`AGENTS.md`**](../AGENTS.md)、[`.cursor/rules/cat-tool-source.mdc`](../.cursor/rules/cat-tool-source.mdc)。
+
 ## 1. 文件目的
 
 協助接手的工程師或 AI 代理，將本機優先的 **CAT 工具**（本儲存庫）整合到既有的**線上 TMS**，成為同一產品內的一個模組或子應用，並降低遺漏依賴、執行環境錯誤與資料模型衝突的風險。

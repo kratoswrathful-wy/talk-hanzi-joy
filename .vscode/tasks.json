@@ -1,0 +1,22 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Sync CAT (cat-tool → public/cat)",
+      "type": "npm",
+      "script": "sync:cat",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": true
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "detail": "變更 cat-tool 後執行；覆寫 public/cat。提交流入前可手動執行；正式建置 prebuild 亦會 sync。"
+    }
+  ]
+}
