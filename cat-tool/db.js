@@ -424,7 +424,7 @@ const DBService = {
         return segs.sort((a, b) => (a.rowIdx ?? 0) - (b.rowIdx ?? 0));
     },
 
-    async updateSegmentTarget(segmentId, newTargetText, extra = {}) {
+    async updateSegmentTarget(segmentId, newTargetText, extra = {}, _expectedSegmentRevision) {
         await db.segments.update(segmentId, { targetText: newTargetText, ...extra });
         const seg = await db.segments.get(segmentId);
         if (seg) {
@@ -434,6 +434,7 @@ const DBService = {
                 await db.projects.update(file.projectId, { lastModified: new Date().toISOString() });
             }
         }
+        return {};
     },
 
     async updateSegmentStatus(segmentId, newStatus, extra = {}) {
@@ -1073,8 +1074,13 @@ const DBService = {
     // segments
     DBService.addSegments = async (segmentsArray) => rpc('db.addSegments', { segmentsArray });
     DBService.getSegmentsByFile = async (fileId) => rpc('db.getSegmentsByFile', { fileId });
-    DBService.updateSegmentTarget = async (segmentId, newTargetText, extra = {}) =>
-        rpc('db.updateSegmentTarget', { segmentId, newTargetText, extra });
+    DBService.updateSegmentTarget = async (segmentId, newTargetText, extra = {}, expectedSegmentRevision = 0) =>
+        rpc('db.updateSegmentTarget', {
+            segmentId,
+            newTargetText,
+            extra,
+            expectedSegmentRevision: expectedSegmentRevision == null ? 0 : expectedSegmentRevision,
+        });
     DBService.updateSegmentStatus = async (segmentId, newStatus, extra = {}) =>
         rpc('db.updateSegmentStatus', { segmentId, newStatus, extra });
     DBService.updateSegmentEditorNote = async (segmentId, editorNote) =>

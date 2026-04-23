@@ -501,6 +501,28 @@ document.addEventListener('DOMContentLoaded', async () => {
      * - copy-source：同步複製 sourceText 與 sourceTags
      * - clear：清除 targetText 及 targetTags
      */
+    /**
+     * Team 雲端寫庫帶 `segmentRevision` 樂觀鎖；成功回寫 `seg.segmentRevision`。
+     * 衝突時擲出 `code === 'SEGMENT_REVISION_CONFLICT'`（debounce 可靜默丟棄）。
+     */
+    async function applyUpdateSegmentTarget(seg, newText, extra = {}) {
+        const ex = extra == null || typeof extra !== 'object' ? {} : extra;
+        const r = await DBService.updateSegmentTarget(
+            seg.id,
+            newText,
+            ex,
+            seg.segmentRevision != null && seg.segmentRevision !== undefined ? Number(seg.segmentRevision) : 0
+        );
+        if (r && r.conflict) {
+            const err = new Error('segment revision conflict');
+            err.code = 'SEGMENT_REVISION_CONFLICT';
+            throw err;
+        }
+        if (r && typeof r.newSegmentRevision === 'number' && !Number.isNaN(r.newSegmentRevision)) {
+            seg.segmentRevision = r.newSegmentRevision;
+        }
+        return r;
+    }
     async function applySegmentTextOp(seg, rowEl, op) {
         if (!seg || isTargetWriteProtected(seg)) return;
         markEmptySegUserEdited(seg.id);
@@ -531,7 +553,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const extra = { targetTags: seg.targetTags };
         if (op === 'clear') extra.matchValue = '';
-        await DBService.updateSegmentTarget(seg.id, newText, extra);
+        await applyUpdateSegmentTarget(seg, newText, extra);
     }
 
     async function runTextOpOnSelection(op) {
@@ -1119,7 +1141,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         applyRemoteTextToSegmentUiAndDb(seg, row, editor, remoteText);
         try {
-            await DBService.updateSegmentTarget(seg.id, remoteText, { matchValue: '' });
+            await applyUpdateSegmentTarget(seg, remoteText, { matchValue: '' });
         } catch (err) {
             console.error('[collab] apply remote commit failed', err);
         }
@@ -1174,7 +1196,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         pendingRemoteBySegId.delete(key);
                     } else {
                         applyRemoteTextToSegmentUiAndDb(seg, row, targetInput, pending.text);
-                        DBService.updateSegmentTarget(seg.id, pending.text, { matchValue: '' }).catch((err) => {
+                        applyUpdateSegmentTarget(seg, pending.text, { matchValue: '' }).catch((err) => {
                             console.error('[collab] apply chosen remote failed', err);
                         });
                         editorUndoEditStart[seg.id] = seg.targetText;
@@ -5873,7 +5895,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             seg.status = 'confirmed';
                             await DBService.updateSegmentStatus(seg.id, 'confirmed');
                         }
-                        await DBService.updateSegmentTarget(seg.id, seg.targetText, { matchValue: seg.matchValue });
+                        await applyUpdateSegmentTarget(seg, seg.targetText, { matchValue: seg.matchValue });
                         applyCount++;
                     }
                 }
@@ -6137,7 +6159,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         seg.targetText = extractTextFromEditor(editorDiv);
         const row = editorDiv.closest('.grid-data-row');
         updateTagColors(row, seg.targetText);
-        DBService.updateSegmentTarget(seg.id, seg.targetText).catch(console.error);
+        applyUpdateSegmentTarget(seg, seg.targetText).catch(console.error);
         refreshTagNextHighlight(row);
     }
 
@@ -6222,7 +6244,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     refreshTagNextHighlight(activeRow);
                     applyMatchCellVisual(activeRow, '');
                     pushEditorUndo(seg.id, oldTarget, stripped, { oldMatchValue: oldMv, newMatchValue: undefined });
-                    DBService.updateSegmentTarget(seg.id, stripped, { matchValue: '' }).catch(console.error);
+                    applyUpdateSegmentTarget(seg, stripped, { matchValue: '' }).catch(console.error);
                 }
             }
         }
@@ -6793,7 +6815,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ex.isLocked = !!(seg.isLockedSystem || seg.isLockedUser);
         }
         await DBService.updateSegmentStatus(seg.id, seg.status, ex);
-        await DBService.updateSegmentTarget(seg.id, seg.targetText, { targetTags: seg.targetTags, matchValue: seg.matchValue });
+        await applyUpdateSegmentTarget(seg, seg.targetText, { targetTags: seg.targetTags, matchValue: seg.matchValue });
     }
 
     function pushUndoEntry(entry) {
@@ -6932,7 +6954,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (st !== undefined) {
             DBService.updateSegmentStatus(seg.id, st, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {}).catch(console.error);
         }
-        if (seg.id) DBService.updateSegmentTarget(seg.id, tgt, extra).catch(console.error);
+        if (seg.id) applyUpdateSegmentTarget(seg, tgt, extra).catch(console.error);
 
         return {
             kind: 'target',
@@ -7008,7 +7030,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ex.isLocked = !!(seg.isLockedSystem || seg.isLockedUser);
             }
             DBService.updateSegmentStatus(seg.id, seg.status, ex).catch(console.error);
-            DBService.updateSegmentTarget(seg.id, seg.targetText, { targetTags: seg.targetTags, matchValue: seg.matchValue }).catch(console.error);
+            applyUpdateSegmentTarget(seg, seg.targetText, { targetTags: seg.targetTags, matchValue: seg.matchValue }).catch(console.error);
         }
     }
 
@@ -7141,7 +7163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     updateTagColors(row, newText);
                 }
             }
-            if (seg.id) DBService.updateSegmentTarget(seg.id, newText).catch(console.error);
+            if (seg.id) applyUpdateSegmentTarget(seg, newText).catch(console.error);
             return;
         }
         if (fieldKey === 'source') seg.sourceText = newText;
@@ -7605,7 +7627,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (currentFileFormat === 'mqxliff') {
                 other.confirmationRole = resolveConfirmationRole(other);
             }
-            await DBService.updateSegmentTarget(other.id, tgt);
+            await applyUpdateSegmentTarget(other, tgt, {});
             await DBService.updateSegmentStatus(other.id, 'confirmed', currentFileFormat === 'mqxliff' && other.confirmationRole ? { confirmationRole: other.confirmationRole } : {});
             mergeTmPair(accum, await syncSegmentToWriteTmsOnConfirm(other, j));
 
@@ -8316,7 +8338,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             setEditorHtml(targetInput, buildTaggedHtml(seg.targetText, effectiveTags(seg)));
             updateTagColors(row, seg.targetText);
             applyMatchCellVisual(row, seg.matchValue);
-            await DBService.updateSegmentTarget(seg.id, seg.targetText, { matchValue: seg.matchValue, targetTags: seg.targetTags });
+            await applyUpdateSegmentTarget(seg, seg.targetText, { matchValue: seg.matchValue, targetTags: seg.targetTags });
         } else if (cfg.mode === 'copy_only') {
             seg.targetTags = (seg.sourceTags || []).map(t => ({ ...t }));
             seg.targetText = seg.sourceText;
@@ -8324,7 +8346,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             setEditorHtml(targetInput, buildTaggedHtml(seg.targetText, effectiveTags(seg)));
             updateTagColors(row, seg.targetText);
             applyMatchCellVisual(row, '');
-            await DBService.updateSegmentTarget(seg.id, seg.targetText, { targetTags: seg.targetTags, matchValue: '' });
+            await applyUpdateSegmentTarget(seg, seg.targetText, { targetTags: seg.targetTags, matchValue: '' });
         } else if (cfg.mode === 'tm_then_copy') {
             if (hasTm) {
                 if (best.targetTags && best.targetTags.length) {
@@ -8335,7 +8357,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 setEditorHtml(targetInput, buildTaggedHtml(seg.targetText, effectiveTags(seg)));
                 updateTagColors(row, seg.targetText);
                 applyMatchCellVisual(row, seg.matchValue);
-                await DBService.updateSegmentTarget(seg.id, seg.targetText, { matchValue: seg.matchValue, targetTags: seg.targetTags });
+                await applyUpdateSegmentTarget(seg, seg.targetText, { matchValue: seg.matchValue, targetTags: seg.targetTags });
             } else {
                 seg.targetTags = (seg.sourceTags || []).map(t => ({ ...t }));
                 seg.targetText = seg.sourceText;
@@ -8343,7 +8365,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 setEditorHtml(targetInput, buildTaggedHtml(seg.targetText, effectiveTags(seg)));
                 updateTagColors(row, seg.targetText);
                 applyMatchCellVisual(row, '');
-                await DBService.updateSegmentTarget(seg.id, seg.targetText, { targetTags: seg.targetTags, matchValue: '' });
+                await applyUpdateSegmentTarget(seg, seg.targetText, { targetTags: seg.targetTags, matchValue: '' });
             }
         }
 
@@ -8675,15 +8697,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                         seg.targetText = latest;
                         try {
-                            await DBService.updateSegmentTarget(seg.id, latest);
+                            await applyUpdateSegmentTarget(seg, latest);
                         } catch (err) {
+                            if (err && err.code === 'SEGMENT_REVISION_CONFLICT') return;
                             console.error('[譯文 debounce 寫庫失敗]', err, seg.id);
                             return;
                         }
                         if (myGen !== targetWriteGeneration) {
                             try {
-                                await DBService.updateSegmentTarget(seg.id, seg.targetText);
+                                await applyUpdateSegmentTarget(seg, seg.targetText);
                             } catch (err2) {
+                                if (err2 && err2.code === 'SEGMENT_REVISION_CONFLICT') return;
                                 console.error('[譯文 debounce 補寫失敗]', err2, seg.id);
                             }
                         }
@@ -8727,8 +8751,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     seg.targetText = newVal;
                     try {
-                        await DBService.updateSegmentTarget(seg.id, newVal);
+                        await applyUpdateSegmentTarget(seg, newVal);
                     } catch (err) {
+                        if (err && err.code === 'SEGMENT_REVISION_CONFLICT') {
+                            emitCollabEdit('end', seg, null);
+                            if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
+                                targetInput.removeAttribute('data-np-applied');
+                                requestAnimationFrame(() => applyNonPrintMarkers(targetInput));
+                            }
+                            return;
+                        }
                         console.error('[譯文欄失焦寫庫失敗]', err, seg.id);
                         emitCollabEdit('end', seg, null);
                         if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
@@ -8739,9 +8771,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     if (myGen !== targetWriteGeneration) {
                         try {
-                            await DBService.updateSegmentTarget(seg.id, seg.targetText);
+                            await applyUpdateSegmentTarget(seg, seg.targetText);
                         } catch (err2) {
-                            console.error('[譯文欄失焦補寫失敗]', err2, seg.id);
+                            if (err2 && err2.code === 'SEGMENT_REVISION_CONFLICT') { /* 略過 */ } else { console.error('[譯文欄失焦補寫失敗]', err2, seg.id); }
                         }
                     }
                     emitCollabEdit('commit', seg, seg.targetText);
@@ -8794,18 +8826,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                             isConfirming = true;
                             const myGen = ++targetWriteGeneration;
                             try {
-                                await DBService.updateSegmentTarget(seg.id, latestTarget);
+                                await applyUpdateSegmentTarget(seg, latestTarget);
                             } catch (err) {
                                 console.error('[Ctrl+Enter 確認前寫庫失敗]', err, seg.id);
-                                alert('譯文寫入失敗，無法完成確認。請檢查連線後重試。');
+                                if (err && err.code === 'SEGMENT_REVISION_CONFLICT') {
+                                    alert('此句段在伺服器已有較新變更，無法寫入。請重新整理檔案內容後重試。');
+                                } else {
+                                    alert('譯文寫入失敗，無法完成確認。請檢查連線後重試。');
+                                }
                                 isConfirming = false;
                                 return;
                             }
                             if (myGen !== targetWriteGeneration) {
                                 try {
-                                    await DBService.updateSegmentTarget(seg.id, seg.targetText);
+                                    await applyUpdateSegmentTarget(seg, seg.targetText);
                                 } catch (e2) {
-                                    console.error('[Ctrl+Enter 補寫失敗]', e2, seg.id);
+                                    if (e2 && e2.code !== 'SEGMENT_REVISION_CONFLICT') console.error('[Ctrl+Enter 補寫失敗]', e2, seg.id);
                                 }
                             }
                             const touch = collectConfirmTouchIndices(i);
@@ -8843,7 +8879,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 await _maybeShowAiReviewModal(seg, i, {
                                     onClearAiFlags: async () => {
                                         ++targetWriteGeneration;
-                                        await DBService.updateSegmentTarget(seg.id, seg.targetText, { aiSuggestion: null, aiSuggestionAt: null });
+                                        await applyUpdateSegmentTarget(seg, seg.targetText, { aiSuggestion: null, aiSuggestionAt: null });
                                     }
                                 });
                             }
@@ -8936,18 +8972,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 isConfirming = true;
                                 const myGen = ++targetWriteGeneration;
                                 try {
-                                    await DBService.updateSegmentTarget(seg.id, latestTarget);
+                                    await applyUpdateSegmentTarget(seg, latestTarget);
                                 } catch (err) {
                                     console.error('[狀態圖示確認前寫庫失敗]', err, seg.id);
-                                    alert('譯文寫入失敗，無法完成確認。請檢查連線後重試。');
+                                    if (err && err.code === 'SEGMENT_REVISION_CONFLICT') {
+                                        alert('此句段在伺服器已有較新變更，無法寫入。請重新整理檔案內容後重試。');
+                                    } else {
+                                        alert('譯文寫入失敗，無法完成確認。請檢查連線後重試。');
+                                    }
                                     isConfirming = false;
                                     return;
                                 }
                                 if (myGen !== targetWriteGeneration) {
                                     try {
-                                        await DBService.updateSegmentTarget(seg.id, seg.targetText);
+                                        await applyUpdateSegmentTarget(seg, seg.targetText);
                                     } catch (e2) {
-                                        console.error('[狀態圖示補寫失敗]', e2, seg.id);
+                                        if (e2 && e2.code !== 'SEGMENT_REVISION_CONFLICT') console.error('[狀態圖示補寫失敗]', e2, seg.id);
                                     }
                                 }
                             }
@@ -8980,7 +9020,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             await _maybeShowAiReviewModal(seg, i, {
                                 onClearAiFlags: async () => {
                                     ++targetWriteGeneration;
-                                    await DBService.updateSegmentTarget(seg.id, seg.targetText, { aiSuggestion: null, aiSuggestionAt: null });
+                                    await applyUpdateSegmentTarget(seg, seg.targetText, { aiSuggestion: null, aiSuggestionAt: null });
                                 }
                             });
                             const tmU = [];
@@ -9469,7 +9509,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ? { matchValue: String(score) }
             : undefined;
         if (updatePayload) seg.matchValue = updatePayload.matchValue;
-        DBService.updateSegmentTarget(seg.id, newTarget, updatePayload || {}).catch(console.error);
+        applyUpdateSegmentTarget(seg, newTarget, updatePayload || {}).catch(console.error);
 
         if (type === 'TM' && score !== undefined && score !== 'undefined') {
             applyMatchCellVisual(activeRow, String(score));
@@ -10207,7 +10247,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!editor || editor.contentEditable === 'false') return;
                 editor.innerText = m.targetText || '';
                 seg.targetText = m.targetText || '';
-                DBService.updateSegmentTarget(seg.id, seg.targetText).catch(console.error);
+                applyUpdateSegmentTarget(seg, seg.targetText).catch(console.error);
                 updateProgress();
                 emitCollabEdit('commit', seg, seg.targetText);
             });
@@ -10633,7 +10673,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (latest === (seg.targetText || '')) continue;
             seg.targetText = latest;
             try {
-                await DBService.updateSegmentTarget(seg.id, latest);
+                await applyUpdateSegmentTarget(seg, latest);
             } catch (err) {
                 console.error('[CAT] flushTargetEditorsToDbForExport', err);
             }
@@ -13247,7 +13287,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     console.error('[AI review 清除草稿寫庫失敗]', e, seg.id);
                 }
             } else {
-                await DBService.updateSegmentTarget(seg.id, seg.targetText, { aiSuggestion: null, aiSuggestionAt: null });
+                await applyUpdateSegmentTarget(seg, seg.targetText, { aiSuggestion: null, aiSuggestionAt: null });
             }
         }
     }
@@ -13464,7 +13504,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     } else {
                         // Direct apply TM
                         seg.targetText = bestMatch.targetText;
-                        await DBService.updateSegmentTarget(seg.id, seg.targetText, {}).catch(console.error);
+                        await applyUpdateSegmentTarget(seg, seg.targetText, {}).catch(console.error);
                         tmSegs.push(seg);
                     }
                 } else {
@@ -13484,7 +13524,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const choice = chosen?.find(c => c.segId === item.seg.id);
                 if (choice?.useAi) {
                     item.seg.targetText = item.tmText;
-                    await DBService.updateSegmentTarget(item.seg.id, item.seg.targetText, {}).catch(console.error);
+                    await applyUpdateSegmentTarget(item.seg, item.seg.targetText, {}).catch(console.error);
                 } else {
                     segsForAi.push(item.seg);
                 }
@@ -13526,7 +13566,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     item.seg.targetText = item.aiText;
                     item.seg.aiSuggestion = item.aiText;
                     item.seg.aiSuggestionAt = new Date().toISOString();
-                    await DBService.updateSegmentTarget(item.seg.id, item.seg.targetText, { aiSuggestion: item.aiText, aiSuggestionAt: item.seg.aiSuggestionAt }).catch(console.error);
+                    await applyUpdateSegmentTarget(item.seg, item.seg.targetText, { aiSuggestion: item.aiText, aiSuggestionAt: item.seg.aiSuggestionAt }).catch(console.error);
                 }
             }
         }
@@ -13560,7 +13600,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     seg.targetText = r.translation;
                     seg.aiSuggestion = r.translation;
                     seg.aiSuggestionAt = new Date().toISOString();
-                    await DBService.updateSegmentTarget(seg.id, seg.targetText, { aiSuggestion: r.translation, aiSuggestionAt: seg.aiSuggestionAt }).catch(console.error);
+                    await applyUpdateSegmentTarget(seg, seg.targetText, { aiSuggestion: r.translation, aiSuggestionAt: seg.aiSuggestionAt }).catch(console.error);
                 }
             }
             allMissing.push(...result.missing);
@@ -13577,7 +13617,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     seg.targetText = r.translation;
                     seg.aiSuggestion = r.translation;
                     seg.aiSuggestionAt = new Date().toISOString();
-                    await DBService.updateSegmentTarget(seg.id, seg.targetText, { aiSuggestion: r.translation, aiSuggestionAt: seg.aiSuggestionAt }).catch(console.error);
+                    await applyUpdateSegmentTarget(seg, seg.targetText, { aiSuggestion: r.translation, aiSuggestionAt: seg.aiSuggestionAt }).catch(console.error);
                 }
             }
         }

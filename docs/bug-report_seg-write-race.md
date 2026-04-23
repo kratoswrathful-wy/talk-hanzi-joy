@@ -287,18 +287,28 @@ DBService.updateSegmentTarget(seg.id, aiText);  // fire-and-forget，非 await
 - **失敗不跑半套流程**：`updateSegmentTarget` 在確認前失敗則不更新已確認 UI、不 `enqueue` 狀態／TM 側效。
 - **`_maybeShowAiReviewModal`**：有 AI 草稿時，清除 `aiSuggestion` 改為可 **await** 的 `onClearAiFlags`（內含世代遞增與寫庫）或內建 `updateSegmentTarget`，避免與他通道競態。
 
-**未做**（日後可選）：Fix C 樂觀鎖、單一 RPC 原子確認、Fix D 之 Abort 取消 in-flight 請求等。
+**已補（2026-04-21 後續，Fix C DB 層）**
+
+- 遷移 [`supabase/migrations/20260421120000_cat_segments_segment_revision.sql`](../supabase/migrations/20260421120000_cat_segments_segment_revision.sql)：`cat_segments.segment_revision`（bigint，預設 0）與函式 `public.apply_cat_segment_target_update`（`WHERE id AND segment_revision = 預期` 則寫入並自增）。
+- 團隊模式：[`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts) 之 `db.updateSegmentTarget` 改為 `rpc(apply_cat_segment_target_update, …)`；成功回傳 `newSegmentRevision`；0 筆寫入則 `{ conflict: true }`。
+- 前端以 `getSegmentsByFile` 帶回之 `seg.segmentRevision` 為寫庫前條件，並經 `applyUpdateSegmentTarget` 成功後寫回；本機 Dexie 路徑不強制版本（仍回傳 `{}`）。
+- 與前端的寫入世代、失敗 gate 併用：DB 上仍可有效阻擋跨客戶端/晚到網路回包之舊寫入。
+
+**未做**（日後可選）：`updateSegmentStatus` 等一併參與同欄位 revision 之完整一致、單一 SQL 原子確認、Fix D 之 Abort 等。
 
 ---
 
-## 八、相關 DB 表結構（供 Fix C 參考）
+## 八、相關 DB 表結構（參考）
 
 ```
 cat_segments (
     id,
     target_text,
     status,
-    last_modified,   ← 樂觀鎖的依據欄位
+    last_modified,
+    segment_revision,  ← 寫庫目標內文（updateSegmentTarget）之樂觀鎖
     ...
 )
 ```
+
+**迴歸要點（團隊模式，部署 migration 之後）**：debounce / blur / Ctrl+Enter / 圖示確認、雙分頁一先寫一後寫、預期之 revision 衝突時不應覆寫新譯文。

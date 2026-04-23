@@ -110,6 +110,8 @@ const mapSegmentRow = (r: any) => {
     matchValue: r.match_value,
     createdAt: r.created_at,
     lastModified: r.last_modified,
+    /** 樂觀鎖：寫庫寫前條件與寫入後自增 */
+    segmentRevision: r.segment_revision != null ? Number(r.segment_revision) : 0,
   };
 };
 
@@ -343,6 +345,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           match_value: coerceMatchValueForDb(s.matchValue),
           created_at: nowIso(),
           last_modified: nowIso(),
+          segment_revision: 0,
         };
       });
       let totalCount = 0;
@@ -374,14 +377,24 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       return allData.map(mapSegmentRow);
     }
     case "db.updateSegmentTarget": {
-      const ex = segmentExtraCamelToSnake(payload.extra);
-      const { error: ustErr } = await supabase.from("cat_segments").update({
-        target_text: payload.newTargetText,
-        ...ex,
-        last_modified: nowIso(),
-      } as any).eq("id", payload.segmentId);
-      if (ustErr) throw ustErr;
-      return;
+      const { expectedSegmentRevision: exp, segmentId, newTargetText, extra: extraRaw } = payload;
+      if (exp === undefined || exp === null) {
+        throw new Error("db.updateSegmentTarget: expectedSegmentRevision is required");
+      }
+      const ex = segmentExtraCamelToSnake(extraRaw);
+      const { data, error: rpcErr } = await supabase.rpc("apply_cat_segment_target_update", {
+        p_segment_id: segmentId,
+        p_new_target_text: newTargetText ?? "",
+        p_expected_segment_revision: exp,
+        p_extras: ex,
+      } as any);
+      if (rpcErr) throw rpcErr;
+      const row = Array.isArray(data) ? (data[0] as any) : (data as any);
+      if (!row) {
+        return { conflict: true as const };
+      }
+      const nr = (row as any).segment_revision != null ? Number((row as any).segment_revision) : NaN;
+      return { newSegmentRevision: Number.isFinite(nr) ? nr : 0 };
     }
     case "db.updateSegmentStatus": {
       const ex = segmentExtraCamelToSnake(payload.extra);
