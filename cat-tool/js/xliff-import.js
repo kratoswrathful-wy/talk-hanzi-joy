@@ -72,6 +72,25 @@
         const isSdlxliffFile = lowerFileName.endsWith('.sdlxliff');
         const extractOpts = isSdlxliffFile ? { transparentG: true } : {};
 
+        /**
+         * memoQ 譯文有時把行內 tag 以**實體純文字**放在 <target>，解析後變成 `<mq:.../>` 字元，
+         * 未形成 ph，導致 targetTags=[] 但原文有 ph。從已具 mq: 的 sourceTags 複製到 targetTags（Bug #3 情況 A）。
+         */
+        function augmentTargetTagsForPlainInlineMemoQ({ isMqxliffFile, targetText, sourceTags, targetTags }) {
+            if (!isMqxliffFile) return;
+            if (!sourceTags || !sourceTags.length) return;
+            if (targetTags && targetTags.length) return;
+            if (!targetText || !String(targetText).trim()) return;
+            if (!/<mq:/i.test(String(targetText))) return;
+            for (const st of sourceTags) {
+                if (!st) continue;
+                const x = st.xml != null ? String(st.xml) : '';
+                const d = st.display != null ? String(st.display) : '';
+                if (!/mq:/i.test(x) && !/mq:/i.test(d)) continue;
+                targetTags.push({ ...st });
+            }
+        }
+
         // sdlxliff 專用：以 localName 做遞迴搜尋，找出所有 <mrk mtype="seg"> 元素。
         // 使用 localName 而非 getElementsByTagName 以避免 XML namespace 問題。
         function collectSegMrks(node) {
@@ -237,8 +256,10 @@
 
             const { text: sourceText, tags: sourceTags } = sourceNode
                 ? Xliff.extractTaggedText(sourceNode, extractOpts) : { text: '', tags: [] };
-            const { text: targetText, tags: targetTags } = targetNode
+            const tgtExtracted = targetNode
                 ? Xliff.extractTaggedText(targetNode, extractOpts) : { text: '', tags: [] };
+            let targetText = tgtExtracted.text;
+            let targetTags = tgtExtracted.tags || [];
 
             // mqxliff literal-placeholder 模式：有些 memoQ 檔案把行內 tag 直接以
             // 純文字 {1}、{2}… 存入 XML（不使用 <ph> 等 XLIFF 元素）。
@@ -293,6 +314,8 @@
                     }
                 }
             }
+
+            augmentTargetTagsForPlainInlineMemoQ({ isMqxliffFile, targetText, sourceTags, targetTags });
 
             if (!sourceText && !targetText) return;
 

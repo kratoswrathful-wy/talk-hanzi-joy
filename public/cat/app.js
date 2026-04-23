@@ -4978,7 +4978,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const lowerName = file.name.toLowerCase();
 
         const isExcel = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls');
-        const isXliffLike = lowerName.endsWith('.xlf') || lowerName.endsWith('.xliff') || lowerName.endsWith('.mqxliff') || lowerName.endsWith('.sdlxliff');
+        const isXliffLike = lowerName.endsWith('.xlf') || lowerName.endsWith('.xliff') || lowerName.endsWith('.mxliff') || lowerName.endsWith('.mqxliff') || lowerName.endsWith('.sdlxliff');
 
         // ---- 語言對選擇（匯入前必選）----
         // 先取得目前專案的語言設定
@@ -5054,7 +5054,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         } else {
-            alert('目前僅支援 Excel (.xlsx/.xls) 以及 XLIFF (.xlf/.xliff/.mqxliff/.sdlxliff) 檔案。');
+            alert('目前僅支援 Excel (.xlsx/.xls) 以及 XLIFF (.xlf/.xliff/.mxliff/.mqxliff/.sdlxliff) 檔案。');
             sourceFileInput.value = '';
         }
     });
@@ -5497,7 +5497,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const lowerName = (file.name || '').toLowerCase();
         if (lowerName.endsWith('.mqxliff')) currentFileFormat = 'mqxliff';
         else if (lowerName.endsWith('.sdlxliff')) currentFileFormat = 'sdlxliff';
-        else if (lowerName.endsWith('.xlf') || lowerName.endsWith('.xliff')) currentFileFormat = 'xliff';
+        else if (lowerName.endsWith('.xlf') || lowerName.endsWith('.xliff') || lowerName.endsWith('.mxliff')) currentFileFormat = 'xliff';
         else currentFileFormat = 'excel';
 
         currentFileDefaultMqRole = currentFileFormat === 'mqxliff'
