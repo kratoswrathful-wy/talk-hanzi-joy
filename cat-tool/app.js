@@ -8597,6 +8597,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!effectiveLocked) {
                 let targetDebounceTimer;
                 let skipHighMatchInputGuard = false;
+                /** 寫庫世代：in-flight 晚歸補寫比對用；與 isConfirming 一併防止確認觸發的 blur 重複寫庫。 */
+                let targetWriteGeneration = 0;
+                let isConfirming = false;
                 targetInput.addEventListener('focus', async () => {
                     if (isSegmentBeingEditedByOthers(seg.id)) {
                         const locker = Object.values(collabEditBySession || {}).find((e) =>
@@ -8658,6 +8661,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     updateProgress();
                     clearTimeout(targetDebounceTimer);
                     targetDebounceTimer = setTimeout(async () => {
+                        const myGen = ++targetWriteGeneration;
                         const latest = extractTextFromEditor(targetInput);
                         const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
                         if (oldVal !== latest) {
@@ -8670,8 +8674,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                             editorUndoEditStart[seg.id] = latest;
                         }
                         seg.targetText = latest;
-                        await DBService.updateSegmentTarget(seg.id, latest);
-                        emitCollabEdit('commit', seg, latest);
+                        try {
+                            await DBService.updateSegmentTarget(seg.id, latest);
+                        } catch (err) {
+                            console.error('[譯文 debounce 寫庫失敗]', err, seg.id);
+                            return;
+                        }
+                        if (myGen !== targetWriteGeneration) {
+                            try {
+                                await DBService.updateSegmentTarget(seg.id, seg.targetText);
+                            } catch (err2) {
+                                console.error('[譯文 debounce 補寫失敗]', err2, seg.id);
+                            }
+                        }
+                        emitCollabEdit('commit', seg, seg.targetText);
                     }, 500);
                 });
 
@@ -8685,10 +8701,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                         queueMicrotask(() => targetInput.focus());
                         return;
                     }
+                    if (isConfirming) {
+                        emitCollabEdit('end', seg, null);
+                        if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
+                            targetInput.removeAttribute('data-np-applied');
+                            requestAnimationFrame(() => applyNonPrintMarkers(targetInput));
+                        }
+                        return;
+                    }
                     if (targetDebounceTimer) {
                         clearTimeout(targetDebounceTimer);
                         targetDebounceTimer = null;
                     }
+                    const myGen = ++targetWriteGeneration;
                     const newVal = extractTextFromEditor(targetInput);
                     const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
                     if (oldVal !== newVal) {
@@ -8703,12 +8728,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                     seg.targetText = newVal;
                     try {
                         await DBService.updateSegmentTarget(seg.id, newVal);
-                        emitCollabEdit('commit', seg, newVal);
                     } catch (err) {
                         console.error('[譯文欄失焦寫庫失敗]', err, seg.id);
+                        emitCollabEdit('end', seg, null);
+                        if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
+                            targetInput.removeAttribute('data-np-applied');
+                            requestAnimationFrame(() => applyNonPrintMarkers(targetInput));
+                        }
+                        return;
                     }
+                    if (myGen !== targetWriteGeneration) {
+                        try {
+                            await DBService.updateSegmentTarget(seg.id, seg.targetText);
+                        } catch (err2) {
+                            console.error('[譯文欄失焦補寫失敗]', err2, seg.id);
+                        }
+                    }
+                    emitCollabEdit('commit', seg, seg.targetText);
                     emitCollabEdit('end', seg, null);
-                    // 使用者離開後，若非列印字元模式開啟，清除旗標讓標記重新套用至新輸入的空格
                     if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
                         targetInput.removeAttribute('data-np-applied');
                         requestAnimationFrame(() => applyNonPrintMarkers(targetInput));
@@ -8754,10 +8791,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                             const latestTarget = extractTextFromEditor(targetInput);
                             seg.targetText = latestTarget;
+                            isConfirming = true;
+                            const myGen = ++targetWriteGeneration;
                             try {
                                 await DBService.updateSegmentTarget(seg.id, latestTarget);
                             } catch (err) {
                                 console.error('[Ctrl+Enter 確認前寫庫失敗]', err, seg.id);
+                                alert('譯文寫入失敗，無法完成確認。請檢查連線後重試。');
+                                isConfirming = false;
+                                return;
+                            }
+                            if (myGen !== targetWriteGeneration) {
+                                try {
+                                    await DBService.updateSegmentTarget(seg.id, seg.targetText);
+                                } catch (e2) {
+                                    console.error('[Ctrl+Enter 補寫失敗]', e2, seg.id);
+                                }
                             }
                             const touch = collectConfirmTouchIndices(i);
                             const beforeSnapshots = {};
@@ -8768,41 +8817,46 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const wasUnconfirmed = seg.status !== 'confirmed';
                             const tmU = [];
                             const tmR = [];
-                        if (seg.status !== 'confirmed') {
-                            seg.status = 'confirmed';
-                            statusIcon.classList.add('done');
-                            if (!effectiveLocked) row.style.backgroundColor = '#f0fdf4';
-                            if (currentFileFormat === 'mqxliff') {
-                                seg.confirmationRole = resolveConfirmationRole(seg);
-                            }
-                            if (currentFileFormat === 'mqxliff') {
-                                const role = seg.confirmationRole || 'T';
-                                if (role === 'R1') {
-                                    statusIcon.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
-                                } else if (role === 'R2') {
-                                    statusIcon.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
-                                    } else {
-                                    statusIcon.innerHTML = '&#10003;';
+                            if (seg.status !== 'confirmed') {
+                                seg.status = 'confirmed';
+                                statusIcon.classList.add('done');
+                                if (!effectiveLocked) row.style.backgroundColor = '#f0fdf4';
+                                if (currentFileFormat === 'mqxliff') {
+                                    seg.confirmationRole = resolveConfirmationRole(seg);
                                 }
-                            }
+                                if (currentFileFormat === 'mqxliff') {
+                                    const role = seg.confirmationRole || 'T';
+                                    if (role === 'R1') {
+                                        statusIcon.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
+                                    } else if (role === 'R2') {
+                                        statusIcon.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
+                                    } else {
+                                        statusIcon.innerHTML = '&#10003;';
+                                    }
+                                }
                                 updateProgress();
                             }
                             const nextFocus = getAfterConfirmFocusIndex(i);
                             focusTargetEditorAtSegmentIndex(nextFocus);
-
-                            // AI 修改說明視窗（AI 模式 + 有草稿 + 譯文有變動）
-                            if (wasUnconfirmed) await _maybeShowAiReviewModal(seg, i);
-
+                            isConfirming = false;
+                            if (wasUnconfirmed) {
+                                await _maybeShowAiReviewModal(seg, i, {
+                                    onClearAiFlags: async () => {
+                                        ++targetWriteGeneration;
+                                        await DBService.updateSegmentTarget(seg.id, seg.targetText, { aiSuggestion: null, aiSuggestionAt: null });
+                                    }
+                                });
+                            }
                             enqueueConfirmSideEffects(async () => {
                                 try {
                                     if (wasUnconfirmed) {
-                            await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
-                            updateProgress();
-                        }
-                        if (seg.status === 'confirmed') {
+                                        await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
+                                        updateProgress();
+                                    }
+                                    if (seg.status === 'confirmed') {
                                         mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
-                        }
-                        if (seg.repetitionType) {
+                                    }
+                                    if (seg.repetitionType) {
                                         mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
                                     }
                                     const afterSnapshots = {};
@@ -8879,10 +8933,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 }
                                 const latestTarget = extractTextFromEditor(targetTa);
                                 seg.targetText = latestTarget;
+                                isConfirming = true;
+                                const myGen = ++targetWriteGeneration;
                                 try {
                                     await DBService.updateSegmentTarget(seg.id, latestTarget);
                                 } catch (err) {
                                     console.error('[狀態圖示確認前寫庫失敗]', err, seg.id);
+                                    alert('譯文寫入失敗，無法完成確認。請檢查連線後重試。');
+                                    isConfirming = false;
+                                    return;
+                                }
+                                if (myGen !== targetWriteGeneration) {
+                                    try {
+                                        await DBService.updateSegmentTarget(seg.id, seg.targetText);
+                                    } catch (e2) {
+                                        console.error('[狀態圖示補寫失敗]', e2, seg.id);
+                                    }
                                 }
                             }
                             const touch = collectConfirmTouchIndices(i);
@@ -8892,28 +8958,31 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 beforeSnapshots[s.id] = snapshotSegForUndo(s);
                             });
                             seg.status = 'confirmed';
-                        statusIcon.classList.add('done');
-                        if (!effectiveLocked) row.style.backgroundColor = '#f0fdf4';
-                        if (currentFileFormat === 'mqxliff') {
-                            seg.confirmationRole = resolveConfirmationRole(seg);
-                        }
-                        if (currentFileFormat === 'mqxliff') {
-                            const role = seg.confirmationRole || 'T';
-                            if (role === 'R1') {
-                                statusIcon.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
-                            } else if (role === 'R2') {
-                                statusIcon.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
-                            } else {
-                                statusIcon.innerHTML = '&#10003;';
+                            statusIcon.classList.add('done');
+                            if (!effectiveLocked) row.style.backgroundColor = '#f0fdf4';
+                            if (currentFileFormat === 'mqxliff') {
+                                seg.confirmationRole = resolveConfirmationRole(seg);
                             }
-                        }
+                            if (currentFileFormat === 'mqxliff') {
+                                const role = seg.confirmationRole || 'T';
+                                if (role === 'R1') {
+                                    statusIcon.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
+                                } else if (role === 'R2') {
+                                    statusIcon.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
+                                } else {
+                                    statusIcon.innerHTML = '&#10003;';
+                                }
+                            }
                             updateProgress();
                             const nextFocus = getAfterConfirmFocusIndex(i);
                             focusTargetEditorAtSegmentIndex(nextFocus);
-
-                            // AI 修改說明視窗（AI 模式 + 有草稿 + 譯文有變動）
-                            await _maybeShowAiReviewModal(seg, i);
-
+                            isConfirming = false;
+                            await _maybeShowAiReviewModal(seg, i, {
+                                onClearAiFlags: async () => {
+                                    ++targetWriteGeneration;
+                                    await DBService.updateSegmentTarget(seg.id, seg.targetText, { aiSuggestion: null, aiSuggestionAt: null });
+                                }
+                            });
                             const tmU = [];
                             const tmR = [];
                             enqueueConfirmSideEffects(async () => {
@@ -13157,7 +13226,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }).catch(console.error);
     }
 
-    async function _maybeShowAiReviewModal(seg, segIdx) {
+    /**
+     * @param {object} [options]
+     * @param {() => Promise<void>} [options.onClearAiFlags] 清除 AI 草稿欄位寫庫；由句段列閉包提供，以便遞增 targetWriteGeneration
+     */
+    async function _maybeShowAiReviewModal(seg, segIdx, options = {}) {
         if (!aiModeActive) return;
         const hadAiDraft = !!seg.aiSuggestion;
         const reviewData = await showAiReviewModal(seg);
@@ -13167,7 +13240,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (hadAiDraft) {
             seg.aiSuggestion = null;
             seg.aiSuggestionAt = null;
-            DBService.updateSegmentTarget(seg.id, seg.targetText, { aiSuggestion: null, aiSuggestionAt: null }).catch(console.error);
+            if (typeof options.onClearAiFlags === 'function') {
+                try {
+                    await options.onClearAiFlags();
+                } catch (e) {
+                    console.error('[AI review 清除草稿寫庫失敗]', e, seg.id);
+                }
+            } else {
+                await DBService.updateSegmentTarget(seg.id, seg.targetText, { aiSuggestion: null, aiSuggestionAt: null });
+            }
         }
     }
 
