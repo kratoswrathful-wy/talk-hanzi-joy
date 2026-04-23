@@ -396,6 +396,21 @@
         setXmlTargetContent(xmlDoc, targetNode, restoredXml, options);
     }
 
+    /**
+     * 若匯出時 **target 無行內 tag 中繫**，僅有 source 的 ph，但**譯文內沒有 {N} 佔位**，
+     * 則 replace 後的內文多為**裸** `<`…`/>` 純字串，不可再走 XML 片段寫入（與全零 tag 的 Bug#2 同因）。
+     */
+    function usePlainTextForExportTarget(seg) {
+        if (!seg) return true;
+        if (seg.targetTags && seg.targetTags.length) return false;
+        if (!seg.sourceTags || !seg.sourceTags.length) return true;
+        return !/\{[\/]?\d+\}/.test(String(seg.targetText || ''));
+    }
+
+    function tagsForExportWrite(seg, tags) {
+        return usePlainTextForExportTarget(seg) ? [] : tags;
+    }
+
     function updateMqxliffStatus(tu, seg, mqNsUri) {
         let mqStatus;
         if (seg.status === 'confirmed') {
@@ -437,7 +452,7 @@
             const mrk = mrkSegs[0];
             while (mrk.firstChild) mrk.removeChild(mrk.firstChild);
             if (restored.trim()) {
-                setExportTargetPlainOrFragment(xmlDoc, mrk, restored, { tuId: tu.getAttribute('id') || '' }, tags);
+                setExportTargetPlainOrFragment(xmlDoc, mrk, restored, { tuId: tu.getAttribute('id') || '' }, tagsForExportWrite(seg, tags));
             }
             return true;
         }
@@ -445,7 +460,7 @@
         // 多個 mrk（一個 TU 包含多個句段）：全部清空，譯文放入第一個 mrk
         mrkSegs.forEach(mrk => { while (mrk.firstChild) mrk.removeChild(mrk.firstChild); });
         if (restored.trim()) {
-            setExportTargetPlainOrFragment(xmlDoc, mrkSegs[0], restored, { tuId: tu.getAttribute('id') || '' }, tags);
+            setExportTargetPlainOrFragment(xmlDoc, mrkSegs[0], restored, { tuId: tu.getAttribute('id') || '' }, tagsForExportWrite(seg, tags));
         }
         return true;
     }
@@ -518,7 +533,7 @@
 
                         while (mrk.firstChild) mrk.removeChild(mrk.firstChild);
                         if (restoredXml.trim()) {
-                            setExportTargetPlainOrFragment(xmlDoc, mrk, restoredXml, { tuId: `${tuId}#${mid}` }, tags);
+                            setExportTargetPlainOrFragment(xmlDoc, mrk, restoredXml, { tuId: `${tuId}#${mid}` }, tagsForExportWrite(seg, tags));
                         }
                     });
 
@@ -604,10 +619,10 @@
             if (format === 'sdlxliff') {
                 const handled = _updateSdlxliffMrkContent(xmlDoc, tu, targetNode, seg, tags);
                 if (!handled) {
-                    setExportTargetPlainOrFragment(xmlDoc, targetNode, restoredXml, { tuId: tu.getAttribute('id') || '' }, tags);
+                    setExportTargetPlainOrFragment(xmlDoc, targetNode, restoredXml, { tuId: tu.getAttribute('id') || '' }, tagsForExportWrite(seg, tags));
                 }
             } else {
-                setExportTargetPlainOrFragment(xmlDoc, targetNode, restoredXml, { tuId: tu.getAttribute('id') || '' }, tags);
+                setExportTargetPlainOrFragment(xmlDoc, targetNode, restoredXml, { tuId: tu.getAttribute('id') || '' }, tagsForExportWrite(seg, tags));
             }
         });
 
