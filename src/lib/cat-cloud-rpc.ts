@@ -5,6 +5,19 @@ type RpcPayload = Record<string, any>;
 
 const nowIso = () => new Date().toISOString();
 
+/** 正式庫未跑 migration 時 RPC 不存在；改走舊式 update 以免無法寫庫。 */
+function isMissingOptimisticLockInfraError(err: { message?: string; code?: string; details?: string } | null): boolean {
+  if (!err) return false;
+  const s = `${err.message || ""} ${err.code || ""} ${(err as any).details || ""}`.toLowerCase();
+  return (
+    s.includes("apply_cat_segment_target_update") ||
+    s.includes("pgrst202") ||
+    /function .* does not exist|could not find the function/.test(s) ||
+    s.includes("42883") ||
+    (s.includes("segment_revision") && (s.includes("column") && (s.includes("does not exist") || s.includes("undefined"))))
+  );
+}
+
 /** 與 cat-tool/db.js 一致：供版本是否需追加時比對 */
 function normalizeCatGuidelineContent(html: string | null | undefined): string {
   if (html == null) return "";
@@ -388,7 +401,21 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         p_expected_segment_revision: exp,
         p_extras: ex,
       } as any);
-      if (rpcErr) throw rpcErr;
+      if (rpcErr) {
+        if (!isMissingOptimisticLockInfraError(rpcErr)) throw rpcErr;
+        /* eslint-disable no-console */
+        console.warn(
+          "[cat-cloud-rpc] apply_cat_segment_target_update 失敗，回退舊式 update。請在 Supabase 執行 migration 20260421120000_cat_segments_segment_revision.sql。",
+          rpcErr
+        );
+        const { error: ustErr } = await supabase.from("cat_segments").update({
+          target_text: newTargetText ?? "",
+          ...ex,
+          last_modified: nowIso(),
+        } as any).eq("id", segmentId);
+        if (ustErr) throw ustErr;
+        return { newSegmentRevision: exp };
+      }
       const row = Array.isArray(data) ? (data[0] as any) : (data as any);
       if (!row) {
         return { conflict: true as const };
