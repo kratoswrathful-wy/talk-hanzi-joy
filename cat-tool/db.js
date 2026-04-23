@@ -264,6 +264,32 @@ db.version(16).stores({
     });
 });
 
+// v17：每檔可套用哪些特殊指示（id 對應 aiProjectSettings.specialInstructions[].id，單一真相）
+db.version(17).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, sourceLang, targetLang',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId',
+    wordCountReports: '++id, projectId, createdAt, label',
+    aiGuidelines: '++id, category, createdAt, scope, isDefault',
+    aiStyleExamples: '++id, sourceLang, targetLang, segId, createdAt',
+    aiSettings: '++id',
+    aiProjectSettings: '++id, projectId',
+    aiCategoryTags: '++id, name, createdAt',
+    fileAiReports: 'fileId, updatedAt'
+}).upgrade(async tx => {
+    await tx.files.toCollection().modify(f => {
+        if (!Array.isArray(f.applicableSpecialInstructionIds)) f.applicableSpecialInstructionIds = [];
+    });
+});
+
 /** 比對／空白判定：取 HTML 可見文字並壓縮空白，與 cat-cloud-rpc / app.js 邏輯一致 */
 function normalizeCatGuidelineContent(html) {
     if (html == null) return '';
@@ -402,6 +428,7 @@ const DBService = {
             targetLang: targetLang || '',
             originalSourceLang: originalSourceLang || '',
             originalTargetLang: originalTargetLang || '',
+            applicableSpecialInstructionIds: [],
             createdAt: new Date().toISOString(),
             lastModified: new Date().toISOString(),
         });

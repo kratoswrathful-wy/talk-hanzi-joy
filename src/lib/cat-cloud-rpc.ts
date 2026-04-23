@@ -94,6 +94,9 @@ const mapFileRow = (r: any) => ({
   originalSourceLang: r.original_source_lang ?? "",
   originalTargetLang: r.original_target_lang ?? "",
   workspaceNoteDraft: r.workspace_note_draft ?? "",
+  applicableSpecialInstructionIds: Array.isArray(r.applicable_special_instruction_ids)
+    ? r.applicable_special_instruction_ids.map((x: unknown) => Number(x)).filter((n) => !Number.isNaN(n))
+    : [],
   createdAt: r.created_at,
   lastModified: r.last_modified,
 });
@@ -326,6 +329,13 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         ...(payload.updates?.originalSourceLang != null ? { original_source_lang: payload.updates.originalSourceLang } : {}),
         ...(payload.updates?.originalTargetLang != null ? { original_target_lang: payload.updates.originalTargetLang } : {}),
         ...(payload.updates?.workspaceNoteDraft != null ? { workspace_note_draft: payload.updates.workspaceNoteDraft } : {}),
+        ...(payload.updates?.applicableSpecialInstructionIds != null
+          ? {
+              applicable_special_instruction_ids: Array.isArray(payload.updates.applicableSpecialInstructionIds)
+                ? payload.updates.applicableSpecialInstructionIds
+                : [],
+            }
+          : {}),
         last_modified: nowIso(),
       } as any).eq("id", payload.fileId);
     case "db.deleteFile":

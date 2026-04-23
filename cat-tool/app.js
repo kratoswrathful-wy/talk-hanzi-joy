@@ -11141,10 +11141,50 @@ document.addEventListener('DOMContentLoaded', async () => {
         return d.toLocaleString('zh-TW', { hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
     }
 
+    function _normalizeApplicableSiIds(file) {
+        const a = file && file.applicableSpecialInstructionIds;
+        if (!Array.isArray(a)) return [];
+        return a.map((x) => (typeof x === 'number' ? x : parseInt(x, 10))).filter((n) => !Number.isNaN(n));
+    }
+    function _applicableSetForFile(file) {
+        return new Set(_normalizeApplicableSiIds(file));
+    }
+    function _instructionIdNum(s) {
+        const n = Number(s && s.id);
+        return Number.isNaN(n) ? null : n;
+    }
+    function _appliesToAnyFile(projectFiles, idNum) {
+        if (idNum == null) return false;
+        return projectFiles.some((f) => _applicableSetForFile(f).has(idNum));
+    }
+    async function _pruneInstructionIdFromAllProjectFiles(projectId, instructionId) {
+        if (projectId == null || projectId === '' || instructionId == null) return;
+        const idNum = Number(instructionId);
+        if (Number.isNaN(idNum)) return;
+        const files = await DBService.getFiles(projectId);
+        for (const f of files) {
+            const cur = _normalizeApplicableSiIds(f);
+            if (!cur.includes(idNum)) continue;
+            const next = cur.filter((x) => x !== idNum);
+            await DBService.updateFile(f.id, { applicableSpecialInstructionIds: next });
+        }
+    }
+    async function _setFileHasInstructionId(fileId, instructionId, on) {
+        if (fileId == null) return;
+        const f = await DBService.getFile(fileId);
+        if (!f) return;
+        const idNum = Number(instructionId);
+        if (Number.isNaN(idNum)) return;
+        const cur = new Set(_normalizeApplicableSiIds(f));
+        if (on) cur.add(idNum);
+        else cur.delete(idNum);
+        await DBService.updateFile(f.id, { applicableSpecialInstructionIds: [...cur] });
+    }
+
     /** 側欄共用資訊 + 若共用資訊 Modal 開啟則一併重繪 */
     async function _refreshSharedInfoUi() {
         await _loadSharedInfo();
-        await loadSharedInfoAiPanel();
+        await loadSharedInfoAiPanel({ context: 'editor' });
         const m = document.getElementById('sharedInfoModal');
         const pid = _notesProjectIdOrNull();
         if (m && !m.classList.contains('hidden') && pid) {
@@ -11269,7 +11309,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (tabEl) tabEl.classList.add('active');
                 await _loadPrivateNotes();
                 await _refreshSharedInfoUi();
-                if (tabId === 'tabSharedInfo') await loadSharedInfoAiPanel();
+                if (tabId === 'tabSharedInfo') await loadSharedInfoAiPanel({ context: 'editor' });
                 if (tabId === 'tabAiReport') await _loadFileAiReportToPanel();
             });
         });
@@ -11674,7 +11714,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const lk = listKey || 'panel';
         container.innerHTML = '';
         if (!items.length) {
-            container.innerHTML = '<div style="font-size:0.8rem;color:#94a3b8;padding:0.2rem 0;">（目前無內容）</div>';
+            container.innerHTML = '<div style="font-size:0.8rem;color:#94a3b8;padding:0.2rem 0;">目前沒有共用筆記。</div>';
             return;
         }
         items.forEach((gl, idx) => container.appendChild(_buildGuidelineItem(gl, idx + 1, lk)));
@@ -12008,12 +12048,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const shList = document.getElementById('sharedNotesListModal');
         _renderGuidelinesList(guidelines.filter(g => g.type === 'shared_note'), shList, 'modal');
+        await loadSharedInfoAiPanel({ context: 'modal' });
     }
 
     (function initSharedInfoModal() {
         document.getElementById('btnCloseSharedInfoModal')?.addEventListener('click', async () => {
             await _pruneEmptyNoteDrafts(_notesProjectIdOrNull());
             await _loadSharedInfo();
+            await loadSharedInfoAiPanel({ context: 'editor' });
             document.getElementById('sharedInfoModal')?.classList.add('hidden');
         });
     })();
@@ -13040,26 +13082,52 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // ---- 共用資訊分頁內：AI 準則、文風、特殊指示 ----
-    async function loadSharedInfoAiPanel() {
-        if (!currentProjectId) return;
+    // ---- 共用資訊分頁內：AI 準則、文風、特殊指示；context modal = 專案頁彈窗（與 editor 同資料、文案「檔案」向） ----
+    async function loadSharedInfoAiPanel(options) {
+        const context = (options && options.context) || 'editor';
+        const isModal = context === 'modal';
+        const projectId = _notesProjectIdOrNull() || (typeof currentProjectId !== 'undefined' ? currentProjectId : null);
+        if (!projectId) return;
 
-        const selectedList = document.getElementById('aiSelectedGuidelinesList');
-        const selectedStyleList = document.getElementById('aiSelectedStyleGuidelinesList');
-        const specialList = document.getElementById('aiSpecialInstructionsList');
-        const openPickerBtn = document.getElementById('btnOpenAiGuidelinePicker');
-        const openStyleBtn = document.getElementById('btnOpenAiStyleGuidelinePicker');
-        const addSpecialBtn = document.getElementById('btnAddAiSpecialInstruction');
-        const btnDefG = document.getElementById('btnApplyDefaultGuidelines');
-        const btnDefS = document.getElementById('btnApplyDefaultStyles');
-        document.querySelectorAll('#tabSharedInfo .pm-only-ui').forEach(el => {
+        const u = isModal ? {
+            gList: 'aiSelectedGuidelinesListModal',
+            sList: 'aiSelectedStyleGuidelinesListModal',
+            siList: 'aiSpecialInstructionsListModal',
+            pickG: 'btnOpenAiGuidelinePickerModal',
+            pickS: 'btnOpenAiStyleGuidelinePickerModal',
+            addSi: 'btnAddAiSpecialInstructionModal',
+            defG: 'btnApplyDefaultGuidelinesModal',
+            defS: 'btnApplyDefaultStylesModal',
+            goTo: 'linkGoToGuidelinesFromSharedModal'
+        } : {
+            gList: 'aiSelectedGuidelinesList',
+            sList: 'aiSelectedStyleGuidelinesList',
+            siList: 'aiSpecialInstructionsList',
+            pickG: 'btnOpenAiGuidelinePicker',
+            pickS: 'btnOpenAiStyleGuidelinePicker',
+            addSi: 'btnAddAiSpecialInstruction',
+            defG: 'btnApplyDefaultGuidelines',
+            defS: 'btnApplyDefaultStyles',
+            goTo: 'btnGoToGuidelinesFromPicker'
+        };
+        const $ = (id) => document.getElementById(id);
+        const selectedList = $(u.gList);
+        const selectedStyleList = $(u.sList);
+        const specialList = $(u.siList);
+        const openPickerBtn = $(u.pickG);
+        const openStyleBtn = $(u.pickS);
+        const addSpecialBtn = $(u.addSi);
+        const btnDefG = $(u.defG);
+        const btnDefS = $(u.defS);
+        document.querySelectorAll('#tabSharedInfo .pm-only-ui, #sharedInfoModal .pm-only-ui').forEach((el) => {
             el.style.display = isCatSharedMutator() ? '' : 'none';
         });
 
         const [allGuidelines, psettings] = await Promise.all([
             DBService.getAiGuidelines(),
-            DBService.getAiProjectSettings(currentProjectId)
+            DBService.getAiProjectSettings(projectId)
         ]);
+        const isPm = isCatSharedMutator();
         const allTranslation = allGuidelines.filter(g => (g.scope || 'translation') === 'translation');
         const allStyle = allGuidelines.filter(g => (g.scope || 'style') === 'style');
         let selectedGuidelineIds = new Set((psettings?.selectedGuidelineIds || []).map(Number));
@@ -13067,7 +13135,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let specialInstructions = Array.isArray(psettings?.specialInstructions) ? [...psettings.specialInstructions] : [];
 
         function savePSettings() {
-            DBService.saveAiProjectSettings(currentProjectId, {
+            DBService.saveAiProjectSettings(projectId, {
                 selectedGuidelineIds: [...selectedGuidelineIds],
                 selectedStyleGuidelineIds: [...selectedStyleIds],
                 specialInstructions
@@ -13112,90 +13180,194 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
-        // Render special instructions
-        function renderSpecialInstructions() {
+        function rowApplicabilityLineFor(filesArr, idTo1Based, s) {
+            const n = _instructionIdNum(s);
+            if (n == null) return { html: '適用檔案：無', empty: true };
+            const nums = filesArr
+                .filter((f) => _applicableSetForFile(f).has(n))
+                .map((f) => idTo1Based.get(f.id))
+                .filter((x) => x != null)
+                .sort((a, b) => a - b);
+            if (nums.length === 0) return { html: '適用檔案：無', empty: true };
+            const nameByIdx = (oneBased) => { const f = filesArr[oneBased - 1]; return f ? String(f.name || '') : ''; };
+            const parts = nums.map((num) => {
+                const tit = _esc(nameByIdx(num)).replace(/"/g, '&quot;');
+                return `<span class="si-file-num" title="${tit}">#${num}</span>`;
+            });
+            return { html: `適用檔案：${parts.join('、')}`, empty: false };
+        }
+
+        async function renderSpecialInstructions() {
             if (!specialList) return;
-            // Preserve any in-progress new-item editor
+            const filesNow = await DBService.getFiles(projectId);
+            const idTo1Based = new Map();
+            filesNow.forEach((f, i) => idTo1Based.set(f.id, i + 1));
+            let cFile = null;
+            if (context === 'editor' && currentFileId) cFile = await DBService.getFile(currentFileId).catch(() => null);
+            const curAp = new Set(_normalizeApplicableSiIds(cFile));
             const newItemEditor = specialList.querySelector('.si-new-item');
-            if (specialInstructions.length === 0) {
-                specialList.innerHTML = '<p style="font-size:0.78rem; color:#94a3b8; margin:0;">尚無特殊指示。</p>';
-            } else {
-                specialList.innerHTML = specialInstructions.map((s, idx) => `
-                    <div class="guideline-item" data-si-idx="${idx}">
-                        <div class="guideline-item-row">
-                            <div class="private-todo-check">
-                                <input type="checkbox" class="ai-si-checkbox private-todo-cb" data-idx="${idx}" ${s.enabled !== false ? 'checked' : ''} aria-label="啟用指示">
+            const shouldShowRow = (s) => {
+                const n = _instructionIdNum(s);
+                if (n == null) return false;
+                if (isModal) {
+                    if (isPm) return true;
+                    return _appliesToAnyFile(filesNow, n) && s.enabled !== false;
+                }
+                if (isPm) return true;
+                if (!currentFileId) return false;
+                if (s.enabled === false) return false;
+                return curAp.has(n);
+            };
+            const toShow = specialInstructions.filter(shouldShowRow);
+            if (toShow.length === 0) {
+                specialList.innerHTML = '<p style="font-size:0.78rem; color:#94a3b8; margin:0;">目前沒有特殊指示。</p>';
+                if (newItemEditor) specialList.appendChild(newItemEditor);
+                return;
+            }
+            specialList.innerHTML = toShow.map((s) => {
+                const idAttr = String(s.id);
+                const idBody = String(s.id).replace(/["\\]/g, '');
+                const n = _instructionIdNum(s);
+                const ap = (n == null) ? { html: '適用檔案：無', empty: true } : rowApplicabilityLineFor(filesNow, idTo1Based, s);
+                const showMeta = (isModal || (context === 'editor' && isPm)) && n != null;
+                const metaBlock = (() => {
+                    if (!showMeta) return '';
+                    if (isModal && isPm) {
+                        if (filesNow.length === 0) {
+                            return `<div class="guideline-item-meta-combined" style="font-size:0.75rem; margin:0.2rem 0 0 0;">適用檔案：無</div>`;
+                        }
+                        return `<div class="si-file-pick" style="font-size:0.75rem; margin:0.25rem 0 0 0; display:flex; flex-wrap:wrap; gap:0.35rem; align-items:center;">`
+                            + `<span style="color:#64748b;">適用檔案：</span>`
+                            + filesNow.map((f) => {
+                                const num = idTo1Based.get(f.id);
+                                const ck = n != null && _applicableSetForFile(f).has(n) ? 'checked' : '';
+                                const dis = isPm ? '' : 'disabled';
+                                const title = _esc(f.name || '').replace(/"/g, '&quot;');
+                                return `<label class="si-file-cb" style="display:inline-flex; align-items:center; gap:0.15rem; cursor:${isPm ? 'pointer' : 'default'}; font-size:0.78rem;">`
+                                    + `<input type="checkbox" class="si-applies-file" data-si-id="${_esc(idAttr)}" data-fid="${_esc(String(f.id))}" ${ck} ${dis} style="margin:0" aria-label="檔案 ${num}">`
+                                    + `<span title="${title}">#${num}</span></label>`;
+                            }).join('')
+                            + `</div>`;
+                    }
+                    if (isModal && !isPm) {
+                        return `<div class="guideline-item-meta-combined" style="font-size:0.75rem; margin:0.2rem 0 0 0;">${ap.html}</div>`;
+                    }
+                    if (context === 'editor' && isPm) {
+                        const curT = currentFileId && n != null && cFile && _applicableSetForFile(cFile).has(n);
+                        return `<div style="font-size:0.75rem; margin:0.25rem 0 0 0; display:flex; flex-wrap:wrap; gap:0.4rem; align-items:center;">`
+                            + `<label style="display:inline-flex;align-items:center;gap:0.2rem;cursor:pointer;"><input type="checkbox" class="si-applies-local" data-si-id="${_esc(idAttr)}" ${curT ? 'checked' : ''} ${isPm ? '' : 'disabled'}>本檔套用</label>`
+                            + `<span class="guideline-item-meta-combined" style="margin:0;">${ap.html}</span></div>`;
+                    }
+                    return '';
+                })();
+                const pmBlock = (isPm)
+                    ? `<div class="private-todo-check">
+                        <input type="checkbox" class="ai-si-checkbox private-todo-cb" data-si-id="${_esc(idAttr)}" ${s.enabled !== false ? 'checked' : ''} aria-label="啟用指示">
+                    </div>` : '<div class="private-todo-check"></div>';
+                const actBlock = (isPm)
+                    ? `<div class="note-item-actions guideline-item-aside-actions si-acts" data-si-id="${_esc(idAttr)}">
+                        <button type="button" class="pt-edit-btn si-edit-btn" data-si-id="${_esc(idAttr)}" title="編輯">✏️</button>
+                        <button type="button" class="pt-del-btn danger si-del-btn" data-si-id="${_esc(idAttr)}" title="刪除">🗑</button>
+                    </div>` : '';
+                return `<div class="guideline-item" data-si-id="${_esc(idAttr)}">
+                    <div class="guideline-item-row">
+                        ${pmBlock}
+                        <div class="guideline-item-main">
+                            <div class="private-todo-body" id="si-body-${idBody}">
+                                ${s.content ? `<span class="private-todo-text">${_esc(s.content)}</span>` : '<span class="guideline-item-empty">（無內容）</span>'}
                             </div>
-                            <div class="guideline-item-main">
-                                <div class="private-todo-body" id="si-body-${idx}">
-                                    ${s.content ? `<span class="private-todo-text">${_esc(s.content)}</span>` : '<span class="guideline-item-empty">（無內容）</span>'}
-                                </div>
-                            </div>
-                            <div class="guideline-item-aside">
-                                <div class="guideline-item-aside-inner">
-                                    <div class="note-item-actions guideline-item-aside-actions si-actions-${idx}">
-                                        <button type="button" class="pt-edit-btn si-edit-btn" data-idx="${idx}" title="編輯">✏️</button>
-                                        <button type="button" class="pt-del-btn danger si-del-btn" data-idx="${idx}" title="刪除">🗑</button>
-                                    </div>
-                                </div>
-                            </div>
+                            ${metaBlock}
+                        </div>
+                        <div class="guideline-item-aside">
+                            <div class="guideline-item-aside-inner">${actBlock}</div>
                         </div>
                     </div>
-                `).join('');
-                specialList.querySelectorAll('.ai-si-checkbox').forEach(cb => {
-                    cb.onchange = () => {
-                        const i = parseInt(cb.getAttribute('data-idx'), 10);
-                        specialInstructions[i].enabled = cb.checked;
-                        savePSettings();
-                    };
+                </div>`;
+            }).join('');
+
+            specialList.querySelectorAll('.ai-si-checkbox').forEach((cb) => {
+                cb.onchange = () => {
+                    const sid = cb.getAttribute('data-si-id');
+                    const i = specialInstructions.findIndex((t) => String(t.id) === String(sid));
+                    if (i < 0) return;
+                    specialInstructions[i].enabled = cb.checked;
+                    savePSettings();
+                    void renderSpecialInstructions();
+                };
+            });
+            specialList.querySelectorAll('.si-applies-file').forEach((cb) => {
+                cb.addEventListener('change', async () => {
+                    const fid = cb.getAttribute('data-fid');
+                    const siid = cb.getAttribute('data-si-id');
+                    await _setFileHasInstructionId(fid, siid, cb.checked);
                 });
-                specialList.querySelectorAll('.si-edit-btn').forEach(btn => {
-                    btn.onclick = () => {
-                        const i = parseInt(btn.getAttribute('data-idx'), 10);
-                        const item = specialList.querySelector(`[data-si-idx="${i}"]`);
-                        if (!item) return;
-                        const bodyEl = item.querySelector(`#si-body-${i}`);
-                        const actsEl = item.querySelector(`.si-actions-${i}`);
-                        if (bodyEl) {
-                            bodyEl.innerHTML = '';
-                            const ta = document.createElement('textarea');
-                            ta.className = 'private-todo-edit-textarea';
-                            ta.value = specialInstructions[i].content;
-                            ta.placeholder = '特殊指示內容…';
-                            ta.rows = 3;
-                            bodyEl.appendChild(ta);
-                            ta.focus();
-                            ta.setSelectionRange(ta.value.length, ta.value.length);
-                            if (actsEl) {
-                                actsEl.innerHTML = `
-                                    <button type="button" class="primary-btn btn-sm si-save-btn">儲存</button>
-                                    <button type="button" class="secondary-btn btn-sm si-cancel-btn">取消</button>`;
-                                actsEl.querySelector('.si-save-btn').onclick = () => {
-                                    specialInstructions[i].content = ta.value.trim();
-                                    savePSettings();
-                                    renderSpecialInstructions();
-                                };
-                                actsEl.querySelector('.si-cancel-btn').onclick = () => renderSpecialInstructions();
-                            }
+            });
+            specialList.querySelectorAll('.si-applies-local').forEach((cb) => {
+                cb.addEventListener('change', async () => {
+                    if (!currentFileId) return;
+                    const siid = cb.getAttribute('data-si-id');
+                    await _setFileHasInstructionId(currentFileId, siid, cb.checked);
+                    void renderSpecialInstructions();
+                });
+            });
+            specialList.querySelectorAll('.si-edit-btn').forEach((btn) => {
+                btn.onclick = () => {
+                    const sid = btn.getAttribute('data-si-id');
+                    const item = specialList.querySelector(`[data-si-id="${sid}"]`);
+                    if (!item) return;
+                    const i = specialInstructions.findIndex((t) => String(t.id) === String(sid));
+                    if (i < 0) return;
+                    const idBody = String(specialInstructions[i].id).replace(/["\\]/g, '');
+                    const bodyEl = item.querySelector('#si-body-' + idBody);
+                    const actsEl = item.querySelector('.si-acts');
+                    if (bodyEl) {
+                        bodyEl.innerHTML = '';
+                        const ta = document.createElement('textarea');
+                        ta.className = 'private-todo-edit-textarea';
+                        ta.value = specialInstructions[i].content;
+                        ta.placeholder = '特殊指示內容…';
+                        ta.rows = 3;
+                        bodyEl.appendChild(ta);
+                        ta.focus();
+                        ta.setSelectionRange(ta.value.length, ta.value.length);
+                        if (actsEl) {
+                            actsEl.innerHTML = `
+                                <button type="button" class="primary-btn btn-sm si-save-btn">儲存</button>
+                                <button type="button" class="secondary-btn btn-sm si-cancel-btn">取消</button>`;
+                            actsEl.querySelector('.si-save-btn').onclick = () => {
+                                specialInstructions[i].content = ta.value.trim();
+                                savePSettings();
+                                void renderSpecialInstructions();
+                            };
+                            actsEl.querySelector('.si-cancel-btn').onclick = () => { void renderSpecialInstructions(); };
                         }
-                    };
-                });
-                specialList.querySelectorAll('.si-del-btn').forEach(btn => {
-                    btn.onclick = () => {
-                        const i = parseInt(btn.getAttribute('data-idx'), 10);
-                        specialInstructions.splice(i, 1);
-                        savePSettings();
-                        renderSpecialInstructions();
-                    };
-                });
-            }
-            // Re-append the new-item editor if it was open
+                    }
+                };
+            });
+            specialList.querySelectorAll('.si-del-btn').forEach((btn) => {
+                btn.onclick = async () => {
+                    const sid = btn.getAttribute('data-si-id');
+                    const i = specialInstructions.findIndex((t) => String(t.id) === String(sid));
+                    if (i < 0) return;
+                    const removed = specialInstructions[i];
+                    specialInstructions.splice(i, 1);
+                    try {
+                        await _pruneInstructionIdFromAllProjectFiles(projectId, removed.id);
+                        await DBService.saveAiProjectSettings(projectId, {
+                            selectedGuidelineIds: [...selectedGuidelineIds],
+                            selectedStyleGuidelineIds: [...selectedStyleIds],
+                            specialInstructions
+                        });
+                    } catch (e) { console.error(e); }
+                    await renderSpecialInstructions();
+                };
+            });
             if (newItemEditor) specialList.appendChild(newItemEditor);
         }
 
         renderSelectedGuidelines();
         renderSelectedStyleGuidelines();
-        renderSpecialInstructions();
+        await renderSpecialInstructions();
 
         if (btnDefG) {
             btnDefG.onclick = async () => {
@@ -13281,8 +13453,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 };
             };
         }
-        const goBtn = document.getElementById('btnGoToGuidelinesFromPicker');
-        if (goBtn) goBtn.onclick = (e) => { e.preventDefault(); switchView('viewAiGuidelines'); loadAiGuidelinesView(); };
+        const go1 = document.getElementById('linkGoToGuidelinesFromSharedModal');
+        if (go1) go1.onclick = (e) => { e.preventDefault(); switchView('viewAiGuidelines'); loadAiGuidelinesView(); };
+        const go2 = document.getElementById('btnGoToGuidelinesFromPicker');
+        if (go2) go2.onclick = (e) => { e.preventDefault(); switchView('viewAiGuidelines'); loadAiGuidelinesView(); };
     }
 
     // ---- 準則選擇器 Modal ----
@@ -13964,7 +14138,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const guidelines = allGuidelines.filter(g => (g.scope || 'translation') === 'translation' && selectedGuidelineIds.has(g.id));
         const styleGuidelines = allGuidelines.filter(g => (g.scope || '') === 'style' && selectedStyleIds.has(g.id));
         const specialInstructions = psettings?.specialInstructions || [];
-        const combinedBatchNote = [batchNote, ...specialInstructions.filter(s => s && s.enabled !== false).map(s => s.content)].filter(Boolean).join('\n');
+        const siById = new Map(specialInstructions.map((s) => [Number(s.id), s]));
+        const fileApplicable = _normalizeApplicableSiIds(fileRec);
+        const applicableContents = fileApplicable
+            .map((id) => siById.get(id))
+            .filter((s) => s && s.enabled !== false)
+            .map((s) => s.content);
+        const combinedBatchNote = [batchNote, ...applicableContents].filter(Boolean).join('\n');
         const styleExFilters = {
             limit: 15,
             sourceLang: fileRec?.sourceLang || undefined,

@@ -369,6 +369,7 @@ export type Database = {
       }
       cat_files: {
         Row: {
+          applicable_special_instruction_ids: Json
           created_at: string
           id: string
           last_modified: string
@@ -382,6 +383,7 @@ export type Database = {
           workspace_note_draft: string
         }
         Insert: {
+          applicable_special_instruction_ids?: Json
           created_at?: string
           id?: string
           last_modified?: string
@@ -395,6 +397,7 @@ export type Database = {
           workspace_note_draft?: string
         }
         Update: {
+          applicable_special_instruction_ids?: Json
           created_at?: string
           id?: string
           last_modified?: string
