@@ -932,9 +932,10 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     background: color-mix(in srgb, #dc2626 12%, white);
 }
 
+/* 下一步要插入的標籤：外框仍用深藍，底色極淺、接近白 */
 .col-source .rt-tag.tag-next {
     --tag-color: #1d4ed8 !important;
-    background: color-mix(in srgb, #1d4ed8 16%, white);
+    background: color-mix(in srgb, #1d4ed8 2.5%, white);
 }
 
 /* 目標欄：多出/錯配標籤顯示橘色 */

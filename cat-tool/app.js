@@ -8083,9 +8083,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /**
      * 重新比對標籤顏色：
-     * - 用 xml（簽名）+ token 次數，決定來源端紅（缺少匹配）與目標端橘（多出匹配）。
+     * - 用 xml（簽名）+ token 次數，決定來源端紅（缺少匹配）與目標端橘（多出匹配）；pair 僅有 open 時的 `::INCOMPLETE` 簽名與完整 pair 視為可互配（見 sigForColorMatch）。
      * - 正確的 token 顯示淡藍（tag-present）。
-     * - tag-next（F8 下一步）由 refreshTagNextHighlight 負責疊加較深藍。
+     * - tag-next（F8 下一步）由 refreshTagNextHighlight 負責疊加深藍外框（底色在 style 極淺）。
      */
     function updateTagColors(row, targetText) {
         if (!row) return;
@@ -8121,10 +8121,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         const sourceTokens = buildTagTokenSequence(sourceTags, sourceText);
         const targetTokens = buildTagTokenSequence(effectiveTargetTags, tgtText);
 
+        /** 譯文只先插入成對 tag 的 open 時，pair 的 sig 會帶 `::INCOMPLETE`（buildTagTokenSequence），須與原文完整 pair 當成同一簽名比對，否則會全紅/全橘。 */
+        const sigForColorMatch = (sig) => {
+            if (typeof sig !== 'string' || !sig.endsWith('::INCOMPLETE')) return sig;
+            return sig.slice(0, -'::INCOMPLETE'.length);
+        };
+
         const countBySig = (tokens) => {
             const m = new Map();
             tokens.forEach(tok => {
-                m.set(tok.sig, (m.get(tok.sig) || 0) + 1);
+                const k = sigForColorMatch(tok.sig);
+                m.set(k, (m.get(k) || 0) + 1);
             });
             return m;
         };
@@ -8132,10 +8139,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 1) Source 端：拿 target token 去「逐次配對」決定 present/missing
         const targetRemaining = countBySig(targetTokens);
         sourceTokens.forEach(tok => {
-            const n = targetRemaining.get(tok.sig) || 0;
+            const k = sigForColorMatch(tok.sig);
+            const n = targetRemaining.get(k) || 0;
             if (n > 0) {
                 tok.status = 'present';
-                targetRemaining.set(tok.sig, n - 1);
+                targetRemaining.set(k, n - 1);
             } else {
                 tok.status = 'missing';
             }
@@ -8144,10 +8152,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 2) Target 端：拿 source token 去配對，沒配到的就是 extra
         const sourceRemaining = countBySig(sourceTokens);
         targetTokens.forEach(tok => {
-            const n = sourceRemaining.get(tok.sig) || 0;
+            const k = sigForColorMatch(tok.sig);
+            const n = sourceRemaining.get(k) || 0;
             if (n > 0) {
                 tok.status = 'present';
-                sourceRemaining.set(tok.sig, n - 1);
+                sourceRemaining.set(k, n - 1);
             } else {
                 tok.status = 'extra';
             }
