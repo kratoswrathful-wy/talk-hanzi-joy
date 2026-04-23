@@ -238,6 +238,32 @@ db.version(15).stores({
     });
 });
 
+// v16：移除檔案層 aiDomains（文風類型僅由 AI 批次勾選；標籤改由 aiCategoryTags 全域管理）
+db.version(16).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, sourceLang, targetLang',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId',
+    wordCountReports: '++id, projectId, createdAt, label',
+    aiGuidelines: '++id, category, createdAt, scope, isDefault',
+    aiStyleExamples: '++id, sourceLang, targetLang, segId, createdAt',
+    aiSettings: '++id',
+    aiProjectSettings: '++id, projectId',
+    aiCategoryTags: '++id, name, createdAt',
+    fileAiReports: 'fileId, updatedAt'
+}).upgrade(async tx => {
+    await tx.files.toCollection().modify(f => {
+        if (f.aiDomains !== undefined) delete f.aiDomains;
+    });
+});
+
 /** 比對／空白判定：取 HTML 可見文字並壓縮空白，與 cat-cloud-rpc / app.js 邏輯一致 */
 function normalizeCatGuidelineContent(html) {
     if (html == null) return '';
@@ -250,6 +276,22 @@ function normalizeCatGuidelineContent(html) {
     } catch (_) {
         return s.replace(/\s+/g, ' ').trim();
     }
+}
+
+/** 與 app.js 準則／審校彈窗的類別欄位格式一致（JSON 陣列或單一字串） */
+function _parseGuidelineCategoryField(cat) {
+    if (cat == null || cat === '') return ['通用'];
+    try {
+        const p = JSON.parse(cat);
+        if (Array.isArray(p)) return p.map(c => String(c));
+    } catch (_) { /* ignore */ }
+    return [String(cat)];
+}
+function _serializeGuidelineCategoryField(arr) {
+    const a = (Array.isArray(arr) ? arr : []).map(c => String(c)).filter(c => c.length > 0);
+    if (a.length === 0) return '通用';
+    if (a.length === 1) return a[0];
+    return JSON.stringify(a);
 }
 
 // Helper Database Methods
@@ -977,8 +1019,63 @@ const DBService = {
         if (existing.some(t => t.name === name.trim())) throw new Error('標籤已存在');
         return await db.aiCategoryTags.add({ name: name.trim(), createdAt: new Date().toISOString() });
     },
-    async deleteAiCategoryTag(id) {
-        return await db.aiCategoryTags.delete(id);
+    /**
+     * 更名並一併更新學習範例 categories 與準則條目 category 欄位中的同名稱。
+     */
+    async renameAiCategoryTag(id, newName) {
+        if (id == null) throw new Error('無效的標籤');
+        const nm = String(newName || '').trim();
+        if (!nm) throw new Error('標籤名稱不得空白');
+        const row = await db.aiCategoryTags.get(id);
+        if (!row) throw new Error('找不到標籤');
+        const oldName = row.name;
+        if (oldName === nm) return;
+        const all = await db.aiCategoryTags.toArray();
+        if (all.some(t => t.id !== id && t.name === nm)) throw new Error('已有同名標籤');
+        await db.aiCategoryTags.update(id, { name: nm });
+
+        const exRows = await db.aiStyleExamples.toArray();
+        for (const r of exRows) {
+            if (!Array.isArray(r.categories) || !r.categories.includes(oldName)) continue;
+            const next = r.categories.map(c => (c === oldName ? nm : c));
+            await db.aiStyleExamples.update(r.id, { categories: next });
+        }
+
+        const gRows = await db.aiGuidelines.toArray();
+        for (const g of gRows) {
+            const arr = _parseGuidelineCategoryField(g.category);
+            if (!arr.includes(oldName)) continue;
+            const next = arr.map(c => (c === oldName ? nm : c));
+            await db.aiGuidelines.update(g.id, { category: _serializeGuidelineCategoryField(next) });
+        }
+    },
+    /**
+     * @param {object} [opts]
+     * @param {boolean} [opts.removeFromReferences] 一併從學習範例與準則條目移除此名稱
+     */
+    async deleteAiCategoryTag(id, opts = {}) {
+        const removeFromReferences = !!opts.removeFromReferences;
+        const row = await db.aiCategoryTags.get(id);
+        if (!row) return;
+        const name = row.name;
+        await db.aiCategoryTags.delete(id);
+        if (!removeFromReferences) return;
+
+        const exRows = await db.aiStyleExamples.toArray();
+        for (const r of exRows) {
+            if (!Array.isArray(r.categories) || !r.categories.includes(name)) continue;
+            const next = r.categories.filter(c => c !== name);
+            await db.aiStyleExamples.update(r.id, { categories: next });
+        }
+
+        const gRows = await db.aiGuidelines.toArray();
+        for (const g of gRows) {
+            const arr = _parseGuidelineCategoryField(g.category);
+            if (!arr.includes(name)) continue;
+            let next = arr.filter(c => c !== name);
+            if (next.length === 0) next = ['通用'];
+            await db.aiGuidelines.update(g.id, { category: _serializeGuidelineCategoryField(next) });
+        }
     },
 
     // Expose tables directly if needed for custom queries or bulk operations outside this service

@@ -866,10 +866,14 @@
                 <header class="view-header"><h1>AI 管理</h1></header>
                 <div id="viewAiSettingsInner" style="max-width:640px; display:flex; flex-direction:column; gap:1.25rem;">
                     <p style="font-size:0.8rem; color:#64748b; margin:0;">全系統可經主站 <code style="font-size:0.78rem;">/api/cat-openai</code> 代打 OpenAI（<code>OPENAI_API_KEY</code> 僅在伺服器）。以下金鑰為<strong>本機與自架 API 備用</strong>。僅執行官可編修管理項目。</p>
-                    <div id="aiSettingsFileDomainsSection" class="form-group" style="border:1px solid #e2e8f0; border-radius:8px; padding:0.85rem 1rem; background:#f8fafc;">
-                        <h4 style="font-size:0.9rem; margin:0 0 0.35rem 0; color:#334155;">目前檔案的適用類別</h4>
-                        <p id="aiSettingsFileDomainsHint" style="font-size:0.78rem; color:#64748b; margin:0 0 0.5rem 0;">於編輯器中開啟專案檔案後，可在此切換本檔適用的類別標籤（影響風格學習篩選與範例標記）。</p>
-                        <div id="aiSettingsFileDomainBadges" class="ai-domain-badges" style="min-height:1.5rem;"></div>
+                    <div id="aiSettingsCategoryTagsSection" class="form-group" style="border:1px solid #e2e8f0; border-radius:8px; padding:0.85rem 1rem; background:#f8fafc;">
+                        <h4 style="font-size:0.9rem; margin:0 0 0.35rem 0; color:#334155;">文字類型標籤（全站）</h4>
+                        <p id="aiSettingsCategoryTagsHint" style="font-size:0.78rem; color:#64748b; margin:0 0 0.5rem 0;">供 AI 批次文風篩選、學習範例與準則條目使用。更名會一併更新各處引用。刪除時可選是否從學習範例與準則條目移除；若僅刪清單，內文保留的字串可於日後建立同名標籤再連回篩選。</p>
+                        <div id="aiSettingsCategoryTagsList" style="display:flex; flex-direction:column; gap:0.45rem; min-height:1.5rem; max-width:100%;"></div>
+                        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:0.5rem; margin-top:0.6rem;">
+                            <input type="text" id="aiSettingsNewCategoryTagInput" class="form-input" placeholder="新標籤名稱" style="max-width:220px; font-size:0.85rem;" autocomplete="off">
+                            <button type="button" id="aiSettingsAddCategoryTagBtn" class="secondary-btn btn-sm">新增</button>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label class="form-label" style="display:flex; align-items:center; gap:0.5rem;">
