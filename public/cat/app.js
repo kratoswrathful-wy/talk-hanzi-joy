@@ -4863,31 +4863,106 @@ document.addEventListener('DOMContentLoaded', async () => {
     let _namingModalTgtLangsCb = null;
     let _projectSetupMode = false;
 
-    /** 分階段重建階4：新建專案後短引導，再開 TM 選擇或略過。 */
+    /** 新建專案後：選擇翻譯準則與文風（可套用庫內預設），再開 TM 或略過。 */
     async function showNewProjectWelcome(projectId) {
         const modal = document.getElementById('projectWelcomeModal');
         const hl = document.getElementById('projectWelcomeHeadline');
-        const ul = document.getElementById('projectWelcomeBullets');
-        if (!modal || !hl || !ul) {
+        const roHint = document.getElementById('projectWelcomeReadonlyHint');
+        const transPrev = document.getElementById('projectWelcomeTransPreview');
+        const stylePrev = document.getElementById('projectWelcomeStylePreview');
+        if (!modal || !hl || !transPrev || !stylePrev) {
             openProjectTmPickerModal();
             return;
         }
         const p = await DBService.getProject(projectId);
         const name = p && p.name ? String(p.name) : '專案';
         hl.textContent = `「${name}」已儲存。`;
-        const sl = p && Array.isArray(p.sourceLangs) ? p.sourceLangs : [];
-        const tl = p && Array.isArray(p.targetLangs) ? p.targetLangs : [];
-        const lines = [];
-        if (sl.length) lines.push(`原文可用語言：${sl.join('、')}`);
-        else lines.push('原文語言：專案層未指定（不選表示匯入時可再限縮）');
-        if (tl.length) lines.push(`譯文可用語言：${tl.join('、')}`);
-        else lines.push('譯文語言：專案層未指定（不選表示匯入時可再限縮）');
-        lines.push('若啟用系統預設，已嘗試套用專案 AI 相關預設（見 AI 管理／準則）。');
-        const escLi = (t) => {
-            const s = String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-            return `<li>${s}</li>`;
-        };
-        ul.innerHTML = lines.map(escLi).join('');
+        const canEdit = isCatSharedMutator();
+        if (roHint) {
+            if (canEdit) roHint.classList.add('hidden');
+            else roHint.classList.remove('hidden');
+        }
+        const [allG, psettings] = await Promise.all([
+            DBService.getAiGuidelines().catch(() => []),
+            DBService.getAiProjectSettings(projectId).catch(() => null)
+        ]);
+        const allTranslation = (allG || []).filter(g => (g.scope || 'translation') === 'translation');
+        const allStyleG = (allG || []).filter(g => (g.scope || 'translation') === 'style');
+        let selectedGuidelineIds = new Set((psettings?.selectedGuidelineIds || []).map(Number));
+        let selectedStyleIds = new Set((psettings?.selectedStyleGuidelineIds || []).map(Number));
+        const siKeep = Array.isArray(psettings?.specialInstructions) ? psettings.specialInstructions : [];
+
+        function previewHtml(ids, list) {
+            const picked = list.filter(g => ids.has(g.id));
+            if (picked.length === 0) return '<span style="color:#94a3b8;">（尚未選擇）</span>';
+            return picked.map(g => {
+                const t = normalizeGuidelineContent(g.content || '');
+                const short = t.length > 120 ? t.slice(0, 120) + '…' : t;
+                return `<div style="margin:0.15rem 0;">· ${_esc(short)}</div>`;
+            }).join('');
+        }
+        function renderWelcomePreviews() {
+            transPrev.innerHTML = previewHtml(selectedGuidelineIds, allTranslation);
+            stylePrev.innerHTML = previewHtml(selectedStyleIds, allStyleG);
+        }
+        function saveWelcomeProjectAi() {
+            return DBService.saveAiProjectSettings(projectId, {
+                selectedGuidelineIds: [...selectedGuidelineIds],
+                selectedStyleGuidelineIds: [...selectedStyleIds],
+                specialInstructions: siKeep
+            }).catch(e => { console.error(e); });
+        }
+        renderWelcomePreviews();
+
+        const bPickT = document.getElementById('btnProjectWelcomePickTranslation');
+        const bDefT = document.getElementById('btnProjectWelcomeDefTranslation');
+        const bPickS = document.getElementById('btnProjectWelcomePickStyle');
+        const bDefS = document.getElementById('btnProjectWelcomeDefStyle');
+        [bPickT, bDefT, bPickS, bDefS].forEach(b => {
+            if (b) b.style.display = canEdit ? '' : 'none';
+        });
+
+        if (bPickT) {
+            bPickT.onclick = async () => {
+                if (!canEdit) return;
+                const chosen = await openAiGuidelinePicker([...selectedGuidelineIds], allTranslation, { scope: 'translation' });
+                if (chosen !== null) {
+                    selectedGuidelineIds = new Set(chosen);
+                    await saveWelcomeProjectAi();
+                    renderWelcomePreviews();
+                }
+            };
+        }
+        if (bDefT) {
+            bDefT.onclick = async () => {
+                if (!canEdit) return;
+                const defIds = allTranslation.filter(g => g.isDefault).map(g => g.id);
+                selectedGuidelineIds = new Set(defIds);
+                await saveWelcomeProjectAi();
+                renderWelcomePreviews();
+            };
+        }
+        if (bPickS) {
+            bPickS.onclick = async () => {
+                if (!canEdit) return;
+                const chosen = await openAiGuidelinePicker([...selectedStyleIds], allStyleG, { scope: 'style' });
+                if (chosen !== null) {
+                    selectedStyleIds = new Set(chosen);
+                    await saveWelcomeProjectAi();
+                    renderWelcomePreviews();
+                }
+            };
+        }
+        if (bDefS) {
+            bDefS.onclick = async () => {
+                if (!canEdit) return;
+                const defIds = allStyleG.filter(g => g.isDefault).map(g => g.id);
+                selectedStyleIds = new Set(defIds);
+                await saveWelcomeProjectAi();
+                renderWelcomePreviews();
+            };
+        }
+
         modal.classList.remove('hidden');
     }
 
@@ -12373,13 +12448,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         updateFilterBarOptions();
 
+        function _mutexGroupRadioNameKey(mutexName) {
+            if (!mutexName) return 'x0';
+            let h = 0;
+            for (let i = 0; i < mutexName.length; i++) h = ((h << 5) - h) + mutexName.charCodeAt(i) | 0;
+            return 'l' + (h >>> 0).toString(36);
+        }
+
         async function applyMutexGroupDefault(groupName, enable) {
             const members = allGuidelines.filter(g => g && g.mutexGroup === groupName).sort((a, b) => a.id - b.id);
             if (members.length === 0) return;
             if (enable) {
-                for (let i = 0; i < members.length; i++) {
-                    const want = i === 0;
-                    const m = members[i];
+                const current = members.find(m => m.isDefault) || members[0];
+                for (const m of members) {
+                    const want = m.id === current.id;
                     if (!!m.isDefault === want) continue;
                     await DBService.updateAiGuideline(m.id, { isDefault: want });
                     const row = allGuidelines.find(x => x.id === m.id);
@@ -12436,24 +12518,31 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 const gMembers = [...item.guidelines].sort((a, b) => a.id - b.id);
                 const anyDef = gMembers.some(g => g.isDefault);
+                const defPicked = gMembers.find(g => g.isDefault) || null;
+                const mxRN = _mutexGroupRadioNameKey(item.name);
                 return `
-                    <div style="border:1px solid #fdba74; border-radius:8px; background:#fff7ed; padding:0.6rem 0.75rem;">
+                    <div class="ag-guideline-mutex-groupbox" style="border:1px solid #fdba74; border-radius:8px; background:#fff7ed; padding:0.6rem 0.75rem;" data-mutex-box="${_esc(item.name)}">
                         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.35rem; margin-bottom:0.45rem;">
                             <div style="font-size:0.8rem; font-weight:700; color:#9a3412;">互斥群組：${_esc(item.name)}</div>
-                            <label style="font-size:0.72rem; display:flex; align-items:center; gap:0.3rem; cursor:pointer; color:#9a3412;">
+                            <label class="ag-only-on-ai-guidelines-page" style="font-size:0.72rem; display:flex; align-items:center; gap:0.3rem; cursor:pointer; color:#9a3412;">
                                 <input type="checkbox" class="ag-mutex-group-default" data-mutex="${_esc(item.name)}" ${anyDef ? 'checked' : ''}/> 預設條目
                             </label>
                         </div>
+                        <div style="font-size:0.68rem; color:#b45309; margin:0 0 0.35rem 0;">庫內預設：單選下列其中一則</div>
                         <div style="display:flex; flex-direction:column; gap:0.35rem;">
                             ${gMembers.map(g => {
                                 const catBadges = _normalizeCategory(g.category).map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
+                                const radChecked = defPicked ? g.id === defPicked.id : false;
                                 return `
-                                    <div class="ai-guideline-item" data-id="${g.id}" style="background:#fff; border-radius:5px; border:1px solid #fed7aa;">
-                                        <div style="flex:1;">
+                                    <div class="ai-guideline-item" data-id="${g.id}" style="background:#fff; border-radius:5px; border:1px solid #fed7aa; display:flex; align-items:stretch; gap:0.35rem;">
+                                        <div style="flex:1; min-width:0;">
                                             <div class="ai-guideline-item-content">${_esc(g.content)}</div>
                                             <div class="ai-guideline-item-meta">${catBadges}</div>
                                         </div>
-                                        <div class="ai-guideline-item-actions" style="display:flex; flex-direction:column; gap:0.25rem; align-items:flex-end;">
+                                        <div style="flex-shrink:0; display:flex; align-items:center; padding:0 0.2rem;" title="作為庫內預設（互斥擇一）">
+                                            <input type="radio" class="ag-mutex-libdef-radio" name="agmx-${mxRN}" data-mutex="${_esc(item.name)}" data-gid="${g.id}" ${radChecked ? 'checked' : ''} />
+                                        </div>
+                                        <div class="ai-guideline-item-actions" style="display:flex; flex-direction:column; gap:0.25rem; align-items:flex-end; flex-shrink:0;">
                                             <button type="button" class="secondary-btn btn-sm ag-leave-mutex" data-leave-gid="${g.id}" style="font-size:0.72rem;">脫離群組</button>
                                             <button type="button" class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
                                         </div>
@@ -12494,6 +12583,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (!name) return;
                     try {
                         await applyMutexGroupDefault(name, cb.checked);
+                    } catch (e) { console.error(e); }
+                    renderList();
+                };
+            });
+            listEl.querySelectorAll('.ag-mutex-libdef-radio').forEach(radio => {
+                radio.onchange = async () => {
+                    if (!radio.checked) return;
+                    const gid = parseInt(radio.getAttribute('data-gid'), 10);
+                    const gname = radio.getAttribute('data-mutex') || '';
+                    if (!gid || !gname) return;
+                    const members = allGuidelines.filter(g => g && g.mutexGroup === gname);
+                    try {
+                        for (const m of members) {
+                            const want = m.id === gid;
+                            if (!!m.isDefault === want) continue;
+                            await DBService.updateAiGuideline(m.id, { isDefault: want });
+                            const row = allGuidelines.find(x => x.id === m.id);
+                            if (row) row.isDefault = want;
+                        }
+                        const box = radio.closest('.ag-guideline-mutex-groupbox');
+                        const gcb = box && box.querySelector('.ag-mutex-group-default');
+                        if (gcb && !gcb.checked) gcb.checked = true;
                     } catch (e) { console.error(e); }
                     renderList();
                 };
@@ -13461,14 +13572,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     function openAiBatchModal() {
         const modal = document.getElementById('aiBatchModal');
         if (!modal) return;
-        const fileMode = document.getElementById('aiBatchStyleModeFile');
-        const customMode = document.getElementById('aiBatchStyleModeCustom');
-        const catWrap = document.getElementById('aiBatchStyleCategoryWrap');
-        if (fileMode) fileMode.checked = true;
-        if (customMode) customMode.checked = false;
-        if (catWrap) {
-            catWrap.classList.add('hidden');
-        }
         _refreshAiBatchStyleCategoryList().then(() => {}).catch(() => {});
         _updateBatchStats();
         modal.classList.remove('hidden');
@@ -13482,14 +13585,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (closeBtn) closeBtn.onclick = close;
         if (runBtn) runBtn.onclick = async () => {
             close();
-            const styleModeCustom = document.getElementById('aiBatchStyleModeCustom')?.checked;
             const customCats = [];
-            if (styleModeCustom) {
-                document.querySelectorAll('#aiBatchStyleCategoryWrap .ai-batch-style-cat-cb:checked').forEach(cb => {
-                    if (cb.value) customCats.push(cb.value);
-                });
-            }
-            const styleExampleFilter = { mode: styleModeCustom ? 'custom' : 'file', categories: customCats };
+            document.querySelectorAll('#aiBatchStyleCategoryWrap .ai-batch-style-cat-cb:checked').forEach(cb => {
+                if (cb.value) customCats.push(cb.value);
+            });
             const config = {
                 allFile: document.getElementById('aiBatchAllFile')?.checked ?? true,
                 rangeStart: parseInt(document.getElementById('aiBatchRangeStart')?.value || '1', 10) || 1,
@@ -13501,7 +13600,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tmRefThreshold: parseInt(document.getElementById('aiBatchTmRefThreshold')?.value || '0', 10),
                 handleRepetitions: document.getElementById('aiBatchHandleRepetitions')?.value || 'yes',
                 batchNote: document.getElementById('aiBatchNote')?.value?.trim() || '',
-                styleExampleFilter
+                batchStyleExampleCategories: customCats
             };
             await runAiBatchTranslate(config);
         };
@@ -13520,20 +13619,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         statsEl.textContent = `範圍內共 ${rangeSegs.length} 句，其中已確認 ${confirmed} 句、已輸入未確認 ${withText} 句、空白 ${empty} 句。`;
     }
 
-    (function bindAiBatchModalRangeAndStyle() {
+    (function bindAiBatchModalRange() {
         document.getElementById('aiBatchAllFile')?.addEventListener('change', _updateBatchStats);
         document.getElementById('aiBatchRangeStart')?.addEventListener('input', _updateBatchStats);
         document.getElementById('aiBatchRangeEnd')?.addEventListener('input', _updateBatchStats);
-        document.getElementById('aiBatchStyleModeFile')?.addEventListener('change', () => {
-            if (document.getElementById('aiBatchStyleModeFile')?.checked) {
-                document.getElementById('aiBatchStyleCategoryWrap')?.classList.add('hidden');
-            }
-        });
-        document.getElementById('aiBatchStyleModeCustom')?.addEventListener('change', () => {
-            if (document.getElementById('aiBatchStyleModeCustom')?.checked) {
-                document.getElementById('aiBatchStyleCategoryWrap')?.classList.remove('hidden');
-            }
-        });
     })();
 
     // ---- runAiBatchTranslate Orchestrator ----
@@ -13648,7 +13737,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (confirmAskSegs.length > 0) {
             _showAiToast(`正在翻譯 ${confirmAskSegs.length} 句…（詢問確認）`);
-            const aiResult = await window.CatAiTranslate.translate(confirmAskSegs, await _buildAiOptions(settings, config.batchNote, config.styleExampleFilter));
+            const aiResult = await window.CatAiTranslate.translate(confirmAskSegs, await _buildAiOptions(settings, config.batchNote, config.batchStyleExampleCategories));
             const aiMap = new Map(aiResult.results.map(r => [r.segId, r.translation]));
             const askItems = confirmAskSegs.map(seg => ({ seg, existingText: seg.targetText, aiText: aiMap.get(seg.id) || '', label: '' }));
             const chosen = await _showBatchAskModal(askItems, '選擇要保留的版本');
@@ -13673,7 +13762,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const batchSize = (settings.batchSize && settings.batchSize >= 1) ? settings.batchSize : 20;
         let processed = 0;
-        const options = await _buildAiOptions(settings, config.batchNote, config.styleExampleFilter);
+        const options = await _buildAiOptions(settings, config.batchNote, config.batchStyleExampleCategories);
         let allMissing = [];
 
         _showAiToast(`正在翻譯第 1/${Math.ceil(finalAiSegs.length/batchSize)} 批…`);
@@ -13719,15 +13808,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         rerenderCurrentSegments();
     }
 
-    async function _buildAiOptions(settings, batchNote, styleExampleFilter) {
+    async function _buildAiOptions(settings, batchNote, batchStyleExampleCategories) {
         const fileRec = currentFileId ? await DBService.getFile(currentFileId).catch(() => null) : null;
         const fileDomains = fileRec?.aiDomains || [];
-        let styleCats;
-        if (styleExampleFilter && styleExampleFilter.mode === 'custom') {
-            styleCats = Array.isArray(styleExampleFilter.categories) ? styleExampleFilter.categories : [];
-        } else {
-            styleCats = fileDomains;
-        }
+        const styleCats = Array.isArray(batchStyleExampleCategories)
+            ? batchStyleExampleCategories
+            : fileDomains;
         const psettings = currentProjectId ? await DBService.getAiProjectSettings(currentProjectId).catch(() => null) : null;
         const selectedGuidelineIds = new Set((psettings?.selectedGuidelineIds || []).map(Number));
         const selectedStyleIds = new Set((psettings?.selectedStyleGuidelineIds || []).map(Number));

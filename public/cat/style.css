@@ -76,9 +76,9 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
 .view-section { flex: 1; display: flex; flex-direction: column;}
 .hidden { display: none !important; }
 
-#aiBatchStyleCategoryWrap:not(.hidden) {
-  display: flex !important;
-}
+/* 互斥群組「預設條目」僅在準則管理 (#viewAiGuidelines) 顯示 */
+.ag-only-on-ai-guidelines-page { display: none !important; }
+#viewAiGuidelines .ag-only-on-ai-guidelines-page { display: flex !important; }
 
 /* 開檔／長操作 loading（#catLoadingOverlay 內） */
 .cat-loading-spinner {

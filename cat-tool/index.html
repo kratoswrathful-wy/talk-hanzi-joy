@@ -1277,16 +1277,31 @@
 
         <!-- 新建專案歡迎（分階段重建階4：引導下一步，再開 TM 選擇器） -->
         <div class="wizard-overlay hidden" id="projectWelcomeModal">
-            <div class="wizard-modal" style="max-width: min(520px, 95vw);">
+            <div class="wizard-modal" style="max-width: min(640px, 95vw);">
                 <div class="wizard-header">
                     <h2 style="margin:0; font-size:1.2rem;">專案已建立</h2>
                     <button type="button" class="close-btn" id="btnCloseProjectWelcome" aria-label="關閉">&times;</button>
                 </div>
                 <div class="wizard-body" style="display:flex; flex-direction:column; gap:0.75rem;">
                     <p id="projectWelcomeHeadline" style="margin:0; font-size:0.95rem; font-weight:600; color:#1e293b;"></p>
-                    <ul id="projectWelcomeBullets" style="margin:0; padding-left:1.2rem; font-size:0.88rem; color:#475569; line-height:1.55;">
-                    </ul>
-                    <p style="margin:0; font-size:0.82rem; color:#64748b;">接下來可為專案掛載翻譯記憶庫 (TM)。完成後可在下方「+ 匯入檔案」加入任務，並於專案內掛 TB。</p>
+                    <div id="projectWelcomeReadonlyHint" class="hidden" style="font-size:0.8rem; color:#64748b; padding:0.5rem; background:#f1f5f9; border-radius:6px;">目前身分無法變更準則／文風，請日後在專案「共用資訊」由 PM 調整。</div>
+                    <div style="border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem; background:#fafafa;">
+                        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:0.45rem; margin-bottom:0.45rem;">
+                            <span style="font-size:0.88rem; font-weight:600; color:#1e293b;">翻譯準則</span>
+                            <button type="button" class="secondary-btn btn-sm" id="btnProjectWelcomePickTranslation">選擇準則</button>
+                            <button type="button" class="secondary-btn btn-sm" id="btnProjectWelcomeDefTranslation" title="以庫內預設條目覆寫本專案">套用預設</button>
+                        </div>
+                        <div id="projectWelcomeTransPreview" style="font-size:0.78rem; color:#475569; max-height:5rem; overflow-y:auto; line-height:1.45;"></div>
+                    </div>
+                    <div style="border:1px solid #e2e8f0; border-radius:8px; padding:0.75rem; background:#fafafa;">
+                        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:0.45rem; margin-bottom:0.45rem;">
+                            <span style="font-size:0.88rem; font-weight:600; color:#1e293b;">文風</span>
+                            <button type="button" class="secondary-btn btn-sm" id="btnProjectWelcomePickStyle">選擇文風</button>
+                            <button type="button" class="secondary-btn btn-sm" id="btnProjectWelcomeDefStyle" title="以庫內預設文風覆寫本專案">套用預設</button>
+                        </div>
+                        <div id="projectWelcomeStylePreview" style="font-size:0.78rem; color:#475569; max-height:5rem; overflow-y:auto; line-height:1.45;"></div>
+                    </div>
+                    <p style="margin:0; font-size:0.82rem; color:#64748b;">之後可為專案掛載 TM、匯入檔案與掛 TB。</p>
                 </div>
                 <div class="panel-footer" style="padding:1rem; display:flex; justify-content:flex-end; gap:0.5rem; border-top:1px solid #e2e8f0; flex-wrap:wrap;">
                     <button type="button" class="secondary-btn btn-sm" id="btnProjectWelcomeSkip">先略過</button>
@@ -1820,20 +1835,13 @@
                     <label class="form-label">本批特殊指示（選填，翻完後自動清除）</label>
                     <textarea id="aiBatchNote" class="form-input" rows="2" placeholder="例如：這批句段是法律條款，請使用正式語氣…" style="resize:vertical;"></textarea>
                 </div>
-                <!-- 文風範例類型（階4：本批可臨時篩「AI 學習範例」） -->
+                <!-- 文風範例：依文字類型篩本批學習範例（不寫入專案） -->
                 <div>
-                    <label class="form-label">文風範例（累積學習範例的類型篩選）</label>
-                    <div style="display:flex; flex-direction:column; gap:0.45rem; font-size:0.86rem;">
-                        <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer;">
-                            <input type="radio" name="aiBatchStyleMode" value="file" id="aiBatchStyleModeFile" checked> 沿用本檔類型（檔案 AI 欄內的類型標籤）
-                        </label>
-                        <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer;">
-                            <input type="radio" name="aiBatchStyleMode" value="custom" id="aiBatchStyleModeCustom"> 本批自選類型（僅此輪有效，不寫入專案）
-                        </label>
-                        <div id="aiBatchStyleCategoryWrap" class="hidden" style="flex-wrap:wrap; gap:0.4rem; padding:0.5rem; background:#f8fafc; border-radius:6px; border:1px solid #e2e8f0; max-height:120px; overflow-y:auto; align-content:flex-start;">
-                        </div>
-                        <p style="font-size:0.78rem; color:#94a3b8; margin:0;">多選採聯集。全不勾＝不篩類型（仍受語言與筆數上限影響）。</p>
+                    <label class="form-label">文風範例</label>
+                    <p style="font-size:0.78rem; color:#64748b; margin:0 0 0.45rem 0;">文字類型（僅此批有效、不寫入專案）</p>
+                    <div id="aiBatchStyleCategoryWrap" style="display:flex; flex-wrap:wrap; gap:0.4rem; padding:0.5rem; background:#f8fafc; border-radius:6px; border:1px solid #e2e8f0; max-height:120px; overflow-y:auto; align-content:flex-start;">
                     </div>
+                    <p style="font-size:0.78rem; color:#94a3b8; margin:0.4rem 0 0 0;">多選採聯集。全不勾＝不篩類型（仍受語言與筆數上限影響）。</p>
                 </div>
                 <!-- 統計提示 -->
                 <div id="aiBatchStats" class="ai-batch-stats" style="font-size:0.82rem; color:#64748b; padding:0.5rem 0.75rem; background:#f1f5f9; border-radius:6px;"></div>
