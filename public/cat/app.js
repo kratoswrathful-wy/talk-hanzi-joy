@@ -6540,16 +6540,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                 row.style.display = '';
             }
 
-            // Highlighting resetting
-            row.querySelectorAll('.col-source, .col-extra, .col-id, [class^="col-key-"]').forEach(cell => {
+            // 清除可見欄的搜尋 mark。原文/譯文以 buildTaggedHtml 從 segment 重畫，避免內層 <mark> 遺留或破壞 tag pill
+            row.querySelectorAll('.col-extra, .col-id, [class^="col-key-"]').forEach(cell => {
                 cell.innerHTML = cell.innerHTML.replace(/<mark class="search-match[^>]*>|<\/mark>/g, '');
             });
+            const sourceEditorReset = row.querySelector('.col-source .rt-editor');
+            if (sourceEditorReset) {
+                setEditorHtml(sourceEditorReset, buildTaggedHtml(seg.sourceText || '', seg.sourceTags || [], true));
+            }
             // Reset target contenteditable: rebuild from stored text to remove old marks
             const targetEditor = row.querySelector('.grid-textarea');
             if (targetEditor) {
                 const currentText = seg.targetText || '';
                 setEditorHtml(targetEditor, buildTaggedHtml(currentText, effectiveTags(seg)));
             }
+            updateTagColors(row, seg.targetText);
 
             // --- Apply Highlighting ---
             // Build a list of highlight requests for this row
@@ -6618,7 +6623,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 };
 
-                highlightCell('.col-source', seg.sourceText, false, idx, 'source');
+                if (highlightRequests.some(req => (req.scopes && req.scopes.includes('source')))) {
+                    const srcEd = row.querySelector('.col-source .rt-editor');
+                    if (srcEd) {
+                        applySourceSearchHighlightsInRtEditor(
+                            srcEd, seg.sourceText, highlightRequests
+                        );
+                        srcEd.querySelectorAll('mark.search-match').forEach(m => {
+                            sfSearchMatches.push({
+                                markEl: m,
+                                rowEl: row,
+                                isTextarea: false,
+                                textareaEl: null,
+                                segIdx: idx,
+                                fieldKey: 'source'
+                            });
+                        });
+                    }
+                }
                 highlightCell('.col-extra', seg.extraValue || '', false, idx, 'extra');
                 highlightCell('.col-target', seg.targetText, true, idx, 'target');
                 if(seg.keys) {
@@ -7782,8 +7804,194 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function normalizeXmlForSig(xml) {
         return String(xml ?? '')
-            .trim()
-            .replace(/\s+/g, ' ');
+            .replace(/^\uFEFF/, '') // strip BOM
+            .replace(/\r\n?/g, '\n')
+            .replace(/[\s\u00A0\u200B\uFEFF]+/g, ' ')
+            .trim();
+    }
+
+    /**
+     * 用於階 3 搜尋高亮：原文欄在 `buildTaggedHtml` 產生後，將字元索引與 DOM 對應；僅在實字
+     * 與 <br> 上套 mark，不跨 rt-tag 佔位；與 extractTextFromEditor 的線性順序一致。
+     */
+    function getSourceTextSegmentsForHighlightMap(editor) {
+        const segs = [];
+        let off = 0;
+        (function walk(el) {
+            for (const node of el.childNodes) {
+                if (node.nodeType === 3) {
+                    const t = node.nodeValue || '';
+                    if (t.length) segs.push({ type: 'text', node, abs: [off, off + t.length] });
+                    off += t.length;
+                } else if (node.nodeType === 1) {
+                    if (node.classList && node.classList.contains('non-print-marker')) continue;
+                    if (node.tagName === 'BR') {
+                        segs.push({ type: 'br', node, abs: [off, off + 1] });
+                        off += 1;
+                    } else if (node.classList && node.classList.contains('rt-tag')) {
+                        const ph = node.getAttribute('data-ph') || '';
+                        segs.push({ type: 'ph', el: node, abs: [off, off + ph.length], ph });
+                        off += ph.length;
+                    } else {
+                        walk(node);
+                    }
+                }
+            }
+        }(editor));
+        return { segs, totalLen: off };
+    }
+
+    function getTextOnlySubrangesInSource(a, b, segs, styleStr) {
+        const res = [];
+        for (const seg of segs) {
+            if (seg.type === 'ph') continue;
+            const lo = Math.max(a, seg.abs[0]);
+            const hi = Math.min(b, seg.abs[1]);
+            if (lo >= hi) continue;
+            res.push({ a: lo, b: hi, styleStr });
+        }
+        return res;
+    }
+
+    function findTextOrBrSegCoveringRange(segs, a, b) {
+        for (const seg of segs) {
+            if (seg.type === 'ph') continue;
+            if (a >= seg.abs[0] && b <= seg.abs[1] && a < b) return seg;
+        }
+        return null;
+    }
+
+    function collectSourceSearchRangesOwned(sourceText, requests) {
+        if (!sourceText) return [];
+        const claimed = new Array(sourceText.length).fill(0);
+        const ranges = [];
+        const isClaimed = (a, b) => {
+            for (let j = a; j < b; j++) if (claimed[j]) return true;
+            return false;
+        };
+        const markClaimed = (a, b) => {
+            for (let j = a; j < b; j++) claimed[j] = 1;
+        };
+        requests.forEach((req) => {
+            if (!req.scopes.includes('source')) return;
+            const styleStr = req.bg ? ` style="background-color:${req.bg};"` : '';
+            if (req.isRegex) {
+                let re;
+                try { re = new RegExp(req.term, 'gi'); } catch (e) { return; }
+                re.lastIndex = 0;
+                const maxIter = 2 + sourceText.length;
+                for (let iter = 0; ; iter++) {
+                    if (iter > maxIter) break;
+                    const m = re.exec(sourceText);
+                    if (m == null) break;
+                    if (m[0].length === 0) {
+                        if (re.lastIndex === m.index) re.lastIndex++;
+                        else break;
+                        continue;
+                    }
+                    const a = m.index;
+                    const b = a + m[0].length;
+                    if (b > sourceText.length) break;
+                    if (isClaimed(a, b)) continue;
+                    ranges.push({ a, b, styleStr });
+                    markClaimed(a, b);
+                }
+            } else {
+                const t = req.term;
+                if (!t) return;
+                const lSource = sourceText.toLowerCase();
+                const lTerm = t.toLowerCase();
+                let p = 0;
+                let idx;
+                while ((idx = lSource.indexOf(lTerm, p)) !== -1) {
+                    const a = idx;
+                    const b = idx + t.length;
+                    if (b > sourceText.length) break;
+                    if (isClaimed(a, b)) { p = idx + 1; continue; }
+                    ranges.push({ a, b, styleStr });
+                    markClaimed(a, b);
+                    p = idx + t.length;
+                }
+            }
+        });
+        ranges.sort((r1, r2) => (r1.a - r2.a) || (r1.b - r2.b));
+        return ranges;
+    }
+
+    function wrapTextSubrangeInNode(textNode, localStart, localEnd, markOpts) {
+        if (!textNode || localStart < 0 || localEnd > (textNode.nodeValue || '').length) return;
+        if (localStart >= localEnd) return;
+        const parent = textNode.parentNode;
+        if (!parent) return;
+        const full = textNode.nodeValue;
+        const before = full.substring(0, localStart);
+        const mid = full.substring(localStart, localEnd);
+        const after = full.substring(localEnd);
+        const mark = document.createElement('mark');
+        mark.className = 'search-match' + (markOpts && markOpts.active ? ' search-match-active' : '');
+        if (markOpts) {
+            if (markOpts.bg) mark.setAttribute('style', `background-color:${markOpts.bg};`);
+            else if (markOpts.styleStr) {
+                const m = (markOpts.styleStr || '').match(/style="([^"]*)"/i);
+                if (m) mark.setAttribute('style', m[1].replace(/&amp;/g, '&'));
+            }
+        }
+        mark.appendChild(document.createTextNode(mid));
+        const frag = document.createDocumentFragment();
+        if (before) frag.appendChild(document.createTextNode(before));
+        frag.appendChild(mark);
+        if (after) frag.appendChild(document.createTextNode(after));
+        parent.replaceChild(frag, textNode);
+        return mark;
+    }
+
+    function wrapBrInMark(brEl, markOpts) {
+        if (!brEl || !brEl.parentNode) return;
+        const mark = document.createElement('mark');
+        mark.className = 'search-match';
+        if (markOpts && markOpts.bg) mark.setAttribute('style', `background-color:${markOpts.bg};`);
+        else if (markOpts && markOpts.styleStr) {
+            const m = (markOpts.styleStr || '').match(/style="([^"]*)"/i);
+            if (m) mark.setAttribute('style', m[1].replace(/&amp;/g, '&'));
+        }
+        mark.appendChild(document.createElement('br'));
+        brEl.parentNode.replaceChild(mark, brEl);
+    }
+
+    function applySourceSearchHighlightsInRtEditor(sourceEditor, sourceText, requestsForSource) {
+        if (!sourceEditor || !requestsForSource || !requestsForSource.length) return 0;
+        if (sourceText == null) return 0;
+        const s = String(sourceText);
+        // 上層 runSearchAndFilter 已 setEditor（buildTaggedHtml）；此處只向 rt-editor 疊加 mark
+        const { segs: segsClean, totalLen: len0 } = getSourceTextSegmentsForHighlightMap(sourceEditor);
+        if (len0 !== s.length) {
+            console.warn('source 搜尋高亮：字元索引長度與內文不符，已略過原文欄', len0, s.length);
+            return 0;
+        }
+        const mainRanges = collectSourceSearchRangesOwned(s, requestsForSource);
+        const toApply = [];
+        mainRanges.forEach((r) => {
+            toApply.push(...getTextOnlySubrangesInSource(r.a, r.b, segsClean, r.styleStr));
+        });
+        toApply.sort((x, y) => (y.a - x.a) || (y.b - x.b));
+        let matchCount = 0;
+        toApply.forEach((part) => {
+            const { a, b, styleStr } = part;
+            const bgM = (styleStr || '').match(/background-color:\s*([^;")]+)/i);
+            const bg = bgM ? bgM[1] : null;
+            const { segs, totalLen } = getSourceTextSegmentsForHighlightMap(sourceEditor);
+            if (totalLen !== s.length) return;
+            const seg = findTextOrBrSegCoveringRange(segs, a, b);
+            if (!seg) return;
+            if (seg.type === 'br' && a + 1 === b && a === seg.abs[0] && b === seg.abs[1] && seg.node) {
+                wrapBrInMark(seg.node, { styleStr, bg });
+                matchCount++;
+            } else if (seg.type === 'text' && seg.node) {
+                const w = wrapTextSubrangeInNode(seg.node, a - seg.abs[0], b - seg.abs[0], { styleStr, bg });
+                if (w) matchCount++;
+            }
+        });
+        return matchCount;
     }
 
     function buildTagTokenSequence(tags, text) {
