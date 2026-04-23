@@ -6626,9 +6626,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (highlightRequests.some(req => (req.scopes && req.scopes.includes('source')))) {
                     const srcEd = row.querySelector('.col-source .rt-editor');
                     if (srcEd) {
-                        applySourceSearchHighlightsInRtEditor(
-                            srcEd, seg.sourceText, highlightRequests
-                        );
+                        applyRtEditorSearchHighlights(srcEd, seg.sourceText, highlightRequests, 'source');
                         srcEd.querySelectorAll('mark.search-match').forEach(m => {
                             sfSearchMatches.push({
                                 markEl: m,
@@ -6642,7 +6640,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 }
                 highlightCell('.col-extra', seg.extraValue || '', false, idx, 'extra');
-                highlightCell('.col-target', seg.targetText, true, idx, 'target');
+                if (highlightRequests.some(req => (req.scopes && req.scopes.includes('target')))) {
+                    const tgtEd = row.querySelector('.grid-textarea');
+                    if (tgtEd) {
+                        applyRtEditorSearchHighlights(
+                            tgtEd, seg.targetText || '', highlightRequests, 'target'
+                        );
+                        tgtEd.querySelectorAll('mark.search-match').forEach(m => {
+                            sfSearchMatches.push({
+                                markEl: m,
+                                rowEl: row,
+                                isTextarea: true,
+                                textareaEl: tgtEd,
+                                segIdx: idx,
+                                fieldKey: 'target'
+                            });
+                        });
+                    }
+                }
                 if(seg.keys) {
                     for(let k=0; k<seg.keys.length; k++) highlightCell(`.col-key-${k}`, seg.keys[k], false, idx, 'key-' + k);
                 }
@@ -7811,10 +7826,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     /**
-     * 用於階 3 搜尋高亮：原文欄在 `buildTaggedHtml` 產生後，將字元索引與 DOM 對應；僅在實字
-     * 與 <br> 上套 mark，不跨 rt-tag 佔位；與 extractTextFromEditor 的線性順序一致。
+     * 階 3 搜尋高亮：buildTaggedHtml 產生後的 rt-editor，字元索引與 DOM 對應；僅在實字與 <br> 上套
+     * mark，不跨 rt-tag；與 extractTextFromEditor 的線性順序一致（原文 / 譯文共用）。
      */
-    function getSourceTextSegmentsForHighlightMap(editor) {
+    function getRtEditorTextSegmentsForHighlightMap(editor) {
         const segs = [];
         let off = 0;
         (function walk(el) {
@@ -7841,7 +7856,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { segs, totalLen: off };
     }
 
-    function getTextOnlySubrangesInSource(a, b, segs, styleStr) {
+    function getTextOnlySubrangesInHighlight(a, b, segs, styleStr) {
         const res = [];
         for (const seg of segs) {
             if (seg.type === 'ph') continue;
@@ -7861,9 +7876,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         return null;
     }
 
-    function collectSourceSearchRangesOwned(sourceText, requests) {
-        if (!sourceText) return [];
-        const claimed = new Array(sourceText.length).fill(0);
+    /** @param {string} fieldScope 欄位比對 'source' | 'target' | 'extra' | 'keys' 等，與 sf 範圍勾選一致 */
+    function collectFieldSearchRangesOwned(flatText, requests, fieldScope) {
+        if (!flatText) return [];
+        const claimed = new Array(flatText.length).fill(0);
         const ranges = [];
         const isClaimed = (a, b) => {
             for (let j = a; j < b; j++) if (claimed[j]) return true;
@@ -7873,16 +7889,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             for (let j = a; j < b; j++) claimed[j] = 1;
         };
         requests.forEach((req) => {
-            if (!req.scopes.includes('source')) return;
+            if (!req.scopes || !req.scopes.includes(fieldScope)) return;
             const styleStr = req.bg ? ` style="background-color:${req.bg};"` : '';
             if (req.isRegex) {
                 let re;
                 try { re = new RegExp(req.term, 'gi'); } catch (e) { return; }
                 re.lastIndex = 0;
-                const maxIter = 2 + sourceText.length;
+                const maxIter = 2 + flatText.length;
                 for (let iter = 0; ; iter++) {
                     if (iter > maxIter) break;
-                    const m = re.exec(sourceText);
+                    const m = re.exec(flatText);
                     if (m == null) break;
                     if (m[0].length === 0) {
                         if (re.lastIndex === m.index) re.lastIndex++;
@@ -7891,7 +7907,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     const a = m.index;
                     const b = a + m[0].length;
-                    if (b > sourceText.length) break;
+                    if (b > flatText.length) break;
                     if (isClaimed(a, b)) continue;
                     ranges.push({ a, b, styleStr });
                     markClaimed(a, b);
@@ -7899,14 +7915,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             } else {
                 const t = req.term;
                 if (!t) return;
-                const lSource = sourceText.toLowerCase();
+                const lFlat = flatText.toLowerCase();
                 const lTerm = t.toLowerCase();
                 let p = 0;
                 let idx;
-                while ((idx = lSource.indexOf(lTerm, p)) !== -1) {
+                while ((idx = lFlat.indexOf(lTerm, p)) !== -1) {
                     const a = idx;
                     const b = idx + t.length;
-                    if (b > sourceText.length) break;
+                    if (b > flatText.length) break;
                     if (isClaimed(a, b)) { p = idx + 1; continue; }
                     ranges.push({ a, b, styleStr });
                     markClaimed(a, b);
@@ -7958,20 +7974,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         brEl.parentNode.replaceChild(mark, brEl);
     }
 
-    function applySourceSearchHighlightsInRtEditor(sourceEditor, sourceText, requestsForSource) {
-        if (!sourceEditor || !requestsForSource || !requestsForSource.length) return 0;
-        if (sourceText == null) return 0;
-        const s = String(sourceText);
-        // 上層 runSearchAndFilter 已 setEditor（buildTaggedHtml）；此處只向 rt-editor 疊加 mark
-        const { segs: segsClean, totalLen: len0 } = getSourceTextSegmentsForHighlightMap(sourceEditor);
+    /**
+     * 在已還原的 rt-editor 上疊加搜尋高亮欄位（source / target）；不覆寫 buildTaggedHtml 的 tag pill。
+     * @param {string} fieldScope 'source' | 'target'
+     */
+    function applyRtEditorSearchHighlights(rtEditor, flatText, requests, fieldScope) {
+        if (!rtEditor || !requests || !requests.length) return 0;
+        if (flatText == null) return 0;
+        const s = String(flatText);
+        const { segs: segsClean, totalLen: len0 } = getRtEditorTextSegmentsForHighlightMap(rtEditor);
         if (len0 !== s.length) {
-            console.warn('source 搜尋高亮：字元索引長度與內文不符，已略過原文欄', len0, s.length);
+            console.warn(`搜尋高亮（${fieldScope}）：字元索引長度與內文不符，已略過`, len0, s.length);
             return 0;
         }
-        const mainRanges = collectSourceSearchRangesOwned(s, requestsForSource);
+        const mainRanges = collectFieldSearchRangesOwned(s, requests, fieldScope);
         const toApply = [];
         mainRanges.forEach((r) => {
-            toApply.push(...getTextOnlySubrangesInSource(r.a, r.b, segsClean, r.styleStr));
+            toApply.push(...getTextOnlySubrangesInHighlight(r.a, r.b, segsClean, r.styleStr));
         });
         toApply.sort((x, y) => (y.a - x.a) || (y.b - x.b));
         let matchCount = 0;
@@ -7979,7 +7998,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const { a, b, styleStr } = part;
             const bgM = (styleStr || '').match(/background-color:\s*([^;")]+)/i);
             const bg = bgM ? bgM[1] : null;
-            const { segs, totalLen } = getSourceTextSegmentsForHighlightMap(sourceEditor);
+            const { segs, totalLen } = getRtEditorTextSegmentsForHighlightMap(rtEditor);
             if (totalLen !== s.length) return;
             const seg = findTextOrBrSegCoveringRange(segs, a, b);
             if (!seg) return;
