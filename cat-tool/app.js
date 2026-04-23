@@ -1224,6 +1224,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         const r = (window._tmsRole || '').toLowerCase();
         return r === 'pm' || r === 'executive';
     }
+    /** 僅在已開啟本機檔案（currentFileId）時顯示「AI 報告」分頁，避免與專案頁脈絡混淆；報告仍存 fileAiReports。 */
+    function _syncFileScopedNotesTabs() {
+        document.querySelectorAll('.ai-file-only-notes-tab').forEach((el) => {
+            if (!currentFileId) {
+                el.setAttribute('hidden', '');
+                el.setAttribute('aria-hidden', 'true');
+                el.style.display = 'none';
+            } else {
+                el.removeAttribute('hidden');
+                el.setAttribute('aria-hidden', 'false');
+                el.style.display = '';
+            }
+        });
+        if (!currentFileId) {
+            const tabAi = document.getElementById('tabAiReport');
+            if (tabAi && tabAi.classList.contains('active')) {
+                document.querySelector('[data-notes-tab="tabPrivateNotes"]')?.click();
+            }
+        }
+    }
+
     function _applyAiPmOnlyVisibility() {
         const exec = _isCatExecutive();
         const pmOrExec = _isCatPmOrExecutive();
@@ -1232,6 +1253,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.querySelectorAll('.ai-translator-ui').forEach(el => { el.style.display = ''; });
         const btnAiMode = document.getElementById('btnAiMode');
         if (btnAiMode) btnAiMode.style.display = '';
+        _syncFileScopedNotesTabs();
     }
 
     function enforceTeamRoleLayout() {
@@ -1902,6 +1924,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!ok) return;
                 leaveCollabForCurrentFile();
                 currentFileId = null;
+                _syncFileScopedNotesTabs();
                 currentSegmentsList = [];
                 if (gridBody) gridBody.innerHTML = '';
                 window.ActiveTmCache = [];
@@ -6021,6 +6044,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!ok) return;
         leaveCollabForCurrentFile();
         currentFileId = null;
+        _syncFileScopedNotesTabs();
         currentSegmentsList = [];
         gridBody.innerHTML = '';
         window.ActiveTmCache = [];
@@ -11407,18 +11431,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             _closePrivateNoteShareDialog();
         });
 
-        // Add PM guideline
-        const addPmBtn = document.getElementById('btnAddPmGuideline');
-        if (addPmBtn) {
-            addPmBtn.addEventListener('click', async () => {
-                const pid = _notesProjectIdOrNull();
-                if (!pid) {
-                    alert('無法判定專案，無法新增準則。請從專案詳情開啟檔案，或重新整理後再試。');
-                    return;
-                }
-                await _addGuideline('pm_guideline', { listKey: 'panel' });
-            });
-        }
     }
 
     async function _addGuideline(type, opts) {
@@ -11455,6 +11467,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         _activeNoteProjectId = projectId || currentProjectId;
         initNotesPanel();
         await Promise.all([_loadPrivateNotes(), _refreshSharedInfoUi(), _loadFileAiReportToPanel()]);
+        _syncFileScopedNotesTabs();
     }
 
     async function _loadPrivateNotes() {
@@ -11652,11 +11665,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!pid) return;
         let guidelines = [];
         try { guidelines = await DBService.getGuidelinesByProject(pid); } catch (_) {}
-        const pmList = document.getElementById('pmGuidelinesList');
         const shList = document.getElementById('sharedNotesList');
-        const pmAddBtn = document.getElementById('btnAddPmGuideline');
-        if (pmAddBtn) pmAddBtn.style.display = isCatSharedMutator() ? '' : 'none';
-        _renderGuidelinesList(guidelines.filter(g => g.type === 'pm_guideline'), pmList, 'panel');
         _renderGuidelinesList(guidelines.filter(g => g.type === 'shared_note'), shList, 'panel');
     }
 
@@ -11989,11 +11998,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         _activeNoteProjectId = projectId;
         let guidelines = [];
         try { guidelines = await DBService.getGuidelinesByProject(projectId); } catch (_) {}
-        const pmAddBtn = document.getElementById('btnAddPmGuidelineModal');
-        if (pmAddBtn) {
-            pmAddBtn.style.display = isCatSharedMutator() ? '' : 'none';
-            pmAddBtn.onclick = async () => { await _addGuideline('pm_guideline', { listKey: 'modal' }); };
-        }
         await _reloadSharedInfoModal(projectId, guidelines);
         document.getElementById('sharedInfoModal')?.classList.remove('hidden');
     }
@@ -12002,9 +12006,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!guidelines) {
             try { guidelines = await DBService.getGuidelinesByProject(projectId); } catch (_) { guidelines = []; }
         }
-        const pmList = document.getElementById('pmGuidelinesListModal');
         const shList = document.getElementById('sharedNotesListModal');
-        _renderGuidelinesList(guidelines.filter(g => g.type === 'pm_guideline'), pmList, 'modal');
         _renderGuidelinesList(guidelines.filter(g => g.type === 'shared_note'), shList, 'modal');
     }
 
@@ -13038,7 +13040,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // ---- 共用資訊分頁內：AI 準則、文風、特殊指示、檔案例外 ----
+    // ---- 共用資訊分頁內：AI 準則、文風、特殊指示 ----
     async function loadSharedInfoAiPanel() {
         if (!currentProjectId) return;
 
@@ -13050,9 +13052,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const addSpecialBtn = document.getElementById('btnAddAiSpecialInstruction');
         const btnDefG = document.getElementById('btnApplyDefaultGuidelines');
         const btnDefS = document.getElementById('btnApplyDefaultStyles');
-        const fileExSec = document.getElementById('fileSeriesExceptionSection');
-        const fileExTa = document.getElementById('aiFileSeriesExceptionInput');
-        const fileExSave = document.getElementById('btnSaveAiFileSeriesException');
         document.querySelectorAll('#tabSharedInfo .pm-only-ui').forEach(el => {
             el.style.display = isCatSharedMutator() ? '' : 'none';
         });
@@ -13063,26 +13062,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         ]);
         const allTranslation = allGuidelines.filter(g => (g.scope || 'translation') === 'translation');
         const allStyle = allGuidelines.filter(g => (g.scope || 'style') === 'style');
-        const fileRec = currentFileId ? await DBService.getFile(currentFileId).catch(() => null) : null;
         let selectedGuidelineIds = new Set((psettings?.selectedGuidelineIds || []).map(Number));
         let selectedStyleIds = new Set((psettings?.selectedStyleGuidelineIds || []).map(Number));
         let specialInstructions = Array.isArray(psettings?.specialInstructions) ? [...psettings.specialInstructions] : [];
-        if (fileExSec) fileExSec.style.display = currentFileId ? '' : 'none';
-        if (fileExTa) {
-            fileExTa.value = (fileRec && fileRec.aiSeriesException != null) ? String(fileRec.aiSeriesException) : '';
-            fileExTa.readOnly = !isCatSharedMutator();
-        }
-        if (fileExSave) fileExSave.style.display = isCatSharedMutator() ? '' : 'none';
-        if (fileExSave && !fileExSave._bound) {
-            fileExSave._bound = true;
-            fileExSave.addEventListener('click', async () => {
-                if (!currentFileId || !isCatSharedMutator()) return;
-                const v = fileExTa?.value?.trim() != null ? String(fileExTa.value) : '';
-                try {
-                    await DBService.updateFile(currentFileId, { aiSeriesException: v });
-                } catch (e) { console.error(e); alert('儲存失敗'); }
-            });
-        }
 
         function savePSettings() {
             DBService.saveAiProjectSettings(currentProjectId, {
@@ -13982,8 +13964,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const guidelines = allGuidelines.filter(g => (g.scope || 'translation') === 'translation' && selectedGuidelineIds.has(g.id));
         const styleGuidelines = allGuidelines.filter(g => (g.scope || '') === 'style' && selectedStyleIds.has(g.id));
         const specialInstructions = psettings?.specialInstructions || [];
-        const ex = (fileRec && fileRec.aiSeriesException) ? String(fileRec.aiSeriesException).trim() : '';
-        const combinedBatchNote = [batchNote, ...specialInstructions.filter(s => s && s.enabled !== false).map(s => s.content), ex].filter(Boolean).join('\n');
+        const combinedBatchNote = [batchNote, ...specialInstructions.filter(s => s && s.enabled !== false).map(s => s.content)].filter(Boolean).join('\n');
         const styleExFilters = {
             limit: 15,
             sourceLang: fileRec?.sourceLang || undefined,

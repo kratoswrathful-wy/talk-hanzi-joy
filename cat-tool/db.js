@@ -53,7 +53,7 @@ db.version(7).stores({
 
 // v8：筆記與共用資訊重設計
 // - privateNotes：私人筆記（每人每專案獨立，content 為 Quill HTML）
-// - guidelines：共用資訊條目（翻譯準則 & 共用筆記，type: 'pm_guideline'|'shared_note'）
+// - guidelines：共用資訊條目（共用筆記等，type: 'shared_note'；歷史資料可含已廢用之 pm_guideline）
 // - guidelineReplies：討論串回覆（最多三層巢狀）
 db.version(8).stores({
     projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
@@ -204,7 +204,7 @@ db.version(14).stores({
 
 // v15：文風／預設條目、檔案層系列例外、AI 報告持久化
 // - aiGuidelines：scope（translation|style）、isDefault
-// - files：aiSeriesException（同檔系列例外，字串，非索引）
+// - files：aiSeriesException（同檔系列例外，已廢用 UI，仍可能保留於舊列）
 // - fileAiReports：每檔最新報告內文與歷程
 db.version(15).stores({
     projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
