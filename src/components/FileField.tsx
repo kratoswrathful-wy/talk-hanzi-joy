@@ -41,6 +41,9 @@ function storageUploadErrorDescription(message: string): string {
   ) {
     return `${message} — 可能超過 Supabase 單檔或專案上限：Dashboard → Storage → 專案與 case-files bucket 的 file size limit。`;
   }
+  if (m.includes("invalid key")) {
+    return `${message} — 若仍見此訊息，表示 Storage 仍拒絕路徑字元；請回報或檢查後端 key 規則。`;
+  }
   return message;
 }
 

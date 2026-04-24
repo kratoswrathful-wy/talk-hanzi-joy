@@ -6,6 +6,7 @@ import { Block, BlockNoteEditor, PartialBlock } from "@blocknote/core";
 import { zhTW } from "@blocknote/core/locales";
 import { useRef, useCallback, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { buildCaseFilePathWithPrefix } from "@/lib/storage-case-files";
 import {
   FormattingToolbarController,
   FormattingToolbar,
@@ -31,8 +32,7 @@ interface RichTextEditorProps {
 }
 
 async function uploadFile(file: File): Promise<string> {
-  const safeName = file.name.replace(/[^a-zA-Z0-9._\-\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]/g, "_");
-  const path = `editor-files/${Date.now()}-${Math.random().toString(36).slice(2, 6)}_${safeName}`;
+  const path = buildCaseFilePathWithPrefix("editor-files", file);
   const { error } = await supabase.storage.from("case-files").upload(path, file);
   if (error) throw error;
   const { data } = supabase.storage.from("case-files").getPublicUrl(path);

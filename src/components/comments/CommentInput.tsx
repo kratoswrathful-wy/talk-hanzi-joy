@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { getEnvironment } from "@/lib/environment";
+import { buildCaseFilePathWithPrefix } from "@/lib/storage-case-files";
 
 interface MentionPage {
   id: string;
@@ -139,8 +140,7 @@ export function CommentInput({
   };
 
   const handleAttachFile = async (file: File) => {
-    const ext = file.name.split(".").pop() || "bin";
-    const path = `comment-files/${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
+    const path = buildCaseFilePathWithPrefix("comment-files", file);
     const { error } = await supabase.storage.from("case-files").upload(path, file);
     if (error) return;
     const { data: urlData } = supabase.storage.from("case-files").getPublicUrl(path);

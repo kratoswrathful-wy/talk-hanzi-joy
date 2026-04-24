@@ -1,29 +1,43 @@
 /**
- * Build a storage object path for the `case-files` bucket.
- * Sanitizes the filename, blocks `..`, caps length, and uses a UUID folder prefix
- * so keys stay valid for Supabase Storage / S3.
+ * Build ASCII-only object paths for the `case-files` bucket.
+ * Supabase Storage rejects many non-ASCII keys ("Invalid key"); callers keep
+ * `File.name` for display — only the storage path is normalized here.
+ */
+
+const EXT_MAX_LEN = 10;
+
+function randomId(): string {
+  return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
+/** Last path segment after ".", letters and digits only, lowercase, capped length. */
+export function asciiStorageExtension(fileName: string): string {
+  const raw = fileName.includes(".") ? (fileName.split(".").pop() ?? "") : "";
+  const ascii = raw.replace(/[^a-zA-Z0-9]/g, "").slice(0, EXT_MAX_LEN).toLowerCase();
+  return ascii || "bin";
+}
+
+/** Normalize a single path segment: lowercase letters, digits, hyphen only. */
+function sanitizePrefixSegment(prefix: string): string {
+  const s = prefix.replace(/[^a-z0-9-]/gi, "").replace(/^-+|-+$/g, "");
+  return s || "files";
+}
+
+/**
+ * Random folder + random file id + safe extension (e.g. case attachments).
  */
 export function buildCaseFileObjectPath(file: File): string {
-  let safe = file.name.replace(/[^a-zA-Z0-9._\-\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]/g, "_");
-  safe = safe.replace(/\.\.+/g, "_").replace(/^\.+|\.+$/g, "");
-  if (!safe || /^_+$/.test(safe)) {
-    safe = `file_${Date.now()}.bin`;
-  }
-  const max = 200;
-  if (safe.length > max) {
-    const extIdx = safe.lastIndexOf(".");
-    if (extIdx > 0 && extIdx < safe.length - 1) {
-      const ext = safe.slice(extIdx);
-      const stem = safe.slice(0, extIdx);
-      const budget = max - ext.length;
-      safe = `${stem.slice(0, Math.max(1, budget))}${ext}`.slice(0, max);
-    } else {
-      safe = safe.slice(0, max);
-    }
-  }
-  const folder =
-    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-  return `${folder}/${safe}`;
+  const ext = asciiStorageExtension(file.name);
+  return `${randomId()}/${randomId()}.${ext}`;
+}
+
+/**
+ * Prefixed path under `case-files`, e.g. `editor-files/{uuid}/{uuid}.png`.
+ */
+export function buildCaseFilePathWithPrefix(prefix: string, file: File): string {
+  const safePrefix = sanitizePrefixSegment(prefix);
+  const ext = asciiStorageExtension(file.name);
+  return `${safePrefix}/${randomId()}/${randomId()}.${ext}`;
 }
