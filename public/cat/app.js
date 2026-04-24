@@ -564,7 +564,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const items = [];
                 for (const seg of currentSegmentsList) {
                     if (targetIds.has(seg.id)) {
-                        const rowEl = document.querySelector(`.grid-data-row[data-seg-id="${seg.id}"]`);
+                        const rowEl = gridBody ? gridBody.querySelector(`.grid-data-row[data-seg-id="${seg.id}"]`) : document.querySelector(`.grid-data-row[data-seg-id="${seg.id}"]`);
                         if (!isGridDataRowFilterVisible(rowEl)) continue;
                         const beforeSnap = snapshotSegForUndo(seg);
                         await applySegmentTextOp(seg, rowEl, op);
@@ -573,7 +573,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 if (items.length) pushUndoEntry({ kind: 'segmentState', items });
             } else {
-                const activeRow = document.querySelector('.grid-data-row.active-row');
+                const activeRow = gridBody ? gridBody.querySelector('.grid-data-row.active-row') : document.querySelector('.grid-data-row.active-row');
                 if (!activeRow) return;
                 const segId = parseId(activeRow.dataset.segId);
                 const seg = currentSegmentsList.find(s => s.id === segId);
@@ -6291,6 +6291,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         debounceTimer = setTimeout(runSearchAndFilter, 300);
     });
 
+    (function bindSfRowRangeListeners() {
+        ['sfRowRangeEnabled', 'sfRowRangeExclude', 'sfRowRangeFrom', 'sfRowRangeTo'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const go = () => runSearchAndFilter();
+            if (el.type === 'number') {
+                el.addEventListener('input', () => {
+                    clearTimeout(debounceTimer);
+                    debounceTimer = setTimeout(go, 300);
+                });
+                el.addEventListener('change', go);
+            } else {
+                el.addEventListener('change', go);
+            }
+        });
+    })();
+
     // 標籤群組插入模式：預設開啟（一次插入所有相鄰缺漏標籤）
     let tagGroupInsertMode = localStorage.getItem('tagGroupInsertMode') !== 'single'; // default: group
 
@@ -6419,12 +6436,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'a') {
             e.preventDefault();
             selectedRowIds.clear();
-            const gRows = document.querySelectorAll('.grid-data-row');
+            const gRows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
             currentSegmentsList.forEach((s, idx) => {
                 if (!isGridDataRowFilterVisible(gRows[idx])) return;
                 selectedRowIds.add(s.id);
             });
-            document.querySelectorAll('.grid-data-row').forEach((r) => {
+            gRows.forEach((r) => {
                 const rId = parseId(r.dataset.segId);
                 if (selectedRowIds.has(rId)) r.classList.add('selected-row');
                 else r.classList.remove('selected-row');
@@ -6688,6 +6705,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function getSfFilterSpecHash() {
         const adv = document.getElementById('sfAdvancedPanel');
+        const rrEn = document.getElementById('sfRowRangeEnabled');
+        const rrFrom = document.getElementById('sfRowRangeFrom');
+        const rrTo = document.getElementById('sfRowRangeTo');
+        const rrEx = document.getElementById('sfRowRangeExclude');
         return JSON.stringify({
             mode: sfMode,
             term: sfInput ? sfInput.value : '',
@@ -6697,8 +6718,29 @@ document.addEventListener('DOMContentLoaded', async () => {
             invert: btnSfInvert ? btnSfInvert.classList.contains('active') : false,
             regex: sfUseRegexChecked,
             groups: sfFilterGroups,
-            advHidden: adv ? adv.classList.contains('hidden') : true
+            advHidden: adv ? adv.classList.contains('hidden') : true,
+            rowRangeEnabled: rrEn ? !!rrEn.checked : false,
+            rowRangeFrom: rrFrom ? String(rrFrom.value || '') : '',
+            rowRangeTo: rrTo ? String(rrTo.value || '') : '',
+            rowRangeExclude: rrEx ? !!rrEx.checked : false
         });
+    }
+
+    /** 句段列範圍：依目前列表顯示順序，1-based；僅在啟用且起訖皆為有效數字時生效。 */
+    function segmentPassesSfRowRange(listIndexZeroBased) {
+        const elEn = document.getElementById('sfRowRangeEnabled');
+        if (!elEn || !elEn.checked) return true;
+        const fromEl = document.getElementById('sfRowRangeFrom');
+        const toEl = document.getElementById('sfRowRangeTo');
+        const a = parseInt(fromEl && fromEl.value, 10);
+        const b = parseInt(toEl && toEl.value, 10);
+        if (!Number.isFinite(a) || !Number.isFinite(b)) return true;
+        const lo = Math.min(a, b);
+        const hi = Math.max(a, b);
+        const n = listIndexZeroBased + 1;
+        const inside = n >= lo && n <= hi;
+        const excl = document.getElementById('sfRowRangeExclude') && document.getElementById('sfRowRangeExclude').checked;
+        return excl ? !inside : inside;
     }
 
     function computeSegmentRowMatch(seg) {
@@ -6760,7 +6802,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const tmVal = document.getElementById('sfTmMatch').value;
         const isInvert = btnSfInvert.classList.contains('active');
         
-        const rows = document.querySelectorAll('.grid-data-row');
+        const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
 
         const specHash = getSfFilterSpecHash();
         let didRebuildFilterSnapshot = false;
@@ -6771,8 +6813,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const needNewSnapshot = sfFilterSnapshotSegIds === null || specHash !== sfFilterLockedSpecHash;
             if (needNewSnapshot) {
                 const next = new Set();
-                currentSegmentsList.forEach((seg) => {
-                    if (computeSegmentRowMatch(seg)) next.add(seg.id);
+                currentSegmentsList.forEach((seg, listIdx) => {
+                    if (!computeSegmentRowMatch(seg)) return;
+                    if (!segmentPassesSfRowRange(listIdx)) return;
+                    next.add(seg.id);
                 });
                 sfFilterSnapshotSegIds = next;
                 sfFilterLockedSpecHash = specHash;
@@ -6931,7 +6975,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (didRebuildFilterSnapshot && sfMode === 'filter' && lastEditedRowIdx !== null && !isSfSearchControlActive()) {
-            const rowsAfter = document.querySelectorAll('.grid-data-row');
+            const rowsAfter = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
             const targetRow = rowsAfter[lastEditedRowIdx];
             if (targetRow && targetRow.style.display !== 'none') {
                 const txt = targetRow.querySelector('.grid-textarea');
@@ -7642,7 +7686,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         if (bundle.length) pushUndoEntry({ kind: 'compound', entries: bundle });
         runSearchAndFilter();
-        if (replacedCount > 0) updateProgress();
+        if (replacedCount > 0) {
+            updateProgress();
+            if (sfMode === 'filter') {
+                const gRows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+                for (let i = 0; i < gRows.length; i++) {
+                    if (!isGridDataRowFilterVisible(gRows[i])) continue;
+                    focusTargetEditorAtSegmentIndex(i);
+                    break;
+                }
+            }
+        }
     }
 
     if (btnSfReplaceThis) btnSfReplaceThis.addEventListener('click', () => performReplaceThis().catch(console.error));
@@ -7688,8 +7742,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             let tmPartText = g.tmVal ? g.tmVal + '' : '無';
             let statusTmPart = `句段狀態：${statusPartText} / 翻譯記憶相符度：${tmPartText}`;
 
+            if (typeof g.locked !== 'boolean') g.locked = false;
+
             chip.innerHTML = `
                 ${opHtml}
+                <label class="sf-group-lock-wrap" title="鎖定：清除篩選時保留此群組，且不清空頂層「尋找」字串（若有任一鎖定群組）"><input type="checkbox" class="sf-group-lock-cb"${g.locked ? ' checked' : ''}>鎖</label>
                 <div class="sf-group-content">
                     ${strPart ? `<div>${strPart}</div>` : ''}
                     <div>${statusTmPart}</div>
@@ -7701,7 +7758,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 g.op = g.op === 'AND' ? 'OR' : 'AND';
                 renderFilterGroups(); runSearchAndFilter();
             });
-            chip.querySelector('.sf-group-del').addEventListener('click', () => {
+            const lockCb = chip.querySelector('.sf-group-lock-cb');
+            if (lockCb) {
+                lockCb.addEventListener('change', (ev) => {
+                    g.locked = !!ev.target.checked;
+                    renderFilterGroups();
+                    runSearchAndFilter();
+                });
+            }
+            const delBtn = chip.querySelector('.sf-group-del');
+            delBtn.style.opacity = g.locked ? '0.4' : '1';
+            delBtn.style.pointerEvents = g.locked ? 'none' : '';
+            delBtn.title = g.locked ? '已鎖定：請先取消鎖定再移除' : '移除';
+            delBtn.addEventListener('click', () => {
+                if (g.locked) return;
                 sfFilterGroups.splice(idx, 1);
                 renderFilterGroups(); runSearchAndFilter();
             });
@@ -7710,12 +7780,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    function clearUIFilters() {
+    /** @param {{ preserveSfInput?: boolean }} [opts] 有鎖定群組時保留頂層「尋找」字串（見計畫：清除與 #sfInput） */
+    function clearUIFilters(opts) {
+        const preserveSfInput = !!(opts && opts.preserveSfInput);
         sfFilterSnapshotSegIds = null;
         sfFilterLockedSpecHash = '';
-        sfInput.value = '';
-        document.querySelectorAll('.sf-status-cb').forEach(c => c.checked = false);
-        document.getElementById('sfTmMatch').value = '';
+        if (!preserveSfInput && sfInput) sfInput.value = '';
+        document.querySelectorAll('.sf-status-cb').forEach(c => { c.checked = false; });
+        const tmEl = document.getElementById('sfTmMatch');
+        if (tmEl) tmEl.value = '';
         btnSfInvert.classList.remove('active');
         // keep scopes & regex as they are settings
     }
@@ -7729,7 +7802,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             isInvert: btnSfInvert.classList.contains('active'),
             statuses: Array.from(document.querySelectorAll('.sf-status-cb:checked')).map(cb => cb.value),
             tmVal: document.getElementById('sfTmMatch').value,
-            color: getRandomGroupColor()
+            color: getRandomGroupColor(),
+            locked: false
         });
         clearUIFilters();
         if(sfMode !== 'filter') document.getElementById('sfModeFilter').click(); // Auto switch to filter mode
@@ -7771,6 +7845,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // ensure backwards compatibility for missing color code in old presets
         sfFilterGroups = JSON.parse(JSON.stringify(p.groups)).map(g => {
             if(!g.color) g.color = getRandomGroupColor();
+            if (typeof g.locked !== 'boolean') g.locked = false;
             return g;
         });
         
@@ -7795,12 +7870,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnSfClearNav = document.getElementById('btnSfClearNav');
     if (btnSfClearNav) {
         btnSfClearNav.addEventListener('click', () => {
-            clearUIFilters();
-            sfFilterGroups = [];
+            sfFilterGroups = sfFilterGroups.filter((g) => !!g.locked);
             renderFilterGroups();
+            const preserveSf = sfFilterGroups.length > 0;
+            clearUIFilters({ preserveSfInput: preserveSf });
             runSearchAndFilter();
             if (lastEditedRowIdx !== null) {
-                const rows = document.querySelectorAll('.grid-data-row');
+                const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
                 const targetRow = rows[lastEditedRowIdx];
                 if (targetRow) {
                     const txt = targetRow.querySelector('.grid-textarea');
@@ -7863,7 +7939,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             await DBService.updateSegmentStatus(other.id, 'confirmed', currentFileFormat === 'mqxliff' && other.confirmationRole ? { confirmationRole: other.confirmationRole } : {});
             mergeTmPair(accum, await syncSegmentToWriteTmsOnConfirm(other, j));
 
-            const rows = document.querySelectorAll('.grid-data-row');
+            const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
             if (rows[j]) {
                 const ta = rows[j].querySelector('.grid-textarea');
                 if (ta) {

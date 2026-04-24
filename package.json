@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:cat-sf": "node scripts/test-cat-sf-row-range.mjs",
     "test:watch": "vitest",
     "download-storage": "node scripts/download-storage.mjs"
   },
