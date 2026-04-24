@@ -1585,6 +1585,13 @@ mark.tm-search-hit {
     border-bottom: 1px solid #e2e8f0;
     background: #f8fafc;
 }
+.qa-controls-locked {
+    opacity: 0.6;
+}
+.sf-container.qa-scope-locked {
+    opacity: 0.62;
+    pointer-events: none;
+}
 .qa-label {
     font-size: 0.82rem;
     color: #475569;

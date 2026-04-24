@@ -6218,8 +6218,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sfReplaceInput = document.getElementById('sfReplaceInput');
     const btnSfReplaceThis = document.getElementById('btnSfReplaceThis');
     const btnSfReplaceAll = document.getElementById('btnSfReplaceAll');
+    const sfContainer = document.getElementById('sfContainer');
     const sfModeLockInlineMsg = document.getElementById('sfModeLockInlineMsg');
     const sfModeLockedTitle = '正在使用進階篩選，無法切換為搜尋狀態';
+    const qaScopeLockHint = '已選擇以目前篩選結果為 QA 範圍，暫時不得變動篩選條件；如欲變更或清除篩選條件，請取消該 QA 範圍設定';
+    let qaScopeLocksFilterUi = false;
+    let qaRunInProgress = false;
     function updateSfModeToggleLockState() {
         const locked = !sfAdvancedPanel.classList.contains('hidden');
         [sfModeSearch, sfModeFilter].forEach((btn) => {
@@ -6231,6 +6235,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             sfModeLockInlineMsg.textContent = locked ? sfModeLockedTitle : '';
             sfModeLockInlineMsg.classList.toggle('show', locked);
         }
+    }
+    function updateQaScopeFilterLockState(forceLocked) {
+        const qaScopeCurrentFiltered = document.getElementById('qaScopeCurrentFiltered');
+        const locked = typeof forceLocked === 'boolean'
+            ? forceLocked
+            : !!(qaScopeCurrentFiltered && qaScopeCurrentFiltered.checked);
+        qaScopeLocksFilterUi = locked;
+        if (!sfContainer) return;
+        sfContainer.classList.toggle('qa-scope-locked', locked);
+        sfContainer.title = locked ? qaScopeLockHint : '';
     }
     let sfRunUiTimer = null;
     let sfRunOnNextFrameQueued = false;
@@ -6482,6 +6496,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.addEventListener('keydown', (e) => {
         if (e.ctrlKey && e.key.toLowerCase() === 'f') {
+            if (qaScopeLocksFilterUi) {
+                e.preventDefault();
+                return;
+            }
             e.preventDefault();
             if (!sfInput) return;
             const isSfInputFocused = document.activeElement === sfInput;
@@ -6604,6 +6622,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 !!e.ctrlKey === !!_sc.ctrl && !!e.altKey === !!_sc.alt && !!e.shiftKey === !!_sc.shift &&
                 (e.key.length === 1 ? e.key.toLowerCase() : e.key) === _sc.key) {
                 e.preventDefault();
+                if (qaScopeLocksFilterUi) return;
                 document.getElementById('btnSfClearNav')?.click();
             }
         }
@@ -8263,6 +8282,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnSfClearNav = document.getElementById('btnSfClearNav');
     if (btnSfClearNav) {
         btnSfClearNav.addEventListener('click', () => {
+            if (qaScopeLocksFilterUi) return;
             sfFilterGroups = sfFilterGroups.filter((g) => !!g.locked);
             renderFilterGroups();
             const preserveSf = sfFilterGroups.length > 0;
@@ -10772,6 +10792,53 @@ document.addEventListener('DOMContentLoaded', async () => {
     const qaUseRangeCb = document.getElementById('qaUseRange');
     const qaRangeFromEl = document.getElementById('qaRangeFrom');
     const qaRangeToEl = document.getElementById('qaRangeTo');
+    const qaScopeCurrentFilteredEl = document.getElementById('qaScopeCurrentFiltered');
+    const qaConfigControls = [
+        'qaCheckTerms', 'qaCheckTags', 'qaCheckConsistency', 'qaCheckNumbers', 'qaCheckTypos',
+        'qaUseRange', 'qaRangeFrom', 'qaRangeTo', 'qaIncludeLocked', 'qaScopeCurrentFiltered'
+    ];
+    function setQaControlsLocked(locked) {
+        qaRunInProgress = !!locked;
+        const btnQaCollapseChecks = document.getElementById('btnQaCollapseChecks');
+        if (btnQaCollapseChecks) btnQaCollapseChecks.disabled = !!locked;
+        qaConfigControls.forEach((id) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.disabled = !!locked;
+        });
+        const qaChecksBody = document.getElementById('qaChecksBody');
+        if (qaChecksBody) qaChecksBody.classList.toggle('qa-controls-locked', !!locked);
+        const qaOptionsBar = document.querySelector('.qa-options-bar');
+        if (qaOptionsBar) qaOptionsBar.classList.toggle('qa-controls-locked', !!locked);
+        if (btnRunQA) btnRunQA.disabled = !!locked;
+    }
+    function resetQaScopeInputs() {
+        if (qaUseRangeCb) qaUseRangeCb.checked = false;
+        if (qaRangeFromEl) {
+            qaRangeFromEl.value = '';
+            qaRangeFromEl.disabled = true;
+        }
+        if (qaRangeToEl) {
+            qaRangeToEl.value = '';
+            qaRangeToEl.disabled = true;
+        }
+        const qaIncludeLockedEl = document.getElementById('qaIncludeLocked');
+        if (qaIncludeLockedEl) qaIncludeLockedEl.checked = false;
+        if (qaScopeCurrentFilteredEl) qaScopeCurrentFilteredEl.checked = false;
+        updateQaScopeFilterLockState(false);
+    }
+    function getQaScopeSegments() {
+        if (!qaScopeCurrentFilteredEl?.checked) return currentSegmentsList;
+        if (!gridBody) return currentSegmentsList;
+        const visibleSegIds = new Set();
+        const rows = gridBody.querySelectorAll('.grid-data-row');
+        rows.forEach((row) => {
+            if (!isGridDataRowFilterVisible(row)) return;
+            const sid = parseId(row.dataset.segId);
+            if (sid != null) visibleSegIds.add(sid);
+        });
+        return currentSegmentsList.filter((s) => visibleSegIds.has(s.id));
+    }
     if (qaUseRangeCb) {
         qaUseRangeCb.addEventListener('change', () => {
             const enabled = qaUseRangeCb.checked;
@@ -10783,11 +10850,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     }
+    if (qaScopeCurrentFilteredEl) {
+        qaScopeCurrentFilteredEl.title = qaScopeLockHint;
+        qaScopeCurrentFilteredEl.addEventListener('change', () => updateQaScopeFilterLockState());
+    }
+    const qaScopeFilteredLabel = document.getElementById('qaScopeFilteredLabel');
+    if (qaScopeFilteredLabel) qaScopeFilteredLabel.title = qaScopeLockHint;
 
     // QA 按鈕事件
     const btnRunQA = document.getElementById('btnRunQA');
     if (btnRunQA) {
         btnRunQA.addEventListener('click', async () => {
+            if (qaRunInProgress) return;
             const useRange = document.getElementById('qaUseRange')?.checked ?? false;
             const fromVal = useRange ? document.getElementById('qaRangeFrom')?.value : null;
             const toVal = useRange ? document.getElementById('qaRangeTo')?.value : null;
@@ -10800,10 +10874,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             const checkNumbers = document.getElementById('qaCheckNumbers')?.checked ?? true;
             const checkTypos = document.getElementById('qaCheckTypos')?.checked ?? false;
             const statusEl = document.getElementById('qaStatus');
+            const scopedSegs = getQaScopeSegments();
 
-            btnRunQA.disabled = true;
+            setQaControlsLocked(true);
             try {
-                const { results, filteredSegs } = runQaChecks(currentSegmentsList, {
+                const { results, filteredSegs } = runQaChecks(scopedSegs, {
                     fromIdx, toIdx, includeLocked, checkTerms, checkTags, checkConsistency, checkNumbers
                 });
                 _qaResults = results;
@@ -10843,7 +10918,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 renderQaResults();
             } finally {
-                btnRunQA.disabled = false;
+                setQaControlsLocked(false);
+                resetQaScopeInputs();
             }
         });
     }
