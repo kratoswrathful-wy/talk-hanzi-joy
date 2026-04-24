@@ -10570,6 +10570,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let _qaResults = [];
     const _qaIgnoredSet = new Set(); // key: `${gid}:${type}:${detail}`
+    let qaSortKey = 'gid';
+    let qaSortDir = 'asc';
+    let qaLastRunSummaryHtml = '';
 
     function _qaJumpToSegment(segId) {
         const row = document.querySelector(`.grid-data-row[data-seg-id="${segId}"]`);
@@ -10712,6 +10715,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const conCount = _qaResults.filter(r => r.type === '譯文不一致').length;
         const numCount = _qaResults.filter(r => r.type === '數字不相符').length;
         const typoCount = _qaResults.filter(r => (r.type === '錯字' || r.type === '錯字／打字')).length;
+        const sortedResults = [..._qaResults].sort((a, b) => {
+            const dir = qaSortDir === 'desc' ? -1 : 1;
+            if (qaSortKey === 'gid') return ((a.gid || 0) - (b.gid || 0)) * dir;
+            const av = String(a[qaSortKey] || '');
+            const bv = String(b[qaSortKey] || '');
+            return av.localeCompare(bv, 'zh-Hant') * dir;
+        });
 
         if (_qaResults.length === 0) {
             table.style.display = 'none';
@@ -10731,7 +10741,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         table.style.display = '';
 
         tbody.innerHTML = '';
-        for (const r of _qaResults) {
+        for (const r of sortedResults) {
             const isIgnored = _qaIgnoredSet.has(r.key);
             if (hideIgnored && isIgnored) continue;
             const tr = document.createElement('tr');
@@ -10839,6 +10849,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         return currentSegmentsList.filter((s) => visibleSegIds.has(s.id));
     }
+    function updateQaSortHeaderState() {
+        const headers = document.querySelectorAll('#qaResultsTable .qa-sortable-th');
+        headers.forEach((th) => {
+            const key = th.dataset.sortKey;
+            if (!key) return;
+            const active = key === qaSortKey;
+            th.setAttribute('aria-sort', active ? (qaSortDir === 'asc' ? 'ascending' : 'descending') : 'none');
+            let label = th.textContent.replace(/[↑↓]$/, '').trim();
+            if (active) label += qaSortDir === 'asc' ? '↑' : '↓';
+            th.textContent = label;
+        });
+    }
+    function renderQaRunSummary(runSummary) {
+        const qaRunSummaryEl = document.getElementById('qaRunSummary');
+        if (!qaRunSummaryEl) return;
+        if (!runSummary) {
+            qaRunSummaryEl.classList.add('hidden');
+            qaRunSummaryEl.innerHTML = '';
+            return;
+        }
+        qaRunSummaryEl.classList.remove('hidden');
+        qaRunSummaryEl.innerHTML = runSummary;
+    }
     if (qaUseRangeCb) {
         qaUseRangeCb.addEventListener('change', () => {
             const enabled = qaUseRangeCb.checked;
@@ -10856,6 +10889,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     const qaScopeFilteredLabel = document.getElementById('qaScopeFilteredLabel');
     if (qaScopeFilteredLabel) qaScopeFilteredLabel.title = qaScopeLockHint;
+    document.querySelectorAll('#qaResultsTable .qa-sortable-th').forEach((th) => {
+        th.addEventListener('click', () => {
+            const key = th.dataset.sortKey;
+            if (!key) return;
+            if (qaSortKey === key) qaSortDir = qaSortDir === 'asc' ? 'desc' : 'asc';
+            else {
+                qaSortKey = key;
+                qaSortDir = key === 'gid' ? 'asc' : 'asc';
+            }
+            updateQaSortHeaderState();
+            renderQaResults();
+        });
+    });
+    updateQaSortHeaderState();
+    if (qaLastRunSummaryHtml) renderQaRunSummary(qaLastRunSummaryHtml);
 
     // QA 按鈕事件
     const btnRunQA = document.getElementById('btnRunQA');
@@ -10875,6 +10923,28 @@ document.addEventListener('DOMContentLoaded', async () => {
             const checkTypos = document.getElementById('qaCheckTypos')?.checked ?? false;
             const statusEl = document.getElementById('qaStatus');
             const scopedSegs = getQaScopeSegments();
+            const runAt = new Date().toLocaleString('zh-TW', { hour12: false });
+            const checks = [];
+            if (checkTerms) checks.push('術語');
+            if (checkTags) checks.push('Tag');
+            if (checkConsistency) checks.push('譯文不一致');
+            if (checkNumbers) checks.push('數字');
+            if (checkTypos) checks.push('錯字（AI）');
+            let rangeText = '全檔';
+            if (qaScopeCurrentFilteredEl?.checked) {
+                rangeText = `目前篩選結果（${scopedSegs.length} 句）`;
+            } else if (useRange && (fromIdx != null || toIdx != null)) {
+                const a = Number.isFinite(fromIdx) ? fromIdx : 1;
+                const b = Number.isFinite(toIdx) ? toIdx : '末句';
+                rangeText = `句段範圍 ${a} - ${b}`;
+            }
+            qaLastRunSummaryHtml = `
+                <div><strong>本次 QA 執行摘要</strong></div>
+                <div>執行時間：${runAt}</div>
+                <div>檢查項目：${checks.length ? checks.join('、') : '（未選擇）'}</div>
+                <div>檢查範圍：${rangeText}${includeLocked ? '（含鎖定）' : ''}</div>
+            `;
+            renderQaRunSummary(qaLastRunSummaryHtml);
 
             setQaControlsLocked(true);
             try {

@@ -1610,6 +1610,24 @@ mark.tm-search-hit {
     border-bottom: 1px solid #f1f5f9;
     min-height: 28px;
 }
+.qa-run-summary {
+    margin: 0.35rem 0.5rem 0.2rem;
+    padding: 0.45rem 0.55rem;
+    border: 1px solid #86efac;
+    background: #f0fdf4;
+    color: #166534;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    border-radius: 6px;
+}
+.qa-run-summary.hidden { display: none; }
+.qa-sortable-th {
+    cursor: pointer;
+    user-select: none;
+}
+.qa-sortable-th:hover {
+    background: #e2e8f0;
+}
 .qa-results-table {
     width: 100%;
     border-collapse: collapse;

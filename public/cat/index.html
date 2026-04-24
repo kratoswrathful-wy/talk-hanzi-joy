@@ -880,15 +880,16 @@
                                 </label>
                                 <button class="primary-btn btn-sm" id="btnRunQA">▶ 開始 QA</button>
                             </div>
+                            <div id="qaRunSummary" class="qa-run-summary hidden"></div>
                             <!-- 狀態與結果 -->
                             <div id="qaStatus" class="qa-status-bar">按「開始 QA」執行檢查。</div>
                             <div style="overflow-y:auto; flex:1;">
                                 <table class="qa-results-table" id="qaResultsTable" style="display:none;">
                                     <thead>
                                         <tr>
-                                            <th class="qa-th-num">#</th>
-                                            <th class="qa-th-type">類型</th>
-                                            <th class="qa-th-info">說明</th>
+                                            <th class="qa-th-num qa-sortable-th" data-sort-key="gid">#</th>
+                                            <th class="qa-th-type qa-sortable-th" data-sort-key="type">類型</th>
+                                            <th class="qa-th-info qa-sortable-th" data-sort-key="info">說明</th>
                                             <th class="qa-th-ignore">忽略</th>
                                         </tr>
                                     </thead>
