@@ -6218,15 +6218,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sfReplaceInput = document.getElementById('sfReplaceInput');
     const btnSfReplaceThis = document.getElementById('btnSfReplaceThis');
     const btnSfReplaceAll = document.getElementById('btnSfReplaceAll');
-    const sfModeLockedTitle = '正在使用進階搜尋，無法切換為搜尋狀態';
+    const sfModeLockedTitle = '正在使用進階篩選，無法切換為搜尋狀態';
+    let sfModeLockHintTimer = null;
+    function showSfModeLockHintNearInput() {
+        if (!sfInput) return;
+        const id = 'sfModeLockHintBubble';
+        let hint = document.getElementById(id);
+        if (!hint) {
+            hint = document.createElement('div');
+            hint.id = id;
+            hint.className = 'sf-lock-hint-bubble';
+            document.body.appendChild(hint);
+        }
+        hint.textContent = sfModeLockedTitle;
+        const rect = sfInput.getBoundingClientRect();
+        hint.style.left = `${Math.max(8, rect.left)}px`;
+        hint.style.top = `${Math.max(8, rect.top - 30)}px`;
+        hint.classList.add('show');
+        clearTimeout(sfModeLockHintTimer);
+        sfModeLockHintTimer = setTimeout(() => {
+            hint.classList.remove('show');
+        }, 1400);
+    }
     function updateSfModeToggleLockState() {
         const locked = !sfAdvancedPanel.classList.contains('hidden');
+        const modeToggleWrap = document.querySelector('.sf-mode-toggle');
         [sfModeSearch, sfModeFilter].forEach((btn) => {
             if (!btn) return;
             btn.disabled = locked;
-            if (locked) btn.title = sfModeLockedTitle;
-            else btn.title = btn.id === 'sfModeSearch' ? '搜尋' : '篩選';
+            btn.title = btn.id === 'sfModeSearch' ? '搜尋' : '篩選';
         });
+        if (modeToggleWrap) {
+            if (locked) modeToggleWrap.title = sfModeLockedTitle;
+            else modeToggleWrap.title = '';
+        }
     }
     let sfRunUiTimer = null;
     let sfRunOnNextFrameQueued = false;
@@ -6484,6 +6509,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!isSfInputFocused) {
                 sfInput.focus();
             } else {
+                if (!sfAdvancedPanel.classList.contains('hidden')) {
+                    showSfModeLockHintNearInput();
+                    return;
+                }
                 // 與按鈕一致：在尋找框再按一次 Ctrl+F 會切換模式；進階面板展開時強制維持 filter。
                 if (sfMode === 'search') sfModeFilter.click();
                 else sfModeSearch.click();
