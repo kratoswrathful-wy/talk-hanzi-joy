@@ -9422,6 +9422,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function renderEditorSegments() {
         gridBody.innerHTML = '';
+        // 重建 DOM 後列皆為預設可見；若不清快取，runSearchAndFilter 以 rowCache.vis 比對會誤判為「無需更新 display」而留下錯誤可見狀態，篩選亦會失效。
+        sfRowRenderCache.clear();
 
         // 初始化 editorGrid 的標籤展開/收起 class
         const editorGrid = document.getElementById('editorGrid');
