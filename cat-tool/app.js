@@ -6430,7 +6430,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.addEventListener('keydown', (e) => {
         if (e.ctrlKey && e.key.toLowerCase() === 'f') {
             e.preventDefault();
-            sfInput.focus();
+            if (!sfInput) return;
+            const isSfInputFocused = document.activeElement === sfInput;
+            if (!isSfInputFocused) {
+                sfInput.focus();
+            } else {
+                // 與按鈕一致：在尋找框再按一次 Ctrl+F 會切換模式；進階面板展開時強制維持 filter。
+                if (sfMode === 'search') sfModeFilter.click();
+                else sfModeSearch.click();
+            }
         }
         // Ctrl+Shift+A for Select All Segments
         if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'a') {
