@@ -535,12 +535,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             seg.segmentRevision != null && seg.segmentRevision !== undefined ? Number(seg.segmentRevision) : 0
         );
         if (r && r.conflict) {
+            if (isCatCollabDebug()) {
+                console.info('[cat-revision] SEGMENT_REVISION_CONFLICT', {
+                    segId: seg.id,
+                    expectedRevision: seg.segmentRevision != null && seg.segmentRevision !== undefined ? Number(seg.segmentRevision) : 0
+                });
+            }
             const err = new Error('segment revision conflict');
             err.code = 'SEGMENT_REVISION_CONFLICT';
             throw err;
         }
         if (r && typeof r.newSegmentRevision === 'number' && !Number.isNaN(r.newSegmentRevision)) {
             seg.segmentRevision = r.newSegmentRevision;
+        } else if (isCatCollabDebug() && r && r.conflict !== true) {
+            console.warn('[cat-revision] update ok but missing newSegmentRevision', { segId: seg.id, r });
+        }
+        if (isCatCollabDebug() && r && r.conflict !== true) {
+            console.info('[cat-revision] ok', { segId: seg.id, segmentRevision: seg.segmentRevision });
         }
         return r;
     }
@@ -1101,6 +1112,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { row, editor };
     }
 
+    /** 開發除錯：`localStorage.setItem('catCollabDebug','1')` 後於主控台輸出協作／revision 相關資訊（第四波 B §3）。 */
+    function isCatCollabDebug() {
+        try {
+            return typeof localStorage !== 'undefined' && localStorage.getItem('catCollabDebug') === '1';
+        } catch (_) {
+            return false;
+        }
+    }
+
+    /**
+     * 協作遠端譯文與本機比對用：NBSP／ZWSP、BOM、換行正規化；不壓扁一般換行以免段落語意被誤判為相同。
+     * 與 `applyRemoteCommit`／`resolvePendingRemoteConflict` 兩端同套使用。
+     */
+    function normalizeCollabTargetPlainTextForCompare(s) {
+        return String(s ?? '')
+            .replace(/^\uFEFF/, '')
+            .replace(/\r\n?/g, '\n')
+            .replace(/\u00A0/g, ' ')
+            .replace(/\u200B|\uFEFF/g, '')
+            .trim();
+    }
+
     function applyRemoteTextToSegmentUiAndDb(seg, row, editor, remoteText) {
         seg.targetText = remoteText;
         seg.matchValue = undefined;
@@ -1138,7 +1171,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         const localText = isEditingSameSeg && editor
             ? (extractTextFromEditor(editor) || '')
             : (seg.targetText || '');
-        if (localText === remoteText) {
+        const normLocal = normalizeCollabTargetPlainTextForCompare(localText);
+        const normRemote = normalizeCollabTargetPlainTextForCompare(remoteText);
+        if (isCatCollabDebug()) {
+            console.info('[cat-collab] applyRemoteCommit', {
+                segId,
+                sessionId: edit && edit.sessionId,
+                rawEqual: localText === remoteText,
+                normEqual: normLocal === normRemote,
+                localLen: localText.length,
+                remoteLen: remoteText.length
+            });
+        }
+        if (normLocal === normRemote) {
             pendingRemoteBySegId.delete(String(segId));
             return;
         }
@@ -1179,7 +1224,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const pending = pendingRemoteBySegId.get(key);
         if (!pending) return true;
         const localText = extractTextFromEditor(targetInput) || '';
-        if (localText === pending.text) {
+        if (normalizeCollabTargetPlainTextForCompare(localText) === normalizeCollabTargetPlainTextForCompare(pending.text)) {
             pendingRemoteBySegId.delete(key);
             return true;
         }

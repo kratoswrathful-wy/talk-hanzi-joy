@@ -1,6 +1,6 @@
 # CAT 第四波主記錄（摘要，可版控）
 
-**狀態標記（2026-04-26）**：第四波 **A（§11）本里程碑已結案**（初版 `ebb9ee4`；驗收修正 `8f8cea8`；第二輪 `d326666`／篩選快取 `c783b56`／整表重繪補篩選 **`e834bc2`**；多選外框 **`6f0bc89`**；篩選 (4)(5) 與外框經使用者複驗通過，摘要見 **§一點五**）。**第四波整體**仍進行中：**B（§3）** 待開工。
+**狀態標記（2026-04-26）**：第四波 **A（§11）本里程碑已結案**（摘要 **§一點五**）。**B（§3）已開工**：首批 **`4d06e05`**（協作遠端譯文比對正規化 + `catCollabDebug` 除錯日誌，見 **§一** B）；(**A**) `segmentRevision` 全路徑根因仍待後續提交。**第四波整體**未結案。
 
 關聯主計畫：`cat_工具綜合改版_42ac9451.plan.md` 第 **11** 節（TM 搜尋結果互動與編輯區游標輔助）、第 **3** 節（樂觀鎖 revision／協作誤報）。  
 可版控鏡像：[`docs/mirror/cat_工具綜合改版_42ac9451.plan.md`](mirror/cat_工具綜合改版_42ac9451.plan.md)（與本機 `%USERPROFILE%\.cursor\plans\` 同名檔同步維護）。
@@ -10,7 +10,7 @@
 | 子階 | 主計畫節次 | frontmatter todo | 說明 |
 |------|------------|------------------|------|
 | **A** | §11 | `live-tm-cursor-ux` | **已結案**：`ebb9ee4`、`8f8cea8`、`d326666`、`c783b56`、**`e834bc2`**（整表重繪後補 `runSearchAndFilter`）、**`6f0bc89`**（多選外框可見列鄰接）；詳 **§一點五** |
-| **B** | §3 | `collab-false-positive` | (A) `segmentRevision` 同步與誤報根因；(B) `applyRemoteCommit` 正規化、sessionId、去重、dev 日誌 |
+| **B** | §3 | `collab-false-positive` | **進行中**：(B) 首批 **`4d06e05`**—`applyRemoteCommit`／`resolvePendingRemoteConflict` 比對前 **正規化** + **`catCollabDebug`**；(A) `segmentRevision` 全路徑同步仍待 |
 
 **原則**：A／B **可並行開發**，**分開 merge、分開驗收**（見主計畫「白話：建議怎麼分階段做」第四波段）。
 
@@ -43,7 +43,8 @@
 
 ### 第四波 B（§3）
 
-- （實作後填：變更摘要 + 參考 commit）
+- **協作比對正規化 + 除錯開關**（**`4d06e05`**）：[`cat-tool/app.js`](../cat-tool/app.js) 新增 `normalizeCollabTargetPlainTextForCompare`；`applyRemoteCommit` 與 `resolvePendingRemoteConflict` 改以正規化後字串判斷是否與遠端相同，避免 NBSP／零寬字元等導致誤判「有他人版本」。`localStorage.setItem('catCollabDebug','1')` 時於主控台輸出 `applyRemoteCommit` 參數摘要，以及 `applyUpdateSegmentTarget` 成功／`SEGMENT_REVISION_CONFLICT` 之 `segId`、預期 revision（便於對照主計畫 §3 (A)/(B)）。
+- **待辦（主計畫 §3）**：(A) 盤點寫入成功後 `newSegmentRevision` 缺漏、`updateSegmentStatus` 與 revision 關係；(B) `collabSeenCommitKeys` 去重鍵擴充、父層 `sessionId` 對齊驗證。
 
 ---
 
@@ -52,13 +53,13 @@
 - **自動化**：各子階交付時執行 `npm run test:cat-sf`、`npm test`（依需要）。
 - **手動 smoke（建議）**
   - **A**：TM 單擊不貼上、雙擊貼上；Ctrl+1…9／0 與 CAT 分頁無衝突；Ctrl+K 後焦點在譯文尾端；假游標顯示與捲動／換列；Ctrl+0 插入選取；快捷鍵說明 modal 與實際一致。
-  - **B**：單人流程不誤觸 `SEGMENT_REVISION_CONFLICT` alert（或根因已修之驗收標準）；協作路徑 (B) 依主計畫 §3 驗收。
+  - **B**：單人流程不誤觸 `SEGMENT_REVISION_CONFLICT` alert（或根因已修之驗收標準）；協作路徑 (B) 依主計畫 §3 驗收；團隊模式除錯時可設 **`localStorage.catCollabDebug='1'`** 後重載，觀察主控台 `[cat-collab]`／`[cat-revision]` 訊息。
 - **複驗紀錄（2026-04-25 起）**
   - **`8f8cea8` 三項**：`Ctrl+0` undo／redo、`Ctrl+K` 譯文範圍、`Ctrl+0` 游標位置 — **通過**。
   - **`d326666` 五項中的四項**：`Ctrl+Y`、篩選下確認後跳格、篩選下 `Ctrl+↑↓`、自動化測試 — **通過**（`d326666` 已跑 `npm run test:cat-sf`、`npm test`）。
   - **第五項（篩選）**：`c783b56`（列快取）+ **`e834bc2`**（整表重繪後漏接路徑補 `runSearchAndFilter`）— 使用者依 §二點一情境複驗，第二輪 **(4)(5) 通過**。
   - **多選外框（`6f0bc89`）**：可見列鄰接與底線疊加修正 — **通過**。
-- **驗收結論**：**第四波 A（§11）**：初版、`8f8cea8`、第二輪篩選與多選外框等，**本子階已結案**（摘要 **§一點五**）。**第四波 B（§3）** 仍待開工；**第四波整體**未結案。
+- **驗收結論**：**第四波 A（§11）**：**已結案**（摘要 **§一點五**）。**第四波 B（§3）**：**進行中**（首批協作比對／除錯已入庫，**尚未**整階驗收）；**第四波整體**未結案。
 
 - **同步**：`cat-tool` 變更經 `npm run sync:cat` 一併提交 `public/cat`。
 
@@ -108,8 +109,8 @@
 ## 四、結案判定
 
 1. **第四波 A（§11，`live-tm-cursor-ux`）是否已結案？** **是**（使用者已複驗篩選 (4)(5) 與多選外框；交付鏈見 **§一**、過程摘要 **§一點五**）。
-2. **第四波 B（§3，`collab-false-positive`）是否已結案？** **否**（待開工）。
-3. **第四波工作（§11 + §3）是否全部結束？** **否**（僅 A 結案，B 未動）。
+2. **第四波 B（§3，`collab-false-positive`）是否已結案？** **否**（已開工：首批協作比對／除錯；**(A) revision 根因**等仍待）。
+3. **第四波工作（§11 + §3）是否全部結束？** **否**（A 已結案；B 進行中）。
 4. **主計畫中第四波對應範圍（§11 與 §3）是否皆已完成？** **否**（§11 已完成；§3 未完成）。
 
 ---
