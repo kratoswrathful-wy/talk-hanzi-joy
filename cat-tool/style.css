@@ -333,6 +333,7 @@ button { font-family: inherit; cursor: pointer; }
     display: none;
     max-width: 20rem;
     padding: 0.3rem 0.5rem;
+    margin-left: 0.15rem;
     border-radius: 6px;
     background: rgba(15, 23, 42, 0.95);
     color: #fff;
@@ -344,6 +345,7 @@ button { font-family: inherit; cursor: pointer; }
     transform: translateY(-2px);
     transition: opacity 0.12s ease, transform 0.12s ease;
     pointer-events: none;
+    flex-shrink: 0;
 }
 .sf-lock-inline-msg.show {
     display: inline-flex;
@@ -395,6 +397,12 @@ button { font-family: inherit; cursor: pointer; }
 .sf-adv-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .sf-adv-actions { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.25rem; padding-top: 0.5rem; border-top: 1px solid #e2e8f0;}
 .sf-presets-select { padding: 0.2rem; border: 1px solid var(--border-color); border-radius: 4px; outline: none; font-size: 0.8rem;}
+.sf-presets-select:focus-visible {
+    outline: 2px solid #818cf8;
+    outline-offset: 1px;
+    border-color: #6366f1;
+    background: #eff6ff;
+}
 
 /* Active Filter Groups */
 .sf-active-groups { padding: 0.25rem 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem; background: #f1f5f9; border-top: 1px solid #e2e8f0;}
