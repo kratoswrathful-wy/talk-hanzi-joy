@@ -40,6 +40,6 @@
 
 | 子項 | 說明 | 狀態 |
 |------|------|------|
-| 增量路徑同原文索引 | `_qaIncrementalRefreshAfterConfirm` 內以單次走訪建立「trim 原文 → 有譯文句段」對照，取代每個 touched source 重複 `filter` 全檔 | 已完成 `762fff6` |
+| 增量路徑同原文索引 | `_qaIncrementalRefreshAfterConfirm` 內以單次走訪建立「trim 原文 → 有譯文句段」對照，取代每個 touched source 重複 `filter` 全檔 | 已完成 `b33e471` |
 
 （計畫檔仍以本檔開頭所列 Cursor plan 為準；此處為可版控摘要。）
