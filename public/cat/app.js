@@ -6183,6 +6183,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let sfActiveMatchIdx = -1;
     let sfLastFocusedMatchSegIdx = null;
     let sfHadHighlightMarkup = false;
+    const sfRowRenderCache = new Map();
     let sfFilterGroups = []; // [{ op: 'AND'/'OR', term, scopes, isRegex, isInvert, statuses, tms }]
     let sfFilterSnapshotSegIds = null;
     let sfFilterLockedSpecHash = '';
@@ -6958,6 +6959,71 @@ document.addEventListener('DOMContentLoaded', async () => {
         return false;
     }
 
+    function buildHighlightSignature(highlightRequests) {
+        if (!highlightRequests || highlightRequests.length === 0) return '';
+        return highlightRequests.map((req) => {
+            const scopes = Array.isArray(req.scopes) ? req.scopes.join(',') : '';
+            return `${req.term || ''}|${scopes}|${req.isRegex ? '1' : '0'}|${req.bg || ''}`;
+        }).join('||');
+    }
+
+    function collectSearchMatchesFromExistingRowMarks(row, segIdx) {
+        const srcEd = row.querySelector('.col-source .rt-editor');
+        if (srcEd) {
+            srcEd.querySelectorAll('mark.search-match').forEach((m) => {
+                sfSearchMatches.push({
+                    markEl: m,
+                    rowEl: row,
+                    isTextarea: false,
+                    textareaEl: null,
+                    segIdx: segIdx,
+                    fieldKey: 'source'
+                });
+            });
+        }
+        const tgtEd = row.querySelector('.grid-textarea');
+        if (tgtEd) {
+            tgtEd.querySelectorAll('mark.search-match').forEach((m) => {
+                sfSearchMatches.push({
+                    markEl: m,
+                    rowEl: row,
+                    isTextarea: true,
+                    textareaEl: tgtEd,
+                    segIdx: segIdx,
+                    fieldKey: 'target'
+                });
+            });
+        }
+        const extra = row.querySelector('.col-extra');
+        if (extra) {
+            extra.querySelectorAll('mark.search-match').forEach((m) => {
+                sfSearchMatches.push({
+                    markEl: m,
+                    rowEl: row,
+                    isTextarea: false,
+                    textareaEl: null,
+                    segIdx: segIdx,
+                    fieldKey: 'extra'
+                });
+            });
+        }
+        row.querySelectorAll('[class^="col-key-"]').forEach((keyCell) => {
+            const cls = Array.from(keyCell.classList).find((c) => c.startsWith('col-key-'));
+            const idx = cls ? parseInt(cls.replace('col-key-', ''), 10) : NaN;
+            const fieldKey = Number.isFinite(idx) ? `key-${idx}` : 'keys';
+            keyCell.querySelectorAll('mark.search-match').forEach((m) => {
+                sfSearchMatches.push({
+                    markEl: m,
+                    rowEl: row,
+                    isTextarea: false,
+                    textareaEl: null,
+                    segIdx: segIdx,
+                    fieldKey
+                });
+            });
+        });
+    }
+
     function runSearchAndFilter() {
         if (!currentSegmentsList.length) return;
         
@@ -6998,22 +7064,41 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
         
+        const seenSegIds = new Set();
         currentSegmentsList.forEach((seg, idx) => {
             const row = rows[idx];
             if(!row) return;
+            seenSegIds.add(seg.id);
 
             const r_liveMatch = computeSegmentRowMatch(seg, idx, criteria);
+            const rowCache = sfRowRenderCache.get(seg.id) || { vis: null, highlightSig: '' };
 
             // Filter Mode hiding：篩選模式下以快照列為準，避免句段內容變動即時剔除列
+            let vis = true;
             if (sfMode === 'filter') {
-                const vis = sfFilterSnapshotSegIds && sfFilterSnapshotSegIds.has(seg.id);
-                row.style.display = vis ? '' : 'none';
+                vis = !!(sfFilterSnapshotSegIds && sfFilterSnapshotSegIds.has(seg.id));
+                if (rowCache.vis !== vis) row.style.display = vis ? '' : 'none';
             } else {
-                row.style.display = '';
+                vis = true;
+                if (rowCache.vis !== vis) row.style.display = '';
             }
 
-            // 只有在需要高亮或需要清除舊高亮時才做重型重畫。
-            if (hasAnyHighlightTerm || needResetMarksOnly) {
+            // --- Apply Highlighting ---
+            // Build a list of highlight requests for this row
+            const highlightRequests = [];
+            if (term && (sfMode === 'search' ? r_liveMatch : r_liveMatch)) {
+                highlightRequests.push({ term, scopes, isRegex: sfUseRegexChecked, bg: null }); 
+            }
+            if (r_liveMatch || sfMode === 'search') {
+                sfFilterGroups.forEach(g => {
+                    if(g.term) highlightRequests.push({ term: g.term, scopes: g.scopes, isRegex: g.isRegex, bg: g.color });
+                });
+            }
+            const highlightSig = buildHighlightSignature(highlightRequests);
+            const shouldRepaintRow = needResetMarksOnly || (hasAnyHighlightTerm && rowCache.highlightSig !== highlightSig);
+
+            // 只有在需要高亮變更、或需要清除舊高亮時才做重型重畫。
+            if (shouldRepaintRow) {
                 row.querySelectorAll('.col-extra, .col-id, [class^="col-key-"]').forEach(cell => {
                     cell.innerHTML = cell.innerHTML.replace(/<mark class="search-match[^>]*>|<\/mark>/g, '');
                 });
@@ -7029,20 +7114,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 updateTagColors(row, seg.targetText);
             }
 
-            // --- Apply Highlighting ---
-            // Build a list of highlight requests for this row
-            const highlightRequests = [];
-            
-            if (term && (sfMode === 'search' ? r_liveMatch : r_liveMatch)) {
-                highlightRequests.push({ term, scopes, isRegex: sfUseRegexChecked, bg: null }); 
-            }
-            if (r_liveMatch || sfMode === 'search') {
-                sfFilterGroups.forEach(g => {
-                    if(g.term) highlightRequests.push({ term: g.term, scopes: g.scopes, isRegex: g.isRegex, bg: g.color });
-                });
-            }
-
             if (highlightRequests.length > 0) {
+                if (!shouldRepaintRow) {
+                    collectSearchMatchesFromExistingRowMarks(row, idx);
+                } else {
                 const highlightCell = (cellSelector, rawText, isTextarea, segIdx, fieldKey) => {
                     // For target: highlight directly in contenteditable (no separate backdrop)
                     const cell = isTextarea ? row.querySelector('.grid-textarea') : row.querySelector(cellSelector);
@@ -7134,8 +7209,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if(seg.keys) {
                     for(let k=0; k<seg.keys.length; k++) highlightCell(`.col-key-${k}`, seg.keys[k], false, idx, 'key-' + k);
                 }
+                }
             }
+
+            rowCache.vis = vis;
+            rowCache.highlightSig = hasAnyHighlightTerm ? highlightSig : '';
+            sfRowRenderCache.set(seg.id, rowCache);
         });
+
+        for (const segId of Array.from(sfRowRenderCache.keys())) {
+            if (!seenSegIds.has(segId)) sfRowRenderCache.delete(segId);
+        }
 
         sfHadHighlightMarkup = hasAnyHighlightTerm;
 
