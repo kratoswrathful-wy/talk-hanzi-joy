@@ -1789,7 +1789,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     let excelRawBuffer = null;
     let originalFileName = '';
     let excelDataBySheet = {};
-    let debounceTimer = null;
 
     // --- Sort State ---
     const sortColSelect = document.getElementById('sortColSelect');
@@ -6217,6 +6216,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sfReplaceInput = document.getElementById('sfReplaceInput');
     const btnSfReplaceThis = document.getElementById('btnSfReplaceThis');
     const btnSfReplaceAll = document.getElementById('btnSfReplaceAll');
+    let sfRunUiTimer = null;
+    let sfRunOnNextFrameQueued = false;
+
+    /**
+     * 先讓 checkbox / button 狀態完成重繪，再進行重型的 runSearchAndFilter，
+     * 避免使用者感覺「點了要等很久才有回饋」。
+     */
+    function scheduleRunSearchAndFilter(delayMs = 0) {
+        clearTimeout(sfRunUiTimer);
+        sfRunUiTimer = setTimeout(() => {
+            if (sfRunOnNextFrameQueued) return;
+            sfRunOnNextFrameQueued = true;
+            requestAnimationFrame(() => {
+                sfRunOnNextFrameQueued = false;
+                runSearchAndFilter();
+            });
+        }, Math.max(0, delayMs | 0));
+    }
     ['sfModeSearch', 'sfModeFilter', 'btnSfPrev', 'btnSfNext', 'btnSfClearNav', 'btnToggleAdvancedSF', 'btnPreTranslate', 'btnSortMenu', 'btnCopySourceToTarget', 'btnClearTarget', 'btnTagCollapse', 'btnTagGroupMode', 'btnShortcuts', 'btnColSettings', 'exportBtn'].forEach((id) => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -6235,7 +6252,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             sfMode = 'filter';
             sfModeFilter.classList.add('active');
             sfModeSearch.classList.remove('active');
-            runSearchAndFilter();
+            scheduleRunSearchAndFilter();
         }
     });
     sfModeSearch.addEventListener('click', () => {
@@ -6248,7 +6265,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (sfMode === 'search') { sfModeFilter.click(); return; } // Toggle behavior
         sfMode = 'search'; sfModeSearch.classList.add('active'); sfModeFilter.classList.remove('active');
-        runSearchAndFilter();
+        scheduleRunSearchAndFilter();
         emitCollabFocus('control', 'sfModeSearch');
     });
     sfModeFilter.addEventListener('click', () => {
@@ -6257,18 +6274,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             sfMode = 'filter';
             sfModeFilter.classList.add('active');
             sfModeSearch.classList.remove('active');
-            runSearchAndFilter();
+            scheduleRunSearchAndFilter();
             return;
         }
         if (sfMode === 'filter') { sfModeSearch.click(); return; } // Toggle behavior
         sfMode = 'filter'; sfModeFilter.classList.add('active'); sfModeSearch.classList.remove('active');
-        runSearchAndFilter();
+        scheduleRunSearchAndFilter();
         emitCollabFocus('control', 'sfModeFilter');
     });
-    sfUseRegex.addEventListener('change', (e) => { sfUseRegexChecked = e.target.checked; runSearchAndFilter(); });
+    sfUseRegex.addEventListener('change', (e) => { sfUseRegexChecked = e.target.checked; scheduleRunSearchAndFilter(); });
     btnSfInvert.addEventListener('click', () => {
         if (btnSfInvert.classList.contains('sf-invert-disabled')) return;
-        btnSfInvert.classList.toggle('active'); runSearchAndFilter();
+        btnSfInvert.classList.toggle('active'); scheduleRunSearchAndFilter();
     });
     if (btnSfOptionsPopover && sfOptionsPopover) {
         btnSfOptionsPopover.addEventListener('click', (e) => {
@@ -6281,26 +6298,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     }
-    document.querySelectorAll('.sf-scope-cb, .sf-status-cb').forEach(cb => cb.addEventListener('change', runSearchAndFilter));
+    document.querySelectorAll('.sf-scope-cb, .sf-status-cb').forEach(cb => cb.addEventListener('change', () => scheduleRunSearchAndFilter()));
     document.getElementById('sfTmMatch').addEventListener('input', () => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(runSearchAndFilter, 300);
+        scheduleRunSearchAndFilter(300);
     });
     
     sfInput.addEventListener('input', () => {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(runSearchAndFilter, 300);
+        scheduleRunSearchAndFilter(300);
     });
 
     (function bindSfRowRangeListeners() {
         ['sfRowRangeEnabled', 'sfRowRangeExclude', 'sfRowRangeFrom', 'sfRowRangeTo'].forEach((id) => {
             const el = document.getElementById(id);
             if (!el) return;
-            const go = () => runSearchAndFilter();
+            const go = () => scheduleRunSearchAndFilter();
             if (el.type === 'number') {
                 el.addEventListener('input', () => {
-                    clearTimeout(debounceTimer);
-                    debounceTimer = setTimeout(go, 300);
+                    scheduleRunSearchAndFilter(300);
                 });
                 el.addEventListener('change', go);
             } else {
