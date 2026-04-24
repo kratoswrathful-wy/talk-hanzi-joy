@@ -8526,6 +8526,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const aid = ar ? parseId(ar.dataset.segId) : null;
             const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
             if (activeSeg) renderLiveTmMatches(activeSeg);
+                    const qaBatchIds = [];
+                    touchAll.forEach((idx) => {
+                        const s = currentSegmentsList[idx];
+                        if (s && s.id != null) qaBatchIds.push(s.id);
+                    });
+                    _qaIncrementalRefreshAfterConfirm(qaBatchIds);
                 } catch (err) { console.error(err); }
             });
         })();
@@ -9717,6 +9723,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     if (changed) {
                                         pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
                                     }
+                                    const qaTouchIds = [];
+                                    touch.forEach((idx) => {
+                                        const s = currentSegmentsList[idx];
+                                        if (s && s.id != null) qaTouchIds.push(s.id);
+                                    });
+                                    _qaIncrementalRefreshAfterConfirm(qaTouchIds);
                                 } catch (err) { console.error(err); }
                             });
                         })();
@@ -9853,6 +9865,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     if (changed) {
                                         pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
                                     }
+                                    const qaTouchIdsIcon = [];
+                                    touch.forEach((idx) => {
+                                        const s = currentSegmentsList[idx];
+                                        if (s && s.id != null) qaTouchIdsIcon.push(s.id);
+                                    });
+                                    _qaIncrementalRefreshAfterConfirm(qaTouchIdsIcon);
                                 } catch (err) { console.error(err); }
                             });
                         })();
@@ -10661,6 +10679,138 @@ document.addEventListener('DOMContentLoaded', async () => {
         return (n.match(/\d+/g) || []).slice();
     }
 
+    /** Tag／術語／數字（不含譯文不一致、不含錯字）— 供 runQaChecks 與確認後增量更新共用 */
+    function _qaPushSegmentRuleFindings(results, s, gid, { checkTerms = true, checkTags = true, checkNumbers = true }) {
+        if (checkTags) {
+            const srcIds = (s.sourceTags || []).map(t => String(t.id ?? t.num ?? t.index ?? ''));
+            const tgtIds = (s.targetTags || []).map(t => String(t.id ?? t.num ?? t.index ?? ''));
+            if (srcIds.length > 0) {
+                const srcSet = new Set(srcIds);
+                const tgtSet = new Set(tgtIds);
+                const missing = srcIds.filter(id => id && !tgtSet.has(id));
+                const extra = tgtIds.filter(id => id && !srcSet.has(id));
+                const hasMissing = [...new Set(missing)].length > 0;
+                const hasExtra = [...new Set(extra)].length > 0;
+                if (hasMissing || hasExtra) {
+                    const detail = hasMissing
+                        ? '缺少 tag：{' + [...new Set(missing)].join('}, {') + '}'
+                        : '多餘 tag：{' + [...new Set(extra)].join('}, {') + '}';
+                    results.push({ segId: s.id, gid, type: 'Tag 檢查', info: detail, key: `${gid}:tag` });
+                }
+            }
+        }
+        if (checkTerms && window.ActiveTbTerms && window.ActiveTbTerms.length > 0) {
+            for (const term of window.ActiveTbTerms) {
+                if (!term.source || !term.target) continue;
+                if (termMatches(s.sourceText || '', term.source, term.matchFlags) &&
+                    !termMatches(s.targetText || '', term.target, term.matchFlags)) {
+                    const detail = `「${term.source}」→「${term.target}」`;
+                    results.push({ segId: s.id, gid, type: '術語未套用', info: detail, key: `${gid}:tb:${term.source}` });
+                }
+            }
+        }
+        if (checkNumbers) {
+            const srcRuns = _qaDigitRunsFromPlain(_qaStripTagsPlain(s.sourceText || ''));
+            const tgtRuns = _qaDigitRunsFromPlain(_qaStripTagsPlain(s.targetText || ''));
+            if (srcRuns.length > 0 || tgtRuns.length > 0) {
+                let same = srcRuns.length === tgtRuns.length;
+                if (same) {
+                    for (let di = 0; di < srcRuns.length; di++) {
+                        if (srcRuns[di] !== tgtRuns[di]) { same = false; break; }
+                    }
+                }
+                if (!same) {
+                    const fmt = (arr) => (arr.length ? arr.join('、') : '（無）');
+                    results.push({
+                        segId: s.id, gid, type: '數字不相符',
+                        info: `原文數字序列：${fmt(srcRuns)}；譯文：${fmt(tgtRuns)}`,
+                        key: `${gid}:digits`
+                    });
+                }
+            }
+        }
+    }
+
+    function _qaIsTypoLikeResult(r) {
+        const t = r && r.type;
+        return t === '錯字' || t === '錯字／打字' || t === '錯字/打字';
+    }
+
+    /**
+     * 句段確認成功且 TM／重複傳播完成後：增量更新 QA 清單（不重跑 AI 錯字）。
+     * @param {Iterable<number|string>} segIds 受影響句段 id（含傳播後內容已更新的句段）
+     */
+    function _qaIncrementalRefreshAfterConfirm(segIds) {
+        if (!_qaResults.length) return;
+        const idSet = new Set();
+        for (const raw of segIds) {
+            if (raw == null || raw === '') continue;
+            const id = typeof raw === 'string' ? parseId(raw) : raw;
+            if (id != null && id !== '') idSet.add(id);
+        }
+        if (idSet.size === 0) return;
+
+        const checkTerms = document.getElementById('qaCheckTerms')?.checked ?? true;
+        const checkTags = document.getElementById('qaCheckTags')?.checked ?? true;
+        const checkConsistency = document.getElementById('qaCheckConsistency')?.checked ?? true;
+        const checkNumbers = document.getElementById('qaCheckNumbers')?.checked ?? true;
+        const includeLocked = document.getElementById('qaIncludeLocked')?.checked ?? false;
+
+        const touchedSources = new Set();
+        for (const sid of idSet) {
+            const s = currentSegmentsList.find((x) => x.id === sid);
+            if (!s) continue;
+            const sk = (s.sourceText || '').trim();
+            if (sk) touchedSources.add(sk);
+        }
+
+        _qaResults = _qaResults.filter((r) => {
+            if (_qaIsTypoLikeResult(r)) return true;
+            if (r.type === '譯文不一致') {
+                const seg = currentSegmentsList.find((x) => x.id === r.segId);
+                const sk = (seg?.sourceText || '').trim();
+                if (touchedSources.has(sk)) return false;
+                return true;
+            }
+            if (idSet.has(r.segId)) return false;
+            return true;
+        });
+
+        const newChunks = [];
+        for (const sid of idSet) {
+            const s = currentSegmentsList.find((x) => x.id === sid);
+            if (!s) continue;
+            if (!includeLocked && (isDynamicForbidden(s) || s.isLockedUser)) continue;
+            if (!s.targetText || !String(s.targetText).trim()) continue;
+            const gid = s.globalId || (s.rowIdx + 1);
+            _qaPushSegmentRuleFindings(newChunks, s, gid, { checkTerms, checkTags, checkNumbers });
+        }
+        if (newChunks.length) _qaResults.push(...newChunks);
+
+        if (checkConsistency && touchedSources.size) {
+            for (const src of touchedSources) {
+                const groupSegs = currentSegmentsList.filter(
+                    (s) => (s.sourceText || '').trim() === src && String(s.targetText || '').trim()
+                );
+                const variants = new Set(groupSegs.map((s) => (s.targetText || '').trim()));
+                if (variants.size > 1) {
+                    for (const s of groupSegs) {
+                        const gid = s.globalId || (s.rowIdx + 1);
+                        _qaResults.push({
+                            segId: s.id,
+                            gid,
+                            type: '譯文不一致',
+                            info: `此原文有 ${variants.size} 種不同譯文`,
+                            key: `${gid}:consistency`
+                        });
+                    }
+                }
+            }
+        }
+
+        renderQaResults();
+    }
+
     function runQaChecks(segs, options) {
         const { fromIdx, toIdx, includeLocked, allowedSegIds,
                 checkTerms = true, checkTags = true, checkConsistency = true, checkNumbers = true } = options || {};
@@ -10695,37 +10845,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         for (const { s, gid } of filteredSegs) {
-            // Tag 完整性檢查
-            if (checkTags) {
-                const srcIds = (s.sourceTags || []).map(t => String(t.id ?? t.num ?? t.index ?? ''));
-                const tgtIds = (s.targetTags || []).map(t => String(t.id ?? t.num ?? t.index ?? ''));
-                if (srcIds.length > 0) {
-                    const srcSet = new Set(srcIds);
-                    const tgtSet = new Set(tgtIds);
-                    const missing = srcIds.filter(id => id && !tgtSet.has(id));
-                    const extra = tgtIds.filter(id => id && !srcSet.has(id));
-                    const hasMissing = [...new Set(missing)].length > 0;
-                    const hasExtra = [...new Set(extra)].length > 0;
-                    if (hasMissing || hasExtra) {
-                        const detail = hasMissing
-                            ? '缺少 tag：{' + [...new Set(missing)].join('}, {') + '}'
-                            : '多餘 tag：{' + [...new Set(extra)].join('}, {') + '}';
-                        results.push({ segId: s.id, gid, type: 'Tag 檢查', info: detail, key: `${gid}:tag` });
-                    }
-                }
-            }
-
-            // TB 術語未套用
-            if (checkTerms && window.ActiveTbTerms && window.ActiveTbTerms.length > 0) {
-                for (const term of window.ActiveTbTerms) {
-                    if (!term.source || !term.target) continue;
-                    if (termMatches(s.sourceText || '', term.source, term.matchFlags) &&
-                        !termMatches(s.targetText || '', term.target, term.matchFlags)) {
-                        const detail = `「${term.source}」→「${term.target}」`;
-                        results.push({ segId: s.id, gid, type: '術語未套用', info: detail, key: `${gid}:tb:${term.source}` });
-                    }
-                }
-            }
+            _qaPushSegmentRuleFindings(results, s, gid, { checkTerms, checkTags, checkNumbers });
 
             // 譯文一致性
             if (checkConsistency && consistencyMap) {
@@ -10734,28 +10854,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (variants && variants.size > 1) {
                     results.push({ segId: s.id, gid, type: '譯文不一致',
                         info: `此原文有 ${variants.size} 種不同譯文`, key: `${gid}:consistency` });
-                }
-            }
-
-            // 數字序列：去 tag 後依出現順序擷取連續數字，須與原文完全一致
-            if (checkNumbers) {
-                const srcRuns = _qaDigitRunsFromPlain(_qaStripTagsPlain(s.sourceText || ''));
-                const tgtRuns = _qaDigitRunsFromPlain(_qaStripTagsPlain(s.targetText || ''));
-                if (srcRuns.length > 0 || tgtRuns.length > 0) {
-                    let same = srcRuns.length === tgtRuns.length;
-                    if (same) {
-                        for (let di = 0; di < srcRuns.length; di++) {
-                            if (srcRuns[di] !== tgtRuns[di]) { same = false; break; }
-                        }
-                    }
-                    if (!same) {
-                        const fmt = arr => (arr.length ? arr.join('、') : '（無）');
-                        results.push({
-                            segId: s.id, gid, type: '數字不相符',
-                            info: `原文數字序列：${fmt(srcRuns)}；譯文：${fmt(tgtRuns)}`,
-                            key: `${gid}:digits`
-                        });
-                    }
                 }
             }
         }
