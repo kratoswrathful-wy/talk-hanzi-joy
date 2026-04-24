@@ -368,7 +368,7 @@ button { font-family: inherit; cursor: pointer; }
 
 /* Active Filter Groups */
 .sf-active-groups { padding: 0.25rem 0.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem; background: #f1f5f9; border-top: 1px solid #e2e8f0;}
-.sf-group-chip { display: flex; align-items: stretch; border: 1px solid rgba(0,0,0,0.1); border-radius: 6px; font-size: 0.75rem; color: #1e293b; overflow: hidden; }
+.sf-group-chip { display: flex; align-items: center; border: 1px solid rgba(0,0,0,0.1); border-radius: 6px; font-size: 0.75rem; color: #1e293b; overflow: hidden; }
 .sf-group-op { font-weight: bold; cursor: pointer; padding: 0.5rem; user-select: none; color: #1e293b; background: rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; min-width: 30px;}
 .sf-group-op:hover { background: rgba(0,0,0,0.2); }
 .sf-group-lock-wrap { display: flex; align-items: center; gap: 0.2rem; padding: 0 0.35rem; font-size: 0.68rem; white-space: nowrap; border-right: 1px solid rgba(0,0,0,0.08); cursor: pointer; user-select: none; flex-shrink: 0; background: rgba(255,255,255,0.35); }

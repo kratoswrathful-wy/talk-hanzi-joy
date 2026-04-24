@@ -642,38 +642,37 @@
                                 <div class="sf-adv-section">
                                     <strong>句段狀態</strong>
                                     <div class="sf-adv-grid">
-                                        <label><input type="checkbox" class="sf-status-cb" value="empty"> 空白</label>
-                                        <label><input type="checkbox" class="sf-status-cb" value="not_empty"> 非空白</label>
-                                        <label><input type="checkbox" class="sf-status-cb" value="confirmed"> 已確認</label>
-                                        <label><input type="checkbox" class="sf-status-cb" value="unconfirmed"> 未確認</label>
-                                        <label><input type="checkbox" class="sf-status-cb" value="locked"> 鎖定</label>
-                                        <label><input type="checkbox" class="sf-status-cb" value="unlocked"> 未鎖定</label>
+                                        <label><input type="checkbox" class="sf-status-cb" value="empty" tabindex="1"> 空白</label>
+                                        <label><input type="checkbox" class="sf-status-cb" value="not_empty" tabindex="2"> 非空白</label>
+                                        <label><input type="checkbox" class="sf-status-cb" value="confirmed" tabindex="3"> 已確認</label>
+                                        <label><input type="checkbox" class="sf-status-cb" value="unconfirmed" tabindex="4"> 未確認</label>
+                                        <label><input type="checkbox" class="sf-status-cb" value="locked" tabindex="5"> 鎖定</label>
+                                        <label><input type="checkbox" class="sf-status-cb" value="unlocked" tabindex="6"> 未鎖定</label>
                                     </div>
                                 </div>
 
                                 <div class="sf-adv-section" style="flex:1;">
                                     <strong>翻譯記憶相符度 (%)</strong>
                                     <div style="display:flex; align-items:center; gap:0.5rem; font-size: 0.85rem;" title="支援格式：-x (x含以下)、x-y (區間)、y- (y含以上)">
-                                        <input type="text" id="sfTmMatch" class="sf-input" placeholder="例: 80-100, -90, 85-" style="flex: none; width: 140px; padding: 0.2rem 0.4rem;">
+                                        <input type="text" id="sfTmMatch" class="sf-input" placeholder="例: 80-100, -90, 85-" tabindex="7" style="flex: none; width: 140px; padding: 0.2rem 0.4rem;">
                                     </div>
                                 </div>
 
                                 <div class="sf-adv-section" style="flex-basis:100%;" title="依目前列表由上而下順序，與句段編號（# 欄）一致，1 起算">
-                                    <strong>句段列範圍</strong>
+                                    <strong>句段編號範圍</strong>
                                     <div style="display:flex; flex-wrap:wrap; align-items:center; gap:0.45rem; font-size:0.85rem; margin-top:0.25rem;">
-                                        <label style="display:flex; align-items:center; gap:0.25rem;"><input type="checkbox" id="sfRowRangeEnabled"> 啟用編號範圍</label>
-                                        <span>第</span>
-                                        <input type="number" id="sfRowRangeFrom" class="sf-input" min="1" step="1" placeholder="起" style="width:4rem; padding:0.15rem 0.35rem;">
-                                        <span>～</span>
-                                        <input type="number" id="sfRowRangeTo" class="sf-input" min="1" step="1" placeholder="訖" style="width:4rem; padding:0.15rem 0.35rem;">
-                                        <label style="display:flex; align-items:center; gap:0.25rem; margin-left:0.25rem;"><input type="checkbox" id="sfRowRangeExclude"> 排除此範圍（顯示範圍外）</label>
+                                        <label style="display:flex; align-items:center; gap:0.25rem;"><input type="checkbox" id="sfRowRangeEnabled" tabindex="8"> 啟用編號範圍</label>
+                                        <input type="number" id="sfRowRangeFrom" class="sf-input" min="1" step="1" placeholder="起" tabindex="9" style="width:4rem; padding:0.15rem 0.35rem;">
+                                        <span>-</span>
+                                        <input type="number" id="sfRowRangeTo" class="sf-input" min="1" step="1" placeholder="訖" tabindex="10" style="width:4rem; padding:0.15rem 0.35rem;">
+                                        <label style="display:flex; align-items:center; gap:0.25rem; margin-left:0.25rem;"><input type="checkbox" id="sfRowRangeExclude" tabindex="11"> 排除此範圍</label>
                                     </div>
                                 </div>
 
                                 <div class="sf-adv-actions">
-                                    <button class="primary-btn btn-sm" id="btnAddFilterGroup">加入篩選群組</button>
-                                    <button class="secondary-btn btn-sm" id="btnSaveFilterPreset">儲存常用組合</button>
-                                    <select id="sfPresetsSelect" class="sf-presets-select">
+                                    <button type="button" class="primary-btn btn-sm" id="btnAddFilterGroup" tabindex="12">加入篩選群組</button>
+                                    <button type="button" class="secondary-btn btn-sm" id="btnSaveFilterPreset" tabindex="13">儲存常用組合</button>
+                                    <select id="sfPresetsSelect" class="sf-presets-select" tabindex="14">
                                         <option value="">-- 我的最愛 --</option>
                                     </select>
                                 </div>

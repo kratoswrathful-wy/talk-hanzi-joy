@@ -6620,6 +6620,116 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateMatchHighlightFocus();
     });
 
+    /**
+     * 進階篩選（#sfAdvancedPanel：TM%、狀態、列範圍）單一讀寫來源。
+     * 新增欄位時請同步：ADVANCED_SF_SPEC_KEYS、read／clear／apply、getSfFilterSpecHash、群組 push、預設、卡片摘要、compute 列範圍。
+     */
+    const ADVANCED_SF_SPEC_KEYS = [
+        'tmVal',
+        'statuses',
+        'rowRangeEnabled',
+        'rowRangeFrom',
+        'rowRangeTo',
+        'rowRangeExclude'
+    ];
+
+    /** 與 scripts/test-cat-sf-row-range.mjs 一致；變更時請同步測試檔。 */
+    function segmentPassesSfRowRangePure(listIndexZeroBased, rowSpec) {
+        const enabled = !!(rowSpec && rowSpec.enabled);
+        if (!enabled) return true;
+        const a = parseInt(String(rowSpec.fromVal ?? ''), 10);
+        const b = parseInt(String(rowSpec.toVal ?? ''), 10);
+        if (!Number.isFinite(a) || !Number.isFinite(b)) return true;
+        const lo = Math.min(a, b);
+        const hi = Math.max(a, b);
+        const n = listIndexZeroBased + 1;
+        const inside = n >= lo && n <= hi;
+        const exclude = !!(rowSpec && rowSpec.exclude);
+        return exclude ? !inside : inside;
+    }
+
+    function readSfAdvancedSpecFromDom() {
+        const tmEl = document.getElementById('sfTmMatch');
+        const rrEn = document.getElementById('sfRowRangeEnabled');
+        const rrFrom = document.getElementById('sfRowRangeFrom');
+        const rrTo = document.getElementById('sfRowRangeTo');
+        const rrEx = document.getElementById('sfRowRangeExclude');
+        return {
+            tmVal: tmEl ? String(tmEl.value || '') : '',
+            statuses: Array.from(document.querySelectorAll('.sf-status-cb:checked')).map((cb) => cb.value),
+            rowRangeEnabled: rrEn ? !!rrEn.checked : false,
+            rowRangeFrom: rrFrom ? String(rrFrom.value || '') : '',
+            rowRangeTo: rrTo ? String(rrTo.value || '') : '',
+            rowRangeExclude: rrEx ? !!rrEx.checked : false
+        };
+    }
+
+    function clearSfAdvancedSpecOnDom() {
+        document.querySelectorAll('.sf-status-cb').forEach((c) => { c.checked = false; });
+        const tmEl = document.getElementById('sfTmMatch');
+        if (tmEl) tmEl.value = '';
+        const rrEn = document.getElementById('sfRowRangeEnabled');
+        if (rrEn) rrEn.checked = false;
+        const rrFrom = document.getElementById('sfRowRangeFrom');
+        if (rrFrom) rrFrom.value = '';
+        const rrTo = document.getElementById('sfRowRangeTo');
+        if (rrTo) rrTo.value = '';
+        const rrEx = document.getElementById('sfRowRangeExclude');
+        if (rrEx) rrEx.checked = false;
+    }
+
+    /** @param {Partial<ReturnType<typeof readSfAdvancedSpecFromDom>>} spec */
+    function applySfAdvancedSpecToDom(spec) {
+        if (!spec) return;
+        if (spec.tmVal !== undefined) {
+            const el = document.getElementById('sfTmMatch');
+            if (el) el.value = spec.tmVal;
+        }
+        if (Array.isArray(spec.statuses)) {
+            document.querySelectorAll('.sf-status-cb').forEach((c) => {
+                c.checked = spec.statuses.includes(c.value);
+            });
+        }
+        if (spec.rowRangeEnabled !== undefined) {
+            const el = document.getElementById('sfRowRangeEnabled');
+            if (el) el.checked = !!spec.rowRangeEnabled;
+        }
+        if (spec.rowRangeFrom !== undefined) {
+            const el = document.getElementById('sfRowRangeFrom');
+            if (el) el.value = spec.rowRangeFrom;
+        }
+        if (spec.rowRangeTo !== undefined) {
+            const el = document.getElementById('sfRowRangeTo');
+            if (el) el.value = spec.rowRangeTo;
+        }
+        if (spec.rowRangeExclude !== undefined) {
+            const el = document.getElementById('sfRowRangeExclude');
+            if (el) el.checked = !!spec.rowRangeExclude;
+        }
+    }
+
+    function sfRowSpecFromAdvancedPart(adv) {
+        if (!adv) return { enabled: false, fromVal: '', toVal: '', exclude: false };
+        return {
+            enabled: !!adv.rowRangeEnabled,
+            fromVal: adv.rowRangeFrom,
+            toVal: adv.rowRangeTo,
+            exclude: !!adv.rowRangeExclude
+        };
+    }
+
+    function sfRowSpecFromGroup(g) {
+        if (!g || g.rowRangeEnabled !== true) {
+            return { enabled: false, fromVal: '', toVal: '', exclude: false };
+        }
+        return {
+            enabled: true,
+            fromVal: String(g.rowRangeFrom ?? ''),
+            toVal: String(g.rowRangeTo ?? ''),
+            exclude: !!g.rowRangeExclude
+        };
+    }
+
     // Core Evaluator
     function evaluateSegment(seg, term, scopes, isRegex, isInvert, statuses, tmVal) {
         let textMatch = false;
@@ -6670,10 +6780,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         let tmMatch = true;
         if(tmVal && tmVal.trim() !== '') {
-            // Check if segment has any TM match result >= required
             let highestTm = 0;
-            // Mock: If seg has results array, find max. Default mock to 85.
-            highestTm = seg.tmMatch || 0; // fallback
+            const mvNum = seg.matchValue != null && seg.matchValue !== '' ? parseInt(String(seg.matchValue), 10) : NaN;
+            if (Number.isFinite(mvNum)) highestTm = mvNum;
+            else if (typeof seg.tmMatch === 'number' && Number.isFinite(seg.tmMatch)) highestTm = seg.tmMatch;
 
             const v = tmVal.trim();
             tmMatch = false; // default false
@@ -6703,76 +6813,64 @@ document.addEventListener('DOMContentLoaded', async () => {
         return textMatch && statusMatch && tmMatch;
     }
 
+    function evaluateSegmentWithGroupRow(seg, g, listIdx) {
+        const textOk = evaluateSegment(seg, g.term, g.scopes, g.isRegex, g.isInvert, g.statuses, g.tmVal);
+        return textOk && segmentPassesSfRowRangePure(listIdx, sfRowSpecFromGroup(g));
+    }
+
     function getSfFilterSpecHash() {
-        const adv = document.getElementById('sfAdvancedPanel');
-        const rrEn = document.getElementById('sfRowRangeEnabled');
-        const rrFrom = document.getElementById('sfRowRangeFrom');
-        const rrTo = document.getElementById('sfRowRangeTo');
-        const rrEx = document.getElementById('sfRowRangeExclude');
+        const advPanel = document.getElementById('sfAdvancedPanel');
+        const adv = readSfAdvancedSpecFromDom();
         return JSON.stringify({
             mode: sfMode,
             term: sfInput ? sfInput.value : '',
             scopes: Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map(cb => cb.value),
-            statuses: Array.from(document.querySelectorAll('.sf-status-cb:checked')).map(cb => cb.value),
-            tmVal: document.getElementById('sfTmMatch') ? document.getElementById('sfTmMatch').value : '',
+            statuses: adv.statuses,
+            tmVal: adv.tmVal,
             invert: btnSfInvert ? btnSfInvert.classList.contains('active') : false,
             regex: sfUseRegexChecked,
             groups: sfFilterGroups,
-            advHidden: adv ? adv.classList.contains('hidden') : true,
-            rowRangeEnabled: rrEn ? !!rrEn.checked : false,
-            rowRangeFrom: rrFrom ? String(rrFrom.value || '') : '',
-            rowRangeTo: rrTo ? String(rrTo.value || '') : '',
-            rowRangeExclude: rrEx ? !!rrEx.checked : false
+            advHidden: advPanel ? advPanel.classList.contains('hidden') : true,
+            rowRangeEnabled: adv.rowRangeEnabled,
+            rowRangeFrom: adv.rowRangeFrom,
+            rowRangeTo: adv.rowRangeTo,
+            rowRangeExclude: adv.rowRangeExclude
         });
     }
 
-    /** 句段列範圍：依目前列表顯示順序，1-based；僅在啟用且起訖皆為有效數字時生效。 */
-    function segmentPassesSfRowRange(listIndexZeroBased) {
-        const elEn = document.getElementById('sfRowRangeEnabled');
-        if (!elEn || !elEn.checked) return true;
-        const fromEl = document.getElementById('sfRowRangeFrom');
-        const toEl = document.getElementById('sfRowRangeTo');
-        const a = parseInt(fromEl && fromEl.value, 10);
-        const b = parseInt(toEl && toEl.value, 10);
-        if (!Number.isFinite(a) || !Number.isFinite(b)) return true;
-        const lo = Math.min(a, b);
-        const hi = Math.max(a, b);
-        const n = listIndexZeroBased + 1;
-        const inside = n >= lo && n <= hi;
-        const excl = document.getElementById('sfRowRangeExclude') && document.getElementById('sfRowRangeExclude').checked;
-        return excl ? !inside : inside;
-    }
-
-    function computeSegmentRowMatch(seg) {
+    /** @param {number} listIdx 目前列表顯示順序之 0-based 索引（與 grid 列一致） */
+    function computeSegmentRowMatch(seg, listIdx) {
         const term = sfInput.value;
         const scopes = Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map(cb => cb.value);
         const statuses = Array.from(document.querySelectorAll('.sf-status-cb:checked')).map(cb => cb.value);
         const tmVal = document.getElementById('sfTmMatch').value;
         const isInvert = btnSfInvert.classList.contains('active');
-            const hasUiFilter = (term || statuses.length > 0 || tmVal || isInvert);
-            const isEvalMatch = evaluateSegment(seg, term, scopes, sfUseRegexChecked, isInvert, statuses, tmVal);
-            let r_finalMatch = true;
-            if (sfFilterGroups.length > 0) {
-                if (!hasUiFilter) {
-                    r_finalMatch = evaluateSegment(seg, sfFilterGroups[0].term, sfFilterGroups[0].scopes, sfFilterGroups[0].isRegex, sfFilterGroups[0].isInvert, sfFilterGroups[0].statuses, sfFilterGroups[0].tmVal);
+        const hasUiFilter = (term || statuses.length > 0 || tmVal || isInvert);
+        const isEvalMatch = evaluateSegment(seg, term, scopes, sfUseRegexChecked, isInvert, statuses, tmVal);
+        let r_finalMatch = true;
+        if (sfFilterGroups.length > 0) {
+            if (!hasUiFilter) {
+                r_finalMatch = evaluateSegmentWithGroupRow(seg, sfFilterGroups[0], listIdx);
                 for (let i = 1; i < sfFilterGroups.length; i++) {
-                        const g = sfFilterGroups[i];
-                        const m = evaluateSegment(seg, g.term, g.scopes, g.isRegex, g.isInvert, g.statuses, g.tmVal);
-                        if (g.op === 'AND') r_finalMatch = r_finalMatch && m;
+                    const g = sfFilterGroups[i];
+                    const m = evaluateSegmentWithGroupRow(seg, g, listIdx);
+                    if (g.op === 'AND') r_finalMatch = r_finalMatch && m;
                     if (g.op === 'OR') r_finalMatch = r_finalMatch || m;
-                    }
-                } else {
-                    r_finalMatch = isEvalMatch;
-                for (let i = 0; i < sfFilterGroups.length; i++) {
-                        const g = sfFilterGroups[i];
-                        const m = evaluateSegment(seg, g.term, g.scopes, g.isRegex, g.isInvert, g.statuses, g.tmVal);
-                        if (g.op === 'AND') r_finalMatch = r_finalMatch && m;
-                    if (g.op === 'OR') r_finalMatch = r_finalMatch || m;
-                    }
                 }
             } else {
-                r_finalMatch = hasUiFilter ? isEvalMatch : true;
+                r_finalMatch = isEvalMatch;
+                for (let i = 0; i < sfFilterGroups.length; i++) {
+                    const g = sfFilterGroups[i];
+                    const m = evaluateSegmentWithGroupRow(seg, g, listIdx);
+                    if (g.op === 'AND') r_finalMatch = r_finalMatch && m;
+                    if (g.op === 'OR') r_finalMatch = r_finalMatch || m;
+                }
+            }
+        } else {
+            r_finalMatch = hasUiFilter ? isEvalMatch : true;
         }
+        const advDom = readSfAdvancedSpecFromDom();
+        r_finalMatch = r_finalMatch && segmentPassesSfRowRangePure(listIdx, sfRowSpecFromAdvancedPart(advDom));
         return r_finalMatch;
     }
 
@@ -6814,8 +6912,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (needNewSnapshot) {
                 const next = new Set();
                 currentSegmentsList.forEach((seg, listIdx) => {
-                    if (!computeSegmentRowMatch(seg)) return;
-                    if (!segmentPassesSfRowRange(listIdx)) return;
+                    if (!computeSegmentRowMatch(seg, listIdx)) return;
                     next.add(seg.id);
                 });
                 sfFilterSnapshotSegIds = next;
@@ -6828,7 +6925,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const row = rows[idx];
             if(!row) return;
 
-            const r_liveMatch = computeSegmentRowMatch(seg);
+            const r_liveMatch = computeSegmentRowMatch(seg, idx);
 
             // Filter Mode hiding：篩選模式下以快照列為準，避免句段內容變動即時剔除列
             if (sfMode === 'filter') {
@@ -7741,15 +7838,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             let statusPartText = g.statuses.length ? g.statuses.map(s => statusNames[s]||s).join('、') : '無';
             let tmPartText = g.tmVal ? g.tmVal + '' : '無';
             let statusTmPart = `句段狀態：${statusPartText} / 翻譯記憶相符度：${tmPartText}`;
+            let rowPart = '';
+            if (g.rowRangeEnabled === true) {
+                const rf = String(g.rowRangeFrom || '').trim();
+                const rt = String(g.rowRangeTo || '').trim();
+                const ex = g.rowRangeExclude ? '（範圍外）' : '';
+                rowPart = `句段編號範圍：${rf}-${rt}${ex}`;
+            }
 
             if (typeof g.locked !== 'boolean') g.locked = false;
 
             chip.innerHTML = `
                 ${opHtml}
-                <label class="sf-group-lock-wrap" title="鎖定：清除篩選時保留此群組，且不清空頂層「尋找」字串（若有任一鎖定群組）"><input type="checkbox" class="sf-group-lock-cb"${g.locked ? ' checked' : ''}>鎖</label>
+                <label class="sf-group-lock-wrap" title="鎖定：清除篩選時保留此群組，且不清空頂層「尋找」字串（若有任一鎖定群組）"><input type="checkbox" class="sf-group-lock-cb"${g.locked ? ' checked' : ''}>鎖定</label>
                 <div class="sf-group-content">
                     ${strPart ? `<div>${strPart}</div>` : ''}
                     <div>${statusTmPart}</div>
+                    ${rowPart ? `<div>${rowPart}</div>` : ''}
                 </div>
                 <div class="sf-group-del" title="移除">✖</div>
             `;
@@ -7786,22 +7891,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         sfFilterSnapshotSegIds = null;
         sfFilterLockedSpecHash = '';
         if (!preserveSfInput && sfInput) sfInput.value = '';
-        document.querySelectorAll('.sf-status-cb').forEach(c => { c.checked = false; });
-        const tmEl = document.getElementById('sfTmMatch');
-        if (tmEl) tmEl.value = '';
+        clearSfAdvancedSpecOnDom();
         btnSfInvert.classList.remove('active');
         // keep scopes & regex as they are settings
     }
 
     btnAddFilterGroup.addEventListener('click', () => {
+        const advSnap = readSfAdvancedSpecFromDom();
         sfFilterGroups.push({
             op: 'AND',
             term: sfInput.value,
             scopes: Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map(cb => cb.value),
             isRegex: sfUseRegexChecked,
             isInvert: btnSfInvert.classList.contains('active'),
-            statuses: Array.from(document.querySelectorAll('.sf-status-cb:checked')).map(cb => cb.value),
-            tmVal: document.getElementById('sfTmMatch').value,
+            statuses: advSnap.statuses.slice(),
+            tmVal: advSnap.tmVal,
+            rowRangeEnabled: advSnap.rowRangeEnabled,
+            rowRangeFrom: advSnap.rowRangeFrom,
+            rowRangeTo: advSnap.rowRangeTo,
+            rowRangeExclude: advSnap.rowRangeExclude,
             color: getRandomGroupColor(),
             locked: false
         });
@@ -7822,6 +7930,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnSaveFilterPreset.addEventListener('click', () => {
         const name = prompt('請輸入常用篩選與搜尋組合名稱：');
         if(!name) return;
+        const advCur = readSfAdvancedSpecFromDom();
         sfPresets[name] = {
             groups: JSON.parse(JSON.stringify(sfFilterGroups)),
             current: {
@@ -7829,8 +7938,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 scopes: Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map(cb => cb.value),
                 isRegex: sfUseRegexChecked,
                 isInvert: btnSfInvert.classList.contains('active'),
-                statuses: Array.from(document.querySelectorAll('.sf-status-cb:checked')).map(cb => cb.value),
-                tmVal: document.getElementById('sfTmMatch').value,
+                statuses: advCur.statuses.slice(),
+                tmVal: advCur.tmVal,
+                rowRangeEnabled: advCur.rowRangeEnabled,
+                rowRangeFrom: advCur.rowRangeFrom,
+                rowRangeTo: advCur.rowRangeTo,
+                rowRangeExclude: advCur.rowRangeExclude
             }
         };
         localStorage.setItem('catToolSfPresets', JSON.stringify(sfPresets));
@@ -7846,18 +7959,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         sfFilterGroups = JSON.parse(JSON.stringify(p.groups)).map(g => {
             if(!g.color) g.color = getRandomGroupColor();
             if (typeof g.locked !== 'boolean') g.locked = false;
+            if (typeof g.rowRangeEnabled !== 'boolean') g.rowRangeEnabled = false;
+            if (g.rowRangeFrom == null) g.rowRangeFrom = '';
+            if (g.rowRangeTo == null) g.rowRangeTo = '';
+            if (typeof g.rowRangeExclude !== 'boolean') g.rowRangeExclude = false;
             return g;
         });
         
         sfInput.value = p.current.term;
-        document.getElementById('sfTmMatch').value = p.current.tmVal || '';
+        applySfAdvancedSpecToDom({
+            tmVal: p.current.tmVal != null ? String(p.current.tmVal) : '',
+            statuses: Array.isArray(p.current.statuses) ? p.current.statuses : [],
+            rowRangeEnabled: !!p.current.rowRangeEnabled,
+            rowRangeFrom: p.current.rowRangeFrom != null ? String(p.current.rowRangeFrom) : '',
+            rowRangeTo: p.current.rowRangeTo != null ? String(p.current.rowRangeTo) : '',
+            rowRangeExclude: !!p.current.rowRangeExclude
+        });
 
         sfUseRegexChecked = p.current.isRegex;
         document.getElementById('sfUseRegex').checked = sfUseRegexChecked;
         if (p.current.isInvert) btnSfInvert.classList.add('active'); else btnSfInvert.classList.remove('active');
         
         document.querySelectorAll('.sf-scope-cb').forEach(c => c.checked = p.current.scopes.includes(c.value));
-        document.querySelectorAll('.sf-status-cb').forEach(c => c.checked = p.current.statuses.includes(c.value));
         
         document.getElementById('sfModeFilter').click();
         renderFilterGroups();

@@ -1,5 +1,5 @@
 /**
- * 與 cat-tool/app.js 內 segmentPassesSfRowRange(listIndexZeroBased) 演算法一致（無 DOM）。
+ * 與 cat-tool/app.js 內 segmentPassesSfRowRangePure(listIndexZeroBased, rowSpec) 演算法一致（無 DOM）。
  * 若 app.js 邏輯變更，請同步更新此檔並重新執行：node scripts/test-cat-sf-row-range.mjs
  */
 function segmentPassesSfRowRangePure(listIndexZeroBased, { enabled, fromVal, toVal, exclude }) {
