@@ -3,7 +3,8 @@
 完整規劃與關聯主計畫仍以 Cursor 計畫檔為準：  
 `%USERPROFILE%\.cursor\plans\cat_第三波_qa_全套_eb571303.plan.md`（若檔名有調整請以該目錄為準）。
 
-關聯主計畫：`cat_工具綜合改版_42ac9451.plan.md` 第 4 節等 QA 相關章節。
+關聯主計畫：`cat_工具綜合改版_42ac9451.plan.md` 第 4 節等 QA 相關章節。  
+可版控鏡像：[`docs/mirror/cat_工具綜合改版_42ac9451.plan.md`](mirror/cat_工具綜合改版_42ac9451.plan.md)（與本機 `%USERPROFILE%\.cursor\plans\` 同名檔同步維護）。
 
 ---
 
