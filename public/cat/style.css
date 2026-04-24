@@ -217,6 +217,8 @@ button { font-family: inherit; cursor: pointer; }
 /* 同時選取 + 編輯中：勿疊 outline 與選取偽元素邊框，避免交界線變粗 */
 .grid-data-row.active-row.selected-row { outline: none; }
 .grid-data-row.selected-row.active-row::after { border-color: var(--primary-color); }
+/* 選取外框自畫底邊，避免與列底部分隔線疊成雙倍粗 */
+.grid-data-row.selected-row { border-bottom-color: transparent; }
 
 .col-id {
     cursor: pointer; user-select: none; transition: background 0.1s;
@@ -504,7 +506,8 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     pointer-events: none;
     z-index: 11;
 }
-.selected-row + .selected-row::after {
+/* 與上一可見選取列相接時由 JS 加 .selected-abut-top（篩選／非連續選取時 DOM 相鄰選擇器不可靠） */
+.grid-data-row.selected-row.selected-abut-top::after {
     border-top: none;
     inset: -1px 0 -1px 0;
 }

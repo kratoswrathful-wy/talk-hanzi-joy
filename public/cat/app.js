@@ -354,7 +354,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** 篩選下已隱藏列自 selectedRowIds 剔除，並同步 .selected-row 與「在選取範圍取代」文案。 */
     function syncSelectedRowIdsWithVisibleGrid() {
         if (sfMode !== 'filter' || !gridBody) return;
-        if (!selectedRowIds || selectedRowIds.size === 0) return;
+        if (!selectedRowIds || selectedRowIds.size === 0) {
+            syncSelectedRowAbutmentTopClass();
+            return;
+        }
         const gRows = gridBody.querySelectorAll('.grid-data-row');
         let changed = false;
         gRows.forEach((r) => {
@@ -372,6 +375,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             else r.classList.remove('selected-row');
         });
         updateSfReplaceAllButtonLabel();
+        syncSelectedRowAbutmentTopClass();
+    }
+
+    /**
+     * 多選外框：以「畫面上可見的上一列」是否同為選取列，決定是否隱藏本列 ::after 的頂邊。
+     * 僅靠 .selected-row + .selected-row 在篩選（中間列 display:none）或非連續選取時會失效，造成交界線雙倍粗。
+     */
+    function syncSelectedRowAbutmentTopClass() {
+        if (!gridBody) return;
+        const gRows = gridBody.querySelectorAll('.grid-data-row');
+        gRows.forEach((r) => r.classList.remove('selected-abut-top'));
+        const visible = Array.from(gRows).filter(isGridDataRowFilterVisible);
+        for (let i = 1; i < visible.length; i++) {
+            const row = visible[i];
+            if (!row.classList.contains('selected-row')) continue;
+            const prev = visible[i - 1];
+            if (prev.classList.contains('selected-row')) row.classList.add('selected-abut-top');
+        }
     }
 
     const progressFill = document.getElementById('progressFill');
@@ -6557,6 +6578,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (selectedRowIds.has(rId)) r.classList.add('selected-row');
                 else r.classList.remove('selected-row');
             });
+            syncSelectedRowAbutmentTopClass();
         }
         // F8: 插入下一個缺漏標籤（只插單一 tag；有選取且下一個可成對才包一對）
         if (e.key === 'F8' && currentFileId && !e.ctrlKey) {
@@ -7388,6 +7410,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         }
+        syncSelectedRowAbutmentTopClass();
     }
 
     function updateMatchHighlightFocus() {
@@ -9499,6 +9522,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (selectedRowIds.has(rId)) r.classList.add('selected-row');
                         else r.classList.remove('selected-row');
                     });
+                    syncSelectedRowAbutmentTopClass();
                 }
                 renderLiveTmMatches(seg);
                 renderSegmentComments(seg);
@@ -9631,6 +9655,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         });
                         if (!effectiveLocked) targetInput?.focus();
                         updateSfReplaceAllButtonLabel();
+                        syncSelectedRowAbutmentTopClass();
                         return;
                     } else {
                         selectedRowIds.clear();
@@ -9658,6 +9683,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         else r.classList.remove('selected-row');
                     });
                     updateSfReplaceAllButtonLabel();
+                    syncSelectedRowAbutmentTopClass();
                 });
             }
 
@@ -10143,6 +10169,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateProgress();
         applyCollabFocusOutlines();
         updateSfReplaceAllButtonLabel();
+        syncSelectedRowAbutmentTopClass();
         // 非列印字元模式：每次渲染完成後更新標記
         if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
             requestAnimationFrame(applyNonPrintMarkersAll);
@@ -10636,6 +10663,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             selectedRowIds.add(targetId);
             document.querySelectorAll('.grid-data-row').forEach(r => r.classList.remove('selected-row'));
             targetRow.classList.add('selected-row');
+            syncSelectedRowAbutmentTopClass();
         }
 
         e.preventDefault();
