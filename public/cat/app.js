@@ -6218,6 +6218,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sfReplaceInput = document.getElementById('sfReplaceInput');
     const btnSfReplaceThis = document.getElementById('btnSfReplaceThis');
     const btnSfReplaceAll = document.getElementById('btnSfReplaceAll');
+    const sfModeLockedTitle = '正在使用進階搜尋，無法切換為搜尋狀態';
+    function updateSfModeToggleLockState() {
+        const locked = !sfAdvancedPanel.classList.contains('hidden');
+        [sfModeSearch, sfModeFilter].forEach((btn) => {
+            if (!btn) return;
+            btn.disabled = locked;
+            if (locked) btn.title = sfModeLockedTitle;
+            else btn.title = btn.id === 'sfModeSearch' ? '搜尋' : '篩選';
+        });
+    }
     let sfRunUiTimer = null;
     let sfRunOnNextFrameQueued = false;
 
@@ -6249,6 +6259,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         sfAdvancedPanel.classList.toggle('hidden');
         const isHidden = sfAdvancedPanel.classList.contains('hidden');
         btnToggleAdvancedSF.textContent = isHidden ? '▼' : '▲';
+        updateSfModeToggleLockState();
         // 當進階篩選啟動時，鎖定為「篩選」模式
         if (!isHidden) {
             sfMode = 'filter';
@@ -6284,6 +6295,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         scheduleRunSearchAndFilter();
         emitCollabFocus('control', 'sfModeFilter');
     });
+    updateSfModeToggleLockState();
     sfUseRegex.addEventListener('change', (e) => { sfUseRegexChecked = e.target.checked; scheduleRunSearchAndFilter(); });
     btnSfInvert.addEventListener('click', () => {
         if (btnSfInvert.classList.contains('sf-invert-disabled')) return;
