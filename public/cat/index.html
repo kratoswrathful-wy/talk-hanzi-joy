@@ -591,28 +591,28 @@
                                     <!-- Row 1 -->
                                     <div class="sf-cell sf-cell-mode">
                                         <div class="sf-mode-toggle">
-                                            <button id="sfModeSearch" class="sf-mode-btn active" title="搜尋"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
-                                            <button id="sfModeFilter" class="sf-mode-btn" title="篩選"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></button>
+                                            <button id="sfModeSearch" class="sf-mode-btn active" title="搜尋" tabindex="1"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
+                                            <button id="sfModeFilter" class="sf-mode-btn" title="篩選" tabindex="2"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></button>
                                         </div>
                                     </div>
                                     <div class="sf-cell sf-cell-invert">
-                                        <button class="icon-btn btn-sm sf-invert-btn sf-invert-disabled" id="btnSfInvert" title="不包含" style="font-weight:bold; font-size:1rem;">¬</button>
+                                        <button class="icon-btn btn-sm sf-invert-btn sf-invert-disabled" id="btnSfInvert" title="不包含" style="font-weight:bold; font-size:1rem;" tabindex="3">¬</button>
                                     </div>
                                     <span class="sf-cell sf-cell-label">尋找：</span>
                                     <div class="sf-cell sf-cell-input">
-                                        <input type="text" id="sfInput" class="sf-input" placeholder="對焦到此處 (Ctrl+F)" autocomplete="off">
+                                        <input type="text" id="sfInput" class="sf-input" placeholder="對焦到此處 (Ctrl+F)" autocomplete="off" tabindex="6">
                                     </div>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfPrev" title="上一個符合項目">上一個</button>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfNext" title="下一個符合項目">下一個</button>
-                                    <button class="sf-cell icon-btn btn-sm sf-clear-nav-btn" id="btnSfClearNav" title="清除所有條件並回到最後編輯位置 (Alt+F)">✖</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfPrev" title="上一個符合項目" tabindex="7">上一個</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfNext" title="下一個符合項目" tabindex="8">下一個</button>
+                                    <button class="sf-cell icon-btn btn-sm sf-clear-nav-btn" id="btnSfClearNav" title="清除所有條件並回到最後編輯位置 (Alt+F)" tabindex="12">✖</button>
                                     <!-- Row 2 -->
                                     <div class="sf-cell sf-cell-mode mq-role-hidden" id="sfCellModeRow2">
-                                        <button class="icon-btn btn-sm" id="btnToggleAdvancedSF" title="進階篩選">▼</button>
+                                        <button class="icon-btn btn-sm" id="btnToggleAdvancedSF" title="進階篩選" tabindex="4">▼</button>
                                         <span id="mqRoleIcon" class="mq-role-icon" style="display:none;" title="作業中身分：T">✓</span>
                                     </div>
                                     <div class="sf-cell sf-cell-invert">
                                         <div class="sf-options-popover-wrap" style="position:relative;">
-                                            <button class="icon-btn btn-sm" id="btnSfOptionsPopover" title="搜尋範圍與選項">⋯</button>
+                                            <button class="icon-btn btn-sm" id="btnSfOptionsPopover" title="搜尋範圍與選項" tabindex="5">⋯</button>
                                             <div class="sf-options-popover hidden" id="sfOptionsPopover">
                                                 <div class="sf-options-popover-inner">
                                                     <label class="sf-options-row"><input type="checkbox" value="source" class="sf-scope-cb" checked> 原文</label>
@@ -626,10 +626,10 @@
                                     </div>
                                     <span class="sf-cell sf-cell-label">取代：</span>
                                     <div class="sf-cell sf-cell-input">
-                                        <input type="text" id="sfReplaceInput" class="sf-input sf-replace-input" placeholder="取代為…" autocomplete="off">
+                                        <input type="text" id="sfReplaceInput" class="sf-input sf-replace-input" placeholder="取代為…" autocomplete="off" tabindex="9">
                                     </div>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceThis" title="取代目前選取的搜尋目標；若無選取則跳到最近的下一個目標再取代。完成後會跳到下一個選取目標。">取代這個</button>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceAll" title="取代目前顯示的有效句段中所有相符內容。僅選取一句時視同未選取（全部取代）；同時選取兩句以上時只處理選取範圍。">全部取代</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceThis" title="取代目前選取的搜尋目標；若無選取則跳到最近的下一個目標再取代。完成後會跳到下一個選取目標。" tabindex="10">取代這個</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceAll" title="取代目前顯示的有效句段中所有相符內容。僅選取一句時視同未選取（全部取代）；同時選取兩句以上時只處理選取範圍。" tabindex="11">全部取代</button>
                                     <span id="sfMatchCount" class="sf-cell sf-match-count">0/0</span>
                                 </div>
                             </div>
