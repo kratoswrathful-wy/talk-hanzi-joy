@@ -6182,6 +6182,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let sfSearchMatches = [];
     let sfActiveMatchIdx = -1;
     let sfLastFocusedMatchSegIdx = null;
+    let sfHadHighlightMarkup = false;
     let sfFilterGroups = []; // [{ op: 'AND'/'OR', term, scopes, isRegex, isInvert, statuses, tms }]
     let sfFilterSnapshotSegIds = null;
     let sfFilterLockedSpecHash = '';
@@ -6901,13 +6902,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    function buildSfUiCriteria() {
+        const adv = readSfAdvancedSpecFromDom();
+        return {
+            term: sfInput.value,
+            scopes: Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map(cb => cb.value),
+            statuses: adv.statuses,
+            tmVal: adv.tmVal,
+            isInvert: btnSfInvert.classList.contains('active'),
+            rowSpec: sfRowSpecFromAdvancedPart(adv)
+        };
+    }
+
     /** @param {number} listIdx 目前列表顯示順序之 0-based 索引（與 grid 列一致） */
-    function computeSegmentRowMatch(seg, listIdx) {
-        const term = sfInput.value;
-        const scopes = Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map(cb => cb.value);
-        const statuses = Array.from(document.querySelectorAll('.sf-status-cb:checked')).map(cb => cb.value);
-        const tmVal = document.getElementById('sfTmMatch').value;
-        const isInvert = btnSfInvert.classList.contains('active');
+    function computeSegmentRowMatch(seg, listIdx, criteria) {
+        const term = criteria.term;
+        const scopes = criteria.scopes;
+        const statuses = criteria.statuses;
+        const tmVal = criteria.tmVal;
+        const isInvert = criteria.isInvert;
         const hasUiFilter = (term || statuses.length > 0 || tmVal || isInvert);
         const isEvalMatch = evaluateSegment(seg, term, scopes, sfUseRegexChecked, isInvert, statuses, tmVal);
         let r_finalMatch = true;
@@ -6932,8 +6945,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             r_finalMatch = hasUiFilter ? isEvalMatch : true;
         }
-        const advDom = readSfAdvancedSpecFromDom();
-        r_finalMatch = r_finalMatch && segmentPassesSfRowRangePure(listIdx, sfRowSpecFromAdvancedPart(advDom));
+        r_finalMatch = r_finalMatch && segmentPassesSfRowRangePure(listIdx, criteria.rowSpec);
         return r_finalMatch;
     }
 
@@ -6958,13 +6970,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         sfActiveMatchIdx = -1;
         sfLastFocusedMatchSegIdx = null;
         
-        const term = sfInput.value;
-        const scopes = Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map(cb => cb.value);
-        const statuses = Array.from(document.querySelectorAll('.sf-status-cb:checked')).map(cb => cb.value);
-        const tmVal = document.getElementById('sfTmMatch').value;
-        const isInvert = btnSfInvert.classList.contains('active');
+        const criteria = buildSfUiCriteria();
+        const term = criteria.term;
+        const scopes = criteria.scopes;
         
         const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+        const hasGroupTerm = sfFilterGroups.some((g) => !!(g && g.term));
+        const hasAnyHighlightTerm = !!term || hasGroupTerm;
+        const needResetMarksOnly = !hasAnyHighlightTerm && sfHadHighlightMarkup;
 
         const specHash = getSfFilterSpecHash();
         let didRebuildFilterSnapshot = false;
@@ -6976,7 +6989,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (needNewSnapshot) {
                 const next = new Set();
                 currentSegmentsList.forEach((seg, listIdx) => {
-                    if (!computeSegmentRowMatch(seg, listIdx)) return;
+                    if (!computeSegmentRowMatch(seg, listIdx, criteria)) return;
                     next.add(seg.id);
                 });
                 sfFilterSnapshotSegIds = next;
@@ -6989,7 +7002,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const row = rows[idx];
             if(!row) return;
 
-            const r_liveMatch = computeSegmentRowMatch(seg, idx);
+            const r_liveMatch = computeSegmentRowMatch(seg, idx, criteria);
 
             // Filter Mode hiding：篩選模式下以快照列為準，避免句段內容變動即時剔除列
             if (sfMode === 'filter') {
@@ -6999,21 +7012,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                 row.style.display = '';
             }
 
-            // 清除可見欄的搜尋 mark。原文/譯文以 buildTaggedHtml 從 segment 重畫，避免內層 <mark> 遺留或破壞 tag pill
-            row.querySelectorAll('.col-extra, .col-id, [class^="col-key-"]').forEach(cell => {
-                cell.innerHTML = cell.innerHTML.replace(/<mark class="search-match[^>]*>|<\/mark>/g, '');
-            });
-            const sourceEditorReset = row.querySelector('.col-source .rt-editor');
-            if (sourceEditorReset) {
-                setEditorHtml(sourceEditorReset, buildTaggedHtml(seg.sourceText || '', seg.sourceTags || [], true));
+            // 只有在需要高亮或需要清除舊高亮時才做重型重畫。
+            if (hasAnyHighlightTerm || needResetMarksOnly) {
+                row.querySelectorAll('.col-extra, .col-id, [class^="col-key-"]').forEach(cell => {
+                    cell.innerHTML = cell.innerHTML.replace(/<mark class="search-match[^>]*>|<\/mark>/g, '');
+                });
+                const sourceEditorReset = row.querySelector('.col-source .rt-editor');
+                if (sourceEditorReset) {
+                    setEditorHtml(sourceEditorReset, buildTaggedHtml(seg.sourceText || '', seg.sourceTags || [], true));
+                }
+                const targetEditor = row.querySelector('.grid-textarea');
+                if (targetEditor) {
+                    const currentText = seg.targetText || '';
+                    setEditorHtml(targetEditor, buildTaggedHtml(currentText, effectiveTags(seg)));
+                }
+                updateTagColors(row, seg.targetText);
             }
-            // Reset target contenteditable: rebuild from stored text to remove old marks
-            const targetEditor = row.querySelector('.grid-textarea');
-            if (targetEditor) {
-                const currentText = seg.targetText || '';
-                setEditorHtml(targetEditor, buildTaggedHtml(currentText, effectiveTags(seg)));
-            }
-            updateTagColors(row, seg.targetText);
 
             // --- Apply Highlighting ---
             // Build a list of highlight requests for this row
@@ -7122,6 +7136,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         });
+
+        sfHadHighlightMarkup = hasAnyHighlightTerm;
 
         if (sfMode === 'filter') {
             syncSelectedRowIdsWithVisibleGrid();
