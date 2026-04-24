@@ -591,28 +591,28 @@
                                     <!-- Row 1 -->
                                     <div class="sf-cell sf-cell-mode">
                                         <div class="sf-mode-toggle">
-                                            <button id="sfModeSearch" class="sf-mode-btn active" title="搜尋" tabindex="8"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
-                                            <button id="sfModeFilter" class="sf-mode-btn" title="篩選" tabindex="9"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></button>
+                                            <button id="sfModeSearch" class="sf-mode-btn active" title="搜尋"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
+                                            <button id="sfModeFilter" class="sf-mode-btn" title="篩選"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></button>
                                         </div>
                                     </div>
                                     <div class="sf-cell sf-cell-invert">
-                                        <button class="icon-btn btn-sm sf-invert-btn sf-invert-disabled" id="btnSfInvert" title="不包含" style="font-weight:bold; font-size:1rem;" tabindex="10">¬</button>
+                                        <button class="icon-btn btn-sm sf-invert-btn sf-invert-disabled" id="btnSfInvert" title="不包含" style="font-weight:bold; font-size:1rem;">¬</button>
                                     </div>
                                     <span class="sf-cell sf-cell-label">尋找：</span>
                                     <div class="sf-cell sf-cell-input">
-                                        <input type="text" id="sfInput" class="sf-input" placeholder="對焦到此處 (Ctrl+F)" autocomplete="off" tabindex="13">
+                                        <input type="text" id="sfInput" class="sf-input" placeholder="對焦到此處 (Ctrl+F)" autocomplete="off">
                                     </div>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfPrev" title="上一個符合項目" tabindex="14">上一個</button>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfNext" title="下一個符合項目" tabindex="15">下一個</button>
-                                    <button class="sf-cell icon-btn btn-sm sf-clear-nav-btn" id="btnSfClearNav" title="清除所有條件並回到最後編輯位置 (Alt+F)" tabindex="19">✖</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfPrev" title="上一個符合項目">上一個</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfNext" title="下一個符合項目">下一個</button>
+                                    <button class="sf-cell icon-btn btn-sm sf-clear-nav-btn" id="btnSfClearNav" title="清除所有條件並回到最後編輯位置 (Alt+F)">✖</button>
                                     <!-- Row 2 -->
                                     <div class="sf-cell sf-cell-mode mq-role-hidden" id="sfCellModeRow2">
-                                        <button class="icon-btn btn-sm" id="btnToggleAdvancedSF" title="進階篩選" tabindex="11">▼</button>
+                                        <button class="icon-btn btn-sm" id="btnToggleAdvancedSF" title="進階篩選">▼</button>
                                         <span id="mqRoleIcon" class="mq-role-icon" style="display:none;" title="作業中身分：T">✓</span>
                                     </div>
                                     <div class="sf-cell sf-cell-invert">
                                         <div class="sf-options-popover-wrap" style="position:relative;">
-                                            <button class="icon-btn btn-sm" id="btnSfOptionsPopover" title="搜尋範圍與選項" tabindex="12">⋯</button>
+                                            <button class="icon-btn btn-sm" id="btnSfOptionsPopover" title="搜尋範圍與選項">⋯</button>
                                             <div class="sf-options-popover hidden" id="sfOptionsPopover">
                                                 <div class="sf-options-popover-inner">
                                                     <label class="sf-options-row"><input type="checkbox" value="source" class="sf-scope-cb" checked> 原文</label>
@@ -626,10 +626,10 @@
                                     </div>
                                     <span class="sf-cell sf-cell-label">取代：</span>
                                     <div class="sf-cell sf-cell-input">
-                                        <input type="text" id="sfReplaceInput" class="sf-input sf-replace-input" placeholder="取代為…" autocomplete="off" tabindex="16">
+                                        <input type="text" id="sfReplaceInput" class="sf-input sf-replace-input" placeholder="取代為…" autocomplete="off">
                                     </div>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceThis" title="取代目前選取的搜尋目標；若無選取則跳到最近的下一個目標再取代。完成後會跳到下一個選取目標。" tabindex="17">取代這個</button>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceAll" title="取代目前顯示的有效句段中所有相符內容。僅選取一句時視同未選取（全部取代）；同時選取兩句以上時只處理選取範圍。" tabindex="18">全部取代</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceThis" title="取代目前選取的搜尋目標；若無選取則跳到最近的下一個目標再取代。完成後會跳到下一個選取目標。">取代這個</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceAll" title="取代目前顯示的有效句段中所有相符內容。僅選取一句時視同未選取（全部取代）；同時選取兩句以上時只處理選取範圍。">全部取代</button>
                                     <span id="sfMatchCount" class="sf-cell sf-match-count">0/0</span>
                                 </div>
                             </div>
@@ -642,38 +642,39 @@
                                 <div class="sf-adv-section">
                                     <strong>句段狀態</strong>
                                     <div class="sf-adv-grid">
-                                        <label><input type="checkbox" class="sf-status-cb" value="empty" tabindex="1"> 空白</label>
-                                        <label><input type="checkbox" class="sf-status-cb" value="not_empty" tabindex="2"> 非空白</label>
-                                        <label><input type="checkbox" class="sf-status-cb" value="confirmed" tabindex="3"> 已確認</label>
-                                        <label><input type="checkbox" class="sf-status-cb" value="unconfirmed" tabindex="4"> 未確認</label>
-                                        <label><input type="checkbox" class="sf-status-cb" value="locked" tabindex="5"> 鎖定</label>
-                                        <label><input type="checkbox" class="sf-status-cb" value="unlocked" tabindex="6"> 未鎖定</label>
+                                        <label><input type="checkbox" class="sf-status-cb" value="empty"> 空白</label>
+                                        <label><input type="checkbox" class="sf-status-cb" value="not_empty"> 非空白</label>
+                                        <label><input type="checkbox" class="sf-status-cb" value="confirmed"> 已確認</label>
+                                        <label><input type="checkbox" class="sf-status-cb" value="unconfirmed"> 未確認</label>
+                                        <label><input type="checkbox" class="sf-status-cb" value="locked"> 鎖定</label>
+                                        <label><input type="checkbox" class="sf-status-cb" value="unlocked"> 未鎖定</label>
                                     </div>
                                 </div>
 
                                 <div class="sf-adv-section" style="flex:1;">
                                     <strong>翻譯記憶相符度 (%)</strong>
                                     <div style="display:flex; align-items:center; gap:0.5rem; font-size: 0.85rem;" title="支援格式：-x (x含以下)、x-y (區間)、y- (y含以上)">
-                                        <input type="text" id="sfTmMatch" class="sf-input" placeholder="例: 80-100, -90, 85-" tabindex="7" style="flex: none; width: 140px; padding: 0.2rem 0.4rem;">
+                                        <input type="text" id="sfTmMatch" class="sf-input" placeholder="例: 80-100, -90, 85-" style="flex: none; width: 140px; padding: 0.2rem 0.4rem;">
                                     </div>
                                 </div>
 
                                 <div class="sf-adv-section" style="flex-basis:100%;" title="依目前列表由上而下順序，與句段編號（# 欄）一致，1 起算">
                                     <strong>句段編號範圍</strong>
                                     <div style="display:flex; flex-wrap:wrap; align-items:center; gap:0.45rem; font-size:0.85rem; margin-top:0.25rem;">
-                                        <label style="display:flex; align-items:center; gap:0.25rem;"><input type="checkbox" id="sfRowRangeEnabled" tabindex="8"> 顯示此範圍</label>
-                                        <input type="number" id="sfRowRangeFrom" class="sf-input" min="1" step="1" placeholder="起" tabindex="9" style="width:4rem; padding:0.15rem 0.35rem;">
+                                        <label style="display:flex; align-items:center; gap:0.25rem;"><input type="checkbox" id="sfRowRangeEnabled"> 顯示</label>
+                                        <label style="display:flex; align-items:center; gap:0.25rem;"><input type="checkbox" id="sfRowRangeExclude"> 排除</label>
+                                        <span>此範圍</span>
+                                        <input type="number" id="sfRowRangeFrom" class="sf-input" min="1" step="1" placeholder="起" style="width:4rem; padding:0.15rem 0.35rem;">
                                         <span>-</span>
-                                        <input type="number" id="sfRowRangeTo" class="sf-input" min="1" step="1" placeholder="訖" tabindex="10" style="width:4rem; padding:0.15rem 0.35rem;">
-                                        <label style="display:flex; align-items:center; gap:0.25rem; margin-left:0.25rem;"><input type="checkbox" id="sfRowRangeExclude" tabindex="11"> 排除此範圍</label>
+                                        <input type="number" id="sfRowRangeTo" class="sf-input" min="1" step="1" placeholder="訖" style="width:4rem; padding:0.15rem 0.35rem;">
                                     </div>
                                 </div>
 
                                 <div class="sf-adv-actions">
-                                    <button type="button" class="primary-btn btn-sm" id="btnAddFilterGroup" tabindex="12">加入篩選群組</button>
-                                    <button type="button" class="secondary-btn btn-sm" id="btnSaveFilterPreset" tabindex="13">儲存常用組合</button>
-                                    <button type="button" class="secondary-btn btn-sm" id="btnManageFilterPresets" tabindex="14">管理常用組合</button>
-                                    <select id="sfPresetsSelect" class="sf-presets-select" tabindex="15">
+                                    <button type="button" class="primary-btn btn-sm" id="btnAddFilterGroup">加入篩選群組</button>
+                                    <button type="button" class="secondary-btn btn-sm" id="btnSaveFilterPreset">儲存常用組合</button>
+                                    <button type="button" class="secondary-btn btn-sm" id="btnManageFilterPresets">管理常用組合</button>
+                                    <select id="sfPresetsSelect" class="sf-presets-select">
                                         <option value="">-- 套用常用組合 --</option>
                                     </select>
                                 </div>

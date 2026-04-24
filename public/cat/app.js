@@ -6312,6 +6312,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             const el = document.getElementById(id);
             if (!el) return;
             const go = () => scheduleRunSearchAndFilter();
+            if (id === 'sfRowRangeEnabled') {
+                el.addEventListener('change', () => {
+                    if (el.checked) {
+                        const ex = document.getElementById('sfRowRangeExclude');
+                        if (ex) ex.checked = false;
+                    }
+                    go();
+                });
+                return;
+            }
+            if (id === 'sfRowRangeExclude') {
+                el.addEventListener('change', () => {
+                    if (el.checked) {
+                        const en = document.getElementById('sfRowRangeEnabled');
+                        if (en) en.checked = false;
+                    }
+                    go();
+                });
+                return;
+            }
             if (el.type === 'number') {
                 el.addEventListener('input', () => {
                     scheduleRunSearchAndFilter(300);
@@ -6671,19 +6691,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         return exclude ? !inside : inside;
     }
 
+    function normalizeRowRangeFlags(rowRangeEnabled, rowRangeExclude) {
+        const enabled = !!rowRangeEnabled;
+        const exclude = !!rowRangeExclude;
+        // 使用者定案：顯示/排除互斥；若資料同時為 true，排除優先。
+        if (enabled && exclude) return { rowRangeEnabled: false, rowRangeExclude: true };
+        return { rowRangeEnabled: enabled, rowRangeExclude: exclude };
+    }
+
     function readSfAdvancedSpecFromDom() {
         const tmEl = document.getElementById('sfTmMatch');
         const rrEn = document.getElementById('sfRowRangeEnabled');
         const rrFrom = document.getElementById('sfRowRangeFrom');
         const rrTo = document.getElementById('sfRowRangeTo');
         const rrEx = document.getElementById('sfRowRangeExclude');
+        const rrNorm = normalizeRowRangeFlags(rrEn ? !!rrEn.checked : false, rrEx ? !!rrEx.checked : false);
         return {
             tmVal: tmEl ? String(tmEl.value || '') : '',
             statuses: Array.from(document.querySelectorAll('.sf-status-cb:checked')).map((cb) => cb.value),
-            rowRangeEnabled: rrEn ? !!rrEn.checked : false,
+            rowRangeEnabled: rrNorm.rowRangeEnabled,
             rowRangeFrom: rrFrom ? String(rrFrom.value || '') : '',
             rowRangeTo: rrTo ? String(rrTo.value || '') : '',
-            rowRangeExclude: rrEx ? !!rrEx.checked : false
+            rowRangeExclude: rrNorm.rowRangeExclude
         };
     }
 
@@ -6704,6 +6733,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** @param {Partial<ReturnType<typeof readSfAdvancedSpecFromDom>>} spec */
     function applySfAdvancedSpecToDom(spec) {
         if (!spec) return;
+        const curEnabledEl = document.getElementById('sfRowRangeEnabled');
+        const curExcludeEl = document.getElementById('sfRowRangeExclude');
+        const nextFlags = normalizeRowRangeFlags(
+            spec.rowRangeEnabled !== undefined ? !!spec.rowRangeEnabled : (curEnabledEl ? !!curEnabledEl.checked : false),
+            spec.rowRangeExclude !== undefined ? !!spec.rowRangeExclude : (curExcludeEl ? !!curExcludeEl.checked : false)
+        );
         if (spec.tmVal !== undefined) {
             const el = document.getElementById('sfTmMatch');
             if (el) el.value = spec.tmVal;
@@ -6715,7 +6750,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (spec.rowRangeEnabled !== undefined) {
             const el = document.getElementById('sfRowRangeEnabled');
-            if (el) el.checked = !!spec.rowRangeEnabled;
+            if (el) el.checked = nextFlags.rowRangeEnabled;
         }
         if (spec.rowRangeFrom !== undefined) {
             const el = document.getElementById('sfRowRangeFrom');
@@ -6727,29 +6762,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (spec.rowRangeExclude !== undefined) {
             const el = document.getElementById('sfRowRangeExclude');
-            if (el) el.checked = !!spec.rowRangeExclude;
+            if (el) el.checked = nextFlags.rowRangeExclude;
         }
     }
 
     function sfRowSpecFromAdvancedPart(adv) {
         if (!adv) return { enabled: false, fromVal: '', toVal: '', exclude: false };
+        const flags = normalizeRowRangeFlags(adv.rowRangeEnabled, adv.rowRangeExclude);
         return {
-            enabled: !!adv.rowRangeEnabled,
+            enabled: !!(flags.rowRangeEnabled || flags.rowRangeExclude),
             fromVal: adv.rowRangeFrom,
             toVal: adv.rowRangeTo,
-            exclude: !!adv.rowRangeExclude
+            exclude: !!flags.rowRangeExclude
         };
     }
 
     function sfRowSpecFromGroup(g) {
-        if (!g || g.rowRangeEnabled !== true) {
+        if (!g) {
+            return { enabled: false, fromVal: '', toVal: '', exclude: false };
+        }
+        const flags = normalizeRowRangeFlags(g.rowRangeEnabled, g.rowRangeExclude);
+        if (!flags.rowRangeEnabled && !flags.rowRangeExclude) {
             return { enabled: false, fromVal: '', toVal: '', exclude: false };
         }
         return {
             enabled: true,
             fromVal: String(g.rowRangeFrom ?? ''),
             toVal: String(g.rowRangeTo ?? ''),
-            exclude: !!g.rowRangeExclude
+            exclude: !!flags.rowRangeExclude
         };
     }
 
