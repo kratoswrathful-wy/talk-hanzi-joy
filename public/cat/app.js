@@ -2168,6 +2168,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadFilesList();
         await loadProjectTms(p);
         await loadProjectTbs(p);
+        _activeNoteProjectId = projectId;
+        initProjectDetailNotesPanel();
+        await _loadPrivateNotes();
+        await _refreshSharedInfoUi();
     }
 
     btnBackToProjects.addEventListener('click', () => switchView('viewProjects'));
@@ -3188,15 +3192,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** Stub for legacy references (workspace notes table replaced by shared info panel) */
     async function loadWorkspaceNotesList() { /* no-op: replaced by shared info */ }
 
-    // ---- Project page: shared info button ----
-    (function initProjectSharedInfoBtn() {
-        document.addEventListener('click', async (e) => {
-            if (e.target && e.target.id === 'btnOpenSharedInfo') {
-                if (!currentProjectId) return;
-                await openSharedInfoModal(currentProjectId);
-            }
-        });
-    })();
 
     async function updateProjectDetailChangeLog(project) {
         if (!projectDetailChangeLog) return;
@@ -11060,6 +11055,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let _guidelineEditQuills = {}; // guideline id (string) → Quill（編輯準則／共用筆記中）
     let _activeNoteProjectId = null;
     let _notesPanelInitialized = false;
+    let _projectDetailNotesPanelInitialized = false;
     let _privateNoteSharePending = null;
 
     /** 私人筆記／共用資訊：優先 _activeNoteProjectId，否則沿用編輯器 currentProjectId */
@@ -11181,15 +11177,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         await DBService.updateFile(f.id, { applicableSpecialInstructionIds: [...cur] });
     }
 
-    /** 側欄共用資訊 + 若共用資訊 Modal 開啟則一併重繪 */
+    /** 側欄共用資訊 + 專案頁內嵌區（同一資料） */
     async function _refreshSharedInfoUi() {
         await _loadSharedInfo();
         await loadSharedInfoAiPanel({ context: 'editor' });
-        const m = document.getElementById('sharedInfoModal');
-        const pid = _notesProjectIdOrNull();
-        if (m && !m.classList.contains('hidden') && pid) {
-            await _reloadSharedInfoModal(pid);
-        }
+        await loadSharedInfoAiPanel({ context: 'projectPage' });
     }
 
     /** 離開分頁／專案／頁面隱藏時：刪除仍為空且無討論的準則條目，與空白私人筆記 */
@@ -11375,7 +11367,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         itemType: 'note'
                     });
                     await _loadPrivateNotes();
-                    const wrap = document.getElementById(`private-note-item-${id}`);
+                    const listNotes = document.getElementById('privateNotesListNotes');
+                    const wrap = listNotes?.querySelector(`[data-note-id="${id}"]`);
                     if (wrap) {
                         wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                         _startPrivateNoteEdit(
@@ -11407,7 +11400,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         todoDone: false
                     });
                     await _loadPrivateNotes();
-                    const wrap = document.getElementById(`private-todo-item-${id}`);
+                    const listTodos = document.getElementById('privateNotesListTodos');
+                    const wrap = listTodos?.querySelector(`[data-todo-id="${id}"]`);
                     if (wrap) {
                         wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                         _startPrivateTodoEdit(
@@ -11473,6 +11467,86 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     }
 
+    function initProjectDetailNotesPanel() {
+        if (_projectDetailNotesPanelInitialized) return;
+        _projectDetailNotesPanelInitialized = true;
+        const root = document.getElementById('projectDetailNotesPanel');
+        if (!root) return;
+        root.querySelectorAll('[data-project-notes-tab]').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+                await _pruneEmptyNoteDrafts(_notesProjectIdOrNull());
+                root.querySelectorAll('[data-project-notes-tab]').forEach((b) => b.classList.remove('active'));
+                root.querySelectorAll('#projectDetailNotesBody > .notes-tab-content').forEach((c) => c.classList.remove('active'));
+                btn.classList.add('active');
+                const tabId = btn.getAttribute('data-project-notes-tab');
+                const tabEl = tabId ? document.getElementById(tabId) : null;
+                if (tabEl) tabEl.classList.add('active');
+                await _loadPrivateNotes();
+                await _refreshSharedInfoUi();
+                if (tabId === 'tabProjectSharedInfo') await loadSharedInfoAiPanel({ context: 'projectPage' });
+            });
+        });
+        const addN = document.getElementById('btnAddPrivateNoteProject');
+        if (addN) {
+            addN.addEventListener('click', async () => {
+                const pid = currentProjectId || _notesProjectIdOrNull();
+                if (!pid) {
+                    alert('無法判定專案，無法新增筆記。');
+                    return;
+                }
+                try {
+                    const id = await DBService.addPrivateNote({
+                        projectId: pid,
+                        userId: '',
+                        content: '',
+                        createdByName: getCurrentUserName(),
+                        itemType: 'note'
+                    });
+                    await _loadPrivateNotes();
+                    const list = document.getElementById('privateNotesListNotesProject');
+                    const wrap = list?.querySelector(`[data-note-id="${id}"]`);
+                    if (wrap) {
+                        wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        _startPrivateNoteEdit({ id, content: '', itemType: 'note', updatedAt: new Date().toISOString() }, wrap);
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert(err && err.message ? String(err.message) : '新增筆記失敗');
+                }
+            });
+        }
+        const addT = document.getElementById('btnAddPrivateTodoProject');
+        if (addT) {
+            addT.addEventListener('click', async () => {
+                const pid = currentProjectId || _notesProjectIdOrNull();
+                if (!pid) {
+                    alert('無法判定專案，無法新增待辦。');
+                    return;
+                }
+                try {
+                    const id = await DBService.addPrivateNote({
+                        projectId: pid,
+                        userId: '',
+                        content: '',
+                        createdByName: getCurrentUserName(),
+                        itemType: 'todo',
+                        todoDone: false
+                    });
+                    await _loadPrivateNotes();
+                    const list = document.getElementById('privateNotesListTodosProject');
+                    const wrap = list?.querySelector(`[data-todo-id="${id}"]`);
+                    if (wrap) {
+                        wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        _startPrivateTodoEdit({ id, content: '', itemType: 'todo', todoDone: false, updatedAt: new Date().toISOString() }, wrap);
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert(err && err.message ? String(err.message) : '新增待辦失敗');
+                }
+            });
+        }
+    }
+
     async function _addGuideline(type, opts) {
         const listKey = (opts && opts.listKey) || 'panel';
         const pid = _notesProjectIdOrNull();
@@ -11511,10 +11585,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function _loadPrivateNotes() {
-        const listNotes = document.getElementById('privateNotesListNotes');
-        const listTodos = document.getElementById('privateNotesListTodos');
         const pid = _notesProjectIdOrNull();
-        if (!listNotes || !listTodos || !pid) return;
+        if (!pid) return;
         if (!_activeNoteProjectId) _activeNoteProjectId = pid;
         let notes = [];
         try { notes = await DBService.getPrivateNotesByProject(pid, ''); } catch (_) {}
@@ -11524,36 +11596,53 @@ document.addEventListener('DOMContentLoaded', async () => {
         const todoRows = notes
             .filter((n) => privateNoteItemType(n) === 'todo')
             .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
-        listNotes.innerHTML = '';
-        listTodos.innerHTML = '';
-        if (!noteRows.length) {
-            listNotes.innerHTML = '<div class="private-notes-empty">目前沒有筆記。點「＋ 新增筆記」開始記錄。</div>';
-        } else {
-            noteRows.forEach((note, idx) => listNotes.appendChild(_buildPrivateNoteItem(note, idx + 1)));
+
+        function fillLists(listNotes, listTodos, listKey) {
+            if (!listNotes || !listTodos) return;
+            listNotes.innerHTML = '';
+            listTodos.innerHTML = '';
+            if (!noteRows.length) {
+                listNotes.innerHTML = '<div class="private-notes-empty">目前沒有筆記。點「＋ 新增筆記」開始記錄。</div>';
+            } else {
+                noteRows.forEach((note, idx) => listNotes.appendChild(_buildPrivateNoteItem(note, idx + 1, listKey)));
+            }
+            if (!todoRows.length) {
+                listTodos.innerHTML = '<div class="private-notes-empty">目前沒有待辦。點「＋ 新增待辦」新增。</div>';
+            } else {
+                todoRows.forEach((note) => listTodos.appendChild(_buildPrivateTodoItem(note, listKey)));
+            }
         }
-        if (!todoRows.length) {
-            listTodos.innerHTML = '<div class="private-notes-empty">目前沒有待辦。點「＋ 新增待辦」新增。</div>';
-        } else {
-            todoRows.forEach((note) => listTodos.appendChild(_buildPrivateTodoItem(note)));
-        }
+        fillLists(
+            document.getElementById('privateNotesListNotes'),
+            document.getElementById('privateNotesListTodos'),
+            'editor'
+        );
+        fillLists(
+            document.getElementById('privateNotesListNotesProject'),
+            document.getElementById('privateNotesListTodosProject'),
+            'projectPage'
+        );
     }
 
-    function _buildPrivateNoteItem(note, listIndex) {
+    function _buildPrivateNoteItem(note, listIndex, listKey) {
+        const lk = listKey || 'editor';
         const wrap = document.createElement('div');
         wrap.className = 'guideline-item private-note-item';
-        wrap.id = `private-note-item-${note.id}`;
+        wrap.id = `private-note-item-${lk}-${note.id}`;
+        wrap.setAttribute('data-note-id', String(note.id));
+        wrap.setAttribute('data-private-scope', lk);
         const idxLabel = listIndex > 0 ? `${listIndex}.` : '';
         const at = note.updatedAt ? formatGuidelineDate(note.updatedAt) : '';
         wrap.innerHTML = `
             <div class="guideline-item-row">
                 <div class="guideline-item-index">${idxLabel}</div>
                 <div class="guideline-item-main">
-                    <div class="guideline-item-body" id="pn-body-${note.id}"></div>
+                    <div class="guideline-item-body" id="pn-body-${lk}-${note.id}"></div>
                 </div>
                 <div class="guideline-item-aside">
                     <div class="guideline-item-aside-inner">
                         <span class="guideline-item-meta-combined">${at}</span>
-                        <div class="note-item-actions guideline-item-aside-actions pn-aside-${note.id}">
+                        <div class="note-item-actions guideline-item-aside-actions pn-aside-${lk}-${note.id}">
                             <button type="button" class="pn-edit-btn" title="編輯">✏️</button>
                             <button type="button" class="pn-del-btn danger" title="刪除">🗑</button>
                             <button type="button" class="gl-reply-btn pn-share-btn" title="共用至共用資訊">共用</button>
@@ -11561,7 +11650,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </div>
                 </div>
             </div>`;
-        const bodyEl = wrap.querySelector(`#pn-body-${note.id}`);
+        const bodyEl = wrap.querySelector(`#pn-body-${lk}-${note.id}`);
         bodyEl.innerHTML = note.content
             ? `<div class="ql-editor ql-snow">${note.content}</div>`
             : '<div class="guideline-item-empty">（無內容）</div>';
@@ -11578,13 +11667,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function _startPrivateNoteEdit(note, wrap) {
         const idStr = String(note.id);
-        const bodyEl = wrap.querySelector(`#pn-body-${note.id}`);
+        const lk = wrap.getAttribute('data-private-scope') || 'editor';
+        const bodyEl = wrap.querySelector(`#pn-body-${lk}-${note.id}`);
         if (!bodyEl) return;
         bodyEl.innerHTML = '';
         const q = _makeQuill(bodyEl, NOTES_TOOLBAR, '輸入內容…');
         if (note.content) { try { q.root.innerHTML = note.content; } catch (_) {} }
         _privateNoteEditQuills[idStr] = q;
-        const acts = wrap.querySelector(`.pn-aside-${note.id}`) || wrap.querySelector('.guideline-item-aside-actions');
+        const acts = wrap.querySelector(`.pn-aside-${lk}-${note.id}`) || wrap.querySelector('.guideline-item-aside-actions');
         if (acts) {
             acts.innerHTML = `
                 <button type="button" class="pn-save-btn primary-btn btn-sm">儲存</button>
@@ -11615,11 +11705,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    function _buildPrivateTodoItem(note) {
+    function _buildPrivateTodoItem(note, listKey) {
+        const lk = listKey || 'editor';
         const wrap = document.createElement('div');
         const done = !!note.todoDone;
         wrap.className = `guideline-item private-todo-item${done ? ' is-done' : ''}`;
-        wrap.id = `private-todo-item-${note.id}`;
+        wrap.id = `private-todo-item-${lk}-${note.id}`;
+        wrap.setAttribute('data-todo-id', String(note.id));
+        wrap.setAttribute('data-todo-scope', lk);
         const at = note.updatedAt ? formatGuidelineDate(note.updatedAt) : '';
         const textVal = escapeHtml(todoPlainTextFromStored(note.content));
         wrap.innerHTML = `
@@ -11628,14 +11721,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <input type="checkbox" class="private-todo-cb" ${done ? 'checked' : ''} aria-label="完成待辦">
                 </div>
                 <div class="guideline-item-main">
-                    <div class="private-todo-body" id="pt-body-${note.id}">${textVal
+                    <div class="private-todo-body" id="pt-body-${lk}-${note.id}">${textVal
                         ? `<span class="private-todo-text">${textVal}</span>`
                         : '<span class="guideline-item-empty">（無內容）</span>'}</div>
                 </div>
                 <div class="guideline-item-aside">
                     <div class="guideline-item-aside-inner">
                         <span class="guideline-item-meta-combined">${at}</span>
-                        <div class="note-item-actions guideline-item-aside-actions pt-aside-${note.id}">
+                        <div class="note-item-actions guideline-item-aside-actions pt-aside-${lk}-${note.id}">
                             <button type="button" class="pt-edit-btn" title="編輯">✏️</button>
                             <button type="button" class="pt-del-btn danger" title="刪除">🗑</button>
                         </div>
@@ -11662,7 +11755,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function _startPrivateTodoEdit(note, wrap) {
-        const bodyEl = wrap.querySelector(`#pt-body-${note.id}`);
+        const lk = wrap.getAttribute('data-todo-scope') || 'editor';
+        const bodyEl = wrap.querySelector(`#pt-body-${lk}-${note.id}`);
         if (!bodyEl) return;
         const currentText = todoPlainTextFromStored(note.content);
         bodyEl.innerHTML = '';
@@ -11674,7 +11768,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         bodyEl.appendChild(ta);
         ta.focus();
         ta.setSelectionRange(ta.value.length, ta.value.length);
-        const acts = wrap.querySelector(`.pt-aside-${note.id}`) || wrap.querySelector('.note-item-actions');
+        const acts = wrap.querySelector(`.pt-aside-${lk}-${note.id}`) || wrap.querySelector('.note-item-actions');
         if (acts) {
             acts.innerHTML = `
                 <button type="button" class="pt-save-btn primary-btn btn-sm">儲存</button>
@@ -11705,8 +11799,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!pid) return;
         let guidelines = [];
         try { guidelines = await DBService.getGuidelinesByProject(pid); } catch (_) {}
-        const shList = document.getElementById('sharedNotesList');
-        _renderGuidelinesList(guidelines.filter(g => g.type === 'shared_note'), shList, 'panel');
+        const items = guidelines.filter((g) => g.type === 'shared_note');
+        _renderGuidelinesList(items, document.getElementById('sharedNotesList'), 'panel');
+        _renderGuidelinesList(items, document.getElementById('sharedNotesListProject'), 'projectPage');
     }
 
     function _renderGuidelinesList(items, container, listKey) {
@@ -12028,37 +12123,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             try { await DBService.updatePrivateNote(parseId(id), q.root.innerHTML); } catch (_) {}
         }
     }
-
-    // ---- Shared info modal (project page) ----
-    async function openSharedInfoModal(projectId) {
-        const prev = _activeNoteProjectId;
-        if (prev != null && projectId != null && String(prev) !== String(projectId)) {
-            await _pruneEmptyNoteDrafts(prev);
-        }
-        _activeNoteProjectId = projectId;
-        let guidelines = [];
-        try { guidelines = await DBService.getGuidelinesByProject(projectId); } catch (_) {}
-        await _reloadSharedInfoModal(projectId, guidelines);
-        document.getElementById('sharedInfoModal')?.classList.remove('hidden');
-    }
-
-    async function _reloadSharedInfoModal(projectId, guidelines) {
-        if (!guidelines) {
-            try { guidelines = await DBService.getGuidelinesByProject(projectId); } catch (_) { guidelines = []; }
-        }
-        const shList = document.getElementById('sharedNotesListModal');
-        _renderGuidelinesList(guidelines.filter(g => g.type === 'shared_note'), shList, 'modal');
-        await loadSharedInfoAiPanel({ context: 'modal' });
-    }
-
-    (function initSharedInfoModal() {
-        document.getElementById('btnCloseSharedInfoModal')?.addEventListener('click', async () => {
-            await _pruneEmptyNoteDrafts(_notesProjectIdOrNull());
-            await _loadSharedInfo();
-            await loadSharedInfoAiPanel({ context: 'editor' });
-            document.getElementById('sharedInfoModal')?.classList.add('hidden');
-        });
-    })();
 
     async function restoreCatRouteFromSession() {
         try {
@@ -13082,23 +13146,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // ---- 共用資訊分頁內：AI 準則、文風、特殊指示；context modal = 專案頁彈窗（與 editor 同資料、文案「檔案」向） ----
+    // ---- 共用資訊分頁內：AI 準則、文風、特殊指示；context projectPage = 專案詳情頁內嵌（與 editor 同資料） ----
     async function loadSharedInfoAiPanel(options) {
         const context = (options && options.context) || 'editor';
-        const isModal = context === 'modal';
         const projectId = _notesProjectIdOrNull() || (typeof currentProjectId !== 'undefined' ? currentProjectId : null);
         if (!projectId) return;
 
-        const u = isModal ? {
-            gList: 'aiSelectedGuidelinesListModal',
-            sList: 'aiSelectedStyleGuidelinesListModal',
-            siList: 'aiSpecialInstructionsListModal',
-            pickG: 'btnOpenAiGuidelinePickerModal',
-            pickS: 'btnOpenAiStyleGuidelinePickerModal',
-            addSi: 'btnAddAiSpecialInstructionModal',
-            defG: 'btnApplyDefaultGuidelinesModal',
-            defS: 'btnApplyDefaultStylesModal',
-            goTo: 'linkGoToGuidelinesFromSharedModal'
+        const u = context === 'projectPage' ? {
+            gList: 'aiSelectedGuidelinesListProject',
+            sList: 'aiSelectedStyleGuidelinesListProject',
+            siList: 'aiSpecialInstructionsListProject',
+            pickG: 'btnOpenAiGuidelinePickerProject',
+            pickS: 'btnOpenAiStyleGuidelinePickerProject',
+            addSi: 'btnAddAiSpecialInstructionProject',
+            defG: 'btnApplyDefaultGuidelinesProject',
+            defS: 'btnApplyDefaultStylesProject'
         } : {
             gList: 'aiSelectedGuidelinesList',
             sList: 'aiSelectedStyleGuidelinesList',
@@ -13107,19 +13169,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             pickS: 'btnOpenAiStyleGuidelinePicker',
             addSi: 'btnAddAiSpecialInstruction',
             defG: 'btnApplyDefaultGuidelines',
-            defS: 'btnApplyDefaultStyles',
-            goTo: 'btnGoToGuidelinesFromPicker'
+            defS: 'btnApplyDefaultStyles'
         };
         const $ = (id) => document.getElementById(id);
         const selectedList = $(u.gList);
         const selectedStyleList = $(u.sList);
         const specialList = $(u.siList);
+        if (context === 'projectPage' && !selectedList && !selectedStyleList && !specialList) return;
         const openPickerBtn = $(u.pickG);
         const openStyleBtn = $(u.pickS);
         const addSpecialBtn = $(u.addSi);
         const btnDefG = $(u.defG);
         const btnDefS = $(u.defS);
-        document.querySelectorAll('#tabSharedInfo .pm-only-ui, #sharedInfoModal .pm-only-ui').forEach((el) => {
+        const isProjectSurface = context === 'projectPage';
+        document.querySelectorAll('#tabSharedInfo .pm-only-ui, #projectDetailNotesPanel .pm-only-ui').forEach((el) => {
             el.style.display = isCatSharedMutator() ? '' : 'none';
         });
 
@@ -13209,7 +13272,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const shouldShowRow = (s) => {
                 const n = _instructionIdNum(s);
                 if (n == null) return false;
-                if (isModal) {
+                if (isProjectSurface) {
                     if (isPm) return true;
                     return _appliesToAnyFile(filesNow, n) && s.enabled !== false;
                 }
@@ -13229,10 +13292,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const idBody = String(s.id).replace(/["\\]/g, '');
                 const n = _instructionIdNum(s);
                 const ap = (n == null) ? { html: '適用檔案：無', empty: true } : rowApplicabilityLineFor(filesNow, idTo1Based, s);
-                const showMeta = (isModal || (context === 'editor' && isPm)) && n != null;
+                const showMeta = (isProjectSurface || (context === 'editor' && isPm)) && n != null;
                 const metaBlock = (() => {
                     if (!showMeta) return '';
-                    if (isModal && isPm) {
+                    if (isProjectSurface && isPm) {
                         if (filesNow.length === 0) {
                             return `<div class="guideline-item-meta-combined" style="font-size:0.75rem; margin:0.2rem 0 0 0;">適用檔案：無</div>`;
                         }
@@ -13249,7 +13312,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }).join('')
                             + `</div>`;
                     }
-                    if (isModal && !isPm) {
+                    if (isProjectSurface && !isPm) {
                         return `<div class="guideline-item-meta-combined" style="font-size:0.75rem; margin:0.2rem 0 0 0;">${ap.html}</div>`;
                     }
                     if (context === 'editor' && isPm) {
@@ -13453,10 +13516,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 };
             };
         }
-        const go1 = document.getElementById('linkGoToGuidelinesFromSharedModal');
-        if (go1) go1.onclick = (e) => { e.preventDefault(); switchView('viewAiGuidelines'); loadAiGuidelinesView(); };
-        const go2 = document.getElementById('btnGoToGuidelinesFromPicker');
-        if (go2) go2.onclick = (e) => { e.preventDefault(); switchView('viewAiGuidelines'); loadAiGuidelinesView(); };
+        const goPicker = document.getElementById('btnGoToGuidelinesFromPicker');
+        if (goPicker) goPicker.onclick = (e) => { e.preventDefault(); switchView('viewAiGuidelines'); loadAiGuidelinesView(); };
     }
 
     // ---- 準則選擇器 Modal ----
