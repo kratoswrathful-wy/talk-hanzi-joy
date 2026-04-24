@@ -331,7 +331,6 @@ button { font-family: inherit; cursor: pointer; }
 }
 .sf-lock-inline-msg {
     display: none;
-    min-height: 1.8rem;
     max-width: 20rem;
     padding: 0.3rem 0.5rem;
     border-radius: 6px;
@@ -339,6 +338,7 @@ button { font-family: inherit; cursor: pointer; }
     color: #fff;
     font-size: 0.78rem;
     line-height: 1.25;
+    align-items: center;
     box-shadow: 0 4px 12px rgba(0,0,0,0.22);
     opacity: 0;
     transform: translateY(-2px);
@@ -346,7 +346,7 @@ button { font-family: inherit; cursor: pointer; }
     pointer-events: none;
 }
 .sf-lock-inline-msg.show {
-    display: block;
+    display: inline-flex;
     opacity: 1;
     transform: translateY(0);
 }
