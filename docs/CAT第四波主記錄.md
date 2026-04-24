@@ -9,7 +9,7 @@
 
 | 子階 | 主計畫節次 | frontmatter todo | 說明 |
 |------|------------|------------------|------|
-| **A** | §11 | `live-tm-cursor-ux` | **初版 `ebb9ee4` 已驗收**；**修正（與本檔同批）**：(1) `Ctrl+0` 納入 `Ctrl+Z/Y`；(2) 譯文欄 `Ctrl+K` 自動將 TM 搜尋範圍設為譯文；(3) `Ctrl+0` 後游標停在插入文字後方可繼續輸入 |
+| **A** | §11 | `live-tm-cursor-ux` | **初版 `ebb9ee4` 已驗收**；**修正 `8f8cea8`**：(1) `Ctrl+0` 納入 `Ctrl+Z/Y`；(2) 譯文欄 `Ctrl+K` 自動將 TM 搜尋範圍設為譯文；(3) `Ctrl+0` 後游標停在插入文字後方可繼續輸入 |
 | **B** | §3 | `collab-false-positive` | (A) `segmentRevision` 同步與誤報根因；(B) `applyRemoteCommit` 正規化、sessionId、去重、dev 日誌 |
 
 **原則**：A／B **可並行開發**，**分開 merge、分開驗收**（見主計畫「白話：建議怎麼分階段做」第四波段）。
