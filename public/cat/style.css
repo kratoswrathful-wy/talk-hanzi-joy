@@ -2223,3 +2223,30 @@ mark.tm-search-hit {
 }
 .show-non-print .non-print-marker { display: inline; }
 .np-end-marker { color: #b0bec5; }
+
+/* 第四波 A：離開譯文欄後顯示最後插入位置（靜態假游標） */
+.cat-fake-caret {
+    position: fixed;
+    width: 2px;
+    min-height: 14px;
+    background: #2563eb;
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 9000;
+    box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.14);
+}
+.cat-fake-caret.hidden {
+    display: none;
+}
+
+.tm-concordance-item {
+    padding: 0.45rem 0.4rem;
+    border-bottom: 1px solid #e2e8f0;
+    cursor: default;
+}
+.tm-concordance-item:hover,
+.tm-concordance-item--selected {
+    background: #eff6ff;
+    outline: 1px solid #bfdbfe;
+    outline-offset: -1px;
+}

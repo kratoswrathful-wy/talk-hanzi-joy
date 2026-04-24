@@ -6629,6 +6629,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (e.ctrlKey && e.key.toLowerCase() === 'k' && currentFileId) {
             e.preventDefault();
+            const editorBeforeTmSearch = getActiveTargetEditor();
             const sel = window.getSelection();
             const selText = sel ? sel.toString().trim() : '';
             const tmSearchInput = document.getElementById('tmSearchInput');
@@ -6637,8 +6638,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (tabBtn) tabBtn.click();
             if (tmSearchInput && tmSearchInput.value.trim()) {
                 runTmConcordanceSearch();
-            } else if (tmSearchInput) {
-                tmSearchInput.focus();
+            }
+            requestAnimationFrame(() => setCaretAtEditorEnd(editorBeforeTmSearch || getActiveTargetEditor()));
+        }
+        if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key === '0' && currentFileId) {
+            const ve = document.getElementById('viewEditor');
+            if (ve && !ve.classList.contains('hidden') && insertSelectedTextAtSavedCaret()) {
+                e.preventDefault();
+                e.stopPropagation();
             }
         }
         // 可自訂快捷鍵：清除篩選（clearFilter）
@@ -6710,6 +6717,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!ve || ve.classList.contains('hidden')) return;
         const ae = document.activeElement;
         if (ae && ae.id === 'tmSearchInput') return;
+        const tmSearchTab = document.getElementById('tabTmSearch');
+        if (tmSearchTab && tmSearchTab.classList.contains('active') && window.currentTmConcordanceMatches?.length) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof window.applyTmConcordanceAtIndex === 'function') {
+                window.applyTmConcordanceAtIndex(parseInt(e.key, 10) - 1);
+            }
+            return;
+        }
         if (!window.currentTmMatches || !window.currentTmMatches.length) return;
         e.preventDefault();
         e.stopPropagation();
@@ -7424,6 +7440,145 @@ document.addEventListener('DOMContentLoaded', async () => {
         sel.removeAllRanges();
         sel.addRange(range);
     }
+
+    let catSavedCaret = null;
+    let catFakeCaretEl = null;
+
+    function getEditorFromSelection() {
+        const sel = window.getSelection();
+        const node = sel && sel.anchorNode;
+        const el = node ? (node.nodeType === 3 ? node.parentElement : node) : null;
+        return el && el.closest ? el.closest('.grid-textarea') : null;
+    }
+
+    function getActiveTargetEditor() {
+        const ae = document.activeElement;
+        if (ae && ae.classList && ae.classList.contains('grid-textarea')) return ae;
+        return getEditorFromSelection() || document.querySelector('.grid-data-row.active-row .grid-textarea');
+    }
+
+    function getEditorSegId(editorEl) {
+        const row = editorEl && editorEl.closest ? editorEl.closest('.grid-data-row') : null;
+        return row ? parseId(row.dataset.segId) : null;
+    }
+
+    function setCaretAtEditorEnd(editorEl) {
+        if (!editorEl || editorEl.contentEditable === 'false') return false;
+        editorEl.focus();
+        try {
+            const range = document.createRange();
+            range.selectNodeContents(editorEl);
+            range.collapse(false);
+            const sel = window.getSelection();
+            if (sel) {
+                sel.removeAllRanges();
+                sel.addRange(range);
+            }
+            saveCatCaretFromSelection(editorEl);
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function ensureCatFakeCaretEl() {
+        if (!catFakeCaretEl) {
+            catFakeCaretEl = document.createElement('div');
+            catFakeCaretEl.className = 'cat-fake-caret hidden';
+            catFakeCaretEl.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(catFakeCaretEl);
+        }
+        return catFakeCaretEl;
+    }
+
+    function hideCatFakeCaret() {
+        if (catFakeCaretEl) catFakeCaretEl.classList.add('hidden');
+    }
+
+    function saveCatCaretFromSelection(editorEl) {
+        const editor = editorEl || getEditorFromSelection();
+        const sel = window.getSelection();
+        if (!editor || !sel || sel.rangeCount === 0 || editor.contentEditable === 'false') return false;
+        const range = sel.getRangeAt(0);
+        if (!editor.contains(range.commonAncestorContainer)) return false;
+        catSavedCaret = {
+            segId: getEditorSegId(editor),
+            editor,
+            range: range.cloneRange()
+        };
+        return true;
+    }
+
+    function getRectForRange(range) {
+        if (!range) return null;
+        const rects = range.getClientRects ? Array.from(range.getClientRects()) : [];
+        if (rects.length) return rects[rects.length - 1];
+        const rect = range.getBoundingClientRect ? range.getBoundingClientRect() : null;
+        if (rect && (rect.width || rect.height)) return rect;
+        return null;
+    }
+
+    function showCatFakeCaretFromSaved() {
+        if (!catSavedCaret || !catSavedCaret.editor || !catSavedCaret.range) return;
+        const editor = catSavedCaret.editor;
+        if (!document.body.contains(editor) || editor.contentEditable === 'false') return;
+        if (document.activeElement === editor) {
+            hideCatFakeCaret();
+            return;
+        }
+        let rect = null;
+        try { rect = getRectForRange(catSavedCaret.range); } catch (_) { rect = null; }
+        if (!rect) {
+            const edRect = editor.getBoundingClientRect();
+            rect = { left: edRect.right - 2, top: edRect.top + 4, height: Math.max(16, edRect.height - 8) };
+        }
+        const mark = ensureCatFakeCaretEl();
+        const h = Math.max(14, Math.min(28, rect.height || 18));
+        mark.style.left = `${Math.max(0, rect.left)}px`;
+        mark.style.top = `${Math.max(0, rect.top)}px`;
+        mark.style.height = `${h}px`;
+        mark.classList.remove('hidden');
+    }
+
+    function restoreSavedCaretIntoEditor() {
+        if (!catSavedCaret || !catSavedCaret.editor || !catSavedCaret.range) return null;
+        const editor = catSavedCaret.editor;
+        if (!document.body.contains(editor) || editor.contentEditable === 'false') return null;
+        editor.focus();
+        try {
+            const range = catSavedCaret.range.cloneRange();
+            const sel = window.getSelection();
+            if (!sel) return null;
+            sel.removeAllRanges();
+            sel.addRange(range);
+            hideCatFakeCaret();
+            return editor;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function insertSelectedTextAtSavedCaret() {
+        const sel = window.getSelection();
+        const selectedText = sel ? sel.toString() : '';
+        if (!selectedText.trim()) return false;
+        const editor = restoreSavedCaretIntoEditor() || getActiveTargetEditor();
+        if (!editor || editor.contentEditable === 'false') return false;
+        insertPlainTextAtCaret(editor, selectedText);
+        saveCatCaretFromSelection(editor);
+        editor.dispatchEvent(new Event('input', { bubbles: true }));
+        return true;
+    }
+
+    document.addEventListener('selectionchange', () => {
+        const editor = getEditorFromSelection();
+        if (editor && editor.contentEditable !== 'false') {
+            saveCatCaretFromSelection(editor);
+            hideCatFakeCaret();
+        }
+    });
+    window.addEventListener('scroll', showCatFakeCaretFromSaved, true);
+    window.addEventListener('resize', showCatFakeCaretFromSaved);
 
     function applyMatchCellVisual(rowEl, matchValue) {
         if (!rowEl) return;
@@ -9439,6 +9594,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 let targetWriteGeneration = 0;
                 let isConfirming = false;
                 targetInput.addEventListener('focus', async () => {
+                    hideCatFakeCaret();
                     if (isSegmentBeingEditedByOthers(seg.id)) {
                         const locker = Object.values(collabEditBySession || {}).find((e) =>
                             e && e.sessionId !== collabSelfSessionId && String(e.segmentId || '') === String(seg.id || '') && String(e.state || '') !== 'end'
@@ -9531,10 +9687,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }, 500);
                 });
 
-                // 游標位置/選取改變時，更新「F8 下一步」的深藍高亮
-                targetInput.addEventListener('mouseup', () => refreshTagNextHighlight(row));
-                targetInput.addEventListener('keyup', () => refreshTagNextHighlight(row));
+                // 游標位置/選取改變時，更新「F8 下一步」的深藍高亮與假游標記錄
+                targetInput.addEventListener('mouseup', () => {
+                    refreshTagNextHighlight(row);
+                    saveCatCaretFromSelection(targetInput);
+                });
+                targetInput.addEventListener('keyup', () => {
+                    refreshTagNextHighlight(row);
+                    saveCatCaretFromSelection(targetInput);
+                });
                 targetInput.addEventListener('blur', async () => {
+                    saveCatCaretFromSelection(targetInput);
+                    requestAnimationFrame(showCatFakeCaretFromSaved);
                     // 在任一 await 前快照：Ctrl+Enter  await 期間可能已 isConfirming=false，仍應抑止重複寫庫
                     const wasConfirming = isConfirming;
                     refreshTagNextHighlight(row);
@@ -10237,7 +10401,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const tgtEsc = m.targetText.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
                     return `
                     <div class="result-block">
-                    <div class="result-item${isSelected ? ' result-item--selected' : ''}" data-index="${idx}"
+                    <div class="result-item${isSelected ? ' result-item--selected' : ''}" data-index="${idx}" title="單擊選取；雙擊套用譯文"
                          onclick="handleCatResultClick(this, ${idx})"
                          ondblclick="handleCatResultApply(this, '${m.type}', \`${tgtEsc}\`, ${m.type === 'TM' ? m.score : 'undefined'}, ${idx})">
                         <div class="result-cell result-cell--index">${idx + 1}</div>
@@ -10348,7 +10512,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             applyMatchCellVisual(activeRow, String(score));
         }
 
-        textarea.focus();
+        setCaretAtEditorEnd(textarea);
         if (el && el.style) {
         el.style.opacity = 0.5;
             setTimeout(() => { el.style.opacity = 1; }, 300);
@@ -11344,6 +11508,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const resultsEl = document.getElementById('tmSearchConcordanceResults');
         if (!input || !resultsEl) return;
         const raw = (input.value || '').trim();
+        window.currentTmConcordanceMatches = [];
+        window.tmConcordanceSelectedIndex = 0;
         if (!raw) { resultsEl.innerHTML = '<div style="color:#64748b; padding:0.5rem;">請輸入搜尋關鍵字。</div>'; return; }
         const { phrases, tokens } = parseTmConcordanceQuery(raw);
         if (!phrases.length && !tokens.length) {
@@ -11363,38 +11529,50 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const maxShow = 50;
         const shown = matches.slice(0, maxShow);
+        window.currentTmConcordanceMatches = shown;
         resultsEl.innerHTML = shown.map((m, i) => {
             const src = buildTmConcordanceHighlightedHtml(m.sourceText || '', phrases, tokens);
             const tgt = buildTmConcordanceHighlightedHtml(m.targetText || '', phrases, tokens);
             const tmLabel = (m.tmName || '').replace(/</g, '&lt;');
-            return `<div class="tm-concordance-item" data-idx="${i}" style="padding:0.45rem 0.4rem; border-bottom:1px solid #e2e8f0; cursor:pointer;" title="點擊套用譯文">
-                <div style="font-size:0.78rem; color:#64748b; margin-bottom:2px;">${tmLabel}</div>
+            return `<div class="tm-concordance-item${i === 0 ? ' tm-concordance-item--selected' : ''}" data-idx="${i}" title="單擊選取；雙擊套用譯文">
+                <div style="font-size:0.78rem; color:#64748b; margin-bottom:2px;"><strong>${i + 1}</strong> · ${tmLabel}</div>
                 <div style="margin-bottom:2px;"><b>原：</b>${src}</div>
                 <div><b>譯：</b>${tgt}</div>
             </div>`;
         }).join('') + (matches.length > maxShow ? `<div style="padding:0.4rem; color:#94a3b8; font-size:0.8rem;">僅顯示前 ${maxShow} 筆（共 ${matches.length} 筆相符）</div>` : '');
 
+        const updateConcordanceSelection = () => {
+            resultsEl.querySelectorAll('.tm-concordance-item').forEach((item, i) => {
+                item.classList.toggle('tm-concordance-item--selected', i === window.tmConcordanceSelectedIndex);
+            });
+        };
         resultsEl.querySelectorAll('.tm-concordance-item').forEach(item => {
             item.addEventListener('click', () => {
                 const idx = parseInt(item.getAttribute('data-idx'));
-                const m = shown[idx];
-                if (!m) return;
-                const activeRow = document.querySelector('.grid-data-row.active-row');
-                if (!activeRow) return;
-                const segId = parseId(activeRow.dataset.segId);
-                const seg = currentSegmentsList.find(s => s.id === segId);
-                if (!seg) return;
-                markEmptySegUserEdited(seg.id);
-                const editor = activeRow.querySelector('.grid-textarea');
-                if (!editor || editor.contentEditable === 'false') return;
-                editor.innerText = m.targetText || '';
-                seg.targetText = m.targetText || '';
-                applyUpdateSegmentTarget(seg, seg.targetText).catch(console.error);
-                updateProgress();
-                emitCollabEdit('commit', seg, seg.targetText);
+                if (!Number.isFinite(idx)) return;
+                window.tmConcordanceSelectedIndex = idx;
+                updateConcordanceSelection();
+            });
+            item.addEventListener('dblclick', () => {
+                const idx = parseInt(item.getAttribute('data-idx'));
+                if (Number.isFinite(idx)) window.applyTmConcordanceAtIndex(idx);
             });
         });
     }
+
+    window.applyTmConcordanceAtIndex = function(index) {
+        const matches = window.currentTmConcordanceMatches;
+        if (!matches || index < 0 || index >= matches.length) return;
+        const m = matches[index];
+        window.tmConcordanceSelectedIndex = index;
+        const el = document.querySelector(`#tmSearchConcordanceResults .tm-concordance-item[data-idx="${index}"]`);
+        if (el) {
+            el.closest('#tmSearchConcordanceResults')?.querySelectorAll('.tm-concordance-item').forEach((item, i) => {
+                item.classList.toggle('tm-concordance-item--selected', i === index);
+            });
+        }
+        window.handleCatResultApply(el || document.body, 'TM', m.targetText || '', undefined, index);
+    };
 
     const btnTmSearch = document.getElementById('btnTmSearch');
     if (btnTmSearch) btnTmSearch.addEventListener('click', runTmConcordanceSearch);
