@@ -7943,6 +7943,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 await applyTmUndoOps(entry.tmUndo || []);
                 renderEditorSegments();
+                runSearchAndFilter();
                 const ar = document.querySelector('.grid-data-row.active-row');
                 const aid = ar ? parseId(ar.dataset.segId) : null;
                 const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
@@ -7975,7 +7976,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const undoEntries = [];
             for (let i = 0; i < entry.entries.length; i++) {
                 const te = normalizeUndoEntry(entry.entries[i]);
-                if (te.kind === 'target') undoEntries.push(applyOneTargetUndo(te, 'redo'));
+                // redo 堆疊存的是已交換 old/new 的 mirror；傳 'undo' 才能正確取到 te.oldTarget（即原始 newTarget）
+                if (te.kind === 'target') undoEntries.push(applyOneTargetUndo(te, 'undo'));
             }
             editorUndoStack.push({ kind: 'compound', entries: undoEntries });
             updateProgress();
@@ -8001,6 +8003,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 await applyTmRedoOps(entry.tmRedo || []);
                 renderEditorSegments();
+                runSearchAndFilter();
                 const ar = document.querySelector('.grid-data-row.active-row');
                 const aid = ar ? parseId(ar.dataset.segId) : null;
                 const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
@@ -8018,7 +8021,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (entry.kind === 'target') {
-            const mirror = applyOneTargetUndo(entry, 'redo');
+            // redo 堆疊存的是 mirror（old/new 已互換）；傳 'undo' 才能正確取到 te.oldTarget（即要恢復的值）
+            const mirror = applyOneTargetUndo(entry, 'undo');
             editorUndoStack.push(mirror);
             updateProgress();
         }
@@ -8214,15 +8218,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         const mode = getAfterConfirmNavMode();
         const n = currentSegmentsList.length;
         if (n === 0) return null;
+        const gRows = (sfMode === 'filter' && gridBody) ? gridBody.querySelectorAll('.grid-data-row') : null;
+        const isVisibleRow = (idx) => !gRows || isGridDataRowFilterVisible(gRows[idx]);
         if (mode === 'nextRow') {
             for (let j = currentIndex + 1; j < n; j++) {
-                if (rowIndexHasEditableTarget(j)) return j;
+                if (rowIndexHasEditableTarget(j) && isVisibleRow(j)) return j;
             }
             return null;
         }
         for (let j = currentIndex + 1; j < n; j++) {
             const s = currentSegmentsList[j];
-            if (s && s.status !== 'confirmed' && rowIndexHasEditableTarget(j)) return j;
+            if (s && s.status !== 'confirmed' && rowIndexHasEditableTarget(j) && isVisibleRow(j)) return j;
         }
         return null;
     }
@@ -8709,6 +8715,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             _pendingFocusSegIdxAfterRender = focusIdx;
             updateProgress();
             renderEditorSegments();
+            runSearchAndFilter();
             // 樂觀第一段：僅本次直接確認的句段（傳播後第二段於 enqueue 尾端以 touchAll 收斂）
             _qaIncrementalRefreshAfterConfirm(indices.map((idx) => currentSegmentsList[idx]?.id).filter((id) => id != null));
 
@@ -8732,18 +8739,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     if (changed) {
                         pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
-            }
-            updateProgress();
+                    }
+                    updateProgress();
                     const keepId = focusIdx != null && currentSegmentsList[focusIdx] ? currentSegmentsList[focusIdx].id : null;
-            renderEditorSegments();
+                    renderEditorSegments();
+                    runSearchAndFilter();
                     if (keepId != null) {
                         const idx2 = currentSegmentsList.findIndex(s => s.id === keepId);
                         queueMicrotask(() => focusTargetEditorAtSegmentIndex(idx2 >= 0 ? idx2 : null));
                     }
-            const ar = document.querySelector('.grid-data-row.active-row');
+                    const ar = document.querySelector('.grid-data-row.active-row');
                     const aid = ar ? parseId(ar.dataset.segId) : null;
-            const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
-            if (activeSeg) renderLiveTmMatches(activeSeg);
+                    const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
+                    if (activeSeg) renderLiveTmMatches(activeSeg);
                     const qaBatchIds = [];
                     touchAll.forEach((idx) => {
                         const s = currentSegmentsList[idx];
@@ -9963,17 +9971,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                         })();
                     } else if (e.ctrlKey && e.key === 'ArrowUp') {
                         e.preventDefault();
-                        const prevRow = row.previousElementSibling;
-                        if(prevRow) {
+                        let prevRow = row.previousElementSibling;
+                        while (prevRow && !isGridDataRowFilterVisible(prevRow)) prevRow = prevRow.previousElementSibling;
+                        if (prevRow) {
                             const prevEditor = prevRow.querySelector('.grid-textarea');
-                            if(prevEditor && prevEditor.contentEditable !== 'false') prevEditor.focus();
+                            if (prevEditor && prevEditor.contentEditable !== 'false') prevEditor.focus();
                         }
                     } else if (e.ctrlKey && e.key === 'ArrowDown') {
                         e.preventDefault();
-                        const nextRow = row.nextElementSibling;
-                        if(nextRow) {
+                        let nextRow = row.nextElementSibling;
+                        while (nextRow && !isGridDataRowFilterVisible(nextRow)) nextRow = nextRow.nextElementSibling;
+                        if (nextRow) {
                             const nextEditor = nextRow.querySelector('.grid-textarea');
-                            if(nextEditor && nextEditor.contentEditable !== 'false') nextEditor.focus();
+                            if (nextEditor && nextEditor.contentEditable !== 'false') nextEditor.focus();
                         }
                     } else if (e.ctrlKey && e.key >= '1' && e.key <= '9') {
                         e.preventDefault();
@@ -10693,7 +10703,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const focusIdx = maxIdx >= 0 ? getAfterConfirmFocusIndex(maxIdx) : null;
                 _pendingFocusSegIdxAfterRender = focusIdx;
                 updateProgress();
-            renderEditorSegments();
+                renderEditorSegments();
+                runSearchAndFilter();
 
                 enqueueConfirmSideEffects(async () => {
                     try {
@@ -10719,6 +10730,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         updateProgress();
                         const keepId = focusIdx != null && currentSegmentsList[focusIdx] ? currentSegmentsList[focusIdx].id : null;
                         renderEditorSegments();
+                        runSearchAndFilter();
                         if (keepId != null) {
                             const idx2 = currentSegmentsList.findIndex(s => s.id === keepId);
                             queueMicrotask(() => focusTargetEditorAtSegmentIndex(idx2 >= 0 ? idx2 : null));
