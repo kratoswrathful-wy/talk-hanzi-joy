@@ -9,6 +9,11 @@ alwaysApply: false
 
 # CAT：`cat-tool/` → `public/cat/`
 
+## 回覆與推送慣例
+
+- 永遠使用標準台灣正體中文與使用者對話。
+- 除非使用者另有明確指示，否則每次完成可提交的變更後，預設流程為：直接推送、簡述修改內容、列出驗收方式。
+
 ## 單一真相
 
 - **只改** `cat-tool/` 內的 `index.html`、`app.js`、`db.js`、`style.css`、`js/`、`lib/` 等**執行**檔。

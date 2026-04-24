@@ -6218,36 +6218,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sfReplaceInput = document.getElementById('sfReplaceInput');
     const btnSfReplaceThis = document.getElementById('btnSfReplaceThis');
     const btnSfReplaceAll = document.getElementById('btnSfReplaceAll');
-    const sfModeToggleWrap = document.querySelector('.sf-mode-toggle');
+    const sfModeLockInlineMsg = document.getElementById('sfModeLockInlineMsg');
     const sfModeLockedTitle = '正在使用進階篩選，無法切換為搜尋狀態';
-    let sfModeLockHintTimer = null;
-    function showSfModeLockHintAtRect(rect) {
-        if (!rect) return;
-        const id = 'sfModeLockHintBubble';
-        let hint = document.getElementById(id);
-        if (!hint) {
-            hint = document.createElement('div');
-            hint.id = id;
-            hint.className = 'sf-lock-hint-bubble';
-            document.body.appendChild(hint);
-        }
-        hint.textContent = sfModeLockedTitle;
-        hint.style.left = `${Math.max(8, rect.left)}px`;
-        hint.style.top = `${Math.max(8, rect.top - 30)}px`;
-        hint.classList.add('show');
-        clearTimeout(sfModeLockHintTimer);
-        sfModeLockHintTimer = setTimeout(() => {
-            hint.classList.remove('show');
-        }, 1400);
-    }
-    function showSfModeLockHintNearInput() {
-        if (!sfInput) return;
-        showSfModeLockHintAtRect(sfInput.getBoundingClientRect());
-    }
-    function showSfModeLockHintNearModeToggle() {
-        if (!sfModeToggleWrap) return;
-        showSfModeLockHintAtRect(sfModeToggleWrap.getBoundingClientRect());
-    }
     function updateSfModeToggleLockState() {
         const locked = !sfAdvancedPanel.classList.contains('hidden');
         [sfModeSearch, sfModeFilter].forEach((btn) => {
@@ -6255,9 +6227,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             btn.disabled = locked;
             btn.title = btn.id === 'sfModeSearch' ? '搜尋' : '篩選';
         });
-        if (sfModeToggleWrap) {
-            if (locked) sfModeToggleWrap.title = sfModeLockedTitle;
-            else sfModeToggleWrap.title = '';
+        if (sfModeLockInlineMsg) {
+            sfModeLockInlineMsg.textContent = locked ? sfModeLockedTitle : '';
+            sfModeLockInlineMsg.classList.toggle('show', locked);
         }
     }
     let sfRunUiTimer = null;
@@ -6327,13 +6299,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         scheduleRunSearchAndFilter();
         emitCollabFocus('control', 'sfModeFilter');
     });
-    if (sfModeToggleWrap) {
-        sfModeToggleWrap.addEventListener('mouseenter', () => {
-            if (sfModeSearch?.disabled && sfModeFilter?.disabled) {
-                showSfModeLockHintNearModeToggle();
-            }
-        });
-    }
     updateSfModeToggleLockState();
     sfUseRegex.addEventListener('change', (e) => { sfUseRegexChecked = e.target.checked; scheduleRunSearchAndFilter(); });
     btnSfInvert.addEventListener('click', () => {
@@ -6524,7 +6489,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 sfInput.focus();
             } else {
                 if (!sfAdvancedPanel.classList.contains('hidden')) {
-                    showSfModeLockHintNearInput();
                     return;
                 }
                 // 與按鈕一致：在尋找框再按一次 Ctrl+F 會切換模式；進階面板展開時強制維持 filter。

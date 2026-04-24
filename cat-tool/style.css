@@ -329,22 +329,24 @@ button { font-family: inherit; cursor: pointer; }
     background: #64748b;
     color: #e2e8f0;
 }
-.sf-lock-hint-bubble {
-    position: fixed;
-    z-index: 10060;
+.sf-lock-inline-msg {
+    display: none;
+    min-height: 1.8rem;
+    max-width: 20rem;
+    padding: 0.3rem 0.5rem;
+    border-radius: 6px;
     background: rgba(15, 23, 42, 0.95);
     color: #fff;
     font-size: 0.78rem;
     line-height: 1.25;
-    padding: 0.3rem 0.5rem;
-    border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.22);
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(-2px);
     transition: opacity 0.12s ease, transform 0.12s ease;
     pointer-events: none;
 }
-.sf-lock-hint-bubble.show {
+.sf-lock-inline-msg.show {
+    display: block;
     opacity: 1;
     transform: translateY(0);
 }
