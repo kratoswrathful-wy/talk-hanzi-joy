@@ -1776,6 +1776,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 s.repModeSeg = repMode;
             });
             renderEditorSegments();
+            runSearchAndFilter();
             alert(`已將重複句段模式「${repMode === 'after' ? '確認其後' : repMode === 'all' ? '確認全部' : '停用'}」套用至所有句段。`);
         });
     } 
@@ -1825,6 +1826,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return 0;
         });
         renderEditorSegments();
+        runSearchAndFilter();
     }
 
     if (sortColSelect && sortOrderSelect) {
@@ -6134,6 +6136,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 alert(`預先翻譯完成！共更新 ${applyCount} 個句段。`);
                 preTranslateModal.classList.add('hidden');
                 renderEditorSegments();
+                runSearchAndFilter();
                 updateProgress();
             } catch (e) {
                 console.error(e);
@@ -10756,6 +10759,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (items.length) pushUndoEntry({ kind: 'segmentState', items });
             void Promise.all(dbWaits).then(() => {}).catch(console.error);
             renderEditorSegments();
+            runSearchAndFilter();
         });
 
         document.getElementById('ctxLockSegments').addEventListener('click', async () => {
@@ -10770,6 +10774,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             if (items.length) pushUndoEntry({ kind: 'segmentState', items });
             renderEditorSegments();
+            runSearchAndFilter();
         });
 
         document.getElementById('ctxUnlockSegments').addEventListener('click', async () => {
@@ -10791,6 +10796,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             if (items.length) pushUndoEntry({ kind: 'segmentState', items });
             renderEditorSegments();
+            runSearchAndFilter();
         });
     });
 

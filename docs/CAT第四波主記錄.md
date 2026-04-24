@@ -1,6 +1,6 @@
 # CAT 第四波主記錄（摘要，可版控）
 
-**狀態標記（2026-04-26）**：第四波進行中（A 初版 `ebb9ee4` 已驗收；A 驗收修正 `8f8cea8` 三項已通過使用者複驗；**`d326666` + `c783b56`（列快取）已實作**；篩選殘象見**§二點一**與待補 `runSearchAndFilter` 路徑；B 待開工）。
+**狀態標記（2026-04-26）**：第四波進行中（A 初版 `ebb9ee4` 已驗收；A 驗收修正 `8f8cea8` 三項已通過使用者複驗；**`d326666` + `c783b56` + 整表重繪後補 `runSearchAndFilter` 已實作**；**篩選 (4) 待使用者複驗**；B 待開工）。
 
 關聯主計畫：`cat_工具綜合改版_42ac9451.plan.md` 第 **11** 節（TM 搜尋結果互動與編輯區游標輔助）、第 **3** 節（樂觀鎖 revision／協作誤報）。  
 可版控鏡像：[`docs/mirror/cat_工具綜合改版_42ac9451.plan.md`](mirror/cat_工具綜合改版_42ac9451.plan.md)（與本機 `%USERPROFILE%\.cursor\plans\` 同名檔同步維護）。
@@ -9,7 +9,7 @@
 
 | 子階 | 主計畫節次 | frontmatter todo | 說明 |
 |------|------------|------------------|------|
-| **A** | §11 | `live-tm-cursor-ux` | **初版 `ebb9ee4` 已驗收**；**`8f8cea8`**：`Ctrl+0` undo、`Ctrl+K` 範圍、`Ctrl+0` 游標；**`d326666`**：`Ctrl+Y`、篩選確認跳格、`Ctrl+↑↓`、批次確認等補 `runSearchAndFilter`；**`c783b56`**：`sfRowRenderCache.clear()`；**待辦**：右鍵批次狀態等路徑補 `runSearchAndFilter`（見 §二點一） |
+| **A** | §11 | `live-tm-cursor-ux` | **初版 `ebb9ee4` 已驗收**；`8f8cea8`、`d326666`、`c783b56` 見清單；**整表重繪後補 `runSearchAndFilter`**：右鍵批次未確認／鎖定／解鎖、排序、重複模式全檔、預先翻譯 |
 | **B** | §3 | `collab-false-positive` | (A) `segmentRevision` 同步與誤報根因；(B) `applyRemoteCommit` 正規化、sessionId、去重、dev 日誌 |
 
 **原則**：A／B **可並行開發**，**分開 merge、分開驗收**（見主計畫「白話：建議怎麼分階段做」第四波段）。
@@ -24,7 +24,8 @@
 - **驗收修正**（`8f8cea8`）：`Ctrl+0` 與 editor undo 堆疊整合（並同步 `editorUndoEditStart` 避免 debounce 重複推 undo）、譯文欄觸發之 `Ctrl+K` 自動將 `#tmSearchField` 設為譯文、`Ctrl+0` 後雙重 `requestAnimationFrame` 將游標穩定留在插入點後方。**使用者複驗（2026-04-25）**：上述三項皆通過。
 - **第二輪驗收發現**（同次回報）：(1) `Ctrl+Y` 重做全檔無效；(2) 篩選下確認後不跳到篩選結果內下一個未確認句段；(3) 篩選下 `Ctrl+↑↓` 無法在可見列間移動；(4) 篩選下多選批次確認後隱藏列全部顯示；(5) 出現 (4) 後再改篩選條件無反應，須先清除篩選才恢復。
 - **追加修正**（`d326666`）：(1) `applyEditorRedo` 對 redo 堆疊內已交換 old/new 的 mirror entry 改傳 `applyOneTargetUndo(..., 'undo')`，重做才會套到正確譯文；(2) `getAfterConfirmFocusIndex` 在篩選模式下略過 `display:none` 列；(3) 譯文欄 `Ctrl+↑↓` 以 `while` 跳過不可見鄰列；(4) 批次確認／`confirmOp` undo-redo 路徑在 `renderEditorSegments()` 後補 `runSearchAndFilter()`。**使用者複驗**：(1)～(3) 通過；(4)(5) 於 `d326666` 後仍發生。
-- **篩選快取修復**（`c783b56`）：`renderEditorSegments()` 清空 `gridBody` 後立即 `sfRowRenderCache.clear()`，使後續 `runSearchAndFilter()` 能依快照正確設定 `display`，避免舊 `vis` 快取導致應隱藏列全顯與篩選條件變更無效。**使用者回報（`c783b56` 後）**：批次變更狀態後隱藏列仍會全顯，但**改任一篩選條件即可恢復**（與修正前「改條件也無效」不同）。**下一輪程式**：補右鍵 `ctxBatchUnconfirm`／鎖定／解鎖等路徑之 `runSearchAndFilter()`（見 §二點一）。待該輪實作後再驗 (4)(5) 殘象。
+- **篩選快取修復**（`c783b56`）：`renderEditorSegments()` 清空 `gridBody` 後立即 `sfRowRenderCache.clear()`，使後續 `runSearchAndFilter()` 能依快照正確設定 `display`，避免舊 `vis` 快取導致應隱藏列全顯與篩選條件變更無效。**使用者回報（`c783b56` 後）**：批次變更狀態後隱藏列仍會全顯，但**改任一篩選條件即可恢復**（與修正前「改條件也無效」不同）。
+- **整表重繪後補篩選**（與 `c783b56` 同檔累進）：凡 `renderEditorSegments()` 後漏接 `runSearchAndFilter()` 之路徑已補齊——右鍵 `ctxBatchUnconfirm`、`ctxLockSegments`、`ctxUnlockSegments`；`applySorting`；`btnApplyRepMode` 全檔套用重複模式；預先翻譯完成後。**待使用者複驗**第二輪 (4)（篩選未變下多選／批次狀態變更後隱藏列是否仍誤顯）。
 
 ### 第四波 B（§3）
 
@@ -41,14 +42,14 @@
 - **複驗紀錄（2026-04-25）**
   - **`8f8cea8` 三項**：`Ctrl+0` undo／redo、`Ctrl+K` 譯文範圍、`Ctrl+0` 游標位置 — **通過**。
   - **`d326666` 五項中的四項**：`Ctrl+Y`、篩選下確認後跳格、篩選下 `Ctrl+↑↓`、自動化測試 — **通過**（`d326666` 已跑 `npm run test:cat-sf`、`npm test`）。
-  - **第五項（篩選）**：`c783b56` 已處理列快取與「改條件卡死」；使用者觀察仍有「未改條件時批次變更狀態後全顯」— 歸因見 **§二點一**；**待下一輪補 `runSearchAndFilter` 後複驗**。
-- **驗收結論**：第四波 A 初版已通過使用者驗收；`8f8cea8` 三項已複驗通過；`d326666` 已覆蓋第二輪 (1)～(3) 與部分 (4)；`c783b56` 已覆蓋 (5) 類卡死與列快取層；**(4) 殘象**待右鍵批次等路徑補 `runSearchAndFilter` 後再驗（§二點一）；第四波 B 待開工。
+  - **第五項（篩選）**：`c783b56`（列快取）+ 整表重繪後補 `runSearchAndFilter`（右鍵批次／排序等）已實作；**待使用者複驗** (4)(5) 是否已解。
+- **驗收結論**：第四波 A 初版已通過使用者驗收；`8f8cea8` 三項已複驗通過；第二輪 (1)～(3) 與 (5) 類已交；**(4) 與殘餘篩選行為**待使用者依 §二點一情境複驗；第四波 B 待開工。
 
 - **同步**：`cat-tool` 變更經 `npm run sync:cat` 一併提交 `public/cat`。
 
 ## 二點一、篩選與列快取（觀察與根因紀錄，2026-04-25）
 
-以下為 **`c783b56` 之後** 使用者回報與程式對照之紀錄，供下一輪修正與驗收沿用。
+以下為 **`c783b56` 之後** 使用者回報與程式對照之紀錄；**漏接 `runSearchAndFilter` 之路徑已於後續提交補齊**（見完成清單「整表重繪後補篩選」條），本節保留歸因說明供查。
 
 ### 使用者觀察
 
@@ -60,11 +61,11 @@
 - 在 [`cat-tool/app.js`](../cat-tool/app.js) 的 `renderEditorSegments()` 於清空 `gridBody` 後呼叫 `sfRowRenderCache.clear()`。
 - 目的：全表 DOM 重建後，避免 `runSearchAndFilter()` 內以 `rowCache.vis !== vis` 判斷時，**舊快取與新列**不一致而**跳過** `display` 更新，進而導致「應隱藏列全顯」以及「之後改篩選條件也完全無反應」的卡死（對應第二輪問題 (5) 類行為）。
 
-### 仍殘留的主因（程式觀察，待下一輪實作）
+### 漏接 `runSearchAndFilter`（根因，已修）
 
-- 若干路徑在 **`renderEditorSegments()` 之後未再呼叫 `runSearchAndFilter()`**：重繪後每列預設為可見，若未重套篩選，畫面上會暫時（或持續）呈現全顯。
-- **已鎖定範例**（右鍵選單，約 L10745–L10794）：`ctxBatchUnconfirm`、`ctxLockSegments`、`ctxUnlockSegments` 僅呼叫 `renderEditorSegments()`，與「變更句段狀態後全顯」敘述一致。
-- **建議盤點**：其餘 `renderEditorSegments()` 呼叫點（例如排序、套用重複模式至全檔、預先翻譯完成後等）是否在篩選模式下亦應補 `runSearchAndFilter()`，依產品一致性交給實作時掃描 grep 確認。
+- 若干路徑在 **`renderEditorSegments()` 之後未再呼叫 `runSearchAndFilter()`**：重繪後每列預設為可見，若未重套篩選，畫面上會呈現全顯。
+- **已鎖定範例**（右鍵選單，約 L10745–L10794）：`ctxBatchUnconfirm`、`ctxLockSegments`、`ctxUnlockSegments` 原先僅 `renderEditorSegments()`。
+- **已一併補齊**：`applySorting`、`btnApplyRepMode`（全檔套用重複模式）、預先翻譯完成後；上述皆於 `renderEditorSegments()` 後補 `runSearchAndFilter()`。
 
 ### 與第一波篩選設計的關係（是否「當初為加速改的」引發）
 
