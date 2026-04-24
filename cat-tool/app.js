@@ -8493,6 +8493,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             _pendingFocusSegIdxAfterRender = focusIdx;
             updateProgress();
             renderEditorSegments();
+            // 樂觀第一段：僅本次直接確認的句段（傳播後第二段於 enqueue 尾端以 touchAll 收斂）
+            _qaIncrementalRefreshAfterConfirm(indices.map((idx) => currentSegmentsList[idx]?.id).filter((id) => id != null));
 
             enqueueConfirmSideEffects(async () => {
                 try {
@@ -9691,6 +9693,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const nextFocus = getAfterConfirmFocusIndex(i);
                             focusTargetEditorAtSegmentIndex(nextFocus);
                             isConfirming = false;
+                            // 樂觀第一段：不等 TM／傳播，先更新本句 QA 列（第二段仍在 enqueue 尾端全量 touch）
+                            _qaIncrementalRefreshAfterConfirm([seg.id]);
                             if (wasUnconfirmed) {
                                 await _maybeShowAiReviewModal(seg, i, {
                                     onClearAiFlags: async () => {
@@ -9839,6 +9843,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const nextFocus = getAfterConfirmFocusIndex(i);
                             focusTargetEditorAtSegmentIndex(nextFocus);
                             isConfirming = false;
+                            _qaIncrementalRefreshAfterConfirm([seg.id]);
                             await _maybeShowAiReviewModal(seg, i, {
                                 onClearAiFlags: async () => {
                                     ++targetWriteGeneration;
