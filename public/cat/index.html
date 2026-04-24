@@ -861,17 +861,19 @@
                             </div>
                             <!-- QA 選項列 -->
                             <div class="qa-options-bar">
-                                <input type="checkbox" id="qaUseRange" title="勾選後僅檢查指定範圍的句段，取消勾選則檢查所有句段">
-                                <span class="qa-label" title="以原始匯入順序的句段編號為準，不受篩選排序影響" style="cursor:help;">句段範圍：</span>
+                                <label class="qa-label" style="display:flex; align-items:center; gap:3px;">
+                                    <input type="checkbox" id="qaIncludeLocked"> 含鎖定
+                                </label>
+                                <label class="qa-label" style="display:flex; align-items:center; gap:3px;">
+                                    <input type="checkbox" id="qaUseRange"> 句段範圍
+                                </label>
                                 <input type="number" id="qaRangeFrom" class="qa-range-input" min="1" placeholder="起始" disabled>
                                 <span class="qa-label" style="padding:0 2px;">—</span>
                                 <input type="number" id="qaRangeTo" class="qa-range-input" min="1" placeholder="結束" disabled>
-                                <label class="qa-label" style="margin-left:0.5rem; display:flex; align-items:center; gap:3px;">
-                                    <input type="checkbox" id="qaIncludeLocked"> 含鎖定
-                                </label>
-                                <label class="qa-label" id="qaScopeFilteredLabel" style="margin-left:0.5rem; display:flex; align-items:center; gap:3px;">
+                                <label class="qa-label" id="qaScopeFilteredLabel" style="display:flex; align-items:center; gap:3px;">
                                     <input type="checkbox" id="qaScopeCurrentFiltered"> 目前篩選結果
                                 </label>
+                                <div id="qaScopeLockInlineMsg" class="sf-lock-inline-msg">勾選期間無法變更篩選內容</div>
                             </div>
                             <!-- QA 動作列 -->
                             <div class="qa-action-bar">
@@ -880,7 +882,6 @@
                                 </label>
                                 <button class="primary-btn btn-sm" id="btnRunQA">▶ 開始 QA</button>
                             </div>
-                            <div id="qaRunSummary" class="qa-run-summary hidden"></div>
                             <!-- 狀態與結果 -->
                             <div id="qaStatus" class="qa-status-bar">按「開始 QA」執行檢查。</div>
                             <div style="overflow-y:auto; flex:1;">
@@ -1146,7 +1147,7 @@
                             <span style="font-size:0.88rem;">在 CAT 列表移動選取</span><input type="text" value="Alt + ↑ / ↓" disabled class="sc-key-input">
                         </div>
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
-                            <span style="font-size:0.88rem;">搜尋 / 篩選對焦</span><input type="text" value="Ctrl + F" disabled class="sc-key-input">
+                            <span style="font-size:0.88rem;">跳到搜尋列 / 連按切換搜尋與篩選</span><input type="text" value="Ctrl + F" disabled class="sc-key-input">
                         </div>
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
                             <span style="font-size:0.88rem;">TM 索引一致性搜尋</span><input type="text" value="Ctrl + K" disabled class="sc-key-input">

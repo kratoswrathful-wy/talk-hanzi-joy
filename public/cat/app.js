@@ -6220,6 +6220,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnSfReplaceAll = document.getElementById('btnSfReplaceAll');
     const sfContainer = document.getElementById('sfContainer');
     const sfModeLockInlineMsg = document.getElementById('sfModeLockInlineMsg');
+    const qaScopeLockInlineMsg = document.getElementById('qaScopeLockInlineMsg');
     const sfModeLockedTitle = '正在使用進階篩選，無法切換為搜尋狀態';
     const qaScopeLockHint = '已選擇以目前篩選結果為 QA 範圍，暫時不得變動篩選條件；如欲變更或清除篩選條件，請取消該 QA 範圍設定';
     let qaScopeLocksFilterUi = false;
@@ -6244,7 +6245,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         qaScopeLocksFilterUi = locked;
         if (!sfContainer) return;
         sfContainer.classList.toggle('qa-scope-locked', locked);
-        sfContainer.title = locked ? qaScopeLockHint : '';
+        if (qaScopeLockInlineMsg) qaScopeLockInlineMsg.classList.toggle('show', locked);
     }
     let sfRunUiTimer = null;
     let sfRunOnNextFrameQueued = false;
@@ -10604,7 +10605,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function runQaChecks(segs, options) {
-        const { fromIdx, toIdx, includeLocked,
+        const { fromIdx, toIdx, includeLocked, allowedSegIds,
                 checkTerms = true, checkTags = true, checkConsistency = true, checkNumbers = true } = options || {};
         const results = [];
 
@@ -10618,6 +10619,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const rangeIdx = oi + 1;
             if (fromIdx != null && rangeIdx < fromIdx) continue;
             if (toIdx != null && rangeIdx > toIdx) continue;
+            if (allowedSegIds && !allowedSegIds.has(s.id)) continue;
             if (!includeLocked && (isDynamicForbidden(s) || s.isLockedUser)) continue;
             if (!s.targetText || !s.targetText.trim()) continue;
             filteredSegs.push({ s, gid: s.globalId || (s.rowIdx + 1) });
@@ -10837,9 +10839,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (qaScopeCurrentFilteredEl) qaScopeCurrentFilteredEl.checked = false;
         updateQaScopeFilterLockState(false);
     }
-    function getQaScopeSegments() {
-        if (!qaScopeCurrentFilteredEl?.checked) return currentSegmentsList;
-        if (!gridBody) return currentSegmentsList;
+    function getQaScopeVisibleSegIdSet() {
+        if (!qaScopeCurrentFilteredEl?.checked) return null;
+        if (!gridBody) return null;
         const visibleSegIds = new Set();
         const rows = gridBody.querySelectorAll('.grid-data-row');
         rows.forEach((row) => {
@@ -10847,7 +10849,34 @@ document.addEventListener('DOMContentLoaded', async () => {
             const sid = parseId(row.dataset.segId);
             if (sid != null) visibleSegIds.add(sid);
         });
-        return currentSegmentsList.filter((s) => visibleSegIds.has(s.id));
+        return visibleSegIds;
+    }
+    function buildQaFilterConditionsSummary() {
+        const items = [];
+        const q = (sfInput?.value || '').trim();
+        if (q) items.push(`關鍵字：${q}`);
+        const scopes = Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map((el) => {
+            const label = el.closest('label');
+            return (label?.textContent || '').trim();
+        }).filter(Boolean);
+        if (scopes.length) items.push(`欄位：${scopes.join('、')}`);
+        const statuses = Array.from(document.querySelectorAll('.sf-status-cb:checked')).map((el) => {
+            const label = el.closest('label');
+            return (label?.textContent || '').trim();
+        }).filter(Boolean);
+        if (statuses.length) items.push(`句段狀態：${statuses.join('、')}`);
+        const tm = (document.getElementById('sfTmMatch')?.value || '').trim();
+        if (tm) items.push(`TM%：${tm}`);
+        const rowRangeEnabled = document.getElementById('sfRowRangeEnabled')?.checked;
+        const rowRangeExclude = document.getElementById('sfRowRangeExclude')?.checked;
+        const rowRangeFrom = (document.getElementById('sfRowRangeFrom')?.value || '').trim();
+        const rowRangeTo = (document.getElementById('sfRowRangeTo')?.value || '').trim();
+        if (rowRangeEnabled || rowRangeExclude || rowRangeFrom || rowRangeTo) {
+            const mode = rowRangeExclude ? '排除' : (rowRangeEnabled ? '顯示' : '指定');
+            items.push(`句段範圍：${mode} ${rowRangeFrom || '起'} - ${rowRangeTo || '訖'}`);
+        }
+        if (sfFilterGroups.length) items.push(`篩選群組：${sfFilterGroups.length} 組`);
+        return items;
     }
     function updateQaSortHeaderState() {
         const headers = document.querySelectorAll('#qaResultsTable .qa-sortable-th');
@@ -10862,15 +10891,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
     function renderQaRunSummary(runSummary) {
-        const qaRunSummaryEl = document.getElementById('qaRunSummary');
-        if (!qaRunSummaryEl) return;
+        const footerDOM = document.getElementById('liveFooterContent');
+        if (!footerDOM) return;
         if (!runSummary) {
-            qaRunSummaryEl.classList.add('hidden');
-            qaRunSummaryEl.innerHTML = '';
+            footerDOM.innerHTML = '請選取句段以檢視詳細資訊。';
             return;
         }
-        qaRunSummaryEl.classList.remove('hidden');
-        qaRunSummaryEl.innerHTML = runSummary;
+        footerDOM.innerHTML = runSummary;
     }
     if (qaUseRangeCb) {
         qaUseRangeCb.addEventListener('change', () => {
@@ -10884,11 +10911,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
     if (qaScopeCurrentFilteredEl) {
-        qaScopeCurrentFilteredEl.title = qaScopeLockHint;
         qaScopeCurrentFilteredEl.addEventListener('change', () => updateQaScopeFilterLockState());
     }
-    const qaScopeFilteredLabel = document.getElementById('qaScopeFilteredLabel');
-    if (qaScopeFilteredLabel) qaScopeFilteredLabel.title = qaScopeLockHint;
     document.querySelectorAll('#qaResultsTable .qa-sortable-th').forEach((th) => {
         th.addEventListener('click', () => {
             const key = th.dataset.sortKey;
@@ -10922,7 +10946,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             const checkNumbers = document.getElementById('qaCheckNumbers')?.checked ?? true;
             const checkTypos = document.getElementById('qaCheckTypos')?.checked ?? false;
             const statusEl = document.getElementById('qaStatus');
-            const scopedSegs = getQaScopeSegments();
+            const allowedSegIds = getQaScopeVisibleSegIdSet();
+            const isFilterContext = sfMode === 'filter';
+            if (isFilterContext && useRange) {
+                const msg = qaScopeCurrentFilteredEl?.checked
+                    ? '按照目前設定將不會把隱藏句段列入 QA 範圍，是否確定？（如欲納入隱藏句段，請取消勾選「目前篩選結果」後再重試）。'
+                    : '按照目前設定將連隱藏句段一起列入 QA 範圍，是否確定？（如欲排除隱藏句段，請額外勾選「目前篩選結果」後再重試）。';
+                if (!confirm(msg)) return;
+            }
             const runAt = new Date().toLocaleString('zh-TW', { hour12: false });
             const checks = [];
             if (checkTerms) checks.push('術語');
@@ -10930,26 +10961,28 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (checkConsistency) checks.push('譯文不一致');
             if (checkNumbers) checks.push('數字');
             if (checkTypos) checks.push('錯字（AI）');
-            let rangeText = '全檔';
-            if (qaScopeCurrentFilteredEl?.checked) {
-                rangeText = `目前篩選結果（${scopedSegs.length} 句）`;
-            } else if (useRange && (fromIdx != null || toIdx != null)) {
+            const scopeParts = [includeLocked ? '含鎖定' : '不含鎖定'];
+            if (useRange && (fromIdx != null || toIdx != null)) {
                 const a = Number.isFinite(fromIdx) ? fromIdx : 1;
                 const b = Number.isFinite(toIdx) ? toIdx : '末句';
-                rangeText = `句段範圍 ${a} - ${b}`;
+                scopeParts.push(`句段範圍 ${a} - ${b}`);
             }
+            if (qaScopeCurrentFilteredEl?.checked) scopeParts.push('目前篩選結果');
+            const conditions = buildQaFilterConditionsSummary();
             qaLastRunSummaryHtml = `
                 <div><strong>本次 QA 執行摘要</strong></div>
                 <div>執行時間：${runAt}</div>
                 <div>檢查項目：${checks.length ? checks.join('、') : '（未選擇）'}</div>
-                <div>檢查範圍：${rangeText}${includeLocked ? '（含鎖定）' : ''}</div>
+                <div>檢查範圍：${scopeParts.join('、')}</div>
+                <div>當時篩選結果</div>
+                <div>（${conditions.length ? conditions.join('、') : '無'}）</div>
             `;
             renderQaRunSummary(qaLastRunSummaryHtml);
 
             setQaControlsLocked(true);
             try {
-                const { results, filteredSegs } = runQaChecks(scopedSegs, {
-                    fromIdx, toIdx, includeLocked, checkTerms, checkTags, checkConsistency, checkNumbers
+                const { results, filteredSegs } = runQaChecks(currentSegmentsList, {
+                    fromIdx, toIdx, includeLocked, allowedSegIds, checkTerms, checkTags, checkConsistency, checkNumbers
                 });
                 _qaResults = results;
 
