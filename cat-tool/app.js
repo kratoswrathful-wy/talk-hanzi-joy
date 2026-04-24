@@ -10793,10 +10793,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (newChunks.length) _qaResults.push(...newChunks);
 
         if (checkConsistency && touchedSources.size) {
+            /** trim 原文 → 有非空譯文之句段（與舊版逐 source filter 全檔語意相同，單次掃描） */
+            const segsByTrimmedSource = new Map();
+            for (const s of currentSegmentsList) {
+                const sk = (s.sourceText || '').trim();
+                if (!sk || !String(s.targetText || '').trim()) continue;
+                let arr = segsByTrimmedSource.get(sk);
+                if (!arr) {
+                    arr = [];
+                    segsByTrimmedSource.set(sk, arr);
+                }
+                arr.push(s);
+            }
             for (const src of touchedSources) {
-                const groupSegs = currentSegmentsList.filter(
-                    (s) => (s.sourceText || '').trim() === src && String(s.targetText || '').trim()
-                );
+                const groupSegs = segsByTrimmedSource.get(src) || [];
                 const variants = new Set(groupSegs.map((s) => (s.targetText || '').trim()));
                 if (variants.size > 1) {
                     for (const s of groupSegs) {
