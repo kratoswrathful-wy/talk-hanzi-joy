@@ -6226,7 +6226,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     let qaScopeLocksFilterUi = false;
     let qaRunInProgress = false;
     function updateSfModeToggleLockState() {
-        const locked = !sfAdvancedPanel.classList.contains('hidden');
+        const locked = isSfAdvancedFilterInUse();
+        if (locked && sfMode === 'search') {
+            sfMode = 'filter';
+            if (sfModeFilter) sfModeFilter.classList.add('active');
+            if (sfModeSearch) sfModeSearch.classList.remove('active');
+            scheduleRunSearchAndFilter();
+        }
         [sfModeSearch, sfModeFilter].forEach((btn) => {
             if (!btn) return;
             btn.disabled = locked;
@@ -6288,8 +6294,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
     sfModeSearch.addEventListener('click', () => {
-        // 進階篩選開啟時，強制維持在「篩選」模式
-        if (!sfAdvancedPanel.classList.contains('hidden')) {
+        // 進階篩選條件使用中時，強制維持在「篩選」模式
+        if (isSfAdvancedFilterInUse()) {
             sfMode = 'filter';
             sfModeFilter.classList.add('active');
             sfModeSearch.classList.remove('active');
@@ -6301,8 +6307,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         emitCollabFocus('control', 'sfModeSearch');
     });
     sfModeFilter.addEventListener('click', () => {
-        // 進階篩選開啟時，維持在「篩選」模式且不做切換邏輯
-        if (!sfAdvancedPanel.classList.contains('hidden')) {
+        // 進階篩選條件使用中時，維持在「篩選」模式且不做切換邏輯
+        if (isSfAdvancedFilterInUse()) {
             sfMode = 'filter';
             sfModeFilter.classList.add('active');
             sfModeSearch.classList.remove('active');
@@ -6318,7 +6324,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     sfUseRegex.addEventListener('change', (e) => { sfUseRegexChecked = e.target.checked; scheduleRunSearchAndFilter(); });
     btnSfInvert.addEventListener('click', () => {
         if (btnSfInvert.classList.contains('sf-invert-disabled')) return;
-        btnSfInvert.classList.toggle('active'); scheduleRunSearchAndFilter();
+        btnSfInvert.classList.toggle('active');
+        updateSfModeToggleLockState();
+        scheduleRunSearchAndFilter();
     });
     if (btnSfOptionsPopover && sfOptionsPopover) {
         btnSfOptionsPopover.addEventListener('click', (e) => {
@@ -6331,8 +6339,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     }
-    document.querySelectorAll('.sf-scope-cb, .sf-status-cb').forEach(cb => cb.addEventListener('change', () => scheduleRunSearchAndFilter()));
+    document.querySelectorAll('.sf-scope-cb, .sf-status-cb').forEach(cb => cb.addEventListener('change', () => {
+        updateSfModeToggleLockState();
+        scheduleRunSearchAndFilter();
+    }));
     document.getElementById('sfTmMatch').addEventListener('input', () => {
+        updateSfModeToggleLockState();
         scheduleRunSearchAndFilter(300);
     });
     
@@ -6344,7 +6356,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         ['sfRowRangeEnabled', 'sfRowRangeExclude', 'sfRowRangeFrom', 'sfRowRangeTo'].forEach((id) => {
             const el = document.getElementById(id);
             if (!el) return;
-            const go = () => scheduleRunSearchAndFilter();
+            const go = () => {
+                updateSfModeToggleLockState();
+                scheduleRunSearchAndFilter();
+            };
             if (id === 'sfRowRangeEnabled') {
                 el.addEventListener('change', () => {
                     if (el.checked) {
@@ -6507,10 +6522,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!isSfInputFocused) {
                 sfInput.focus();
             } else {
-                if (!sfAdvancedPanel.classList.contains('hidden')) {
+                if (isSfAdvancedFilterInUse()) {
                     return;
                 }
-                // 與按鈕一致：在尋找框再按一次 Ctrl+F 會切換模式；進階面板展開時強制維持 filter。
+                // 與按鈕一致：在尋找框再按一次 Ctrl+F 會切換模式；進階篩選使用中時強制維持 filter。
                 if (sfMode === 'search') sfModeFilter.click();
                 else sfModeSearch.click();
             }
@@ -6832,6 +6847,53 @@ document.addEventListener('DOMContentLoaded', async () => {
             toVal: String(g.rowRangeTo ?? ''),
             exclude: !!flags.rowRangeExclude
         };
+    }
+
+    const scopeNames = { source: '原文', target: '譯文', keys: 'Key', extra: '額外資訊' };
+    const statusNames = {
+        empty: '空白',
+        not_empty: '非空白',
+        confirmed: '已確認',
+        unconfirmed: '未確認',
+        locked: '鎖定',
+        unlocked: '未鎖定'
+    };
+
+    /** 單一篩選群組：供 chip 與 QA「當時篩選結果」共用的一行一條條件文字 */
+    function getSfFilterGroupConditionLines(g) {
+        const lines = [];
+        if (!g) return lines;
+        const sj = (g.scopes || []).map((s) => scopeNames[s] || s).join('、');
+        const term = String(g.term || '').trim();
+        if (term) {
+            lines.push(
+                g.isInvert
+                    ? `不包含字串『${term}』（搜尋範圍：${sj || '—'}）`
+                    : `包含字串『${term}』（搜尋範圍：${sj || '—'}）`
+            );
+        } else if (g.isInvert) {
+            lines.push(`不包含字串（搜尋範圍：${sj || '全部'}）`);
+        }
+        const st = (g.statuses || []).length ? g.statuses.map((s) => statusNames[s] || s).join('、') : '無';
+        const tmv = g.tmVal ? String(g.tmVal) : '無';
+        lines.push(`句段狀態：${st} / 翻譯記憶相符度：${tmv}`);
+        const rowSpec = sfRowSpecFromGroup(g);
+        if (rowSpec.enabled) {
+            const rf = String(rowSpec.fromVal || '').trim();
+            const rt = String(rowSpec.toVal || '').trim();
+            const ex = rowSpec.exclude ? '（範圍外）' : '';
+            lines.push(`句段編號範圍：${rf}-${rt}${ex}`);
+        }
+        return lines;
+    }
+
+    /** 進階面板內條件是否參與篩選（與面板摺疊無關），供模式切換鎖／Ctrl+F／內聯訊息 */
+    function isSfAdvancedFilterInUse() {
+        const adv = readSfAdvancedSpecFromDom();
+        if (String(adv.tmVal || '').trim() !== '') return true;
+        if (adv.statuses && adv.statuses.length > 0) return true;
+        const rowSpec = sfRowSpecFromAdvancedPart(adv);
+        return !!rowSpec.enabled;
     }
 
     // Core Evaluator
@@ -8028,9 +8090,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `hsl(${h}, 70%, 85%)`;
     }
 
-    const scopeNames = { 'source':'原文', 'target':'譯文', 'keys':'Key', 'extra':'額外資訊' };
-    const statusNames = { 'empty':'空白', 'not_empty':'非空白', 'confirmed':'已確認', 'unconfirmed':'未確認', 'locked':'鎖定', 'unlocked':'未鎖定' };
-
     function renderFilterGroups() {
         sfActiveGroupsContainer.innerHTML = '';
         if(sfFilterGroups.length === 0) {
@@ -8048,20 +8107,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             
             const opHtml = `<div class="sf-group-op" title="點擊切換"><span>${g.op === 'AND' ? '且' : '或'}</span></div>`;
-            
-            let strPart = g.term ? `${g.isInvert ? '(不包含) ' : ''}字串「${g.term}」 / 搜尋範圍：${g.scopes.map(s => scopeNames[s]||s).join('、')}` : '';
-            if (g.isInvert && !g.term) strPart = '(不包含) 全部字串';
-            
-            let statusPartText = g.statuses.length ? g.statuses.map(s => statusNames[s]||s).join('、') : '無';
-            let tmPartText = g.tmVal ? g.tmVal + '' : '無';
-            let statusTmPart = `句段狀態：${statusPartText} / 翻譯記憶相符度：${tmPartText}`;
-            let rowPart = '';
-            if (g.rowRangeEnabled === true) {
-                const rf = String(g.rowRangeFrom || '').trim();
-                const rt = String(g.rowRangeTo || '').trim();
-                const ex = g.rowRangeExclude ? '（範圍外）' : '';
-                rowPart = `句段編號範圍：${rf}-${rt}${ex}`;
-            }
+            const condLines = getSfFilterGroupConditionLines(g);
+            const condHtml = condLines.map((line) => `<div>${escapeHtml(line)}</div>`).join('');
 
             if (typeof g.locked !== 'boolean') g.locked = false;
 
@@ -8069,9 +8116,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ${opHtml}
                 <label class="sf-group-lock-wrap" title="鎖定：清除篩選時保留此群組，且不清空頂層「尋找」字串（若有任一鎖定群組）"><input type="checkbox" class="sf-group-lock-cb"${g.locked ? ' checked' : ''}>鎖定</label>
                 <div class="sf-group-content">
-                    ${strPart ? `<div>${strPart}</div>` : ''}
-                    <div>${statusTmPart}</div>
-                    ${rowPart ? `<div>${rowPart}</div>` : ''}
+                    ${condHtml}
                 </div>
                 <div class="sf-group-del" title="移除">✖</div>
             `;
@@ -8110,6 +8155,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!preserveSfInput && sfInput) sfInput.value = '';
         clearSfAdvancedSpecOnDom();
         btnSfInvert.classList.remove('active');
+        updateSfModeToggleLockState();
         // keep scopes & regex as they are settings
     }
 
@@ -8274,6 +8320,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         document.getElementById('sfModeFilter').click();
         renderFilterGroups();
+        updateSfModeToggleLockState();
         runSearchAndFilter();
         e.target.value = ''; // reset DDL
     });
@@ -10851,32 +10898,78 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         return visibleSegIds;
     }
-    function buildQaFilterConditionsSummary() {
-        const items = [];
+    /** QA「當時篩選結果」：一行一條，與篩選群組 chip 造句一致 */
+    function buildQaFilterConditionsSummaryLines() {
+        const lines = [];
         const q = (sfInput?.value || '').trim();
-        if (q) items.push(`關鍵字：${q}`);
-        const scopes = Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map((el) => {
-            const label = el.closest('label');
-            return (label?.textContent || '').trim();
-        }).filter(Boolean);
-        if (scopes.length) items.push(`欄位：${scopes.join('、')}`);
-        const statuses = Array.from(document.querySelectorAll('.sf-status-cb:checked')).map((el) => {
-            const label = el.closest('label');
-            return (label?.textContent || '').trim();
-        }).filter(Boolean);
-        if (statuses.length) items.push(`句段狀態：${statuses.join('、')}`);
-        const tm = (document.getElementById('sfTmMatch')?.value || '').trim();
-        if (tm) items.push(`TM%：${tm}`);
-        const rowRangeEnabled = document.getElementById('sfRowRangeEnabled')?.checked;
-        const rowRangeExclude = document.getElementById('sfRowRangeExclude')?.checked;
-        const rowRangeFrom = (document.getElementById('sfRowRangeFrom')?.value || '').trim();
-        const rowRangeTo = (document.getElementById('sfRowRangeTo')?.value || '').trim();
-        if (rowRangeEnabled || rowRangeExclude || rowRangeFrom || rowRangeTo) {
-            const mode = rowRangeExclude ? '排除' : (rowRangeEnabled ? '顯示' : '指定');
-            items.push(`句段範圍：${mode} ${rowRangeFrom || '起'} - ${rowRangeTo || '訖'}`);
+        const scopes = Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map((cb) => cb.value);
+        const sj = scopes.map((s) => scopeNames[s] || s).join('、');
+        const isInv = !!(btnSfInvert && btnSfInvert.classList.contains('active'));
+        if (q) {
+            let line = isInv
+                ? `不包含字串『${q}』（搜尋範圍：${sj || '—'}）`
+                : `包含字串『${q}』（搜尋範圍：${sj || '—'}）`;
+            if (sfUseRegexChecked) line += '（正則模式）';
+            lines.push(line);
+        } else if (isInv) {
+            lines.push(`不包含字串（搜尋範圍：${sj || '全部'}）`);
         }
-        if (sfFilterGroups.length) items.push(`篩選群組：${sfFilterGroups.length} 組`);
-        return items;
+        const adv = readSfAdvancedSpecFromDom();
+        if (adv.statuses && adv.statuses.length) {
+            lines.push(`句段狀態：${adv.statuses.map((v) => statusNames[v] || v).join('、')}`);
+        }
+        const tm = String(adv.tmVal || '').trim();
+        if (tm) lines.push(`TM%：${tm}`);
+        const rowSpec = sfRowSpecFromAdvancedPart(adv);
+        if (rowSpec.enabled) {
+            const rf = String(adv.rowRangeFrom || '').trim();
+            const rt = String(adv.rowRangeTo || '').trim();
+            const mode = rowSpec.exclude ? '排除' : '顯示';
+            lines.push(`句段範圍：${mode} ${rf || '起'} - ${rt || '訖'}`);
+        }
+        sfFilterGroups.forEach((g) => {
+            getSfFilterGroupConditionLines(g).forEach((ln) => lines.push(ln));
+        });
+        return lines;
+    }
+
+    function confirmQaFilterScopeModal(message) {
+        return new Promise((resolve) => {
+            const overlay = document.getElementById('qaFilterScopeConfirmModal');
+            const msgEl = document.getElementById('qaFilterScopeConfirmMsg');
+            const btnOk = document.getElementById('btnQaFilterScopeConfirmOk');
+            const btnCancel = document.getElementById('btnQaFilterScopeConfirmCancel');
+            if (!overlay || !msgEl || !btnOk || !btnCancel) {
+                resolve(window.confirm(message));
+                return;
+            }
+            msgEl.textContent = message;
+            const done = (v) => {
+                overlay.classList.add('hidden');
+                btnOk.removeEventListener('click', onOk);
+                btnCancel.removeEventListener('click', onCancel);
+                overlay.removeEventListener('click', onOverlay);
+                document.removeEventListener('keydown', onKey);
+                resolve(v);
+            };
+            const onOk = () => done(true);
+            const onCancel = () => done(false);
+            const onOverlay = (e) => {
+                if (e.target === overlay) done(false);
+            };
+            const onKey = (e) => {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    done(false);
+                }
+            };
+            btnOk.addEventListener('click', onOk);
+            btnCancel.addEventListener('click', onCancel);
+            overlay.addEventListener('click', onOverlay);
+            document.addEventListener('keydown', onKey);
+            overlay.classList.remove('hidden');
+            btnOk.focus();
+        });
     }
     function updateQaSortHeaderState() {
         const headers = document.querySelectorAll('#qaResultsTable .qa-sortable-th');
@@ -10950,9 +11043,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const isFilterContext = sfMode === 'filter';
             if (isFilterContext && useRange) {
                 const msg = qaScopeCurrentFilteredEl?.checked
-                    ? '按照目前設定將不會把隱藏句段列入 QA 範圍，是否確定？（如欲納入隱藏句段，請取消勾選「目前篩選結果」後再重試）。'
-                    : '按照目前設定將連隱藏句段一起列入 QA 範圍，是否確定？（如欲排除隱藏句段，請額外勾選「目前篩選結果」後再重試）。';
-                if (!confirm(msg)) return;
+                    ? '按照目前設定將不會把隱藏句段列入 QA 範圍，是否確定？（如欲納入隱藏句段，請取消勾選「目前篩選結果」後再重試）'
+                    : '按照目前設定將連隱藏句段一起列入 QA 範圍，是否確定？（如欲排除隱藏句段，請額外勾選「目前篩選結果」後再重試）';
+                const ok = await confirmQaFilterScopeModal(msg);
+                if (!ok) return;
             }
             const runAt = new Date().toLocaleString('zh-TW', { hour12: false });
             const checks = [];
@@ -10967,15 +11061,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const b = Number.isFinite(toIdx) ? toIdx : '末句';
                 scopeParts.push(`句段範圍 ${a} - ${b}`);
             }
-            if (qaScopeCurrentFilteredEl?.checked) scopeParts.push('目前篩選結果');
-            const conditions = buildQaFilterConditionsSummary();
+            const condLines = buildQaFilterConditionsSummaryLines();
+            const condHtml = condLines.length
+                ? condLines.map((line) => `<div>${escapeHtml(line)}</div>`).join('')
+                : '<div>（無）</div>';
             qaLastRunSummaryHtml = `
-                <div><strong>本次 QA 執行摘要</strong></div>
+                <div><strong>現有 QA 執行摘要</strong></div>
                 <div>執行時間：${runAt}</div>
                 <div>檢查項目：${checks.length ? checks.join('、') : '（未選擇）'}</div>
                 <div>檢查範圍：${scopeParts.join('、')}</div>
                 <div>當時篩選結果</div>
-                <div>（${conditions.length ? conditions.join('、') : '無'}）</div>
+                ${condHtml}
             `;
             renderQaRunSummary(qaLastRunSummaryHtml);
 

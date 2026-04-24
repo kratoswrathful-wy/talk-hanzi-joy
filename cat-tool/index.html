@@ -1271,6 +1271,22 @@
             </div>
         </div>
 
+        <!-- QA：篩選模式下句段範圍與「目前篩選結果」併用時之確認 -->
+        <div class="wizard-overlay hidden" id="qaFilterScopeConfirmModal" aria-modal="true" role="dialog">
+            <div class="wizard-modal" style="max-width: min(520px, 94vw);">
+                <div class="wizard-header">
+                    <h3 style="margin:0; font-size:1.1rem;">開始 QA 前確認</h3>
+                </div>
+                <div class="wizard-body">
+                    <p id="qaFilterScopeConfirmMsg" style="margin:0; font-size:0.9rem; color:#334155; line-height:1.55;"></p>
+                </div>
+                <div class="panel-footer" style="padding:1rem 1.5rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; background:#f8fafc;">
+                    <button type="button" class="secondary-btn" id="btnQaFilterScopeConfirmCancel">取消</button>
+                    <button type="button" class="primary-btn" id="btnQaFilterScopeConfirmOk">確定</button>
+                </div>
+            </div>
+        </div>
+
         <!-- mqxliff 預設確認身分選擇 -->
         <div class="wizard-overlay hidden" id="mqRoleModal">
             <div class="wizard-modal" style="max-width: 460px;">
