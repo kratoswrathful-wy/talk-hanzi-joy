@@ -292,11 +292,60 @@ button { font-family: inherit; cursor: pointer; }
     width: 100%;
     box-sizing: border-box;
 }
+/* 第一列：搜尋／篩選切換（非 mq 列）改為單欄 flex，以容納進階生效中標籤 */
+.sf-cell-mode:not(.mq-role-hidden) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 .sf-cell-mode.mq-role-hidden {
     grid-template-columns: 2rem;
 }
-.sf-cell-mode .sf-mode-toggle {
-    display: contents;
+.sf-mode-toggle-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 2rem;
+    position: relative;
+}
+.sf-mode-toggle-wrap.sf-advanced-locked .sf-mode-toggle {
+    display: none;
+}
+.sf-advanced-in-use-badge {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.05rem;
+    padding: 0.22rem 0.5rem;
+    border-radius: 4px;
+    background: #0f172a;
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    white-space: nowrap;
+}
+.sf-mode-toggle-wrap.sf-advanced-locked .sf-advanced-in-use-badge {
+    display: flex;
+}
+.sf-advanced-in-use-line1,
+.sf-advanced-in-use-line2 {
+    display: block;
+}
+.qa-filter-scope-confirm-msg p {
+    margin: 0 0 0.45rem 0;
+    font-size: 0.9rem;
+    color: #334155;
+    line-height: 1.55;
+}
+.qa-filter-scope-confirm-msg p:last-child {
+    margin-bottom: 0;
+    color: #64748b;
+    font-size: 0.86rem;
 }
 .sf-cell-invert {
     display: flex;

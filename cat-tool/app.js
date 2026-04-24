@@ -6220,8 +6220,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnSfReplaceAll = document.getElementById('btnSfReplaceAll');
     const sfContainer = document.getElementById('sfContainer');
     const sfModeLockInlineMsg = document.getElementById('sfModeLockInlineMsg');
+    const sfModeToggleWrap = document.getElementById('sfModeToggleWrap');
     const qaScopeLockInlineMsg = document.getElementById('qaScopeLockInlineMsg');
-    const sfModeLockedTitle = '正在使用進階篩選，無法切換為搜尋狀態';
+    const sfAdvancedInUseAria = '進階篩選條件生效中，無法切換為搜尋狀態';
     const qaScopeLockHint = '已選擇以目前篩選結果為 QA 範圍，暫時不得變動篩選條件；如欲變更或清除篩選條件，請取消該 QA 範圍設定';
     let qaScopeLocksFilterUi = false;
     let qaRunInProgress = false;
@@ -6237,10 +6238,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!btn) return;
             btn.disabled = locked;
             btn.title = btn.id === 'sfModeSearch' ? '搜尋' : '篩選';
+            if (locked) btn.setAttribute('aria-hidden', 'true');
+            else btn.removeAttribute('aria-hidden');
         });
+        if (sfModeToggleWrap) sfModeToggleWrap.classList.toggle('sf-advanced-locked', locked);
+        const advBadge = document.getElementById('sfAdvancedInUseBadge');
+        if (advBadge) {
+            advBadge.setAttribute('aria-hidden', locked ? 'false' : 'true');
+            if (locked) advBadge.setAttribute('aria-label', sfAdvancedInUseAria);
+            else advBadge.removeAttribute('aria-label');
+        }
         if (sfModeLockInlineMsg) {
-            sfModeLockInlineMsg.textContent = locked ? sfModeLockedTitle : '';
-            sfModeLockInlineMsg.classList.toggle('show', locked);
+            sfModeLockInlineMsg.textContent = '';
+            sfModeLockInlineMsg.classList.remove('show');
         }
     }
     function updateQaScopeFilterLockState(forceLocked) {
@@ -10933,17 +10943,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         return lines;
     }
 
-    function confirmQaFilterScopeModal(message) {
+    /** @param {string} line1 主問句 @param {string} line2 括號內補充（可含括號） */
+    function confirmQaFilterScopeModal(line1, line2) {
         return new Promise((resolve) => {
             const overlay = document.getElementById('qaFilterScopeConfirmModal');
             const msgEl = document.getElementById('qaFilterScopeConfirmMsg');
             const btnOk = document.getElementById('btnQaFilterScopeConfirmOk');
             const btnCancel = document.getElementById('btnQaFilterScopeConfirmCancel');
             if (!overlay || !msgEl || !btnOk || !btnCancel) {
-                resolve(window.confirm(message));
+                resolve(window.confirm(`${line1}\n${line2}`));
                 return;
             }
-            msgEl.textContent = message;
+            msgEl.innerHTML = '';
+            const p1 = document.createElement('p');
+            p1.textContent = line1;
+            const p2 = document.createElement('p');
+            p2.textContent = line2;
+            msgEl.appendChild(p1);
+            msgEl.appendChild(p2);
             const done = (v) => {
                 overlay.classList.add('hidden');
                 btnOk.removeEventListener('click', onOk);
@@ -11042,10 +11059,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             const allowedSegIds = getQaScopeVisibleSegIdSet();
             const isFilterContext = sfMode === 'filter';
             if (isFilterContext && useRange) {
-                const msg = qaScopeCurrentFilteredEl?.checked
-                    ? '按照目前設定將不會把隱藏句段列入 QA 範圍，是否確定？（如欲納入隱藏句段，請取消勾選「目前篩選結果」後再重試）'
-                    : '按照目前設定將連隱藏句段一起列入 QA 範圍，是否確定？（如欲排除隱藏句段，請額外勾選「目前篩選結果」後再重試）';
-                const ok = await confirmQaFilterScopeModal(msg);
+                const ok = qaScopeCurrentFilteredEl?.checked
+                    ? await confirmQaFilterScopeModal(
+                        '按照目前設定將不會把隱藏句段列入 QA 範圍，是否確定？',
+                        '（如欲納入隱藏句段，請取消勾選「目前篩選結果」後再重試）'
+                    )
+                    : await confirmQaFilterScopeModal(
+                        '按照目前設定將連隱藏句段一起列入 QA 範圍，是否確定？',
+                        '（如欲排除隱藏句段，請額外勾選「目前篩選結果」後再重試）'
+                    );
                 if (!ok) return;
             }
             const runAt = new Date().toLocaleString('zh-TW', { hour12: false });
