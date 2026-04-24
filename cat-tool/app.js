@@ -6218,10 +6218,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sfReplaceInput = document.getElementById('sfReplaceInput');
     const btnSfReplaceThis = document.getElementById('btnSfReplaceThis');
     const btnSfReplaceAll = document.getElementById('btnSfReplaceAll');
+    const sfModeToggleWrap = document.querySelector('.sf-mode-toggle');
     const sfModeLockedTitle = '正在使用進階篩選，無法切換為搜尋狀態';
     let sfModeLockHintTimer = null;
-    function showSfModeLockHintNearInput() {
-        if (!sfInput) return;
+    function showSfModeLockHintAtRect(rect) {
+        if (!rect) return;
         const id = 'sfModeLockHintBubble';
         let hint = document.getElementById(id);
         if (!hint) {
@@ -6231,7 +6232,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.body.appendChild(hint);
         }
         hint.textContent = sfModeLockedTitle;
-        const rect = sfInput.getBoundingClientRect();
         hint.style.left = `${Math.max(8, rect.left)}px`;
         hint.style.top = `${Math.max(8, rect.top - 30)}px`;
         hint.classList.add('show');
@@ -6240,17 +6240,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             hint.classList.remove('show');
         }, 1400);
     }
+    function showSfModeLockHintNearInput() {
+        if (!sfInput) return;
+        showSfModeLockHintAtRect(sfInput.getBoundingClientRect());
+    }
+    function showSfModeLockHintNearModeToggle() {
+        if (!sfModeToggleWrap) return;
+        showSfModeLockHintAtRect(sfModeToggleWrap.getBoundingClientRect());
+    }
     function updateSfModeToggleLockState() {
         const locked = !sfAdvancedPanel.classList.contains('hidden');
-        const modeToggleWrap = document.querySelector('.sf-mode-toggle');
         [sfModeSearch, sfModeFilter].forEach((btn) => {
             if (!btn) return;
             btn.disabled = locked;
             btn.title = btn.id === 'sfModeSearch' ? '搜尋' : '篩選';
         });
-        if (modeToggleWrap) {
-            if (locked) modeToggleWrap.title = sfModeLockedTitle;
-            else modeToggleWrap.title = '';
+        if (sfModeToggleWrap) {
+            if (locked) sfModeToggleWrap.title = sfModeLockedTitle;
+            else sfModeToggleWrap.title = '';
         }
     }
     let sfRunUiTimer = null;
@@ -6320,6 +6327,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         scheduleRunSearchAndFilter();
         emitCollabFocus('control', 'sfModeFilter');
     });
+    if (sfModeToggleWrap) {
+        sfModeToggleWrap.addEventListener('mouseenter', () => {
+            if (sfModeSearch?.disabled && sfModeFilter?.disabled) {
+                showSfModeLockHintNearModeToggle();
+            }
+        });
+    }
     updateSfModeToggleLockState();
     sfUseRegex.addEventListener('change', (e) => { sfUseRegexChecked = e.target.checked; scheduleRunSearchAndFilter(); });
     btnSfInvert.addEventListener('click', () => {
