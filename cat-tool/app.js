@@ -7803,7 +7803,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sfActiveGroupsContainer = document.getElementById('sfActiveGroupsContainer');
     const btnAddFilterGroup = document.getElementById('btnAddFilterGroup');
     const btnSaveFilterPreset = document.getElementById('btnSaveFilterPreset');
+    const btnManageFilterPresets = document.getElementById('btnManageFilterPresets');
     const sfPresetsSelect = document.getElementById('sfPresetsSelect');
+    const sfPresetManagerModal = document.getElementById('sfPresetManagerModal');
+    const sfPresetManagerList = document.getElementById('sfPresetManagerList');
+    const btnCloseSfPresetManager = document.getElementById('btnCloseSfPresetManager');
     function getRandomGroupColor() {
         let h;
         // avoid 30-60 (orange/yellow used by active UI search) and extremely dark colors
@@ -7919,16 +7923,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     function loadPresetsSelect() {
-        sfPresetsSelect.innerHTML = '<option value="">-- 我的最愛 --</option>';
+        sfPresetsSelect.innerHTML = '<option value="">-- 套用常用組合 --</option>';
         Object.keys(sfPresets).forEach(name => {
             const opt = document.createElement('option');
             opt.value = name; opt.textContent = name;
             sfPresetsSelect.appendChild(opt);
         });
     }
+
+    function saveSfPresetsToStorage() {
+        localStorage.setItem('catToolSfPresets', JSON.stringify(sfPresets));
+        loadPresetsSelect();
+    }
+
+    function normalizeSfPresetName(rawName) {
+        return String(rawName || '').trim();
+    }
+
+    function renderSfPresetManagerList() {
+        if (!sfPresetManagerList) return;
+        const names = Object.keys(sfPresets);
+        if (!names.length) {
+            sfPresetManagerList.innerHTML = '<div class="sf-preset-manager-empty">尚未儲存常用組合</div>';
+            return;
+        }
+        const sorted = names.slice().sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+        sfPresetManagerList.innerHTML = sorted.map((name) => `
+            <div class="sf-preset-manager-row">
+                <div class="sf-preset-manager-name">${escapeHtml(name)}</div>
+                <div class="sf-preset-manager-actions">
+                    <button type="button" class="secondary-btn btn-sm" data-action="rename" data-name-key="${encodeURIComponent(name)}">更名</button>
+                    <button type="button" class="secondary-btn btn-sm" data-action="delete" data-name-key="${encodeURIComponent(name)}">刪除</button>
+                </div>
+            </div>
+        `).join('');
+    }
     
     btnSaveFilterPreset.addEventListener('click', () => {
-        const name = prompt('請輸入常用篩選與搜尋組合名稱：');
+        const name = normalizeSfPresetName(prompt('請輸入常用篩選與搜尋組合名稱：'));
         if(!name) return;
         const advCur = readSfAdvancedSpecFromDom();
         sfPresets[name] = {
@@ -7946,9 +7978,54 @@ document.addEventListener('DOMContentLoaded', async () => {
                 rowRangeExclude: advCur.rowRangeExclude
             }
         };
-        localStorage.setItem('catToolSfPresets', JSON.stringify(sfPresets));
-        loadPresetsSelect();
+        saveSfPresetsToStorage();
     });
+
+    if (btnManageFilterPresets && sfPresetManagerModal) {
+        btnManageFilterPresets.addEventListener('click', () => {
+            renderSfPresetManagerList();
+            sfPresetManagerModal.classList.remove('hidden');
+        });
+    }
+    if (btnCloseSfPresetManager && sfPresetManagerModal) {
+        btnCloseSfPresetManager.addEventListener('click', () => {
+            sfPresetManagerModal.classList.add('hidden');
+        });
+    }
+    if (sfPresetManagerModal) {
+        sfPresetManagerModal.addEventListener('click', (e) => {
+            if (e.target === sfPresetManagerModal) sfPresetManagerModal.classList.add('hidden');
+        });
+    }
+    if (sfPresetManagerList) {
+        sfPresetManagerList.addEventListener('click', (e) => {
+            const btn = e.target && e.target.closest ? e.target.closest('button[data-action][data-name-key]') : null;
+            if (!btn) return;
+            const action = btn.dataset.action;
+            const oldName = normalizeSfPresetName(decodeURIComponent(btn.dataset.nameKey || ''));
+            if (!oldName || !sfPresets[oldName]) return;
+
+            if (action === 'rename') {
+                const nextName = normalizeSfPresetName(prompt('請輸入新的組合名稱：', oldName));
+                if (!nextName || nextName === oldName) return;
+                if (sfPresets[nextName]) {
+                    alert('名稱已存在，請改用其他名稱。');
+                    return;
+                }
+                sfPresets[nextName] = sfPresets[oldName];
+                delete sfPresets[oldName];
+                saveSfPresetsToStorage();
+                renderSfPresetManagerList();
+                return;
+            }
+            if (action === 'delete') {
+                if (!confirm(`確定要刪除常用組合「${oldName}」嗎？`)) return;
+                delete sfPresets[oldName];
+                saveSfPresetsToStorage();
+                renderSfPresetManagerList();
+            }
+        });
+    }
 
     sfPresetsSelect.addEventListener('change', (e) => {
         const name = e.target.value;

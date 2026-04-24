@@ -661,7 +661,7 @@
                                 <div class="sf-adv-section" style="flex-basis:100%;" title="依目前列表由上而下順序，與句段編號（# 欄）一致，1 起算">
                                     <strong>句段編號範圍</strong>
                                     <div style="display:flex; flex-wrap:wrap; align-items:center; gap:0.45rem; font-size:0.85rem; margin-top:0.25rem;">
-                                        <label style="display:flex; align-items:center; gap:0.25rem;"><input type="checkbox" id="sfRowRangeEnabled" tabindex="8"> 啟用編號範圍</label>
+                                        <label style="display:flex; align-items:center; gap:0.25rem;"><input type="checkbox" id="sfRowRangeEnabled" tabindex="8"> 顯示此範圍</label>
                                         <input type="number" id="sfRowRangeFrom" class="sf-input" min="1" step="1" placeholder="起" tabindex="9" style="width:4rem; padding:0.15rem 0.35rem;">
                                         <span>-</span>
                                         <input type="number" id="sfRowRangeTo" class="sf-input" min="1" step="1" placeholder="訖" tabindex="10" style="width:4rem; padding:0.15rem 0.35rem;">
@@ -672,8 +672,9 @@
                                 <div class="sf-adv-actions">
                                     <button type="button" class="primary-btn btn-sm" id="btnAddFilterGroup" tabindex="12">加入篩選群組</button>
                                     <button type="button" class="secondary-btn btn-sm" id="btnSaveFilterPreset" tabindex="13">儲存常用組合</button>
-                                    <select id="sfPresetsSelect" class="sf-presets-select" tabindex="14">
-                                        <option value="">-- 我的最愛 --</option>
+                                    <button type="button" class="secondary-btn btn-sm" id="btnManageFilterPresets" tabindex="14">管理常用組合</button>
+                                    <select id="sfPresetsSelect" class="sf-presets-select" tabindex="15">
+                                        <option value="">-- 套用常用組合 --</option>
                                     </select>
                                 </div>
                             </div>
@@ -1787,6 +1788,17 @@
                 <button type="button" id="btnPrivateNoteShareCopy" class="primary-btn btn-sm">複製到共用筆記</button>
                 <button type="button" id="btnPrivateNoteShareMove" class="secondary-btn btn-sm">移動到共用筆記</button>
                 <button type="button" id="btnPrivateNoteShareCancel" class="secondary-btn btn-sm">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="sfPresetManagerModal" class="modal-overlay hidden">
+        <div class="modal-box" style="max-width:640px; width:min(640px, 96vw);">
+            <h3 style="margin:0 0 0.75rem 0;">管理常用組合</h3>
+            <p style="margin:0 0 0.75rem 0; color:#64748b; font-size:0.88rem;">可為既有組合更名或刪除。</p>
+            <div id="sfPresetManagerList" class="sf-preset-manager-list"></div>
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.9rem;">
+                <button type="button" class="secondary-btn btn-sm" id="btnCloseSfPresetManager">關閉</button>
             </div>
         </div>
     </div>
