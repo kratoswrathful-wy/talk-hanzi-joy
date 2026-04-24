@@ -6632,10 +6632,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             const editorBeforeTmSearch = getActiveTargetEditor();
             const sel = window.getSelection();
             const selText = sel ? sel.toString().trim() : '';
+            const anchorNode = sel && sel.anchorNode;
+            const anchorEl = anchorNode ? (anchorNode.nodeType === 3 ? anchorNode.parentElement : anchorNode) : null;
+            const ae = document.activeElement;
+            const triggeredFromTargetCol = !!(
+                (ae && ae.classList && ae.classList.contains('grid-textarea') && ae.closest && ae.closest('.col-target')) ||
+                (anchorEl && anchorEl.closest && anchorEl.closest('.col-target'))
+            );
             const tmSearchInput = document.getElementById('tmSearchInput');
             if (selText && tmSearchInput) tmSearchInput.value = selText;
             const tabBtn = document.querySelector('.tab-btn[data-tab="tabTmSearch"]');
             if (tabBtn) tabBtn.click();
+            if (triggeredFromTargetCol) {
+                const tmSearchFieldEl = document.getElementById('tmSearchField');
+                if (tmSearchFieldEl) tmSearchFieldEl.value = 'target';
+            }
             if (tmSearchInput && tmSearchInput.value.trim()) {
                 runTmConcordanceSearch();
             }
@@ -7564,9 +7575,59 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!selectedText.trim()) return false;
         const editor = restoreSavedCaretIntoEditor() || getActiveTargetEditor();
         if (!editor || editor.contentEditable === 'false') return false;
+        const segId = getEditorSegId(editor);
+        const seg = segId != null ? currentSegmentsList.find(s => s.id === segId) : null;
+        if (seg && isTargetWriteProtected(seg)) return false;
+
+        const oldTarget = extractTextFromEditor(editor);
+        const oldMatchValue = seg
+            ? (editorUndoMatchStart[seg.id] !== undefined ? editorUndoMatchStart[seg.id] : seg.matchValue)
+            : undefined;
+        const oldStatus = seg
+            ? (editorUndoStatusStart[seg.id] !== undefined ? editorUndoStatusStart[seg.id] : seg.status)
+            : undefined;
+
         insertPlainTextAtCaret(editor, selectedText);
+
+        let postInsertRange = null;
+        try {
+            const selAfter = window.getSelection();
+            if (selAfter && selAfter.rangeCount > 0) postInsertRange = selAfter.getRangeAt(0).cloneRange();
+        } catch (_) { postInsertRange = null; }
+
+        const newTarget = extractTextFromEditor(editor);
+        if (seg) seg.targetText = newTarget;
+
+        if (seg && oldTarget !== newTarget) {
+            pushEditorUndo(seg.id, oldTarget, newTarget, {
+                oldMatchValue,
+                newMatchValue: seg.matchValue,
+                oldStatus,
+                newStatus: seg.status
+            });
+            editorUndoEditStart[seg.id] = newTarget;
+        }
+
         saveCatCaretFromSelection(editor);
         editor.dispatchEvent(new Event('input', { bubbles: true }));
+
+        if (postInsertRange) {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    try {
+                        if (!document.body.contains(editor) || editor.contentEditable === 'false') return;
+                        editor.focus();
+                        const s2 = window.getSelection();
+                        if (!s2) return;
+                        s2.removeAllRanges();
+                        s2.addRange(postInsertRange);
+                        saveCatCaretFromSelection(editor);
+                        hideCatFakeCaret();
+                    } catch (_) { /* ignore */ }
+                });
+            });
+        }
+
         return true;
     }
 
