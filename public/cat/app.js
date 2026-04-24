@@ -6182,6 +6182,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let sfUseRegexChecked = false;
     let sfSearchMatches = [];
     let sfActiveMatchIdx = -1;
+    let sfLastFocusedMatchSegIdx = null;
     let sfFilterGroups = []; // [{ op: 'AND'/'OR', term, scopes, isRegex, isInvert, statuses, tms }]
     let sfFilterSnapshotSegIds = null;
     let sfFilterLockedSpecHash = '';
@@ -6901,6 +6902,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         sfSearchMatches = [];
         sfActiveMatchIdx = -1;
+        sfLastFocusedMatchSegIdx = null;
         
         const term = sfInput.value;
         const scopes = Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map(cb => cb.value);
@@ -7077,6 +7079,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             updateMatchHighlightFocus();
         } else {
             sfMatchCount.textContent = `0 / 0`;
+            sfLastFocusedMatchSegIdx = null;
         }
 
         if (didRebuildFilterSnapshot && sfMode === 'filter' && lastEditedRowIdx !== null && !isSfSearchControlActive()) {
@@ -7106,8 +7109,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         
         if (!isSfSearchControlActive()) {
-        match.rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const prevSegIdx = Number.isFinite(sfLastFocusedMatchSegIdx) ? sfLastFocusedMatchSegIdx : null;
+            const nextSegIdx = Number.isFinite(match.segIdx) ? match.segIdx : null;
+            let behavior = 'smooth';
+            if (prevSegIdx != null && nextSegIdx != null) {
+                const distance = Math.abs(nextSegIdx - prevSegIdx);
+                // 跨大距離跳轉改用 auto，避免長時間 smooth 動畫拖慢操作。
+                if (distance > 80) behavior = 'auto';
+            }
+            match.rowEl.scrollIntoView({ behavior, block: 'center' });
         }
+        sfLastFocusedMatchSegIdx = Number.isFinite(match.segIdx) ? match.segIdx : null;
     }
 
     function getSegmentFieldText(seg, segIdx, fieldKey) {
