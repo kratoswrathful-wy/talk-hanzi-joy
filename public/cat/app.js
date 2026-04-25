@@ -1057,9 +1057,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         return (m && m.displayName) ? m.displayName : '其他成員';
     }
 
-    function blockSelectionIfEditedByOthers(seg) {
+    function blockSelectionIfEditedByOthers(seg, event) {
+        if (isResolvingRemoteConflict) {
+            if (event) {
+                if (typeof event.preventDefault === 'function') event.preventDefault();
+                if (typeof event.stopPropagation === 'function') event.stopPropagation();
+            }
+            alert('目前正在處理句段版本衝突，請先完成版本選擇。');
+            return true;
+        }
         const lockEdit = getActiveForeignEditor(seg && seg.id);
         if (!lockEdit) return false;
+        if (event) {
+            if (typeof event.preventDefault === 'function') event.preventDefault();
+            if (typeof event.stopPropagation === 'function') event.stopPropagation();
+        }
         const who = getForeignEditorDisplayName(lockEdit);
         alert(`此句段目前由 ${who} 編輯中，請稍後再試。`);
         return true;
@@ -1313,6 +1325,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return true;
         }
 
+        isResolvingRemoteConflict = true;
         if (whoEl) whoEl.textContent = pending.whoLabel || '其他成員';
         mineEl.innerHTML = buildTaggedHtml(localText, effectiveTags(seg));
         theirsEl.innerHTML = buildTaggedHtml(pending.text, effectiveTags(seg));
@@ -1324,6 +1337,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const cancelBtn = document.getElementById('btnRemoteConflictCancel');
             const finish = (proceed, pickTheirs) => {
                 modal.classList.add('hidden');
+                isResolvingRemoteConflict = false;
                 if (okBtn) okBtn.onclick = null;
                 if (cancelBtn) cancelBtn.onclick = null;
                 if (!proceed) {
@@ -1894,6 +1908,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let collabRowWriteHintTimers = {};
     let collabSeenCommitKeys = new Set();
     const pendingRemoteBySegId = new Map();
+    let isResolvingRemoteConflict = false;
 
     // Repetition Confirmation Mode: 'after' | 'all' | 'none'
     let repMode = localStorage.getItem('catToolRepMode') || 'after';
@@ -9624,10 +9639,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             row.dataset.segId = seg.id;
             if (effectiveLockedSystem) row.title = getForbiddenTooltip(seg);
             else if (seg.isLockedUser) row.title = '句段鎖定中，請解除鎖定後再編輯';
+            row.addEventListener('mousedown', (e) => {
+                if (!isBatchOpInProgress) blockSelectionIfEditedByOthers(seg, e);
+            });
             
             // Activate row on focus; also update selection to this segment only
-            row.addEventListener('focusin', () => {
-                if (!isBatchOpInProgress && blockSelectionIfEditedByOthers(seg)) return;
+            row.addEventListener('focusin', (e) => {
+                if (!isBatchOpInProgress && blockSelectionIfEditedByOthers(seg, e)) return;
                 document.querySelectorAll('.grid-data-row').forEach(r => r.classList.remove('active-row'));
                 row.classList.add('active-row');
                 lastEditedRowIdx = seg.rowIdx;
@@ -9746,7 +9764,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 idCell.addEventListener('mousedown', (e) => e.preventDefault());
                 idCell.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    if (blockSelectionIfEditedByOthers(seg)) return;
+                    if (blockSelectionIfEditedByOthers(seg, e)) return;
                     if (e.ctrlKey || e.metaKey) {
                         if (selectedRowIds.has(seg.id)) selectedRowIds.delete(seg.id);
                         else if (isGridDataRowFilterVisible(row)) selectedRowIds.add(seg.id);
@@ -9813,12 +9831,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 /** 寫庫世代：in-flight 晚歸補寫比對用；與 isConfirming 一併防止確認觸發的 blur 重複寫庫。 */
                 let targetWriteGeneration = 0;
                 let isConfirming = false;
+                targetInput.addEventListener('mousedown', (e) => {
+                    if (blockSelectionIfEditedByOthers(seg, e)) return;
+                });
                 targetInput.addEventListener('focus', async () => {
                     hideCatFakeCaret();
-                    const locker = getActiveForeignEditor(seg.id);
-                    if (locker) {
-                        const who = getForeignEditorDisplayName(locker);
-                        alert(`此句段目前由 ${who} 編輯中，請稍後再試。`);
+                    if (blockSelectionIfEditedByOthers(seg)) {
                         targetInput.blur();
                         return;
                     }
@@ -10790,7 +10808,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         let targetId = parseId(targetRow.querySelector('.col-id').getAttribute('data-id'));
         const targetSeg = currentSegmentsList.find(s => String(s.id) === String(targetId));
-        if (targetSeg && blockSelectionIfEditedByOthers(targetSeg)) return;
+        if (targetSeg && blockSelectionIfEditedByOthers(targetSeg, e)) return;
         
         // 若點到未選取列，改為只選這一列
         if (!selectedRowIds.has(targetId)) {
