@@ -750,6 +750,54 @@ export type Database = {
           },
         ]
       }
+      cat_segment_edit_leases: {
+        Row: {
+          created_at: string
+          expires_at: string
+          file_id: string
+          holder_name: string | null
+          holder_user_id: string | null
+          segment_id: string
+          session_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          file_id: string
+          holder_name?: string | null
+          holder_user_id?: string | null
+          segment_id: string
+          session_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          file_id?: string
+          holder_name?: string | null
+          holder_user_id?: string | null
+          segment_id?: string
+          session_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cat_segment_edit_leases_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "cat_files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cat_segment_edit_leases_segment_id_fkey"
+            columns: ["segment_id"]
+            isOneToOne: true
+            referencedRelation: "cat_segments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cat_tbs: {
         Row: {
           change_log: Json
@@ -1610,6 +1658,24 @@ export type Database = {
           p_extras?: Json
         }
         Returns: Database["public"]["Tables"]["cat_segments"]["Row"][]
+      }
+      try_acquire_cat_segment_edit_lease: {
+        Args: {
+          p_file_id: string
+          p_segment_id: string
+          p_session_id: string
+          p_holder_user_id: string
+          p_holder_name: string
+          p_ttl_seconds?: number
+        }
+        Returns: Json
+      }
+      release_cat_segment_edit_lease: {
+        Args: {
+          p_segment_id: string
+          p_session_id: string
+        }
+        Returns: boolean
       }
       has_role: {
         Args: {
