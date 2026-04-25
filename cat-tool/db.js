@@ -529,6 +529,12 @@ const DBService = {
             }
         }
     },
+    async acquireSegmentEditLease(_fileId, _segmentId, _sessionId, _holderName, _ttlSeconds = 20) {
+        return { acquired: true };
+    },
+    async releaseSegmentEditLease(_segmentId, _sessionId) {
+        return true;
+    },
 
     // ---- Workspace notes（整檔工作筆記存檔列）----
     async addWorkspaceNote(entry) {
@@ -1209,6 +1215,10 @@ const DBService = {
         rpc('db.updateSegmentStatus', { segmentId, newStatus, extra });
     DBService.updateSegmentEditorNote = async (segmentId, editorNote) =>
         rpc('db.updateSegmentEditorNote', { segmentId, editorNote });
+    DBService.acquireSegmentEditLease = async (fileId, segmentId, sessionId, holderName, ttlSeconds = 20) =>
+        rpc('db.acquireSegmentEditLease', { fileId, segmentId, sessionId, holderName, ttlSeconds });
+    DBService.releaseSegmentEditLease = async (segmentId, sessionId) =>
+        rpc('db.releaseSegmentEditLease', { segmentId, sessionId });
 
     // workspace notes (legacy)
     DBService.addWorkspaceNote = async (entry) => rpc('db.addWorkspaceNote', { entry });

@@ -855,6 +855,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
     const COLLAB_FOCUS_TTL_MS = 15000;
     const COLLAB_EDIT_TTL_MS = 20000;
+    const SEGMENT_LEASE_TTL_SECONDS = 20;
+    const SEGMENT_LEASE_REFRESH_MS = 7000;
 
     function collabPaletteFor(sessionId) {
         if (!sessionId) return '#64748b';
@@ -972,6 +974,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function leaveCollabForCurrentFile() {
         if (!collabCurrentFileId) return;
+        segmentLeaseRefreshTimers.forEach((timer) => clearInterval(timer));
+        segmentLeaseRefreshTimers.clear();
         window.parent.postMessage({
             type: 'CAT_COLLAB_LEAVE',
             payload: {
@@ -1015,6 +1019,59 @@ document.addEventListener('DOMContentLoaded', async () => {
                 text: typeof text === 'string' ? text : null
             }
         }, window.location.origin);
+    }
+
+    async function acquireSegmentEditLease(seg) {
+        if (!isTeamMode()) return { acquired: true };
+        if (!collabCurrentFileId || !seg || !seg.id) return { acquired: true };
+        try {
+            return await DBService.acquireSegmentEditLease(
+                collabCurrentFileId,
+                seg.id,
+                collabSelfSessionId,
+                getCurrentUserName(),
+                SEGMENT_LEASE_TTL_SECONDS
+            );
+        } catch (err) {
+            console.error('[collab] acquire lease failed', err, seg && seg.id);
+            return { acquired: false };
+        }
+    }
+
+    async function releaseSegmentEditLease(seg) {
+        if (!isTeamMode()) return;
+        if (!seg || !seg.id) return;
+        try {
+            await DBService.releaseSegmentEditLease(seg.id, collabSelfSessionId);
+        } catch (err) {
+            console.warn('[collab] release lease failed', err, seg.id);
+        }
+    }
+
+    function stopLeaseRefreshForSegment(segId) {
+        const key = String(segId || '');
+        const timer = segmentLeaseRefreshTimers.get(key);
+        if (timer) {
+            clearInterval(timer);
+            segmentLeaseRefreshTimers.delete(key);
+        }
+    }
+
+    function startLeaseRefreshForSegment(seg) {
+        if (!isTeamMode() || !seg || !seg.id) return;
+        const key = String(seg.id);
+        stopLeaseRefreshForSegment(key);
+        const timer = setInterval(async () => {
+            const active = document.activeElement;
+            const activeRow = active && active.closest ? active.closest('.grid-data-row') : null;
+            const activeSegId = activeRow ? String(activeRow.getAttribute('data-seg-id') || '') : '';
+            if (activeSegId !== key) {
+                stopLeaseRefreshForSegment(key);
+                return;
+            }
+            await acquireSegmentEditLease(seg);
+        }, SEGMENT_LEASE_REFRESH_MS);
+        segmentLeaseRefreshTimers.set(key, timer);
     }
 
     /**
@@ -1957,6 +2014,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let collabSeenCommitKeys = new Set();
     const pendingRemoteBySegId = new Map();
     let isResolvingRemoteConflict = false;
+    const segmentLeaseRefreshTimers = new Map();
 
     // Repetition Confirmation Mode: 'after' | 'all' | 'none'
     let repMode = localStorage.getItem('catToolRepMode') || 'after';
@@ -9888,8 +9946,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                         targetInput.blur();
                         return;
                     }
+                    const lease = await acquireSegmentEditLease(seg);
+                    if (!lease || lease.acquired !== true) {
+                        const who = (lease && lease.holderName) ? String(lease.holderName) : '其他成員';
+                        alert(`此句段目前由 ${who} 編輯中，請稍後再試。`);
+                        targetInput.blur();
+                        return;
+                    }
                     // 先發 start，縮短「兩人幾乎同時點入同句段」時的競態窗口。
                     emitCollabEdit('start', seg, seg.targetText || '');
+                    startLeaseRefreshForSegment(seg);
                     await maybeAutoFillEmptyTarget(seg, row, targetInput);
                     editorUndoEditStart[seg.id] = seg.targetText;
                     editorUndoStatusStart[seg.id] = seg.status;
@@ -9983,6 +10049,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 targetInput.addEventListener('blur', async () => {
                     saveCatCaretFromSelection(targetInput);
                     requestAnimationFrame(showCatFakeCaretFromSaved);
+                    stopLeaseRefreshForSegment(seg.id);
+                    releaseSegmentEditLease(seg);
                     // 在任一 await 前快照：Ctrl+Enter  await 期間可能已 isConfirming=false，仍應抑止重複寫庫
                     const wasConfirming = isConfirming;
                     refreshTagNextHighlight(row);

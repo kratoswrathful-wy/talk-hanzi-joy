@@ -448,6 +448,28 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       if (useErr) throw useErr;
       return;
     }
+    case "db.acquireSegmentEditLease": {
+      const { fileId, segmentId, sessionId, holderName, ttlSeconds = 20 } = payload;
+      const { data, error } = await supabase.rpc("try_acquire_cat_segment_edit_lease", {
+        p_file_id: fileId,
+        p_segment_id: segmentId,
+        p_session_id: sessionId,
+        p_holder_user_id: userId,
+        p_holder_name: holderName ?? null,
+        p_ttl_seconds: Number(ttlSeconds) || 20,
+      } as any);
+      if (error) throw error;
+      return data ?? { acquired: false };
+    }
+    case "db.releaseSegmentEditLease": {
+      const { segmentId, sessionId } = payload;
+      const { data, error } = await supabase.rpc("release_cat_segment_edit_lease", {
+        p_segment_id: segmentId,
+        p_session_id: sessionId,
+      } as any);
+      if (error) throw error;
+      return !!data;
+    }
 
     case "db.addWorkspaceNote": {
       const { data, error } = await supabase
