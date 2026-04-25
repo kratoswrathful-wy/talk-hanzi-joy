@@ -918,7 +918,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         Object.values(collabEditBySession || {}).forEach((edit) => {
             if (!edit || !edit.sessionId) return;
             if (edit.sessionId === collabSelfSessionId) return;
-            if (String(edit.state || '') === 'end') return;
+            const st = String(edit.state || '');
+            if (st === 'end' || st === 'commit') return;
             const ts = Date.parse(edit.at || '');
             if (!Number.isFinite(ts) || (now - ts) > COLLAB_EDIT_TTL_MS) return;
             if (edit.segmentId == null) return;
@@ -1014,16 +1015,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, window.location.origin);
     }
 
-    function isSegmentBeingEditedByOthers(segId) {
+    function getActiveForeignEditor(segId) {
         const now = Date.now();
-        return Object.values(collabEditBySession || {}).some((edit) => {
-            if (!edit || !edit.sessionId) return false;
-            if (edit.sessionId === collabSelfSessionId) return false;
-            if (String(edit.state || '') === 'end') return false;
-            if (String(edit.segmentId || '') !== String(segId || '')) return false;
+        for (const edit of Object.values(collabEditBySession || {})) {
+            if (!edit || !edit.sessionId) continue;
+            if (edit.sessionId === collabSelfSessionId) continue;
+            const st = String(edit.state || '');
+            // `commit` 代表已完成提交，不應持續鎖住句段。
+            if (st === 'end' || st === 'commit') continue;
+            if (String(edit.segmentId || '') !== String(segId || '')) continue;
             const ts = Date.parse(edit.at || '');
-            return Number.isFinite(ts) && (now - ts) <= COLLAB_EDIT_TTL_MS;
-        });
+            if (Number.isFinite(ts) && (now - ts) <= COLLAB_EDIT_TTL_MS) return edit;
+        }
+        return null;
+    }
+
+    function isSegmentBeingEditedByOthers(segId) {
+        return !!getActiveForeignEditor(segId);
+    }
+
+    function getForeignEditorDisplayName(edit) {
+        const m = edit ? findMemberBySession(edit.sessionId) : null;
+        return (m && m.displayName) ? m.displayName : '其他成員';
+    }
+
+    function blockSelectionIfEditedByOthers(seg) {
+        const lockEdit = getActiveForeignEditor(seg && seg.id);
+        if (!lockEdit) return false;
+        const who = getForeignEditorDisplayName(lockEdit);
+        alert(`此句段目前由 ${who} 編輯中，請稍後再試。`);
+        return true;
     }
 
     function showRowWriteHint(segId, text) {
@@ -1132,6 +1153,40 @@ document.addEventListener('DOMContentLoaded', async () => {
             .replace(/\u00A0/g, ' ')
             .replace(/\u200B|\uFEFF/g, '')
             .trim();
+    }
+
+    async function resolveRevisionConflictForConfirm(seg, row, targetInput) {
+        if (!currentFileId || !seg || !seg.id || !targetInput) return false;
+        let fresh = null;
+        try {
+            const all = await DBService.getSegmentsByFile(currentFileId);
+            fresh = Array.isArray(all) ? all.find(s => String(s.id) === String(seg.id)) : null;
+        } catch (e) {
+            console.error('[cat-revision] conflict refresh failed', e, seg.id);
+            return false;
+        }
+        if (!fresh) return false;
+        if (typeof fresh.segmentRevision === 'number' && !Number.isNaN(fresh.segmentRevision)) {
+            seg.segmentRevision = fresh.segmentRevision;
+        }
+        const remoteText = typeof fresh.targetText === 'string' ? fresh.targetText : '';
+        const key = String(seg.id);
+        pendingRemoteBySegId.set(key, {
+            text: remoteText,
+            whoLabel: '伺服器較新版本',
+            at: new Date().toISOString()
+        });
+        const picked = await resolvePendingRemoteConflict(seg, row, targetInput);
+        if (!picked) return false;
+        const latest = extractTextFromEditor(targetInput) || '';
+        seg.targetText = latest;
+        try {
+            await applyUpdateSegmentTarget(seg, latest);
+            return true;
+        } catch (e2) {
+            console.error('[cat-revision] retry after conflict failed', e2, seg.id);
+            return false;
+        }
     }
 
     function applyRemoteTextToSegmentUiAndDb(seg, row, editor, remoteText) {
@@ -9554,6 +9609,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             // Activate row on focus; also update selection to this segment only
             row.addEventListener('focusin', () => {
+                if (!isBatchOpInProgress && blockSelectionIfEditedByOthers(seg)) return;
                 document.querySelectorAll('.grid-data-row').forEach(r => r.classList.remove('active-row'));
                 row.classList.add('active-row');
                 lastEditedRowIdx = seg.rowIdx;
@@ -9672,6 +9728,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 idCell.addEventListener('mousedown', (e) => e.preventDefault());
                 idCell.addEventListener('click', (e) => {
                     e.stopPropagation();
+                    if (blockSelectionIfEditedByOthers(seg)) return;
                     if (e.ctrlKey || e.metaKey) {
                         if (selectedRowIds.has(seg.id)) selectedRowIds.delete(seg.id);
                         else if (isGridDataRowFilterVisible(row)) selectedRowIds.add(seg.id);
@@ -9740,12 +9797,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 let isConfirming = false;
                 targetInput.addEventListener('focus', async () => {
                     hideCatFakeCaret();
-                    if (isSegmentBeingEditedByOthers(seg.id)) {
-                        const locker = Object.values(collabEditBySession || {}).find((e) =>
-                            e && e.sessionId !== collabSelfSessionId && String(e.segmentId || '') === String(seg.id || '') && String(e.state || '') !== 'end'
-                        );
-                        const m = locker ? findMemberBySession(locker.sessionId) : null;
-                        const who = (m && m.displayName) ? m.displayName : '其他成員';
+                    const locker = getActiveForeignEditor(seg.id);
+                    if (locker) {
+                        const who = getForeignEditorDisplayName(locker);
                         alert(`此句段目前由 ${who} 編輯中，請稍後再試。`);
                         targetInput.blur();
                         return;
@@ -9952,19 +10006,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                             seg.targetText = latestTarget;
                             isConfirming = true;
                             const myGen = ++targetWriteGeneration;
+                            let resolvedByConflictFlow = false;
                             try {
                                 await applyUpdateSegmentTarget(seg, latestTarget);
                             } catch (err) {
                                 console.error('[Ctrl+Enter 確認前寫庫失敗]', err, seg.id);
                                 if (err && err.code === 'SEGMENT_REVISION_CONFLICT') {
-                                    alert('此句段在伺服器已有較新變更，無法寫入。請重新整理檔案內容後重試。');
+                                    const resolved = await resolveRevisionConflictForConfirm(seg, row, targetInput);
+                                    if (!resolved) {
+                                        alert('此句段在伺服器已有較新變更，且重試未成功。請重新整理檔案內容後重試。');
+                                        isConfirming = false;
+                                        return;
+                                    }
+                                    resolvedByConflictFlow = true;
+                                    emitCollabEdit('commit', seg, seg.targetText || '');
                                 } else {
                                     alert('譯文寫入失敗，無法完成確認。請檢查連線後重試。');
+                                    isConfirming = false;
+                                    return;
                                 }
-                                isConfirming = false;
-                                return;
                             }
-                            if (myGen !== targetWriteGeneration) {
+                            if (!resolvedByConflictFlow && myGen !== targetWriteGeneration) {
                                 try {
                                     await applyUpdateSegmentTarget(seg, seg.targetText);
                                 } catch (e2) {
@@ -10108,19 +10170,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 seg.targetText = latestTarget;
                                 isConfirming = true;
                                 const myGen = ++targetWriteGeneration;
+                                let resolvedByConflictFlow = false;
                                 try {
                                     await applyUpdateSegmentTarget(seg, latestTarget);
                                 } catch (err) {
                                     console.error('[狀態圖示確認前寫庫失敗]', err, seg.id);
                                     if (err && err.code === 'SEGMENT_REVISION_CONFLICT') {
-                                        alert('此句段在伺服器已有較新變更，無法寫入。請重新整理檔案內容後重試。');
+                                        const resolved = await resolveRevisionConflictForConfirm(seg, row, targetTa);
+                                        if (!resolved) {
+                                            alert('此句段在伺服器已有較新變更，且重試未成功。請重新整理檔案內容後重試。');
+                                            isConfirming = false;
+                                            return;
+                                        }
+                                        resolvedByConflictFlow = true;
+                                        emitCollabEdit('commit', seg, seg.targetText || '');
                                     } else {
                                         alert('譯文寫入失敗，無法完成確認。請檢查連線後重試。');
+                                        isConfirming = false;
+                                        return;
                                     }
-                                    isConfirming = false;
-                                    return;
                                 }
-                                if (myGen !== targetWriteGeneration) {
+                                if (!resolvedByConflictFlow && myGen !== targetWriteGeneration) {
                                     try {
                                         await applyUpdateSegmentTarget(seg, seg.targetText);
                                     } catch (e2) {
@@ -10701,6 +10771,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!targetRow) return;
         
         let targetId = parseId(targetRow.querySelector('.col-id').getAttribute('data-id'));
+        const targetSeg = currentSegmentsList.find(s => String(s.id) === String(targetId));
+        if (targetSeg && blockSelectionIfEditedByOthers(targetSeg)) return;
         
         // 若點到未選取列，改為只選這一列
         if (!selectedRowIds.has(targetId)) {
