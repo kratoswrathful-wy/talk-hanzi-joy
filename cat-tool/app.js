@@ -920,9 +920,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (edit.sessionId === collabSelfSessionId) return;
             const st = String(edit.state || '');
             if (st === 'end' || st === 'commit') return;
+            if (edit.segmentId == null) return;
+            const owner = getSegmentEditLeaseOwner(edit.segmentId);
+            if (!owner || String(owner.sessionId) !== String(edit.sessionId)) return;
             const ts = Date.parse(edit.at || '');
             if (!Number.isFinite(ts) || (now - ts) > COLLAB_EDIT_TTL_MS) return;
-            if (edit.segmentId == null) return;
             const row = document.querySelector(`.grid-data-row[data-seg-id="${edit.segmentId}"]`);
             drawCollabOutlineOnOverlay(overlay, row, collabPaletteFor(edit.sessionId), true);
         });
@@ -1015,19 +1017,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, window.location.origin);
     }
 
-    function getActiveForeignEditor(segId) {
+    /**
+     * 同句段若有多個 session 同時處於 start/typing，以最早 `at` 為擁有者（同毫秒則 sessionId 字串較小者），
+     * 避免後進者一加入就把先編輯者的 refocus 當成「被他人鎖住」。
+     */
+    function getSegmentEditLeaseOwner(segId) {
         const now = Date.now();
+        const candidates = [];
         for (const edit of Object.values(collabEditBySession || {})) {
             if (!edit || !edit.sessionId) continue;
-            if (edit.sessionId === collabSelfSessionId) continue;
             const st = String(edit.state || '');
-            // `commit` 代表已完成提交，不應持續鎖住句段。
             if (st === 'end' || st === 'commit') continue;
             if (String(edit.segmentId || '') !== String(segId || '')) continue;
             const ts = Date.parse(edit.at || '');
-            if (Number.isFinite(ts) && (now - ts) <= COLLAB_EDIT_TTL_MS) return edit;
+            if (!Number.isFinite(ts) || (now - ts) > COLLAB_EDIT_TTL_MS) continue;
+            candidates.push({ edit, ts, sid: String(edit.sessionId) });
         }
-        return null;
+        if (!candidates.length) return null;
+        candidates.sort((a, b) => {
+            if (a.ts !== b.ts) return a.ts - b.ts;
+            return a.sid < b.sid ? -1 : a.sid > b.sid ? 1 : 0;
+        });
+        return candidates[0].edit;
+    }
+
+    function getActiveForeignEditor(segId) {
+        const owner = getSegmentEditLeaseOwner(segId);
+        if (!owner || !owner.sessionId) return null;
+        if (String(owner.sessionId) === String(collabSelfSessionId)) return null;
+        return owner;
     }
 
     function isSegmentBeingEditedByOthers(segId) {
