@@ -857,7 +857,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const COLLAB_EDIT_TTL_MS = 20000;
     const SEGMENT_LEASE_TTL_SECONDS = 20;
     const SEGMENT_LEASE_REFRESH_MS = 7000;
-    const SEGMENT_LEASE_RELEASE_DELAY_MS = 1200;
 
     function collabPaletteFor(sessionId) {
         if (!sessionId) return '#64748b';
@@ -1042,16 +1041,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    async function releaseSegmentEditLease(seg) {
-        if (!isTeamMode()) return;
-        if (!seg || !seg.id) return;
-        try {
-            await DBService.releaseSegmentEditLease(seg.id, collabSelfSessionId);
-        } catch (err) {
-            console.warn('[collab] release lease failed', err, seg.id);
-        }
-    }
-
     async function releaseSegmentEditLeaseById(segId) {
         if (!isTeamMode()) return;
         if (!segId) return;
@@ -1071,32 +1060,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    function cancelLeaseReleaseForSegment(segId) {
-        const key = String(segId || '');
-        const timer = segmentLeaseReleaseTimers.get(key);
-        if (timer) {
-            clearTimeout(timer);
-            segmentLeaseReleaseTimers.delete(key);
+    async function releaseHeldLeasesExcept(segIdToKeep) {
+        const keepKey = segIdToKeep == null ? '' : String(segIdToKeep);
+        const toRelease = [];
+        heldSegmentLeases.forEach((segId) => {
+            if (keepKey && String(segId) === keepKey) return;
+            toRelease.push(String(segId));
+        });
+        for (const segId of toRelease) {
+            heldSegmentLeases.delete(segId);
+            stopLeaseRefreshForSegment(segId);
+            await releaseSegmentEditLeaseById(segId);
         }
-    }
-
-    function scheduleLeaseReleaseForSegment(seg) {
-        if (!isTeamMode() || !seg || !seg.id) return;
-        const key = String(seg.id);
-        cancelLeaseReleaseForSegment(key);
-        const timer = setTimeout(async () => {
-            segmentLeaseReleaseTimers.delete(key);
-            heldSegmentLeases.delete(key);
-            await releaseSegmentEditLeaseById(key);
-        }, SEGMENT_LEASE_RELEASE_DELAY_MS);
-        segmentLeaseReleaseTimers.set(key, timer);
     }
 
     function releaseAllHeldSegmentLeases() {
         segmentLeaseRefreshTimers.forEach((timer) => clearInterval(timer));
         segmentLeaseRefreshTimers.clear();
-        segmentLeaseReleaseTimers.forEach((timer) => clearTimeout(timer));
-        segmentLeaseReleaseTimers.clear();
         heldSegmentLeases.forEach((segId) => {
             releaseSegmentEditLeaseById(segId);
         });
@@ -2061,7 +2041,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const pendingRemoteBySegId = new Map();
     let isResolvingRemoteConflict = false;
     const segmentLeaseRefreshTimers = new Map();
-    const segmentLeaseReleaseTimers = new Map();
     const heldSegmentLeases = new Set();
 
     // Repetition Confirmation Mode: 'after' | 'all' | 'none'
@@ -9990,7 +9969,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
                 targetInput.addEventListener('focus', async () => {
                     hideCatFakeCaret();
-                    cancelLeaseReleaseForSegment(seg.id);
                     if (blockSelectionIfEditedByOthers(seg)) {
                         targetInput.blur();
                         return;
@@ -10002,6 +9980,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         targetInput.blur();
                         return;
                     }
+                    await releaseHeldLeasesExcept(seg.id);
                     heldSegmentLeases.add(String(seg.id));
                     // 先發 start，縮短「兩人幾乎同時點入同句段」時的競態窗口。
                     emitCollabEdit('start', seg, seg.targetText || '');
@@ -10100,7 +10079,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     saveCatCaretFromSelection(targetInput);
                     requestAnimationFrame(showCatFakeCaretFromSaved);
                     stopLeaseRefreshForSegment(seg.id);
-                    scheduleLeaseReleaseForSegment(seg);
                     // 在任一 await 前快照：Ctrl+Enter  await 期間可能已 isConfirming=false，仍應抑止重複寫庫
                     const wasConfirming = isConfirming;
                     refreshTagNextHighlight(row);
