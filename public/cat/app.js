@@ -1077,6 +1077,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         return true;
     }
 
+    let collabLeaseEjectAlertAt = 0;
+    function enforceFocusedSegmentLease() {
+        if (!isTeamMode()) return;
+        const active = document.activeElement;
+        if (!active || !active.classList || !active.classList.contains('grid-textarea')) return;
+        const row = active.closest('.grid-data-row');
+        if (!row) return;
+        const segId = row.getAttribute('data-seg-id');
+        if (segId == null) return;
+        const owner = getSegmentEditLeaseOwner(segId);
+        if (!owner || String(owner.sessionId || '') === String(collabSelfSessionId || '')) return;
+        const now = Date.now();
+        if ((now - collabLeaseEjectAlertAt) > 1200) {
+            collabLeaseEjectAlertAt = now;
+            const who = getForeignEditorDisplayName(owner);
+            alert(`此句段目前由 ${who} 編輯中，請稍後再試。`);
+        }
+        if (typeof active.blur === 'function') active.blur();
+        row.classList.remove('active-row');
+    }
+
     function showRowWriteHint(segId, text) {
         const row = document.querySelector(`.grid-data-row[data-seg-id="${segId}"]`);
         if (!row) return;
@@ -1644,6 +1665,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             renderCollabPresence();
             applyCollabFocusOutlines();
+            enforceFocusedSegmentLease();
         }
     });
 
@@ -9840,12 +9862,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         targetInput.blur();
                         return;
                     }
+                    // 先發 start，縮短「兩人幾乎同時點入同句段」時的競態窗口。
+                    emitCollabEdit('start', seg, seg.targetText || '');
                     await maybeAutoFillEmptyTarget(seg, row, targetInput);
                     editorUndoEditStart[seg.id] = seg.targetText;
                     editorUndoStatusStart[seg.id] = seg.status;
                     editorUndoMatchStart[seg.id] = seg.matchValue;
                     refreshTagNextHighlight(row);
-                    emitCollabEdit('start', seg, seg.targetText || '');
                 });
                 targetInput.addEventListener('input', async () => {
                     if (isSegmentBeingEditedByOthers(seg.id)) {
