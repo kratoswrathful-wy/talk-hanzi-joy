@@ -1,6 +1,6 @@
 # CAT 第四波主記錄（摘要，可版控）
 
-**狀態標記（2026-04-26）**：第四波 **A（§11）本里程碑已結案**（摘要 **§一點五**）。**B（§3）已開工**：首批（協作遠端譯文比對正規化 + `catCollabDebug` 除錯日誌，見 **§一** B）；(**A**) `segmentRevision` 全路徑根因仍待後續提交。**第四波整體**未結案。
+**狀態標記（2026-04-26）**：第四波 **A（§11）與 B（§3）皆已完成驗收**；**第四波整體已結案**。B 階段最終採「伺服器權威 lease 鎖 + 前端硬擋 + 續租/釋放時序強化 + 型別補齊 + 線上部署驗收」收斂（詳 **§一** B 與 **§二** 複驗）。
 
 關聯主計畫：`cat_工具綜合改版_42ac9451.plan.md` 第 **11** 節（TM 搜尋結果互動與編輯區游標輔助）、第 **3** 節（樂觀鎖 revision／協作誤報）。  
 可版控鏡像：[`docs/mirror/cat_工具綜合改版_42ac9451.plan.md`](mirror/cat_工具綜合改版_42ac9451.plan.md)（與本機 `%USERPROFILE%\.cursor\plans\` 同名檔同步維護）。
@@ -10,7 +10,7 @@
 | 子階 | 主計畫節次 | frontmatter todo | 說明 |
 |------|------------|------------------|------|
 | **A** | §11 | `live-tm-cursor-ux` | **已結案**：`ebb9ee4`、`8f8cea8`、`d326666`、`c783b56`、**`e834bc2`**（整表重繪後補 `runSearchAndFilter`）、**`6f0bc89`**（多選外框可見列鄰接）；詳 **§一點五** |
-| **B** | §3 | `collab-false-positive` | **進行中**：(B) 首批—`applyRemoteCommit`／`resolvePendingRemoteConflict` 比對前 **正規化** + **`catCollabDebug`**；(A) `segmentRevision` 全路徑同步仍待 |
+| **B** | §3 | `collab-false-positive` | **已結案**：由首批「比對正規化 + `catCollabDebug`」起步，後續完成同句段搶編鎖、版本選擇期間阻擋、伺服器權威 lease（acquire/release/續租/釋放）、Supabase migration 與型別補齊、Vercel 部署與實機複驗 |
 
 **原則**：A／B **可並行開發**，**分開 merge、分開驗收**（見主計畫「白話：建議怎麼分階段做」第四波段）。
 
@@ -43,8 +43,23 @@
 
 ### 第四波 B（§3）
 
-- **協作比對正規化 + 除錯開關**（本次提交）：[`cat-tool/app.js`](../cat-tool/app.js) 新增 `normalizeCollabTargetPlainTextForCompare`；`applyRemoteCommit` 與 `resolvePendingRemoteConflict` 改以正規化後字串判斷是否與遠端相同，避免 NBSP／零寬字元等導致誤判「有他人版本」。`localStorage.setItem('catCollabDebug','1')` 時於主控台輸出 `applyRemoteCommit` 參數摘要，以及 `applyUpdateSegmentTarget` 成功／`SEGMENT_REVISION_CONFLICT` 之 `segId`、預期 revision（便於對照主計畫 §3 (A)/(B)）。
-- **待辦（主計畫 §3）**：(A) 盤點寫入成功後 `newSegmentRevision` 缺漏、`updateSegmentStatus` 與 revision 關係；(B) `collabSeenCommitKeys` 去重鍵擴充、父層 `sessionId` 對齊驗證。
+- **首批（`59f161a`）**：[`cat-tool/app.js`](../cat-tool/app.js) 新增 `normalizeCollabTargetPlainTextForCompare`；`applyRemoteCommit` 與 `resolvePendingRemoteConflict` 改以正規化後字串比較，降低 NBSP／零寬字元誤報；`localStorage.catCollabDebug='1'` 可輸出 `[cat-collab]`／`[cat-revision]` 除錯。
+- **同句段鎖定演進（2026-04-25，驗收驅動）**
+  - `8cb9d10`：先補防回溯與初版同句段編輯鎖。
+  - `f01ed11`：鎖改「先佔先贏」（最早 `at` session 為 owner）。
+  - `f68642e`：前置硬擋（`mousedown/focus/contextmenu`）+ 版本衝突 modal 期間禁切段。
+  - `8f515c1`：收到協作狀態時，若非 owner 仍持有焦點則強制踢出（關閉短暫穿透）。
+  - `fc630e2`：DOM 層 `contenteditable=false` 硬鎖非 owner 句段，封鎖事件路徑漏擋。
+  - `1937604`：改為伺服器權威 lease（Supabase RPC acquire/release）。
+  - `f452f72`：補 Supabase `Database` 型別（解 Vercel TS2345 build fail）。
+  - `62aa6be`：改成「成功切到新句段才釋放舊 lease」，移除 blur 立即釋放空窗。
+  - `0233129`：續租/釋放時序再強化（TTL/refresh/可見度補續租/寬限釋放），改善同帳號雙分頁不一致。
+- **DB / RPC 收斂**
+  - migration：[`supabase/migrations/20260425193000_cat_segment_edit_leases.sql`](../supabase/migrations/20260425193000_cat_segment_edit_leases.sql)
+  - RPC 接線：[`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)
+  - Team DB 代理：[`cat-tool/db.js`](../cat-tool/db.js)
+  - 前端協作鎖邏輯：[`cat-tool/app.js`](../cat-tool/app.js)
+- **B 階段結論**：同句段搶編鎖、版本衝突期間阻擋、同帳號雙分頁/跨帳號一致性與部署驗收均已通過；§3 目標達成，B 結案。
 
 ---
 
@@ -59,7 +74,11 @@
   - **`d326666` 五項中的四項**：`Ctrl+Y`、篩選下確認後跳格、篩選下 `Ctrl+↑↓`、自動化測試 — **通過**（`d326666` 已跑 `npm run test:cat-sf`、`npm test`）。
   - **第五項（篩選）**：`c783b56`（列快取）+ **`e834bc2`**（整表重繪後漏接路徑補 `runSearchAndFilter`）— 使用者依 §二點一情境複驗，第二輪 **(4)(5) 通過**。
   - **多選外框（`6f0bc89`）**：可見列鄰接與底線疊加修正 — **通過**。
-- **驗收結論**：**第四波 A（§11）**：**已結案**（摘要 **§一點五**）。**第四波 B（§3）**：**進行中**（首批協作比對／除錯已入庫，**尚未**整階驗收）；**第四波整體**未結案。
+  - **B 階段協作鎖驗收（多輪）**：
+    - 初期現象：鎖方向反轉、提示後可二次進入、版本衝突 modal 期間可穿透、同帳號雙分頁 A1/A2 阻擋不一致。
+    - 逐輪修正後複驗：同句段搶編（跨帳號 + 同帳號雙分頁）可穩定阻擋，點旁邊再回點不再穿透，版本衝突期間不再可直接進入他人編輯句段。
+    - 部署面：Vercel 曾因缺少 Supabase RPC 型別失敗（`TS2345`），補型別後部署 `Ready`。
+- **驗收結論**：**第四波 A（§11）**：**已結案**；**第四波 B（§3）**：**已結案**；**第四波整體**：**已結案**。
 
 - **同步**：`cat-tool` 變更經 `npm run sync:cat` 一併提交 `public/cat`。
 
@@ -102,16 +121,18 @@
 | 文件 | 處置 |
 |------|------|
 | `主計畫納入_tm_游標_ad384fe1.plan.md` | 內容已併入主計畫 §11；歷史副本：**[`docs/mirror/主計畫納入_tm_游標_ad384fe1.plan.md`](mirror/主計畫納入_tm_游標_ad384fe1.plan.md)**；本機 `.cursor/plans` 同名檔已移除 |
+| `docs/bug-report_seg-write-race.md` | 第四波 B（§3）競態根因、Fix A/B/C/D 與落地狀態已整併至 **§一（B）**、**§二**，文件已清理 |
+| `docs/bug-report_ghost-write-case-analysis.md` | 與 B 階段 `segmentRevision` / ghost write 調查結論已整併至 **§一（B）**、**§二**，文件已清理 |
 | `docs/CAT第四波主記錄.md`（本檔） | **保留** |
 
 ---
 
 ## 四、結案判定
 
-1. **第四波 A（§11，`live-tm-cursor-ux`）是否已結案？** **是**（使用者已複驗篩選 (4)(5) 與多選外框；交付鏈見 **§一**、過程摘要 **§一點五**）。
-2. **第四波 B（§3，`collab-false-positive`）是否已結案？** **否**（已開工：首批協作比對／除錯；**(A) revision 根因**等仍待）。
-3. **第四波工作（§11 + §3）是否全部結束？** **否**（A 已結案；B 進行中）。
-4. **主計畫中第四波對應範圍（§11 與 §3）是否皆已完成？** **否**（§11 已完成；§3 未完成）。
+1. **第四波 A（§11，`live-tm-cursor-ux`）是否已結案？** **是**（見 **§一** A、**§一點五**）。
+2. **第四波 B（§3，`collab-false-positive`）是否已結案？** **是**（見 **§一** B、**§二** B 階段複驗）。
+3. **第四波工作（§11 + §3）是否全部結束？** **是**。
+4. **主計畫中第四波對應範圍（§11 與 §3）是否皆已完成？** **是**。
 
 ---
 
