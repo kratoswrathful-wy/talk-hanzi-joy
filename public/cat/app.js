@@ -857,6 +857,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const COLLAB_EDIT_TTL_MS = 20000;
     const SEGMENT_LEASE_TTL_SECONDS = 20;
     const SEGMENT_LEASE_REFRESH_MS = 7000;
+    const SEGMENT_LEASE_RELEASE_DELAY_MS = 1200;
 
     function collabPaletteFor(sessionId) {
         if (!sessionId) return '#64748b';
@@ -974,8 +975,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function leaveCollabForCurrentFile() {
         if (!collabCurrentFileId) return;
-        segmentLeaseRefreshTimers.forEach((timer) => clearInterval(timer));
-        segmentLeaseRefreshTimers.clear();
+        releaseAllHeldSegmentLeases();
         window.parent.postMessage({
             type: 'CAT_COLLAB_LEAVE',
             payload: {
@@ -991,6 +991,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderCollabPresence();
         clearCollabOutlines();
     }
+
+    window.addEventListener('beforeunload', () => {
+        releaseAllHeldSegmentLeases();
+    });
 
     function emitCollabFocus(targetType, targetId) {
         if (!isTeamMode() || !collabCurrentFileId) return;
@@ -1048,6 +1052,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    async function releaseSegmentEditLeaseById(segId) {
+        if (!isTeamMode()) return;
+        if (!segId) return;
+        try {
+            await DBService.releaseSegmentEditLease(segId, collabSelfSessionId);
+        } catch (err) {
+            console.warn('[collab] release lease failed', err, segId);
+        }
+    }
+
     function stopLeaseRefreshForSegment(segId) {
         const key = String(segId || '');
         const timer = segmentLeaseRefreshTimers.get(key);
@@ -1055,6 +1069,38 @@ document.addEventListener('DOMContentLoaded', async () => {
             clearInterval(timer);
             segmentLeaseRefreshTimers.delete(key);
         }
+    }
+
+    function cancelLeaseReleaseForSegment(segId) {
+        const key = String(segId || '');
+        const timer = segmentLeaseReleaseTimers.get(key);
+        if (timer) {
+            clearTimeout(timer);
+            segmentLeaseReleaseTimers.delete(key);
+        }
+    }
+
+    function scheduleLeaseReleaseForSegment(seg) {
+        if (!isTeamMode() || !seg || !seg.id) return;
+        const key = String(seg.id);
+        cancelLeaseReleaseForSegment(key);
+        const timer = setTimeout(async () => {
+            segmentLeaseReleaseTimers.delete(key);
+            heldSegmentLeases.delete(key);
+            await releaseSegmentEditLeaseById(key);
+        }, SEGMENT_LEASE_RELEASE_DELAY_MS);
+        segmentLeaseReleaseTimers.set(key, timer);
+    }
+
+    function releaseAllHeldSegmentLeases() {
+        segmentLeaseRefreshTimers.forEach((timer) => clearInterval(timer));
+        segmentLeaseRefreshTimers.clear();
+        segmentLeaseReleaseTimers.forEach((timer) => clearTimeout(timer));
+        segmentLeaseReleaseTimers.clear();
+        heldSegmentLeases.forEach((segId) => {
+            releaseSegmentEditLeaseById(segId);
+        });
+        heldSegmentLeases.clear();
     }
 
     function startLeaseRefreshForSegment(seg) {
@@ -2015,6 +2061,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const pendingRemoteBySegId = new Map();
     let isResolvingRemoteConflict = false;
     const segmentLeaseRefreshTimers = new Map();
+    const segmentLeaseReleaseTimers = new Map();
+    const heldSegmentLeases = new Set();
 
     // Repetition Confirmation Mode: 'after' | 'all' | 'none'
     let repMode = localStorage.getItem('catToolRepMode') || 'after';
@@ -9942,6 +9990,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
                 targetInput.addEventListener('focus', async () => {
                     hideCatFakeCaret();
+                    cancelLeaseReleaseForSegment(seg.id);
                     if (blockSelectionIfEditedByOthers(seg)) {
                         targetInput.blur();
                         return;
@@ -9953,6 +10002,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         targetInput.blur();
                         return;
                     }
+                    heldSegmentLeases.add(String(seg.id));
                     // 先發 start，縮短「兩人幾乎同時點入同句段」時的競態窗口。
                     emitCollabEdit('start', seg, seg.targetText || '');
                     startLeaseRefreshForSegment(seg);
@@ -10050,7 +10100,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     saveCatCaretFromSelection(targetInput);
                     requestAnimationFrame(showCatFakeCaretFromSaved);
                     stopLeaseRefreshForSegment(seg.id);
-                    releaseSegmentEditLease(seg);
+                    scheduleLeaseReleaseForSegment(seg);
                     // 在任一 await 前快照：Ctrl+Enter  await 期間可能已 isConfirming=false，仍應抑止重複寫庫
                     const wasConfirming = isConfirming;
                     refreshTagNextHighlight(row);
