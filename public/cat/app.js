@@ -855,8 +855,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
     const COLLAB_FOCUS_TTL_MS = 15000;
     const COLLAB_EDIT_TTL_MS = 20000;
-    const SEGMENT_LEASE_TTL_SECONDS = 20;
-    const SEGMENT_LEASE_REFRESH_MS = 7000;
+    const SEGMENT_LEASE_TTL_SECONDS = 90;
+    const SEGMENT_LEASE_REFRESH_MS = 15000;
+    const SEGMENT_LEASE_RELEASE_GRACE_MS = 45000;
 
     function collabPaletteFor(sessionId) {
         if (!sessionId) return '#64748b';
@@ -994,6 +995,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('beforeunload', () => {
         releaseAllHeldSegmentLeases();
     });
+    document.addEventListener('visibilitychange', () => {
+        if (!isTeamMode() || document.visibilityState !== 'visible') return;
+        heldSegmentLeases.forEach((segId) => {
+            const seg = getSegmentById(segId);
+            if (seg) acquireSegmentEditLease(seg);
+        });
+    });
 
     function emitCollabFocus(targetType, targetId) {
         if (!isTeamMode() || !collabCurrentFileId) return;
@@ -1060,6 +1068,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    function cancelLeaseReleaseTimer(segId) {
+        const key = String(segId || '');
+        const timer = segmentLeaseReleaseTimers.get(key);
+        if (!timer) return;
+        clearTimeout(timer);
+        segmentLeaseReleaseTimers.delete(key);
+    }
+
+    function scheduleLeaseReleaseTimer(seg) {
+        if (!isTeamMode() || !seg || !seg.id) return;
+        const key = String(seg.id);
+        cancelLeaseReleaseTimer(key);
+        const timer = setTimeout(async () => {
+            segmentLeaseReleaseTimers.delete(key);
+            heldSegmentLeases.delete(key);
+            stopLeaseRefreshForSegment(key);
+            await releaseSegmentEditLeaseById(key);
+        }, SEGMENT_LEASE_RELEASE_GRACE_MS);
+        segmentLeaseReleaseTimers.set(key, timer);
+    }
+
     async function releaseHeldLeasesExcept(segIdToKeep) {
         const keepKey = segIdToKeep == null ? '' : String(segIdToKeep);
         const toRelease = [];
@@ -1068,6 +1097,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             toRelease.push(String(segId));
         });
         for (const segId of toRelease) {
+            cancelLeaseReleaseTimer(segId);
             heldSegmentLeases.delete(segId);
             stopLeaseRefreshForSegment(segId);
             await releaseSegmentEditLeaseById(segId);
@@ -1077,6 +1107,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     function releaseAllHeldSegmentLeases() {
         segmentLeaseRefreshTimers.forEach((timer) => clearInterval(timer));
         segmentLeaseRefreshTimers.clear();
+        segmentLeaseReleaseTimers.forEach((timer) => clearTimeout(timer));
+        segmentLeaseReleaseTimers.clear();
         heldSegmentLeases.forEach((segId) => {
             releaseSegmentEditLeaseById(segId);
         });
@@ -1088,10 +1120,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const key = String(seg.id);
         stopLeaseRefreshForSegment(key);
         const timer = setInterval(async () => {
-            const active = document.activeElement;
-            const activeRow = active && active.closest ? active.closest('.grid-data-row') : null;
-            const activeSegId = activeRow ? String(activeRow.getAttribute('data-seg-id') || '') : '';
-            if (activeSegId !== key) {
+            if (!heldSegmentLeases.has(key)) {
                 stopLeaseRefreshForSegment(key);
                 return;
             }
@@ -2041,6 +2070,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const pendingRemoteBySegId = new Map();
     let isResolvingRemoteConflict = false;
     const segmentLeaseRefreshTimers = new Map();
+    const segmentLeaseReleaseTimers = new Map();
     const heldSegmentLeases = new Set();
 
     // Repetition Confirmation Mode: 'after' | 'all' | 'none'
@@ -9969,6 +9999,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
                 targetInput.addEventListener('focus', async () => {
                     hideCatFakeCaret();
+                    cancelLeaseReleaseTimer(seg.id);
                     if (blockSelectionIfEditedByOthers(seg)) {
                         targetInput.blur();
                         return;
@@ -10078,7 +10109,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 targetInput.addEventListener('blur', async () => {
                     saveCatCaretFromSelection(targetInput);
                     requestAnimationFrame(showCatFakeCaretFromSaved);
-                    stopLeaseRefreshForSegment(seg.id);
+                    scheduleLeaseReleaseTimer(seg);
                     // 在任一 await 前快照：Ctrl+Enter  await 期間可能已 isConfirming=false，仍應抑止重複寫庫
                     const wasConfirming = isConfirming;
                     refreshTagNextHighlight(row);
