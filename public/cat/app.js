@@ -1098,6 +1098,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         row.classList.remove('active-row');
     }
 
+    function applyCollabEditHardLocks() {
+        const rows = document.querySelectorAll('.grid-data-row');
+        rows.forEach((row) => {
+            const segId = row.getAttribute('data-seg-id');
+            if (segId == null) return;
+            const editor = row.querySelector('.grid-textarea');
+            if (!editor) return;
+            const owner = getSegmentEditLeaseOwner(segId);
+            const isForeignLock = !!(owner && String(owner.sessionId || '') !== String(collabSelfSessionId || ''));
+            if (isForeignLock) {
+                row.classList.add('collab-locked-live');
+                editor.setAttribute('contenteditable', 'false');
+                editor.setAttribute('data-collab-locked', '1');
+                return;
+            }
+            row.classList.remove('collab-locked-live');
+            if (editor.getAttribute('data-collab-locked') === '1') {
+                editor.removeAttribute('data-collab-locked');
+                const effectiveLockedRow = row.classList.contains('locked-system') || row.classList.contains('locked-user');
+                editor.setAttribute('contenteditable', effectiveLockedRow ? 'false' : 'true');
+            }
+        });
+    }
+
     function showRowWriteHint(segId, text) {
         const row = document.querySelector(`.grid-data-row[data-seg-id="${segId}"]`);
         if (!row) return;
@@ -1665,6 +1689,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             renderCollabPresence();
             applyCollabFocusOutlines();
+            applyCollabEditHardLocks();
             enforceFocusedSegmentLease();
         }
     });
@@ -1672,6 +1697,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setInterval(() => {
         if (!collabCurrentFileId) return;
         applyCollabFocusOutlines();
+        applyCollabEditHardLocks();
     }, 3000);
 
     const gridViewport = document.getElementById('editorGrid');
@@ -10342,6 +10368,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         gridBody.appendChild(fragment);
         updateProgress();
         applyCollabFocusOutlines();
+        applyCollabEditHardLocks();
         updateSfReplaceAllButtonLabel();
         syncSelectedRowAbutmentTopClass();
         // 非列印字元模式：每次渲染完成後更新標記
