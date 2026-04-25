@@ -1,6 +1,6 @@
 # CAT 第四波主記錄（摘要，可版控）
 
-**狀態標記（2026-04-26）**：第四波 **A（§11）本里程碑已結案**（摘要 **§一點五**）。**B（§3）已開工**：首批 **`4d06e05`**（協作遠端譯文比對正規化 + `catCollabDebug` 除錯日誌，見 **§一** B）；(**A**) `segmentRevision` 全路徑根因仍待後續提交。**第四波整體**未結案。
+**狀態標記（2026-04-26）**：第四波 **A（§11）本里程碑已結案**（摘要 **§一點五**）。**B（§3）已開工**：首批（協作遠端譯文比對正規化 + `catCollabDebug` 除錯日誌，見 **§一** B）；(**A**) `segmentRevision` 全路徑根因仍待後續提交。**第四波整體**未結案。
 
 關聯主計畫：`cat_工具綜合改版_42ac9451.plan.md` 第 **11** 節（TM 搜尋結果互動與編輯區游標輔助）、第 **3** 節（樂觀鎖 revision／協作誤報）。  
 可版控鏡像：[`docs/mirror/cat_工具綜合改版_42ac9451.plan.md`](mirror/cat_工具綜合改版_42ac9451.plan.md)（與本機 `%USERPROFILE%\.cursor\plans\` 同名檔同步維護）。
@@ -10,7 +10,7 @@
 | 子階 | 主計畫節次 | frontmatter todo | 說明 |
 |------|------------|------------------|------|
 | **A** | §11 | `live-tm-cursor-ux` | **已結案**：`ebb9ee4`、`8f8cea8`、`d326666`、`c783b56`、**`e834bc2`**（整表重繪後補 `runSearchAndFilter`）、**`6f0bc89`**（多選外框可見列鄰接）；詳 **§一點五** |
-| **B** | §3 | `collab-false-positive` | **進行中**：(B) 首批 **`4d06e05`**—`applyRemoteCommit`／`resolvePendingRemoteConflict` 比對前 **正規化** + **`catCollabDebug`**；(A) `segmentRevision` 全路徑同步仍待 |
+| **B** | §3 | `collab-false-positive` | **進行中**：(B) 首批—`applyRemoteCommit`／`resolvePendingRemoteConflict` 比對前 **正規化** + **`catCollabDebug`**；(A) `segmentRevision` 全路徑同步仍待 |
 
 **原則**：A／B **可並行開發**，**分開 merge、分開驗收**（見主計畫「白話：建議怎麼分階段做」第四波段）。
 
@@ -43,7 +43,7 @@
 
 ### 第四波 B（§3）
 
-- **協作比對正規化 + 除錯開關**（**`4d06e05`**）：[`cat-tool/app.js`](../cat-tool/app.js) 新增 `normalizeCollabTargetPlainTextForCompare`；`applyRemoteCommit` 與 `resolvePendingRemoteConflict` 改以正規化後字串判斷是否與遠端相同，避免 NBSP／零寬字元等導致誤判「有他人版本」。`localStorage.setItem('catCollabDebug','1')` 時於主控台輸出 `applyRemoteCommit` 參數摘要，以及 `applyUpdateSegmentTarget` 成功／`SEGMENT_REVISION_CONFLICT` 之 `segId`、預期 revision（便於對照主計畫 §3 (A)/(B)）。
+- **協作比對正規化 + 除錯開關**（本次提交）：[`cat-tool/app.js`](../cat-tool/app.js) 新增 `normalizeCollabTargetPlainTextForCompare`；`applyRemoteCommit` 與 `resolvePendingRemoteConflict` 改以正規化後字串判斷是否與遠端相同，避免 NBSP／零寬字元等導致誤判「有他人版本」。`localStorage.setItem('catCollabDebug','1')` 時於主控台輸出 `applyRemoteCommit` 參數摘要，以及 `applyUpdateSegmentTarget` 成功／`SEGMENT_REVISION_CONFLICT` 之 `segId`、預期 revision（便於對照主計畫 §3 (A)/(B)）。
 - **待辦（主計畫 §3）**：(A) 盤點寫入成功後 `newSegmentRevision` 缺漏、`updateSegmentStatus` 與 revision 關係；(B) `collabSeenCommitKeys` 去重鍵擴充、父層 `sessionId` 對齊驗證。
 
 ---
