@@ -951,7 +951,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .select("id")
         .single();
       if (error) throw error;
-      return Number(data.id);
+      return Number((data as any)?.id);
     }
     case "db.getAiGuidelines": {
       const { data, error } = await supabase
@@ -1002,7 +1002,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .select("id")
         .single();
       if (error) throw error;
-      return Number(data.id);
+      return Number((data as any)?.id);
     }
     case "db.renameAiCategoryTag": {
       const name = String(payload.newName || "").trim();
@@ -1013,7 +1013,8 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .eq("id", payload.id)
         .single();
       if (rowErr) throw rowErr;
-      const oldName = String(row.name || "");
+      const rowAny = row as any;
+      const oldName = String(rowAny?.name || "");
       const { error: renErr } = await supabase
         .from("cat_ai_category_tags" as any)
         .update({ name } as any)
@@ -1024,14 +1025,14 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .from("cat_ai_guidelines" as any)
         .select("id, category");
       if (glErr) throw glErr;
-      for (const g of glRows ?? []) {
-        const arr = parseAiCategories(g.category);
+      for (const g of (glRows as any[]) ?? []) {
+        const arr = parseAiCategories((g as any)?.category);
         if (!arr.includes(oldName)) continue;
         const next = arr.map((x) => (x === oldName ? name : x));
         const { error: ugErr } = await supabase
           .from("cat_ai_guidelines" as any)
           .update({ category: next, updated_at: nowIso() } as any)
-          .eq("id", g.id);
+          .eq("id", (g as any)?.id);
         if (ugErr) throw ugErr;
       }
       return true;
@@ -1045,7 +1046,8 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .maybeSingle();
       if (rowErr) throw rowErr;
       if (!row) return true;
-      const tagName = String(row.name || "");
+      const rowAny = row as any;
+      const tagName = String(rowAny?.name || "");
       const { error } = await supabase
         .from("cat_ai_category_tags" as any)
         .delete()
@@ -1056,15 +1058,15 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           .from("cat_ai_guidelines" as any)
           .select("id, category");
         if (glErr) throw glErr;
-        for (const g of glRows ?? []) {
-          const arr = parseAiCategories(g.category);
+        for (const g of (glRows as any[]) ?? []) {
+          const arr = parseAiCategories((g as any)?.category);
           if (!arr.includes(tagName)) continue;
           const next = arr.filter((x) => x !== tagName);
           const patched = next.length > 0 ? next : ["通用"];
           const { error: ugErr } = await supabase
             .from("cat_ai_guidelines" as any)
             .update({ category: patched, updated_at: nowIso() } as any)
-            .eq("id", g.id);
+            .eq("id", (g as any)?.id);
           if (ugErr) throw ugErr;
         }
       }
@@ -1127,11 +1129,12 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .select("*")
         .eq("project_id", projectId)
         .maybeSingle();
+      const currentAny = current as any;
       const row = {
         project_id: projectId,
-        selected_guideline_ids: Array.isArray(patch.selectedGuidelineIds) ? patch.selectedGuidelineIds : (current?.selected_guideline_ids ?? []),
-        selected_style_guideline_ids: Array.isArray(patch.selectedStyleGuidelineIds) ? patch.selectedStyleGuidelineIds : (current?.selected_style_guideline_ids ?? []),
-        special_instructions: Array.isArray(patch.specialInstructions) ? patch.specialInstructions : (current?.special_instructions ?? []),
+        selected_guideline_ids: Array.isArray(patch.selectedGuidelineIds) ? patch.selectedGuidelineIds : (currentAny?.selected_guideline_ids ?? []),
+        selected_style_guideline_ids: Array.isArray(patch.selectedStyleGuidelineIds) ? patch.selectedStyleGuidelineIds : (currentAny?.selected_style_guideline_ids ?? []),
+        special_instructions: Array.isArray(patch.specialInstructions) ? patch.specialInstructions : (currentAny?.special_instructions ?? []),
         updated_at: nowIso(),
         updated_by: userId,
       };
