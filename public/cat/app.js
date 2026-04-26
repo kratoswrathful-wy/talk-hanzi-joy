@@ -1766,10 +1766,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (event.data.type === 'TMS_IDENTITY') {
             applyTmsIdentityToUI(event.data.payload);
-        } else if (event.data.type === 'TMS_TRIGGER_AI_CLOUD_MIGRATION') {
-            if (!isTeamMode()) return;
-            const force = !!(event.data.payload && event.data.payload.force);
-            void migrateLocalAiToCloudOnce({ force });
         } else if (event.data.type === 'TMS_ASSIGNMENTS') {
             const payload = event.data.payload || {};
             const assignments = payload.assignments || [];
@@ -1809,29 +1805,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             enforceFocusedSegmentLease();
         }
     });
-
-    async function migrateLocalAiToCloudOnce({ force = false } = {}) {
-        if (!isTeamMode()) return;
-        const MIGRATION_KEY = 'catTeamAiCloudMigratedV1';
-        if (!force) {
-            try {
-                if (localStorage.getItem(MIGRATION_KEY) === '1') return;
-            } catch (_) { /* ignore */ }
-        }
-        if (!DBService || typeof DBService.exportLocalAiSnapshot !== 'function' || typeof DBService.replaceAiDatasetFromSnapshot !== 'function') {
-            return;
-        }
-        try {
-            const snap = await DBService.exportLocalAiSnapshot();
-            await DBService.replaceAiDatasetFromSnapshot(snap || {});
-            localStorage.setItem(MIGRATION_KEY, '1');
-            if (force) {
-                alert('已將本機 AI 準則/標籤/偏好覆蓋上傳至雲端。');
-            }
-        } catch (e) {
-            console.error('[CAT] migrateLocalAiToCloudOnce failed', e);
-        }
-    }
 
     setInterval(() => {
         if (!collabCurrentFileId) return;

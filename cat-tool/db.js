@@ -1110,15 +1110,6 @@ const DBService = {
             await db.aiGuidelines.update(g.id, { category: _serializeGuidelineCategoryField(next) });
         }
     },
-    async exportLocalAiSnapshot() {
-        const [guidelines, categoryTags, settings, projectSettings] = await Promise.all([
-            db.aiGuidelines.toArray(),
-            db.aiCategoryTags.orderBy('createdAt').toArray(),
-            this.getAiSettings(),
-            db.aiProjectSettings.toArray()
-        ]);
-        return { guidelines, categoryTags, settings, projectSettings };
-    },
 
     // Expose tables directly if needed for custom queries or bulk operations outside this service
     db: db,
@@ -1313,7 +1304,6 @@ const DBService = {
     DBService.saveAiSettings = async (settings) => rpc('db.saveAiSettings', { settings });
     DBService.getAiProjectSettings = async (projectId) => rpc('db.getAiProjectSettings', { projectId });
     DBService.saveAiProjectSettings = async (projectId, patch) => rpc('db.saveAiProjectSettings', { projectId, patch });
-    DBService.replaceAiDatasetFromSnapshot = async (data) => rpc('db.replaceAiDataset', { data });
 
     // table handles are local-only; prevent accidental direct Dexie usage in team mode.
     DBService.db = null;

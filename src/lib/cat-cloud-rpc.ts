@@ -1142,77 +1142,9 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       if (error) throw error;
       return true;
     }
-    case "db.replaceAiDataset": {
-      // Replace cloud dataset by local snapshot (requested one-time migration).
-      const data = payload.data ?? {};
-      await supabase.from("cat_ai_project_settings" as any).delete().not("project_id", "is", null);
-      await supabase.from("cat_ai_settings" as any).delete().eq("id", 1);
-      await supabase.from("cat_ai_guidelines" as any).delete().gt("id", 0);
-      await supabase.from("cat_ai_category_tags" as any).delete().gt("id", 0);
-
-      const tags = Array.isArray(data.categoryTags) ? data.categoryTags : [];
-      for (const t of tags) {
-        const name = String(t?.name || "").trim();
-        if (!name) continue;
-        const { error } = await supabase
-          .from("cat_ai_category_tags" as any)
-          .insert({ name, created_at: t?.createdAt || nowIso() } as any);
-        if (error && !String(error.message || "").includes("duplicate key")) throw error;
-      }
-      if (tags.length === 0) {
-        await supabase.from("cat_ai_category_tags" as any).insert({ name: "通用", created_at: nowIso() } as any);
-      }
-
-      const guidelines = Array.isArray(data.guidelines) ? data.guidelines : [];
-      for (const g of guidelines) {
-        const { error } = await supabase
-          .from("cat_ai_guidelines" as any)
-          .insert({
-            content: g?.content ?? "",
-            category: parseAiCategories(g?.category),
-            mutex_group: g?.mutexGroup ?? null,
-            sort_order: Number(g?.sortOrder ?? 0) || 0,
-            scope: g?.scope === "style" ? "style" : "translation",
-            is_default: !!g?.isDefault,
-            created_at: g?.createdAt ?? nowIso(),
-            updated_at: nowIso(),
-            created_by: userId,
-          } as any);
-        if (error) throw error;
-      }
-
-      const s = data.settings && typeof data.settings === "object" ? data.settings : null;
-      if (s) {
-        const { error } = await supabase.from("cat_ai_settings" as any).upsert({
-          id: 1,
-          api_key: s.apiKey ?? "",
-          api_base_url: s.apiBaseUrl ?? "",
-          model: s.model ?? "gpt-4.1-mini",
-          batch_size: Number(s.batchSize ?? 20) || 20,
-          prefer_openai_proxy: s.preferOpenAiProxy !== false,
-          prompts: (s.prompts && typeof s.prompts === "object") ? s.prompts : {},
-          updated_at: nowIso(),
-          updated_by: userId,
-        } as any, { onConflict: "id" });
-        if (error) throw error;
-      }
-
-      const psettings = Array.isArray(data.projectSettings) ? data.projectSettings : [];
-      for (const p of psettings) {
-        const projectId = p?.projectId;
-        if (!projectId) continue;
-        const { error } = await supabase.from("cat_ai_project_settings" as any).upsert({
-          project_id: projectId,
-          selected_guideline_ids: Array.isArray(p?.selectedGuidelineIds) ? p.selectedGuidelineIds : [],
-          selected_style_guideline_ids: Array.isArray(p?.selectedStyleGuidelineIds) ? p.selectedStyleGuidelineIds : [],
-          special_instructions: Array.isArray(p?.specialInstructions) ? p.specialInstructions : [],
-          updated_at: nowIso(),
-          updated_by: userId,
-        } as any, { onConflict: "project_id" });
-        if (error) throw error;
-      }
-      return { ok: true };
-    }
+    case "db.replaceAiDataset":
+      // 已停用：以本機快照整批覆寫雲端曾導致誤清空，不再支援此 RPC。
+      throw new Error("db.replaceAiDataset is disabled");
 
     default:
       throw new Error(`Unknown CAT cloud RPC action: ${action}`);

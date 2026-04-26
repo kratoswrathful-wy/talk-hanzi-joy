@@ -487,12 +487,6 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
           sendIdentity();
           if (mode === "team") sendAssignments();
           if (mode === "team") sendAssignableUsers();
-          if (mode === "team") {
-            iframeRef.current?.contentWindow?.postMessage(
-              { type: "TMS_TRIGGER_AI_CLOUD_MIGRATION", payload: { force: false } },
-              window.location.origin
-            );
-          }
         }}
       />
     </div>
