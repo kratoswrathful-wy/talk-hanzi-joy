@@ -269,6 +269,18 @@ function _appendAiMultiselectAddTagButton(dropdownEl, onAfterAdd) {
     dropdownEl.appendChild(btn);
 }
 
+/**
+ * 自製下拉範本：同步浮層 hidden 與觸發列 `ai-multiselect-trigger--open`（類別標籤、互斥群組等共用）。
+ * @param {HTMLElement | null} triggerEl
+ * @param {HTMLElement | null} panelEl
+ * @param {boolean} isOpen  true = 展開
+ */
+function catSetDropdownPanelOpen(triggerEl, panelEl, isOpen) {
+    if (panelEl) panelEl.classList.toggle('hidden', !isOpen);
+    if (triggerEl && triggerEl.classList) triggerEl.classList.toggle('ai-multiselect-trigger--open', !!isOpen);
+}
+window.catSetDropdownPanelOpen = catSetDropdownPanelOpen;
+
 document.addEventListener('DOMContentLoaded', async () => {
     const Xliff = window.CatToolXliffTags;
     const XliffImport = window.CatToolXliffImport;
@@ -14867,15 +14879,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const selector = document.getElementById('aiGuidelineCategorySelector');
         const dropdown = document.getElementById('aiGuidelineCategoryDropdown');
-        if (selector) {
+        if (selector && dropdown) {
             selector.onclick = (e) => {
                 e.stopPropagation();
-                dropdown?.classList.toggle('hidden');
+                const opening = dropdown.classList.contains('hidden');
+                catSetDropdownPanelOpen(selector, dropdown, opening);
             };
         }
         document.addEventListener('click', function closeDd(e) {
             if (dropdown && !dropdown.contains(e.target) && e.target !== selector) {
-                dropdown.classList.add('hidden');
+                catSetDropdownPanelOpen(selector, dropdown, false);
             }
         }, { capture: false });
 
@@ -15486,12 +15499,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             function onAgCategorySelectorClick(e) {
                 e.stopPropagation();
-                catDropdown.classList.toggle('hidden');
+                const opening = catDropdown.classList.contains('hidden');
+                catSetDropdownPanelOpen(catSelector, catDropdown, opening);
             }
 
             function onAgCategoryDocClick(e) {
                 if (catDropdown && !catDropdown.contains(e.target) && e.target !== catSelector) {
-                    catDropdown.classList.add('hidden');
+                    catSetDropdownPanelOpen(catSelector, catDropdown, false);
                 }
             }
 
@@ -15529,7 +15543,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             updateAgEditCategoryDropdown();
-            catDropdown.classList.add('hidden');
+            catSetDropdownPanelOpen(catSelector, catDropdown, false);
 
             function showErr(msg) {
                 if (!errEl) return;
@@ -15545,7 +15559,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             function closeModal() {
                 modal.classList.add('hidden');
                 showErr('');
-                catDropdown.classList.add('hidden');
+                catSetDropdownPanelOpen(catSelector, catDropdown, false);
                 catSelector.removeEventListener('click', onAgCategorySelectorClick);
                 document.removeEventListener('click', onAgCategoryDocClick);
                 modal.removeAttribute('data-lock-scope-default');
@@ -16070,16 +16084,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             function onSelClick(e) {
                 e.stopPropagation();
-                dd.classList.toggle('hidden');
+                const opening = dd.classList.contains('hidden');
+                catSetDropdownPanelOpen(sel, dd, opening);
             }
 
             function onDocClick(e) {
-                if (dd && !dd.contains(e.target) && e.target !== sel) dd.classList.add('hidden');
+                if (dd && !dd.contains(e.target) && e.target !== sel) catSetDropdownPanelOpen(sel, dd, false);
             }
 
             function closePgManage() {
                 modal.classList.add('hidden');
-                dd.classList.add('hidden');
+                catSetDropdownPanelOpen(sel, dd, false);
                 sel.removeEventListener('click', onSelClick);
                 document.removeEventListener('click', onDocClick);
                 btnClose.removeEventListener('click', closePgManage);
@@ -16233,17 +16248,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             function onPgCategorySelectorClick(e) {
                 e.stopPropagation();
-                catDropdown.classList.toggle('hidden');
+                const opening = catDropdown.classList.contains('hidden');
+                catSetDropdownPanelOpen(catSelector, catDropdown, opening);
             }
 
             function onPgCategoryDocClick(e) {
                 if (catDropdown && !catDropdown.contains(e.target) && e.target !== catSelector) {
-                    catDropdown.classList.add('hidden');
+                    catSetDropdownPanelOpen(catSelector, catDropdown, false);
                 }
             }
 
             updatePgCategoryDropdown();
             updatePgCategoryDisplay();
+            catSetDropdownPanelOpen(catSelector, catDropdown, false);
 
             catSelector.addEventListener('click', onPgCategorySelectorClick);
             document.addEventListener('click', onPgCategoryDocClick);
@@ -16262,7 +16279,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             function closeModal() {
                 modal.classList.add('hidden');
                 showErr('');
-                catDropdown.classList.add('hidden');
+                catSetDropdownPanelOpen(catSelector, catDropdown, false);
                 catSelector.removeEventListener('click', onPgCategorySelectorClick);
                 document.removeEventListener('click', onPgCategoryDocClick);
                 btnSave.removeEventListener('click', onSave);
@@ -17115,7 +17132,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (selector && dropdown) {
                     selector.onclick = (e) => {
                         e.stopPropagation();
-                        dropdown.classList.toggle('hidden');
+                        const opening = dropdown.classList.contains('hidden');
+                        catSetDropdownPanelOpen(selector, dropdown, opening);
                     };
                 }
                 updatePickerMultiselectDropdown();
@@ -17186,7 +17204,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 const closeBtn = document.getElementById('btnCloseAiGuidelinePicker');
                 const confirmBtn = document.getElementById('btnConfirmAiGuidelinePicker');
-                const cleanup = () => { modal.classList.add('hidden'); };
+                const cleanup = () => {
+                    modal.classList.add('hidden');
+                    const pSel = document.getElementById('aiPickerMgmtCategorySelector');
+                    const pDd = document.getElementById('aiPickerMgmtCategoryDropdown');
+                    catSetDropdownPanelOpen(pSel, pDd, false);
+                };
                 if (closeBtn) closeBtn.onclick = () => { cleanup(); resolve(null); };
                 if (confirmBtn) confirmBtn.onclick = () => { cleanup(); resolve([...checked]); };
             })().catch((e) => {

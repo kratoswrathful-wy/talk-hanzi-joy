@@ -2250,21 +2250,37 @@ mark.tm-search-hit {
 }
 .ai-tag-chip-del:hover { color: #1d4ed8; }
 
-/* multi-select trigger button */
+/* ---- CAT 自製下拉範本：觸發列 + 浮層（類別／標籤多選、互斥群組單選等共用）---- */
 .ai-multiselect-trigger {
     display: inline-flex;
     align-items: center;
     padding: 0.35rem 0.6rem;
-    border: 1px solid #cbd5e1;
+    border: 1px solid #94a3b8;
     border-radius: 6px;
     background: #fff;
     font-size: 0.82rem;
     color: #374151;
     cursor: pointer;
     min-width: 120px;
+    max-width: 100%;
     user-select: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.ai-multiselect-trigger:hover { border-color: #3b82f6; }
+.ai-multiselect-trigger:hover {
+    border-color: #3b82f6;
+}
+.ai-multiselect-trigger:focus {
+    outline: none;
+}
+.ai-multiselect-trigger:focus-visible {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
+}
+.ai-multiselect-trigger--open,
+.ai-multiselect-trigger.ai-multiselect-trigger--open {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.28);
+}
 
 /* multi-select dropdown panel */
 .ai-multiselect-dropdown {
@@ -2274,10 +2290,10 @@ mark.tm-search-hit {
     z-index: 9999;
     min-width: 160px;
     background: #fff;
-    border: 1px solid #e2e8f0;
+    border: 1px solid #94a3b8;
     border-radius: 8px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-    padding: 0.4rem 0;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.12);
+    padding: 0.35rem 0;
     max-height: 240px;
     overflow-y: auto;
 }
@@ -2285,13 +2301,29 @@ mark.tm-search-hit {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.35rem 0.75rem;
+    padding: 0.4rem 0.75rem;
     font-size: 0.83rem;
     color: #374151;
     cursor: pointer;
 }
-.ai-multiselect-option:hover { background: #f1f5f9; }
-.ai-multiselect-option input[type=checkbox] { cursor: pointer; }
+.ai-multiselect-option:hover {
+    background: #eff6ff;
+}
+.ai-multiselect-option input[type=checkbox],
+.ai-multiselect-option input[type=radio] { cursor: pointer; }
+
+/* 互斥群組單選：目前選中列（與原生選單選中態對齊） */
+.ai-multiselect-option.cat-mutex-dd-opt:has(input[type=radio]:checked) {
+    background: #2563eb;
+    color: #fff;
+}
+.ai-multiselect-option.cat-mutex-dd-opt:has(input[type=radio]:checked):hover {
+    background: #1d4ed8;
+    color: #fff;
+}
+.ai-multiselect-option.cat-mutex-dd-opt:has(input[type=radio]:checked) input[type=radio] {
+    accent-color: #fff;
+}
 
 button.ai-multiselect-add-new-row {
     display: block;

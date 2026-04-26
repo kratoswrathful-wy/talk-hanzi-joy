@@ -100,7 +100,11 @@
                         selectEl.dispatchEvent(new Event('change', { bubbles: true }));
                     } catch (_) { /* ignore */ }
                     syncTriggerLabel();
-                    panel.classList.add('hidden');
+                    if (typeof global.catSetDropdownPanelOpen === 'function') {
+                        global.catSetDropdownPanelOpen(trigger, panel, false);
+                    } else {
+                        panel.classList.add('hidden');
+                    }
                 };
             });
             var addBtn = panel.querySelector('[data-cat-mutex-add-new="1"]');
@@ -119,15 +123,27 @@
 
         function onDocClick(e) {
             if (!panel.classList.contains('hidden') && !wrap.contains(e.target)) {
-                panel.classList.add('hidden');
+                if (typeof global.catSetDropdownPanelOpen === 'function') {
+                    global.catSetDropdownPanelOpen(trigger, panel, false);
+                } else {
+                    panel.classList.add('hidden');
+                }
             }
         }
 
         function onTriggerClick(e) {
             e.stopPropagation();
-            panel.classList.toggle('hidden');
-            if (!panel.classList.contains('hidden')) {
+            var wasHidden = panel.classList.contains('hidden');
+            if (wasHidden) {
                 refreshPanel();
+            }
+            if (typeof global.catSetDropdownPanelOpen === 'function') {
+                global.catSetDropdownPanelOpen(trigger, panel, wasHidden);
+            } else {
+                panel.classList.toggle('hidden');
+                if (!panel.classList.contains('hidden')) {
+                    refreshPanel();
+                }
             }
         }
 
