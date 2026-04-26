@@ -83,6 +83,15 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
     border-top: 1px solid #e2e8f0;
 }
 
+/* 專案準則 modal：複選標籤下拉需超出捲動區，避免被裁切 */
+#pgEditProjectGuidelineModal .pg-project-guideline-modal {
+    overflow: visible;
+}
+#pgEditProjectGuidelineModal .ag-edit-guideline-modal-scroll {
+    overflow: visible;
+    max-height: min(70vh, 480px);
+}
+
 /* AI 管理：已自清單隱藏的類別標籤 */
 .ai-cat-tag-row--hidden {
     opacity: 0.72;

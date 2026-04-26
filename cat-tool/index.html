@@ -2144,7 +2144,7 @@
 
     <!-- ====== 共用資訊：專案準則編輯（階段 1；無性質／互斥／預設／檔案勾選）====== -->
     <div id="pgEditProjectGuidelineModal" class="modal-overlay hidden" data-pg-edit-id="">
-        <div class="modal-box ag-edit-guideline-modal-box" style="max-width:520px; width:92vw; max-height:90vh; padding:0; overflow:hidden; display:flex; flex-direction:column;">
+        <div class="modal-box ag-edit-guideline-modal-box pg-project-guideline-modal" style="max-width:520px; width:92vw; max-height:90vh; padding:0; display:flex; flex-direction:column;">
             <div class="ag-edit-guideline-modal-scroll">
                 <h3 id="pgEditProjectGuidelineHeading" style="margin:0 0 0.75rem 0;">編輯專案準則</h3>
                 <div class="form-group">
@@ -2152,9 +2152,15 @@
                     <textarea id="pgEditProjectGuidelineContent" class="form-input ag-edit-guideline-field" rows="5" placeholder="專案準則內文…"></textarea>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="pgEditProjectGuidelineTags">套用標籤（逗號分隔）</label>
-                    <input type="text" id="pgEditProjectGuidelineTags" class="form-input ag-edit-guideline-field" placeholder="例如：通用, 遊戲" autocomplete="off">
-                    <p style="font-size:0.75rem; color:#64748b; margin:0.35rem 0 0 0;">與準則庫條目之「類別／標籤」相同語意，供日後篩選與行為對齊。</p>
+                    <label class="form-label">套用標籤</label>
+                    <div style="display:flex; align-items:center; gap:0.4rem; position:relative; flex-wrap:wrap;">
+                        <div id="pgEditProjectGuidelineCategorySelector" class="ai-multiselect-trigger" title="點擊選擇標籤" role="button" tabindex="0">
+                            <span id="pgEditProjectGuidelineCategoryDisplay">通用</span>
+                            <span style="font-size:0.7rem; color:#94a3b8; margin-left:0.25rem;" aria-hidden="true">▼</span>
+                        </div>
+                        <div id="pgEditProjectGuidelineCategoryDropdown" class="ai-multiselect-dropdown hidden"></div>
+                    </div>
+                    <p style="font-size:0.75rem; color:#64748b; margin:0.35rem 0 0 0;">與準則庫條目之「類別／標籤」相同語意（選項未自清單隱藏者）；供日後篩選與行為對齊。</p>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="pgEditProjectGuidelineIssuePlaceholder">議題群組</label>

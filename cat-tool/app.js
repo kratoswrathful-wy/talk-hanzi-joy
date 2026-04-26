@@ -15454,32 +15454,102 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         /** 頁內 modal：新增／編輯專案準則（內容、標籤；議題群組預留，見 §5.4）。 */
-        function openPgEditProjectGuidelineModal(mode, entryId) {
+        async function openPgEditProjectGuidelineModal(mode, entryId) {
             const modal = document.getElementById('pgEditProjectGuidelineModal');
             const heading = document.getElementById('pgEditProjectGuidelineHeading');
             const contentEl = document.getElementById('pgEditProjectGuidelineContent');
-            const tagsEl = document.getElementById('pgEditProjectGuidelineTags');
+            const catSelector = document.getElementById('pgEditProjectGuidelineCategorySelector');
+            const catDisplay = document.getElementById('pgEditProjectGuidelineCategoryDisplay');
+            const catDropdown = document.getElementById('pgEditProjectGuidelineCategoryDropdown');
             const errEl = document.getElementById('pgEditProjectGuidelineErr');
             const btnSave = document.getElementById('btnPgEditProjectGuidelineSave');
             const btnCancel = document.getElementById('btnPgEditProjectGuidelineCancel');
-            if (!modal || !heading || !contentEl || !tagsEl || !btnSave || !btnCancel) return;
+            if (!modal || !heading || !contentEl || !catSelector || !catDisplay || !catDropdown || !btnSave || !btnCancel) return;
             if (!isCatSharedMutator()) return;
+
+            let allPgCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
+            if (allPgCategoryTags.length === 0) {
+                try {
+                    const id = await DBService.addAiCategoryTag('通用');
+                    allPgCategoryTags = [{ id, name: '通用', createdAt: new Date().toISOString(), listHidden: false }];
+                } catch (_) { /* ignore */ }
+                if (allPgCategoryTags.length === 0) {
+                    allPgCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
+                }
+            }
+
+            function _pgSortNames(names) {
+                return [...new Set(names)].sort((a, b) => a.localeCompare(b, 'zh-Hant-TW', { sensitivity: 'base' }));
+            }
 
             const isNew = mode === 'new';
             modal.setAttribute('data-pg-edit-id', isNew ? '' : String(entryId != null ? entryId : ''));
 
+            /** @type {string[]} */
+            let selectedPgCategories = ['通用'];
             if (isNew) {
                 heading.textContent = '新增專案準則';
                 contentEl.value = '';
-                tagsEl.value = '通用';
             } else {
                 const idx = projectGuidelines.findIndex((t) => String(t.id) === String(entryId));
                 if (idx < 0) return;
                 const row = projectGuidelines[idx];
                 heading.textContent = '編輯專案準則';
                 contentEl.value = String(row.content || '');
-                tagsEl.value = _pgNormalizeCategory(row.category).join(', ');
+                selectedPgCategories = [..._pgNormalizeCategory(row.category)];
             }
+
+            function updatePgCategoryDisplay() {
+                const label = selectedPgCategories.length > 0 ? selectedPgCategories.join(', ') : '通用';
+                if (catDisplay) catDisplay.textContent = label;
+            }
+
+            function updatePgCategoryDropdown() {
+                const visibleTags = allPgCategoryTags.filter((t) => t && !t.listHidden);
+                selectedPgCategories = selectedPgCategories.filter((n) =>
+                    visibleTags.some((t) => t.name === n) || n === '通用'
+                );
+                if (selectedPgCategories.length === 0) selectedPgCategories = ['通用'];
+                updatePgCategoryDisplay();
+                if (visibleTags.length === 0) {
+                    catDropdown.innerHTML = '<span style="font-size:0.8rem; color:#94a3b8; padding:0.4rem 0.6rem; display:block;">尚無類別（將使用「通用」）</span>';
+                    return;
+                }
+                const sortedTags = _pgSortNames(visibleTags.map((t) => t.name));
+                catDropdown.innerHTML = sortedTags.map((name) => `
+                    <label class="ai-multiselect-option">
+                        <input type="checkbox" value="${_esc(name)}" ${selectedPgCategories.includes(name) ? 'checked' : ''}> ${_esc(name)}
+                    </label>
+                `).join('');
+                catDropdown.querySelectorAll('input[type=checkbox]').forEach((cb) => {
+                    cb.onchange = () => {
+                        const val = cb.value;
+                        if (cb.checked) {
+                            if (!selectedPgCategories.includes(val)) selectedPgCategories.push(val);
+                        } else {
+                            selectedPgCategories = selectedPgCategories.filter((c) => c !== val);
+                        }
+                        updatePgCategoryDisplay();
+                    };
+                });
+            }
+
+            function onPgCategorySelectorClick(e) {
+                e.stopPropagation();
+                catDropdown.classList.toggle('hidden');
+            }
+
+            function onPgCategoryDocClick(e) {
+                if (catDropdown && !catDropdown.contains(e.target) && e.target !== catSelector) {
+                    catDropdown.classList.add('hidden');
+                }
+            }
+
+            updatePgCategoryDropdown();
+            updatePgCategoryDisplay();
+
+            catSelector.addEventListener('click', onPgCategorySelectorClick);
+            document.addEventListener('click', onPgCategoryDocClick);
 
             function showErr(msg) {
                 if (!errEl) return;
@@ -15495,6 +15565,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             function closeModal() {
                 modal.classList.add('hidden');
                 showErr('');
+                catDropdown.classList.add('hidden');
+                catSelector.removeEventListener('click', onPgCategorySelectorClick);
+                document.removeEventListener('click', onPgCategoryDocClick);
                 btnSave.removeEventListener('click', onSave);
                 btnCancel.removeEventListener('click', onCancel);
                 modal.removeEventListener('click', onOverlay);
@@ -15524,8 +15597,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     contentEl.focus();
                     return;
                 }
-                const rawTags = tagsEl.value.split(',').map((s) => s.trim()).filter(Boolean);
-                const normalizedCats = rawTags.length > 0 ? [...new Set(rawTags)] : ['通用'];
+                let normalizedCats = [...new Set(selectedPgCategories.filter(Boolean))];
+                if (normalizedCats.length === 0) normalizedCats = ['通用'];
                 const category = JSON.stringify(normalizedCats);
 
                 const editId = modal.getAttribute('data-pg-edit-id') || '';
