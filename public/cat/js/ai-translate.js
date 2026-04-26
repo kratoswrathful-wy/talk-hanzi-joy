@@ -80,7 +80,7 @@
     /**
      * 建構送給 OpenAI 的 messages 陣列。
      * @param {Array} segments - [{ idx, source, contextPrev, contextNext, keys, extraValue }]
-     * @param {Object} options - { sourceLang, targetLang, guidelines[], styleExamples[], tbTerms[], batchNote }
+     * @param {Object} options - { sourceLang, targetLang, guidelines[], styleExamples[], tbTerms[], batchNote, projectGuidelinesNote }
      */
     function buildPrompt(segments, options = {}) {
         const {
@@ -91,6 +91,7 @@
             styleExamples = [],
             tbTerms = [],
             batchNote = '',
+            projectGuidelinesNote = '',
             systemPrefix = ''
         } = options;
 
@@ -139,7 +140,12 @@
             });
         }
 
-        // 單批特殊指示
+        // 專案準則（全專案檔案共用；標題固定為「專案準則」，不併入【本批次特殊指示】）
+        if (projectGuidelinesNote && projectGuidelinesNote.trim()) {
+            system += `\n專案準則\n${projectGuidelinesNote.trim()}\n`;
+        }
+
+        // 單批特殊指示（含本批輸入與檔案已套用的本案特殊指示）
         if (batchNote && batchNote.trim()) {
             system += `\n【本批次特殊指示】\n${batchNote.trim()}\n`;
         }
@@ -357,7 +363,7 @@
     /**
      * 翻譯一批句段（含 XLIFF tag 去除與還原）。
      * @param {Array} segments - 句段物件陣列，每筆含 { id, sourceText, keys, extraValue, contextPrev, contextNext }
-     * @param {Object} options - { settings, sourceLang, targetLang, guidelines, styleExamples, tbTerms, batchNote }
+     * @param {Object} options - { settings, sourceLang, targetLang, guidelines, styleExamples, tbTerms, batchNote, projectGuidelinesNote }
      * @returns {{ results: [{segId, translation, aiDraft}], missing: [segId], error: string|null }}
      */
     async function translate(segments, options = {}) {
@@ -392,6 +398,7 @@
             styleExamples: options.styleExamples || [],
             tbTerms: options.tbTerms || [],
             batchNote: options.batchNote || '',
+            projectGuidelinesNote: options.projectGuidelinesNote || '',
             systemPrefix: options.systemPrefix || (settings.prompts && settings.prompts.translateSystemPrefix) || ''
         });
 
@@ -488,7 +495,7 @@
      * @returns {string} 報告文字
      */
     async function scanFullText(segments, options) {
-        const { settings, extraPrompt = '', guidelines = [], styleGuidelines = [], styleExamples = [], tbTerms = [] } = options;
+        const { settings, extraPrompt = '', guidelines = [], styleGuidelines = [], styleExamples = [], tbTerms = [], projectGuidelinesNote = '' } = options;
 
         // 截斷：保留前後各半，去除中間
         const est = estimateScanTokens(segments, extraPrompt);
@@ -519,6 +526,9 @@
         }
         if (tbTerms && tbTerms.length > 0) {
             systemParts.push('\n術語庫：\n' + tbTerms.slice(0, 50).map(t => `${t.source} → ${t.target}`).join('\n'));
+        }
+        if (projectGuidelinesNote && String(projectGuidelinesNote).trim()) {
+            systemParts.push('\n專案準則\n' + String(projectGuidelinesNote).trim());
         }
         if (extraPrompt) {
             systemParts.push('\n使用者附加說明：' + extraPrompt);

@@ -1009,24 +1009,38 @@ const DBService = {
         if (rows.length > 0) {
             const r = rows[0];
             if (!Array.isArray(r.selectedStyleGuidelineIds)) r.selectedStyleGuidelineIds = [];
+            if (!Array.isArray(r.projectGuidelines)) r.projectGuidelines = [];
             return r;
         }
-        return { projectId, selectedGuidelineIds: [], selectedStyleGuidelineIds: [], specialInstructions: [] };
+        return { projectId, selectedGuidelineIds: [], selectedStyleGuidelineIds: [], specialInstructions: [], projectGuidelines: [] };
     },
     async saveAiProjectSettings(projectId, patch) {
         if (!projectId) return;
         const rows = await db.aiProjectSettings.where('projectId').equals(projectId).toArray();
-        if (rows.length > 0) {
-            return await db.aiProjectSettings.update(rows[0].id, { ...patch });
-        } else {
-            return await db.aiProjectSettings.add({
+        const base = rows.length > 0
+            ? { ...rows[0] }
+            : {
                 projectId,
                 selectedGuidelineIds: [],
                 selectedStyleGuidelineIds: [],
                 specialInstructions: [],
-                ...patch
-            });
+                projectGuidelines: []
+            };
+        if (!Array.isArray(base.selectedGuidelineIds)) base.selectedGuidelineIds = [];
+        if (!Array.isArray(base.selectedStyleGuidelineIds)) base.selectedStyleGuidelineIds = [];
+        if (!Array.isArray(base.specialInstructions)) base.specialInstructions = [];
+        if (!Array.isArray(base.projectGuidelines)) base.projectGuidelines = [];
+        const merged = { ...base, ...patch, projectId };
+        if (!Array.isArray(merged.selectedGuidelineIds)) merged.selectedGuidelineIds = [];
+        if (!Array.isArray(merged.selectedStyleGuidelineIds)) merged.selectedStyleGuidelineIds = [];
+        if (!Array.isArray(merged.specialInstructions)) merged.specialInstructions = [];
+        if (!Array.isArray(merged.projectGuidelines)) merged.projectGuidelines = [];
+        if (rows.length > 0) {
+            const rowId = rows[0].id;
+            return await db.aiProjectSettings.update(rowId, { ...merged, id: rowId });
         }
+        const { id: _omitId, ...toAdd } = merged;
+        return await db.aiProjectSettings.add(toAdd);
     },
     /** 新專案依庫內 isDefault 帶入勾選的準則／文風 id */
     async applyDefaultAiProjectSettingsForNewProject(projectId) {

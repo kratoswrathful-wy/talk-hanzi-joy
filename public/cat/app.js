@@ -5326,6 +5326,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let selectedGuidelineIds = new Set((psettings?.selectedGuidelineIds || []).map(Number));
         let selectedStyleIds = new Set((psettings?.selectedStyleGuidelineIds || []).map(Number));
         const siKeep = Array.isArray(psettings?.specialInstructions) ? psettings.specialInstructions : [];
+        const pgKeep = Array.isArray(psettings?.projectGuidelines) ? psettings.projectGuidelines : [];
 
         function previewHtml(ids, list) {
             const picked = list.filter(g => ids.has(g.id));
@@ -5344,7 +5345,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             return DBService.saveAiProjectSettings(projectId, {
                 selectedGuidelineIds: [...selectedGuidelineIds],
                 selectedStyleGuidelineIds: [...selectedStyleIds],
-                specialInstructions: siKeep
+                specialInstructions: siKeep,
+                projectGuidelines: pgKeep
             }).catch(e => { console.error(e); });
         }
         renderWelcomePreviews();
@@ -14822,18 +14824,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         const u = context === 'projectPage' ? {
             gList: 'aiSelectedGuidelinesListProject',
             sList: 'aiSelectedStyleGuidelinesListProject',
+            pgList: 'aiProjectGuidelinesListProject',
             siList: 'aiSpecialInstructionsListProject',
             pickG: 'btnOpenAiGuidelinePickerProject',
             pickS: 'btnOpenAiStyleGuidelinePickerProject',
+            addPg: 'btnAddAiProjectGuidelineProject',
             addSi: 'btnAddAiSpecialInstructionProject',
             defG: 'btnApplyDefaultGuidelinesProject',
             defS: 'btnApplyDefaultStylesProject'
         } : {
             gList: 'aiSelectedGuidelinesList',
             sList: 'aiSelectedStyleGuidelinesList',
+            pgList: 'aiProjectGuidelinesList',
             siList: 'aiSpecialInstructionsList',
             pickG: 'btnOpenAiGuidelinePicker',
             pickS: 'btnOpenAiStyleGuidelinePicker',
+            addPg: 'btnAddAiProjectGuideline',
             addSi: 'btnAddAiSpecialInstruction',
             defG: 'btnApplyDefaultGuidelines',
             defS: 'btnApplyDefaultStyles'
@@ -14841,10 +14847,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const $ = (id) => document.getElementById(id);
         const selectedList = $(u.gList);
         const selectedStyleList = $(u.sList);
+        const pgList = $(u.pgList);
         const specialList = $(u.siList);
-        if (context === 'projectPage' && !selectedList && !selectedStyleList && !specialList) return;
+        if (context === 'projectPage' && !selectedList && !selectedStyleList && !specialList && !pgList) return;
         const openPickerBtn = $(u.pickG);
         const openStyleBtn = $(u.pickS);
+        const addProjectGuidelineBtn = $(u.addPg);
         const addSpecialBtn = $(u.addSi);
         const btnDefG = $(u.defG);
         const btnDefS = $(u.defS);
@@ -14863,12 +14871,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         let selectedGuidelineIds = new Set((psettings?.selectedGuidelineIds || []).map(Number));
         let selectedStyleIds = new Set((psettings?.selectedStyleGuidelineIds || []).map(Number));
         let specialInstructions = Array.isArray(psettings?.specialInstructions) ? [...psettings.specialInstructions] : [];
+        let projectGuidelines = Array.isArray(psettings?.projectGuidelines) ? [...psettings.projectGuidelines] : [];
 
         function savePSettings() {
             DBService.saveAiProjectSettings(projectId, {
                 selectedGuidelineIds: [...selectedGuidelineIds],
                 selectedStyleGuidelineIds: [...selectedStyleIds],
-                specialInstructions
+                specialInstructions,
+                projectGuidelines
             }).catch(console.error);
         }
 
@@ -15086,7 +15096,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         await DBService.saveAiProjectSettings(projectId, {
                             selectedGuidelineIds: [...selectedGuidelineIds],
                             selectedStyleGuidelineIds: [...selectedStyleIds],
-                            specialInstructions
+                            specialInstructions,
+                            projectGuidelines
                         });
                     } catch (e) { console.error(e); }
                     await renderSpecialInstructions();
@@ -15095,9 +15106,110 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (newItemEditor) specialList.appendChild(newItemEditor);
         }
 
+        async function renderProjectGuidelines() {
+            if (!pgList) return;
+            const isPm = isCatSharedMutator();
+            const toShow = projectGuidelines.filter((g) => g && (isPm || g.enabled !== false));
+            const newItemEditor = pgList.querySelector('.pg-new-item');
+            if (toShow.length === 0) {
+                pgList.innerHTML = '<p style="font-size:0.78rem; color:#94a3b8; margin:0;">目前沒有專案準則。</p>';
+                if (newItemEditor) pgList.appendChild(newItemEditor);
+                return;
+            }
+            pgList.innerHTML = toShow.map((s) => {
+                const idAttr = String(s.id);
+                const idBody = String(s.id).replace(/["\\]/g, '');
+                const pmBlock = (isPm)
+                    ? `<div class="private-todo-check">
+                        <input type="checkbox" class="ai-pg-checkbox private-todo-cb" data-pg-id="${_esc(idAttr)}" ${s.enabled !== false ? 'checked' : ''} aria-label="啟用專案準則">
+                    </div>` : '<div class="private-todo-check"></div>';
+                const actBlock = (isPm)
+                    ? `<div class="note-item-actions guideline-item-aside-actions pg-acts" data-pg-id="${_esc(idAttr)}">
+                        <button type="button" class="pt-edit-btn pg-edit-btn" data-pg-id="${_esc(idAttr)}" title="編輯">✏️</button>
+                        <button type="button" class="pt-del-btn danger pg-del-btn" data-pg-id="${_esc(idAttr)}" title="刪除">🗑</button>
+                    </div>` : '';
+                return `<div class="guideline-item" data-pg-id="${_esc(idAttr)}">
+                    <div class="guideline-item-row">
+                        ${pmBlock}
+                        <div class="guideline-item-main">
+                            <div class="private-todo-body" id="pg-body-${idBody}">
+                                ${s.content ? `<span class="private-todo-text">${_esc(s.content)}</span>` : '<span class="guideline-item-empty">（無內容）</span>'}
+                            </div>
+                        </div>
+                        <div class="guideline-item-aside">
+                            <div class="guideline-item-aside-inner">${actBlock}</div>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+            pgList.querySelectorAll('.ai-pg-checkbox').forEach((cb) => {
+                cb.onchange = () => {
+                    const sid = cb.getAttribute('data-pg-id');
+                    const i = projectGuidelines.findIndex((t) => String(t.id) === String(sid));
+                    if (i < 0) return;
+                    projectGuidelines[i].enabled = cb.checked;
+                    savePSettings();
+                    void renderProjectGuidelines();
+                };
+            });
+            pgList.querySelectorAll('.pg-edit-btn').forEach((btn) => {
+                btn.onclick = () => {
+                    const sid = btn.getAttribute('data-pg-id');
+                    const item = pgList.querySelector(`[data-pg-id="${sid}"]`);
+                    if (!item) return;
+                    const i = projectGuidelines.findIndex((t) => String(t.id) === String(sid));
+                    if (i < 0) return;
+                    const idBody = String(projectGuidelines[i].id).replace(/["\\]/g, '');
+                    const bodyEl = item.querySelector('#pg-body-' + idBody);
+                    const actsEl = item.querySelector('.pg-acts');
+                    if (bodyEl) {
+                        bodyEl.innerHTML = '';
+                        const ta = document.createElement('textarea');
+                        ta.className = 'private-todo-edit-textarea';
+                        ta.value = projectGuidelines[i].content;
+                        ta.placeholder = '專案準則內容…';
+                        ta.rows = 3;
+                        bodyEl.appendChild(ta);
+                        ta.focus();
+                        ta.setSelectionRange(ta.value.length, ta.value.length);
+                        if (actsEl) {
+                            actsEl.innerHTML = `
+                                <button type="button" class="primary-btn btn-sm pg-save-btn">儲存</button>
+                                <button type="button" class="secondary-btn btn-sm pg-cancel-btn">取消</button>`;
+                            actsEl.querySelector('.pg-save-btn').onclick = () => {
+                                projectGuidelines[i].content = ta.value.trim();
+                                savePSettings();
+                                void renderProjectGuidelines();
+                            };
+                            actsEl.querySelector('.pg-cancel-btn').onclick = () => { void renderProjectGuidelines(); };
+                        }
+                    }
+                };
+            });
+            pgList.querySelectorAll('.pg-del-btn').forEach((btn) => {
+                btn.onclick = async () => {
+                    const sid = btn.getAttribute('data-pg-id');
+                    const i = projectGuidelines.findIndex((t) => String(t.id) === String(sid));
+                    if (i < 0) return;
+                    projectGuidelines.splice(i, 1);
+                    try {
+                        await DBService.saveAiProjectSettings(projectId, {
+                            selectedGuidelineIds: [...selectedGuidelineIds],
+                            selectedStyleGuidelineIds: [...selectedStyleIds],
+                            specialInstructions,
+                            projectGuidelines
+                        });
+                    } catch (e) { console.error(e); }
+                    await renderProjectGuidelines();
+                };
+            });
+            if (newItemEditor) pgList.appendChild(newItemEditor);
+        }
+
         renderSelectedGuidelines();
         renderSelectedStyleGuidelines();
         await renderSpecialInstructions();
+        await renderProjectGuidelines();
 
         if (btnDefG) {
             btnDefG.onclick = async () => {
@@ -15180,6 +15292,47 @@ document.addEventListener('DOMContentLoaded', async () => {
                 newItem.querySelector('.si-new-cancel').onclick = () => {
                     newItem.remove();
                     if (specialInstructions.length === 0) renderSpecialInstructions();
+                };
+            };
+        }
+        if (addProjectGuidelineBtn && pgList) {
+            addProjectGuidelineBtn.onclick = () => {
+                pgList.querySelector('.pg-new-item')?.remove();
+                pgList.querySelector('p')?.remove();
+                const newItem = document.createElement('div');
+                newItem.className = 'guideline-item pg-new-item';
+                newItem.innerHTML = `
+                    <div class="guideline-item-row">
+                        <div class="private-todo-check"></div>
+                        <div class="guideline-item-main">
+                            <div class="private-todo-body">
+                                <textarea class="private-todo-edit-textarea pg-new-ta" rows="3" placeholder="專案準則內容…"></textarea>
+                            </div>
+                        </div>
+                        <div class="guideline-item-aside">
+                            <div class="guideline-item-aside-inner">
+                                <div class="note-item-actions guideline-item-aside-actions">
+                                    <button type="button" class="primary-btn btn-sm pg-new-save">儲存</button>
+                                    <button type="button" class="secondary-btn btn-sm pg-new-cancel">取消</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                pgList.appendChild(newItem);
+                const ta = newItem.querySelector('.pg-new-ta');
+                ta?.focus();
+                newItem.querySelector('.pg-new-save').onclick = () => {
+                    const val = ta.value.trim();
+                    if (val) {
+                        projectGuidelines.push({ id: Date.now(), content: val, enabled: true, createdAt: new Date().toISOString() });
+                        savePSettings();
+                        newItem.remove();
+                    }
+                    void renderProjectGuidelines();
+                };
+                newItem.querySelector('.pg-new-cancel').onclick = () => {
+                    newItem.remove();
+                    if (projectGuidelines.length === 0) void renderProjectGuidelines();
                 };
             };
         }
@@ -15594,7 +15747,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 guidelines: aiOptions.guidelines,
                 styleGuidelines: aiOptions.styleGuidelines,
                 styleExamples: aiOptions.styleExamples,
-                tbTerms: aiOptions.tbTerms
+                tbTerms: aiOptions.tbTerms,
+                projectGuidelinesNote: aiOptions.projectGuidelinesNote || ''
             });
             const rc = document.getElementById('aiReportContent');
             if (rc) rc.textContent = report;
@@ -15881,7 +16035,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             .map((id) => siById.get(id))
             .filter((s) => s && s.enabled !== false)
             .map((s) => s.content);
-        const combinedBatchNote = [batchNote, ...applicableContents].filter(Boolean).join('\n');
+        const projectGuidelinesList = Array.isArray(psettings?.projectGuidelines) ? psettings.projectGuidelines : [];
+        const pgBodies = projectGuidelinesList
+            .filter((g) => g && g.enabled !== false && String(g.content || '').trim())
+            .map((g) => String(g.content).trim());
+        const siPart = [batchNote, ...applicableContents].filter(Boolean).join('\n');
+        const projectGuidelinesNote = pgBodies.length ? pgBodies.join('\n\n') : '';
         const styleExFilters = {
             limit: 15,
             sourceLang: fileRec?.sourceLang || undefined,
@@ -15899,7 +16058,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             styleGuidelines,
             styleExamples,
             tbTerms,
-            batchNote: combinedBatchNote,
+            batchNote: siPart,
+            projectGuidelinesNote,
             systemPrefix: (pr && pr.translateSystemPrefix) || ''
         };
     }

@@ -218,7 +218,7 @@
                                 <div class="cat-notes-col" id="tabProjectSharedInfoLeft">
                                     <div class="shared-info-section">
                                         <div class="shared-info-section-header">
-                                            <h4 class="shared-info-section-title">庫內翻譯準則</h4>
+                                            <h4 class="shared-info-section-title">翻譯準則</h4>
                                             <span class="pm-only-ui" style="display:inline-flex; gap:0.35rem;">
                                                 <button type="button" class="notes-add-btn" id="btnOpenAiGuidelinePickerProject">選擇準則</button>
                                                 <button type="button" class="secondary-btn btn-sm" id="btnApplyDefaultGuidelinesProject" title="以庫內勾選的預設條目覆寫本專案選取">套用預設</button>
@@ -228,7 +228,7 @@
                                     </div>
                                     <div class="shared-info-section" style="margin-top:0.6rem;">
                                         <div class="shared-info-section-header">
-                                            <h4 class="shared-info-section-title">庫內文風偏好</h4>
+                                            <h4 class="shared-info-section-title">文風偏好</h4>
                                             <span class="pm-only-ui" style="display:inline-flex; gap:0.35rem;">
                                                 <button type="button" class="notes-add-btn" id="btnOpenAiStyleGuidelinePickerProject">選擇文風</button>
                                                 <button type="button" class="secondary-btn btn-sm" id="btnApplyDefaultStylesProject">套用預設</button>
@@ -239,6 +239,14 @@
                                 </div>
                                 <div class="cat-notes-col" id="tabProjectSharedInfoRight">
                                     <div class="shared-info-section">
+                                        <div class="shared-info-section-header">
+                                            <h4 class="shared-info-section-title">專案準則</h4>
+                                            <button type="button" class="notes-add-btn pm-only-ui" id="btnAddAiProjectGuidelineProject" style="display:none;">＋ 新增</button>
+                                        </div>
+                                        <p style="font-size:0.72rem; color:#64748b; margin:0 0 0.35rem 0;">自動套用至本專案內所有檔案，無需指定適用對象。</p>
+                                        <div id="aiProjectGuidelinesListProject" class="notes-items-list"></div>
+                                    </div>
+                                    <div class="shared-info-section" style="margin-top:0.6rem;">
                                         <div class="shared-info-section-header">
                                             <h4 class="shared-info-section-title">檔案特殊指示</h4>
                                             <button type="button" class="notes-add-btn pm-only-ui" id="btnAddAiSpecialInstructionProject" style="display:none;">＋ 新增指示</button>
@@ -740,7 +748,7 @@
                                         <div class="cat-notes-col" id="tabSharedInfoLeft">
                                             <div class="shared-info-section">
                                                 <div class="shared-info-section-header">
-                                                    <h4 class="shared-info-section-title">庫內翻譯準則</h4>
+                                                    <h4 class="shared-info-section-title">翻譯準則</h4>
                                                     <span class="pm-only-ui" style="display:inline-flex; gap:0.35rem;">
                                                         <button type="button" class="notes-add-btn" id="btnOpenAiGuidelinePicker">選擇準則</button>
                                                         <button type="button" class="secondary-btn btn-sm" id="btnApplyDefaultGuidelines" title="以庫內勾選的預設條目覆寫本專案選取">套用預設</button>
@@ -750,7 +758,7 @@
                                             </div>
                                             <div class="shared-info-section" style="margin-top:0.6rem;">
                                                 <div class="shared-info-section-header">
-                                                    <h4 class="shared-info-section-title">庫內文風偏好</h4>
+                                                    <h4 class="shared-info-section-title">文風偏好</h4>
                                                     <span class="pm-only-ui" style="display:inline-flex; gap:0.35rem;">
                                                         <button type="button" class="notes-add-btn" id="btnOpenAiStyleGuidelinePicker">選擇文風</button>
                                                         <button type="button" class="secondary-btn btn-sm" id="btnApplyDefaultStyles">套用預設</button>
@@ -761,6 +769,14 @@
                                         </div>
                                         <div class="cat-notes-col" id="tabSharedInfoRight">
                                             <div class="shared-info-section">
+                                                <div class="shared-info-section-header">
+                                                    <h4 class="shared-info-section-title">專案準則</h4>
+                                                    <button type="button" class="notes-add-btn pm-only-ui" id="btnAddAiProjectGuideline" style="display:none;">＋ 新增</button>
+                                                </div>
+                                                <p style="font-size:0.72rem; color:#64748b; margin:0 0 0.35rem 0;">自動套用至本專案內所有檔案，無需指定適用對象。</p>
+                                                <div id="aiProjectGuidelinesList" class="notes-items-list"></div>
+                                            </div>
+                                            <div class="shared-info-section" style="margin-top:0.6rem;">
                                                 <div class="shared-info-section-header">
                                                     <h4 class="shared-info-section-title">本案特殊指示</h4>
                                                     <button type="button" class="notes-add-btn pm-only-ui" id="btnAddAiSpecialInstruction" style="display:none;">＋ 新增指示</button>
@@ -1041,11 +1057,11 @@
                 </div>
                 <div class="ai-guidelines-two-cols" style="display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; max-width:1000px; margin-bottom:1.5rem; align-items:start;">
                     <div>
-                        <h2 style="font-size:0.95rem; margin:0 0 0.5rem 0; color:#1e3a5f; font-weight:700;">庫內翻譯準則</h2>
+                        <h2 style="font-size:0.95rem; margin:0 0 0.5rem 0; color:#1e3a5f; font-weight:700;">翻譯準則</h2>
                         <div id="aiGuidelinesListTranslation" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
                     </div>
                     <div>
-                        <h2 style="font-size:0.95rem; margin:0 0 0.5rem 0; color:#1e3a5f; font-weight:700;">庫內文風偏好</h2>
+                        <h2 style="font-size:0.95rem; margin:0 0 0.5rem 0; color:#1e3a5f; font-weight:700;">文風偏好</h2>
                         <div id="aiGuidelinesListStyle" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
                     </div>
                 </div>
