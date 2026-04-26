@@ -110,12 +110,14 @@ function getCheckedLangs(container) {
 
 /**
  * 頁內通用確認（取代 window.confirm）。message 建議為「是否確定要……？」完整句。
+ * 預設不顯示標題列；若需標題可傳 options.title（非空字串）。
  * @param {string} message
  * @param {{ title?: string }} [options]
  * @returns {Promise<boolean>}
  */
 function openCatConfirmModal(message, options = {}) {
-    const title = options.title != null ? String(options.title) : '確認';
+    const rawTitle = options.title != null ? String(options.title) : '';
+    const title = rawTitle.trim();
     return new Promise((resolve) => {
         const modal = document.getElementById('catGenericConfirmModal');
         const titleEl = document.getElementById('catGenericConfirmTitle');
@@ -127,7 +129,15 @@ function openCatConfirmModal(message, options = {}) {
             return;
         }
         let settled = false;
-        titleEl.textContent = title;
+        if (title) {
+            titleEl.textContent = title;
+            titleEl.classList.remove('hidden');
+            titleEl.removeAttribute('aria-hidden');
+        } else {
+            titleEl.textContent = '';
+            titleEl.classList.add('hidden');
+            titleEl.setAttribute('aria-hidden', 'true');
+        }
         msgEl.textContent = message;
         function cleanup() {
             modal.classList.add('hidden');

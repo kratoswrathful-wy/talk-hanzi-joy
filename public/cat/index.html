@@ -2060,8 +2060,8 @@
 
     <!-- ====== CAT 通用：確認／單行輸入（多處流程共用）====== -->
     <div id="catGenericConfirmModal" class="modal-overlay hidden">
-        <div class="modal-box" style="max-width:440px; width:92vw;">
-            <h3 id="catGenericConfirmTitle" style="margin:0 0 0.5rem 0; font-size:1.05rem;">確認</h3>
+        <div class="modal-box" role="dialog" aria-modal="true" aria-describedby="catGenericConfirmMsg" style="max-width:440px; width:92vw;">
+            <h3 id="catGenericConfirmTitle" class="hidden" style="margin:0 0 0.5rem 0; font-size:1.05rem;" aria-hidden="true"></h3>
             <p id="catGenericConfirmMsg" style="margin:0; font-size:0.9rem; color:#334155; line-height:1.6; white-space:pre-wrap;"></p>
             <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.15rem;">
                 <button type="button" id="btnCatGenericConfirmCancel" class="secondary-btn">取消</button>
@@ -2144,9 +2144,8 @@
 
     <!-- ====== 準則管理：脫離互斥群組確認 ====== -->
     <div id="agLeaveMutexConfirmModal" class="modal-overlay hidden">
-        <div class="modal-box" style="max-width:420px; width:92vw;">
-            <h3 style="margin:0 0 0.5rem 0; font-size:1.05rem;">確認</h3>
-            <p style="margin:0; font-size:0.9rem; color:#334155; line-height:1.55;">是否確定要讓此條目脫離互斥群組？</p>
+        <div class="modal-box" role="dialog" aria-modal="true" aria-describedby="agLeaveMutexConfirmMsg" style="max-width:420px; width:92vw;">
+            <p id="agLeaveMutexConfirmMsg" style="margin:0; font-size:0.9rem; color:#334155; line-height:1.55;">是否確定要讓此條目脫離互斥群組？</p>
             <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.15rem;">
                 <button type="button" id="btnAgLeaveMutexCancel" class="secondary-btn">取消</button>
                 <button type="button" id="btnAgLeaveMutexConfirm" class="primary-btn">確定</button>
