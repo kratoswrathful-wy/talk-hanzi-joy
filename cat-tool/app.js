@@ -671,6 +671,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             aiGuidelinePickerModal: 'btnCloseAiGuidelinePicker',
             agMutexJoinModal: 'btnAgMutexJoinCancel',
             agEditGuidelineModal: 'btnAgEditGuidelineCancel',
+            pgEditProjectGuidelineModal: 'btnPgEditProjectGuidelineCancel',
             aiScanModal: 'btnCancelAiScan',
             aiScanConfirmModal: 'btnCancelAiScanConfirm',
             remoteConflictModal: 'btnRemoteConflictCancel',
@@ -15442,6 +15443,123 @@ document.addEventListener('DOMContentLoaded', async () => {
             }).catch(console.error);
         }
 
+        /** 專案準則 `category` 與庫內準則條目相同：JSON 陣列字串或單一字串。 */
+        function _pgNormalizeCategory(cat) {
+            if (!cat) return ['通用'];
+            try {
+                const parsed = JSON.parse(cat);
+                if (Array.isArray(parsed)) return parsed;
+            } catch (_) { /* ignore */ }
+            return [String(cat)];
+        }
+
+        /** 頁內 modal：新增／編輯專案準則（內容、標籤；議題群組預留，見 §5.4）。 */
+        function openPgEditProjectGuidelineModal(mode, entryId) {
+            const modal = document.getElementById('pgEditProjectGuidelineModal');
+            const heading = document.getElementById('pgEditProjectGuidelineHeading');
+            const contentEl = document.getElementById('pgEditProjectGuidelineContent');
+            const tagsEl = document.getElementById('pgEditProjectGuidelineTags');
+            const errEl = document.getElementById('pgEditProjectGuidelineErr');
+            const btnSave = document.getElementById('btnPgEditProjectGuidelineSave');
+            const btnCancel = document.getElementById('btnPgEditProjectGuidelineCancel');
+            if (!modal || !heading || !contentEl || !tagsEl || !btnSave || !btnCancel) return;
+            if (!isCatSharedMutator()) return;
+
+            const isNew = mode === 'new';
+            modal.setAttribute('data-pg-edit-id', isNew ? '' : String(entryId != null ? entryId : ''));
+
+            if (isNew) {
+                heading.textContent = '新增專案準則';
+                contentEl.value = '';
+                tagsEl.value = '通用';
+            } else {
+                const idx = projectGuidelines.findIndex((t) => String(t.id) === String(entryId));
+                if (idx < 0) return;
+                const row = projectGuidelines[idx];
+                heading.textContent = '編輯專案準則';
+                contentEl.value = String(row.content || '');
+                tagsEl.value = _pgNormalizeCategory(row.category).join(', ');
+            }
+
+            function showErr(msg) {
+                if (!errEl) return;
+                if (msg) {
+                    errEl.textContent = msg;
+                    errEl.classList.remove('hidden');
+                } else {
+                    errEl.textContent = '';
+                    errEl.classList.add('hidden');
+                }
+            }
+
+            function closeModal() {
+                modal.classList.add('hidden');
+                showErr('');
+                btnSave.removeEventListener('click', onSave);
+                btnCancel.removeEventListener('click', onCancel);
+                modal.removeEventListener('click', onOverlay);
+                document.removeEventListener('keydown', onKey);
+            }
+
+            function onCancel() {
+                closeModal();
+            }
+
+            function onOverlay(e) {
+                if (e.target === modal) onCancel();
+            }
+
+            function onKey(e) {
+                if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+                    e.preventDefault();
+                    onCancel();
+                }
+            }
+
+            function onSave() {
+                showErr('');
+                const content = contentEl.value.trim();
+                if (!content) {
+                    showErr('內容不得空白。');
+                    contentEl.focus();
+                    return;
+                }
+                const rawTags = tagsEl.value.split(',').map((s) => s.trim()).filter(Boolean);
+                const normalizedCats = rawTags.length > 0 ? [...new Set(rawTags)] : ['通用'];
+                const category = JSON.stringify(normalizedCats);
+
+                const editId = modal.getAttribute('data-pg-edit-id') || '';
+                if (editId) {
+                    const i = projectGuidelines.findIndex((t) => String(t.id) === String(editId));
+                    if (i < 0) {
+                        showErr('找不到該條目。');
+                        return;
+                    }
+                    projectGuidelines[i].content = content;
+                    projectGuidelines[i].category = category;
+                } else {
+                    projectGuidelines.push({
+                        id: Date.now(),
+                        content,
+                        category,
+                        enabled: true,
+                        createdAt: new Date().toISOString()
+                    });
+                }
+                savePSettings();
+                void renderProjectGuidelines();
+                closeModal();
+            }
+
+            btnSave.addEventListener('click', onSave);
+            btnCancel.addEventListener('click', onCancel);
+            modal.addEventListener('click', onOverlay);
+            document.addEventListener('keydown', onKey);
+
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => { contentEl.focus(); });
+        }
+
         function renderSelectedGuidelines() {
             if (!selectedList) return;
             const selected = allTranslation.filter(g => selectedGuidelineIds.has(g.id));
@@ -15670,15 +15788,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!pgList) return;
             const isPm = isCatSharedMutator();
             const toShow = projectGuidelines.filter((g) => g && (isPm || g.enabled !== false));
-            const newItemEditor = pgList.querySelector('.pg-new-item');
             if (toShow.length === 0) {
                 pgList.innerHTML = '<p style="font-size:0.78rem; color:#94a3b8; margin:0;">目前沒有專案準則。</p>';
-                if (newItemEditor) pgList.appendChild(newItemEditor);
                 return;
             }
             pgList.innerHTML = toShow.map((s) => {
                 const idAttr = String(s.id);
                 const idBody = String(s.id).replace(/["\\]/g, '');
+                const catBadges = _pgNormalizeCategory(s.category).map((c) => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
                 const pmBlock = (isPm)
                     ? `<div class="private-todo-check">
                         <input type="checkbox" class="ai-pg-checkbox private-todo-cb" data-pg-id="${_esc(idAttr)}" ${s.enabled !== false ? 'checked' : ''} aria-label="啟用專案準則">
@@ -15694,6 +15811,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <div class="guideline-item-main">
                             <div class="private-todo-body" id="pg-body-${idBody}">
                                 ${s.content ? `<span class="private-todo-text">${_esc(s.content)}</span>` : '<span class="guideline-item-empty">（無內容）</span>'}
+                                ${catBadges ? `<div style="margin-top:0.35rem;">${catBadges}</div>` : ''}
                             </div>
                         </div>
                         <div class="guideline-item-aside">
@@ -15715,35 +15833,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             pgList.querySelectorAll('.pg-edit-btn').forEach((btn) => {
                 btn.onclick = () => {
                     const sid = btn.getAttribute('data-pg-id');
-                    const item = pgList.querySelector(`[data-pg-id="${sid}"]`);
-                    if (!item) return;
-                    const i = projectGuidelines.findIndex((t) => String(t.id) === String(sid));
-                    if (i < 0) return;
-                    const idBody = String(projectGuidelines[i].id).replace(/["\\]/g, '');
-                    const bodyEl = item.querySelector('#pg-body-' + idBody);
-                    const actsEl = item.querySelector('.pg-acts');
-                    if (bodyEl) {
-                        bodyEl.innerHTML = '';
-                        const ta = document.createElement('textarea');
-                        ta.className = 'private-todo-edit-textarea';
-                        ta.value = projectGuidelines[i].content;
-                        ta.placeholder = '專案準則內容…';
-                        ta.rows = 3;
-                        bodyEl.appendChild(ta);
-                        ta.focus();
-                        ta.setSelectionRange(ta.value.length, ta.value.length);
-                        if (actsEl) {
-                            actsEl.innerHTML = `
-                                <button type="button" class="primary-btn btn-sm pg-save-btn">儲存</button>
-                                <button type="button" class="secondary-btn btn-sm pg-cancel-btn">取消</button>`;
-                            actsEl.querySelector('.pg-save-btn').onclick = () => {
-                                projectGuidelines[i].content = ta.value.trim();
-                                savePSettings();
-                                void renderProjectGuidelines();
-                            };
-                            actsEl.querySelector('.pg-cancel-btn').onclick = () => { void renderProjectGuidelines(); };
-                        }
-                    }
+                    openPgEditProjectGuidelineModal('edit', sid);
                 };
             });
             pgList.querySelectorAll('.pg-del-btn').forEach((btn) => {
@@ -15763,7 +15853,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     await renderProjectGuidelines();
                 };
             });
-            if (newItemEditor) pgList.appendChild(newItemEditor);
         }
 
         renderSelectedGuidelines();
@@ -15855,45 +15944,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 };
             };
         }
-        if (addProjectGuidelineBtn && pgList) {
+        if (addProjectGuidelineBtn) {
             addProjectGuidelineBtn.onclick = () => {
-                pgList.querySelector('.pg-new-item')?.remove();
-                pgList.querySelector('p')?.remove();
-                const newItem = document.createElement('div');
-                newItem.className = 'guideline-item pg-new-item';
-                newItem.innerHTML = `
-                    <div class="guideline-item-row">
-                        <div class="private-todo-check"></div>
-                        <div class="guideline-item-main">
-                            <div class="private-todo-body">
-                                <textarea class="private-todo-edit-textarea pg-new-ta" rows="3" placeholder="專案準則內容…"></textarea>
-                            </div>
-                        </div>
-                        <div class="guideline-item-aside">
-                            <div class="guideline-item-aside-inner">
-                                <div class="note-item-actions guideline-item-aside-actions">
-                                    <button type="button" class="primary-btn btn-sm pg-new-save">儲存</button>
-                                    <button type="button" class="secondary-btn btn-sm pg-new-cancel">取消</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>`;
-                pgList.appendChild(newItem);
-                const ta = newItem.querySelector('.pg-new-ta');
-                ta?.focus();
-                newItem.querySelector('.pg-new-save').onclick = () => {
-                    const val = ta.value.trim();
-                    if (val) {
-                        projectGuidelines.push({ id: Date.now(), content: val, enabled: true, createdAt: new Date().toISOString() });
-                        savePSettings();
-                        newItem.remove();
-                    }
-                    void renderProjectGuidelines();
-                };
-                newItem.querySelector('.pg-new-cancel').onclick = () => {
-                    newItem.remove();
-                    if (projectGuidelines.length === 0) void renderProjectGuidelines();
-                };
+                openPgEditProjectGuidelineModal('new');
             };
         }
         const goPicker = document.getElementById('btnGoToGuidelinesFromPicker');
