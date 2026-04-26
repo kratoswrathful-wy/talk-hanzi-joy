@@ -2138,8 +2138,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const sel = window.getSelection();
                 const selText = sel ? sel.toString().trim() : '';
                 if (selText) {
-                    const srcInput = document.getElementById('newTermSource');
-                    if (srcInput && !srcInput.value.trim()) srcInput.value = selText;
+                    const anchor = sel?.anchorNode;
+                    const anchorEl = anchor ? (anchor.nodeType === 3 ? anchor.parentElement : anchor) : null;
+                    const inSource = !!anchorEl?.closest('.col-source');
+                    const inTarget = !!anchorEl?.closest('.col-target');
+                    if (inSource) {
+                        const srcInput = document.getElementById('newTermSource');
+                        if (srcInput && !srcInput.value.trim()) srcInput.value = selText;
+                    } else if (inTarget) {
+                        const tgtInput = document.getElementById('newTermTarget');
+                        if (tgtInput && !tgtInput.value.trim()) tgtInput.value = selText;
+                    }
                 }
             }
         });
@@ -6397,7 +6406,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         note: (t.note || '').trim(),
                         tbId: full.id,
                         tbName: full.name || `TB #${full.id}`,
-                        matchFlags: t.matchFlags || _sysDefault  // 術語層級優先，fallback 系統預設
+                        matchFlags: t.matchFlags || _sysDefault, // 術語層級優先，fallback 系統預設
+                        createdBy: t.createdBy || '',
+                        createdAt: t.createdAt || ''
                     });
             });
         }
@@ -7235,10 +7246,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     } else if (_inTarget) {
                         const _tgtEl = document.getElementById('newTermTarget');
                         if (_tgtEl) _tgtEl.value = _selText;
-                    } else {
-                        // 選取位置不明（非原文/譯文欄）→ 填入原文欄
-                        const _srcEl = document.getElementById('newTermSource');
-                        if (_srcEl) _srcEl.value = _selText;
                     }
                 }
                 document.querySelector('.tab-btn[data-tab="tabNewTerm"]')?.click();
@@ -10856,6 +10863,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { undo, redo };
     }
 
+    /** CAT 比對表分頁時：將「當頁列索引」換成 `currentTmMatches` 絕對索引 */
+    function catMatchAbsSelectionIndex() {
+        const matches = window.currentTmMatches;
+        if (!matches || !matches.length) return 0;
+        const ps = 9;
+        const maxPage = Math.max(0, Math.ceil(matches.length / ps) - 1);
+        let page = typeof window.catMatchPageIndex === 'number' ? window.catMatchPageIndex : 0;
+        if (page > maxPage) page = maxPage;
+        if (page < 0) page = 0;
+        window.catMatchPageIndex = page;
+        const onPage = Math.min(ps, matches.length - page * ps);
+        let rel = typeof window.catPanelSelectedIndex === 'number' ? window.catPanelSelectedIndex : 0;
+        if (rel >= onPage) rel = Math.max(0, onPage - 1);
+        if (rel < 0) rel = 0;
+        window.catPanelSelectedIndex = rel;
+        return Math.min(page * ps + rel, matches.length - 1);
+    }
+
     function updateCatTrackPanelContent() {
         const el = document.getElementById('liveTrackChangeContent');
         if (!el) return;
@@ -10869,8 +10894,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             el.innerHTML = '<span style="color:#94a3b8;font-size:0.75rem;">無 TM / 片段列可比對時無法顯示追蹤修訂。</span>';
             return;
         }
-        const sel = typeof window.catPanelSelectedIndex === 'number' ? window.catPanelSelectedIndex : 0;
-        const idx = Math.max(0, Math.min(sel, matches.length - 1));
+        const idx = catMatchAbsSelectionIndex();
         const m = matches[idx];
         if (!m || (m.type !== 'TM' && m.type !== 'Fragment')) {
             el.innerHTML = '<span style="color:#94a3b8;font-size:0.75rem;">請選取類型為 TM 或 Frg 的列以顯示原文對照。</span>';
@@ -10962,7 +10986,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                             targetText: term.target,
                             tbName: term.tbName,
                             note: term.note,
-                            score: 100
+                            score: 100,
+                            matchFlags: term.matchFlags || { caseInsensitive: true, wholeWord: false },
+                            createdBy: term.createdBy || '',
+                            createdAt: term.createdAt || ''
                         });
                     }
                 });
@@ -10980,6 +11007,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (matches.length > 0) {
                 window.currentTmMatches = matches;
+                window.catMatchPageIndex = 0;
                 window.catPanelSelectedIndex = 0;
                 window.currentCatFooterSeg = seg;
 
@@ -10988,10 +11016,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const fSeg = window.currentCatFooterSeg;
                     let footerHtml = '';
                     if (m.type === 'TB') {
+                        const mf = m.matchFlags || { caseInsensitive: true, wholeWord: false };
+                        const caseRow = mf.caseInsensitive === false ? '是' : '否';
+                        const exactRow = mf.wholeWord ? '是' : '否';
+                        const greyHint = '簡單講：關閉精確比對時，只要句子裡任何地方出現這串原文就算可能命中；打開精確比對時，這串原文要像是獨立的詞（前後不能緊貼其他英文字母或數字）。「區分大小寫」決定大寫小寫要不要看成不同字。';
+                        const byAt = (m.createdAt ? escFoot(new Date(m.createdAt).toLocaleString('zh-TW', { hour12: false })) : 'N/A');
+                        const byWho = escFoot(m.createdBy || 'N/A');
                         footerHtml += `<div class="cat-footer-section">
                             <div style="font-size:0.8rem;">
                             <strong>術語庫：</strong>${escFoot(m.tbName || 'N/A')}<br>
                             ${m.note ? `<strong>備註：</strong>${escFoot(m.note)}<br>` : ''}
+                            <div><strong>區分大小寫：</strong>${caseRow}</div>
+                            <div><strong>精確比對：</strong>${exactRow}</div>
+                            <p style="margin:0.35rem 0 0 0; font-size:0.72rem; color:#94a3b8; line-height:1.45;">${greyHint}</p>
+                            <div><strong>建立者：</strong>${byWho}</div>
+                            <div><strong>建立時間：</strong>${byAt}</div>
                         </div>
                         </div>`;
                     } else {
@@ -11032,27 +11071,29 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </div>
                 `;
 
-                const rowsHtml = matches.slice(0, 9).map((m, idx) => {
-                    const isFragment = m.type === 'Fragment';
-                    const isTb = m.type === 'TB';
-                    let scoreInner = '';
-                    let scoreBg = '';
-                    if (isTb) {
-                        scoreInner = '<span class="result-pct-main">TB</span>';
-                        scoreBg = 'background:#fef9c3;';
-                    } else if (isFragment) {
-                        scoreInner = '<span class="result-pct-main">Frg</span>';
-                    } else if (typeof m.score === 'number') {
-                        const mv = m.score;
-                        if (mv >= 100) scoreBg = 'background:#dcfce7;';
-                        else if (mv >= 70) scoreBg = 'background:#ffedd5;';
-                        const pct = `${Math.round(mv)}%`;
-                        const dupBtn = (m._dupes && m._dupes.length)
-                            ? `<button type="button" class="cat-dup-toggle" aria-expanded="false" title="同原文其他 TM 紀錄"><span aria-hidden="true">▶</span></button>`
-                            : '';
-                        scoreInner = `<span class="result-pct-row"><span class="result-pct-main">${pct}</span>${dupBtn}</span>`;
-                    }
-                    const dupPanel = (m._dupes && m._dupes.length) ? `
+                const CAT_MATCH_PAGE = 9;
+                function buildCatMatchRowsHtml(pageSlice) {
+                    return pageSlice.map((m, idx) => {
+                        const isFragment = m.type === 'Fragment';
+                        const isTb = m.type === 'TB';
+                        let scoreInner = '';
+                        let scoreBg = '';
+                        if (isTb) {
+                            scoreInner = '<span class="result-pct-main">TB</span>';
+                            scoreBg = 'background:#fef9c3;';
+                        } else if (isFragment) {
+                            scoreInner = '<span class="result-pct-main">Frg</span>';
+                        } else if (typeof m.score === 'number') {
+                            const mv = m.score;
+                            if (mv >= 100) scoreBg = 'background:#dcfce7;';
+                            else if (mv >= 70) scoreBg = 'background:#ffedd5;';
+                            const pct = `${Math.round(mv)}%`;
+                            const dupBtn = (m._dupes && m._dupes.length)
+                                ? `<button type="button" class="cat-dup-toggle" aria-expanded="false" title="同原文其他 TM 紀錄"><span aria-hidden="true">▶</span></button>`
+                                : '';
+                            scoreInner = `<span class="result-pct-row"><span class="result-pct-main">${pct}</span>${dupBtn}</span>`;
+                        }
+                        const dupPanel = (m._dupes && m._dupes.length) ? `
                     <div class="cat-tm-dupes-panel hidden">
                         ${m._dupes.map(d => {
                             const tStr = d.lastModified || d.createdAt ? new Date(d.lastModified || d.createdAt).toLocaleString('zh-TW', { hour12: false }) : '';
@@ -11061,9 +11102,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                             return `<div class="cat-tm-dupe-line"><strong>${tnm}</strong> · ${tStr}<br>譯文：${tt}</div>`;
                         }).join('')}
                     </div>` : '';
-                    const isSelected = idx === window.catPanelSelectedIndex;
-                    const tgtEsc = m.targetText.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
-                    return `
+                        const isSelected = idx === window.catPanelSelectedIndex;
+                        const tgtEsc = m.targetText.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+                        return `
                     <div class="result-block">
                     <div class="result-item${isSelected ? ' result-item--selected' : ''}" data-index="${idx}" title="單擊選取；雙擊套用譯文"
                          onclick="handleCatResultClick(this, ${idx})"
@@ -11076,9 +11117,35 @@ document.addEventListener('DOMContentLoaded', async () => {
                     ${dupPanel}
                     </div>
                     `;
-                }).join('');
+                    }).join('');
+                }
 
-                searchResultsDOM.innerHTML = headerHtml + rowsHtml;
+                function paintCatMatchTable() {
+                    const marr = window.currentTmMatches;
+                    if (!marr || !marr.length || !searchResultsDOM) return;
+                    const total = marr.length;
+                    const totalPages = Math.max(1, Math.ceil(total / CAT_MATCH_PAGE));
+                    let p = typeof window.catMatchPageIndex === 'number' ? window.catMatchPageIndex : 0;
+                    if (p >= totalPages) p = totalPages - 1;
+                    if (p < 0) p = 0;
+                    window.catMatchPageIndex = p;
+                    const pageStart = p * CAT_MATCH_PAGE;
+                    const onPage = Math.min(CAT_MATCH_PAGE, total - pageStart);
+                    let rel = typeof window.catPanelSelectedIndex === 'number' ? window.catPanelSelectedIndex : 0;
+                    if (rel >= onPage) rel = Math.max(0, onPage - 1);
+                    if (rel < 0) rel = 0;
+                    window.catPanelSelectedIndex = rel;
+                    const pageSlice = marr.slice(pageStart, pageStart + CAT_MATCH_PAGE);
+                    const rowsHtml = buildCatMatchRowsHtml(pageSlice);
+                    let pagerHtml = '';
+                    if (total > CAT_MATCH_PAGE) {
+                        pagerHtml = `<div class="cat-tm-page-hint" style="padding:0.45rem 0.5rem; font-size:0.78rem; color:#64748b; border-top:1px solid #e2e8f0; background:#f8fafc;">比對結果共 ${total} 筆，第 ${p + 1} / ${totalPages} 頁；請以 <kbd style="background:#e2e8f0;padding:1px 5px;border-radius:4px;">Alt</kbd> + <kbd style="background:#e2e8f0;padding:1px 5px;border-radius:4px;">←</kbd> / <kbd style="background:#e2e8f0;padding:1px 5px;border-radius:4px;">→</kbd> 切換</div>`;
+                    }
+                    searchResultsDOM.innerHTML = headerHtml + rowsHtml + pagerHtml;
+                    const abs = catMatchAbsSelectionIndex();
+                    renderFooter(marr[abs]);
+                    updateCatTrackPanelContent();
+                }
 
                 window.updateCatPanelSelection = function () {
                     const sel = typeof window.catPanelSelectedIndex === 'number' ? window.catPanelSelectedIndex : 0;
@@ -11093,21 +11160,26 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                         });
                     }
-                    if (window.currentTmMatches && window.currentTmMatches[sel] && window.currentTmRenderFooter)
-                        window.currentTmRenderFooter(window.currentTmMatches[sel]);
+                    const abs = catMatchAbsSelectionIndex();
+                    if (window.currentTmMatches && window.currentTmMatches[abs] && window.currentTmRenderFooter)
+                        window.currentTmRenderFooter(window.currentTmMatches[abs]);
                     updateCatTrackPanelContent();
                 };
 
-                renderFooter(matches[window.catPanelSelectedIndex]);
+                window._repaintCatTmMatchTable = paintCatMatchTable;
+                paintCatMatchTable();
                 window.currentTmRenderFooter = renderFooter;
-                updateCatTrackPanelContent();
             } else {
+                window._repaintCatTmMatchTable = null;
+                window.catMatchPageIndex = 0;
                 searchResultsDOM.innerHTML = '<div style="padding: 1rem; color: #64748b; font-size: 0.9rem; text-align: center;">無相符 TM／TB 紀錄</div>';
                 footerDOM.innerHTML = '無相關中繼資料。';
                 const trackEl = document.getElementById('liveTrackChangeContent');
                 if (trackEl) trackEl.innerHTML = '<span style="color:#94a3b8;font-size:0.75rem;">無 TM / 片段列可比對時無法顯示追蹤修訂。</span>';
             }
         } else {
+            window._repaintCatTmMatchTable = null;
+            window.catMatchPageIndex = 0;
             const _isConfigured = (window.ActiveReadTmIds?.length > 0) || (window.ActiveReadTbIds?.length > 0);
             const _noDataMsg = isTargetWriteProtected(seg) ? '此句段已鎖定或禁止編輯'
                 : _isConfigured ? '已掛載 TM / TB，目前無相符的比對結果'
@@ -11183,32 +11255,64 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    window.applyCatMatchAtIndex = function(index) {
+    window.applyCatMatchAtIndex = function(relativeIndex) {
         const matches = window.currentTmMatches;
-        if (!matches || index < 0 || index >= matches.length) return;
-        const m = matches[index];
-        const el = document.querySelector(`#tmSearchResults .result-item[data-index="${index}"]`);
+        if (!matches || relativeIndex < 0 || relativeIndex > 8) return;
+        const page = window.catMatchPageIndex | 0;
+        const abs = page * 9 + relativeIndex;
+        if (abs < 0 || abs >= matches.length) return;
+        const m = matches[abs];
+        const el = document.querySelector(`#tmSearchResults .result-item[data-index="${relativeIndex}"]`);
         const scoreArg = m.type === 'TM' ? m.score : undefined;
-        window.handleCatResultApply(el || document.body, m.type, m.targetText, scoreArg, index);
+        window.handleCatResultApply(el || document.body, m.type, m.targetText, scoreArg, relativeIndex);
     };
     
-    // Alt+上/下：在右側 CAT 比對列表中移動選取
+    // Alt+上/下：在右側 CAT 比對列表中移動選取（跨分頁）
     document.addEventListener('keydown', function catPanelArrowKey(e) {
         if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+        if (!currentFileId) return;
         const viewEditor = document.getElementById('viewEditor');
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
         const matches = window.currentTmMatches;
         if (!matches || matches.length === 0) return;
-        const maxIdx = matches.length - 1;
-        const cur = typeof window.catPanelSelectedIndex === 'number' ? window.catPanelSelectedIndex : 0;
+        const catTab = document.getElementById('tabCAT');
+        if (!catTab || !catTab.classList.contains('active')) return;
+        const ps = 9;
+        let abs = catMatchAbsSelectionIndex();
         if (e.key === 'ArrowDown') {
-            window.catPanelSelectedIndex = Math.min(cur + 1, maxIdx);
+            if (abs >= matches.length - 1) return;
+            abs++;
         } else {
-            window.catPanelSelectedIndex = Math.max(0, cur - 1);
+            if (abs <= 0) return;
+            abs--;
         }
+        window.catMatchPageIndex = Math.floor(abs / ps);
+        window.catPanelSelectedIndex = abs % ps;
         e.preventDefault();
-        if (typeof window.updateCatPanelSelection === 'function') window.updateCatPanelSelection();
+        if (typeof window._repaintCatTmMatchTable === 'function') window._repaintCatTmMatchTable();
+        else if (typeof window.updateCatPanelSelection === 'function') window.updateCatPanelSelection();
     });
+
+    // Alt+左/右：CAT 比對結果表換頁（每頁 9 筆）
+    document.addEventListener('keydown', function catPanelPageKey(e) {
+        if (!e.altKey || (e.code !== 'ArrowLeft' && e.code !== 'ArrowRight')) return;
+        const viewEditor = document.getElementById('viewEditor');
+        if (!viewEditor || viewEditor.classList.contains('hidden')) return;
+        if (!currentFileId) return;
+        const matches = window.currentTmMatches;
+        if (!matches || matches.length <= 9) return;
+        const catTab = document.getElementById('tabCAT');
+        if (!catTab || !catTab.classList.contains('active')) return;
+        const totalPages = Math.ceil(matches.length / 9);
+        let p = window.catMatchPageIndex | 0;
+        if (e.code === 'ArrowLeft') p = Math.max(0, p - 1);
+        else p = Math.min(totalPages - 1, p + 1);
+        window.catMatchPageIndex = p;
+        window.catPanelSelectedIndex = 0;
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof window._repaintCatTmMatchTable === 'function') window._repaintCatTmMatchTable();
+    }, true);
 
     // Grid Level Context Menu for Batch Actions (確認 / 鎖定)
     let contextMenu = null;
@@ -12272,37 +12376,50 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (nameEl) nameEl.textContent = tbName;
     }
 
+    async function submitNewTermFromForm() {
+        const writeTbId = window.ActiveWriteTb;
+        if (writeTbId == null) { alert('未設定寫入目標術語庫。'); return; }
+        const src = (document.getElementById('newTermSource')?.value || '').trim();
+        const tgt = (document.getElementById('newTermTarget')?.value || '').trim();
+        const note = (document.getElementById('newTermNote')?.value || '').trim();
+        const caseSensitiveChecked = document.getElementById('newTermCaseInsensitive')?.checked ?? false;
+        const ww = document.getElementById('newTermWholeWord')?.checked ?? false;
+        const termMatchFlags = { caseInsensitive: !caseSensitiveChecked, wholeWord: ww };
+        if (!src || !tgt) { alert('請同時填入原文與譯文。'); return; }
+        const tb = await DBService.getTB(writeTbId);
+        if (!tb) { alert('找不到寫入目標術語庫。'); return; }
+        const terms = (tb.terms || []).slice();
+        const nextNum = typeof tb.nextTermNumber === 'number' ? tb.nextTermNumber : terms.length + 1;
+        const userName = getCurrentUserName();
+        const now = new Date().toISOString();
+        terms.push({ source: src, target: tgt, note, matchFlags: termMatchFlags, termNumber: nextNum, createdBy: userName, createdAt: now });
+        const changeLog = Array.isArray(tb.changeLog) ? tb.changeLog.slice() : [];
+        changeLog.push(makeBaseLogEntry('add', 'tb-term', { termNumbers: [nextNum] }));
+        await DBService.updateTB(writeTbId, { terms, nextTermNumber: nextNum + 1, changeLog });
+        window.ActiveTbTerms.push({
+            source: src, target: tgt, note, matchFlags: termMatchFlags, tbId: writeTbId, tbName: tb.name || `TB #${writeTbId}`,
+            createdBy: userName, createdAt: now
+        });
+        const statusEl = document.getElementById('newTermStatus');
+        if (statusEl) { statusEl.textContent = `已新增術語 #${nextNum}`; statusEl.style.display = ''; setTimeout(() => { statusEl.style.display = 'none'; }, 3000); }
+        if (document.getElementById('newTermSource')) document.getElementById('newTermSource').value = '';
+        if (document.getElementById('newTermTarget')) document.getElementById('newTermTarget').value = '';
+        if (document.getElementById('newTermNote')) document.getElementById('newTermNote').value = '';
+    }
+
     const btnAddNewTerm = document.getElementById('btnAddNewTerm');
     if (btnAddNewTerm) {
-        btnAddNewTerm.addEventListener('click', async () => {
-            const writeTbId = window.ActiveWriteTb;
-            if (writeTbId == null) { alert('未設定寫入目標術語庫。'); return; }
-            const src = (document.getElementById('newTermSource')?.value || '').trim();
-            const tgt = (document.getElementById('newTermTarget')?.value || '').trim();
-            const note = (document.getElementById('newTermNote')?.value || '').trim();
-            // 勾選「區分大小寫」→ caseInsensitive: false；預設不勾選 → caseInsensitive: true
-            const caseSensitiveChecked = document.getElementById('newTermCaseInsensitive')?.checked ?? false;
-            const ww = document.getElementById('newTermWholeWord')?.checked ?? false;
-            const termMatchFlags = { caseInsensitive: !caseSensitiveChecked, wholeWord: ww };
-            if (!src && !tgt) { alert('請至少填入原文或譯文。'); return; }
-            const tb = await DBService.getTB(writeTbId);
-            if (!tb) { alert('找不到寫入目標術語庫。'); return; }
-            const terms = (tb.terms || []).slice();
-            const nextNum = typeof tb.nextTermNumber === 'number' ? tb.nextTermNumber : terms.length + 1;
-            const userName = getCurrentUserName();
-            const now = new Date().toISOString();
-            terms.push({ source: src, target: tgt, note, matchFlags: termMatchFlags, termNumber: nextNum, createdBy: userName, createdAt: now });
-            const changeLog = Array.isArray(tb.changeLog) ? tb.changeLog.slice() : [];
-            changeLog.push(makeBaseLogEntry('add', 'tb-term', { termNumbers: [nextNum] }));
-            await DBService.updateTB(writeTbId, { terms, nextTermNumber: nextNum + 1, changeLog });
-            window.ActiveTbTerms.push({ source: src, target: tgt, note, matchFlags: termMatchFlags, tbId: writeTbId, tbName: tb.name || `TB #${writeTbId}` });
-            const statusEl = document.getElementById('newTermStatus');
-            if (statusEl) { statusEl.textContent = `已新增術語 #${nextNum}`; statusEl.style.display = ''; setTimeout(() => { statusEl.style.display = 'none'; }, 3000); }
-            if (document.getElementById('newTermSource')) document.getElementById('newTermSource').value = '';
-            if (document.getElementById('newTermTarget')) document.getElementById('newTermTarget').value = '';
-            if (document.getElementById('newTermNote')) document.getElementById('newTermNote').value = '';
-        });
+        btnAddNewTerm.addEventListener('click', () => { submitNewTermFromForm().catch(console.error); });
     }
+    ['newTermSource', 'newTermTarget', 'newTermNote'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            submitNewTermFromForm().catch(console.error);
+        });
+    });
 
     function renderSegmentComments(seg) {
         const panel = document.getElementById('tabComments');

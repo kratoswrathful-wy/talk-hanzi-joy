@@ -140,11 +140,24 @@
 
 本節為 **主計畫鏡像** [`docs/mirror/cat_工具綜合改版_42ac9451.plan.md`](mirror/cat_工具綜合改版_42ac9451.plan.md) 於第四波結案後**補記**之 **第 4.5 波**，**不屬**第四波 A（§11）／B（§3）原定驗收範圍，**不影響**上文「第四波整體已結案」之判定。
 
+### 5-a（已完成）
+
 | 項目 | 說明 |
 |------|------|
 | **需求** | 快捷鍵說明 **`Ctrl + 1 - 9`**；全系統 **Esc** 關最上層蓋版；錄製自訂快捷鍵時 **Esc** 中止、重設卸 listener |
 | **狀態** | **已完成**並推送（**`437e9b6`**），含 `npm run sync:cat` |
 | **程式** | [`cat-tool/index.html`](../cat-tool/index.html)、[`cat-tool/app.js`](../cat-tool/app.js) |
+
+### 5-b（已完成）：CAT 比對表分頁、術語 footer、新增術語流程
+
+| 項目 | 說明 |
+|------|------|
+| **CAT 比對結果** | 逾 9 筆時每頁 9 筆、列號 1～9、`Ctrl+1～9` 對應當頁；**`Alt+←/→`** 換頁；表底提示總筆數與頁碼；**`Alt+↑/↓`** 改為跨頁移動選取 |
+| **TB 列 footer** | 顯示**區分大小寫**、**精確比對**、灰色白話說明、**建立者／建立時間**；`ActiveTbTerms`／比對列帶入 `matchFlags` 與 `createdBy`／`createdAt` |
+| **新增術語** | **原文與譯文皆必填**（備註、勾選框不計）；**Enter** 送出；修正 **Ctrl+Q** 與切換「新增術語」分頁時誤把譯文選字填入**空白原文** |
+| **快捷鍵說明** | 固定快捷鍵表新增「CAT 比對結果換頁」**`Alt + ← / →`** |
+| **狀態** | **已完成**並推送，含 `npm run sync:cat`（`main` 上 commit 訊息前綴 `feat(cat): 第四點五波 b`） |
+| **程式** | [`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/index.html`](../cat-tool/index.html)；併 `npm run sync:cat` → [`public/cat/`](../public/cat/) |
 
 ---
 
