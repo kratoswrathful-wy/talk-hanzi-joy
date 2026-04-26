@@ -1661,6 +1661,18 @@ button.ai-guideline-inline-edit {
 #aiGuidelinePickerModal .ag-only-on-ai-guidelines-page {
     display: flex !important;
 }
+
+/* 專案／選擇器內編輯：性質與預設條目僅供檢視（disabled） */
+#agEditGuidelineModal[data-lock-scope-default="1"] .ag-edit-scope-default-group {
+    opacity: 0.58;
+}
+#agEditGuidelineModal[data-lock-scope-default="1"] .ag-edit-scope-default-group .form-label {
+    color: #94a3b8;
+}
+#agEditGuidelineModal[data-lock-scope-default="1"] #agEditGuidelineIsDefaultLabel {
+    cursor: default;
+    color: #64748b;
+}
 .ai-guideline-picker-scroll {
     box-sizing: border-box;
 }
@@ -2280,6 +2292,23 @@ mark.tm-search-hit {
 }
 .ai-multiselect-option:hover { background: #f1f5f9; }
 .ai-multiselect-option input[type=checkbox] { cursor: pointer; }
+
+button.ai-multiselect-add-new-row {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 0.45rem 0.75rem;
+    border: none;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+    font-size: 0.82rem;
+    color: #2563eb;
+    text-align: left;
+    cursor: pointer;
+}
+button.ai-multiselect-add-new-row:hover {
+    background: #eff6ff;
+}
 
 /* 筆記分頁：左右雙欄 */
 .cat-notes-dual-col {

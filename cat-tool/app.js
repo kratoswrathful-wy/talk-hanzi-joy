@@ -236,6 +236,39 @@ function openCatPromptModal(options = {}) {
     });
 }
 
+/**
+ * 在自製多選標籤下拉底部加上「+ 新增標籤」；點擊後寫入 DB 並呼叫 onAfterAdd(name)。
+ * @param {HTMLElement | null} dropdownEl
+ * @param {(addedName: string) => void | Promise<void>} [onAfterAdd]
+ */
+function _appendAiMultiselectAddTagButton(dropdownEl, onAfterAdd) {
+    if (!dropdownEl) return;
+    const prev = dropdownEl.querySelector('[data-cat-tag-add-new="1"]');
+    if (prev) prev.remove();
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.setAttribute('data-cat-tag-add-new', '1');
+    btn.className = 'ai-multiselect-add-new-row';
+    btn.textContent = '+ 新增標籤';
+    btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const raw = await openCatPromptModal({ title: '新增標籤', label: '標籤名稱', defaultValue: '' });
+        const name = raw != null ? String(raw).trim() : '';
+        if (!name) return;
+        try {
+            await DBService.addAiCategoryTag(name);
+        } catch (err) {
+            alert('無法新增標籤：' + (err && err.message ? err.message : String(err)));
+            return;
+        }
+        if (typeof onAfterAdd === 'function') {
+            await onAfterAdd(name);
+        }
+    });
+    dropdownEl.appendChild(btn);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     const Xliff = window.CatToolXliffTags;
     const XliffImport = window.CatToolXliffImport;
@@ -14802,6 +14835,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             updateMultiselectDisplay();
             if (visibleTags.length === 0) {
                 dropdown.innerHTML = '<span style="font-size:0.8rem; color:#94a3b8; padding:0.4rem 0.6rem; display:block;">尚無類別（將自動補上「通用」）</span>';
+                _appendAiMultiselectAddTagButton(dropdown, async (name) => {
+                    allCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
+                    if (name && !selectedNewCategories.includes(name)) selectedNewCategories.push(name);
+                    updateMultiselectDropdown();
+                    updateMultiselectDisplay();
+                });
                 return;
             }
             const sortedTags = _sortTagNames(visibleTags.map(t => t.name));
@@ -14817,6 +14856,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     else { selectedNewCategories = selectedNewCategories.filter(c => c !== val); }
                     updateMultiselectDisplay();
                 };
+            });
+            _appendAiMultiselectAddTagButton(dropdown, async (name) => {
+                allCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
+                if (name && !selectedNewCategories.includes(name)) selectedNewCategories.push(name);
+                updateMultiselectDropdown();
+                updateMultiselectDisplay();
             });
         }
 
@@ -14959,7 +15004,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const catBadges = _normalizeCategory(g.category).map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
                     const radChecked = defPicked ? g.id === defPicked.id : false;
                     const libRadio = `<div class="ai-guideline-item-sel" title="作為庫內預設（互斥擇一）"><input type="radio" class="ag-mutex-libdef-radio" name="${mxPick}" data-mutex="${_esc(item.name)}" data-gid="${g.id}" ${radChecked ? 'checked' : ''}></div>`;
-                    const pickRadio = `<div class="ai-guideline-item-sel ai-guideline-item-sel--picker" title="納入本專案（群組擇一）"><input type="radio" class="ai-picker-proj-radio" name="${mxPick}" data-id="${g.id}" data-mutex="${_esc(item.name)}" ${pickerCtx.checked.has(g.id) ? 'checked' : ''}></div>`;
+                    const pickRadio = pickerCtx
+                        ? `<div class="ai-guideline-item-sel ai-guideline-item-sel--picker" title="納入本專案（群組擇一）"><input type="radio" class="ai-picker-proj-radio" name="${mxPick}" data-id="${g.id}" data-mutex="${_esc(item.name)}" ${pickerCtx.checked.has(g.id) ? 'checked' : ''}></div>`
+                        : '';
                     const cardCore = `
                             <div class="ai-guideline-item-body">
                                 <div class="ai-guideline-item-content">${_esc(g.content)}</div>
@@ -15192,7 +15239,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const has = Array.from(mutexGroupSelect.options).some(o => o.value === current);
             mutexGroupSelect.value = has ? current : '';
             if (typeof window.catSelectAppendAddNewOption === 'function') {
-                window.catSelectAppendAddNewOption(mutexGroupSelect, '+新增群組');
+                window.catSelectAppendAddNewOption(mutexGroupSelect, '+ 新增群組');
             }
             if (ADD && mutexGroupSelect.value === ADD) {
                 mutexGroupSelect.value = has ? current : '';
@@ -15350,7 +15397,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             selectEl.value = currentGroup || '';
             if (typeof window.catSelectAppendAddNewOption === 'function') {
-                window.catSelectAppendAddNewOption(selectEl, '+新增群組');
+                window.catSelectAppendAddNewOption(selectEl, '+ 新增群組');
             }
             if (ADD && selectEl.value === ADD) {
                 selectEl.value = currentGroup || '';
@@ -15362,7 +15409,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (mutexGroupSelect && mutexGroupSelect.dataset.catMutexNewFormAddNewWired !== '1') {
                 mutexGroupSelect.dataset.catMutexNewFormAddNewWired = '1';
                 window.catSelectInitAddNew(mutexGroupSelect, {
-                    label: '+新增群組',
+                    label: '+ 新增群組',
                     onPickAddNew: async () => {
                         const raw = await openCatPromptModal({ title: '新增互斥群組', label: '新群組名稱', defaultValue: '' });
                         const name = raw != null ? String(raw).trim() : '';
@@ -15377,7 +15424,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (agEditMutexSel && agEditMutexSel.dataset.catMutexEditModalAddNewWired !== '1') {
                 agEditMutexSel.dataset.catMutexEditModalAddNewWired = '1';
                 window.catSelectInitAddNew(agEditMutexSel, {
-                    label: '+新增群組',
+                    label: '+ 新增群組',
                     onPickAddNew: async () => {
                         const raw = await openCatPromptModal({ title: '新增互斥群組', label: '新群組名稱', defaultValue: '' });
                         const name = raw != null ? String(raw).trim() : '';
@@ -15392,7 +15439,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         /** 頁內 modal：編輯準則條目（內容、標籤、性質、互斥群組、預設條目）。互斥群組於列表僅能靠加入／脫離調整，故預設 lockMutex。 */
-        function openAgEditGuidelineModal(row, editOpts) {
+        async function openAgEditGuidelineModal(row, editOpts) {
             const options = editOpts || {};
             const lockMutex = options.lockMutex === false ? false : true;
             const lockScope = !!options.lockScope;
@@ -15401,30 +15448,116 @@ document.addEventListener('DOMContentLoaded', async () => {
             const pool = Array.isArray(options.guidelinePool) ? options.guidelinePool : allGuidelines;
             const modal = document.getElementById('agEditGuidelineModal');
             const contentEl = document.getElementById('agEditGuidelineContent');
-            const tagsEl = document.getElementById('agEditGuidelineTags');
+            const catSelector = document.getElementById('agEditGuidelineCategorySelector');
+            const catDisplay = document.getElementById('agEditGuidelineCategoryDisplay');
+            const catDropdown = document.getElementById('agEditGuidelineCategoryDropdown');
             const scopeEl = document.getElementById('agEditGuidelineScope');
             const mutexSel = document.getElementById('agEditGuidelineMutexSelect');
             const mutexCustom = document.getElementById('agEditGuidelineMutexCustom');
             const isDefEl = document.getElementById('agEditGuidelineIsDefault');
+            const hintScopeDefaultEl = document.getElementById('agEditGuidelineScopeDefaultHint');
             const errEl = document.getElementById('agEditGuidelineErr');
             const btnSave = document.getElementById('btnAgEditGuidelineSave');
             const btnCancel = document.getElementById('btnAgEditGuidelineCancel');
             const mutexBlock = mutexSel ? mutexSel.closest('.form-group') : null;
             const mutexCustomBlock = mutexCustom ? mutexCustom.closest('.form-group') : null;
-            if (!modal || !contentEl || !tagsEl || !scopeEl || !mutexSel || !mutexCustom || !isDefEl || !btnSave || !btnCancel) return;
+            if (!modal || !contentEl || !catSelector || !catDisplay || !catDropdown || !scopeEl || !mutexSel || !mutexCustom || !isDefEl || !btnSave || !btnCancel) return;
+
+            let allAgEditCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
+            if (allAgEditCategoryTags.length === 0) {
+                try {
+                    const id = await DBService.addAiCategoryTag('通用');
+                    allAgEditCategoryTags = [{ id, name: '通用', createdAt: new Date().toISOString(), listHidden: false }];
+                } catch (_) { /* ignore */ }
+                if (allAgEditCategoryTags.length === 0) {
+                    allAgEditCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
+                }
+            }
+
+            function _agEditSortNames(names) {
+                return [...new Set(names)].sort((a, b) => a.localeCompare(b, 'zh-Hant-TW', { sensitivity: 'base' }));
+            }
+
+            /** @type {string[]} */
+            let selectedAgCategories = [..._normalizeCategory(row.category)];
+
+            function updateAgEditCategoryDisplay() {
+                const label = selectedAgCategories.length > 0 ? selectedAgCategories.join(', ') : '通用';
+                if (catDisplay) catDisplay.textContent = label;
+            }
+
+            function updateAgEditCategoryDropdown() {
+                const visibleTags = allAgEditCategoryTags.filter((t) => t && !t.listHidden);
+                selectedAgCategories = selectedAgCategories.filter((n) =>
+                    visibleTags.some((t) => t.name === n) || n === '通用'
+                );
+                if (selectedAgCategories.length === 0) selectedAgCategories = ['通用'];
+                updateAgEditCategoryDisplay();
+                if (visibleTags.length === 0) {
+                    catDropdown.innerHTML = '<span style="font-size:0.8rem; color:#94a3b8; padding:0.4rem 0.6rem; display:block;">尚無類別（將使用「通用」）</span>';
+                    _appendAiMultiselectAddTagButton(catDropdown, async (name) => {
+                        allAgEditCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
+                        if (name && !selectedAgCategories.includes(name)) selectedAgCategories.push(name);
+                        updateAgEditCategoryDropdown();
+                    });
+                    return;
+                }
+                const sortedTags = _agEditSortNames(visibleTags.map((t) => t.name));
+                catDropdown.innerHTML = sortedTags.map((name) => `
+                    <label class="ai-multiselect-option">
+                        <input type="checkbox" value="${_esc(name)}" ${selectedAgCategories.includes(name) ? 'checked' : ''}> ${_esc(name)}
+                    </label>
+                `).join('');
+                catDropdown.querySelectorAll('input[type=checkbox]').forEach((cb) => {
+                    cb.onchange = () => {
+                        const val = cb.value;
+                        if (cb.checked) {
+                            if (!selectedAgCategories.includes(val)) selectedAgCategories.push(val);
+                        } else {
+                            selectedAgCategories = selectedAgCategories.filter((c) => c !== val);
+                        }
+                        updateAgEditCategoryDisplay();
+                    };
+                });
+                _appendAiMultiselectAddTagButton(catDropdown, async (name) => {
+                    allAgEditCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
+                    if (name && !selectedAgCategories.includes(name)) selectedAgCategories.push(name);
+                    updateAgEditCategoryDropdown();
+                });
+            }
+
+            function onAgCategorySelectorClick(e) {
+                e.stopPropagation();
+                catDropdown.classList.toggle('hidden');
+            }
+
+            function onAgCategoryDocClick(e) {
+                if (catDropdown && !catDropdown.contains(e.target) && e.target !== catSelector) {
+                    catDropdown.classList.add('hidden');
+                }
+            }
 
             const gid = row.id;
             const origMutex = row.mutexGroup != null ? row.mutexGroup : null;
+            const origIsDefault = !!row.isDefault;
+            const defaultScopeDefaultHint = (hintScopeDefaultEl && hintScopeDefaultEl.getAttribute('data-default-hint')) ||
+                '若屬於互斥群組且勾選為預設，系統會將該群組內其餘條目的「預設條目」取消。';
+            const pickerScopeDefaultHint = '性質及預設條目請至「準則管理」變更';
             modal.setAttribute('data-edit-id', String(gid));
             contentEl.value = String(row.content || '');
-            tagsEl.value = _normalizeCategory(row.category).join(', ');
             const rowScope = (row.scope || 'translation') === 'style' ? 'style' : 'translation';
             if (lockScope && fixedScope) {
+                modal.setAttribute('data-lock-scope-default', '1');
                 scopeEl.disabled = true;
                 scopeEl.value = fixedScope;
+                isDefEl.disabled = true;
+                if (hintScopeDefaultEl) hintScopeDefaultEl.textContent = pickerScopeDefaultHint;
             } else {
+                modal.removeAttribute('data-lock-scope-default');
                 scopeEl.disabled = false;
                 scopeEl.value = rowScope;
+                isDefEl.disabled = false;
+                if (hintScopeDefaultEl) hintScopeDefaultEl.textContent = defaultScopeDefaultHint;
             }
             fillAgEditMutexSelect(mutexSel, row.mutexGroup || null, pool);
             mutexCustom.value = '';
@@ -15436,6 +15569,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (mutexBlock) mutexBlock.classList.remove('hidden');
                 if (mutexCustomBlock) mutexCustomBlock.classList.remove('hidden');
             }
+
+            updateAgEditCategoryDropdown();
+            catDropdown.classList.add('hidden');
 
             function showErr(msg) {
                 if (!errEl) return;
@@ -15451,9 +15587,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             function closeModal() {
                 modal.classList.add('hidden');
                 showErr('');
+                catDropdown.classList.add('hidden');
+                catSelector.removeEventListener('click', onAgCategorySelectorClick);
+                document.removeEventListener('click', onAgCategoryDocClick);
+                modal.removeAttribute('data-lock-scope-default');
                 if (mutexBlock) mutexBlock.classList.remove('hidden');
                 if (mutexCustomBlock) mutexCustomBlock.classList.remove('hidden');
                 scopeEl.disabled = false;
+                isDefEl.disabled = false;
+                if (hintScopeDefaultEl) hintScopeDefaultEl.textContent = defaultScopeDefaultHint;
                 btnSave.removeEventListener('click', onSave);
                 btnCancel.removeEventListener('click', onCancel);
                 modal.removeEventListener('click', onOverlay);
@@ -15483,8 +15625,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     contentEl.focus();
                     return;
                 }
-                const rawTags = tagsEl.value.split(',').map(s => s.trim()).filter(Boolean);
-                const normalizedCats = rawTags.length > 0 ? [...new Set(rawTags)] : ['通用'];
+                let normalizedCats = [...new Set(selectedAgCategories.filter(Boolean))];
+                if (normalizedCats.length === 0) normalizedCats = ['通用'];
                 const category = JSON.stringify(normalizedCats);
                 const scope = lockScope && fixedScope ? fixedScope : (scopeEl.value === 'style' ? 'style' : 'translation');
                 const customM = mutexCustom.value.trim();
@@ -15492,7 +15634,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const addvSel = typeof window.CAT_SELECT_ADD_NEW_VALUE === 'string' ? window.CAT_SELECT_ADD_NEW_VALUE : '';
                 const selM = selMRaw === addvSel ? '' : selMRaw;
                 const mutexGroup = lockMutex ? origMutex : (customM || selM || null);
-                const isDefault = !!isDefEl.checked;
+                const isDefault = (lockScope && fixedScope) ? origIsDefault : !!isDefEl.checked;
 
                 try {
                     await DBService.updateAiGuideline(gid, {
@@ -15532,6 +15674,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
 
+            catSelector.addEventListener('click', onAgCategorySelectorClick);
+            document.addEventListener('click', onAgCategoryDocClick);
             btnSave.addEventListener('click', onSave);
             btnCancel.addEventListener('click', onCancel);
             modal.addEventListener('click', onOverlay);
@@ -15904,6 +16048,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 updateManageAddDisplay();
                 if (visible.length === 0) {
                     dd.innerHTML = '<span style="font-size:0.8rem; color:#94a3b8; padding:0.4rem 0.6rem; display:block;">尚無類別（將使用「通用」）</span>';
+                    _appendAiMultiselectAddTagButton(dd, async (name) => {
+                        manageAllTags = await DBService.getAiCategoryTags().catch(() => []);
+                        if (name && !manageAddCategories.includes(name)) manageAddCategories.push(name);
+                        updateManageAddDropdown();
+                    });
                     return;
                 }
                 const sorted = _pgManageSortNames(visible.map((t) => t.name));
@@ -15922,6 +16071,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                         updateManageAddDisplay();
                     };
+                });
+                _appendAiMultiselectAddTagButton(dd, async (name) => {
+                    manageAllTags = await DBService.getAiCategoryTags().catch(() => []);
+                    if (name && !manageAddCategories.includes(name)) manageAddCategories.push(name);
+                    updateManageAddDropdown();
                 });
             }
 
@@ -16055,6 +16209,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 updatePgCategoryDisplay();
                 if (visibleTags.length === 0) {
                     catDropdown.innerHTML = '<span style="font-size:0.8rem; color:#94a3b8; padding:0.4rem 0.6rem; display:block;">尚無類別（將使用「通用」）</span>';
+                    _appendAiMultiselectAddTagButton(catDropdown, async (name) => {
+                        allPgCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
+                        if (name && !selectedPgCategories.includes(name)) selectedPgCategories.push(name);
+                        updatePgCategoryDropdown();
+                        updatePgCategoryDisplay();
+                    });
                     return;
                 }
                 const sortedTags = _pgSortNames(visibleTags.map((t) => t.name));
@@ -16073,6 +16233,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                         updatePgCategoryDisplay();
                     };
+                });
+                _appendAiMultiselectAddTagButton(catDropdown, async (name) => {
+                    allPgCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
+                    if (name && !selectedPgCategories.includes(name)) selectedPgCategories.push(name);
+                    updatePgCategoryDropdown();
+                    updatePgCategoryDisplay();
                 });
             }
 
@@ -16630,7 +16796,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const has = Array.from(mSel.options).some((o) => o.value === current);
                 mSel.value = has ? current : '';
                 if (typeof window.catSelectAppendAddNewOption === 'function') {
-                    window.catSelectAppendAddNewOption(mSel, '+新增群組');
+                    window.catSelectAppendAddNewOption(mSel, '+ 新增群組');
                 }
                 if (ADD && mSel.value === ADD) mSel.value = has ? current : '';
                 mSel.dataset.catSelectAddNewPrev = mSel.value || '';
@@ -16852,6 +17018,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 updatePickerMultiselectDisplay();
                 if (visibleTags.length === 0) {
                     dropdown.innerHTML = '<span style="font-size:0.8rem; color:#94a3b8; padding:0.4rem 0.6rem; display:block;">尚無類別</span>';
+                    _appendAiMultiselectAddTagButton(dropdown, async (name) => {
+                        pickerCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
+                        if (name && !pickerSelectedCats.includes(name)) pickerSelectedCats.push(name);
+                        updatePickerMultiselectDropdown();
+                        updatePickerMultiselectDisplay();
+                    });
                     return;
                 }
                 const sortedTags = _pickerSortTagNames(visibleTags.map((t) => t.name));
@@ -16867,6 +17039,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         else { pickerSelectedCats = pickerSelectedCats.filter((c) => c !== val); }
                         updatePickerMultiselectDisplay();
                     };
+                });
+                _appendAiMultiselectAddTagButton(dropdown, async (name) => {
+                    pickerCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
+                    if (name && !pickerSelectedCats.includes(name)) pickerSelectedCats.push(name);
+                    updatePickerMultiselectDropdown();
+                    updatePickerMultiselectDisplay();
                 });
             }
 
@@ -16884,7 +17062,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (mSel && typeof window.catSelectInitAddNew === 'function' && mSel.dataset.catPickerMutexAddNewWired !== '1') {
                     mSel.dataset.catPickerMutexAddNewWired = '1';
                     window.catSelectInitAddNew(mSel, {
-                        label: '+新增群組',
+                        label: '+ 新增群組',
                         onPickAddNew: async () => {
                             const raw = await openCatPromptModal({ title: '新增互斥群組', label: '新群組名稱', defaultValue: '' });
                             const name = raw != null ? String(raw).trim() : '';
