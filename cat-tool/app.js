@@ -672,6 +672,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             agMutexJoinModal: 'btnAgMutexJoinCancel',
             agEditGuidelineModal: 'btnAgEditGuidelineCancel',
             pgEditProjectGuidelineModal: 'btnPgEditProjectGuidelineCancel',
+            pgManageProjectGuidelinesModal: 'btnPgManageProjectGuidelinesClose',
             aiScanModal: 'btnCancelAiScan',
             aiScanConfirmModal: 'btnCancelAiScanConfirm',
             remoteConflictModal: 'btnRemoteConflictCancel',
@@ -14916,16 +14917,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             return items;
         }
 
-        function columnHtmlFromItems(items) {
+        function columnHtmlFromItems(items, opts) {
+            const isStyleColumn = opts && opts.isStyleColumn === true;
             return items.map(item => {
                 if (item.type === 'single') {
                     const g = item.g;
                     const catBadges = _normalizeCategory(g.category).map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
-                    const defLabel = g.isDefault ? ' <span class="ai-badge" style="background:#e0e7ff;">預設條目</span>' : '';
+                    const defLabel = (!isStyleColumn && g.isDefault) ? ' <span class="ai-badge" style="background:#e0e7ff;">預設條目</span>' : '';
+                    const contentBlock = isStyleColumn
+                        ? `<div class="ai-guideline-item-content">${_esc(g.content)}</div>`
+                        : `<div class="ai-guideline-item-content">${defLabel}<br>${_esc(g.content)}</div>`;
                     return `
                         <div class="ai-guideline-item" data-id="${g.id}">
                             <div style="flex:1;">
-                                <div class="ai-guideline-item-content">${defLabel}<br>${_esc(g.content)}</div>
+                                ${contentBlock}
                                 <div class="ai-guideline-item-meta">${catBadges}</div>
                             </div>
                             <div class="ai-guideline-item-actions" style="display:flex; flex-direction:column; gap:0.25rem; align-items:flex-end;">
@@ -14950,7 +14955,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 <input type="checkbox" class="ag-mutex-group-default" data-mutex="${_esc(item.name)}" ${anyDef ? 'checked' : ''}/> 預設條目
                             </label>
                         </div>
-                        <div style="font-size:0.68rem; color:#b45309; margin:0 0 0.35rem 0;">庫內預設：單選下列其中一則</div>
+                        <div style="font-size:0.68rem; color:#b45309; margin:0 0 0.35rem 0;">下列條目限選其一</div>
                         <div style="display:flex; flex-direction:column; gap:0.35rem;">
                             ${gMembers.map(g => {
                                 const catBadges = _normalizeCategory(g.category).map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
@@ -15142,7 +15147,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     listTranslation.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; padding:0.25rem 0;">尚無符合條件的翻譯準則。</p>';
                 } else {
                     const itemsT = buildItemsFromFiltered(tFiltered);
-                    listTranslation.innerHTML = columnHtmlFromItems(itemsT);
+                    listTranslation.innerHTML = columnHtmlFromItems(itemsT, { isStyleColumn: false });
                 }
             }
             if (listStyle) {
@@ -15150,7 +15155,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     listStyle.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; padding:0.25rem 0;">尚無符合條件的文風條目。</p>';
                 } else {
                     const itemsS = buildItemsFromFiltered(sFiltered);
-                    listStyle.innerHTML = columnHtmlFromItems(itemsS);
+                    listStyle.innerHTML = columnHtmlFromItems(itemsS, { isStyleColumn: true });
                 }
             }
             wireColumn(listTranslation);
@@ -15634,7 +15639,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             siList: 'aiSpecialInstructionsListProject',
             pickG: 'btnOpenAiGuidelinePickerProject',
             pickS: 'btnOpenAiStyleGuidelinePickerProject',
-            addPg: 'btnAddAiProjectGuidelineProject',
+            managePg: 'btnManageAiProjectGuidelineProject',
             addSi: 'btnAddAiSpecialInstructionProject',
             defG: 'btnApplyDefaultGuidelinesProject',
             defS: 'btnApplyDefaultStylesProject'
@@ -15645,7 +15650,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             siList: 'aiSpecialInstructionsList',
             pickG: 'btnOpenAiGuidelinePicker',
             pickS: 'btnOpenAiStyleGuidelinePicker',
-            addPg: 'btnAddAiProjectGuideline',
+            managePg: 'btnManageAiProjectGuideline',
             addSi: 'btnAddAiSpecialInstruction',
             defG: 'btnApplyDefaultGuidelines',
             defS: 'btnApplyDefaultStyles'
@@ -15658,7 +15663,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (context === 'projectPage' && !selectedList && !selectedStyleList && !specialList && !pgList) return;
         const openPickerBtn = $(u.pickG);
         const openStyleBtn = $(u.pickS);
-        const addProjectGuidelineBtn = $(u.addPg);
+        const manageProjectGuidelineBtn = $(u.managePg);
         const addSpecialBtn = $(u.addSi);
         const btnDefG = $(u.defG);
         const btnDefS = $(u.defS);
@@ -15696,6 +15701,205 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (Array.isArray(parsed)) return parsed;
             } catch (_) { /* ignore */ }
             return [String(cat)];
+        }
+
+        function renderPgManageProjectGuidelinesList() {
+            const listEl = document.getElementById('pgManageProjectGuidelinesList');
+            if (!listEl || !isCatSharedMutator()) return;
+            if (projectGuidelines.length === 0) {
+                listEl.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; padding:0.25rem 0;">尚無專案準則。請使用下方表單新增。</p>';
+                return;
+            }
+            listEl.innerHTML = projectGuidelines.map((s) => {
+                const idAttr = String(s.id);
+                const catBadges = _pgNormalizeCategory(s.category).map((c) => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
+                return `<div class="ai-guideline-item" data-pg-manage-id="${_esc(idAttr)}">
+                    <div style="flex:1; min-width:0;">
+                        <div class="ai-guideline-item-content">${s.content ? _esc(s.content) : '（無內容）'}</div>
+                        <div class="ai-guideline-item-meta">${catBadges}</div>
+                    </div>
+                    <div class="ai-guideline-item-actions" style="display:flex; flex-direction:column; gap:0.25rem; align-items:flex-end;">
+                        <label style="font-size:0.72rem; display:flex; align-items:center; gap:0.2rem; cursor:pointer;">
+                            <input type="checkbox" class="pg-manage-enabled-cb" data-pg-id="${_esc(idAttr)}" ${s.enabled !== false ? 'checked' : ''}/> 啟用
+                        </label>
+                        <button type="button" class="secondary-btn btn-sm pg-manage-edit" data-pg-id="${_esc(idAttr)}" style="font-size:0.72rem;">編輯</button>
+                        <button type="button" class="notes-add-btn pg-manage-del" data-pg-id="${_esc(idAttr)}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
+                    </div>
+                </div>`;
+            }).join('');
+            listEl.querySelectorAll('.pg-manage-enabled-cb').forEach((cb) => {
+                cb.onchange = () => {
+                    const sid = cb.getAttribute('data-pg-id');
+                    const i = projectGuidelines.findIndex((t) => String(t.id) === String(sid));
+                    if (i < 0) return;
+                    projectGuidelines[i].enabled = cb.checked;
+                    savePSettings();
+                    void renderProjectGuidelines();
+                    renderPgManageProjectGuidelinesList();
+                };
+            });
+            listEl.querySelectorAll('.pg-manage-edit').forEach((btn) => {
+                btn.onclick = () => {
+                    const sid = btn.getAttribute('data-pg-id');
+                    void openPgEditProjectGuidelineModal('edit', sid);
+                };
+            });
+            listEl.querySelectorAll('.pg-manage-del').forEach((btn) => {
+                btn.onclick = async () => {
+                    const sid = btn.getAttribute('data-pg-id');
+                    if (!(await openCatConfirmModal('是否確定要刪除此專案準則條目？'))) return;
+                    const i = projectGuidelines.findIndex((t) => String(t.id) === String(sid));
+                    if (i < 0) return;
+                    projectGuidelines.splice(i, 1);
+                    try {
+                        await DBService.saveAiProjectSettings(projectId, {
+                            selectedGuidelineIds: [...selectedGuidelineIds],
+                            selectedStyleGuidelineIds: [...selectedStyleIds],
+                            specialInstructions,
+                            projectGuidelines
+                        });
+                    } catch (e) { console.error(e); }
+                    void renderProjectGuidelines();
+                    renderPgManageProjectGuidelinesList();
+                };
+            });
+        }
+
+        function refreshPgManageModalIfOpen() {
+            const m = document.getElementById('pgManageProjectGuidelinesModal');
+            if (m && !m.classList.contains('hidden')) renderPgManageProjectGuidelinesList();
+        }
+
+        async function openPgManageProjectGuidelinesModal() {
+            const modal = document.getElementById('pgManageProjectGuidelinesModal');
+            const btnClose = document.getElementById('btnPgManageProjectGuidelinesClose');
+            const btnAdd = document.getElementById('btnPgManageProjectGuidelineAdd');
+            const ta = document.getElementById('pgManageNewProjectGuidelineContent');
+            const sel = document.getElementById('pgManageProjectGuidelineCategorySelector');
+            const disp = document.getElementById('pgManageProjectGuidelineCategoryDisplay');
+            const dd = document.getElementById('pgManageProjectGuidelineCategoryDropdown');
+            if (!modal || !btnClose || !btnAdd || !ta || !sel || !disp || !dd) return;
+            if (!isCatSharedMutator()) return;
+
+            let manageAllTags = await DBService.getAiCategoryTags().catch(() => []);
+            if (manageAllTags.length === 0) {
+                try {
+                    const id = await DBService.addAiCategoryTag('通用');
+                    manageAllTags = [{ id, name: '通用', createdAt: new Date().toISOString(), listHidden: false }];
+                } catch (_) { /* ignore */ }
+                if (manageAllTags.length === 0) {
+                    manageAllTags = await DBService.getAiCategoryTags().catch(() => []);
+                }
+            }
+
+            let manageAddCategories = ['通用'];
+
+            function _pgManageSortNames(names) {
+                return [...new Set(names)].sort((a, b) => a.localeCompare(b, 'zh-Hant-TW', { sensitivity: 'base' }));
+            }
+
+            function updateManageAddDisplay() {
+                disp.textContent = manageAddCategories.length > 0 ? manageAddCategories.join(', ') : '通用';
+            }
+
+            function updateManageAddDropdown() {
+                const visible = manageAllTags.filter((t) => t && !t.listHidden);
+                manageAddCategories = manageAddCategories.filter((n) =>
+                    visible.some((t) => t.name === n) || n === '通用'
+                );
+                if (manageAddCategories.length === 0) manageAddCategories = ['通用'];
+                updateManageAddDisplay();
+                if (visible.length === 0) {
+                    dd.innerHTML = '<span style="font-size:0.8rem; color:#94a3b8; padding:0.4rem 0.6rem; display:block;">尚無類別（將使用「通用」）</span>';
+                    return;
+                }
+                const sorted = _pgManageSortNames(visible.map((t) => t.name));
+                dd.innerHTML = sorted.map((name) => `
+                    <label class="ai-multiselect-option">
+                        <input type="checkbox" value="${_esc(name)}" ${manageAddCategories.includes(name) ? 'checked' : ''}> ${_esc(name)}
+                    </label>
+                `).join('');
+                dd.querySelectorAll('input[type=checkbox]').forEach((cb) => {
+                    cb.onchange = () => {
+                        const val = cb.value;
+                        if (cb.checked) {
+                            if (!manageAddCategories.includes(val)) manageAddCategories.push(val);
+                        } else {
+                            manageAddCategories = manageAddCategories.filter((c) => c !== val);
+                        }
+                        updateManageAddDisplay();
+                    };
+                });
+            }
+
+            function onSelClick(e) {
+                e.stopPropagation();
+                dd.classList.toggle('hidden');
+            }
+
+            function onDocClick(e) {
+                if (dd && !dd.contains(e.target) && e.target !== sel) dd.classList.add('hidden');
+            }
+
+            function closePgManage() {
+                modal.classList.add('hidden');
+                dd.classList.add('hidden');
+                sel.removeEventListener('click', onSelClick);
+                document.removeEventListener('click', onDocClick);
+                btnClose.removeEventListener('click', closePgManage);
+                btnAdd.removeEventListener('click', onAddClick);
+                modal.removeEventListener('click', onOverlay);
+                document.removeEventListener('keydown', onKey);
+            }
+
+            function onOverlay(e) {
+                if (e.target === modal) closePgManage();
+            }
+
+            function onKey(e) {
+                if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+                    e.preventDefault();
+                    closePgManage();
+                }
+            }
+
+            function onAddClick() {
+                const content = ta.value.trim();
+                if (!content) {
+                    alert('請輸入專案準則內文');
+                    return;
+                }
+                let cats = [...new Set(manageAddCategories.filter(Boolean))];
+                if (cats.length === 0) cats = ['通用'];
+                projectGuidelines.push({
+                    id: Date.now(),
+                    content,
+                    category: JSON.stringify(cats),
+                    enabled: true,
+                    createdAt: new Date().toISOString()
+                });
+                savePSettings();
+                ta.value = '';
+                manageAddCategories = ['通用'];
+                updateManageAddDropdown();
+                updateManageAddDisplay();
+                void renderProjectGuidelines();
+                renderPgManageProjectGuidelinesList();
+            }
+
+            ta.value = '';
+            manageAddCategories = ['通用'];
+            updateManageAddDropdown();
+            updateManageAddDisplay();
+            renderPgManageProjectGuidelinesList();
+
+            sel.addEventListener('click', onSelClick);
+            document.addEventListener('click', onDocClick);
+            btnClose.addEventListener('click', closePgManage);
+            btnAdd.addEventListener('click', onAddClick);
+            modal.addEventListener('click', onOverlay);
+            document.addEventListener('keydown', onKey);
+            modal.classList.remove('hidden');
         }
 
         /** 頁內 modal：新增／編輯專案準則（內容、標籤；議題群組預留，見 §5.4）。 */
@@ -15866,6 +16070,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 savePSettings();
                 void renderProjectGuidelines();
+                refreshPgManageModalIfOpen();
                 closeModal();
             }
 
@@ -16112,51 +16317,31 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             pgList.innerHTML = toShow.map((s) => {
                 const idAttr = String(s.id);
-                const idBody = String(s.id).replace(/["\\]/g, '');
                 const catBadges = _pgNormalizeCategory(s.category).map((c) => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
-                const pmBlock = (isPm)
-                    ? `<div class="private-todo-check">
-                        <input type="checkbox" class="ai-pg-checkbox private-todo-cb" data-pg-id="${_esc(idAttr)}" ${s.enabled !== false ? 'checked' : ''} aria-label="啟用專案準則">
-                    </div>` : '<div class="private-todo-check"></div>';
-                const actBlock = (isPm)
-                    ? `<div class="note-item-actions guideline-item-aside-actions pg-acts" data-pg-id="${_esc(idAttr)}">
-                        <button type="button" class="pt-edit-btn pg-edit-btn" data-pg-id="${_esc(idAttr)}" title="編輯">✏️</button>
-                        <button type="button" class="pt-del-btn danger pg-del-btn" data-pg-id="${_esc(idAttr)}" title="刪除">🗑</button>
-                    </div>` : '';
-                return `<div class="guideline-item" data-pg-id="${_esc(idAttr)}">
-                    <div class="guideline-item-row">
-                        ${pmBlock}
-                        <div class="guideline-item-main">
-                            <div class="private-todo-body" id="pg-body-${idBody}">
-                                ${s.content ? `<span class="private-todo-text">${_esc(s.content)}</span>` : '<span class="guideline-item-empty">（無內容）</span>'}
-                                ${catBadges ? `<div style="margin-top:0.35rem;">${catBadges}</div>` : ''}
-                            </div>
-                        </div>
-                        <div class="guideline-item-aside">
-                            <div class="guideline-item-aside-inner">${actBlock}</div>
-                        </div>
+                const actionsHtml = isPm
+                    ? `<div class="ai-pg-shared-actions">
+                        <button type="button" class="secondary-btn btn-sm pg-edit-btn" data-pg-id="${_esc(idAttr)}" style="font-size:0.72rem;">編輯</button>
+                        <button type="button" class="ai-note-item-del pg-del-btn" data-pg-id="${_esc(idAttr)}" title="刪除">✕</button>
+                    </div>`
+                    : '';
+                return `<div class="ai-selected-guideline-item ai-pg-shared-card" data-pg-id="${_esc(idAttr)}">
+                    <div style="flex:1; min-width:0;">
+                        <div class="ai-selected-guideline-item-content">${s.content ? _esc(s.content) : '（無內容）'}</div>
+                        ${catBadges ? `<div style="margin-top:0.3rem;">${catBadges}</div>` : ''}
                     </div>
+                    ${actionsHtml}
                 </div>`;
             }).join('');
-            pgList.querySelectorAll('.ai-pg-checkbox').forEach((cb) => {
-                cb.onchange = () => {
-                    const sid = cb.getAttribute('data-pg-id');
-                    const i = projectGuidelines.findIndex((t) => String(t.id) === String(sid));
-                    if (i < 0) return;
-                    projectGuidelines[i].enabled = cb.checked;
-                    savePSettings();
-                    void renderProjectGuidelines();
-                };
-            });
             pgList.querySelectorAll('.pg-edit-btn').forEach((btn) => {
                 btn.onclick = () => {
                     const sid = btn.getAttribute('data-pg-id');
-                    openPgEditProjectGuidelineModal('edit', sid);
+                    void openPgEditProjectGuidelineModal('edit', sid);
                 };
             });
             pgList.querySelectorAll('.pg-del-btn').forEach((btn) => {
                 btn.onclick = async () => {
                     const sid = btn.getAttribute('data-pg-id');
+                    if (!(await openCatConfirmModal('是否確定要刪除此專案準則條目？'))) return;
                     const i = projectGuidelines.findIndex((t) => String(t.id) === String(sid));
                     if (i < 0) return;
                     projectGuidelines.splice(i, 1);
@@ -16169,6 +16354,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         });
                     } catch (e) { console.error(e); }
                     await renderProjectGuidelines();
+                    refreshPgManageModalIfOpen();
                 };
             });
         }
@@ -16262,9 +16448,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 };
             };
         }
-        if (addProjectGuidelineBtn) {
-            addProjectGuidelineBtn.onclick = () => {
-                openPgEditProjectGuidelineModal('new');
+        if (manageProjectGuidelineBtn) {
+            manageProjectGuidelineBtn.onclick = () => {
+                void openPgManageProjectGuidelinesModal();
             };
         }
         const goPicker = document.getElementById('btnGoToGuidelinesFromPicker');
