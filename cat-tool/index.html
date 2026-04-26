@@ -2038,30 +2038,47 @@
         </div>
     </div>
 
-    <!-- ====== 準則選擇大型蓋板視窗 ====== -->
+    <!-- ====== 準則／文風選擇與管理（與準則管理相同能力；捲動區不含底部新增列）====== -->
     <div id="aiGuidelinePickerModal" class="modal-overlay hidden">
-        <div class="modal-box" style="max-width:min(800px,96vw); width:92vw; max-height:90vh; display:flex; flex-direction:column;">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem; flex-shrink:0;">
-                <h3 style="margin:0;">選擇適用準則</h3>
-                <div style="display:flex; gap:0.5rem; align-items:center;">
-                    <a href="#" id="btnGoToGuidelinesFromPicker" style="font-size:0.82rem; color:#3b82f6;">→ 前往準則管理</a>
-                    <button type="button" id="btnCloseAiGuidelinePicker" class="secondary-btn btn-sm">取消</button>
+        <div class="modal-box ai-guideline-picker-modal-box" style="max-width:min(1000px,96vw); width:94vw; max-height:90vh; padding:0; display:flex; flex-direction:column;">
+            <header class="ai-guideline-picker-header" style="display:flex; align-items:center; justify-content:space-between; margin:0; padding:1rem 1.25rem; border-bottom:1px solid #e2e8f0; flex-shrink:0;">
+                <h3 style="margin:0; font-size:1.1rem; font-weight:700; color:#1e293b;">選擇適用準則</h3>
+                <button type="button" id="btnCloseAiGuidelinePicker" class="secondary-btn btn-sm">取消</button>
+            </header>
+            <div id="aiPickerMgmtScroll" class="ai-guideline-picker-scroll" style="flex:1; min-height:0; overflow-y:auto; padding:1rem 1.25rem;">
+                <div id="aiPickerMgmtFilterBar" style="display:flex; gap:0.5rem; align-items:center; margin-bottom:0.75rem; flex-wrap:wrap;"></div>
+                <div id="aiPickerTabBar" class="ai-tab-bar" style="flex-shrink:0; margin-bottom:0.5rem;"></div>
+                <div id="aiPickerList" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+            </div>
+            <div id="aiPickerMgmtAddPanel" class="ai-guideline-picker-add-panel" style="flex-shrink:0; border-top:1px solid #e2e8f0; padding:1rem 1.25rem; background:#f8fafc;">
+                <h4 style="margin:0 0 0.65rem 0; font-size:0.9rem; color:#374151;">新增準則條目</h4>
+                <div style="display:flex; flex-direction:column; gap:0.6rem;">
+                    <textarea id="aiPickerMgmtNewContent" class="form-input" rows="2" placeholder="輸入準則內容（建議 1–2 句，例如：稱謂使用「你」而非「您」）" style="resize:vertical; width:100%; box-sizing:border-box;"></textarea>
+                    <div style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap;">
+                        <div style="display:flex; align-items:center; gap:0.4rem; position:relative;">
+                            <label style="font-size:0.82rem; color:#374151; white-space:nowrap;">類別</label>
+                            <div id="aiPickerMgmtCategorySelector" class="ai-multiselect-trigger" title="點擊選擇類別" role="button" tabindex="0">
+                                <span id="aiPickerMgmtCategoryDisplay">通用</span>
+                                <span style="font-size:0.7rem; color:#94a3b8; margin-left:0.25rem;" aria-hidden="true">▼</span>
+                            </div>
+                            <div id="aiPickerMgmtCategoryDropdown" class="ai-multiselect-dropdown hidden"></div>
+                            <input type="hidden" id="aiPickerMgmtNewCategory" value="通用">
+                        </div>
+                        <div style="display:flex; align-items:center; gap:0.4rem;">
+                            <label style="font-size:0.82rem; color:#374151; white-space:nowrap;">互斥群組</label>
+                            <select id="aiPickerMgmtMutexSelect" class="form-input" style="min-width:140px; max-width:200px; padding:0.3rem 0.45rem; font-size:0.82rem;">
+                                <option value="">無互斥群組</option>
+                            </select>
+                        </div>
+                        <input type="hidden" id="aiPickerMgmtScope" value="translation">
+                        <label style="display:flex; align-items:center; gap:0.3rem; font-size:0.8rem; color:#374151;">
+                            <input type="checkbox" id="aiPickerMgmtIsDefault"> 預設條目
+                        </label>
+                        <button type="button" id="btnAiPickerMgmtAdd" class="primary-btn btn-sm">新增</button>
+                    </div>
                 </div>
             </div>
-            <!-- 類別篩選 tab -->
-            <div id="aiPickerTabBar" class="ai-tab-bar" style="flex-shrink:0; margin-bottom:0.5rem;"></div>
-            <!-- 清單 -->
-            <div id="aiPickerList" style="overflow-y:auto; flex:1; min-height:0; display:flex; flex-direction:column; gap:0.35rem; padding:0.25rem 0;"></div>
-            <!-- 快速新增 -->
-            <div style="flex-shrink:0; border-top:1px solid #e2e8f0; padding-top:0.75rem; margin-top:0.75rem;">
-                <p style="font-size:0.78rem; color:#64748b; margin:0 0 0.4rem 0;">快速新增（儲存後立即出現在清單）：</p>
-                <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
-                    <input type="text" id="aiPickerQuickContent" class="form-input" placeholder="準則內容…" style="flex:1; min-width:200px;">
-                    <input type="text" id="aiPickerQuickCategory" list="aiGuidelineCategoryList" class="form-input" placeholder="類別" style="width:120px;">
-                    <button type="button" id="btnAiPickerQuickAdd" class="secondary-btn btn-sm">新增</button>
-                </div>
-            </div>
-            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.75rem; flex-shrink:0; border-top:1px solid #e2e8f0; padding-top:0.75rem; flex-wrap:wrap;">
+            <div class="ai-guideline-picker-footer" style="display:flex; justify-content:flex-end; gap:0.5rem; padding:0.85rem 1.25rem; flex-shrink:0; border-top:1px solid #e2e8f0; flex-wrap:wrap;">
                 <button type="button" id="btnAiPickerApplyDefaults" class="secondary-btn btn-sm" title="只保留庫內標示為預設的條目">套用預設條目</button>
                 <button type="button" id="btnConfirmAiGuidelinePicker" class="primary-btn btn-sm">確認選擇</button>
             </div>

@@ -1587,10 +1587,82 @@ mark.search-match {
 }
 .ai-pg-shared-card .ai-pg-shared-actions {
     display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    align-items: flex-end;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.35rem;
     flex-shrink: 0;
+}
+
+/* 準則管理／選擇器：條目卡片（選擇鈕最左垂直置中；編輯與刪除同一列） */
+.ai-guideline-item {
+    display: flex;
+    align-items: stretch;
+    gap: 0.45rem;
+}
+.ai-guideline-item--mutex {
+    background: #fff;
+    border-radius: 5px;
+    border: 1px solid #fed7aa;
+}
+.ai-guideline-item-sel {
+    flex-shrink: 0;
+    width: 2rem;
+    min-width: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: stretch;
+}
+.ai-guideline-item-sel--picker {
+    width: 2.1rem;
+    min-width: 2.1rem;
+}
+.ai-guideline-item-body {
+    flex: 1;
+    min-width: 0;
+}
+.ai-guideline-item-side {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.25rem;
+    justify-content: flex-start;
+}
+.ai-guideline-edit-del-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: auto;
+}
+button.ai-guideline-inline-edit {
+    padding: 0.2rem 0.42rem;
+    font-size: 0.72rem;
+    line-height: 1.2;
+    font-weight: 500;
+}
+
+.ai-picker-mgmt-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0.45rem;
+    width: 100%;
+}
+.ai-picker-mgmt-row > .ai-guideline-item {
+    flex: 1;
+    min-width: 0;
+}
+
+.ai-guideline-picker-modal-box {
+    overflow: visible;
+}
+/* 選擇器 modal 內等同準則管理頁：顯示「預設條目」等僅在 #viewAiGuidelines 顯示之控制 */
+#aiGuidelinePickerModal .ag-only-on-ai-guidelines-page {
+    display: flex !important;
+}
+.ai-guideline-picker-scroll {
+    box-sizing: border-box;
 }
 
 /* 勿 hidden：內嵌「套用標籤」多選下拉會絕對定位伸出，overflow 會截斷 */

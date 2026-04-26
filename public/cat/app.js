@@ -14919,6 +14919,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         function columnHtmlFromItems(items, opts) {
             const isStyleColumn = opts && opts.isStyleColumn === true;
+            const pickerCtx = opts && opts.pickerSelection;
             return items.map(item => {
                 if (item.type === 'single') {
                     const g = item.g;
@@ -14927,26 +14928,59 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const contentBlock = isStyleColumn
                         ? `<div class="ai-guideline-item-content">${_esc(g.content)}</div>`
                         : `<div class="ai-guideline-item-content">${defLabel}<br>${_esc(g.content)}</div>`;
-                    return `
+                    const pickCell = pickerCtx
+                        ? `<div class="ai-guideline-item-sel ai-guideline-item-sel--picker" title="納入本專案"><input type="checkbox" class="ai-picker-proj-cb" data-id="${g.id}" ${pickerCtx.checked.has(g.id) ? 'checked' : ''}></div>`
+                        : '';
+                    const inner = `
                         <div class="ai-guideline-item" data-id="${g.id}">
-                            <div style="flex:1;">
+                            <div class="ai-guideline-item-body">
                                 ${contentBlock}
                                 <div class="ai-guideline-item-meta">${catBadges}</div>
                             </div>
-                            <div class="ai-guideline-item-actions" style="display:flex; flex-direction:column; gap:0.25rem; align-items:flex-end;">
-                                <label style="font-size:0.72rem; display:flex; align-items:center; gap:0.2rem; cursor:pointer;">
+                            <div class="ai-guideline-item-side">
+                                <label class="ag-only-on-ai-guidelines-page" style="font-size:0.72rem; display:flex; align-items:center; gap:0.2rem; cursor:pointer;">
                                     <input type="checkbox" class="ag-toggle-default" data-gid="${g.id}" ${g.isDefault ? 'checked' : ''}/> 預設條目
                                 </label>
-                                <button type="button" class="secondary-btn btn-sm ag-edit-guideline" data-edit-gid="${g.id}" style="font-size:0.72rem;">編輯</button>
                                 <button type="button" class="secondary-btn btn-sm ag-join-mutex" data-join-gid="${g.id}" style="font-size:0.72rem;">加入群組</button>
-                                <button type="button" class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
+                                <div class="ai-guideline-edit-del-row">
+                                    <button type="button" class="secondary-btn btn-sm ag-edit-guideline ai-guideline-inline-edit" data-edit-gid="${g.id}">編輯</button>
+                                    <button type="button" class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
+                                </div>
                             </div>
                         </div>`;
+                    return pickerCtx ? `<div class="ai-picker-mgmt-row">${pickCell}${inner}</div>` : inner;
                 }
                 const gMembers = [...item.guidelines].sort((a, b) => a.id - b.id);
                 const anyDef = gMembers.some(g => g.isDefault);
                 const defPicked = gMembers.find(g => g.isDefault) || null;
                 const mxRN = _mutexGroupRadioNameKey(item.name);
+                const mxPick = pickerCtx ? `picker-mx-${mxRN}` : `agmx-${mxRN}`;
+                const rows = gMembers.map(g => {
+                    const catBadges = _normalizeCategory(g.category).map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
+                    const radChecked = defPicked ? g.id === defPicked.id : false;
+                    const libRadio = `<div class="ai-guideline-item-sel" title="作為庫內預設（互斥擇一）"><input type="radio" class="ag-mutex-libdef-radio" name="${mxPick}" data-mutex="${_esc(item.name)}" data-gid="${g.id}" ${radChecked ? 'checked' : ''}></div>`;
+                    const pickRadio = `<div class="ai-guideline-item-sel ai-guideline-item-sel--picker" title="納入本專案（群組擇一）"><input type="radio" class="ai-picker-proj-radio" name="${mxPick}" data-id="${g.id}" data-mutex="${_esc(item.name)}" ${pickerCtx.checked.has(g.id) ? 'checked' : ''}></div>`;
+                    const cardCore = `
+                            <div class="ai-guideline-item-body">
+                                <div class="ai-guideline-item-content">${_esc(g.content)}</div>
+                                <div class="ai-guideline-item-meta">${catBadges}</div>
+                            </div>
+                            <div class="ai-guideline-item-side">
+                                <button type="button" class="secondary-btn btn-sm ag-leave-mutex" data-leave-gid="${g.id}" style="font-size:0.72rem;">脫離群組</button>
+                                <div class="ai-guideline-edit-del-row">
+                                    <button type="button" class="secondary-btn btn-sm ag-edit-guideline ai-guideline-inline-edit" data-edit-gid="${g.id}">編輯</button>
+                                    <button type="button" class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
+                                </div>
+                            </div>`;
+                    if (pickerCtx) {
+                        return `<div class="ai-picker-mgmt-row">${pickRadio}<div class="ai-guideline-item ai-guideline-item--mutex" data-id="${g.id}" style="flex:1;min-width:0;display:flex;align-items:stretch;gap:0.45rem;">${cardCore}</div></div>`;
+                    }
+                    return `
+                        <div class="ai-guideline-item ai-guideline-item--mutex" data-id="${g.id}">
+                            ${libRadio}
+                            ${cardCore}
+                        </div>`;
+                }).join('');
                 return `
                     <div class="ag-guideline-mutex-groupbox" style="border:1px solid #fdba74; border-radius:8px; background:#fff7ed; padding:0.6rem 0.75rem;" data-mutex-box="${_esc(item.name)}">
                         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.35rem; margin-bottom:0.45rem;">
@@ -14957,25 +14991,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </div>
                         <div style="font-size:0.68rem; color:#b45309; margin:0 0 0.35rem 0;">下列條目限選其一</div>
                         <div style="display:flex; flex-direction:column; gap:0.35rem;">
-                            ${gMembers.map(g => {
-                                const catBadges = _normalizeCategory(g.category).map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
-                                const radChecked = defPicked ? g.id === defPicked.id : false;
-                                return `
-                                    <div class="ai-guideline-item" data-id="${g.id}" style="background:#fff; border-radius:5px; border:1px solid #fed7aa; display:flex; align-items:stretch; gap:0.35rem;">
-                                        <div style="flex:1; min-width:0;">
-                                            <div class="ai-guideline-item-content">${_esc(g.content)}</div>
-                                            <div class="ai-guideline-item-meta">${catBadges}</div>
-                                        </div>
-                                        <div style="flex-shrink:0; display:flex; align-items:center; padding:0 0.2rem;" title="作為庫內預設（互斥擇一）">
-                                            <input type="radio" class="ag-mutex-libdef-radio" name="agmx-${mxRN}" data-mutex="${_esc(item.name)}" data-gid="${g.id}" ${radChecked ? 'checked' : ''} />
-                                        </div>
-                                        <div class="ai-guideline-item-actions" style="display:flex; flex-direction:column; gap:0.25rem; align-items:flex-end; flex-shrink:0;">
-                                            <button type="button" class="secondary-btn btn-sm ag-edit-guideline" data-edit-gid="${g.id}" style="font-size:0.72rem;">編輯</button>
-                                            <button type="button" class="secondary-btn btn-sm ag-leave-mutex" data-leave-gid="${g.id}" style="font-size:0.72rem;">脫離群組</button>
-                                            <button type="button" class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
-                                        </div>
-                                    </div>`;
-                            }).join('')}
+                            ${rows}
                         </div>
                     </div>`;
             }).join('');
@@ -15176,7 +15192,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const has = Array.from(mutexGroupSelect.options).some(o => o.value === current);
             mutexGroupSelect.value = has ? current : '';
             if (typeof window.catSelectAppendAddNewOption === 'function') {
-                window.catSelectAppendAddNewOption(mutexGroupSelect, '新增群組');
+                window.catSelectAppendAddNewOption(mutexGroupSelect, '+新增群組');
             }
             if (ADD && mutexGroupSelect.value === ADD) {
                 mutexGroupSelect.value = has ? current : '';
@@ -15321,10 +15337,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
-        function fillAgEditMutexSelect(selectEl, currentGroup) {
+        function fillAgEditMutexSelect(selectEl, currentGroup, pool) {
             if (!selectEl) return;
+            const src = Array.isArray(pool) ? pool : allGuidelines;
             const ADD = typeof window.CAT_SELECT_ADD_NEW_VALUE === 'string' ? window.CAT_SELECT_ADD_NEW_VALUE : '';
-            const groups = [...new Set(allGuidelines.map(g => g && g.mutexGroup).filter(Boolean))].sort((a, b) =>
+            const groups = [...new Set(src.map(g => g && g.mutexGroup).filter(Boolean))].sort((a, b) =>
                 a.localeCompare(b, 'zh-Hant-TW', { sensitivity: 'base' }));
             selectEl.innerHTML = '<option value="">無互斥群組</option>' +
                 groups.map(m => `<option value="${_esc(m)}">${_esc(m)}</option>`).join('');
@@ -15333,7 +15350,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             selectEl.value = currentGroup || '';
             if (typeof window.catSelectAppendAddNewOption === 'function') {
-                window.catSelectAppendAddNewOption(selectEl, '新增群組');
+                window.catSelectAppendAddNewOption(selectEl, '+新增群組');
             }
             if (ADD && selectEl.value === ADD) {
                 selectEl.value = currentGroup || '';
@@ -15345,7 +15362,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (mutexGroupSelect && mutexGroupSelect.dataset.catMutexNewFormAddNewWired !== '1') {
                 mutexGroupSelect.dataset.catMutexNewFormAddNewWired = '1';
                 window.catSelectInitAddNew(mutexGroupSelect, {
-                    label: '新增群組',
+                    label: '+新增群組',
                     onPickAddNew: async () => {
                         const raw = await openCatPromptModal({ title: '新增互斥群組', label: '新群組名稱', defaultValue: '' });
                         const name = raw != null ? String(raw).trim() : '';
@@ -15360,7 +15377,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (agEditMutexSel && agEditMutexSel.dataset.catMutexEditModalAddNewWired !== '1') {
                 agEditMutexSel.dataset.catMutexEditModalAddNewWired = '1';
                 window.catSelectInitAddNew(agEditMutexSel, {
-                    label: '新增群組',
+                    label: '+新增群組',
                     onPickAddNew: async () => {
                         const raw = await openCatPromptModal({ title: '新增互斥群組', label: '新群組名稱', defaultValue: '' });
                         const name = raw != null ? String(raw).trim() : '';
@@ -15374,8 +15391,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        /** 頁內 modal：編輯準則條目（內容、標籤、性質、互斥群組、預設條目）。 */
-        function openAgEditGuidelineModal(row) {
+        /** 頁內 modal：編輯準則條目（內容、標籤、性質、互斥群組、預設條目）。互斥群組於列表僅能靠加入／脫離調整，故預設 lockMutex。 */
+        function openAgEditGuidelineModal(row, editOpts) {
+            const options = editOpts || {};
+            const lockMutex = options.lockMutex === false ? false : true;
+            const lockScope = !!options.lockScope;
+            const fixedScope = options.fixedScope === 'style' ? 'style' : (options.fixedScope === 'translation' ? 'translation' : null);
+            const afterSaveCb = typeof options.afterSave === 'function' ? options.afterSave : null;
+            const pool = Array.isArray(options.guidelinePool) ? options.guidelinePool : allGuidelines;
             const modal = document.getElementById('agEditGuidelineModal');
             const contentEl = document.getElementById('agEditGuidelineContent');
             const tagsEl = document.getElementById('agEditGuidelineTags');
@@ -15386,16 +15409,33 @@ document.addEventListener('DOMContentLoaded', async () => {
             const errEl = document.getElementById('agEditGuidelineErr');
             const btnSave = document.getElementById('btnAgEditGuidelineSave');
             const btnCancel = document.getElementById('btnAgEditGuidelineCancel');
+            const mutexBlock = mutexSel ? mutexSel.closest('.form-group') : null;
+            const mutexCustomBlock = mutexCustom ? mutexCustom.closest('.form-group') : null;
             if (!modal || !contentEl || !tagsEl || !scopeEl || !mutexSel || !mutexCustom || !isDefEl || !btnSave || !btnCancel) return;
 
             const gid = row.id;
+            const origMutex = row.mutexGroup != null ? row.mutexGroup : null;
             modal.setAttribute('data-edit-id', String(gid));
             contentEl.value = String(row.content || '');
             tagsEl.value = _normalizeCategory(row.category).join(', ');
-            scopeEl.value = (row.scope || 'translation') === 'style' ? 'style' : 'translation';
-            fillAgEditMutexSelect(mutexSel, row.mutexGroup || null);
+            const rowScope = (row.scope || 'translation') === 'style' ? 'style' : 'translation';
+            if (lockScope && fixedScope) {
+                scopeEl.disabled = true;
+                scopeEl.value = fixedScope;
+            } else {
+                scopeEl.disabled = false;
+                scopeEl.value = rowScope;
+            }
+            fillAgEditMutexSelect(mutexSel, row.mutexGroup || null, pool);
             mutexCustom.value = '';
             isDefEl.checked = !!row.isDefault;
+            if (lockMutex) {
+                if (mutexBlock) mutexBlock.classList.add('hidden');
+                if (mutexCustomBlock) mutexCustomBlock.classList.add('hidden');
+            } else {
+                if (mutexBlock) mutexBlock.classList.remove('hidden');
+                if (mutexCustomBlock) mutexCustomBlock.classList.remove('hidden');
+            }
 
             function showErr(msg) {
                 if (!errEl) return;
@@ -15411,6 +15451,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             function closeModal() {
                 modal.classList.add('hidden');
                 showErr('');
+                if (mutexBlock) mutexBlock.classList.remove('hidden');
+                if (mutexCustomBlock) mutexCustomBlock.classList.remove('hidden');
+                scopeEl.disabled = false;
                 btnSave.removeEventListener('click', onSave);
                 btnCancel.removeEventListener('click', onCancel);
                 modal.removeEventListener('click', onOverlay);
@@ -15443,12 +15486,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const rawTags = tagsEl.value.split(',').map(s => s.trim()).filter(Boolean);
                 const normalizedCats = rawTags.length > 0 ? [...new Set(rawTags)] : ['通用'];
                 const category = JSON.stringify(normalizedCats);
-                const scope = scopeEl.value === 'style' ? 'style' : 'translation';
+                const scope = lockScope && fixedScope ? fixedScope : (scopeEl.value === 'style' ? 'style' : 'translation');
                 const customM = mutexCustom.value.trim();
                 const selMRaw = mutexSel.value != null ? String(mutexSel.value).trim() : '';
                 const addvSel = typeof window.CAT_SELECT_ADD_NEW_VALUE === 'string' ? window.CAT_SELECT_ADD_NEW_VALUE : '';
                 const selM = selMRaw === addvSel ? '' : selMRaw;
-                const mutexGroup = customM || selM || null;
+                const mutexGroup = lockMutex ? origMutex : (customM || selM || null);
                 const isDefault = !!isDefEl.checked;
 
                 try {
@@ -15466,19 +15509,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                     row.isDefault = isDefault;
 
                     if (mutexGroup && isDefault) {
-                        const inGroup = allGuidelines.filter(g => g && g.mutexGroup === mutexGroup).sort((a, b) => a.id - b.id);
+                        const inGroup = pool.filter(g => g && g.mutexGroup === mutexGroup).sort((a, b) => a.id - b.id);
                         for (const m of inGroup) {
                             const should = m.id === gid;
                             if (!!m.isDefault === should) continue;
                             await DBService.updateAiGuideline(m.id, { isDefault: should });
-                            const r = allGuidelines.find(x => x.id === m.id);
+                            const r = pool.find(x => x.id === m.id);
                             if (r) r.isDefault = should;
                         }
                     }
 
-                    updateFilterBarOptions();
-                    updateMutexSelectOptions();
-                    renderList();
+                    if (afterSaveCb) {
+                        afterSaveCb();
+                    } else {
+                        updateFilterBarOptions();
+                        updateMutexSelectOptions();
+                        renderList();
+                    }
                     closeModal();
                 } catch (e) {
                     showErr('儲存失敗：' + (e && e.message ? e.message : String(e)));
@@ -15493,6 +15540,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             modal.classList.remove('hidden');
             requestAnimationFrame(() => { contentEl.focus(); });
         }
+
+        window.CatToolOpenAgEditGuideline = openAgEditGuidelineModal;
+        window.CatToolOpenAgMutexJoinChoiceModal = openAgMutexJoinChoiceModal;
+        window.CatToolOpenAgLeaveMutexConfirmModal = openAgLeaveMutexConfirmModal;
+        window.__catColumnHtmlFromItems = columnHtmlFromItems;
 
         renderList();
         updateMutexSelectOptions();
@@ -16360,7 +16412,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const idAttr = String(s.id);
                 const actionsHtml = isPm
                     ? `<div class="ai-pg-shared-actions">
-                        <button type="button" class="secondary-btn btn-sm pg-edit-btn" data-pg-id="${_esc(idAttr)}" style="font-size:0.72rem;">編輯</button>
+                        <button type="button" class="secondary-btn btn-sm pg-edit-btn ai-guideline-inline-edit" data-pg-id="${_esc(idAttr)}">編輯</button>
                         <button type="button" class="ai-note-item-del pg-del-btn" data-pg-id="${_esc(idAttr)}" title="刪除">✕</button>
                     </div>`
                     : '';
@@ -16492,153 +16544,440 @@ document.addEventListener('DOMContentLoaded', async () => {
                 void openPgManageProjectGuidelinesModal();
             };
         }
-        const goPicker = document.getElementById('btnGoToGuidelinesFromPicker');
-        if (goPicker) {
-            goPicker.onclick = (e) => {
-                e.preventDefault();
-                switchView('viewAiGuidelines');
-                void loadAiGuidelinesView().catch((err) => {
-                    console.error('[CAT] loadAiGuidelinesView', err);
-                    alert('準則管理載入失敗：' + (err && err.message ? err.message : String(err)));
-                });
-            };
-        }
     }
 
-    // ---- 準則選擇器 Modal ----
+    // ---- 準則／文風選擇與管理（與準則管理相同列表與新增列；依賴 loadAiGuidelinesView 匯出之 __catColumnHtmlFromItems）----
     /** @param options {{ scope?: 'translation'|'style' }} */
-    function openAiGuidelinePicker(currentCheckedIds, allGuidelines, options) {
-        return new Promise(resolve => {
+    async function openAiGuidelinePicker(currentCheckedIds, allGuidelines, options) {
+        await loadAiGuidelinesView().catch((e) => console.error('[CAT] loadAiGuidelinesView for picker', e));
+        if (!window.__catColumnHtmlFromItems || !window.CatToolOpenAgEditGuideline) {
+            alert('無法開啟：請先確認您有準則管理權限。');
+            return null;
+        }
+        return new Promise((resolve) => {
             const modal = document.getElementById('aiGuidelinePickerModal');
             const tabBar = document.getElementById('aiPickerTabBar');
             const pickerList = document.getElementById('aiPickerList');
+            const filterBar = document.getElementById('aiPickerMgmtFilterBar');
             const titleEl = modal ? modal.querySelector('h3') : null;
+            const scopeFixed = options && options.scope === 'style' ? 'style' : 'translation';
             if (titleEl) {
-                const sc = options && options.scope === 'style' ? '文風偏好' : '翻譯準則';
-                titleEl.textContent = `選擇適用${sc}`;
+                titleEl.textContent = scopeFixed === 'style' ? '文風偏好管理與選擇' : '翻譯準則管理與選擇';
             }
-            if (!modal) { resolve(null); return; }
+            const scopeHidden = document.getElementById('aiPickerMgmtScope');
+            if (scopeHidden) scopeHidden.value = scopeFixed;
+            if (!modal || !pickerList) { resolve(null); return; }
 
-            // Parse category stored as JSON array or plain string
-            function _parseCatNames(cat) {
+            const checked = new Set(currentCheckedIds);
+            let filterCat = '';
+            let filterMutex = '';
+            let sortKey = 'order';
+            let pickerCategoryTags = [];
+            let pickerSelectedCats = ['通用'];
+
+            function _pickerNormalizeCategory(cat) {
                 if (!cat) return ['通用'];
                 try { const p = JSON.parse(cat); if (Array.isArray(p)) return p; } catch (_) {}
                 return [cat];
             }
 
-            const checked = new Set(currentCheckedIds);
+            function _pickerSortTagNames(names) {
+                return [...names].sort((a, b) => a.localeCompare(b, 'zh-Hant-TW', { sensitivity: 'base' }));
+            }
 
-            // Build mutex group map
-            const mutexGroupsMap = {};
-            allGuidelines.forEach(g => {
-                if (g.mutexGroup) {
-                    if (!mutexGroupsMap[g.mutexGroup]) mutexGroupsMap[g.mutexGroup] = [];
-                    mutexGroupsMap[g.mutexGroup].push(g);
-                }
-            });
-            // Enforce mutex on initial load: keep only the first checked per group
-            Object.values(mutexGroupsMap).forEach(group => {
-                const checkedInGroup = group.filter(g => checked.has(g.id));
-                if (checkedInGroup.length > 1) checkedInGroup.slice(1).forEach(g => checked.delete(g.id));
-            });
+            function _pickerMutexMapFrom(list) {
+                const mutexGroupsMap = {};
+                list.forEach((g) => {
+                    if (g && g.mutexGroup) {
+                        if (!mutexGroupsMap[g.mutexGroup]) mutexGroupsMap[g.mutexGroup] = [];
+                        mutexGroupsMap[g.mutexGroup].push(g);
+                    }
+                });
+                return mutexGroupsMap;
+            }
 
-            // Clear tab bar (not used)
-            if (tabBar) tabBar.innerHTML = '';
-
-            function renderList() {
-                if (!pickerList) return;
-                if (allGuidelines.length === 0) { pickerList.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem;">尚無準則條目。</p>'; return; }
-
+            function _pickerBuildItems(filtered) {
+                const mutexGroupsMap = _pickerMutexMapFrom(filtered);
                 const renderedGroups = new Set();
                 const items = [];
-                allGuidelines.forEach(g => {
+                filtered.forEach((g) => {
                     if (g.mutexGroup) {
                         if (!renderedGroups.has(g.mutexGroup)) {
                             renderedGroups.add(g.mutexGroup);
-                            items.push({ type: 'mutex', name: g.mutexGroup, guidelines: mutexGroupsMap[g.mutexGroup] });
+                            const groupMembers = filtered.filter((x) => x.mutexGroup === g.mutexGroup);
+                            items.push({ type: 'mutex', name: g.mutexGroup, guidelines: groupMembers });
                         }
                     } else {
                         items.push({ type: 'single', g });
                     }
                 });
+                return { items, mutexGroupsMap };
+            }
 
-                pickerList.innerHTML = items.map(item => {
-                    if (item.type === 'single') {
-                        const g = item.g;
-                        const catLabel = _parseCatNames(g.category).join(', ');
-                        const isCk = checked.has(g.id);
-                        return `<label style="display:flex; align-items:flex-start; gap:0.5rem; padding:0.4rem 0.5rem; border-radius:5px; cursor:pointer; border:1px solid ${isCk ? '#3b82f6' : '#e2e8f0'}; background:${isCk ? '#eff6ff' : '#fff'};">
-                            <input type="checkbox" data-id="${g.id}" ${isCk ? 'checked' : ''} style="flex-shrink:0; margin-top:0.2rem;">
-                            <span style="font-size:0.85rem; color:#374151; line-height:1.5;">${_esc(g.content)}<span class="ai-badge" style="margin-left:0.4rem; vertical-align:middle;">${_esc(catLabel)}</span></span>
-                        </label>`;
-                    } else {
-                        const groupGuidelines = item.guidelines;
-                        return `<div style="border:1px solid #fdba74; border-radius:6px; background:#fff7ed; padding:0.5rem 0.6rem; display:flex; flex-direction:column; gap:0.3rem;">
-                            <div style="font-size:0.75rem; font-weight:600; color:#9a3412; margin-bottom:0.15rem;">互斥群組：${_esc(item.name)}</div>
-                            ${groupGuidelines.map(g => {
-                                const catLabel = _parseCatNames(g.category).join(', ');
-                                const isCk = checked.has(g.id);
-                                return `<label style="display:flex; align-items:flex-start; gap:0.5rem; padding:0.3rem 0.4rem; border-radius:4px; cursor:pointer; border:1px solid ${isCk ? '#3b82f6' : 'transparent'}; background:${isCk ? '#eff6ff' : '#fff'};">
-                                    <input type="radio" name="mutex-picker-${_esc(item.name)}" data-id="${g.id}" data-mutex="${_esc(item.name)}" ${isCk ? 'checked' : ''} style="flex-shrink:0; margin-top:0.2rem;">
-                                    <span style="font-size:0.85rem; color:#374151; line-height:1.5;">${_esc(g.content)}<span class="ai-badge" style="margin-left:0.4rem; vertical-align:middle;">${_esc(catLabel)}</span></span>
-                                </label>`;
-                            }).join('')}
-                        </div>`;
-                    }
-                }).join('');
+            function _pickerRefillMutexSelect() {
+                const mSel = document.getElementById('aiPickerMgmtMutexSelect');
+                if (!mSel) return;
+                const ADD = typeof window.CAT_SELECT_ADD_NEW_VALUE === 'string' ? window.CAT_SELECT_ADD_NEW_VALUE : '';
+                let current = mSel.value;
+                if (current === ADD) current = '';
+                const mutexNames = [...new Set(allGuidelines.map((g) => g && g.mutexGroup).filter(Boolean))].sort((a, b) =>
+                    a.localeCompare(b, 'zh-Hant-TW', { sensitivity: 'base' }));
+                mSel.innerHTML = '<option value="">無互斥群組</option>' +
+                    mutexNames.map((m) => `<option value="${_esc(m)}">${_esc(m)}</option>`).join('');
+                if (current && !mutexNames.includes(current)) {
+                    mSel.insertAdjacentHTML('beforeend', `<option value="${_esc(current)}">${_esc(current)}</option>`);
+                }
+                const has = Array.from(mSel.options).some((o) => o.value === current);
+                mSel.value = has ? current : '';
+                if (typeof window.catSelectAppendAddNewOption === 'function') {
+                    window.catSelectAppendAddNewOption(mSel, '+新增群組');
+                }
+                if (ADD && mSel.value === ADD) mSel.value = has ? current : '';
+                mSel.dataset.catSelectAddNewPrev = mSel.value || '';
+            }
 
-                pickerList.querySelectorAll('input[type=checkbox]').forEach(cb => {
+            function renderMgmt() {
+                if (!pickerList) return;
+                let filtered = allGuidelines.filter((g) => {
+                    if (filterCat && !_pickerNormalizeCategory(g.category).includes(filterCat)) return false;
+                    if (filterMutex === '__none__' && g.mutexGroup) return false;
+                    if (filterMutex && filterMutex !== '__none__' && g.mutexGroup !== filterMutex) return false;
+                    return true;
+                });
+                if (sortKey === 'cat') {
+                    filtered = [...filtered].sort((a, b) => {
+                        const ca = _pickerNormalizeCategory(a.category)[0];
+                        const cb = _pickerNormalizeCategory(b.category)[0];
+                        return ca.localeCompare(cb, 'zh-Hant-TW');
+                    });
+                } else if (sortKey === 'content') {
+                    filtered = [...filtered].sort((a, b) => String(a.content || '').localeCompare(String(b.content || ''), 'zh-Hant-TW'));
+                }
+                if (filtered.length === 0) {
+                    pickerList.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem;">尚無符合條件的條目。</p>';
+                    return;
+                }
+                const { items, mutexGroupsMap } = _pickerBuildItems(filtered);
+                const html = window.__catColumnHtmlFromItems(items, {
+                    isStyleColumn: scopeFixed === 'style',
+                    pickerSelection: { checked, mutexGroupsMap }
+                });
+                pickerList.innerHTML = html;
+                wirePickerGuidelines();
+            }
+
+            function wirePickerGuidelines() {
+                if (!pickerList) return;
+                pickerList.querySelectorAll('.ai-picker-proj-cb').forEach((cb) => {
                     cb.addEventListener('change', () => {
                         const id = parseInt(cb.getAttribute('data-id'), 10);
                         if (cb.checked) checked.add(id); else checked.delete(id);
-                        renderList();
+                        renderMgmt();
                     });
                 });
-                pickerList.querySelectorAll('input[type=radio]').forEach(rb => {
+                pickerList.querySelectorAll('.ai-picker-proj-radio').forEach((rb) => {
                     rb.addEventListener('change', () => {
                         const id = parseInt(rb.getAttribute('data-id'), 10);
                         const groupName = rb.getAttribute('data-mutex');
-                        if (mutexGroupsMap[groupName]) mutexGroupsMap[groupName].forEach(g => checked.delete(g.id));
+                        const mmap = _pickerMutexMapFrom(allGuidelines);
+                        if (groupName && mmap[groupName]) mmap[groupName].forEach((g) => checked.delete(g.id));
                         if (rb.checked) checked.add(id);
-                        renderList();
+                        renderMgmt();
                     });
+                });
+                pickerList.querySelectorAll('.ag-edit-guideline').forEach((btn) => {
+                    btn.onclick = () => {
+                        const id = parseInt(btn.getAttribute('data-edit-gid'), 10);
+                        const row = allGuidelines.find((g) => g.id === id);
+                        if (!row) return;
+                        window.CatToolOpenAgEditGuideline(row, {
+                            lockMutex: true,
+                            lockScope: true,
+                            fixedScope: scopeFixed,
+                            guidelinePool: allGuidelines,
+                            afterSave: () => { _pickerRefillMutexSelect(); renderMgmt(); }
+                        });
+                    };
+                });
+                pickerList.querySelectorAll('[data-del]').forEach((btn) => {
+                    btn.onclick = async () => {
+                        if (!(await openCatConfirmModal('是否確定要刪除此準則條目？'))) return;
+                        const id = parseInt(btn.getAttribute('data-del'), 10);
+                        await DBService.deleteAiGuideline(id);
+                        const idx = allGuidelines.findIndex((g) => g.id === id);
+                        if (idx >= 0) allGuidelines.splice(idx, 1);
+                        checked.delete(id);
+                        _pickerRefillMutexSelect();
+                        renderMgmt();
+                    };
+                });
+                pickerList.querySelectorAll('.ag-toggle-default').forEach((cb) => {
+                    cb.onchange = async () => {
+                        const gid = parseInt(cb.getAttribute('data-gid'), 10);
+                        try {
+                            await DBService.updateAiGuideline(gid, { isDefault: cb.checked });
+                            const row = allGuidelines.find((g) => g.id === gid);
+                            if (row) row.isDefault = cb.checked;
+                        } catch (e) { console.error(e); }
+                    };
+                });
+                pickerList.querySelectorAll('.ag-mutex-group-default').forEach((cb) => {
+                    cb.onchange = async () => {
+                        const name = cb.getAttribute('data-mutex') || '';
+                        if (!name) return;
+                        const members = allGuidelines.filter((g) => g && g.mutexGroup === name).sort((a, b) => a.id - b.id);
+                        if (members.length === 0) return;
+                        try {
+                            if (cb.checked) {
+                                const current = members.find((m) => m.isDefault) || members[0];
+                                for (const m of members) {
+                                    const want = m.id === current.id;
+                                    if (!!m.isDefault === want) continue;
+                                    await DBService.updateAiGuideline(m.id, { isDefault: want });
+                                    const row = allGuidelines.find((x) => x.id === m.id);
+                                    if (row) row.isDefault = want;
+                                }
+                            } else {
+                                for (const m of members) {
+                                    if (!m.isDefault) continue;
+                                    await DBService.updateAiGuideline(m.id, { isDefault: false });
+                                    const row = allGuidelines.find((x) => x.id === m.id);
+                                    if (row) row.isDefault = false;
+                                }
+                            }
+                        } catch (e) { console.error(e); }
+                        renderMgmt();
+                    };
+                });
+                pickerList.querySelectorAll('.ag-mutex-libdef-radio').forEach((radio) => {
+                    radio.onchange = async () => {
+                        if (!radio.checked) return;
+                        const gid = parseInt(radio.getAttribute('data-gid'), 10);
+                        const gname = radio.getAttribute('data-mutex') || '';
+                        if (!gid || !gname) return;
+                        const members = allGuidelines.filter((g) => g && g.mutexGroup === gname);
+                        try {
+                            for (const m of members) {
+                                const want = m.id === gid;
+                                if (!!m.isDefault === want) continue;
+                                await DBService.updateAiGuideline(m.id, { isDefault: want });
+                                const row = allGuidelines.find((x) => x.id === m.id);
+                                if (row) row.isDefault = want;
+                            }
+                            const box = radio.closest('.ag-guideline-mutex-groupbox');
+                            const gcb = box && box.querySelector('.ag-mutex-group-default');
+                            if (gcb && !gcb.checked) gcb.checked = true;
+                        } catch (e) { console.error(e); }
+                        renderMgmt();
+                    };
+                });
+                pickerList.querySelectorAll('.ag-leave-mutex').forEach((btn) => {
+                    btn.onclick = async () => {
+                        const id = parseInt(btn.getAttribute('data-leave-gid'), 10);
+                        if (!id) return;
+                        const ok = await window.CatToolOpenAgLeaveMutexConfirmModal();
+                        if (!ok) return;
+                        try {
+                            await DBService.updateAiGuideline(id, { mutexGroup: null, isDefault: false });
+                            const row = allGuidelines.find((g) => g.id === id);
+                            if (row) { row.mutexGroup = null; row.isDefault = false; }
+                        } catch (e) { console.error(e); }
+                        _pickerRefillMutexSelect();
+                        renderMgmt();
+                    };
+                });
+                pickerList.querySelectorAll('.ag-join-mutex').forEach((btn) => {
+                    btn.onclick = async () => {
+                        const id = parseInt(btn.getAttribute('data-join-gid'), 10);
+                        if (!id) return;
+                        const name = await window.CatToolOpenAgMutexJoinChoiceModal();
+                        if (name == null || String(name).trim() === '') return;
+                        const finalName = String(name).trim();
+                        try {
+                            await DBService.updateAiGuideline(id, { mutexGroup: finalName, isDefault: false });
+                            const row = allGuidelines.find((g) => g.id === id);
+                            if (row) { row.mutexGroup = finalName; row.isDefault = false; }
+                        } catch (e) { console.error(e); }
+                        _pickerRefillMutexSelect();
+                        renderMgmt();
+                    };
                 });
             }
 
-            renderList();
-            modal.classList.remove('hidden');
-
-            const quickAddBtn = document.getElementById('btnAiPickerQuickAdd');
-            if (quickAddBtn) {
-                quickAddBtn.onclick = async () => {
-                    const content = document.getElementById('aiPickerQuickContent')?.value?.trim() || '';
-                    const category = document.getElementById('aiPickerQuickCategory')?.value?.trim() || '通用';
-                    if (!content) return;
-                    const scope = options && options.scope === 'style' ? 'style' : 'translation';
-                    const id = await DBService.addAiGuideline({ content, category, sortOrder: allGuidelines.length, scope });
-                    allGuidelines.push({ id, content, category, sortOrder: allGuidelines.length, scope });
-                    checked.add(id);
-                    document.getElementById('aiPickerQuickContent').value = '';
-                    renderList();
-                };
+            function updatePickerFilterBar() {
+                if (!filterBar) return;
+                const catSelId = 'aiPickerFilterCat';
+                const mutexSelId = 'aiPickerFilterMutex';
+                const sortSelId = 'aiPickerFilterSort';
+                const tagsForFilter = pickerCategoryTags.filter((t) => !t.listHidden);
+                filterBar.innerHTML =
+                    `<select id="${catSelId}" class="form-input" style="width:auto; min-width:110px; padding:0.3rem 0.5rem; font-size:0.82rem;">` +
+                    `<option value="">全部類別</option>` +
+                    tagsForFilter.map((t) => `<option value="${_esc(t.name)}" ${filterCat === t.name ? 'selected' : ''}>${_esc(t.name)}</option>`).join('') +
+                    `</select>` +
+                    `<select id="${mutexSelId}" class="form-input" style="width:auto; min-width:110px; padding:0.3rem 0.5rem; font-size:0.82rem;">` +
+                    `<option value="">全部群組</option><option value="__none__" ${filterMutex === '__none__' ? 'selected' : ''}>無互斥群組</option>` +
+                    [...new Set(allGuidelines.map((g) => g.mutexGroup).filter(Boolean))].sort().map((m) =>
+                        `<option value="${_esc(m)}" ${filterMutex === m ? 'selected' : ''}>${_esc(m)}</option>`).join('') +
+                    `</select>` +
+                    `<select id="${sortSelId}" class="form-input" style="width:auto; min-width:130px; padding:0.3rem 0.5rem; font-size:0.82rem;">` +
+                    `<option value="order" ${sortKey === 'order' ? 'selected' : ''}>依建立順序</option>` +
+                    `<option value="cat" ${sortKey === 'cat' ? 'selected' : ''}>依類別</option>` +
+                    `<option value="content" ${sortKey === 'content' ? 'selected' : ''}>依內容（A–Z）</option>` +
+                    `</select>`;
+                const cEl = document.getElementById(catSelId);
+                const mEl = document.getElementById(mutexSelId);
+                const sEl = document.getElementById(sortSelId);
+                if (cEl) cEl.onchange = () => { filterCat = cEl.value; renderMgmt(); };
+                if (mEl) mEl.onchange = () => { filterMutex = mEl.value; renderMgmt(); };
+                if (sEl) sEl.onchange = () => { sortKey = sEl.value; renderMgmt(); };
             }
 
-            const applyDefBtn = document.getElementById('btnAiPickerApplyDefaults');
-            if (applyDefBtn) {
-                applyDefBtn.onclick = () => {
-                    checked.clear();
-                    allGuidelines.forEach(g => {
-                        if (g.isDefault) checked.add(g.id);
+            function updatePickerMultiselectDisplay() {
+                const display = document.getElementById('aiPickerMgmtCategoryDisplay');
+                const hidden = document.getElementById('aiPickerMgmtNewCategory');
+                const label = pickerSelectedCats.length > 0 ? pickerSelectedCats.join(', ') : '通用';
+                if (display) display.textContent = label;
+                if (hidden) hidden.value = pickerSelectedCats.join(',') || '通用';
+            }
+
+            function updatePickerMultiselectDropdown() {
+                const dropdown = document.getElementById('aiPickerMgmtCategoryDropdown');
+                if (!dropdown) return;
+                const visibleTags = pickerCategoryTags.filter((t) => !t.listHidden);
+                pickerSelectedCats = pickerSelectedCats.filter((n) =>
+                    visibleTags.some((t) => t.name === n) || n === '通用'
+                );
+                if (pickerSelectedCats.length === 0) pickerSelectedCats = ['通用'];
+                updatePickerMultiselectDisplay();
+                if (visibleTags.length === 0) {
+                    dropdown.innerHTML = '<span style="font-size:0.8rem; color:#94a3b8; padding:0.4rem 0.6rem; display:block;">尚無類別</span>';
+                    return;
+                }
+                const sortedTags = _pickerSortTagNames(visibleTags.map((t) => t.name));
+                dropdown.innerHTML = sortedTags.map((name) => `
+                    <label class="ai-multiselect-option">
+                        <input type="checkbox" value="${_esc(name)}" ${pickerSelectedCats.includes(name) ? 'checked' : ''}> ${_esc(name)}
+                    </label>
+                `).join('');
+                dropdown.querySelectorAll('input[type=checkbox]').forEach((cb) => {
+                    cb.onchange = () => {
+                        const val = cb.value;
+                        if (cb.checked) { if (!pickerSelectedCats.includes(val)) pickerSelectedCats.push(val); }
+                        else { pickerSelectedCats = pickerSelectedCats.filter((c) => c !== val); }
+                        updatePickerMultiselectDisplay();
+                    };
+                });
+            }
+
+            (async () => {
+                pickerCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
+                if (tabBar) tabBar.innerHTML = '';
+                const mmap0 = _pickerMutexMapFrom(allGuidelines);
+                Object.values(mmap0).forEach((group) => {
+                    const checkedInGroup = group.filter((g) => checked.has(g.id));
+                    if (checkedInGroup.length > 1) checkedInGroup.slice(1).forEach((g) => checked.delete(g.id));
+                });
+                updatePickerFilterBar();
+                _pickerRefillMutexSelect();
+                const mSel = document.getElementById('aiPickerMgmtMutexSelect');
+                if (mSel && typeof window.catSelectInitAddNew === 'function' && mSel.dataset.catPickerMutexAddNewWired !== '1') {
+                    mSel.dataset.catPickerMutexAddNewWired = '1';
+                    window.catSelectInitAddNew(mSel, {
+                        label: '+新增群組',
+                        onPickAddNew: async () => {
+                            const raw = await openCatPromptModal({ title: '新增互斥群組', label: '新群組名稱', defaultValue: '' });
+                            const name = raw != null ? String(raw).trim() : '';
+                            const addv = window.CAT_SELECT_ADD_NEW_VALUE;
+                            if (!name || name === addv) return;
+                            mSel.value = name;
+                            _pickerRefillMutexSelect();
+                        }
                     });
-                    renderList();
-                };
-            }
+                }
+                const selector = document.getElementById('aiPickerMgmtCategorySelector');
+                const dropdown = document.getElementById('aiPickerMgmtCategoryDropdown');
+                if (selector && dropdown) {
+                    selector.onclick = (e) => {
+                        e.stopPropagation();
+                        dropdown.classList.toggle('hidden');
+                    };
+                }
+                updatePickerMultiselectDropdown();
+                updatePickerMultiselectDisplay();
+                renderMgmt();
+                modal.classList.remove('hidden');
 
-            const closeBtn = document.getElementById('btnCloseAiGuidelinePicker');
-            const confirmBtn = document.getElementById('btnConfirmAiGuidelinePicker');
-            const cleanup = () => { modal.classList.add('hidden'); };
-            if (closeBtn) closeBtn.onclick = () => { cleanup(); resolve(null); };
-            if (confirmBtn) confirmBtn.onclick = () => { cleanup(); resolve([...checked]); };
+                const addBtn = document.getElementById('btnAiPickerMgmtAdd');
+                if (addBtn) {
+                    addBtn.onclick = async () => {
+                        try {
+                            const content = document.getElementById('aiPickerMgmtNewContent')?.value?.trim() || '';
+                            const categoryVal = pickerSelectedCats.length > 0 ? JSON.stringify(pickerSelectedCats) : '通用';
+                            const mSel2 = document.getElementById('aiPickerMgmtMutexSelect');
+                            const mRaw = mSel2 && mSel2.value != null ? String(mSel2.value).trim() : '';
+                            const addvM = typeof window.CAT_SELECT_ADD_NEW_VALUE === 'string' ? window.CAT_SELECT_ADD_NEW_VALUE : '';
+                            const mVal = mRaw === addvM ? '' : mRaw;
+                            const mutexGroup = mVal || null;
+                            const isDefault = !!(document.getElementById('aiPickerMgmtIsDefault')?.checked);
+                            if (!content) { alert('請輸入準則內容'); return; }
+                            const id = await DBService.addAiGuideline({
+                                content,
+                                category: categoryVal,
+                                mutexGroup,
+                                sortOrder: allGuidelines.length,
+                                scope: scopeFixed,
+                                isDefault
+                            });
+                            const newRow = { id, content, category: categoryVal, mutexGroup: mutexGroup || null, sortOrder: allGuidelines.length, scope: scopeFixed, isDefault };
+                            allGuidelines.push(newRow);
+                            if (mutexGroup && isDefault) {
+                                const inGroup = allGuidelines.filter((g) => g && g.mutexGroup === mutexGroup).sort((a, b) => a.id - b.id);
+                                for (const m of inGroup) {
+                                    const should = m.id === id;
+                                    if (!!m.isDefault !== should) {
+                                        await DBService.updateAiGuideline(m.id, { isDefault: should });
+                                        const r = allGuidelines.find((x) => x.id === m.id);
+                                        if (r) r.isDefault = should;
+                                    }
+                                }
+                            }
+                            document.getElementById('aiPickerMgmtNewContent').value = '';
+                            if (mSel2) mSel2.value = '';
+                            pickerSelectedCats = ['通用'];
+                            updatePickerMultiselectDropdown();
+                            updatePickerMultiselectDisplay();
+                            checked.add(id);
+                            updatePickerFilterBar();
+                            _pickerRefillMutexSelect();
+                            renderMgmt();
+                        } catch (e) {
+                            console.error(e);
+                            alert('新增失敗：' + (e && e.message ? e.message : String(e)));
+                        }
+                    };
+                }
+
+                const applyDefBtn = document.getElementById('btnAiPickerApplyDefaults');
+                if (applyDefBtn) {
+                    applyDefBtn.onclick = () => {
+                        checked.clear();
+                        allGuidelines.forEach((g) => {
+                            if (g.isDefault) checked.add(g.id);
+                        });
+                        renderMgmt();
+                    };
+                }
+
+                const closeBtn = document.getElementById('btnCloseAiGuidelinePicker');
+                const confirmBtn = document.getElementById('btnConfirmAiGuidelinePicker');
+                const cleanup = () => { modal.classList.add('hidden'); };
+                if (closeBtn) closeBtn.onclick = () => { cleanup(); resolve(null); };
+                if (confirmBtn) confirmBtn.onclick = () => { cleanup(); resolve([...checked]); };
+            })().catch((e) => {
+                console.error(e);
+                resolve(null);
+            });
         });
     }
 
