@@ -14333,6 +14333,49 @@ document.addEventListener('DOMContentLoaded', async () => {
             }).join('');
         }
 
+        /** 頁內確認：脫離互斥群組（取代 confirm）。 */
+        function openAgLeaveMutexConfirmModal() {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('agLeaveMutexConfirmModal');
+                const btnOk = document.getElementById('btnAgLeaveMutexConfirm');
+                const btnCancel = document.getElementById('btnAgLeaveMutexCancel');
+                if (!modal || !btnOk || !btnCancel) {
+                    resolve(false);
+                    return;
+                }
+                let settled = false;
+                function cleanup() {
+                    modal.classList.add('hidden');
+                    btnOk.removeEventListener('click', onOk);
+                    btnCancel.removeEventListener('click', onCancel);
+                    modal.removeEventListener('click', onOverlay);
+                    document.removeEventListener('keydown', onKey);
+                }
+                function finish(v) {
+                    if (settled) return;
+                    settled = true;
+                    cleanup();
+                    resolve(v);
+                }
+                function onOk() { finish(true); }
+                function onCancel() { finish(false); }
+                function onOverlay(e) {
+                    if (e.target === modal) onCancel();
+                }
+                function onKey(e) {
+                    if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+                        e.preventDefault();
+                        onCancel();
+                    }
+                }
+                btnOk.addEventListener('click', onOk);
+                btnCancel.addEventListener('click', onCancel);
+                modal.addEventListener('click', onOverlay);
+                document.addEventListener('keydown', onKey);
+                modal.classList.remove('hidden');
+            });
+        }
+
         function wireColumn(listEl) {
             if (!listEl) return;
             listEl.querySelectorAll('[data-edit-gid]').forEach(btn => {
@@ -14400,7 +14443,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             listEl.querySelectorAll('.ag-leave-mutex').forEach(btn => {
                 btn.onclick = async () => {
                     const id = parseInt(btn.getAttribute('data-leave-gid'), 10);
-                    if (!id || !confirm('確定讓此條目脫離互斥群組？')) return;
+                    if (!id) return;
+                    const ok = await openAgLeaveMutexConfirmModal();
+                    if (!ok) return;
                     try {
                         await DBService.updateAiGuideline(id, { mutexGroup: null, isDefault: false });
                         const row = allGuidelines.find(g => g.id === id);

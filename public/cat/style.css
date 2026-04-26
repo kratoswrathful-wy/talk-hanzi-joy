@@ -51,6 +51,38 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
     overflow: auto;
 }
 
+/* 準則編輯 modal：左右對稱留白，捲軸不吃掉右側；表單與按鈕區同寬、右緣對齊 */
+.ag-edit-guideline-modal-box {
+    box-sizing: border-box;
+}
+.ag-edit-guideline-modal-scroll {
+    box-sizing: border-box;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    padding: 1.25rem 2rem 0.75rem 2rem;
+}
+.ag-edit-guideline-modal-scroll .ag-edit-guideline-field {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+.ag-edit-guideline-modal-scroll textarea.ag-edit-guideline-field {
+    resize: vertical;
+    min-height: 6rem;
+}
+.ag-edit-guideline-modal-footer {
+    box-sizing: border-box;
+    flex-shrink: 0;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 2rem 1.15rem 2rem;
+    border-top: 1px solid #e2e8f0;
+}
+
 /* Sidebar */
 .sidebar {
     width: var(--sidebar-width); background-color: var(--sidebar-bg); color: var(--sidebar-text);

@@ -2075,41 +2075,55 @@
 
     <!-- ====== 準則管理：編輯條目（頁內對話框，取代 prompt）====== -->
     <div id="agEditGuidelineModal" class="modal-overlay hidden" data-edit-id="">
-        <div class="modal-box" style="max-width:520px; width:92vw; max-height:90vh; overflow-y:auto;">
-            <h3 style="margin:0 0 0.75rem 0;">編輯準則條目</h3>
-            <div class="form-group">
-                <label class="form-label" for="agEditGuidelineContent">內容</label>
-                <textarea id="agEditGuidelineContent" class="form-input" rows="5" style="width:100%; resize:vertical;" placeholder="準則內文…"></textarea>
+        <div class="modal-box ag-edit-guideline-modal-box" style="max-width:520px; width:92vw; max-height:90vh; padding:0; overflow:hidden; display:flex; flex-direction:column;">
+            <div class="ag-edit-guideline-modal-scroll">
+                <h3 style="margin:0 0 0.75rem 0;">編輯準則條目</h3>
+                <div class="form-group">
+                    <label class="form-label" for="agEditGuidelineContent">內容</label>
+                    <textarea id="agEditGuidelineContent" class="form-input ag-edit-guideline-field" rows="5" placeholder="準則內文…"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="agEditGuidelineTags">套用標籤（逗號分隔）</label>
+                    <input type="text" id="agEditGuidelineTags" class="form-input ag-edit-guideline-field" placeholder="例如：通用, 遊戲" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="agEditGuidelineScope">性質</label>
+                    <select id="agEditGuidelineScope" class="form-input ag-edit-guideline-field">
+                        <option value="translation">翻譯準則</option>
+                        <option value="style">文風偏好</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="agEditGuidelineMutexSelect">互斥群組</label>
+                    <select id="agEditGuidelineMutexSelect" class="form-input ag-edit-guideline-field">
+                        <option value="">無互斥群組</option>
+                    </select>
+                    <label class="form-label" for="agEditGuidelineMutexCustom" style="margin-top:0.5rem;">或新群組名稱（選填，若填寫則優先於上方選單）</label>
+                    <input type="text" id="agEditGuidelineMutexCustom" class="form-input ag-edit-guideline-field" placeholder="留空則以上方選單為準" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; font-size:0.9rem;">
+                        <input type="checkbox" id="agEditGuidelineIsDefault"> 預設條目
+                    </label>
+                    <p style="font-size:0.78rem; color:#64748b; margin:0.35rem 0 0 0;">若屬於互斥群組且勾選為預設，系統會將該群組內其餘條目的「預設條目」取消。</p>
+                </div>
+                <p id="agEditGuidelineErr" class="hidden" style="color:#dc2626; font-size:0.82rem; margin:0.5rem 0 0 0;"></p>
             </div>
-            <div class="form-group">
-                <label class="form-label" for="agEditGuidelineTags">套用標籤（逗號分隔）</label>
-                <input type="text" id="agEditGuidelineTags" class="form-input" style="width:100%;" placeholder="例如：通用, 遊戲" autocomplete="off">
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="agEditGuidelineScope">性質</label>
-                <select id="agEditGuidelineScope" class="form-input" style="width:100%; max-width:280px;">
-                    <option value="translation">翻譯準則</option>
-                    <option value="style">文風偏好</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="agEditGuidelineMutexSelect">互斥群組</label>
-                <select id="agEditGuidelineMutexSelect" class="form-input" style="width:100%; max-width:320px;">
-                    <option value="">無互斥群組</option>
-                </select>
-                <label class="form-label" for="agEditGuidelineMutexCustom" style="margin-top:0.5rem;">或新群組名稱（選填，若填寫則優先於上方選單）</label>
-                <input type="text" id="agEditGuidelineMutexCustom" class="form-input" style="width:100%;" placeholder="留空則以上方選單為準" autocomplete="off">
-            </div>
-            <div class="form-group">
-                <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; font-size:0.9rem;">
-                    <input type="checkbox" id="agEditGuidelineIsDefault"> 預設條目
-                </label>
-                <p style="font-size:0.78rem; color:#64748b; margin:0.35rem 0 0 0;">若屬於互斥群組且勾選為預設，系統會將該群組內其餘條目的「預設條目」取消。</p>
-            </div>
-            <p id="agEditGuidelineErr" class="hidden" style="color:#dc2626; font-size:0.82rem; margin:0.5rem 0 0 0;"></p>
-            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
+            <div class="ag-edit-guideline-modal-footer">
                 <button type="button" id="btnAgEditGuidelineCancel" class="secondary-btn">取消</button>
                 <button type="button" id="btnAgEditGuidelineSave" class="primary-btn">儲存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====== 準則管理：脫離互斥群組確認 ====== -->
+    <div id="agLeaveMutexConfirmModal" class="modal-overlay hidden">
+        <div class="modal-box" style="max-width:420px; width:92vw;">
+            <h3 style="margin:0 0 0.5rem 0; font-size:1.05rem;">確認</h3>
+            <p style="margin:0; font-size:0.9rem; color:#334155; line-height:1.55;">確定讓此條目脫離互斥群組？</p>
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.15rem;">
+                <button type="button" id="btnAgLeaveMutexCancel" class="secondary-btn">取消</button>
+                <button type="button" id="btnAgLeaveMutexConfirm" class="primary-btn">確定</button>
             </div>
         </div>
     </div>
