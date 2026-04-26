@@ -2780,16 +2780,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         const prevRead = new Set(project.readTbs || []);
         const prevWrite = project.writeTb ?? null;
 
-        await DBService.updateProjectTBs(currentProjectId, readTbs, writeTb);
+        let effectiveWrite = writeTb;
+        if (effectiveWrite != null) {
+            const wtb = await DBService.getTB(effectiveWrite);
+            if (wtb && (wtb.sourceType || 'manual') === 'online') {
+                alert('此為擷取自線上表單的術語庫，不得設為專案寫入目標。');
+                effectiveWrite = null;
+            }
+        }
+
+        await DBService.updateProjectTBs(currentProjectId, readTbs, effectiveWrite);
 
         const nextRead = new Set(readTbs);
-        const allIds = new Set([...prevRead, ...nextRead, ...(prevWrite != null ? [prevWrite] : []), ...(writeTb != null ? [writeTb] : [])]);
+        const allIds = new Set([...prevRead, ...nextRead, ...(prevWrite != null ? [prevWrite] : []), ...(effectiveWrite != null ? [effectiveWrite] : [])]);
         const diffs = [];
         allIds.forEach(id => {
             const beforeR = prevRead.has(id);
             const afterR = nextRead.has(id);
             const beforeW = prevWrite === id;
-            const afterW = writeTb === id;
+            const afterW = effectiveWrite === id;
             const before = (beforeR ? 'read' : '') + (beforeW ? 'write' : '');
             const after = (afterR ? 'read' : '') + (afterW ? 'write' : '');
             if (before === after) return;
@@ -3028,13 +3037,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const tbLangHtml = (tbSrcLangs.length || tbTgtLangs.length)
                     ? `${langBadgeHtml(tbSrcLangs)} <span style="color:#94a3b8;">→</span> ${langBadgeHtml(tbTgtLangs)}`
                     : '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
+                const isOnlineTb = (tb.sourceType || 'manual') === 'online';
+                const writeDisabled = isOnlineTb ? 'disabled' : '';
+                const writeTitle = isOnlineTb ? ' title="此為擷取自線上表單的術語庫，不得自行寫入新內容"' : '';
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td style="padding:0.45rem; border:1px solid #e2e8f0;">${idx + 1}</td>
                     <td style="padding:0.45rem; border:1px solid #e2e8f0;">${nameEsc}</td>
                     <td style="padding:0.45rem; border:1px solid #e2e8f0; font-size:0.8rem;">${tbLangHtml}</td>
                     <td style="padding:0.45rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="checkbox" class="tb-read-cb-picker" data-id="${tb.id}" ${isRead ? 'checked' : ''}> 讀取</label></td>
-                    <td style="padding:0.45rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:pointer;"><input type="radio" name="tb-write-radio-picker" class="tb-write-radio-picker" value="${tb.id}" ${isWrite ? 'checked' : ''}> 寫入</label></td>
+                    <td style="padding:0.45rem; border:1px solid #e2e8f0;"><label style="display:flex; align-items:center; gap:0.25rem; cursor:${isOnlineTb ? 'not-allowed' : 'pointer'}; opacity:${isOnlineTb ? '0.45' : '1'};"><input type="radio" name="tb-write-radio-picker" class="tb-write-radio-picker" value="${tb.id}" ${isWrite ? 'checked' : ''} ${writeDisabled}${writeTitle}> 寫入</label></td>
                 `;
                 body.appendChild(tr);
             });
@@ -3996,7 +4008,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- TB DETAIL (性質與入口按鈕) ---
     function applyTbTypeUI(tb) {
         const type = tb.sourceType || 'manual';
-        const locked = !!tb.sourceTypeLocked;
+        const locked = !!tb.sourceTypeLocked || (Array.isArray(tb.terms) && tb.terms.length > 0);
+        const isOnline = type === 'online';
 
         if (tbTypeManual && tbTypeOnline) {
             tbTypeManual.checked = type === 'manual';
@@ -4005,9 +4018,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             tbTypeOnline.disabled = locked;
         }
 
-        if (btnTbAddTerm) btnTbAddTerm.style.display = (type === 'manual') ? '' : 'none';
-        if (btnTbImportFile) btnTbImportFile.style.display = (type === 'manual') ? '' : 'none';
-        if (btnTbImportOnline) btnTbImportOnline.style.display = (type === 'online') ? '' : 'none';
+        if (btnTbAddTerm) btnTbAddTerm.style.display = isOnline ? 'none' : '';
+        if (btnTbImportFile) btnTbImportFile.style.display = isOnline ? 'none' : '';
+        const btnExportTbEl = document.getElementById('btnExportTb');
+        if (btnExportTbEl) btnExportTbEl.style.display = isOnline ? 'none' : '';
+        if (btnTbDeleteSelected) btnTbDeleteSelected.style.display = isOnline ? 'none' : '';
+        if (btnTbImportOnline) {
+            btnTbImportOnline.style.display = isOnline ? '' : 'none';
+            btnTbImportOnline.textContent = (tb.googleSheetUrl ? '更新（再擷取）' : '擷取線上表單');
+        }
+        const urlCap = document.getElementById('tbOnlineUrlCaption');
+        if (urlCap) {
+            if (isOnline && tb.googleSheetUrl) {
+                urlCap.textContent = '目前擷取網址：' + tb.googleSheetUrl;
+                urlCap.classList.remove('hidden');
+            } else {
+                urlCap.textContent = '';
+                urlCap.classList.add('hidden');
+            }
+        }
     }
 
     if (btnBackToTbs) {
@@ -4109,6 +4138,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function loadTbTermsList() {
         if (!tbTermsList || !currentTbId) return;
         let tb = await DBService.getTB(currentTbId);
+        const isOnlineTb = tb && (tb.sourceType || 'manual') === 'online';
         let terms = (tb && tb.terms) ? tb.terms : [];
         const nextTermNumber = typeof tb.nextTermNumber === 'number' ? tb.nextTermNumber : 1;
         const needsMigration = terms.length > 0 && terms.some(t => typeof t.termNumber !== 'number');
@@ -4125,8 +4155,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         tbTermsList.innerHTML = '';
         if (withIndex.length === 0) {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td colspan="6" style="padding:0.75rem; color:#64748b; font-size:0.9rem;">${q ? '沒有符合搜尋條件的術語。' : '尚無術語，請使用上方「新增術語」或「匯入檔案」加入。'}</td>`;
+            const emptyMsg = q
+                ? '沒有符合搜尋條件的術語。'
+                : (isOnlineTb
+                    ? '尚無術語，請按「擷取線上表單」從 Google 試算表匯入。'
+                    : '尚無術語，請使用上方「新增術語」或「匯入檔案」加入。');
+            tr.innerHTML = `<td colspan="7" style="padding:0.75rem; color:#64748b; font-size:0.9rem;">${emptyMsg}</td>`;
             tbTermsList.appendChild(tr);
+            if (tbTermSelectAll) tbTermSelectAll.disabled = !!isOnlineTb;
             if (syncTbTermSelectAllLabel) syncTbTermSelectAllLabel();
             updateTbDetailInfoBlock();
             return;
@@ -4143,7 +4179,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const isCaseSensitive = mf.caseInsensitive === false;
             const isExact = !!mf.wholeWord;
             tr.innerHTML = `
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="tb-term-row-cb" data-term-index="${idx}"></td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="tb-term-row-cb" data-term-index="${idx}"${isOnlineTb ? ' disabled' : ''}></td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:40px;">${num}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:200px; overflow:hidden; text-overflow:ellipsis;" title="${src}">${src || '—'}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:200px; overflow:hidden; text-overflow:ellipsis;" title="${tgt}">${tgt || '—'}</td>
@@ -4157,11 +4193,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </label>
                 </td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; white-space:nowrap;">
-                    <button type="button" class="secondary-btn btn-sm tb-term-edit-btn" data-term-index="${idx}">編輯</button>
+                    ${isOnlineTb ? '<span style="color:#94a3b8; font-size:0.82rem;">—</span>' : `<button type="button" class="secondary-btn btn-sm tb-term-edit-btn" data-term-index="${idx}">編輯</button>`}
                 </td>
             `;
             tbTermsList.appendChild(tr);
         });
+        if (tbTermSelectAll) tbTermSelectAll.disabled = !!isOnlineTb;
         if (syncTbTermSelectAllLabel) syncTbTermSelectAllLabel();
 
         tbTermsList.querySelectorAll('.tb-term-edit-btn').forEach(btn => {
@@ -4349,6 +4386,84 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
     }
 
+    const TB_ONLINE_NAME_SUFFIX = '（擷取自線上表單）';
+    function ensureOnlineTbDisplayName(name) {
+        const n = String(name || '').trim() || '未命名術語庫';
+        if (n.endsWith(TB_ONLINE_NAME_SUFFIX)) return n;
+        return n.replace(/\s+$/, '') + TB_ONLINE_NAME_SUFFIX;
+    }
+    function parseTbCsvLine(line) {
+        const out = [];
+        let cur = '';
+        let inQ = false;
+        for (let i = 0; i < line.length; i++) {
+            const c = line[i];
+            if (inQ) {
+                if (c === '"') {
+                    if (line[i + 1] === '"') { cur += '"'; i++; } else inQ = false;
+                } else cur += c;
+            } else {
+                if (c === '"') inQ = true;
+                else if (c === ',') { out.push(cur); cur = ''; }
+                else cur += c;
+            }
+        }
+        out.push(cur);
+        return out;
+    }
+    function parseTbCsvText(text) {
+        const t = String(text || '').replace(/^\uFEFF/, '');
+        if (!t.trim()) return [];
+        return t.split(/\r?\n/).filter(line => line.length > 0).map(parseTbCsvLine);
+    }
+    async function fetchGoogleSheetCsvViaProxy(pasteUrl) {
+        const res = await fetch('/api/cat-google-sheet-csv', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: String(pasteUrl || '').trim() })
+        });
+        let data = {};
+        try { data = await res.json(); } catch (_) { /* ignore */ }
+        if (!res.ok) {
+            const code = data && data.error ? String(data.error) : 'http_' + res.status;
+            let msg = '無法讀取線上表單。';
+            if (code === 'empty_url' || code === 'missing_url') msg = '請貼上 Google 試算表連結。';
+            else if (code === 'invalid_url') msg = '網址格式不正確。';
+            else if (code === 'only_docs_google') msg = '僅支援 Google 試算表（docs.google.com）。';
+            else if (code === 'not_spreadsheet') msg = '無法從網址辨識試算表。';
+            else if (code === 'upstream_http') msg = '無法取得 CSV（連結可能需改為知道連結者可檢視／已發佈）。';
+            else if (code === 'csv_too_large') msg = '線上表 CSV 過大。';
+            else if (code === 'fetch_timeout') msg = '讀取逾時。';
+            else if (code === 'fetch_failed') msg = '無法連線取得 CSV。';
+            throw new Error(msg);
+        }
+        if (typeof data.csv !== 'string') throw new Error('伺服器回應異常');
+        return data.csv;
+    }
+
+    let tbExcelImportIsOnline = false;
+    function setTbExcelImportExcelMode() {
+        tbExcelImportIsOnline = false;
+        const sheetCol = document.getElementById('tbExcelSheetPickerColumn');
+        const sheetRow = document.getElementById('tbExcelSheetConfigRow');
+        const urlRow = document.getElementById('tbExcelOnlineUrlRow');
+        if (sheetCol) sheetCol.classList.remove('hidden');
+        if (sheetRow) sheetRow.classList.remove('hidden');
+        if (urlRow) urlRow.classList.add('hidden');
+        const title = document.getElementById('tbExcelImportModalTitle');
+        if (title) title.textContent = '術語匯入 (Excel)';
+    }
+    function setTbExcelImportOnlineMode() {
+        tbExcelImportIsOnline = true;
+        const sheetCol = document.getElementById('tbExcelSheetPickerColumn');
+        const sheetRow = document.getElementById('tbExcelSheetConfigRow');
+        const urlRow = document.getElementById('tbExcelOnlineUrlRow');
+        if (sheetCol) sheetCol.classList.add('hidden');
+        if (sheetRow) sheetRow.classList.add('hidden');
+        if (urlRow) urlRow.classList.remove('hidden');
+        const title = document.getElementById('tbExcelImportModalTitle');
+        if (title) title.textContent = '術語匯入（線上 Google 試算表）';
+    }
     let tbExcelPendingFile = null;
     let tbExcelSheetNames = [];
     let tbExcelConfigs = {};      // { sheetName: { sourceCol,targetCol,noteCols,creatorCol,createdAtCol,rowsRange } }
@@ -4458,6 +4573,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             if (ext === 'xlsx') {
                 tbExcelPendingFile = file;
+                setTbExcelImportExcelMode();
                 if (tbExcelImportModal) {
                     if (tbExcelImportError) tbExcelImportError.textContent = '';
                     // 讀取工作表並偵測有內容的
@@ -4516,8 +4632,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    if (btnTbImportOnline) {
+        btnTbImportOnline.addEventListener('click', async () => {
+            if (!currentTbId) {
+                alert('請先選擇要管理的術語庫。');
+                return;
+            }
+            const tb = await DBService.getTB(currentTbId);
+            if (!tb || (tb.sourceType || 'manual') !== 'online') return;
+            setTbExcelImportOnlineMode();
+            tbExcelPendingFile = null;
+            tbExcelSheetNames = [];
+            tbExcelConfigs = {};
+            tbExcelActiveSheet = null;
+            if (tbExcelImportError) tbExcelImportError.textContent = '';
+            const urlIn = document.getElementById('tbOnlineSheetUrl');
+            const cfg = tb.onlineImportConfig && typeof tb.onlineImportConfig === 'object' ? tb.onlineImportConfig : {};
+            if (urlIn) urlIn.value = tb.googleSheetUrl || '';
+            if (tbExcelSourceCol) tbExcelSourceCol.value = cfg.sourceCol || 'A';
+            if (tbExcelTargetCol) tbExcelTargetCol.value = cfg.targetCol || 'B';
+            if (tbExcelNoteCols) tbExcelNoteCols.value = cfg.noteCols || '';
+            if (tbExcelCreatorCol) tbExcelCreatorCol.value = cfg.creatorCol || '';
+            if (tbExcelCreatedAtCol) tbExcelCreatedAtCol.value = cfg.createdAtCol || '';
+            if (tbExcelRowsRange) tbExcelRowsRange.value = cfg.rowsRange || '2-';
+            if (tbExcelImportModal) tbExcelImportModal.classList.remove('hidden');
+        });
+    }
+
     if (tbExcelImportModal) {
         const closeTbExcelModal = () => {
+            setTbExcelImportExcelMode();
             tbExcelImportModal.classList.add('hidden');
             tbExcelPendingFile = null;
             tbExcelSheetNames = [];
@@ -4546,11 +4690,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                         else alert(msg);
                         return;
                     }
-                    const msgNoFileOrTb = '無法匯入：尚未選擇檔案或術語庫，請關閉視窗後重新從術語庫詳情頁操作。';
-                    if (!tbExcelPendingFile || !currentTbId) {
-                        console.log('runImport 提早結束: 無檔案或術語庫', { hasFile: !!tbExcelPendingFile, currentTbId });
-                        if (errEl) { errEl.textContent = msgNoFileOrTb; errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
-                        else alert(msgNoFileOrTb);
+                    const msgNoTb = '無法匯入：尚未選擇術語庫，請關閉視窗後重新操作。';
+                    if (!currentTbId) {
+                        if (errEl) { errEl.textContent = msgNoTb; errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+                        else alert(msgNoTb);
+                        return;
+                    }
+                    const msgNoFile = '無法匯入：尚未選擇 Excel 檔案。';
+                    if (!tbExcelImportIsOnline && !tbExcelPendingFile) {
+                        if (errEl) { errEl.textContent = msgNoFile; errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+                        else alert(msgNoFile);
                         return;
                     }
                     const msgNoCols = '無法取得原文／譯文欄位，請關閉視窗後重新選擇檔案再試。';
@@ -4561,19 +4710,70 @@ document.addEventListener('DOMContentLoaded', async () => {
                         return;
                     }
 
-            const sheetCheckboxes = tbExcelSheetList ? Array.from(tbExcelSheetList.querySelectorAll('.tb-excel-sheet-cb')) : [];
-                const selectedSheets = sheetCheckboxes.filter(cb => cb.checked).map(cb => cb.value);
-                if (!selectedSheets.length) {
-                    console.log('runImport 提早結束: 未勾選任何工作表');
-                    if (errEl) errEl.textContent = '請至少勾選一個要匯入的工作表。';
-                    return;
-                }
+                    const ONLINE_SHEET_KEY = '__ONLINE__';
+                    let selectedSheets = [];
+                    let onlineCsvRows = null;
+                    let onlinePasteUrl = '';
 
-                // 目前畫面上的設定先寫回「右側下拉選單所選的工作表」的 config（僅此一個，其餘用已儲存）
-                const activeSheetFromDropdown = tbExcelSheetSelect && tbExcelSheetSelect.value ? tbExcelSheetSelect.value : tbExcelActiveSheet;
-                const useSameConfig = !!(tbExcelUseSameConfig && tbExcelUseSameConfig.checked);
-                if (activeSheetFromDropdown && tbExcelConfigs[activeSheetFromDropdown]) {
-                    tbExcelConfigs[activeSheetFromDropdown] = {
+                    if (tbExcelImportIsOnline) {
+                        const urlEl = document.getElementById('tbOnlineSheetUrl');
+                        onlinePasteUrl = (urlEl && urlEl.value.trim()) || '';
+                        if (!onlinePasteUrl) {
+                            if (errEl) errEl.textContent = '請貼上 Google 試算表連結。';
+                            return;
+                        }
+                        let csvText;
+                        try {
+                            csvText = await fetchGoogleSheetCsvViaProxy(onlinePasteUrl);
+                        } catch (e) {
+                            if (errEl) errEl.textContent = (e && e.message) ? e.message : String(e);
+                            return;
+                        }
+                        onlineCsvRows = parseTbCsvText(csvText);
+                        if (!onlineCsvRows.length) {
+                            if (errEl) errEl.textContent = 'CSV 無資料列。';
+                            return;
+                        }
+                        selectedSheets = [ONLINE_SHEET_KEY];
+                    } else {
+                        const sheetCheckboxes = tbExcelSheetList ? Array.from(tbExcelSheetList.querySelectorAll('.tb-excel-sheet-cb')) : [];
+                        selectedSheets = sheetCheckboxes.filter(cb => cb.checked).map(cb => cb.value);
+                        if (!selectedSheets.length) {
+                            console.log('runImport 提早結束: 未勾選任何工作表');
+                            if (errEl) errEl.textContent = '請至少勾選一個要匯入的工作表。';
+                            return;
+                        }
+                    }
+
+                    const activeSheetFromDropdown = (!tbExcelImportIsOnline && tbExcelSheetSelect && tbExcelSheetSelect.value)
+                        ? tbExcelSheetSelect.value
+                        : tbExcelActiveSheet;
+                    const useSameConfig = tbExcelImportIsOnline ? true : !!(tbExcelUseSameConfig && tbExcelUseSameConfig.checked);
+                    if (!tbExcelImportIsOnline && activeSheetFromDropdown && tbExcelConfigs[activeSheetFromDropdown]) {
+                        tbExcelConfigs[activeSheetFromDropdown] = {
+                            sourceCol: srcColEl.value.trim(),
+                            targetCol: tgtColEl.value.trim(),
+                            noteCols: tbExcelNoteCols ? tbExcelNoteCols.value.trim() : '',
+                            creatorCol: tbExcelCreatorCol ? tbExcelCreatorCol.value.trim() : '',
+                            createdAtCol: tbExcelCreatedAtCol ? tbExcelCreatedAtCol.value.trim() : '',
+                            rowsRange: tbExcelRowsRange ? tbExcelRowsRange.value.trim() : ''
+                        };
+                    }
+
+                    if (!tbExcelImportIsOnline && !useSameConfig) {
+                        for (const name of selectedSheets) {
+                            if (name === activeSheetFromDropdown) continue;
+                            const stored = tbExcelConfigs[name] || {};
+                            const src = (stored.sourceCol || '').trim();
+                            const tgt = (stored.targetCol || '').trim();
+                            if (!src || !tgt) {
+                                if (errEl) errEl.textContent = `請在右側切換至工作表「${name}」並設定原文／譯文欄位後再匯入。`;
+                                return;
+                            }
+                        }
+                    }
+
+                    const formCfg = {
                         sourceCol: srcColEl.value.trim(),
                         targetCol: tgtColEl.value.trim(),
                         noteCols: tbExcelNoteCols ? tbExcelNoteCols.value.trim() : '',
@@ -4581,74 +4781,53 @@ document.addEventListener('DOMContentLoaded', async () => {
                         createdAtCol: tbExcelCreatedAtCol ? tbExcelCreatedAtCol.value.trim() : '',
                         rowsRange: tbExcelRowsRange ? tbExcelRowsRange.value.trim() : ''
                     };
-                }
-
-                // 未勾選「使用同樣設定」時：每個要匯入的工作表都必須已有欄位設定（使用者需切換至該工作表設定過）
-                if (!useSameConfig) {
+                    const sheetConfigs = {};
                     for (const name of selectedSheets) {
-                        if (name === activeSheetFromDropdown) continue;
-                        const stored = tbExcelConfigs[name] || {};
-                        const src = (stored.sourceCol || '').trim();
-                        const tgt = (stored.targetCol || '').trim();
-                        if (!src || !tgt) {
-                            if (errEl) errEl.textContent = `請在右側切換至工作表「${name}」並設定原文／譯文欄位後再匯入。`;
+                        const isActiveSheet = tbExcelImportIsOnline || (name === activeSheetFromDropdown);
+                        const cfg = (tbExcelImportIsOnline || useSameConfig || isActiveSheet) ? formCfg : (tbExcelConfigs[name] || {});
+                        const srcColStr = (cfg.sourceCol || '').trim();
+                        const tgtColStr = (cfg.targetCol || '').trim();
+                        const sheetLabel = tbExcelImportIsOnline ? '線上 CSV' : name;
+                        if (!srcColStr || !tgtColStr) {
+                            console.log('runImport 提早結束: 工作表原文/譯文為空', name);
+                            if (errEl) errEl.textContent = `「${sheetLabel}」的原文/譯文欄位為必填。`;
                             return;
                         }
+                        const srcIdx = parseTbSingleColumn(srcColStr);
+                        const tgtIdx = parseTbSingleColumn(tgtColStr);
+                        if (srcIdx < 0 || tgtIdx < 0) {
+                            console.log('runImport 提早結束: 欄位格式錯誤', name, srcColStr, tgtColStr);
+                            if (errEl) errEl.textContent = `「${sheetLabel}」的原文/譯文欄位格式錯誤，請輸入欄位代號，例如 A 或 B。`;
+                            return;
+                        }
+                        sheetConfigs[name] = {
+                            srcIdx,
+                            tgtIdx,
+                            noteIdxs: parseTbColumnList(cfg.noteCols || ''),
+                            includeSheetName: (cfg.noteCols || '').includes('#'),
+                            creatorIdx: parseTbSingleColumn(cfg.creatorCol || ''),
+                            createdAtIdx: parseTbSingleColumn(cfg.createdAtCol || ''),
+                            rowsRangeStr: (cfg.rowsRange || '2-').trim()
+                        };
                     }
-                }
+                    if (!tbExcelImportIsOnline && selectedSheets.length > 1) {
+                        selectedSheets.forEach(name => {
+                            const c = sheetConfigs[name];
+                            if (c) console.log('runImport sheetConfigs[' + name + ']', { srcIdx: c.srcIdx, tgtIdx: c.tgtIdx });
+                        });
+                    }
 
-                // 針對每一個要匯入的工作表：勾選「使用同樣設定」時全部用表單值，否則僅目前下拉選中的用表單值、其餘用已儲存 config
-                const formCfg = {
-                    sourceCol: srcColEl.value.trim(),
-                    targetCol: tgtColEl.value.trim(),
-                    noteCols: tbExcelNoteCols ? tbExcelNoteCols.value.trim() : '',
-                    creatorCol: tbExcelCreatorCol ? tbExcelCreatorCol.value.trim() : '',
-                    createdAtCol: tbExcelCreatedAtCol ? tbExcelCreatedAtCol.value.trim() : '',
-                    rowsRange: tbExcelRowsRange ? tbExcelRowsRange.value.trim() : ''
-                };
-                const sheetConfigs = {};
-                for (const name of selectedSheets) {
-                    const isActiveSheet = (name === activeSheetFromDropdown);
-                    const cfg = (useSameConfig || isActiveSheet) ? formCfg : (tbExcelConfigs[name] || {});
-                    const srcColStr = (cfg.sourceCol || '').trim();
-                    const tgtColStr = (cfg.targetCol || '').trim();
-                    if (!srcColStr || !tgtColStr) {
-                        console.log('runImport 提早結束: 工作表原文/譯文為空', name);
-                        if (errEl) errEl.textContent = `工作表「${name}」的原文/譯文欄位為必填。`;
-                        return;
-                    }
-                    const srcIdx = parseTbSingleColumn(srcColStr);
-                    const tgtIdx = parseTbSingleColumn(tgtColStr);
-                    if (srcIdx < 0 || tgtIdx < 0) {
-                        console.log('runImport 提早結束: 欄位格式錯誤', name, srcColStr, tgtColStr);
-                        if (errEl) errEl.textContent = `工作表「${name}」的原文/譯文欄位格式錯誤，請輸入欄位代號，例如 A 或 B。`;
-                        return;
-                    }
-                    sheetConfigs[name] = {
-                        srcIdx,
-                        tgtIdx,
-                        noteIdxs: parseTbColumnList(cfg.noteCols || ''),
-                        includeSheetName: (cfg.noteCols || '').includes('#'),
-                        creatorIdx: parseTbSingleColumn(cfg.creatorCol || ''),
-                        createdAtIdx: parseTbSingleColumn(cfg.createdAtCol || ''),
-                        rowsRangeStr: (cfg.rowsRange || '2-').trim()
-                    };
-                }
-                if (selectedSheets.length > 1) {
-                    selectedSheets.forEach(name => {
-                        const c = sheetConfigs[name];
-                        if (c) console.log('runImport sheetConfigs[' + name + ']', { srcIdx: c.srcIdx, tgtIdx: c.tgtIdx });
-                    });
-                }
-
-                console.log('runImport 通過檢查，即將讀取 Excel');
+                    console.log(tbExcelImportIsOnline ? 'runImport 通過檢查（線上 CSV）' : 'runImport 通過檢查，即將讀取 Excel');
                 try {
-                    const buffer = await tbExcelPendingFile.arrayBuffer();
-                    console.log('runImport 已取得 arrayBuffer，長度:', buffer.byteLength);
-                    const workbook = XLSX.read(buffer, { type: 'array' });
-                    console.log('runImport 已解析 workbook，工作表:', workbook.SheetNames && workbook.SheetNames.length);
+                    let workbook = null;
+                    if (!tbExcelImportIsOnline) {
+                        const buffer = await tbExcelPendingFile.arrayBuffer();
+                        console.log('runImport 已取得 arrayBuffer，長度:', buffer.byteLength);
+                        workbook = XLSX.read(buffer, { type: 'array' });
+                        console.log('runImport 已解析 workbook，工作表:', workbook.SheetNames && workbook.SheetNames.length);
+                    }
                     const newTerms = [];
-                    const scanStats = []; // 每個工作表的掃描統計，用於除錯
+                    const scanStats = [];
                     const userName = localStorage.getItem('localCatUserProfile') || 'Unknown User';
                     const parseRowRange = (str) => {
                         const cleaned = (str || '').replace(/\s+/g, '');
@@ -4667,14 +4846,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const cfg = sheetConfigs[sheetName];
                         if (!cfg) continue;
                         const rowRange = parseRowRange(cfg.rowsRangeStr || '2-');
-                        const sheet = workbook.Sheets[sheetName];
-                        if (!sheet) {
-                            console.warn('TB Excel 匯入：找不到工作表', JSON.stringify(sheetName), 'workbook 內工作表:', (workbook.SheetNames || []).map(s => JSON.stringify(s)));
-                            continue;
+                        let rows;
+                        if (tbExcelImportIsOnline) {
+                            rows = onlineCsvRows;
+                        } else {
+                            const sheet = workbook.Sheets[sheetName];
+                            if (!sheet) {
+                                console.warn('TB Excel 匯入：找不到工作表', JSON.stringify(sheetName), 'workbook 內工作表:', (workbook.SheetNames || []).map(s => JSON.stringify(s)));
+                                continue;
+                            }
+                            rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
                         }
-                        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
                         if (!rows.length) continue;
-                        const startRow = Math.max(0, rowRange.start - 1); // 1-based 轉 0-based，允許從第 1 列開始
+                        const startRow = Math.max(0, rowRange.start - 1);
                         const endRow = isFinite(rowRange.end) ? rowRange.end - 1 : rows.length - 1;
                         let inRange = 0;
                         let withContent = 0;
@@ -4684,7 +4868,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const row = rows[r] || [];
                             const source = String(row[cfg.srcIdx] ?? '').trim();
                             const target = String(row[cfg.tgtIdx] ?? '').trim();
-                            // 若原文與譯文皆空白才略過；只要任一有內容就匯入
                             if (!source && !target) continue;
                             withContent++;
 
@@ -4693,7 +4876,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 const v = String(row[idx] ?? '').trim();
                                 if (v) noteLines.push(v);
                             });
-                            if (cfg.includeSheetName) {
+                            if (cfg.includeSheetName && !tbExcelImportIsOnline) {
                                 noteLines.push(sheetName);
                             }
                             const note = noteLines.join('\n');
@@ -4728,49 +4911,82 @@ document.addEventListener('DOMContentLoaded', async () => {
                     console.log('runImport 已取得術語庫，即將 updateTB');
                     const oldTerms = tb && tb.terms ? tb.terms : [];
 
-                    // 以「除建立者與建立時間以外的欄位」作為去重 key
-                    const makeKey = (t) => {
-                        return JSON.stringify({
-                            source: (t.source || '').trim(),
-                            target: (t.target || '').trim(),
-                            note: (t.note || '').trim()
+                    const makeKey = (t) => JSON.stringify({
+                        source: (t.source || '').trim(),
+                        target: (t.target || '').trim(),
+                        note: (t.note || '').trim()
+                    });
+
+                    let merged;
+                    let nextNum;
+                    let filteredNew;
+                    let doneMsg;
+                    if (tbExcelImportIsOnline) {
+                        let n = 1;
+                        newTerms.forEach(t => { t.termNumber = n++; });
+                        merged = newTerms;
+                        nextNum = newTerms.length + 1;
+                        filteredNew = newTerms;
+                        doneMsg = `線上擷取完成，共寫入 ${newTerms.length} 筆術語（已整批取代原有術語）。`;
+                    } else {
+                        const existingKeys = new Set(oldTerms.map(makeKey));
+                        const addedKeys = new Set();
+                        filteredNew = [];
+                        for (const t of newTerms) {
+                            const k = makeKey(t);
+                            if (existingKeys.has(k) || addedKeys.has(k)) continue;
+                            addedKeys.add(k);
+                            filteredNew.push(t);
+                        }
+                        if (!filteredNew.length) {
+                            if (errEl) errEl.textContent = '所有資料列皆與現有術語重複，未新增任何術語。';
+                            return;
+                        }
+                        nextNum = typeof tb.nextTermNumber === 'number' ? tb.nextTermNumber : 1;
+                        filteredNew.forEach(t => {
+                            t.termNumber = nextNum++;
                         });
-                    };
-
-                    const existingKeys = new Set(oldTerms.map(makeKey));
-                    const addedKeys = new Set();
-                    const filteredNew = [];
-                    for (const t of newTerms) {
-                        const k = makeKey(t);
-                        if (existingKeys.has(k) || addedKeys.has(k)) continue;
-                        addedKeys.add(k);
-                        filteredNew.push(t);
+                        merged = oldTerms.concat(filteredNew);
+                        doneMsg = `匯入完成，共加入 ${filteredNew.length} 筆術語（已自動略過重複內容）。`;
                     }
 
-                    if (!filteredNew.length) {
-                        if (errEl) errEl.textContent = '所有資料列皆與現有術語重複，未新增任何術語。';
-                        return;
-                    }
-
-                    let nextNum = typeof tb.nextTermNumber === 'number' ? tb.nextTermNumber : 1;
-                    filteredNew.forEach(t => {
-                        t.termNumber = nextNum++;
-                    });
-                    const merged = oldTerms.concat(filteredNew);
                     const changeLog = Array.isArray(tb.changeLog) ? tb.changeLog.slice() : [];
-                    changeLog.push({
-                        by: userName,
-                        at: new Date().toISOString(),
-                        action: 'add',
-                        termNumbers: filteredNew.map(t => t.termNumber)
-                    });
+                    if (tbExcelImportIsOnline) {
+                        changeLog.push({
+                            by: userName,
+                            at: new Date().toISOString(),
+                            action: 'online_import',
+                            termCount: newTerms.length
+                        });
+                    } else {
+                        changeLog.push({
+                            by: userName,
+                            at: new Date().toISOString(),
+                            action: 'add',
+                            termNumbers: filteredNew.map(t => t.termNumber)
+                        });
+                    }
+                    const onlineCfg = {
+                        sourceCol: srcColEl.value.trim(),
+                        targetCol: tgtColEl.value.trim(),
+                        noteCols: tbExcelNoteCols ? tbExcelNoteCols.value.trim() : '',
+                        creatorCol: tbExcelCreatorCol ? tbExcelCreatorCol.value.trim() : '',
+                        createdAtCol: tbExcelCreatedAtCol ? tbExcelCreatedAtCol.value.trim() : '',
+                        rowsRange: tbExcelRowsRange ? tbExcelRowsRange.value.trim() : ''
+                    };
                     const updatePayload = {
                         terms: merged,
                         nextTermNumber: nextNum,
                         changeLog,
-                        sourceType: tb && tb.sourceType ? tb.sourceType : 'manual',
                         sourceTypeLocked: true,
-                        lastModified: new Date().toISOString()
+                        ...(tbExcelImportIsOnline ? {
+                            sourceType: 'online',
+                            googleSheetUrl: onlinePasteUrl,
+                            onlineImportConfig: onlineCfg,
+                            name: ensureOnlineTbDisplayName((tb && tb.name) || ''),
+                        } : {
+                            sourceType: tb && tb.sourceType ? tb.sourceType : 'manual',
+                        }),
                     };
                     const updatePromise = DBService.updateTB(currentTbId, updatePayload);
                     const timeoutMs = 60000;
@@ -4781,8 +4997,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     console.log('runImport 寫入 DB 完成，即將關閉視窗');
                     closeTbExcelModal();
-                    alert(`匯入完成，共加入 ${filteredNew.length} 筆術語（已自動略過重複內容）。`);
+                    alert(doneMsg);
                     await loadTbTermsList();
+                    const tbNow = await DBService.getTB(currentTbId);
+                    if (tbNow) {
+                        applyTbTypeUI(tbNow);
+                        if (detailTbName && currentTbId) detailTbName.textContent = tbNow.name || `TB #${currentTbId}`;
+                    }
                 } catch (err) {
                     console.error('TB xlsx import error (內層)', err);
                     if (errEl) errEl.textContent = '匯入失敗：' + err.message;
@@ -4806,8 +5027,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const onTypeChange = async (e) => {
             if (!currentTbId) return;
             const tb = await DBService.getTB(currentTbId);
-            if (!tb || tb.sourceTypeLocked) {
-                // 還原勾選狀態
+            const locked = !tb || tb.sourceTypeLocked || (Array.isArray(tb.terms) && tb.terms.length > 0);
+            if (locked) {
                 applyTbTypeUI(tb || {});
                 return;
             }
@@ -5745,11 +5966,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             await DBService.addModuleLog('tm', entry);
             if (detailTmName && currentTmId === idArg) detailTmName.textContent = val;
         } else if (action === 'renameTB') {
-            await DBService.updateTBName(idArg, val);
-            const entry = makeBaseLogEntry('rename', 'tb', { entityId: idArg, entityName: val });
+            let finalName = val;
+            const tbRow = await DBService.getTB(idArg);
+            if (tbRow && (tbRow.sourceType || 'manual') === 'online') {
+                finalName = ensureOnlineTbDisplayName(val);
+            }
+            await DBService.updateTBName(idArg, finalName);
+            const entry = makeBaseLogEntry('rename', 'tb', { entityId: idArg, entityName: finalName });
             await appendTBChangeLog(idArg, entry);
             await DBService.addModuleLog('tb', entry);
-            if (detailTbName && currentTbId === idArg) detailTbName.textContent = val;
+            if (detailTbName && currentTbId === idArg) detailTbName.textContent = finalName;
         } else if (action === 'setUserProfile') {
             localStorage.setItem('localCatUserProfile', val);
             document.getElementById('displayUserName').textContent = val;
@@ -6399,7 +6625,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // --- LOAD TB TERMS: only TBs listed in project.readTbs (no language fallback) ---
         window.ActiveTbTerms = [];
-        window.ActiveWriteTb = (project && project.writeTb != null) ? project.writeTb : null;
+        let activeWriteTbId = (project && project.writeTb != null) ? project.writeTb : null;
+        if (activeWriteTbId != null) {
+            const _wtb = await DBService.getTB(activeWriteTbId);
+            if (_wtb && (_wtb.sourceType || 'manual') === 'online') {
+                activeWriteTbId = null;
+            }
+        }
+        window.ActiveWriteTb = activeWriteTbId;
         const readTbIds = (project && Array.isArray(project.readTbs)) ? project.readTbs : [];
         window.ActiveReadTbIds = readTbIds;
         for (const tbId of readTbIds) {
@@ -12370,13 +12603,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ── New Term Panel ───────────────────────────────────────────────────────
 
-    function refreshNewTermPanel() {
+    async function refreshNewTermPanel() {
         const noTbEl = document.getElementById('newTermNoTb');
         const formEl = document.getElementById('newTermForm');
         const nameEl = document.getElementById('newTermTbName');
         if (!noTbEl || !formEl) return;
         const writeTbId = window.ActiveWriteTb;
         if (writeTbId == null) {
+            noTbEl.textContent = '請先在專案設定中指定寫入目標術語庫。';
+            noTbEl.style.display = '';
+            formEl.style.display = 'none';
+            return;
+        }
+        const wtb = await DBService.getTB(writeTbId);
+        if (wtb && (wtb.sourceType || 'manual') === 'online') {
+            noTbEl.textContent = '寫入目標為線上擷取之術語庫時，無法於此新增術語。';
             noTbEl.style.display = '';
             formEl.style.display = 'none';
             return;
@@ -12399,6 +12640,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!src || !tgt) { alert('請同時填入原文與譯文。'); return; }
         const tb = await DBService.getTB(writeTbId);
         if (!tb) { alert('找不到寫入目標術語庫。'); return; }
+        if ((tb.sourceType || 'manual') === 'online') {
+            alert('此為擷取自線上表單的術語庫，不得自行寫入新內容。');
+            return;
+        }
         const terms = (tb.terms || []).slice();
         const nextNum = typeof tb.nextTermNumber === 'number' ? tb.nextTermNumber : terms.length + 1;
         const userName = getCurrentUserName();

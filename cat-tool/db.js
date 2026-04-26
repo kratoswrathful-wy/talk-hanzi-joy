@@ -780,6 +780,10 @@ const DBService = {
             changeLog: [],
             sourceLangs: sourceLangs || [],
             targetLangs: targetLangs || [],
+            sourceType: 'manual',
+            sourceTypeLocked: false,
+            googleSheetUrl: '',
+            onlineImportConfig: {},
             createdAt: new Date().toISOString(),
             lastModified: new Date().toISOString()
         });

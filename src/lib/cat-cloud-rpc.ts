@@ -160,6 +160,14 @@ const mapTmSegmentRow = (r: any) => ({
   lastModified: r.last_modified,
 });
 
+const TB_ONLINE_SUFFIX = "（擷取自線上表單）";
+
+function ensureOnlineTbNameClient(name: string): string {
+  const n = String(name || "").trim() || "未命名術語庫";
+  if (n.endsWith(TB_ONLINE_SUFFIX)) return n;
+  return n.replace(/\s+$/, "") + TB_ONLINE_SUFFIX;
+}
+
 const mapTbRow = (r: any) => ({
   id: r.id,
   name: r.name,
@@ -168,6 +176,10 @@ const mapTbRow = (r: any) => ({
   changeLog: r.change_log ?? [],
   sourceLangs: r.source_langs ?? [],
   targetLangs: r.target_langs ?? [],
+  sourceType: r.source_type === "online" ? "online" : "manual",
+  sourceTypeLocked: !!r.source_type_locked,
+  googleSheetUrl: r.google_sheet_url ?? "",
+  onlineImportConfig: r.online_import_config && typeof r.online_import_config === "object" ? r.online_import_config : {},
   env: r.env ?? "production",
   createdAt: r.created_at,
   lastModified: r.last_modified,
@@ -890,6 +902,11 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           change_log: [],
           source_langs: payload.sourceLangs ?? [],
           target_langs: payload.targetLangs ?? [],
+          source_type: payload.sourceType === "online" ? "online" : "manual",
+          source_type_locked: !!payload.sourceTypeLocked,
+          google_sheet_url: typeof payload.googleSheetUrl === "string" ? payload.googleSheetUrl : "",
+          online_import_config:
+            payload.onlineImportConfig && typeof payload.onlineImportConfig === "object" ? payload.onlineImportConfig : {},
           owner_user_id: userId,
           created_at: nowIso(),
           last_modified: nowIso(),
@@ -909,8 +926,14 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       const { data } = await supabase.from("cat_tbs").select("*").eq("id", payload.tbId).maybeSingle();
       return data ? mapTbRow(data) : null;
     }
-    case "db.updateTBName":
-      return await supabase.from("cat_tbs").update({ name: payload.newName, last_modified: nowIso() } as any).eq("id", payload.tbId);
+    case "db.updateTBName": {
+      const { data: row } = await supabase.from("cat_tbs").select("source_type").eq("id", payload.tbId).maybeSingle();
+      let nextName = String(payload.newName ?? "").trim() || "未命名術語庫";
+      if ((row as any)?.source_type === "online") {
+        nextName = ensureOnlineTbNameClient(nextName);
+      }
+      return await supabase.from("cat_tbs").update({ name: nextName, last_modified: nowIso() } as any).eq("id", payload.tbId);
+    }
     case "db.updateTB":
       return await supabase.from("cat_tbs").update({
         ...(payload.updates?.name != null ? { name: payload.updates.name } : {}),
@@ -919,6 +942,14 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         ...(payload.updates?.changeLog != null ? { change_log: payload.updates.changeLog } : {}),
         ...(payload.updates?.sourceLangs != null ? { source_langs: payload.updates.sourceLangs } : {}),
         ...(payload.updates?.targetLangs != null ? { target_langs: payload.updates.targetLangs } : {}),
+        ...(payload.updates?.sourceType === "online" || payload.updates?.sourceType === "manual"
+          ? { source_type: payload.updates.sourceType }
+          : {}),
+        ...(payload.updates?.sourceTypeLocked != null ? { source_type_locked: !!payload.updates.sourceTypeLocked } : {}),
+        ...(payload.updates?.googleSheetUrl != null ? { google_sheet_url: String(payload.updates.googleSheetUrl) } : {}),
+        ...(payload.updates?.onlineImportConfig != null
+          ? { online_import_config: payload.updates.onlineImportConfig }
+          : {}),
         last_modified: nowIso(),
       } as any).eq("id", payload.tbId);
     case "db.patchTB":
@@ -929,6 +960,14 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         ...(payload.updates?.changeLog != null ? { change_log: payload.updates.changeLog } : {}),
         ...(payload.updates?.sourceLangs != null ? { source_langs: payload.updates.sourceLangs } : {}),
         ...(payload.updates?.targetLangs != null ? { target_langs: payload.updates.targetLangs } : {}),
+        ...(payload.updates?.sourceType === "online" || payload.updates?.sourceType === "manual"
+          ? { source_type: payload.updates.sourceType }
+          : {}),
+        ...(payload.updates?.sourceTypeLocked != null ? { source_type_locked: !!payload.updates.sourceTypeLocked } : {}),
+        ...(payload.updates?.googleSheetUrl != null ? { google_sheet_url: String(payload.updates.googleSheetUrl) } : {}),
+        ...(payload.updates?.onlineImportConfig != null
+          ? { online_import_config: payload.updates.onlineImportConfig }
+          : {}),
         last_modified: nowIso(),
       } as any).eq("id", payload.tbId);
     case "db.deleteTB":

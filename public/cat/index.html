@@ -478,6 +478,7 @@
                     <button class="danger-btn btn-sm" id="btnTbDeleteSelected">刪除所選</button>
                     <button class="secondary-btn btn-sm" id="btnTbImportOnline">擷取線上表單</button>
                 </div>
+                <div id="tbOnlineUrlCaption" class="hidden" style="color:#000; font-size:0.88rem; margin:-0.35rem 0 0.85rem 0; word-break:break-all;"></div>
                 <div style="margin-bottom:1rem;">
                     <label for="tbTermSearchInput" style="font-size:0.9rem; color:#64748b; margin-right:0.5rem;">搜尋術語（原文／譯文／備註）</label>
                     <input type="text" id="tbTermSearchInput" placeholder="輸入關鍵字篩選…" style="padding:0.4rem 0.6rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.9rem; min-width:220px;">
@@ -1590,11 +1591,11 @@
         <div class="wizard-overlay hidden" id="tbExcelImportModal">
             <div class="wizard-modal" style="max-width: 640px;">
                 <div class="wizard-header">
-                    <h3 style="margin:0; font-size:1.2rem;">術語匯入 (Excel)</h3>
+                    <h3 id="tbExcelImportModalTitle" style="margin:0; font-size:1.2rem;">術語匯入 (Excel)</h3>
                     <button class="close-btn" id="btnCloseTbExcelImport">×</button>
                 </div>
                 <div class="wizard-body" style="display:flex; flex-direction:row; gap:1.25rem; max-height:380px; overflow:hidden;">
-                    <div style="width:230px; border-right:1px solid #e2e8f0; padding-right:0.75rem;">
+                    <div id="tbExcelSheetPickerColumn" style="width:230px; border-right:1px solid #e2e8f0; padding-right:0.75rem;">
                         <p style="font-size:0.85rem; color:#64748b; margin:0 0 0.25rem 0;">選擇要匯入的工作表：</p>
                         <label style="display:flex; align-items:center; gap:0.25rem; font-size:0.85rem; font-weight:600; margin-bottom:0.25rem; border-bottom:1px solid #e2e8f0; padding-bottom:0.25rem;">
                             <input type="checkbox" id="tbExcelSelectAll">
@@ -1602,8 +1603,13 @@
                         </label>
                         <div id="tbExcelSheetList" style="max-height:260px; overflow-y:auto; font-size:0.85rem; padding-left:0.25rem;"></div>
                     </div>
-                    <div style="flex:1; display:flex; flex-direction:column; gap:0.75rem; min-width:0;">
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
+                    <div id="tbExcelMappingColumn" style="flex:1; display:flex; flex-direction:column; gap:0.75rem; min-width:0;">
+                        <div id="tbExcelOnlineUrlRow" class="hidden" style="display:flex; flex-direction:column; gap:0.35rem;">
+                            <label for="tbOnlineSheetUrl" style="font-size:0.9rem; font-weight:600;">Google 試算表連結</label>
+                            <input type="url" id="tbOnlineSheetUrl" placeholder="https://docs.google.com/spreadsheets/d/…" autocomplete="off" style="padding:0.4rem 0.5rem; border:1px solid #cbd5e1; border-radius:6px; width:100%; box-sizing:border-box; font-size:0.88rem;">
+                            <p style="margin:0; font-size:0.78rem; color:#64748b;">須可匿名讀取 CSV（知道連結者可檢視／已發佈）。多工作表請使用含不同 gid 的連結，一連結對應一分頁。</p>
+                        </div>
+                        <div id="tbExcelSheetConfigRow" style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem;">
                             <div style="flex:1;">
                                 <label for="tbExcelSheetSelect" style="font-size:0.85rem; color:#64748b; display:block; margin-bottom:0.15rem;">工作表</label>
                                 <select id="tbExcelSheetSelect" style="width:100%; padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; font-size:0.9rem; min-width:0;"></select>
