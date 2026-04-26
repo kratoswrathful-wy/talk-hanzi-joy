@@ -1567,6 +1567,36 @@ mark.search-match {
 }
 .shared-info-section-title { font-size: 0.82rem; font-weight: 600; color: #475569; margin: 0; }
 
+.shared-info-section-header--pg .shared-info-section-title-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+.shared-info-pg-hint {
+    font-size: 0.72rem;
+    color: #64748b;
+    font-weight: 400;
+    line-height: 1.35;
+}
+
+/* 共用資訊：專案準則綠卡（對齊已選翻譯準則；啟用於「管理準則」內） */
+.ai-selected-guideline-item.ai-pg-shared-card {
+    align-items: flex-start;
+}
+.ai-pg-shared-card .ai-pg-shared-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    align-items: flex-end;
+    flex-shrink: 0;
+}
+
+.pg-manage-project-guidelines-modal-box {
+    overflow: hidden;
+}
+
 /* Quill 全局覆寫（縮小間距）*/
 .ql-snow .ql-toolbar button { padding: 0 3px; height: 20px; width: 22px; }
 .ql-snow .ql-toolbar .ql-picker { font-size: 0.78rem; }
