@@ -11019,7 +11019,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const mf = m.matchFlags || { caseInsensitive: true, wholeWord: false };
                         const caseRow = mf.caseInsensitive === false ? '是' : '否';
                         const exactRow = mf.wholeWord ? '是' : '否';
-                        const greyHint = '簡單講：關閉精確比對時，只要句子裡任何地方出現這串原文就算可能命中；打開精確比對時，這串原文要像是獨立的詞（前後不能緊貼其他英文字母或數字）。「區分大小寫」決定大寫小寫要不要看成不同字。';
+                        const greyHint = '關閉精確比對時，只要句子裡任何地方出現這串原文就算可能命中。\n開啟精確比對時，這串原文要像是獨立的詞（前後不能緊貼其他英文字母或數字）。';
                         const byAt = (m.createdAt ? escFoot(new Date(m.createdAt).toLocaleString('zh-TW', { hour12: false })) : 'N/A');
                         const byWho = escFoot(m.createdBy || 'N/A');
                         footerHtml += `<div class="cat-footer-section">
@@ -11028,7 +11028,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             ${m.note ? `<strong>備註：</strong>${escFoot(m.note)}<br>` : ''}
                             <div><strong>區分大小寫：</strong>${caseRow}</div>
                             <div><strong>精確比對：</strong>${exactRow}</div>
-                            <p style="margin:0.35rem 0 0 0; font-size:0.72rem; color:#94a3b8; line-height:1.45;">${greyHint}</p>
+                            <p style="margin:0.35rem 0 0 0; font-size:0.72rem; color:#94a3b8; line-height:1.45; white-space:pre-line;">${greyHint}</p>
                             <div><strong>建立者：</strong>${byWho}</div>
                             <div><strong>建立時間：</strong>${byAt}</div>
                         </div>
