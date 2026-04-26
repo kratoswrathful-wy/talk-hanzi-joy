@@ -472,9 +472,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             recordBtn.style.flexShrink = '0';
             recordBtn.addEventListener('click', () => {
                 if (keyInput.classList.contains('sc-recording-active')) return;
+                const prevH = keyInput._scRecordKeydownHandler;
+                if (prevH) document.removeEventListener('keydown', prevH, true);
                 keyInput.classList.add('sc-recording-active');
                 keyInput.value = '等待按鍵…';
                 const handler = (e) => {
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        keyInput.value = _scFormat(getCustomShortcut(def.id));
+                        keyInput.classList.remove('sc-recording-active');
+                        document.removeEventListener('keydown', handler, true);
+                        keyInput._scRecordKeydownHandler = undefined;
+                        return;
+                    }
                     const modOnly = ['Control','Alt','Shift','Meta'].includes(e.key);
                     if (modOnly) return;
                     e.preventDefault();
@@ -484,7 +495,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     keyInput.value = _scFormat(newSc);
                     keyInput.classList.remove('sc-recording-active');
                     document.removeEventListener('keydown', handler, true);
+                    keyInput._scRecordKeydownHandler = undefined;
                 };
+                keyInput._scRecordKeydownHandler = handler;
                 document.addEventListener('keydown', handler, true);
             });
             const resetBtn = document.createElement('button');
@@ -493,6 +506,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             resetBtn.textContent = '重設';
             resetBtn.style.flexShrink = '0';
             resetBtn.addEventListener('click', () => {
+                const h = keyInput._scRecordKeydownHandler;
+                if (h) document.removeEventListener('keydown', h, true);
+                keyInput._scRecordKeydownHandler = undefined;
                 const data = loadCustomShortcuts();
                 delete data[def.id];
                 localStorage.setItem(CUSTOM_SC_KEY, JSON.stringify(data));
@@ -514,6 +530,88 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         btnCloseShortcuts.addEventListener('click', () => shortcutsModal.classList.add('hidden'));
     }
+
+    /** Esc：關閉最上層蓋版（等同取消／關閉鈕）；錄製自訂快捷鍵時 Esc 由錄製 handler 中止、不關視窗 */
+    (function setupCatGlobalModalEscape() {
+        const ESC_BUTTON_BY_OVERLAY_ID = {
+            exportTagWarningModal: 'exportTagWarningCancel',
+            noteSharingModal: 'btnNoteSharingCancel',
+            privateNoteShareModal: 'btnPrivateNoteShareCancel',
+            sfPresetManagerModal: 'btnCloseSfPresetManager',
+            aiBatchAskModal: 'btnBatchAskCancel',
+            aiReviewModal: 'btnSkipAiReview',
+            aiGuidelinePickerModal: 'btnCloseAiGuidelinePicker',
+            agMutexJoinModal: 'btnAgMutexJoinCancel',
+            agEditGuidelineModal: 'btnAgEditGuidelineCancel',
+            aiScanModal: 'btnCancelAiScan',
+            aiScanConfirmModal: 'btnCancelAiScanConfirm',
+            remoteConflictModal: 'btnRemoteConflictCancel',
+            qaFilterScopeConfirmModal: 'btnQaFilterScopeConfirmCancel',
+            tmsProfileCard: 'btnCloseTmsProfileCard',
+            namingModal: 'btnCloseNamingModalFooter',
+            exportResourceModal: 'btnCancelExportResource',
+            projectTmPickerModal: 'btnProjectTmPickerCancel',
+            projectTbPickerModal: 'btnProjectTbPickerCancel',
+            tbExcelImportModal: 'btnCancelTbExcelImport',
+            preTranslateModal: 'btnCancelPreTranslate',
+            fileAssignModal: 'btnCancelFileAssign',
+            aiBatchModal: 'btnCancelAiBatch',
+            tbTermEditModal: 'btnCancelTbTermEdit',
+            highMatchGuardModal: 'btnHighMatchGuardCancel',
+        };
+        function parseZ(el) {
+            const z = parseInt(getComputedStyle(el).zIndex, 10);
+            return Number.isFinite(z) ? z : 0;
+        }
+        function collectVisibleModalRoots() {
+            const roots = [];
+            document.querySelectorAll('.wizard-overlay:not(.hidden), .modal-overlay:not(.hidden)').forEach((el) => { roots.push(el); });
+            const tms = document.getElementById('tmsProfileCard');
+            if (tms && getComputedStyle(tms).display !== 'none') roots.push(tms);
+            return roots;
+        }
+        function topModalRoot(roots) {
+            if (!roots.length) return null;
+            return roots.reduce((best, el) => {
+                const zb = parseZ(best);
+                const ze = parseZ(el);
+                if (ze > zb) return el;
+                if (ze < zb) return best;
+                return (best.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) ? el : best;
+            });
+        }
+        function findEscDismissControl(overlay) {
+            if (!overlay || !overlay.id) return null;
+            const mapped = ESC_BUTTON_BY_OVERLAY_ID[overlay.id];
+            if (mapped) {
+                const b = document.getElementById(mapped);
+                if (b && overlay.contains(b)) return b;
+            }
+            const attr = overlay.querySelector('[data-cat-esc-dismiss]');
+            if (attr) return attr;
+            const close = overlay.querySelector('button.close-btn');
+            if (close) return close;
+            const foot = overlay.querySelector('.panel-footer');
+            if (foot) {
+                const sec = foot.querySelector('button.secondary-btn');
+                if (sec) return sec;
+            }
+            return null;
+        }
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            const sm = document.getElementById('shortcutsModal');
+            if (sm && !sm.classList.contains('hidden') && sm.querySelector('.sc-custom-input.sc-recording-active')) return;
+            const roots = collectVisibleModalRoots();
+            const top = topModalRoot(roots);
+            if (!top) return;
+            const btn = findEscDismissControl(top);
+            e.preventDefault();
+            e.stopPropagation();
+            if (btn) btn.click();
+            else top.classList.add('hidden');
+        }, true);
+    })();
 
     // ---- 將原文複製到譯文 / 清除譯文（單一 + 批次）----
 
