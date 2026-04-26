@@ -15164,12 +15164,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         function updateMutexSelectOptions() {
             if (!mutexGroupSelect) return;
-            const current = mutexGroupSelect.value;
+            const ADD = typeof window.CAT_SELECT_ADD_NEW_VALUE === 'string' ? window.CAT_SELECT_ADD_NEW_VALUE : '';
+            let current = mutexGroupSelect.value;
+            if (current === ADD) current = '';
             const mutexGroups = [...new Set(allGuidelines.map(g => g.mutexGroup).filter(Boolean))].sort();
             mutexGroupSelect.innerHTML = '<option value="">無互斥群組</option>' +
                 mutexGroups.map(m => `<option value="${_esc(m)}">${_esc(m)}</option>`).join('');
+            if (current && !mutexGroups.includes(current)) {
+                mutexGroupSelect.insertAdjacentHTML('beforeend', `<option value="${_esc(current)}">${_esc(current)}</option>`);
+            }
             const has = Array.from(mutexGroupSelect.options).some(o => o.value === current);
             mutexGroupSelect.value = has ? current : '';
+            if (typeof window.catSelectAppendAddNewOption === 'function') {
+                window.catSelectAppendAddNewOption(mutexGroupSelect, '新增群組');
+            }
+            if (ADD && mutexGroupSelect.value === ADD) {
+                mutexGroupSelect.value = has ? current : '';
+            }
+            mutexGroupSelect.dataset.catSelectAddNewPrev = mutexGroupSelect.value || '';
         }
 
         /** 頁內 modal：單選既有互斥群組或建立新群組（取代 window.prompt）。 */
@@ -15311,6 +15323,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         function fillAgEditMutexSelect(selectEl, currentGroup) {
             if (!selectEl) return;
+            const ADD = typeof window.CAT_SELECT_ADD_NEW_VALUE === 'string' ? window.CAT_SELECT_ADD_NEW_VALUE : '';
             const groups = [...new Set(allGuidelines.map(g => g && g.mutexGroup).filter(Boolean))].sort((a, b) =>
                 a.localeCompare(b, 'zh-Hant-TW', { sensitivity: 'base' }));
             selectEl.innerHTML = '<option value="">無互斥群組</option>' +
@@ -15319,6 +15332,46 @@ document.addEventListener('DOMContentLoaded', async () => {
                 selectEl.insertAdjacentHTML('beforeend', `<option value="${_esc(currentGroup)}">${_esc(currentGroup)}</option>`);
             }
             selectEl.value = currentGroup || '';
+            if (typeof window.catSelectAppendAddNewOption === 'function') {
+                window.catSelectAppendAddNewOption(selectEl, '新增群組');
+            }
+            if (ADD && selectEl.value === ADD) {
+                selectEl.value = currentGroup || '';
+            }
+            selectEl.dataset.catSelectAddNewPrev = selectEl.value || '';
+        }
+
+        if (typeof window.catSelectInitAddNew === 'function') {
+            if (mutexGroupSelect && mutexGroupSelect.dataset.catMutexNewFormAddNewWired !== '1') {
+                mutexGroupSelect.dataset.catMutexNewFormAddNewWired = '1';
+                window.catSelectInitAddNew(mutexGroupSelect, {
+                    label: '新增群組',
+                    onPickAddNew: async () => {
+                        const raw = await openCatPromptModal({ title: '新增互斥群組', label: '新群組名稱', defaultValue: '' });
+                        const name = raw != null ? String(raw).trim() : '';
+                        const addv = window.CAT_SELECT_ADD_NEW_VALUE;
+                        if (!name || name === addv) return;
+                        mutexGroupSelect.value = name;
+                        updateMutexSelectOptions();
+                    }
+                });
+            }
+            const agEditMutexSel = document.getElementById('agEditGuidelineMutexSelect');
+            if (agEditMutexSel && agEditMutexSel.dataset.catMutexEditModalAddNewWired !== '1') {
+                agEditMutexSel.dataset.catMutexEditModalAddNewWired = '1';
+                window.catSelectInitAddNew(agEditMutexSel, {
+                    label: '新增群組',
+                    onPickAddNew: async () => {
+                        const raw = await openCatPromptModal({ title: '新增互斥群組', label: '新群組名稱', defaultValue: '' });
+                        const name = raw != null ? String(raw).trim() : '';
+                        const addv = window.CAT_SELECT_ADD_NEW_VALUE;
+                        if (!name || name === addv) return;
+                        fillAgEditMutexSelect(agEditMutexSel, name);
+                        const mutexCustomEl = document.getElementById('agEditGuidelineMutexCustom');
+                        if (mutexCustomEl) mutexCustomEl.value = '';
+                    }
+                });
+            }
         }
 
         /** 頁內 modal：編輯準則條目（內容、標籤、性質、互斥群組、預設條目）。 */
@@ -15392,7 +15445,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const category = JSON.stringify(normalizedCats);
                 const scope = scopeEl.value === 'style' ? 'style' : 'translation';
                 const customM = mutexCustom.value.trim();
-                const selM = mutexSel.value != null ? String(mutexSel.value).trim() : '';
+                const selMRaw = mutexSel.value != null ? String(mutexSel.value).trim() : '';
+                const addvSel = typeof window.CAT_SELECT_ADD_NEW_VALUE === 'string' ? window.CAT_SELECT_ADD_NEW_VALUE : '';
+                const selM = selMRaw === addvSel ? '' : selMRaw;
                 const mutexGroup = customM || selM || null;
                 const isDefault = !!isDefEl.checked;
 
@@ -15450,7 +15505,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const categoryVal = selectedNewCategories.length > 0 ? JSON.stringify(selectedNewCategories) : '通用';
                     const category = categoryVal;
                     const mSel = document.getElementById('aiGuidelineNewMutexGroupSelect');
-                    const mVal = mSel && mSel.value != null ? String(mSel.value).trim() : '';
+                    const mRaw = mSel && mSel.value != null ? String(mSel.value).trim() : '';
+                    const addvM = typeof window.CAT_SELECT_ADD_NEW_VALUE === 'string' ? window.CAT_SELECT_ADD_NEW_VALUE : '';
+                    const mVal = mRaw === addvM ? '' : mRaw;
                     const mutexGroup = mVal || null;
                     const scopeEl = document.getElementById('aiGuidelineNewScope');
                     const scope = (scopeEl && scopeEl.value === 'style') ? 'style' : 'translation';
@@ -15712,32 +15769,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             listEl.innerHTML = projectGuidelines.map((s) => {
                 const idAttr = String(s.id);
-                const catBadges = _pgNormalizeCategory(s.category).map((c) => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
                 return `<div class="ai-guideline-item" data-pg-manage-id="${_esc(idAttr)}">
                     <div style="flex:1; min-width:0;">
                         <div class="ai-guideline-item-content">${s.content ? _esc(s.content) : '（無內容）'}</div>
-                        <div class="ai-guideline-item-meta">${catBadges}</div>
                     </div>
                     <div class="ai-guideline-item-actions" style="display:flex; flex-direction:column; gap:0.25rem; align-items:flex-end;">
-                        <label style="font-size:0.72rem; display:flex; align-items:center; gap:0.2rem; cursor:pointer;">
-                            <input type="checkbox" class="pg-manage-enabled-cb" data-pg-id="${_esc(idAttr)}" ${s.enabled !== false ? 'checked' : ''}/> 啟用
-                        </label>
                         <button type="button" class="secondary-btn btn-sm pg-manage-edit" data-pg-id="${_esc(idAttr)}" style="font-size:0.72rem;">編輯</button>
                         <button type="button" class="notes-add-btn pg-manage-del" data-pg-id="${_esc(idAttr)}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
                     </div>
                 </div>`;
             }).join('');
-            listEl.querySelectorAll('.pg-manage-enabled-cb').forEach((cb) => {
-                cb.onchange = () => {
-                    const sid = cb.getAttribute('data-pg-id');
-                    const i = projectGuidelines.findIndex((t) => String(t.id) === String(sid));
-                    if (i < 0) return;
-                    projectGuidelines[i].enabled = cb.checked;
-                    savePSettings();
-                    void renderProjectGuidelines();
-                    renderPgManageProjectGuidelinesList();
-                };
-            });
             listEl.querySelectorAll('.pg-manage-edit').forEach((btn) => {
                 btn.onclick = () => {
                     const sid = btn.getAttribute('data-pg-id');
@@ -16310,14 +16351,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         async function renderProjectGuidelines() {
             if (!pgList) return;
             const isPm = isCatSharedMutator();
-            const toShow = projectGuidelines.filter((g) => g && (isPm || g.enabled !== false));
+            const toShow = projectGuidelines.filter((g) => g);
             if (toShow.length === 0) {
                 pgList.innerHTML = '<p style="font-size:0.78rem; color:#94a3b8; margin:0;">目前沒有專案準則。</p>';
                 return;
             }
             pgList.innerHTML = toShow.map((s) => {
                 const idAttr = String(s.id);
-                const catBadges = _pgNormalizeCategory(s.category).map((c) => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
                 const actionsHtml = isPm
                     ? `<div class="ai-pg-shared-actions">
                         <button type="button" class="secondary-btn btn-sm pg-edit-btn" data-pg-id="${_esc(idAttr)}" style="font-size:0.72rem;">編輯</button>
@@ -16327,7 +16367,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return `<div class="ai-selected-guideline-item ai-pg-shared-card" data-pg-id="${_esc(idAttr)}">
                     <div style="flex:1; min-width:0;">
                         <div class="ai-selected-guideline-item-content">${s.content ? _esc(s.content) : '（無內容）'}</div>
-                        ${catBadges ? `<div style="margin-top:0.3rem;">${catBadges}</div>` : ''}
                     </div>
                     ${actionsHtml}
                 </div>`;
@@ -17154,7 +17193,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             .map((s) => s.content);
         const projectGuidelinesList = Array.isArray(psettings?.projectGuidelines) ? psettings.projectGuidelines : [];
         const pgBodies = projectGuidelinesList
-            .filter((g) => g && g.enabled !== false && String(g.content || '').trim())
+            .filter((g) => g && String(g.content || '').trim())
             .map((g) => String(g.content).trim());
         const siPart = [batchNote, ...applicableContents].filter(Boolean).join('\n');
         const projectGuidelinesNote = pgBodies.length ? pgBodies.join('\n\n') : '';

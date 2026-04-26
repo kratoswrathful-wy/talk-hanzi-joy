@@ -1593,8 +1593,9 @@ mark.search-match {
     flex-shrink: 0;
 }
 
+/* 勿 hidden：內嵌「套用標籤」多選下拉會絕對定位伸出，overflow 會截斷 */
 .pg-manage-project-guidelines-modal-box {
-    overflow: hidden;
+    overflow: visible;
 }
 
 /* Quill 全局覆寫（縮小間距）*/
