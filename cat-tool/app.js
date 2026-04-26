@@ -108,6 +108,124 @@ function getCheckedLangs(container) {
     return Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
 }
 
+/**
+ * 頁內通用確認（取代 window.confirm）。message 建議為「是否確定要……？」完整句。
+ * @param {string} message
+ * @param {{ title?: string }} [options]
+ * @returns {Promise<boolean>}
+ */
+function openCatConfirmModal(message, options = {}) {
+    const title = options.title != null ? String(options.title) : '確認';
+    return new Promise((resolve) => {
+        const modal = document.getElementById('catGenericConfirmModal');
+        const titleEl = document.getElementById('catGenericConfirmTitle');
+        const msgEl = document.getElementById('catGenericConfirmMsg');
+        const btnOk = document.getElementById('btnCatGenericConfirmOk');
+        const btnCancel = document.getElementById('btnCatGenericConfirmCancel');
+        if (!modal || !titleEl || !msgEl || !btnOk || !btnCancel) {
+            resolve(window.confirm(message));
+            return;
+        }
+        let settled = false;
+        titleEl.textContent = title;
+        msgEl.textContent = message;
+        function cleanup() {
+            modal.classList.add('hidden');
+            btnOk.removeEventListener('click', onOk);
+            btnCancel.removeEventListener('click', onCancel);
+            modal.removeEventListener('click', onOverlay);
+            document.removeEventListener('keydown', onKey);
+        }
+        function finish(v) {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            resolve(v);
+        }
+        function onOk() { finish(true); }
+        function onCancel() { finish(false); }
+        function onOverlay(e) {
+            if (e.target === modal) onCancel();
+        }
+        function onKey(e) {
+            if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+                e.preventDefault();
+                onCancel();
+            }
+        }
+        btnOk.addEventListener('click', onOk);
+        btnCancel.addEventListener('click', onCancel);
+        modal.addEventListener('click', onOverlay);
+        document.addEventListener('keydown', onKey);
+        modal.classList.remove('hidden');
+    });
+}
+
+/**
+ * 頁內通用單行輸入（取代 window.prompt）。
+ * @param {{ title?: string, label?: string, defaultValue?: string }} [options]
+ * @returns {Promise<string|null>} 確定時為 trim 後字串；取消為 null
+ */
+function openCatPromptModal(options = {}) {
+    const title = options.title != null ? String(options.title) : '輸入';
+    const label = options.label != null ? String(options.label) : '請輸入：';
+    const defaultValue = options.defaultValue != null ? String(options.defaultValue) : '';
+    return new Promise((resolve) => {
+        const modal = document.getElementById('catGenericPromptModal');
+        const titleEl = document.getElementById('catGenericPromptTitle');
+        const labelEl = document.getElementById('catGenericPromptLabel');
+        const inputEl = document.getElementById('catGenericPromptInput');
+        const btnOk = document.getElementById('btnCatGenericPromptOk');
+        const btnCancel = document.getElementById('btnCatGenericPromptCancel');
+        if (!modal || !titleEl || !labelEl || !inputEl || !btnOk || !btnCancel) {
+            const v = window.prompt(label, defaultValue);
+            resolve(v === null ? null : String(v));
+            return;
+        }
+        let settled = false;
+        titleEl.textContent = title;
+        labelEl.textContent = label;
+        inputEl.value = defaultValue;
+        function cleanup() {
+            modal.classList.add('hidden');
+            btnOk.removeEventListener('click', onOk);
+            btnCancel.removeEventListener('click', onCancel);
+            modal.removeEventListener('click', onOverlay);
+            document.removeEventListener('keydown', onKey);
+        }
+        function finish(v) {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            resolve(v);
+        }
+        function onOk() {
+            finish(inputEl.value);
+        }
+        function onCancel() {
+            finish(null);
+        }
+        function onOverlay(e) {
+            if (e.target === modal) onCancel();
+        }
+        function onKey(e) {
+            if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+                e.preventDefault();
+                onCancel();
+            }
+        }
+        btnOk.addEventListener('click', onOk);
+        btnCancel.addEventListener('click', onCancel);
+        modal.addEventListener('click', onOverlay);
+        document.addEventListener('keydown', onKey);
+        modal.classList.remove('hidden');
+        requestAnimationFrame(() => {
+            inputEl.focus();
+            inputEl.select();
+        });
+    });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     const Xliff = window.CatToolXliffTags;
     const XliffImport = window.CatToolXliffImport;
@@ -2551,7 +2669,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 alert('請先勾選要刪除的專案。');
                 return;
             }
-            if (!confirm(`確定要刪除所選的 ${checkedIds.length} 個專案及其所有檔案與翻譯嗎？`)) return;
+            if (!(await openCatConfirmModal(`是否確定要刪除所選的 ${checkedIds.length} 個專案及其所有檔案與翻譯？`))) return;
         for (const id of checkedIds) {
             const proj = await DBService.getProject(id);
             await DBService.deleteProject(id);
@@ -3509,7 +3627,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 alert('請先勾選要刪除的檔案。');
                 return;
             }
-            if (!confirm(`確定要從專案移除 ${ids.length} 個檔案並刪除其所有翻譯資料嗎？`)) return;
+            if (!(await openCatConfirmModal(`是否確定要從專案移除 ${ids.length} 個檔案並刪除其所有翻譯資料？`))) return;
             for (const id of ids) {
                 const file = await DBService.getFile(id);
                 await DBService.deleteFile(id);
@@ -3768,7 +3886,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 alert('請先勾選要刪除的 TM。');
                 return;
             }
-            if (!confirm(`確定要刪除所選的 ${checkedIds.length} 個翻譯記憶庫嗎？`)) return;
+            if (!(await openCatConfirmModal(`是否確定要刪除所選的 ${checkedIds.length} 個翻譯記憶庫？`))) return;
             for (const id of checkedIds) {
                 const tm = await DBService.getTM(id);
                 await DBService.deleteTM(id);
@@ -3804,7 +3922,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 alert('請先勾選要刪除的術語庫。');
                 return;
             }
-            if (!confirm(`確定要刪除所選的 ${checkedIds.length} 個術語庫嗎？`)) return;
+            if (!(await openCatConfirmModal(`是否確定要刪除所選的 ${checkedIds.length} 個術語庫？`))) return;
             for (const id of checkedIds) {
                 const tb = await DBService.getTB(id);
                 await DBService.deleteTB(id);
@@ -4081,7 +4199,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 alert('請先勾選要刪除的術語。');
                 return;
             }
-            if (!confirm(`確定要刪除所選的 ${checked.length} 筆術語？`)) return;
+            if (!(await openCatConfirmModal(`是否確定要刪除所選的 ${checked.length} 筆術語？`))) return;
             const toDelete = checked.map(i => lastTbTerms[i]).filter(Boolean);
             const termNumbers = toDelete.filter(t => typeof t.termNumber === 'number').map(t => t.termNumber);
             const deletedSnapshot = toDelete.map(t => ({
@@ -4959,7 +5077,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert('請先勾選要刪除的句段。');
             return;
         }
-        if (!confirm(`確定要刪除所選的 ${ids.length} 筆句段嗎？此動作無法復原。`)) return;
+        if (!(await openCatConfirmModal(`是否確定要刪除所選的 ${ids.length} 筆句段？此動作無法復原。`))) return;
         for (const id of ids) {
             await DBService.deleteTMSegment(parseId(id));
         }
@@ -5155,7 +5273,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if(btnClearTmSegments) {
         btnClearTmSegments.addEventListener('click', async () => {
             if(!currentTmId) return;
-            if(confirm('確定要清空此記憶庫中所有的句段嗎？此動作無法復原！')) {
+            if (await openCatConfirmModal('是否確定要清空此記憶庫中所有的句段？此動作無法復原。')) {
                 const existing = await DBService.getTMSegments(currentTmId);
                 const total = existing.length;
                 await DBService.deleteTMSegmentsByTMId(currentTmId);
@@ -8877,9 +8995,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         `).join('');
     }
     
-    btnSaveFilterPreset.addEventListener('click', () => {
-        const name = normalizeSfPresetName(prompt('請輸入常用篩選與搜尋組合名稱：'));
-        if(!name) return;
+    btnSaveFilterPreset.addEventListener('click', async () => {
+        const raw = await openCatPromptModal({
+            title: '儲存常用組合',
+            label: '請輸入常用篩選與搜尋組合名稱：',
+            defaultValue: ''
+        });
+        const name = normalizeSfPresetName(raw);
+        if (!name) return;
         const advCur = readSfAdvancedSpecFromDom();
         sfPresets[name] = {
             groups: JSON.parse(JSON.stringify(sfFilterGroups)),
@@ -8916,7 +9039,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
     if (sfPresetManagerList) {
-        sfPresetManagerList.addEventListener('click', (e) => {
+        sfPresetManagerList.addEventListener('click', async (e) => {
             const btn = e.target && e.target.closest ? e.target.closest('button[data-action][data-name-key]') : null;
             if (!btn) return;
             const action = btn.dataset.action;
@@ -8924,7 +9047,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!oldName || !sfPresets[oldName]) return;
 
             if (action === 'rename') {
-                const nextName = normalizeSfPresetName(prompt('請輸入新的組合名稱：', oldName));
+                const raw = await openCatPromptModal({
+                    title: '重新命名常用組合',
+                    label: '請輸入新的組合名稱：',
+                    defaultValue: oldName
+                });
+                const nextName = normalizeSfPresetName(raw);
                 if (!nextName || nextName === oldName) return;
                 if (sfPresets[nextName]) {
                     alert('名稱已存在，請改用其他名稱。');
@@ -8937,7 +9065,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
             if (action === 'delete') {
-                if (!confirm(`確定要刪除常用組合「${oldName}」嗎？`)) return;
+                if (!(await openCatConfirmModal(`是否確定要刪除常用組合「${oldName}」？`))) return;
                 delete sfPresets[oldName];
                 saveSfPresetsToStorage();
                 renderSfPresetManagerList();
@@ -11772,7 +11900,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const btnOk = document.getElementById('btnQaFilterScopeConfirmOk');
             const btnCancel = document.getElementById('btnQaFilterScopeConfirmCancel');
             if (!overlay || !msgEl || !btnOk || !btnCancel) {
-                resolve(window.confirm(`${line1}\n${line2}`));
+                openCatConfirmModal(`${line1}\n\n${line2}`).then(resolve);
                 return;
             }
             msgEl.innerHTML = '';
@@ -13258,7 +13386,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         wrap.querySelector('.pn-edit-btn')?.addEventListener('click', () => _startPrivateNoteEdit(note, wrap));
         wrap.querySelector('.pn-share-btn')?.addEventListener('click', () => _openPrivateNoteShareDialog(note));
         wrap.querySelector('.pn-del-btn')?.addEventListener('click', async () => {
-            if (!confirm('確定刪除此筆記？')) return;
+            if (!(await openCatConfirmModal('是否確定要刪除此筆記？'))) return;
             delete _privateNoteEditQuills[String(note.id)];
             await DBService.deletePrivateNote(parseId(note.id));
             await _loadPrivateNotes();
@@ -13348,7 +13476,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         wrap.querySelector('.pt-edit-btn')?.addEventListener('click', () => _startPrivateTodoEdit(note, wrap));
         wrap.querySelector('.pt-del-btn')?.addEventListener('click', async () => {
-            if (!confirm('確定刪除此待辦？')) return;
+            if (!(await openCatConfirmModal('是否確定要刪除此待辦？'))) return;
             await DBService.deletePrivateNote(parseId(note.id));
             await _loadPrivateNotes();
         });
@@ -13459,7 +13587,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (pm) {
             wrap.querySelector('.gl-edit-btn')?.addEventListener('click', () => _startGuidelineEdit(gl, wrap, lk));
             wrap.querySelector('.gl-del-btn')?.addEventListener('click', async () => {
-                if (!confirm('確定刪除此條目（包含所有回覆）？')) return;
+                if (!(await openCatConfirmModal('是否確定要刪除此條目（包含所有回覆）？'))) return;
                 try {
                     await DBService.deleteGuideline(parseId(gl.id));
                     delete _guidelineEditQuills[String(gl.id)];
@@ -13599,7 +13727,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             // Delete
             item.querySelector('.reply-del-btn')?.addEventListener('click', async () => {
-                if (!confirm('確定刪除此回覆（及其下層回覆）？')) return;
+                if (!(await openCatConfirmModal('是否確定要刪除此回覆（及其下層回覆）？'))) return;
                 await DBService.deleteGuidelineReply(parseId(reply.id));
                 await _loadAndRenderReplies(guidelineId, root);
             });
@@ -13942,7 +14070,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const clearReportBtn = document.getElementById('btnClearAiReport');
         if (clearReportBtn) clearReportBtn.addEventListener('click', async () => {
             if (!currentFileId) return;
-            if (!confirm('清除本檔保存的 AI 報告與歷程？')) return;
+            if (!(await openCatConfirmModal('是否確定要清除本檔保存的 AI 報告與歷程？'))) return;
             try {
                 await DBService.clearFileAiReport(currentFileId);
                 await _loadFileAiReportToPanel();
@@ -14135,27 +14263,57 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tags = await DBService.getAiCategoryTags().catch(() => []);
             }
             if (!_isCatExecutive()) {
-                tagListEl.innerHTML = tags.map(t =>
-                    `<div style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;"><span class="ai-badge selected">${_esc(t.name)}</span></div>`
-                ).join('');
+                tagListEl.innerHTML = tags.map(t => {
+                    const hid = !!t.listHidden;
+                    const badgeClass = hid ? 'ai-cat-tag-badge--muted' : 'ai-badge selected';
+                    return `<div style="display:flex;align-items:center;gap:0.5rem;font-size:0.85rem;" class="${hid ? 'ai-cat-tag-row--hidden' : ''}"><span class="${badgeClass}">${_esc(t.name)}</span></div>`;
+                }).join('');
                 if (newTagInput) newTagInput.style.display = 'none';
                 if (addTagBtn) addTagBtn.style.display = 'none';
                 return;
             }
             if (newTagInput) newTagInput.style.display = '';
             if (addTagBtn) addTagBtn.style.display = '';
-            tagListEl.innerHTML = tags.map(t =>
-                `<div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;" data-tag-id="${t.id}">` +
-                `<span class="ai-badge selected" style="min-width:4rem;">${_esc(t.name)}</span>` +
-                `<button type="button" class="secondary-btn btn-sm ai-cat-rename" data-id="${t.id}" data-name="${_esc(t.name)}" style="font-size:0.72rem;padding:0.2rem 0.45rem;">更名</button>` +
-                `<button type="button" class="secondary-btn btn-sm ai-cat-del" data-id="${t.id}" data-name="${_esc(t.name)}" style="font-size:0.72rem;padding:0.2rem 0.45rem;">刪除</button>` +
-                `</div>`
-            ).join('');
+            const sortedTags = tags.slice().sort((a, b) => {
+                const ah = !!a.listHidden, bh = !!b.listHidden;
+                if (ah !== bh) return ah ? 1 : -1;
+                return String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hant-TW');
+            });
+            tagListEl.innerHTML = sortedTags.map(t => {
+                const hid = !!t.listHidden;
+                const badgeClass = hid ? 'ai-cat-tag-badge--muted' : 'ai-badge selected';
+                const rowExtra = hid ? ' ai-cat-tag-row--hidden' : '';
+                const actions = hid
+                    ? `<button type="button" class="secondary-btn btn-sm ai-cat-restore" data-id="${t.id}" data-name="${_esc(t.name)}" style="font-size:0.72rem;padding:0.2rem 0.45rem;">復原</button>`
+                    : `<button type="button" class="secondary-btn btn-sm ai-cat-rename" data-id="${t.id}" data-name="${_esc(t.name)}" style="font-size:0.72rem;padding:0.2rem 0.45rem;">更名</button>`;
+                return (
+                    `<div class="ai-cat-tag-row${rowExtra}" style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.35rem;" data-tag-id="${t.id}">` +
+                    `<span class="${badgeClass}" style="min-width:4rem;">${_esc(t.name)}</span>` +
+                    actions +
+                    `<button type="button" class="secondary-btn btn-sm ai-cat-del" data-id="${t.id}" data-name="${_esc(t.name)}" data-list-hidden="${hid ? '1' : '0'}" style="font-size:0.72rem;padding:0.2rem 0.45rem;">刪除</button>` +
+                    `</div>`
+                );
+            }).join('');
+            tagListEl.querySelectorAll('.ai-cat-restore').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const id = parseInt(btn.getAttribute('data-id'), 10);
+                    try {
+                        await DBService.restoreAiCategoryTag(id);
+                        await refreshCategoryTagsAdmin();
+                    } catch (e) {
+                        alert(e.message || String(e));
+                    }
+                });
+            });
             tagListEl.querySelectorAll('.ai-cat-rename').forEach(btn => {
                 btn.addEventListener('click', async () => {
                     const id = parseInt(btn.getAttribute('data-id'), 10);
                     const oldName = btn.getAttribute('data-name') || '';
-                    const nn = window.prompt('新名稱：', oldName);
+                    const nn = await openCatPromptModal({
+                        title: '重新命名標籤',
+                        label: '新名稱：',
+                        defaultValue: oldName
+                    });
                     if (nn == null) return;
                     const trimmed = String(nn).trim();
                     if (!trimmed || trimmed === oldName) return;
@@ -14171,18 +14329,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                 btn.addEventListener('click', async () => {
                     const id = parseInt(btn.getAttribute('data-id'), 10);
                     const nm = btn.getAttribute('data-name') || '';
-                    const stripFirst = window.confirm(
-                        '刪除「' + nm + '」\n\n是否一併從學習範例與準則條目移除此名稱？\n\n「確定」= 是，一併清除\n「取消」= 否，改為僅刪清單'
-                    );
+                    const isHidden = btn.getAttribute('data-list-hidden') === '1';
                     let removeFromReferences;
-                    if (stripFirst) {
+                    if (isHidden) {
+                        if (!(await openCatConfirmModal(
+                            '是否確定要從所有學習範例與準則條目移除標籤「' + nm + '」，並從清單永久刪除此標籤？\n\n（將掃描條目與範例內已填的類別欄位；刪除後無法再以「復原」恢復為僅隱藏。）'
+                        ))) return;
                         removeFromReferences = true;
                     } else {
-                        if (!window.confirm(
-                            '僅從標籤清單刪除「' + nm + '」？\n\n' +
-                            '內文若仍保留該字串，不會出現在批次勾選中；日後可新增同名標籤再連回篩選。'
-                        )) return;
-                        removeFromReferences = false;
+                        const strip = await openCatConfirmModal(
+                            '是否確定要從所有學習範例與準則條目移除標籤「' + nm + '」，並從清單刪除此標籤？'
+                        );
+                        if (strip) {
+                            removeFromReferences = true;
+                        } else {
+                            if (!(await openCatConfirmModal(
+                                '是否確定要僅從標籤清單隱藏「' + nm + '」？\n\n（準則與學習範例內已填的類別字串將保留；新增條目時的類別多選不會列出此標籤，可稍後按「復原」恢復。）'
+                            ))) return;
+                            removeFromReferences = false;
+                        }
                     }
                     try {
                         await DBService.deleteAiCategoryTag(id, { removeFromReferences });
@@ -14222,7 +14387,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (allCategoryTags.length === 0) {
             try {
                 const id = await DBService.addAiCategoryTag('通用');
-                allCategoryTags = [{ id, name: '通用', createdAt: new Date().toISOString() }];
+                allCategoryTags = [{ id, name: '通用', createdAt: new Date().toISOString(), listHidden: false }];
             } catch (_) { /* 可能已存在，忽略 */ }
             if (allCategoryTags.length === 0) {
                 allCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
@@ -14255,11 +14420,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         function updateMultiselectDropdown() {
             const dropdown = document.getElementById('aiGuidelineCategoryDropdown');
             if (!dropdown) return;
-            if (allCategoryTags.length === 0) {
+            const visibleTags = allCategoryTags.filter(t => !t.listHidden);
+            selectedNewCategories = selectedNewCategories.filter(n =>
+                visibleTags.some(t => t.name === n) || n === '通用'
+            );
+            if (selectedNewCategories.length === 0) selectedNewCategories = ['通用'];
+            updateMultiselectDisplay();
+            if (visibleTags.length === 0) {
                 dropdown.innerHTML = '<span style="font-size:0.8rem; color:#94a3b8; padding:0.4rem 0.6rem; display:block;">尚無類別（將自動補上「通用」）</span>';
                 return;
             }
-            const sortedTags = _sortTagNames(allCategoryTags.map(t => t.name));
+            const sortedTags = _sortTagNames(visibleTags.map(t => t.name));
             dropdown.innerHTML = sortedTags.map(name => `
                 <label class="ai-multiselect-option">
                     <input type="checkbox" value="${_esc(name)}" ${selectedNewCategories.includes(name) ? 'checked' : ''}> ${_esc(name)}
@@ -14304,8 +14475,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const mutexSel = document.getElementById('aiGuidelinesFilterMutex');
             if (catSel) {
                 const currentCat = catSel.value;
+                const tagsForFilter = allCategoryTags.filter(t => !t.listHidden);
                 catSel.innerHTML = '<option value="">全部類別</option>' +
-                    allCategoryTags.map(t => `<option value="${_esc(t.name)}" ${currentCat === t.name ? 'selected' : ''}>${_esc(t.name)}</option>`).join('');
+                    tagsForFilter.map(t => `<option value="${_esc(t.name)}" ${currentCat === t.name ? 'selected' : ''}>${_esc(t.name)}</option>`).join('');
             }
             if (mutexSel) {
                 const currentMutex = mutexSel.value;
@@ -14486,7 +14658,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             listEl.querySelectorAll('[data-del]').forEach(btn => {
                 btn.onclick = async () => {
-                    if (!confirm('確定刪除此準則條目？')) return;
+                    if (!(await openCatConfirmModal('是否確定要刪除此準則條目？'))) return;
                     const id = parseInt(btn.getAttribute('data-del'), 10);
                     await DBService.deleteAiGuideline(id);
                     const idx = allGuidelines.findIndex(g => g.id === id);
@@ -15005,7 +15177,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             listEl.querySelectorAll('.ai-ex-del').forEach(btn => {
                 btn.addEventListener('click', async () => {
-                    if (!confirm('確定刪除此學習範例？')) return;
+                    if (!(await openCatConfirmModal('是否確定要刪除此學習範例？'))) return;
                     const id = parseInt(btn.getAttribute('data-id'), 10);
                     await DBService.deleteAiStyleExample(id);
                     const idx = all.findIndex(e => e.id === id);
@@ -15018,9 +15190,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const id = parseInt(btn.getAttribute('data-id'), 10);
                     const ex = all.find(e => e.id === id);
                     if (!ex) return;
-                    const val = prompt('輸入類別（逗號分隔）', (ex.categories || []).join(', '));
+                    const val = await openCatPromptModal({
+                        title: '編輯類別',
+                        label: '輸入類別（逗號分隔）：',
+                        defaultValue: (ex.categories || []).join(', ')
+                    });
                     if (val === null) return;
-                    ex.categories = val.split(',').map(s => s.trim()).filter(Boolean);
+                    ex.categories = String(val).split(',').map(s => s.trim()).filter(Boolean);
                     await DBService.updateAiStyleExample(id, { categories: ex.categories });
                     render();
                 });
@@ -15030,9 +15206,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const id = parseInt(btn.getAttribute('data-id'), 10);
                     const ex = all.find(e => e.id === id);
                     if (!ex) return;
-                    const val = prompt('輸入修改類型標籤（逗號分隔）', (ex.modTags || []).join(', '));
+                    const val = await openCatPromptModal({
+                        title: '編輯修改類型',
+                        label: '輸入修改類型標籤（逗號分隔）：',
+                        defaultValue: (ex.modTags || []).join(', ')
+                    });
                     if (val === null) return;
-                    ex.modTags = val.split(',').map(s => s.trim()).filter(Boolean);
+                    ex.modTags = String(val).split(',').map(s => s.trim()).filter(Boolean);
                     await DBService.updateAiStyleExample(id, { modTags: ex.modTags });
                     render();
                 });

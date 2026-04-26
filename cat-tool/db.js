@@ -290,6 +290,32 @@ db.version(17).stores({
     });
 });
 
+// v18：類別標籤可「僅自清單隱藏」（listHidden），不刪列、不掃準則／範例引用
+db.version(18).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, sourceLang, targetLang',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId',
+    wordCountReports: '++id, projectId, createdAt, label',
+    aiGuidelines: '++id, category, createdAt, scope, isDefault',
+    aiStyleExamples: '++id, sourceLang, targetLang, segId, createdAt',
+    aiSettings: '++id',
+    aiProjectSettings: '++id, projectId',
+    aiCategoryTags: '++id, name, createdAt, listHidden',
+    fileAiReports: 'fileId, updatedAt'
+}).upgrade(async tx => {
+    await tx.aiCategoryTags.toCollection().modify((t) => {
+        if (t.listHidden === undefined) t.listHidden = false;
+    });
+});
+
 /** 比對／空白判定：取 HTML 可見文字並壓縮空白，與 cat-cloud-rpc / app.js 邏輯一致 */
 function normalizeCatGuidelineContent(html) {
     if (html == null) return '';
@@ -1062,9 +1088,17 @@ const DBService = {
     },
     async addAiCategoryTag(name) {
         if (!name || !name.trim()) throw new Error('標籤名稱不得空白');
+        const nm = name.trim();
         const existing = await db.aiCategoryTags.toArray();
-        if (existing.some(t => t.name === name.trim())) throw new Error('標籤已存在');
-        return await db.aiCategoryTags.add({ name: name.trim(), createdAt: new Date().toISOString() });
+        const hit = existing.find(t => t.name === nm);
+        if (hit) {
+            if (hit.listHidden) {
+                await db.aiCategoryTags.update(hit.id, { listHidden: false });
+                return hit.id;
+            }
+            throw new Error('標籤已存在');
+        }
+        return await db.aiCategoryTags.add({ name: nm, createdAt: new Date().toISOString(), listHidden: false });
     },
     /**
      * 更名並一併更新學習範例 categories 與準則條目 category 欄位中的同名稱。
@@ -1075,6 +1109,7 @@ const DBService = {
         if (!nm) throw new Error('標籤名稱不得空白');
         const row = await db.aiCategoryTags.get(id);
         if (!row) throw new Error('找不到標籤');
+        if (row.listHidden) throw new Error('此標籤已自清單隱藏，請先按「復原」再更名。');
         const oldName = row.name;
         if (oldName === nm) return;
         const all = await db.aiCategoryTags.toArray();
@@ -1105,8 +1140,10 @@ const DBService = {
         const row = await db.aiCategoryTags.get(id);
         if (!row) return;
         const name = row.name;
-        await db.aiCategoryTags.delete(id);
-        if (!removeFromReferences) return;
+        if (!removeFromReferences) {
+            await db.aiCategoryTags.update(id, { listHidden: true });
+            return;
+        }
 
         const exRows = await db.aiStyleExamples.toArray();
         for (const r of exRows) {
@@ -1123,6 +1160,10 @@ const DBService = {
             if (next.length === 0) next = ['通用'];
             await db.aiGuidelines.update(g.id, { category: _serializeGuidelineCategoryField(next) });
         }
+        await db.aiCategoryTags.delete(id);
+    },
+    async restoreAiCategoryTag(id) {
+        await db.aiCategoryTags.update(id, { listHidden: false });
     },
 
     // Expose tables directly if needed for custom queries or bulk operations outside this service
@@ -1314,6 +1355,7 @@ const DBService = {
     DBService.addAiCategoryTag = async (name) => rpc('db.addAiCategoryTag', { name });
     DBService.renameAiCategoryTag = async (id, newName) => rpc('db.renameAiCategoryTag', { id, newName });
     DBService.deleteAiCategoryTag = async (id, opts = {}) => rpc('db.deleteAiCategoryTag', { id, opts });
+    DBService.restoreAiCategoryTag = async (id) => rpc('db.restoreAiCategoryTag', { id });
     DBService.getAiSettings = async () => rpc('db.getAiSettings');
     DBService.saveAiSettings = async (settings) => rpc('db.saveAiSettings', { settings });
     DBService.getAiProjectSettings = async (projectId) => rpc('db.getAiProjectSettings', { projectId });

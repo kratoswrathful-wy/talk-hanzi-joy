@@ -258,6 +258,7 @@ const mapAiCategoryTagRow = (r: any) => ({
   id: Number(r.id),
   name: r.name ?? "",
   createdAt: r.created_at,
+  listHidden: !!(r as any).list_hidden,
 });
 
 const mapAiStyleExampleRow = (r: any) => ({
@@ -997,9 +998,27 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     case "db.addAiCategoryTag": {
       const name = String(payload.name || "").trim();
       if (!name) throw new Error("標籤名稱不得空白");
+      const { data: existing, error: exErr } = await supabase
+        .from("cat_ai_category_tags" as any)
+        .select("id, list_hidden")
+        .eq("name", name)
+        .maybeSingle();
+      if (exErr) throw exErr;
+      const exAny = existing as any;
+      if (exAny?.id != null) {
+        if (exAny.list_hidden) {
+          const { error: upErr } = await supabase
+            .from("cat_ai_category_tags" as any)
+            .update({ list_hidden: false } as any)
+            .eq("id", exAny.id);
+          if (upErr) throw upErr;
+          return Number(exAny.id);
+        }
+        throw new Error("標籤已存在");
+      }
       const { data, error } = await supabase
         .from("cat_ai_category_tags" as any)
-        .insert({ name, created_at: nowIso() } as any)
+        .insert({ name, created_at: nowIso(), list_hidden: false } as any)
         .select("id")
         .single();
       if (error) throw error;
@@ -1010,11 +1029,12 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       if (!name) throw new Error("標籤名稱不得空白");
       const { data: row, error: rowErr } = await supabase
         .from("cat_ai_category_tags" as any)
-        .select("name")
+        .select("name, list_hidden")
         .eq("id", payload.id)
         .single();
       if (rowErr) throw rowErr;
       const rowAny = row as any;
+      if (rowAny?.list_hidden) throw new Error("此標籤已自清單隱藏，請先按「復原」再更名。");
       const oldName = String(rowAny?.name || "");
       const { error: renErr } = await supabase
         .from("cat_ai_category_tags" as any)
@@ -1036,6 +1056,20 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           .eq("id", (g as any)?.id);
         if (ugErr) throw ugErr;
       }
+      const { data: exRows, error: exErr } = await supabase
+        .from("cat_ai_style_examples" as any)
+        .select("id, categories");
+      if (exErr) throw exErr;
+      for (const ex of (exRows as any[]) ?? []) {
+        const cats = tryParseJson<string[]>((ex as any)?.categories, []);
+        if (!cats.includes(oldName)) continue;
+        const next = cats.map((c) => (c === oldName ? name : c));
+        const { error: uexErr } = await supabase
+          .from("cat_ai_style_examples" as any)
+          .update({ categories: next, updated_at: nowIso() } as any)
+          .eq("id", (ex as any)?.id);
+        if (uexErr) throw uexErr;
+      }
       return true;
     }
     case "db.deleteAiCategoryTag": {
@@ -1049,28 +1083,56 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       if (!row) return true;
       const rowAny = row as any;
       const tagName = String(rowAny?.name || "");
+      if (!removeFromReferences) {
+        const { error: hidErr } = await supabase
+          .from("cat_ai_category_tags" as any)
+          .update({ list_hidden: true } as any)
+          .eq("id", payload.id);
+        if (hidErr) throw hidErr;
+        return true;
+      }
+      const { data: glRows, error: glErr } = await supabase
+        .from("cat_ai_guidelines" as any)
+        .select("id, category");
+      if (glErr) throw glErr;
+      for (const g of (glRows as any[]) ?? []) {
+        const arr = parseAiCategories((g as any)?.category);
+        if (!arr.includes(tagName)) continue;
+        const next = arr.filter((x) => x !== tagName);
+        const patched = next.length > 0 ? next : ["通用"];
+        const { error: ugErr } = await supabase
+          .from("cat_ai_guidelines" as any)
+          .update({ category: patched, updated_at: nowIso() } as any)
+          .eq("id", (g as any)?.id);
+        if (ugErr) throw ugErr;
+      }
+      const { data: exRows, error: exErr } = await supabase
+        .from("cat_ai_style_examples" as any)
+        .select("id, categories");
+      if (exErr) throw exErr;
+      for (const ex of (exRows as any[]) ?? []) {
+        const cats = tryParseJson<string[]>((ex as any)?.categories, []);
+        if (!cats.includes(tagName)) continue;
+        const next = cats.filter((c) => c !== tagName);
+        const { error: uexErr } = await supabase
+          .from("cat_ai_style_examples" as any)
+          .update({ categories: next, updated_at: nowIso() } as any)
+          .eq("id", (ex as any)?.id);
+        if (uexErr) throw uexErr;
+      }
       const { error } = await supabase
         .from("cat_ai_category_tags" as any)
         .delete()
         .eq("id", payload.id);
       if (error) throw error;
-      if (removeFromReferences) {
-        const { data: glRows, error: glErr } = await supabase
-          .from("cat_ai_guidelines" as any)
-          .select("id, category");
-        if (glErr) throw glErr;
-        for (const g of (glRows as any[]) ?? []) {
-          const arr = parseAiCategories((g as any)?.category);
-          if (!arr.includes(tagName)) continue;
-          const next = arr.filter((x) => x !== tagName);
-          const patched = next.length > 0 ? next : ["通用"];
-          const { error: ugErr } = await supabase
-            .from("cat_ai_guidelines" as any)
-            .update({ category: patched, updated_at: nowIso() } as any)
-            .eq("id", (g as any)?.id);
-          if (ugErr) throw ugErr;
-        }
-      }
+      return true;
+    }
+    case "db.restoreAiCategoryTag": {
+      const { error } = await supabase
+        .from("cat_ai_category_tags" as any)
+        .update({ list_hidden: false } as any)
+        .eq("id", payload.id);
+      if (error) throw error;
       return true;
     }
     case "db.getAiSettings": {

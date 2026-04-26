@@ -564,7 +564,7 @@ function ModuleToolbarBlock({ module }: { module: string }) {
                 size="sm"
                 className="h-7 text-[10px] text-destructive ml-auto"
                 onClick={() => {
-                  if (confirm("確定移除此群組？群內按鈕將合併到第一個群組。")) deleteGroup(group.id);
+                  if (confirm("是否確定要移除此群組？群內按鈕將合併到第一個群組。")) deleteGroup(group.id);
                 }}
               >
                 移除群組
@@ -616,7 +616,7 @@ export function ToolbarButtonStyleSection() {
           onClick={() => {
             if (
               confirm(
-                "確定將所有工具列按鈕樣式（含寬度、顏色、自訂文字、圖示與群組版面）還原為預設值？"
+                "是否確定要將所有工具列按鈕樣式（含寬度、顏色、自訂文字、圖示與群組版面）還原為預設值？"
               )
             )
               uiButtonStyleStore.resetAll();

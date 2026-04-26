@@ -83,6 +83,21 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
     border-top: 1px solid #e2e8f0;
 }
 
+/* AI 管理：已自清單隱藏的類別標籤 */
+.ai-cat-tag-row--hidden {
+    opacity: 0.72;
+}
+.ai-cat-tag-badge--muted {
+    display: inline-block;
+    min-width: 4rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    background: #e2e8f0;
+    color: #64748b;
+    border: 1px solid #cbd5e1;
+}
+
 /* Sidebar */
 .sidebar {
     width: var(--sidebar-width); background-color: var(--sidebar-bg); color: var(--sidebar-text);
