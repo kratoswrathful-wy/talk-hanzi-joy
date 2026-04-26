@@ -14432,14 +14432,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 btn.onclick = async () => {
                     const id = parseInt(btn.getAttribute('data-join-gid'), 10);
                     if (!id) return;
-                    const raw = window.prompt('請輸入要加入的互斥群組名稱（須與他條目一致才能互斥）：', '');
-                    if (raw == null) return;
-                    const name = raw.trim();
-                    if (!name) return;
+                    const name = await openAgMutexJoinChoiceModal();
+                    if (name == null || String(name).trim() === '') return;
+                    const finalName = String(name).trim();
                     try {
-                        await DBService.updateAiGuideline(id, { mutexGroup: name, isDefault: false });
+                        await DBService.updateAiGuideline(id, { mutexGroup: finalName, isDefault: false });
                         const row = allGuidelines.find(g => g.id === id);
-                        if (row) { row.mutexGroup = name; row.isDefault = false; }
+                        if (row) { row.mutexGroup = finalName; row.isDefault = false; }
                     } catch (e) { console.error(e); }
                     updateMutexSelectOptions();
                     updateFilterBarOptions();
@@ -14496,6 +14495,143 @@ document.addEventListener('DOMContentLoaded', async () => {
                 mutexGroups.map(m => `<option value="${_esc(m)}">${_esc(m)}</option>`).join('');
             const has = Array.from(mutexGroupSelect.options).some(o => o.value === current);
             mutexGroupSelect.value = has ? current : '';
+        }
+
+        /** 頁內 modal：單選既有互斥群組或建立新群組（取代 window.prompt）。 */
+        function openAgMutexJoinChoiceModal() {
+            const modal = document.getElementById('agMutexJoinModal');
+            const listEl = document.getElementById('agMutexJoinRadioList');
+            const newRow = document.getElementById('agMutexJoinNewRow');
+            const newInput = document.getElementById('agMutexJoinNewName');
+            const errEl = document.getElementById('agMutexJoinErr');
+            const btnOk = document.getElementById('btnAgMutexJoinOk');
+            const btnCancel = document.getElementById('btnAgMutexJoinCancel');
+            if (!modal || !listEl || !newRow || !newInput || !btnOk || !btnCancel) {
+                return Promise.resolve(null);
+            }
+            const groups = [...new Set(allGuidelines.map(g => g && g.mutexGroup).filter(Boolean))].sort((a, b) =>
+                a.localeCompare(b, 'zh-Hant-TW', { sensitivity: 'base' }));
+            listEl.innerHTML = '';
+            groups.forEach((name) => {
+                const lab = document.createElement('label');
+                lab.className = 'ag-mutex-join-opt';
+                lab.style.cssText = 'display:flex; align-items:flex-start; gap:0.45rem; cursor:pointer; font-size:0.88rem; padding:0.4rem 0.35rem; border-radius:6px;';
+                const inp = document.createElement('input');
+                inp.type = 'radio';
+                inp.name = 'agMutexJoinPick';
+                inp.value = 'g:' + encodeURIComponent(name);
+                const span = document.createElement('span');
+                span.style.flex = '1';
+                span.textContent = name;
+                lab.appendChild(inp);
+                lab.appendChild(span);
+                listEl.appendChild(lab);
+            });
+            const labNew = document.createElement('label');
+            labNew.className = 'ag-mutex-join-opt';
+            labNew.style.cssText = 'display:flex; align-items:flex-start; gap:0.45rem; cursor:pointer; font-size:0.88rem; padding:0.45rem 0.35rem; border-radius:6px; margin-top:0.2rem; border-top:1px solid #e2e8f0;';
+            const inpNew = document.createElement('input');
+            inpNew.type = 'radio';
+            inpNew.name = 'agMutexJoinPick';
+            inpNew.value = '__new__';
+            const spanNew = document.createElement('span');
+            spanNew.style.flex = '1';
+            spanNew.textContent = '建立新群組…';
+            labNew.appendChild(inpNew);
+            labNew.appendChild(spanNew);
+            listEl.appendChild(labNew);
+
+            return new Promise((resolve) => {
+                let settled = false;
+                const radios = () => listEl.querySelectorAll('input[name="agMutexJoinPick"]');
+
+                function showErr(msg) {
+                    if (!errEl) return;
+                    if (msg) {
+                        errEl.textContent = msg;
+                        errEl.classList.remove('hidden');
+                    } else {
+                        errEl.textContent = '';
+                        errEl.classList.add('hidden');
+                    }
+                }
+
+                function syncNewRow() {
+                    const picked = modal.querySelector('input[name="agMutexJoinPick"]:checked');
+                    const showNew = picked && picked.value === '__new__';
+                    newRow.style.display = showNew ? 'block' : 'none';
+                    if (!showNew) newInput.value = '';
+                    showErr('');
+                }
+
+                function onRadioChange() {
+                    syncNewRow();
+                }
+
+                function finish(name) {
+                    if (settled) return;
+                    settled = true;
+                    modal.classList.add('hidden');
+                    btnOk.removeEventListener('click', onOk);
+                    btnCancel.removeEventListener('click', onCancel);
+                    modal.removeEventListener('click', onOverlay);
+                    radios().forEach((r) => { r.removeEventListener('change', onRadioChange); });
+                    resolve(name);
+                }
+
+                function onOk() {
+                    const picked = modal.querySelector('input[name="agMutexJoinPick"]:checked');
+                    if (!picked) {
+                        showErr('請選擇一個群組。');
+                        return;
+                    }
+                    if (picked.value === '__new__') {
+                        const nm = newInput.value.trim();
+                        if (!nm) {
+                            showErr('請輸入新群組名稱。');
+                            newInput.focus();
+                            return;
+                        }
+                        finish(nm);
+                        return;
+                    }
+                    if (picked.value.indexOf('g:') === 0) {
+                        try {
+                            finish(decodeURIComponent(picked.value.slice(2)));
+                        } catch (_) {
+                            finish(null);
+                        }
+                        return;
+                    }
+                    finish(null);
+                }
+
+                function onCancel() {
+                    finish(null);
+                }
+
+                function onOverlay(e) {
+                    if (e.target === modal) onCancel();
+                }
+
+                btnOk.addEventListener('click', onOk);
+                btnCancel.addEventListener('click', onCancel);
+                modal.addEventListener('click', onOverlay);
+                radios().forEach((r) => { r.addEventListener('change', onRadioChange); });
+
+                if (groups.length === 0) {
+                    inpNew.checked = true;
+                    newRow.style.display = 'block';
+                } else {
+                    newRow.style.display = 'none';
+                    newInput.value = '';
+                }
+                showErr('');
+                modal.classList.remove('hidden');
+                requestAnimationFrame(() => {
+                    if (groups.length === 0) newInput.focus();
+                });
+            });
         }
 
         renderList();

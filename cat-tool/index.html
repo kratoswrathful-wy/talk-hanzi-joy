@@ -2039,6 +2039,24 @@
         </div>
     </div>
 
+    <!-- ====== 準則管理：加入互斥群組（單選＋可建立新群組）====== -->
+    <div id="agMutexJoinModal" class="modal-overlay hidden">
+        <div class="modal-box" style="max-width:440px; width:92vw;">
+            <h3 style="margin:0 0 0.35rem 0;">加入互斥群組</h3>
+            <p style="font-size:0.82rem; color:#64748b; margin:0 0 0.65rem 0;">請選擇既有群組，或選擇「建立新群組」並輸入名稱（須與他條目一致才能互斥）。</p>
+            <div id="agMutexJoinRadioList" style="max-height:42vh; overflow-y:auto; display:flex; flex-direction:column; gap:0.15rem;"></div>
+            <div id="agMutexJoinNewRow" style="display:none; margin-top:0.65rem;">
+                <label for="agMutexJoinNewName" style="font-size:0.82rem; font-weight:600;">新群組名稱</label>
+                <input type="text" id="agMutexJoinNewName" class="form-input" placeholder="輸入群組名稱…" style="width:100%; margin-top:0.25rem;" autocomplete="off">
+            </div>
+            <p id="agMutexJoinErr" class="hidden" style="color:#dc2626; font-size:0.8rem; margin:0.5rem 0 0 0;"></p>
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
+                <button type="button" id="btnAgMutexJoinCancel" class="secondary-btn">取消</button>
+                <button type="button" id="btnAgMutexJoinOk" class="primary-btn">確定</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ====== 掃描全文 Step 1 Modal ====== -->
     <div id="aiScanModal" class="modal-overlay hidden">
         <div class="modal-box" style="max-width:500px; width:92vw;">
