@@ -13578,12 +13578,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     content: note.content,
                     createdByName: getCurrentUserName()
                 });
-                await _refreshSharedInfoUi();
+                _closePrivateNoteShareDialog();
+                _showCatBriefToast('已複製到共用筆記。');
+                void _refreshSharedInfoUi();
             } catch (err) {
                 console.error(err);
                 alert(err && err.message ? String(err.message) : '複製失敗');
             }
-            _closePrivateNoteShareDialog();
         });
         document.getElementById('btnPrivateNoteShareMove')?.addEventListener('click', async () => {
             const note = _privateNoteSharePending;
@@ -13601,13 +13602,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
                 delete _privateNoteEditQuills[String(note.id)];
                 await DBService.deletePrivateNote(parseId(note.id));
-                await _refreshSharedInfoUi();
-                await _loadPrivateNotes();
+                _closePrivateNoteShareDialog();
+                _showCatBriefToast('已移動到共用筆記。');
+                void _refreshSharedInfoUi();
+                void _loadPrivateNotes();
             } catch (err) {
                 console.error(err);
                 alert(err && err.message ? String(err.message) : '移動失敗');
             }
-            _closePrivateNoteShareDialog();
         });
         document.getElementById('btnPrivateNoteShareCancel')?.addEventListener('click', () => {
             _closePrivateNoteShareDialog();
@@ -13772,6 +13774,39 @@ document.addEventListener('DOMContentLoaded', async () => {
         );
     }
 
+    function _pnRenderNoteBodyView(wrap, note, listKey, html) {
+        const lk = listKey || wrap.getAttribute('data-private-scope') || 'editor';
+        const bodyEl = wrap.querySelector(`#pn-body-${lk}-${note.id}`);
+        if (!bodyEl) return;
+        const show = html && !isQuillHtmlEffectivelyEmpty(html);
+        bodyEl.innerHTML = show ? `<div class="ql-editor ql-snow">${html}</div>` : '<div class="guideline-item-empty">（無內容）</div>';
+    }
+
+    function _pnRewireNoteAside(wrap, note, listKey) {
+        const lk = listKey || wrap.getAttribute('data-private-scope') || 'editor';
+        const acts = wrap.querySelector(`.pn-aside-${lk}-${note.id}`) || wrap.querySelector('.guideline-item-aside-actions');
+        if (!acts) return;
+        acts.innerHTML = `
+            <button type="button" class="pn-edit-btn" title="編輯">✏️</button>
+            <button type="button" class="pn-del-btn danger" title="刪除">🗑</button>
+            <button type="button" class="gl-reply-btn pn-share-btn" title="共用至共用資訊">共用</button>`;
+        acts.querySelector('.pn-edit-btn')?.addEventListener('click', () => _startPrivateNoteEdit(note, wrap));
+        acts.querySelector('.pn-share-btn')?.addEventListener('click', () => _openPrivateNoteShareDialog(note));
+        acts.querySelector('.pn-del-btn')?.addEventListener('click', async () => {
+            if (!(await openCatConfirmModal('是否確定要刪除此筆記？'))) return;
+            const idStr = String(note.id);
+            delete _privateNoteEditQuills[idStr];
+            wrap.remove();
+            try {
+                await DBService.deletePrivateNote(parseId(note.id));
+            } catch (err) {
+                console.error(err);
+                alert(err && err.message ? String(err.message) : '刪除失敗');
+                await _loadPrivateNotes();
+            }
+        });
+    }
+
     function _buildPrivateNoteItem(note, listIndex, listKey) {
         const lk = listKey || 'editor';
         const wrap = document.createElement('div');
@@ -13806,9 +13841,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         wrap.querySelector('.pn-share-btn')?.addEventListener('click', () => _openPrivateNoteShareDialog(note));
         wrap.querySelector('.pn-del-btn')?.addEventListener('click', async () => {
             if (!(await openCatConfirmModal('是否確定要刪除此筆記？'))) return;
-            delete _privateNoteEditQuills[String(note.id)];
-            await DBService.deletePrivateNote(parseId(note.id));
-            await _loadPrivateNotes();
+            const idStr = String(note.id);
+            delete _privateNoteEditQuills[idStr];
+            wrap.remove();
+            try {
+                await DBService.deletePrivateNote(parseId(note.id));
+            } catch (err) {
+                console.error(err);
+                alert(err && err.message ? String(err.message) : '刪除失敗');
+                await _loadPrivateNotes();
+            }
         });
         return wrap;
     }
@@ -13831,12 +13873,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         wrap.querySelector('.pn-save-btn')?.addEventListener('click', async () => {
             const html = q.root.innerHTML;
             delete _privateNoteEditQuills[idStr];
+            note.content = html;
+            _pnRenderNoteBodyView(wrap, note, lk, html);
+            _pnRewireNoteAside(wrap, note, lk);
             try {
                 await DBService.updatePrivateNote(parseId(note.id), html);
-                await _loadPrivateNotes();
             } catch (err) {
                 console.error(err);
                 alert(err && err.message ? String(err.message) : '儲存失敗');
+                await _loadPrivateNotes();
             }
         });
         wrap.querySelector('.pn-cancel-btn')?.addEventListener('click', async () => {
@@ -13886,18 +13931,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         const cb = wrap.querySelector('.private-todo-cb');
         cb?.addEventListener('change', async () => {
             const checked = !!cb.checked;
+            const prev = !checked;
             wrap.classList.toggle('is-done', checked);
             try {
                 await DBService.updatePrivateNote(parseId(note.id), { todoDone: checked });
+                note.todoDone = checked;
             } catch (err) {
                 console.error(err);
+                cb.checked = prev;
+                wrap.classList.toggle('is-done', prev);
             }
         });
         wrap.querySelector('.pt-edit-btn')?.addEventListener('click', () => _startPrivateTodoEdit(note, wrap));
         wrap.querySelector('.pt-del-btn')?.addEventListener('click', async () => {
             if (!(await openCatConfirmModal('是否確定要刪除此待辦？'))) return;
-            await DBService.deletePrivateNote(parseId(note.id));
-            await _loadPrivateNotes();
+            wrap.remove();
+            try {
+                await DBService.deletePrivateNote(parseId(note.id));
+            } catch (err) {
+                console.error(err);
+                alert(err && err.message ? String(err.message) : '刪除失敗');
+                await _loadPrivateNotes();
+            }
         });
         return wrap;
     }
@@ -13924,12 +13979,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         wrap.querySelector('.pt-save-btn')?.addEventListener('click', async () => {
             const t = ta.value.trim();
+            note.content = t;
+            const bodyEl = wrap.querySelector(`#pt-body-${lk}-${note.id}`);
+            if (bodyEl) {
+                bodyEl.innerHTML = t
+                    ? `<span class="private-todo-text">${escapeHtml(t)}</span>`
+                    : '<span class="guideline-item-empty">（無內容）</span>';
+            }
+            const acts = wrap.querySelector(`.pt-aside-${lk}-${note.id}`) || wrap.querySelector('.note-item-actions');
+            if (acts) {
+                acts.innerHTML = `
+                    <button type="button" class="pt-edit-btn" title="編輯">✏️</button>
+                    <button type="button" class="pt-del-btn danger" title="刪除">🗑</button>`;
+                acts.querySelector('.pt-edit-btn')?.addEventListener('click', () => _startPrivateTodoEdit(note, wrap));
+                acts.querySelector('.pt-del-btn')?.addEventListener('click', async () => {
+                    if (!(await openCatConfirmModal('是否確定要刪除此待辦？'))) return;
+                    wrap.remove();
+                    try {
+                        await DBService.deletePrivateNote(parseId(note.id));
+                    } catch (err) {
+                        console.error(err);
+                        alert(err && err.message ? String(err.message) : '刪除失敗');
+                        await _loadPrivateNotes();
+                    }
+                });
+            }
             try {
                 await DBService.updatePrivateNote(parseId(note.id), { content: t });
-                await _loadPrivateNotes();
             } catch (err) {
                 console.error(err);
                 alert(err && err.message ? String(err.message) : '儲存失敗');
+                await _loadPrivateNotes();
             }
         });
         wrap.querySelector('.pt-cancel-btn')?.addEventListener('click', async () => {
@@ -14509,6 +14589,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     function _hideAiToast() {
         const toast = document.getElementById('aiProgressToast');
         if (toast) toast.style.display = 'none';
+    }
+
+    /** 簡短成功／提示訊息（綠底，數秒後關閉） */
+    function _showCatBriefToast(msg) {
+        const toast = document.getElementById('aiProgressToast');
+        const msgEl = document.getElementById('aiProgressMsg');
+        if (!toast || !msgEl || !msg) return;
+        msgEl.textContent = msg;
+        toast.style.background = '#15803d';
+        toast.style.display = 'flex';
+        setTimeout(() => { _hideAiToast(); }, 3200);
     }
 
     // ---- AI 設定 View ----
@@ -15941,12 +16032,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         let projectGuidelines = Array.isArray(psettings?.projectGuidelines) ? [...psettings.projectGuidelines] : [];
 
         function savePSettings() {
-            DBService.saveAiProjectSettings(projectId, {
+            return DBService.saveAiProjectSettings(projectId, {
                 selectedGuidelineIds: [...selectedGuidelineIds],
                 selectedStyleGuidelineIds: [...selectedStyleIds],
                 specialInstructions,
                 projectGuidelines
-            }).catch(console.error);
+            });
         }
 
         /** 專案準則 `category` 與庫內準則條目相同：JSON 陣列字串或單一字串。 */
@@ -16129,7 +16220,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     enabled: true,
                     createdAt: new Date().toISOString()
                 });
-                savePSettings();
+                void savePSettings().catch((e) => console.error(e));
                 ta.value = '';
                 manageAddCategories = ['通用'];
                 updateManageAddDropdown();
@@ -16333,7 +16424,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         createdAt: new Date().toISOString()
                     });
                 }
-                savePSettings();
+                void savePSettings().catch((e) => console.error(e));
                 void renderProjectGuidelines();
                 refreshPgManageModalIfOpen();
                 closeModal();
@@ -16388,7 +16479,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 btn.onclick = () => {
                     selectedGuidelineIds.delete(parseInt(btn.getAttribute('data-unselect'), 10));
                     renderSelectedGuidelines();
-                    savePSettings();
+                    void savePSettings().catch((e) => console.error(e));
                 };
             });
         }
@@ -16433,7 +16524,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 btn.onclick = () => {
                     selectedStyleIds.delete(parseInt(btn.getAttribute('data-unselect-style'), 10));
                     renderSelectedStyleGuidelines();
-                    savePSettings();
+                    void savePSettings().catch((e) => console.error(e));
                 };
             });
         }
@@ -16543,84 +16634,118 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>`;
             }).join('');
 
-            specialList.querySelectorAll('.ai-si-checkbox').forEach((cb) => {
-                cb.onchange = () => {
-                    const sid = cb.getAttribute('data-si-id');
-                    const i = specialInstructions.findIndex((t) => String(t.id) === String(sid));
-                    if (i < 0) return;
-                    specialInstructions[i].enabled = cb.checked;
-                    savePSettings();
-                    void renderSpecialInstructions();
-                };
-            });
-            specialList.querySelectorAll('.si-applies-file').forEach((cb) => {
-                cb.addEventListener('change', async () => {
-                    const fid = cb.getAttribute('data-fid');
-                    const siid = cb.getAttribute('data-si-id');
-                    await _setFileHasInstructionId(fid, siid, cb.checked);
+            function bindSiListHandlers() {
+                specialList.querySelectorAll('.ai-si-checkbox').forEach((cb) => {
+                    cb.onchange = () => {
+                        const sid = cb.getAttribute('data-si-id');
+                        const i = specialInstructions.findIndex((t) => String(t.id) === String(sid));
+                        if (i < 0) return;
+                        const prevEnabled = specialInstructions[i].enabled;
+                        specialInstructions[i].enabled = cb.checked;
+                        savePSettings().catch((e) => {
+                            console.error(e);
+                            specialInstructions[i].enabled = prevEnabled;
+                            cb.checked = prevEnabled !== false;
+                        });
+                    };
                 });
-            });
-            specialList.querySelectorAll('.si-applies-local').forEach((cb) => {
-                cb.addEventListener('change', async () => {
-                    if (!currentFileId) return;
-                    const siid = cb.getAttribute('data-si-id');
-                    await _setFileHasInstructionId(currentFileId, siid, cb.checked);
-                    void renderSpecialInstructions();
+                specialList.querySelectorAll('.si-applies-file').forEach((cb) => {
+                    cb.onchange = () => {
+                        const fid = cb.getAttribute('data-fid');
+                        const siid = cb.getAttribute('data-si-id');
+                        const before = !cb.checked;
+                        void _setFileHasInstructionId(fid, siid, cb.checked).catch((e) => {
+                            console.error(e);
+                            cb.checked = before;
+                        });
+                    };
                 });
-            });
-            specialList.querySelectorAll('.si-edit-btn').forEach((btn) => {
-                btn.onclick = () => {
-                    const sid = btn.getAttribute('data-si-id');
-                    const item = specialList.querySelector(`[data-si-id="${sid}"]`);
-                    if (!item) return;
-                    const i = specialInstructions.findIndex((t) => String(t.id) === String(sid));
-                    if (i < 0) return;
-                    const idBody = String(specialInstructions[i].id).replace(/["\\]/g, '');
-                    const bodyEl = item.querySelector('#si-body-' + idBody);
-                    const actsEl = item.querySelector('.si-acts');
-                    if (bodyEl) {
-                        bodyEl.innerHTML = '';
-                        const ta = document.createElement('textarea');
-                        ta.className = 'private-todo-edit-textarea';
-                        ta.value = specialInstructions[i].content;
-                        ta.placeholder = '特殊指示內容…';
-                        ta.rows = 3;
-                        bodyEl.appendChild(ta);
-                        ta.focus();
-                        ta.setSelectionRange(ta.value.length, ta.value.length);
-                        if (actsEl) {
-                            actsEl.innerHTML = `
+                specialList.querySelectorAll('.si-applies-local').forEach((cb) => {
+                    cb.onchange = () => {
+                        if (!currentFileId) return;
+                        const siid = cb.getAttribute('data-si-id');
+                        const before = !cb.checked;
+                        void _setFileHasInstructionId(currentFileId, siid, cb.checked)
+                            .then(() => { void renderSpecialInstructions(); })
+                            .catch((e) => {
+                                console.error(e);
+                                cb.checked = before;
+                            });
+                    };
+                });
+                specialList.querySelectorAll('.si-edit-btn').forEach((btn) => {
+                    btn.onclick = () => {
+                        const sid = btn.getAttribute('data-si-id');
+                        const item = specialList.querySelector(`[data-si-id="${sid}"]`);
+                        if (!item) return;
+                        const i = specialInstructions.findIndex((t) => String(t.id) === String(sid));
+                        if (i < 0) return;
+                        const idBody = String(specialInstructions[i].id).replace(/["\\]/g, '');
+                        const bodyEl = item.querySelector('#si-body-' + idBody);
+                        const actsEl = item.querySelector('.si-acts');
+                        if (bodyEl) {
+                            bodyEl.innerHTML = '';
+                            const ta = document.createElement('textarea');
+                            ta.className = 'private-todo-edit-textarea';
+                            ta.value = specialInstructions[i].content;
+                            ta.placeholder = '特殊指示內容…';
+                            ta.rows = 3;
+                            bodyEl.appendChild(ta);
+                            ta.focus();
+                            ta.setSelectionRange(ta.value.length, ta.value.length);
+                            if (actsEl) {
+                                actsEl.innerHTML = `
                                 <button type="button" class="primary-btn btn-sm si-save-btn">儲存</button>
                                 <button type="button" class="secondary-btn btn-sm si-cancel-btn">取消</button>`;
-                            actsEl.querySelector('.si-save-btn').onclick = () => {
-                                specialInstructions[i].content = ta.value.trim();
-                                savePSettings();
-                                void renderSpecialInstructions();
-                            };
-                            actsEl.querySelector('.si-cancel-btn').onclick = () => { void renderSpecialInstructions(); };
+                                actsEl.querySelector('.si-save-btn').onclick = () => {
+                                    const newContent = ta.value.trim();
+                                    specialInstructions[i].content = newContent;
+                                    bodyEl.innerHTML = newContent
+                                        ? `<span class="private-todo-text">${_esc(newContent)}</span>`
+                                        : '<span class="guideline-item-empty">（無內容）</span>';
+                                    actsEl.innerHTML = `
+                        <button type="button" class="pt-edit-btn si-edit-btn" data-si-id="${_esc(sid)}" title="編輯">✏️</button>
+                        <button type="button" class="pt-del-btn danger si-del-btn" data-si-id="${_esc(sid)}" title="刪除">🗑</button>`;
+                                    bindSiListHandlers();
+                                    savePSettings().catch(async (e) => {
+                                        console.error(e);
+                                        alert(e && e.message ? String(e.message) : '儲存失敗');
+                                        await renderSpecialInstructions();
+                                    });
+                                };
+                                actsEl.querySelector('.si-cancel-btn').onclick = () => { void renderSpecialInstructions(); };
+                            }
                         }
-                    }
-                };
-            });
-            specialList.querySelectorAll('.si-del-btn').forEach((btn) => {
-                btn.onclick = async () => {
-                    const sid = btn.getAttribute('data-si-id');
-                    const i = specialInstructions.findIndex((t) => String(t.id) === String(sid));
-                    if (i < 0) return;
-                    const removed = specialInstructions[i];
-                    specialInstructions.splice(i, 1);
-                    try {
-                        await _pruneInstructionIdFromAllProjectFiles(projectId, removed.id);
-                        await DBService.saveAiProjectSettings(projectId, {
-                            selectedGuidelineIds: [...selectedGuidelineIds],
-                            selectedStyleGuidelineIds: [...selectedStyleIds],
-                            specialInstructions,
-                            projectGuidelines
-                        });
-                    } catch (e) { console.error(e); }
-                    await renderSpecialInstructions();
-                };
-            });
+                    };
+                });
+                specialList.querySelectorAll('.si-del-btn').forEach((btn) => {
+                    btn.onclick = async () => {
+                        const sid = btn.getAttribute('data-si-id');
+                        const i = specialInstructions.findIndex((t) => String(t.id) === String(sid));
+                        if (i < 0) return;
+                        const insertIdx = i;
+                        const removed = specialInstructions[i];
+                        const item = specialList.querySelector(`[data-si-id="${sid}"]`);
+                        specialInstructions.splice(i, 1);
+                        if (item) item.remove();
+                        try {
+                            await _pruneInstructionIdFromAllProjectFiles(projectId, removed.id);
+                            await DBService.saveAiProjectSettings(projectId, {
+                                selectedGuidelineIds: [...selectedGuidelineIds],
+                                selectedStyleGuidelineIds: [...selectedStyleIds],
+                                specialInstructions,
+                                projectGuidelines
+                            });
+                        } catch (e) {
+                            console.error(e);
+                            specialInstructions.splice(insertIdx, 0, removed);
+                            await renderSpecialInstructions();
+                        }
+                    };
+                });
+            }
+
+            bindSiListHandlers();
             if (newItemEditor) specialList.appendChild(newItemEditor);
         }
 
@@ -16685,7 +16810,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const defIds = allTranslation.filter(g => g.isDefault).map(g => g.id);
                 selectedGuidelineIds = new Set(defIds);
                 renderSelectedGuidelines();
-                savePSettings();
+                void savePSettings().catch((e) => console.error(e));
             };
         }
         if (btnDefS) {
@@ -16694,7 +16819,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const defIds = allStyle.filter(g => g.isDefault).map(g => g.id);
                 selectedStyleIds = new Set(defIds);
                 renderSelectedStyleGuidelines();
-                savePSettings();
+                void savePSettings().catch((e) => console.error(e));
             };
         }
 
@@ -16705,7 +16830,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (chosen !== null) {
                     selectedGuidelineIds = new Set(chosen);
                     renderSelectedGuidelines();
-                    savePSettings();
+                    void savePSettings().catch((e) => console.error(e));
                 }
             };
         }
@@ -16716,7 +16841,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (chosen !== null) {
                     selectedStyleIds = new Set(chosen);
                     renderSelectedStyleGuidelines();
-                    savePSettings();
+                    void savePSettings().catch((e) => console.error(e));
                 }
             };
         }
@@ -16750,12 +16875,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ta?.focus();
                 newItem.querySelector('.si-new-save').onclick = () => {
                     const val = ta.value.trim();
-                    if (val) {
-                        specialInstructions.push({ id: Date.now(), content: val, enabled: true, createdAt: new Date().toISOString() });
-                        savePSettings();
-                        newItem.remove();
-                    }
-                    renderSpecialInstructions();
+                    if (!val) return;
+                    const newRow = { id: Date.now(), content: val, enabled: true, createdAt: new Date().toISOString() };
+                    specialInstructions.push(newRow);
+                    newItem.remove();
+                    void renderSpecialInstructions();
+                    savePSettings().catch(async (e) => {
+                        console.error(e);
+                        const ix = specialInstructions.findIndex((s) => s.id === newRow.id);
+                        if (ix >= 0) specialInstructions.splice(ix, 1);
+                        await renderSpecialInstructions();
+                        alert(e && e.message ? String(e.message) : '儲存失敗');
+                    });
                 };
                 newItem.querySelector('.si-new-cancel').onclick = () => {
                     newItem.remove();

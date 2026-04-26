@@ -1567,6 +1567,20 @@ mark.search-match {
 }
 .shared-info-section-title { font-size: 0.82rem; font-weight: 600; color: #475569; margin: 0; }
 
+/* 共用資訊：翻譯準則／文風與「管理準則」等主按鈕同列時，字級與內距一致（較精簡） */
+.shared-info-section-header .notes-add-btn {
+    font-size: 0.72rem;
+    padding: 0.14rem 0.48rem;
+    line-height: 1.25;
+    border-radius: 4px;
+}
+.shared-info-ai-picker-actions {
+    display: inline-flex;
+    gap: 0.35rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
 .shared-info-section-header--pg .shared-info-section-title-row {
     display: flex;
     align-items: baseline;
@@ -2250,11 +2264,18 @@ mark.tm-search-hit {
 }
 .ai-tag-chip-del:hover { color: #1d4ed8; }
 
-/* ---- CAT 自製下拉範本：觸發列 + 浮層（類別／標籤多選、互斥群組單選等共用）---- */
+/* ---- CAT 自製下拉範本（全系統單／複選）：觸發列 + 浮層 — 焦點／展開為「紅框」語意（非表單錯誤）---- */
+.ai-multiselect-trigger > span:first-child {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+}
 .ai-multiselect-trigger {
     display: inline-flex;
     align-items: center;
-    padding: 0.35rem 0.6rem;
+    justify-content: space-between;
+    gap: 0.35rem;
+    padding: 0.35rem 0.55rem;
     border: 1px solid #94a3b8;
     border-radius: 6px;
     background: #fff;
@@ -2267,19 +2288,19 @@ mark.tm-search-hit {
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .ai-multiselect-trigger:hover {
-    border-color: #3b82f6;
+    border-color: #dc2626;
 }
 .ai-multiselect-trigger:focus {
     outline: none;
 }
 .ai-multiselect-trigger:focus-visible {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22);
+    border-color: #b91c1c;
+    box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.22);
 }
 .ai-multiselect-trigger--open,
 .ai-multiselect-trigger.ai-multiselect-trigger--open {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.28);
+    border-color: #b91c1c;
+    box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.28);
 }
 
 /* multi-select dropdown panel */
@@ -2290,9 +2311,9 @@ mark.tm-search-hit {
     z-index: 9999;
     min-width: 160px;
     background: #fff;
-    border: 1px solid #94a3b8;
+    border: 1px solid #b91c1c;
     border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.12);
+    box-shadow: 0 4px 20px rgba(127, 29, 29, 0.12);
     padding: 0.35rem 0;
     max-height: 240px;
     overflow-y: auto;
@@ -2307,18 +2328,18 @@ mark.tm-search-hit {
     cursor: pointer;
 }
 .ai-multiselect-option:hover {
-    background: #eff6ff;
+    background: #fef2f2;
 }
 .ai-multiselect-option input[type=checkbox],
 .ai-multiselect-option input[type=radio] { cursor: pointer; }
 
-/* 互斥群組單選：目前選中列（與原生選單選中態對齊） */
+/* 互斥群組單選：目前選中列 */
 .ai-multiselect-option.cat-mutex-dd-opt:has(input[type=radio]:checked) {
-    background: #2563eb;
+    background: #b91c1c;
     color: #fff;
 }
 .ai-multiselect-option.cat-mutex-dd-opt:has(input[type=radio]:checked):hover {
-    background: #1d4ed8;
+    background: #991b1b;
     color: #fff;
 }
 .ai-multiselect-option.cat-mutex-dd-opt:has(input[type=radio]:checked) input[type=radio] {
@@ -2332,14 +2353,14 @@ button.ai-multiselect-add-new-row {
     padding: 0.45rem 0.75rem;
     border: none;
     border-top: 1px solid #e2e8f0;
-    background: #f8fafc;
+    background: #fef2f2;
     font-size: 0.82rem;
-    color: #2563eb;
+    color: #b91c1c;
     text-align: left;
     cursor: pointer;
 }
 button.ai-multiselect-add-new-row:hover {
-    background: #eff6ff;
+    background: #fee2e2;
 }
 
 /* 互斥群組：自訂下拉仍保留原生 select 供程式讀寫，僅視覺隱藏 */
