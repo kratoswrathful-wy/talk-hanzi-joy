@@ -15227,9 +15227,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         function updateMutexSelectOptions() {
             if (!mutexGroupSelect) return;
-            const ADD = typeof window.CAT_SELECT_ADD_NEW_VALUE === 'string' ? window.CAT_SELECT_ADD_NEW_VALUE : '';
+            if (typeof window.catSelectRemoveAddNewOption === 'function') {
+                window.catSelectRemoveAddNewOption(mutexGroupSelect);
+            }
             let current = mutexGroupSelect.value;
-            if (current === ADD) current = '';
             const mutexGroups = [...new Set(allGuidelines.map(g => g.mutexGroup).filter(Boolean))].sort();
             mutexGroupSelect.innerHTML = '<option value="">無互斥群組</option>' +
                 mutexGroups.map(m => `<option value="${_esc(m)}">${_esc(m)}</option>`).join('');
@@ -15238,12 +15239,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             const has = Array.from(mutexGroupSelect.options).some(o => o.value === current);
             mutexGroupSelect.value = has ? current : '';
-            if (typeof window.catSelectAppendAddNewOption === 'function') {
-                window.catSelectAppendAddNewOption(mutexGroupSelect, '+ 新增群組');
-            }
-            if (ADD && mutexGroupSelect.value === ADD) {
-                mutexGroupSelect.value = has ? current : '';
-            }
             mutexGroupSelect.dataset.catSelectAddNewPrev = mutexGroupSelect.value || '';
         }
 
@@ -15386,8 +15381,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         function fillAgEditMutexSelect(selectEl, currentGroup, pool) {
             if (!selectEl) return;
+            if (typeof window.catSelectRemoveAddNewOption === 'function') {
+                window.catSelectRemoveAddNewOption(selectEl);
+            }
             const src = Array.isArray(pool) ? pool : allGuidelines;
-            const ADD = typeof window.CAT_SELECT_ADD_NEW_VALUE === 'string' ? window.CAT_SELECT_ADD_NEW_VALUE : '';
             const groups = [...new Set(src.map(g => g && g.mutexGroup).filter(Boolean))].sort((a, b) =>
                 a.localeCompare(b, 'zh-Hant-TW', { sensitivity: 'base' }));
             selectEl.innerHTML = '<option value="">無互斥群組</option>' +
@@ -15396,46 +15393,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 selectEl.insertAdjacentHTML('beforeend', `<option value="${_esc(currentGroup)}">${_esc(currentGroup)}</option>`);
             }
             selectEl.value = currentGroup || '';
-            if (typeof window.catSelectAppendAddNewOption === 'function') {
-                window.catSelectAppendAddNewOption(selectEl, '+ 新增群組');
-            }
-            if (ADD && selectEl.value === ADD) {
-                selectEl.value = currentGroup || '';
-            }
             selectEl.dataset.catSelectAddNewPrev = selectEl.value || '';
-        }
-
-        if (typeof window.catSelectInitAddNew === 'function') {
-            if (mutexGroupSelect && mutexGroupSelect.dataset.catMutexNewFormAddNewWired !== '1') {
-                mutexGroupSelect.dataset.catMutexNewFormAddNewWired = '1';
-                window.catSelectInitAddNew(mutexGroupSelect, {
-                    label: '+ 新增群組',
-                    onPickAddNew: async () => {
-                        const raw = await openCatPromptModal({ title: '新增互斥群組', label: '新群組名稱', defaultValue: '' });
-                        const name = raw != null ? String(raw).trim() : '';
-                        const addv = window.CAT_SELECT_ADD_NEW_VALUE;
-                        if (!name || name === addv) return;
-                        mutexGroupSelect.value = name;
-                        updateMutexSelectOptions();
-                    }
-                });
-            }
-            const agEditMutexSel = document.getElementById('agEditGuidelineMutexSelect');
-            if (agEditMutexSel && agEditMutexSel.dataset.catMutexEditModalAddNewWired !== '1') {
-                agEditMutexSel.dataset.catMutexEditModalAddNewWired = '1';
-                window.catSelectInitAddNew(agEditMutexSel, {
-                    label: '+ 新增群組',
-                    onPickAddNew: async () => {
-                        const raw = await openCatPromptModal({ title: '新增互斥群組', label: '新群組名稱', defaultValue: '' });
-                        const name = raw != null ? String(raw).trim() : '';
-                        const addv = window.CAT_SELECT_ADD_NEW_VALUE;
-                        if (!name || name === addv) return;
-                        fillAgEditMutexSelect(agEditMutexSel, name);
-                        const mutexCustomEl = document.getElementById('agEditGuidelineMutexCustom');
-                        if (mutexCustomEl) mutexCustomEl.value = '';
-                    }
-                });
-            }
         }
 
         /** 頁內 modal：編輯準則條目（內容、標籤、性質、互斥群組、預設條目）。互斥群組於列表僅能靠加入／脫離調整，故預設 lockMutex。 */
@@ -15692,6 +15650,37 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         renderList();
         updateMutexSelectOptions();
+
+        if (typeof window.catMutexDropdownBind === 'function') {
+            if (mutexGroupSelect && mutexGroupSelect.dataset.catMutexDdUiInit !== '1') {
+                mutexGroupSelect.dataset.catMutexDdUiInit = '1';
+                window.catMutexDropdownBind(mutexGroupSelect, {
+                    onPickAddNew: async () => {
+                        const raw = await openCatPromptModal({ title: '新增互斥群組', label: '新群組名稱', defaultValue: '' });
+                        const name = raw != null ? String(raw).trim() : '';
+                        const addv = window.CAT_SELECT_ADD_NEW_VALUE;
+                        if (!name || name === addv) return;
+                        mutexGroupSelect.value = name;
+                        updateMutexSelectOptions();
+                    }
+                });
+            }
+            const agEditMutexSelBind = document.getElementById('agEditGuidelineMutexSelect');
+            if (agEditMutexSelBind && agEditMutexSelBind.dataset.catMutexDdUiInit !== '1') {
+                agEditMutexSelBind.dataset.catMutexDdUiInit = '1';
+                window.catMutexDropdownBind(agEditMutexSelBind, {
+                    onPickAddNew: async () => {
+                        const raw = await openCatPromptModal({ title: '新增互斥群組', label: '新群組名稱', defaultValue: '' });
+                        const name = raw != null ? String(raw).trim() : '';
+                        const addv = window.CAT_SELECT_ADD_NEW_VALUE;
+                        if (!name || name === addv) return;
+                        fillAgEditMutexSelect(agEditMutexSelBind, name);
+                        const mutexCustomEl = document.getElementById('agEditGuidelineMutexCustom');
+                        if (mutexCustomEl) mutexCustomEl.value = '';
+                    }
+                });
+            }
+        }
 
         const addBtn = document.getElementById('btnAddAiGuideline');
         if (addBtn) {
@@ -16347,11 +16336,37 @@ document.addEventListener('DOMContentLoaded', async () => {
             const selected = allTranslation.filter(g => selectedGuidelineIds.has(g.id));
             if (selected.length === 0) { selectedList.innerHTML = '<p style="font-size:0.78rem; color:#94a3b8; margin:0;">尚未選擇任何翻譯準則。</p>'; return; }
             selectedList.innerHTML = selected.map(g => `
-                <div class="ai-selected-guideline-item">
-                    <span class="ai-selected-guideline-item-content">${_esc(g.content)}</span>
-                    ${isCatSharedMutator() ? `<button class="ai-note-item-del" data-unselect="${g.id}" title="取消選擇">✕</button>` : ''}
+                <div class="ai-selected-guideline-item ai-pg-shared-card">
+                    <div style="flex:1; min-width:0;">
+                        <span class="ai-selected-guideline-item-content">${_esc(g.content)}</span>
+                    </div>
+                    ${isCatSharedMutator() ? `<div class="ai-pg-shared-actions">
+                        <button type="button" class="secondary-btn btn-sm ag-sel-gl-edit" data-edit-gid="${g.id}">編輯</button>
+                        <button type="button" class="ai-note-item-del" data-unselect="${g.id}" title="取消選擇">✕</button>
+                    </div>` : ''}
                 </div>
             `).join('');
+            selectedList.querySelectorAll('.ag-sel-gl-edit').forEach((btn) => {
+                btn.onclick = async () => {
+                    const id = parseInt(btn.getAttribute('data-edit-gid'), 10);
+                    const row = allTranslation.find((x) => x.id === id);
+                    if (!row) return;
+                    if (!window.CatToolOpenAgEditGuideline) {
+                        await loadAiGuidelinesView().catch(() => {});
+                    }
+                    if (!window.CatToolOpenAgEditGuideline) {
+                        alert('無法編輯：請先確認您有準則管理權限。');
+                        return;
+                    }
+                    void window.CatToolOpenAgEditGuideline(row, {
+                        lockMutex: true,
+                        lockScope: true,
+                        fixedScope: 'translation',
+                        guidelinePool: allTranslation,
+                        afterSave: () => { renderSelectedGuidelines(); }
+                    });
+                };
+            });
             selectedList.querySelectorAll('[data-unselect]').forEach(btn => {
                 btn.onclick = () => {
                     selectedGuidelineIds.delete(parseInt(btn.getAttribute('data-unselect'), 10));
@@ -16366,11 +16381,37 @@ document.addEventListener('DOMContentLoaded', async () => {
             const selected = allStyle.filter(g => selectedStyleIds.has(g.id));
             if (selected.length === 0) { selectedStyleList.innerHTML = '<p style="font-size:0.78rem; color:#94a3b8; margin:0;">尚未選擇文風條目。</p>'; return; }
             selectedStyleList.innerHTML = selected.map(g => `
-                <div class="ai-selected-guideline-item">
-                    <span class="ai-selected-guideline-item-content">${_esc(g.content)}</span>
-                    ${isCatSharedMutator() ? `<button class="ai-note-item-del" data-unselect-style="${g.id}" title="取消選擇">✕</button>` : ''}
+                <div class="ai-selected-guideline-item ai-pg-shared-card">
+                    <div style="flex:1; min-width:0;">
+                        <span class="ai-selected-guideline-item-content">${_esc(g.content)}</span>
+                    </div>
+                    ${isCatSharedMutator() ? `<div class="ai-pg-shared-actions">
+                        <button type="button" class="secondary-btn btn-sm ag-sel-gl-edit-style" data-edit-gid-style="${g.id}">編輯</button>
+                        <button type="button" class="ai-note-item-del" data-unselect-style="${g.id}" title="取消選擇">✕</button>
+                    </div>` : ''}
                 </div>
             `).join('');
+            selectedStyleList.querySelectorAll('.ag-sel-gl-edit-style').forEach((btn) => {
+                btn.onclick = async () => {
+                    const id = parseInt(btn.getAttribute('data-edit-gid-style'), 10);
+                    const row = allStyle.find((x) => x.id === id);
+                    if (!row) return;
+                    if (!window.CatToolOpenAgEditGuideline) {
+                        await loadAiGuidelinesView().catch(() => {});
+                    }
+                    if (!window.CatToolOpenAgEditGuideline) {
+                        alert('無法編輯：請先確認您有準則管理權限。');
+                        return;
+                    }
+                    void window.CatToolOpenAgEditGuideline(row, {
+                        lockMutex: true,
+                        lockScope: true,
+                        fixedScope: 'style',
+                        guidelinePool: allStyle,
+                        afterSave: () => { renderSelectedStyleGuidelines(); }
+                    });
+                };
+            });
             selectedStyleList.querySelectorAll('[data-unselect-style]').forEach(btn => {
                 btn.onclick = () => {
                     selectedStyleIds.delete(parseInt(btn.getAttribute('data-unselect-style'), 10));
@@ -16783,9 +16824,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             function _pickerRefillMutexSelect() {
                 const mSel = document.getElementById('aiPickerMgmtMutexSelect');
                 if (!mSel) return;
-                const ADD = typeof window.CAT_SELECT_ADD_NEW_VALUE === 'string' ? window.CAT_SELECT_ADD_NEW_VALUE : '';
+                if (typeof window.catSelectRemoveAddNewOption === 'function') {
+                    window.catSelectRemoveAddNewOption(mSel);
+                }
                 let current = mSel.value;
-                if (current === ADD) current = '';
                 const mutexNames = [...new Set(allGuidelines.map((g) => g && g.mutexGroup).filter(Boolean))].sort((a, b) =>
                     a.localeCompare(b, 'zh-Hant-TW', { sensitivity: 'base' }));
                 mSel.innerHTML = '<option value="">無互斥群組</option>' +
@@ -16795,10 +16837,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 const has = Array.from(mSel.options).some((o) => o.value === current);
                 mSel.value = has ? current : '';
-                if (typeof window.catSelectAppendAddNewOption === 'function') {
-                    window.catSelectAppendAddNewOption(mSel, '+ 新增群組');
-                }
-                if (ADD && mSel.value === ADD) mSel.value = has ? current : '';
                 mSel.dataset.catSelectAddNewPrev = mSel.value || '';
             }
 
@@ -17059,10 +17097,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 updatePickerFilterBar();
                 _pickerRefillMutexSelect();
                 const mSel = document.getElementById('aiPickerMgmtMutexSelect');
-                if (mSel && typeof window.catSelectInitAddNew === 'function' && mSel.dataset.catPickerMutexAddNewWired !== '1') {
-                    mSel.dataset.catPickerMutexAddNewWired = '1';
-                    window.catSelectInitAddNew(mSel, {
-                        label: '+ 新增群組',
+                if (mSel && typeof window.catMutexDropdownBind === 'function' && mSel.dataset.catPickerMutexDdUiInit !== '1') {
+                    mSel.dataset.catPickerMutexDdUiInit = '1';
+                    window.catMutexDropdownBind(mSel, {
                         onPickAddNew: async () => {
                             const raw = await openCatPromptModal({ title: '新增互斥群組', label: '新群組名稱', defaultValue: '' });
                             const name = raw != null ? String(raw).trim() : '';
