@@ -2256,7 +2256,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             if(targetView === 'viewTM') await loadTMList();
             if(targetView === 'viewTB') await loadTBList();
             if(targetView === 'viewAiSettings') await loadAiSettingsView();
-            if(targetView === 'viewAiGuidelines') await loadAiGuidelinesView();
+            if (targetView === 'viewAiGuidelines') {
+                await loadAiGuidelinesView().catch((e) => {
+                    console.error('[CAT] loadAiGuidelinesView', e);
+                    alert('準則管理載入失敗：' + (e && e.message ? e.message : String(e)));
+                });
+            }
             if(targetView === 'viewAiExamples') await loadAiExamplesView();
         });
     });
@@ -15043,7 +15048,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
         }
         const goPicker = document.getElementById('btnGoToGuidelinesFromPicker');
-        if (goPicker) goPicker.onclick = (e) => { e.preventDefault(); switchView('viewAiGuidelines'); loadAiGuidelinesView(); };
+        if (goPicker) {
+            goPicker.onclick = (e) => {
+                e.preventDefault();
+                switchView('viewAiGuidelines');
+                void loadAiGuidelinesView().catch((err) => {
+                    console.error('[CAT] loadAiGuidelinesView', err);
+                    alert('準則管理載入失敗：' + (err && err.message ? err.message : String(err)));
+                });
+            };
+        }
     }
 
     // ---- 準則選擇器 Modal ----
