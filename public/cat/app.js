@@ -14278,7 +14278,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (item.type === 'single') {
                     const g = item.g;
                     const catBadges = _normalizeCategory(g.category).map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
-                    const defLabel = g.isDefault ? ' <span class="ai-badge" style="background:#e0e7ff;">預設</span>' : '';
+                    const defLabel = g.isDefault ? ' <span class="ai-badge" style="background:#e0e7ff;">預設條目</span>' : '';
                     return `
                         <div class="ai-guideline-item" data-id="${g.id}">
                             <div style="flex:1;">
@@ -14287,7 +14287,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             </div>
                             <div class="ai-guideline-item-actions" style="display:flex; flex-direction:column; gap:0.25rem; align-items:flex-end;">
                                 <label style="font-size:0.72rem; display:flex; align-items:center; gap:0.2rem; cursor:pointer;">
-                                    <input type="checkbox" class="ag-toggle-default" data-gid="${g.id}" ${g.isDefault ? 'checked' : ''}/> 預設
+                                    <input type="checkbox" class="ag-toggle-default" data-gid="${g.id}" ${g.isDefault ? 'checked' : ''}/> 預設條目
                                 </label>
                                 <button type="button" class="secondary-btn btn-sm ag-edit-guideline" data-edit-gid="${g.id}" style="font-size:0.72rem;">編輯</button>
                                 <button type="button" class="secondary-btn btn-sm ag-join-mutex" data-join-gid="${g.id}" style="font-size:0.72rem;">加入群組</button>
@@ -14336,31 +14336,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         function wireColumn(listEl) {
             if (!listEl) return;
             listEl.querySelectorAll('[data-edit-gid]').forEach(btn => {
-                btn.onclick = async () => {
+                btn.onclick = () => {
                     const id = parseInt(btn.getAttribute('data-edit-gid'), 10);
                     const row = allGuidelines.find(g => g.id === id);
                     if (!row) return;
-                    const oldContent = String(row.content || '');
-                    const oldCats = _normalizeCategory(row.category);
-                    const content = window.prompt('請編輯準則內容：', oldContent);
-                    if (content == null) return;
-                    const catInput = window.prompt('請編輯套用標籤（逗號分隔）：', oldCats.join(', '));
-                    if (catInput == null) return;
-                    const nextCats = catInput.split(',').map(s => s.trim()).filter(Boolean);
-                    const normalizedCats = nextCats.length > 0 ? [...new Set(nextCats)] : ['通用'];
-                    const category = JSON.stringify(normalizedCats);
-                    try {
-                        await DBService.updateAiGuideline(id, {
-                            content: content.trim(),
-                            category
-                        });
-                        row.content = content.trim();
-                        row.category = category;
-                        updateFilterBarOptions();
-                        renderList();
-                    } catch (e) {
-                        alert('更新準則失敗：' + (e.message || String(e)));
-                    }
+                    void openAgEditGuidelineModal(row);
                 };
             });
             listEl.querySelectorAll('[data-del]').forEach(btn => {
@@ -14634,6 +14614,136 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (groups.length === 0) newInput.focus();
                 });
             });
+        }
+
+        function fillAgEditMutexSelect(selectEl, currentGroup) {
+            if (!selectEl) return;
+            const groups = [...new Set(allGuidelines.map(g => g && g.mutexGroup).filter(Boolean))].sort((a, b) =>
+                a.localeCompare(b, 'zh-Hant-TW', { sensitivity: 'base' }));
+            selectEl.innerHTML = '<option value="">無互斥群組</option>' +
+                groups.map(m => `<option value="${_esc(m)}">${_esc(m)}</option>`).join('');
+            if (currentGroup && !groups.includes(currentGroup)) {
+                selectEl.insertAdjacentHTML('beforeend', `<option value="${_esc(currentGroup)}">${_esc(currentGroup)}</option>`);
+            }
+            selectEl.value = currentGroup || '';
+        }
+
+        /** 頁內 modal：編輯準則條目（內容、標籤、性質、互斥群組、預設條目）。 */
+        function openAgEditGuidelineModal(row) {
+            const modal = document.getElementById('agEditGuidelineModal');
+            const contentEl = document.getElementById('agEditGuidelineContent');
+            const tagsEl = document.getElementById('agEditGuidelineTags');
+            const scopeEl = document.getElementById('agEditGuidelineScope');
+            const mutexSel = document.getElementById('agEditGuidelineMutexSelect');
+            const mutexCustom = document.getElementById('agEditGuidelineMutexCustom');
+            const isDefEl = document.getElementById('agEditGuidelineIsDefault');
+            const errEl = document.getElementById('agEditGuidelineErr');
+            const btnSave = document.getElementById('btnAgEditGuidelineSave');
+            const btnCancel = document.getElementById('btnAgEditGuidelineCancel');
+            if (!modal || !contentEl || !tagsEl || !scopeEl || !mutexSel || !mutexCustom || !isDefEl || !btnSave || !btnCancel) return;
+
+            const gid = row.id;
+            modal.setAttribute('data-edit-id', String(gid));
+            contentEl.value = String(row.content || '');
+            tagsEl.value = _normalizeCategory(row.category).join(', ');
+            scopeEl.value = (row.scope || 'translation') === 'style' ? 'style' : 'translation';
+            fillAgEditMutexSelect(mutexSel, row.mutexGroup || null);
+            mutexCustom.value = '';
+            isDefEl.checked = !!row.isDefault;
+
+            function showErr(msg) {
+                if (!errEl) return;
+                if (msg) {
+                    errEl.textContent = msg;
+                    errEl.classList.remove('hidden');
+                } else {
+                    errEl.textContent = '';
+                    errEl.classList.add('hidden');
+                }
+            }
+
+            function closeModal() {
+                modal.classList.add('hidden');
+                showErr('');
+                btnSave.removeEventListener('click', onSave);
+                btnCancel.removeEventListener('click', onCancel);
+                modal.removeEventListener('click', onOverlay);
+                document.removeEventListener('keydown', onKey);
+            }
+
+            function onCancel() {
+                closeModal();
+            }
+
+            function onOverlay(e) {
+                if (e.target === modal) onCancel();
+            }
+
+            function onKey(e) {
+                if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+                    e.preventDefault();
+                    onCancel();
+                }
+            }
+
+            async function onSave() {
+                showErr('');
+                const content = contentEl.value.trim();
+                if (!content) {
+                    showErr('內容不得空白。');
+                    contentEl.focus();
+                    return;
+                }
+                const rawTags = tagsEl.value.split(',').map(s => s.trim()).filter(Boolean);
+                const normalizedCats = rawTags.length > 0 ? [...new Set(rawTags)] : ['通用'];
+                const category = JSON.stringify(normalizedCats);
+                const scope = scopeEl.value === 'style' ? 'style' : 'translation';
+                const customM = mutexCustom.value.trim();
+                const selM = mutexSel.value != null ? String(mutexSel.value).trim() : '';
+                const mutexGroup = customM || selM || null;
+                const isDefault = !!isDefEl.checked;
+
+                try {
+                    await DBService.updateAiGuideline(gid, {
+                        content,
+                        category,
+                        mutexGroup,
+                        scope,
+                        isDefault
+                    });
+                    row.content = content;
+                    row.category = category;
+                    row.mutexGroup = mutexGroup;
+                    row.scope = scope;
+                    row.isDefault = isDefault;
+
+                    if (mutexGroup && isDefault) {
+                        const inGroup = allGuidelines.filter(g => g && g.mutexGroup === mutexGroup).sort((a, b) => a.id - b.id);
+                        for (const m of inGroup) {
+                            const should = m.id === gid;
+                            if (!!m.isDefault === should) continue;
+                            await DBService.updateAiGuideline(m.id, { isDefault: should });
+                            const r = allGuidelines.find(x => x.id === m.id);
+                            if (r) r.isDefault = should;
+                        }
+                    }
+
+                    updateFilterBarOptions();
+                    updateMutexSelectOptions();
+                    renderList();
+                    closeModal();
+                } catch (e) {
+                    showErr('儲存失敗：' + (e && e.message ? e.message : String(e)));
+                }
+            }
+
+            btnSave.addEventListener('click', onSave);
+            btnCancel.addEventListener('click', onCancel);
+            modal.addEventListener('click', onOverlay);
+            document.addEventListener('keydown', onKey);
+
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => { contentEl.focus(); });
         }
 
         renderList();
