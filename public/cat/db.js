@@ -1110,6 +1110,15 @@ const DBService = {
             await db.aiGuidelines.update(g.id, { category: _serializeGuidelineCategoryField(next) });
         }
     },
+    async exportLocalAiSnapshot() {
+        const [guidelines, categoryTags, settings, projectSettings] = await Promise.all([
+            db.aiGuidelines.toArray(),
+            db.aiCategoryTags.orderBy('createdAt').toArray(),
+            this.getAiSettings(),
+            db.aiProjectSettings.toArray()
+        ]);
+        return { guidelines, categoryTags, settings, projectSettings };
+    },
 
     // Expose tables directly if needed for custom queries or bulk operations outside this service
     db: db,
@@ -1290,6 +1299,21 @@ const DBService = {
     DBService.patchTB = async (tbId, updates) => rpc('db.patchTB', { tbId, updates });
     DBService.deleteTB = async (id) => rpc('db.deleteTB', { id });
     DBService.deleteTBName = async (id) => rpc('db.deleteTB', { id });
+
+    // AI guidelines / tags / settings / project settings
+    DBService.addAiGuideline = async (entry) => rpc('db.addAiGuideline', { entry });
+    DBService.getAiGuidelines = async () => rpc('db.getAiGuidelines');
+    DBService.updateAiGuideline = async (id, patch) => rpc('db.updateAiGuideline', { id, patch });
+    DBService.deleteAiGuideline = async (id) => rpc('db.deleteAiGuideline', { id });
+    DBService.getAiCategoryTags = async () => rpc('db.getAiCategoryTags');
+    DBService.addAiCategoryTag = async (name) => rpc('db.addAiCategoryTag', { name });
+    DBService.renameAiCategoryTag = async (id, newName) => rpc('db.renameAiCategoryTag', { id, newName });
+    DBService.deleteAiCategoryTag = async (id, opts = {}) => rpc('db.deleteAiCategoryTag', { id, opts });
+    DBService.getAiSettings = async () => rpc('db.getAiSettings');
+    DBService.saveAiSettings = async (settings) => rpc('db.saveAiSettings', { settings });
+    DBService.getAiProjectSettings = async (projectId) => rpc('db.getAiProjectSettings', { projectId });
+    DBService.saveAiProjectSettings = async (projectId, patch) => rpc('db.saveAiProjectSettings', { projectId, patch });
+    DBService.replaceAiDatasetFromSnapshot = async (data) => rpc('db.replaceAiDataset', { data });
 
     // table handles are local-only; prevent accidental direct Dexie usage in team mode.
     DBService.db = null;

@@ -1766,6 +1766,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (event.data.type === 'TMS_IDENTITY') {
             applyTmsIdentityToUI(event.data.payload);
+        } else if (event.data.type === 'TMS_TRIGGER_AI_CLOUD_MIGRATION') {
+            if (!isTeamMode()) return;
+            const force = !!(event.data.payload && event.data.payload.force);
+            void migrateLocalAiToCloudOnce({ force });
         } else if (event.data.type === 'TMS_ASSIGNMENTS') {
             const payload = event.data.payload || {};
             const assignments = payload.assignments || [];
@@ -1805,6 +1809,29 @@ document.addEventListener('DOMContentLoaded', async () => {
             enforceFocusedSegmentLease();
         }
     });
+
+    async function migrateLocalAiToCloudOnce({ force = false } = {}) {
+        if (!isTeamMode()) return;
+        const MIGRATION_KEY = 'catTeamAiCloudMigratedV1';
+        if (!force) {
+            try {
+                if (localStorage.getItem(MIGRATION_KEY) === '1') return;
+            } catch (_) { /* ignore */ }
+        }
+        if (!DBService || typeof DBService.exportLocalAiSnapshot !== 'function' || typeof DBService.replaceAiDatasetFromSnapshot !== 'function') {
+            return;
+        }
+        try {
+            const snap = await DBService.exportLocalAiSnapshot();
+            await DBService.replaceAiDatasetFromSnapshot(snap || {});
+            localStorage.setItem(MIGRATION_KEY, '1');
+            if (force) {
+                alert('已將本機 AI 準則/標籤/偏好覆蓋上傳至雲端。');
+            }
+        } catch (e) {
+            console.error('[CAT] migrateLocalAiToCloudOnce failed', e);
+        }
+    }
 
     setInterval(() => {
         if (!collabCurrentFileId) return;
@@ -14282,6 +14309,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 <label style="font-size:0.72rem; display:flex; align-items:center; gap:0.2rem; cursor:pointer;">
                                     <input type="checkbox" class="ag-toggle-default" data-gid="${g.id}" ${g.isDefault ? 'checked' : ''}/> 預設
                                 </label>
+                                <button type="button" class="secondary-btn btn-sm ag-edit-guideline" data-edit-gid="${g.id}" style="font-size:0.72rem;">編輯</button>
                                 <button type="button" class="secondary-btn btn-sm ag-join-mutex" data-join-gid="${g.id}" style="font-size:0.72rem;">加入群組</button>
                                 <button type="button" class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
                             </div>
@@ -14314,6 +14342,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                             <input type="radio" class="ag-mutex-libdef-radio" name="agmx-${mxRN}" data-mutex="${_esc(item.name)}" data-gid="${g.id}" ${radChecked ? 'checked' : ''} />
                                         </div>
                                         <div class="ai-guideline-item-actions" style="display:flex; flex-direction:column; gap:0.25rem; align-items:flex-end; flex-shrink:0;">
+                                            <button type="button" class="secondary-btn btn-sm ag-edit-guideline" data-edit-gid="${g.id}" style="font-size:0.72rem;">編輯</button>
                                             <button type="button" class="secondary-btn btn-sm ag-leave-mutex" data-leave-gid="${g.id}" style="font-size:0.72rem;">脫離群組</button>
                                             <button type="button" class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
                                         </div>
@@ -14326,6 +14355,34 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         function wireColumn(listEl) {
             if (!listEl) return;
+            listEl.querySelectorAll('[data-edit-gid]').forEach(btn => {
+                btn.onclick = async () => {
+                    const id = parseInt(btn.getAttribute('data-edit-gid'), 10);
+                    const row = allGuidelines.find(g => g.id === id);
+                    if (!row) return;
+                    const oldContent = String(row.content || '');
+                    const oldCats = _normalizeCategory(row.category);
+                    const content = window.prompt('請編輯準則內容：', oldContent);
+                    if (content == null) return;
+                    const catInput = window.prompt('請編輯套用標籤（逗號分隔）：', oldCats.join(', '));
+                    if (catInput == null) return;
+                    const nextCats = catInput.split(',').map(s => s.trim()).filter(Boolean);
+                    const normalizedCats = nextCats.length > 0 ? [...new Set(nextCats)] : ['通用'];
+                    const category = JSON.stringify(normalizedCats);
+                    try {
+                        await DBService.updateAiGuideline(id, {
+                            content: content.trim(),
+                            category
+                        });
+                        row.content = content.trim();
+                        row.category = category;
+                        updateFilterBarOptions();
+                        renderList();
+                    } catch (e) {
+                        alert('更新準則失敗：' + (e.message || String(e)));
+                    }
+                };
+            });
             listEl.querySelectorAll('[data-del]').forEach(btn => {
                 btn.onclick = async () => {
                     if (!confirm('確定刪除此準則條目？')) return;

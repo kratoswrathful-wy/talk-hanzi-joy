@@ -222,6 +222,79 @@ const mapGuidelineReplyRow = (r: any) => ({
   resolvedAt: r.resolved_at,
 });
 
+function parseAiCategories(v: unknown): string[] {
+  if (Array.isArray(v)) return v.map((x) => String(x)).filter(Boolean);
+  if (typeof v === "string") {
+    const s = v.trim();
+    if (!s) return ["通用"];
+    try {
+      const arr = JSON.parse(s);
+      if (Array.isArray(arr)) return arr.map((x) => String(x)).filter(Boolean);
+    } catch {
+      return [s];
+    }
+    return [s];
+  }
+  return ["通用"];
+}
+
+function serializeAiCategories(v: unknown): string {
+  const arr = parseAiCategories(v);
+  return JSON.stringify(arr.length > 0 ? arr : ["通用"]);
+}
+
+const mapAiGuidelineRow = (r: any) => ({
+  id: Number(r.id),
+  content: r.content ?? "",
+  category: serializeAiCategories(r.category),
+  mutexGroup: r.mutex_group ?? null,
+  sortOrder: Number(r.sort_order ?? 0),
+  scope: r.scope === "style" ? "style" : "translation",
+  isDefault: !!r.is_default,
+  createdAt: r.created_at,
+});
+
+const mapAiCategoryTagRow = (r: any) => ({
+  id: Number(r.id),
+  name: r.name ?? "",
+  createdAt: r.created_at,
+});
+
+const mapAiStyleExampleRow = (r: any) => ({
+  id: Number(r.id),
+  sourceLang: r.source_lang ?? "",
+  targetLang: r.target_lang ?? "",
+  categories: tryParseJson<string[]>(r.categories, []),
+  modTags: tryParseJson<string[]>(r.mod_tags, []),
+  sourceText: r.source_text ?? "",
+  aiDraft: r.ai_draft ?? "",
+  userFinal: r.user_final ?? "",
+  editNotes: tryParseJson<string[]>(r.edit_notes, []),
+  contextPrev: r.context_prev ?? "",
+  contextNext: r.context_next ?? "",
+  segId: r.seg_id ?? null,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
+
+const mapAiSettingsRow = (r: any) => ({
+  id: 1,
+  apiKey: r.api_key ?? "",
+  apiBaseUrl: r.api_base_url ?? "",
+  model: r.model ?? "gpt-4.1-mini",
+  batchSize: Number(r.batch_size ?? 20) || 20,
+  preferOpenAiProxy: r.prefer_openai_proxy !== false,
+  prompts: (r.prompts && typeof r.prompts === "object") ? r.prompts : {},
+});
+
+const mapAiProjectSettingsRow = (r: any) => ({
+  projectId: r.project_id,
+  selectedGuidelineIds: Array.isArray(r.selected_guideline_ids) ? r.selected_guideline_ids.map((x: unknown) => Number(x)).filter((n: number) => !Number.isNaN(n)) : [],
+  selectedStyleGuidelineIds: Array.isArray(r.selected_style_guideline_ids) ? r.selected_style_guideline_ids.map((x: unknown) => Number(x)).filter((n: number) => !Number.isNaN(n)) : [],
+  specialInstructions: Array.isArray(r.special_instructions) ? r.special_instructions : [],
+  updatedAt: r.updated_at,
+});
+
 export async function handleCatCloudRpc(action: string, payload: RpcPayload, userId: string) {
   switch (action) {
     case "db.addModuleLog": {
@@ -858,6 +931,285 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       } as any).eq("id", payload.tbId);
     case "db.deleteTB":
       return await supabase.from("cat_tbs").delete().eq("id", payload.id);
+
+    // ---- AI Guidelines / Tags / Settings / Project Settings ----
+    case "db.addAiGuideline": {
+      const entry = payload.entry ?? {};
+      const { data, error } = await supabase
+        .from("cat_ai_guidelines" as any)
+        .insert({
+          content: entry.content || "",
+          category: parseAiCategories(entry.category),
+          mutex_group: entry.mutexGroup || null,
+          sort_order: Number(entry.sortOrder ?? 0) || 0,
+          scope: entry.scope === "style" ? "style" : "translation",
+          is_default: !!entry.isDefault,
+          created_at: nowIso(),
+          updated_at: nowIso(),
+          created_by: userId,
+        } as any)
+        .select("id")
+        .single();
+      if (error) throw error;
+      return Number(data.id);
+    }
+    case "db.getAiGuidelines": {
+      const { data, error } = await supabase
+        .from("cat_ai_guidelines" as any)
+        .select("*")
+        .order("sort_order", { ascending: true })
+        .order("id", { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map(mapAiGuidelineRow);
+    }
+    case "db.updateAiGuideline": {
+      const patch: Record<string, unknown> = { updated_at: nowIso() };
+      if (payload.patch?.content !== undefined) patch.content = payload.patch.content ?? "";
+      if (payload.patch?.category !== undefined) patch.category = parseAiCategories(payload.patch.category);
+      if (payload.patch?.mutexGroup !== undefined) patch.mutex_group = payload.patch.mutexGroup || null;
+      if (payload.patch?.sortOrder !== undefined) patch.sort_order = Number(payload.patch.sortOrder ?? 0) || 0;
+      if (payload.patch?.scope !== undefined) patch.scope = payload.patch.scope === "style" ? "style" : "translation";
+      if (payload.patch?.isDefault !== undefined) patch.is_default = !!payload.patch.isDefault;
+      const { error } = await supabase
+        .from("cat_ai_guidelines" as any)
+        .update(patch as any)
+        .eq("id", payload.id);
+      if (error) throw error;
+      return true;
+    }
+    case "db.deleteAiGuideline": {
+      const { error } = await supabase
+        .from("cat_ai_guidelines" as any)
+        .delete()
+        .eq("id", payload.id);
+      if (error) throw error;
+      return true;
+    }
+    case "db.getAiCategoryTags": {
+      const { data, error } = await supabase
+        .from("cat_ai_category_tags" as any)
+        .select("*")
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map(mapAiCategoryTagRow);
+    }
+    case "db.addAiCategoryTag": {
+      const name = String(payload.name || "").trim();
+      if (!name) throw new Error("標籤名稱不得空白");
+      const { data, error } = await supabase
+        .from("cat_ai_category_tags" as any)
+        .insert({ name, created_at: nowIso() } as any)
+        .select("id")
+        .single();
+      if (error) throw error;
+      return Number(data.id);
+    }
+    case "db.renameAiCategoryTag": {
+      const name = String(payload.newName || "").trim();
+      if (!name) throw new Error("標籤名稱不得空白");
+      const { data: row, error: rowErr } = await supabase
+        .from("cat_ai_category_tags" as any)
+        .select("name")
+        .eq("id", payload.id)
+        .single();
+      if (rowErr) throw rowErr;
+      const oldName = String(row.name || "");
+      const { error: renErr } = await supabase
+        .from("cat_ai_category_tags" as any)
+        .update({ name } as any)
+        .eq("id", payload.id);
+      if (renErr) throw renErr;
+      // Keep guideline category references in sync
+      const { data: glRows, error: glErr } = await supabase
+        .from("cat_ai_guidelines" as any)
+        .select("id, category");
+      if (glErr) throw glErr;
+      for (const g of glRows ?? []) {
+        const arr = parseAiCategories(g.category);
+        if (!arr.includes(oldName)) continue;
+        const next = arr.map((x) => (x === oldName ? name : x));
+        const { error: ugErr } = await supabase
+          .from("cat_ai_guidelines" as any)
+          .update({ category: next, updated_at: nowIso() } as any)
+          .eq("id", g.id);
+        if (ugErr) throw ugErr;
+      }
+      return true;
+    }
+    case "db.deleteAiCategoryTag": {
+      const removeFromReferences = !!payload.opts?.removeFromReferences;
+      const { data: row, error: rowErr } = await supabase
+        .from("cat_ai_category_tags" as any)
+        .select("name")
+        .eq("id", payload.id)
+        .maybeSingle();
+      if (rowErr) throw rowErr;
+      if (!row) return true;
+      const tagName = String(row.name || "");
+      const { error } = await supabase
+        .from("cat_ai_category_tags" as any)
+        .delete()
+        .eq("id", payload.id);
+      if (error) throw error;
+      if (removeFromReferences) {
+        const { data: glRows, error: glErr } = await supabase
+          .from("cat_ai_guidelines" as any)
+          .select("id, category");
+        if (glErr) throw glErr;
+        for (const g of glRows ?? []) {
+          const arr = parseAiCategories(g.category);
+          if (!arr.includes(tagName)) continue;
+          const next = arr.filter((x) => x !== tagName);
+          const patched = next.length > 0 ? next : ["通用"];
+          const { error: ugErr } = await supabase
+            .from("cat_ai_guidelines" as any)
+            .update({ category: patched, updated_at: nowIso() } as any)
+            .eq("id", g.id);
+          if (ugErr) throw ugErr;
+        }
+      }
+      return true;
+    }
+    case "db.getAiSettings": {
+      const { data, error } = await supabase
+        .from("cat_ai_settings" as any)
+        .select("*")
+        .eq("id", 1)
+        .maybeSingle();
+      if (error) throw error;
+      return data ? mapAiSettingsRow(data) : {
+        id: 1,
+        apiKey: "",
+        apiBaseUrl: "",
+        model: "gpt-4.1-mini",
+        batchSize: 20,
+        preferOpenAiProxy: true,
+        prompts: {},
+      };
+    }
+    case "db.saveAiSettings": {
+      const s = payload.settings ?? {};
+      const row = {
+        id: 1,
+        api_key: s.apiKey ?? "",
+        api_base_url: s.apiBaseUrl ?? "",
+        model: s.model ?? "gpt-4.1-mini",
+        batch_size: Number(s.batchSize ?? 20) || 20,
+        prefer_openai_proxy: s.preferOpenAiProxy !== false,
+        prompts: (s.prompts && typeof s.prompts === "object") ? s.prompts : {},
+        updated_at: nowIso(),
+        updated_by: userId,
+      };
+      const { error } = await supabase.from("cat_ai_settings" as any).upsert(row as any, { onConflict: "id" });
+      if (error) throw error;
+      return true;
+    }
+    case "db.getAiProjectSettings": {
+      const { data, error } = await supabase
+        .from("cat_ai_project_settings" as any)
+        .select("*")
+        .eq("project_id", payload.projectId)
+        .maybeSingle();
+      if (error) throw error;
+      return data ? mapAiProjectSettingsRow(data) : {
+        projectId: payload.projectId,
+        selectedGuidelineIds: [],
+        selectedStyleGuidelineIds: [],
+        specialInstructions: [],
+      };
+    }
+    case "db.saveAiProjectSettings": {
+      const patch = payload.patch ?? {};
+      const projectId = payload.projectId;
+      if (!projectId) return null;
+      const { data: current } = await supabase
+        .from("cat_ai_project_settings" as any)
+        .select("*")
+        .eq("project_id", projectId)
+        .maybeSingle();
+      const row = {
+        project_id: projectId,
+        selected_guideline_ids: Array.isArray(patch.selectedGuidelineIds) ? patch.selectedGuidelineIds : (current?.selected_guideline_ids ?? []),
+        selected_style_guideline_ids: Array.isArray(patch.selectedStyleGuidelineIds) ? patch.selectedStyleGuidelineIds : (current?.selected_style_guideline_ids ?? []),
+        special_instructions: Array.isArray(patch.specialInstructions) ? patch.specialInstructions : (current?.special_instructions ?? []),
+        updated_at: nowIso(),
+        updated_by: userId,
+      };
+      const { error } = await supabase.from("cat_ai_project_settings" as any).upsert(row as any, { onConflict: "project_id" });
+      if (error) throw error;
+      return true;
+    }
+    case "db.replaceAiDataset": {
+      // Replace cloud dataset by local snapshot (requested one-time migration).
+      const data = payload.data ?? {};
+      await supabase.from("cat_ai_project_settings" as any).delete().not("project_id", "is", null);
+      await supabase.from("cat_ai_settings" as any).delete().eq("id", 1);
+      await supabase.from("cat_ai_guidelines" as any).delete().gt("id", 0);
+      await supabase.from("cat_ai_category_tags" as any).delete().gt("id", 0);
+
+      const tags = Array.isArray(data.categoryTags) ? data.categoryTags : [];
+      for (const t of tags) {
+        const name = String(t?.name || "").trim();
+        if (!name) continue;
+        const { error } = await supabase
+          .from("cat_ai_category_tags" as any)
+          .insert({ name, created_at: t?.createdAt || nowIso() } as any);
+        if (error && !String(error.message || "").includes("duplicate key")) throw error;
+      }
+      if (tags.length === 0) {
+        await supabase.from("cat_ai_category_tags" as any).insert({ name: "通用", created_at: nowIso() } as any);
+      }
+
+      const guidelines = Array.isArray(data.guidelines) ? data.guidelines : [];
+      for (const g of guidelines) {
+        const { error } = await supabase
+          .from("cat_ai_guidelines" as any)
+          .insert({
+            content: g?.content ?? "",
+            category: parseAiCategories(g?.category),
+            mutex_group: g?.mutexGroup ?? null,
+            sort_order: Number(g?.sortOrder ?? 0) || 0,
+            scope: g?.scope === "style" ? "style" : "translation",
+            is_default: !!g?.isDefault,
+            created_at: g?.createdAt ?? nowIso(),
+            updated_at: nowIso(),
+            created_by: userId,
+          } as any);
+        if (error) throw error;
+      }
+
+      const s = data.settings && typeof data.settings === "object" ? data.settings : null;
+      if (s) {
+        const { error } = await supabase.from("cat_ai_settings" as any).upsert({
+          id: 1,
+          api_key: s.apiKey ?? "",
+          api_base_url: s.apiBaseUrl ?? "",
+          model: s.model ?? "gpt-4.1-mini",
+          batch_size: Number(s.batchSize ?? 20) || 20,
+          prefer_openai_proxy: s.preferOpenAiProxy !== false,
+          prompts: (s.prompts && typeof s.prompts === "object") ? s.prompts : {},
+          updated_at: nowIso(),
+          updated_by: userId,
+        } as any, { onConflict: "id" });
+        if (error) throw error;
+      }
+
+      const psettings = Array.isArray(data.projectSettings) ? data.projectSettings : [];
+      for (const p of psettings) {
+        const projectId = p?.projectId;
+        if (!projectId) continue;
+        const { error } = await supabase.from("cat_ai_project_settings" as any).upsert({
+          project_id: projectId,
+          selected_guideline_ids: Array.isArray(p?.selectedGuidelineIds) ? p.selectedGuidelineIds : [],
+          selected_style_guideline_ids: Array.isArray(p?.selectedStyleGuidelineIds) ? p.selectedStyleGuidelineIds : [],
+          special_instructions: Array.isArray(p?.specialInstructions) ? p.specialInstructions : [],
+          updated_at: nowIso(),
+          updated_by: userId,
+        } as any, { onConflict: "project_id" });
+        if (error) throw error;
+      }
+      return { ok: true };
+    }
 
     default:
       throw new Error(`Unknown CAT cloud RPC action: ${action}`);
