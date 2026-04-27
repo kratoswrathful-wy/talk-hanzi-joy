@@ -869,34 +869,67 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function runTextOpOnSelection(op) {
         const targetIds = new Set(selectedRowIds);
         isBatchOpInProgress = true;
+        let deferBatchClear = false;
         try {
             if (targetIds.size > 0) {
                 const items = [];
+                const pending = [];
                 for (const seg of currentSegmentsList) {
                     if (targetIds.has(seg.id)) {
+                        if (isTargetWriteProtected(seg)) continue;
                         const rowEl = gridBody ? gridBody.querySelector(`.grid-data-row[data-seg-id="${seg.id}"]`) : document.querySelector(`.grid-data-row[data-seg-id="${seg.id}"]`);
                         if (!isGridDataRowFilterVisible(rowEl)) continue;
                         const beforeSnap = snapshotSegForUndo(seg);
-                        await applySegmentTextOp(seg, rowEl, op);
+                        markEmptySegUserEdited(seg.id);
+                        const newText = op === 'copy-source' ? seg.sourceText : '';
+                        if (op === 'copy-source') {
+                            seg.targetTags = (seg.sourceTags || []).map(t => ({ ...t }));
+                        } else {
+                            seg.targetTags = [];
+                            seg.matchValue = undefined;
+                        }
+                        seg.targetText = newText;
+                        if (rowEl) {
+                            const editor = rowEl.querySelector('.grid-textarea');
+                            if (editor) {
+                                setEditorHtml(editor, buildTaggedHtml(newText, effectiveTags(seg)));
+                                updateTagColors(rowEl, newText);
+                            }
+                            if (op === 'clear') applyMatchCellVisual(rowEl, '');
+                            if (seg.status === 'confirmed') {
+                                seg.status = 'unconfirmed';
+                                const si = rowEl.querySelector('.status-icon');
+                                if (si) si.classList.remove('done');
+                                if (currentFileFormat === 'mqxliff' && si) si.innerHTML = '';
+                                rowEl.style.backgroundColor = '';
+                                pending.push(DBService.updateSegmentStatus(seg.id, 'unconfirmed'));
+                            }
+                        }
+                        const extra = { targetTags: seg.targetTags };
+                        if (op === 'clear') extra.matchValue = '';
+                        pending.push(applyUpdateSegmentTarget(seg, newText, extra));
                         items.push({ id: seg.id, beforeSnap, afterSnap: snapshotSegForUndo(seg) });
                     }
                 }
                 if (items.length) pushUndoEntry({ kind: 'segmentState', items });
-            } else {
-                const activeRow = gridBody ? gridBody.querySelector('.grid-data-row.active-row') : document.querySelector('.grid-data-row.active-row');
-                if (!activeRow) return;
-                const segId = parseId(activeRow.dataset.segId);
-                const seg = currentSegmentsList.find(s => s.id === segId);
-                const beforeSnap = snapshotSegForUndo(seg);
-                await applySegmentTextOp(seg, activeRow, op);
-                const afterSnap = snapshotSegForUndo(seg);
-                if (JSON.stringify(beforeSnap) !== JSON.stringify(afterSnap)) {
-                    pushUndoEntry({ kind: 'segmentState', items: [{ id: seg.id, beforeSnap, afterSnap }] });
+                updateProgress();
+                deferBatchClear = true;
+                void Promise.all(pending).catch((e) => console.error(e)).finally(() => { isBatchOpInProgress = false; });
+                return;
             }
+            const activeRow = gridBody ? gridBody.querySelector('.grid-data-row.active-row') : document.querySelector('.grid-data-row.active-row');
+            if (!activeRow) return;
+            const segId = parseId(activeRow.dataset.segId);
+            const seg = currentSegmentsList.find(s => s.id === segId);
+            const beforeSnap = snapshotSegForUndo(seg);
+            await applySegmentTextOp(seg, activeRow, op);
+            const afterSnap = snapshotSegForUndo(seg);
+            if (JSON.stringify(beforeSnap) !== JSON.stringify(afterSnap)) {
+                pushUndoEntry({ kind: 'segmentState', items: [{ id: seg.id, beforeSnap, afterSnap }] });
             }
             updateProgress();
         } finally {
-            isBatchOpInProgress = false;
+            if (!deferBatchClear) isBatchOpInProgress = false;
         }
     }
 
@@ -9197,6 +9230,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!btnSfReplaceAll) return;
         const multi = selectedRowIds && selectedRowIds.size > 1;
         btnSfReplaceAll.textContent = multi ? '在選取範圍取代' : '全部取代';
+        btnSfReplaceAll.title = multi
+            ? '將取代目前已選取句段中的所有相符內容。'
+            : '將取代目前可見範圍中的所有相符內容。';
     }
 
     function unconfirmSegmentVisualAfterReplace(seg, segIdx) {
@@ -9631,6 +9667,61 @@ document.addEventListener('DOMContentLoaded', async () => {
         return set;
     }
 
+    /**
+     * 重複句段連動：在傳播 await 完成前，先把同原文句段在記憶體（及可選的 grid DOM）套成已確認，
+     * 避免「下一個未確認」焦點誤跳到剛被連動的列。
+     * @param {number} primaryIndex
+     * @param {{ updateDom?: boolean }} [opts]
+     */
+    function applyOptimisticRepetitionAfterPrimaryConfirm(primaryIndex, opts) {
+        const updateDom = !!(opts && opts.updateDom);
+        const seg = currentSegmentsList[primaryIndex];
+        if (!seg || !seg.repetitionType) return;
+        const mode = seg.repModeSeg || repMode;
+        if (mode === 'none') return;
+        const src = seg.sourceText;
+        const tgt = seg.targetText;
+        const rows = updateDom && gridBody ? gridBody.querySelectorAll('.grid-data-row') : null;
+        const paintMqStatusIcon = (si, other) => {
+            if (!si || currentFileFormat !== 'mqxliff') return;
+            const r = other.confirmationRole || 'T';
+            if (r === 'R1') {
+                si.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
+            } else if (r === 'R2') {
+                si.innerHTML = `<span style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.65rem;line-height:0.9;">&#10003;&#10003;</span>`;
+            } else {
+                si.innerHTML = '&#10003;';
+            }
+        };
+        for (let j = 0; j < currentSegmentsList.length; j++) {
+            if (j === primaryIndex) continue;
+            const other = currentSegmentsList[j];
+            const otherLocked = !!(isDynamicForbidden(other) || other.isLockedUser);
+            if (otherLocked || other.sourceText !== src) continue;
+            if (mode === 'after' && j <= primaryIndex) continue;
+            other.targetText = tgt;
+            other.status = 'confirmed';
+            if (currentFileFormat === 'mqxliff') {
+                other.confirmationRole = resolveConfirmationRole(other);
+            }
+            if (updateDom && rows && rows[j]) {
+                const row = rows[j];
+                const ta = row.querySelector('.grid-textarea');
+                if (ta) {
+                    setEditorHtml(ta, buildTaggedHtml(tgt, effectiveTags(other)));
+                    updateTagColors(row, tgt);
+                }
+                const si = row.querySelector('.status-icon');
+                if (si) {
+                    si.classList.add('done');
+                    paintMqStatusIcon(si, other);
+                }
+                if (!isDynamicForbidden(other) && !other.isLockedUser) row.style.backgroundColor = '#f0fdf4';
+            }
+        }
+        updateProgress();
+    }
+
     function mergeTmPair(acc, pair) {
         if (!pair) return;
         acc.undo.push(...(pair.undo || []));
@@ -9731,6 +9822,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (currentFileFormat === 'mqxliff') seg.confirmationRole = resolveConfirmationRole(seg);
                 }
             }
+            indices.forEach((i) => applyOptimisticRepetitionAfterPrimaryConfirm(i, { updateDom: false }));
             const dbWaits = [];
             indices.forEach((i) => {
                 const seg = currentSegmentsList[i];
@@ -9740,13 +9832,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     dbWaits.push(DBService.updateSegmentStatus(seg.id, seg.status, extra));
                 }
             });
-            await Promise.all(dbWaits);
             const lastIdx = indices[indices.length - 1];
             const focusIdx = getAfterConfirmFocusIndex(lastIdx);
             _pendingFocusSegIdxAfterRender = focusIdx;
             updateProgress();
             renderEditorSegments();
             runSearchAndFilter();
+            void Promise.all(dbWaits).catch((e) => console.error(e));
             // 樂觀第一段：僅本次直接確認的句段（傳播後第二段於 enqueue 尾端以 touchAll 收斂）
             _qaIncrementalRefreshAfterConfirm(indices.map((idx) => currentSegmentsList[idx]?.id).filter((id) => id != null));
 
@@ -10982,6 +11074,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 }
                                 updateProgress();
                             }
+                            if (seg.status === 'confirmed') {
+                                applyOptimisticRepetitionAfterPrimaryConfirm(i, { updateDom: true });
+                            }
                             const nextFocus = getAfterConfirmFocusIndex(i);
                             focusTargetEditorAtSegmentIndex(nextFocus);
                             isConfirming = false;
@@ -11142,6 +11237,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 }
                             }
                             updateProgress();
+                            applyOptimisticRepetitionAfterPrimaryConfirm(i, { updateDom: true });
                             const nextFocus = getAfterConfirmFocusIndex(i);
                             focusTargetEditorAtSegmentIndex(nextFocus);
                             isConfirming = false;
@@ -11859,6 +11955,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
             const indices = toUpdate.map(s => currentSegmentsList.indexOf(s)).filter((ix) => ix >= 0).sort((a, b) => a - b);
+            indices.forEach((ix) => applyOptimisticRepetitionAfterPrimaryConfirm(ix, { updateDom: false }));
             const maxIdx = indices.length ? Math.max(...indices) : -1;
             const dbWaits = [];
             toUpdate.forEach((s) => {
@@ -11867,15 +11964,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     dbWaits.push(DBService.updateSegmentStatus(s.id, 'confirmed', currentFileFormat === 'mqxliff' && s.confirmationRole ? { confirmationRole: s.confirmationRole } : {}));
                 }
             });
-            void (async () => {
-                await Promise.all(dbWaits);
-                const focusIdx = maxIdx >= 0 ? getAfterConfirmFocusIndex(maxIdx) : null;
-                _pendingFocusSegIdxAfterRender = focusIdx;
-                updateProgress();
-                renderEditorSegments();
-                runSearchAndFilter();
+            const focusIdx = maxIdx >= 0 ? getAfterConfirmFocusIndex(maxIdx) : null;
+            _pendingFocusSegIdxAfterRender = focusIdx;
+            updateProgress();
+            renderEditorSegments();
+            runSearchAndFilter();
+            void Promise.all(dbWaits).catch((e) => console.error(e));
 
-                enqueueConfirmSideEffects(async () => {
+            enqueueConfirmSideEffects(async () => {
                     try {
                         const tmU = [];
                         const tmR = [];
@@ -11905,8 +12001,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             queueMicrotask(() => focusTargetEditorAtSegmentIndex(idx2 >= 0 ? idx2 : null));
                         }
                     } catch (err) { console.error(err); }
-                });
-            })();
+            });
         });
 
         document.getElementById('ctxBatchUnconfirm').addEventListener('click', () => {
@@ -11921,27 +12016,31 @@ document.addEventListener('DOMContentLoaded', async () => {
                 items.push({ id: s.id, beforeSnap, afterSnap: snapshotSegForUndo(s) });
             }
             if (items.length) pushUndoEntry({ kind: 'segmentState', items });
-            void Promise.all(dbWaits).then(() => {}).catch(console.error);
+            updateProgress();
             renderEditorSegments();
             runSearchAndFilter();
+            void Promise.all(dbWaits).catch((e) => console.error(e));
         });
 
-        document.getElementById('ctxLockSegments').addEventListener('click', async () => {
+        document.getElementById('ctxLockSegments').addEventListener('click', () => {
             const ids = filterBatchIdsToVisible(Array.from(selectedRowIds));
             const toUpdate = currentSegmentsList.filter(s => ids.includes(s.id) && !(isDynamicForbidden(s) || s.isLockedUser));
             const items = [];
+            const dbWaits = [];
             for (let s of toUpdate) {
                 const beforeSnap = snapshotSegForUndo(s);
                 s.isLockedUser = true;
-                await DBService.updateSegmentStatus(s.id, s.status || 'unconfirmed', { isLockedUser: true, isLocked: true });
                 items.push({ id: s.id, beforeSnap, afterSnap: snapshotSegForUndo(s) });
+                dbWaits.push(DBService.updateSegmentStatus(s.id, s.status || 'unconfirmed', { isLockedUser: true, isLocked: true }));
             }
             if (items.length) pushUndoEntry({ kind: 'segmentState', items });
+            updateProgress();
             renderEditorSegments();
             runSearchAndFilter();
+            void Promise.all(dbWaits).catch((e) => console.error(e));
         });
 
-        document.getElementById('ctxUnlockSegments').addEventListener('click', async () => {
+        document.getElementById('ctxUnlockSegments').addEventListener('click', () => {
             const rawIds = Array.from(selectedRowIds);
             const allRowsU = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
             const toUpdate = currentSegmentsList.filter((s) => {
@@ -11951,16 +12050,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return isGridDataRowFilterVisible(allRowsU[idx]);
             });
             const items = [];
+            const dbWaits = [];
             for (let s of toUpdate) {
                 const beforeSnap = snapshotSegForUndo(s);
                 s.isLockedUser = false;
                 const stillLocked = !!s.isLockedSystem;
-                await DBService.updateSegmentStatus(s.id, s.status || 'unconfirmed', { isLockedUser: false, isLocked: stillLocked });
                 items.push({ id: s.id, beforeSnap, afterSnap: snapshotSegForUndo(s) });
+                dbWaits.push(DBService.updateSegmentStatus(s.id, s.status || 'unconfirmed', { isLockedUser: false, isLocked: stillLocked }));
             }
             if (items.length) pushUndoEntry({ kind: 'segmentState', items });
+            updateProgress();
             renderEditorSegments();
             runSearchAndFilter();
+            void Promise.all(dbWaits).catch((e) => console.error(e));
         });
     });
 
@@ -16390,6 +16492,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let selectedStyleIds = new Set((psettings?.selectedStyleGuidelineIds || []).map(Number));
         let specialInstructions = Array.isArray(psettings?.specialInstructions) ? [...psettings.specialInstructions] : [];
         let projectGuidelines = Array.isArray(psettings?.projectGuidelines) ? [...psettings.projectGuidelines] : [];
+        const sharedExampleCollapseState = new Map();
 
         function _siNormalizeGuidelineExamples(examples) {
             if (!Array.isArray(examples)) return [];
@@ -16426,6 +16529,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             }).filter(Boolean).join('');
             if (!body) return '';
             return `<div class="ag-shared-ex-list">${body}</div>`;
+        }
+
+        function _siGuidelineExampleSection(examples, collapseKey) {
+            const rows = _siNormalizeGuidelineExamples(examples);
+            const count = rows.length;
+            if (count === 0) return { badgeHtml: '', listHtml: '' };
+            const key = String(collapseKey || '');
+            const collapsed = sharedExampleCollapseState.get(key) === true;
+            const badgeHtml = `<div class="ag-ex-badge-row">
+                <span class="ai-badge selected-green ag-ex-count-badge">${count} 個範例</span>
+                <button type="button" class="ag-ex-toggle-btn" data-ex-toggle="${_esc(key)}">${collapsed ? '展開' : '收合'}</button>
+            </div>`;
+            const listHtml = collapsed ? '' : _siGuidelineExamplesHtml(rows);
+            return { badgeHtml, listHtml };
         }
 
         function savePSettings() {
@@ -16482,14 +16599,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             listEl.innerHTML = projectGuidelines.map((s) => {
                 const idAttr = String(s.id);
-                const exCount = _siNormalizeGuidelineExamples(s.examples).length;
-                const exBadge = exCount > 0
-                    ? `<div style="margin-top:0.3rem;"><span class="ai-badge selected-green" style="font-size:0.72rem;">${exCount} 個範例</span></div>`
-                    : '';
+                const ex = _siNormalizeGuidelineExamples(s.examples);
+                const sec = _siGuidelineExampleSection(ex, `pg-manage:${idAttr}`);
                 return `<div class="ai-guideline-item" data-pg-manage-id="${_esc(idAttr)}">
                     <div style="flex:1; min-width:0;">
                         <div class="ai-guideline-item-content">${s.content ? _esc(s.content) : '（無內容）'}</div>
-                        ${exBadge}
+                        ${sec.badgeHtml}
+                        ${sec.listHtml}
                     </div>
                     <div class="ai-guideline-item-actions" style="display:flex; flex-direction:column; gap:0.25rem; align-items:flex-end;">
                         <button type="button" class="secondary-btn btn-sm pg-manage-edit" data-pg-id="${_esc(idAttr)}" style="font-size:0.72rem;">編輯</button>
@@ -16497,6 +16613,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </div>
                 </div>`;
             }).join('');
+            listEl.querySelectorAll('[data-ex-toggle]').forEach((btn) => {
+                btn.onclick = () => {
+                    const key = btn.getAttribute('data-ex-toggle') || '';
+                    sharedExampleCollapseState.set(key, !(sharedExampleCollapseState.get(key) === true));
+                    renderPgManageProjectGuidelinesList();
+                };
+            });
             listEl.querySelectorAll('.pg-manage-edit').forEach((btn) => {
                 btn.onclick = () => {
                     const sid = btn.getAttribute('data-pg-id');
@@ -17085,8 +17208,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <span class="ai-selected-guideline-item-content">${_esc(g.content)}</span>
                         ${(() => {
                             const ex = _siNormalizeGuidelineExamples(g.examples);
-                            const countBadge = ex.length > 0 ? `<div style="margin-top:0.3rem;"><span class="ai-badge selected-green" style="font-size:0.72rem;">${ex.length} 個範例</span></div>` : '';
-                            return `${countBadge}${_siGuidelineExamplesHtml(ex)}`;
+                            const sec = _siGuidelineExampleSection(ex, `translation:${g.id}`);
+                            return `${sec.badgeHtml}${sec.listHtml}`;
                         })()}
                     </div>
                     ${isCatSharedMutator() ? `<div class="ai-pg-shared-actions">
@@ -17121,6 +17244,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     void savePSettings().catch((e) => console.error(e));
                 };
             });
+            selectedList.querySelectorAll('[data-ex-toggle]').forEach((btn) => {
+                btn.onclick = () => {
+                    const key = btn.getAttribute('data-ex-toggle') || '';
+                    sharedExampleCollapseState.set(key, !(sharedExampleCollapseState.get(key) === true));
+                    renderSelectedGuidelines();
+                };
+            });
         }
 
         function renderSelectedStyleGuidelines() {
@@ -17136,8 +17266,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <span class="ai-selected-guideline-item-content">${_esc(g.content)}</span>
                         ${(() => {
                             const ex = _siNormalizeGuidelineExamples(g.examples);
-                            const countBadge = ex.length > 0 ? `<div style="margin-top:0.3rem;"><span class="ai-badge selected-green" style="font-size:0.72rem;">${ex.length} 個範例</span></div>` : '';
-                            return `${countBadge}${_siGuidelineExamplesHtml(ex)}`;
+                            const sec = _siGuidelineExampleSection(ex, `style:${g.id}`);
+                            return `${sec.badgeHtml}${sec.listHtml}`;
                         })()}
                     </div>
                     ${isCatSharedMutator() ? `<div class="ai-pg-shared-actions">
@@ -17170,6 +17300,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     selectedStyleIds.delete(parseInt(btn.getAttribute('data-unselect-style'), 10));
                     renderSelectedStyleGuidelines();
                     void savePSettings().catch((e) => console.error(e));
+                };
+            });
+            selectedStyleList.querySelectorAll('[data-ex-toggle]').forEach((btn) => {
+                btn.onclick = () => {
+                    const key = btn.getAttribute('data-ex-toggle') || '';
+                    sharedExampleCollapseState.set(key, !(sharedExampleCollapseState.get(key) === true));
+                    renderSelectedStyleGuidelines();
                 };
             });
         }
@@ -17403,9 +17540,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             pgList.innerHTML = toShow.map((s) => {
                 const idAttr = String(s.id);
                 const ex = _siNormalizeGuidelineExamples(s.examples);
-                const exCount = ex.length;
-                const exBadge = exCount > 0 ? `<div style="margin-top:0.3rem;"><span class="ai-badge selected-green" style="font-size:0.72rem;">${exCount} 個範例</span></div>` : '';
-                const exHtml = _siGuidelineExamplesHtml(ex);
+                const sec = _siGuidelineExampleSection(ex, `project:${idAttr}`);
                 const actionsHtml = isPm
                     ? `<div class="ai-pg-shared-actions">
                         <button type="button" class="secondary-btn btn-sm pg-edit-btn ai-guideline-inline-edit" data-pg-id="${_esc(idAttr)}">編輯</button>
@@ -17415,8 +17550,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return `<div class="ai-selected-guideline-item ai-pg-shared-card" data-pg-id="${_esc(idAttr)}">
                     <div style="flex:1; min-width:0;">
                         <div class="ai-selected-guideline-item-content">${s.content ? _esc(s.content) : '（無內容）'}</div>
-                        ${exBadge}
-                        ${exHtml}
+                        ${sec.badgeHtml}
+                        ${sec.listHtml}
                     </div>
                     ${actionsHtml}
                 </div>`;
@@ -17444,6 +17579,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     await renderProjectGuidelines();
                     refreshPgManageModalIfOpen();
+                };
+            });
+            pgList.querySelectorAll('[data-ex-toggle]').forEach((btn) => {
+                btn.onclick = () => {
+                    const key = btn.getAttribute('data-ex-toggle') || '';
+                    sharedExampleCollapseState.set(key, !(sharedExampleCollapseState.get(key) === true));
+                    void renderProjectGuidelines();
                 };
             });
         }
