@@ -60,6 +60,9 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
 /* 準則編輯 modal：左右對稱留白，捲軸不吃掉右側；表單與按鈕區同寬、右緣對齊 */
 .ag-edit-guideline-modal-box {
     box-sizing: border-box;
+    /* 固定對話框實際高度，避免內容撐爆後 footer 被擠出框外 */
+    height: min(90vh, 820px);
+    overflow: hidden;
 }
 .ag-edit-guideline-modal-scroll {
     box-sizing: border-box;
@@ -94,6 +97,12 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
     max-width: 220px;
     min-height: 1.95rem;
 }
+.ag-edit-compact-select {
+    min-height: 1.95rem;
+    height: 1.95rem;
+    padding-top: 0.2rem;
+    padding-bottom: 0.2rem;
+}
 .ag-edit-examples-box {
     border: 1px solid #cbd5e1;
     border-radius: 10px;
@@ -110,7 +119,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
     color: #1f2937;
 }
 .ag-edit-examples-list {
-    max-height: 280px;
+    max-height: min(36vh, 280px);
     overflow-y: auto;
     padding-right: 0.25rem;
     display: flex;

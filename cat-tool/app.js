@@ -16482,9 +16482,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             listEl.innerHTML = projectGuidelines.map((s) => {
                 const idAttr = String(s.id);
+                const exCount = _siNormalizeGuidelineExamples(s.examples).length;
+                const exBadge = exCount > 0
+                    ? `<div style="margin-top:0.3rem;"><span class="ai-badge selected-green" style="font-size:0.72rem;">${exCount} 個範例</span></div>`
+                    : '';
                 return `<div class="ai-guideline-item" data-pg-manage-id="${_esc(idAttr)}">
                     <div style="flex:1; min-width:0;">
                         <div class="ai-guideline-item-content">${s.content ? _esc(s.content) : '（無內容）'}</div>
+                        ${exBadge}
                     </div>
                     <div class="ai-guideline-item-actions" style="display:flex; flex-direction:column; gap:0.25rem; align-items:flex-end;">
                         <button type="button" class="secondary-btn btn-sm pg-manage-edit" data-pg-id="${_esc(idAttr)}" style="font-size:0.72rem;">編輯</button>
