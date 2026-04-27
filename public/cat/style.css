@@ -88,11 +88,11 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    min-height: 2.15rem;
+    min-height: 1.95rem;
 }
 .ag-edit-scope-select {
     max-width: 220px;
-    min-height: 2.15rem;
+    min-height: 1.95rem;
 }
 .ag-edit-examples-box {
     border: 1px solid #cbd5e1;
@@ -242,6 +242,9 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
 #pgEditProjectGuidelineModal .ag-edit-guideline-modal-scroll {
     overflow: visible;
     max-height: min(70vh, 480px);
+}
+#pgEditProjectGuidelineModal {
+    z-index: 10095;
 }
 
 /* AI 管理：已自清單隱藏的類別標籤 */
@@ -2477,8 +2480,8 @@ mark.tm-search-hit {
     align-items: center;
     justify-content: space-between;
     gap: 0.35rem;
-    padding: 0.35rem 0.55rem;
-    min-height: 2.1rem;
+    padding: 0.25rem 0.55rem;
+    min-height: 1.95rem;
     border: 1px solid #94a3b8;
     border-radius: 6px;
     background: #fff;

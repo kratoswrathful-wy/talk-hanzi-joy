@@ -2197,9 +2197,9 @@
         </div>
     </div>
 
-    <!-- ====== 共用資訊：專案準則編輯（階段 1；無性質／互斥／預設／檔案勾選）====== -->
+    <!-- ====== 共用資訊：專案準則編輯（無互斥／無性質／無預設）====== -->
     <div id="pgEditProjectGuidelineModal" class="modal-overlay hidden" data-pg-edit-id="">
-        <div class="modal-box ag-edit-guideline-modal-box pg-project-guideline-modal" style="max-width:520px; width:92vw; max-height:90vh; padding:0; display:flex; flex-direction:column;">
+        <div class="modal-box ag-edit-guideline-modal-box pg-project-guideline-modal" style="max-width:980px; width:94vw; max-height:90vh; padding:0; display:flex; flex-direction:column;">
             <div class="ag-edit-guideline-modal-scroll">
                 <h3 id="pgEditProjectGuidelineHeading" style="margin:0 0 0.75rem 0;">編輯專案準則</h3>
                 <div class="form-group">
@@ -2215,14 +2215,15 @@
                         </div>
                         <div id="pgEditProjectGuidelineCategoryDropdown" class="ai-multiselect-dropdown hidden"></div>
                     </div>
-                    <p style="font-size:0.75rem; color:#64748b; margin:0.35rem 0 0 0;">與準則庫條目之「類別／標籤」相同語意（選項未自清單隱藏者）；供日後篩選與行為對齊。</p>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="pgEditProjectGuidelineIssuePlaceholder">議題群組</label>
-                    <select id="pgEditProjectGuidelineIssuePlaceholder" class="form-input ag-edit-guideline-field" disabled aria-disabled="true">
-                        <option>（全站功能尚未開放）</option>
-                    </select>
-                    <p style="font-size:0.75rem; color:#64748b; margin:0.35rem 0 0 0;">開放後將可選擇所屬議題群組並寫入專案準則；目前僅預留欄位。</p>
+                    <div class="ag-edit-examples-box">
+                        <div class="ag-edit-examples-head">
+                            <strong>範例編輯區（統一在條目編輯畫面）</strong>
+                            <button type="button" id="btnPgEditProjectGuidelineAddExample" class="primary-btn btn-sm">＋ 新增範例</button>
+                        </div>
+                        <div id="pgEditProjectGuidelineExamplesList" class="ag-edit-examples-list"></div>
+                    </div>
                 </div>
                 <p id="pgEditProjectGuidelineErr" class="hidden" style="color:#dc2626; font-size:0.82rem; margin:0.5rem 0 0 0;"></p>
             </div>

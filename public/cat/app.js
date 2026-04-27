@@ -16661,6 +16661,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     id: Date.now(),
                     content,
                     category: JSON.stringify(cats),
+                    examples: [],
                     enabled: true,
                     createdAt: new Date().toISOString()
                 };
@@ -16713,10 +16714,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             const catSelector = document.getElementById('pgEditProjectGuidelineCategorySelector');
             const catDisplay = document.getElementById('pgEditProjectGuidelineCategoryDisplay');
             const catDropdown = document.getElementById('pgEditProjectGuidelineCategoryDropdown');
+            const examplesListEl = document.getElementById('pgEditProjectGuidelineExamplesList');
+            const btnAddExample = document.getElementById('btnPgEditProjectGuidelineAddExample');
             const errEl = document.getElementById('pgEditProjectGuidelineErr');
             const btnSave = document.getElementById('btnPgEditProjectGuidelineSave');
             const btnCancel = document.getElementById('btnPgEditProjectGuidelineCancel');
-            if (!modal || !heading || !contentEl || !catSelector || !catDisplay || !catDropdown || !btnSave || !btnCancel) return;
+            if (!modal || !heading || !contentEl || !catSelector || !catDisplay || !catDropdown || !examplesListEl || !btnAddExample || !btnSave || !btnCancel) return;
             if (!isCatSharedMutator()) return;
 
             let allPgCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
@@ -16739,9 +16742,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             /** @type {string[]} */
             let selectedPgCategories = ['通用'];
+            let editExamples = [];
             if (isNew) {
                 heading.textContent = '新增專案準則';
                 contentEl.value = '';
+                editExamples = [];
             } else {
                 const idx = projectGuidelines.findIndex((t) => String(t.id) === String(entryId));
                 if (idx < 0) return;
@@ -16749,6 +16754,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 heading.textContent = '編輯專案準則';
                 contentEl.value = String(row.content || '');
                 selectedPgCategories = [..._pgNormalizeCategory(row.category)];
+                editExamples = _siNormalizeGuidelineExamples(row.examples);
             }
 
             function updatePgCategoryDisplay() {
@@ -16816,6 +16822,111 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             catSelector.addEventListener('click', onPgCategorySelectorClick);
             document.addEventListener('click', onPgCategoryDocClick);
+            let openStateMenuId = null;
+
+            function _stateLabel(state) {
+                return state === 'bad' ? 'X' : (state === 'neutral' ? '-' : 'O');
+            }
+
+            function renderPgExamples() {
+                if (!examplesListEl) return;
+                if (!editExamples || editExamples.length === 0) {
+                    examplesListEl.innerHTML = '<p style="font-size:0.8rem; color:#94a3b8; margin:0;">尚無範例。可按「＋ 新增範例」。</p>';
+                    return;
+                }
+                examplesListEl.innerHTML = editExamples.map((ex) => {
+                    const stateClass = ex.state === 'bad' ? 'bad' : (ex.state === 'neutral' ? 'neutral' : 'ok');
+                    const stateLabel = _stateLabel(ex.state);
+                    const menuHidden = openStateMenuId === ex.id ? '' : 'hidden';
+                    const opt1 = ex.state === 'ok' ? 'bad' : 'ok';
+                    const opt2 = ex.state === 'neutral' ? 'ok' : 'neutral';
+                    const opt3 = ex.state === 'bad' ? 'neutral' : 'bad';
+                    const optionsOrdered = [opt1, opt2, opt3].filter((s, i, arr) => s !== ex.state && arr.indexOf(s) === i).slice(0, 2);
+                    const [oA, oB] = optionsOrdered;
+                    return `
+                        <div class="ag-edit-ex-row" data-ex-id="${_esc(ex.id)}">
+                            <div class="ag-edit-ex-state">
+                                <button type="button" class="ag-edit-ex-state-btn" data-state="${stateClass}" data-toggle-pg-ex-state="${_esc(ex.id)}">${stateLabel}</button>
+                                <div class="ag-edit-ex-state-menu ${menuHidden}">
+                                    <button type="button" class="ag-edit-ex-state-opt" data-state="${_esc(oA)}" data-pick-pg-ex-state="${_esc(ex.id)}">${_stateLabel(oA)}</button>
+                                    <button type="button" class="ag-edit-ex-state-opt" data-state="${_esc(oB)}" data-pick-pg-ex-state="${_esc(ex.id)}">${_stateLabel(oB)}</button>
+                                </div>
+                            </div>
+                            <div class="ag-edit-ex-card">
+                                <div class="ag-edit-ex-line">
+                                    <span class="ag-edit-ex-key">原文</span>
+                                    <input type="text" class="ag-edit-ex-input" data-pg-ex-field="src" data-pg-ex-id="${_esc(ex.id)}" value="${_esc(ex.src)}" placeholder="可留空">
+                                </div>
+                                <div class="ag-edit-ex-line">
+                                    <span class="ag-edit-ex-key">譯文</span>
+                                    <input type="text" class="ag-edit-ex-input" data-pg-ex-field="tgt" data-pg-ex-id="${_esc(ex.id)}" value="${_esc(ex.tgt)}" placeholder="可留空">
+                                </div>
+                                <div class="ag-edit-ex-line">
+                                    <span class="ag-edit-ex-key">※</span>
+                                    <input type="text" class="ag-edit-ex-input" data-pg-ex-field="note" data-pg-ex-id="${_esc(ex.id)}" value="${_esc(ex.note)}" placeholder="可留空">
+                                </div>
+                                <div class="ag-edit-ex-actions">
+                                    <button type="button" class="ag-edit-ex-inline-btn ag-edit-ex-del" data-del-pg-ex="${_esc(ex.id)}">刪除範例</button>
+                                </div>
+                            </div>
+                        </div>`;
+                }).join('');
+
+                examplesListEl.querySelectorAll('[data-toggle-pg-ex-state]').forEach((btn) => {
+                    btn.onclick = (e) => {
+                        e.stopPropagation();
+                        const id = btn.getAttribute('data-toggle-pg-ex-state');
+                        openStateMenuId = openStateMenuId === id ? null : id;
+                        renderPgExamples();
+                    };
+                });
+                examplesListEl.querySelectorAll('[data-pick-pg-ex-state]').forEach((btn) => {
+                    btn.onclick = (e) => {
+                        e.stopPropagation();
+                        const id = btn.getAttribute('data-pick-pg-ex-state');
+                        const state = btn.getAttribute('data-state');
+                        const rowEx = editExamples.find((x) => String(x.id) === String(id));
+                        if (!rowEx) return;
+                        rowEx.state = state === 'bad' ? 'bad' : (state === 'neutral' ? 'neutral' : 'ok');
+                        openStateMenuId = null;
+                        renderPgExamples();
+                    };
+                });
+                examplesListEl.querySelectorAll('[data-pg-ex-field]').forEach((input) => {
+                    input.oninput = () => {
+                        const id = input.getAttribute('data-pg-ex-id');
+                        const field = input.getAttribute('data-pg-ex-field');
+                        const rowEx = editExamples.find((x) => String(x.id) === String(id));
+                        if (!rowEx || !field) return;
+                        rowEx[field] = input.value;
+                    };
+                });
+                examplesListEl.querySelectorAll('[data-del-pg-ex]').forEach((btn) => {
+                    btn.onclick = () => {
+                        const id = btn.getAttribute('data-del-pg-ex');
+                        editExamples = editExamples.filter((x) => String(x.id) !== String(id));
+                        if (openStateMenuId === id) openStateMenuId = null;
+                        renderPgExamples();
+                    };
+                });
+            }
+            renderPgExamples();
+
+            function onDocClickClosePgStateMenu(e) {
+                const target = e.target;
+                if (target && target.closest && target.closest('.ag-edit-ex-state')) return;
+                if (openStateMenuId != null) {
+                    openStateMenuId = null;
+                    renderPgExamples();
+                }
+            }
+
+            function onAddPgExample() {
+                const nextId = `ex-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                editExamples.push({ id: nextId, state: 'ok', src: '', tgt: '', note: '' });
+                openStateMenuId = null;
+                renderPgExamples();
+            }
 
             function showErr(msg) {
                 if (!errEl) return;
@@ -16834,6 +16945,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 catSetDropdownPanelOpen(catSelector, catDropdown, false);
                 catSelector.removeEventListener('click', onPgCategorySelectorClick);
                 document.removeEventListener('click', onPgCategoryDocClick);
+                document.removeEventListener('click', onDocClickClosePgStateMenu);
+                btnAddExample.removeEventListener('click', onAddPgExample);
                 btnSave.removeEventListener('click', onSave);
                 btnCancel.removeEventListener('click', onCancel);
                 modal.removeEventListener('click', onOverlay);
@@ -16867,6 +16980,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 let normalizedCats = [...new Set(selectedPgCategories.filter(Boolean))];
                 if (normalizedCats.length === 0) normalizedCats = ['通用'];
                 const category = JSON.stringify(normalizedCats);
+                const examples = editExamples.map((ex, idx) => ({
+                    id: ex && ex.id != null ? String(ex.id) : `ex-${Date.now()}-${idx}`,
+                    state: ex && ex.state === 'bad' ? 'bad' : (ex && ex.state === 'neutral' ? 'neutral' : 'ok'),
+                    src: ex && ex.src != null ? String(ex.src).trim() : '',
+                    tgt: ex && ex.tgt != null ? String(ex.tgt).trim() : '',
+                    note: ex && ex.note != null ? String(ex.note).trim() : ''
+                }));
 
                 const editId = modal.getAttribute('data-pg-edit-id') || '';
                 if (_pgHasDuplicateContent(content, editId || null)) {
@@ -16884,11 +17004,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     rollback = { mode: 'edit', index: i, row: { ...projectGuidelines[i] } };
                     projectGuidelines[i].content = content;
                     projectGuidelines[i].category = category;
+                    projectGuidelines[i].examples = examples;
                 } else {
                     const newItem = {
                         id: Date.now(),
                         content,
                         category,
+                        examples,
                         enabled: true,
                         createdAt: new Date().toISOString()
                     };
@@ -16924,6 +17046,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             btnCancel.addEventListener('click', onCancel);
             modal.addEventListener('click', onOverlay);
             document.addEventListener('keydown', onKey);
+            document.addEventListener('click', onDocClickClosePgStateMenu);
+            btnAddExample.addEventListener('click', onAddPgExample);
 
             modal.classList.remove('hidden');
             requestAnimationFrame(() => { contentEl.focus(); });
@@ -17255,6 +17379,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             pgList.innerHTML = toShow.map((s) => {
                 const idAttr = String(s.id);
+                const ex = _siNormalizeGuidelineExamples(s.examples);
+                const exCount = ex.length;
+                const exBadge = exCount > 0 ? `<div style="margin-top:0.3rem;"><span class="ai-badge selected-green" style="font-size:0.72rem;">${exCount} 個範例</span></div>` : '';
+                const exHtml = _siGuidelineExamplesHtml(ex);
                 const actionsHtml = isPm
                     ? `<div class="ai-pg-shared-actions">
                         <button type="button" class="secondary-btn btn-sm pg-edit-btn ai-guideline-inline-edit" data-pg-id="${_esc(idAttr)}">編輯</button>
@@ -17264,6 +17392,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return `<div class="ai-selected-guideline-item ai-pg-shared-card" data-pg-id="${_esc(idAttr)}">
                     <div style="flex:1; min-width:0;">
                         <div class="ai-selected-guideline-item-content">${s.content ? _esc(s.content) : '（無內容）'}</div>
+                        ${exBadge}
+                        ${exHtml}
                     </div>
                     ${actionsHtml}
                 </div>`;
