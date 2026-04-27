@@ -7570,9 +7570,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         // 更新 targetText / 顏色 / 下一步提示
+        const oldTarget = seg.targetText;
+        const oldMv = seg.matchValue;
         seg.targetText = extractTextFromEditor(editorDiv);
         const row = editorDiv.closest('.grid-data-row');
         updateTagColors(row, seg.targetText);
+        if (seg && oldTarget !== seg.targetText) {
+            pushEditorUndo(seg.id, oldTarget, seg.targetText, {
+                oldMatchValue: oldMv,
+                newMatchValue: seg.matchValue
+            });
+            editorUndoEditStart[seg.id] = seg.targetText;
+        }
         applyUpdateSegmentTarget(seg, seg.targetText).catch(console.error);
         refreshTagNextHighlight(row);
     }
@@ -7720,6 +7729,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 (anchorEl && anchorEl.closest && anchorEl.closest('.col-source')) ||
                 (ae && ae.closest && ae.closest('.col-source'))
             );
+            const triggeredFromKeyCol = !!(anchorEl && anchorEl.closest && anchorEl.closest('[class^="col-key-"]'));
             let savedRange = null;
             let savedRangeEditor = null;
             if (sel && sel.rangeCount > 0 && triggeredFromTargetCol && selText) {
@@ -7740,7 +7750,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (tabBtn) tabBtn.click();
             const tmSearchFieldEl = document.getElementById('tmSearchField');
             if (tmSearchFieldEl) {
-                if (triggeredFromTargetCol) tmSearchFieldEl.value = 'target';
+                if (triggeredFromKeyCol) tmSearchFieldEl.value = 'key';
+                else if (triggeredFromTargetCol) tmSearchFieldEl.value = 'target';
                 else if (triggeredFromSourceCol) tmSearchFieldEl.value = 'source';
             }
             if (!selText) {
@@ -7752,13 +7763,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                     runTmConcordanceSearch();
                 }
                 requestAnimationFrame(() => {
+                    if (triggeredFromKeyCol) {
+                        setCaretAtEditorStart(editorBeforeTmSearch || getActiveTargetEditor());
+                        return;
+                    }
                     if (savedRange && savedRangeEditor && document.body.contains(savedRangeEditor) && savedRange) {
                         try {
                             savedRangeEditor.focus();
                             const s = window.getSelection();
                             if (s) {
                                 s.removeAllRanges();
-                                s.addRange(savedRange);
+                                const rEnd = savedRange.cloneRange();
+                                rEnd.collapse(false);
+                                s.addRange(rEnd);
                                 hideCatFakeCaret();
                                 saveCatCaretFromSelection(savedRangeEditor);
                             }
@@ -7838,16 +7855,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    window.applyNumpadMatchForActiveTab = function(relativeIndex) {
+        const tab = getActiveRightPanelTab();
+        if (tab === 'tabTmSearch') {
+            if (window.currentTmConcordanceMatches && window.currentTmConcordanceMatches.length && typeof window.applyTmConcordanceAtIndex === 'function') {
+                window.applyTmConcordanceAtIndex(relativeIndex);
+            }
+        } else if (window.currentTmMatches && window.currentTmMatches.length && typeof window.applyCatMatchAtIndex === 'function') {
+            window.applyCatMatchAtIndex(relativeIndex);
+        }
+    };
+
     document.addEventListener('keydown', (e) => {
         if (!e.ctrlKey || !/^[1-9]$/.test(e.key) || !currentFileId) return;
         const ve = document.getElementById('viewEditor');
         if (!ve || ve.classList.contains('hidden')) return;
-        if (!window.currentTmMatches || !window.currentTmMatches.length) return;
+        const tab = getActiveRightPanelTab();
+        if (tab === 'tabTmSearch') {
+            if (!window.currentTmConcordanceMatches || !window.currentTmConcordanceMatches.length) return;
+        } else {
+            if (!window.currentTmMatches || !window.currentTmMatches.length) return;
+        }
         e.preventDefault();
         e.stopPropagation();
-        if (typeof window.applyCatMatchAtIndex === 'function') {
-            window.applyCatMatchAtIndex(parseInt(e.key, 10) - 1);
-        }
+        window.applyNumpadMatchForActiveTab(parseInt(e.key, 10) - 1);
     }, true);
 
     btnSfNext.addEventListener('click', () => {
@@ -8617,6 +8648,67 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    function getActiveRightPanelTab() {
+        const t = document.querySelector('.tab-btn.active');
+        return t ? t.getAttribute('data-tab') : null;
+    }
+
+    /** 格內可編：CAT 分頁換頁 (Ctrl+←/→) 不攔截，保留逐字／逐詞。 */
+    function isCatPanelBlockWordNav() {
+        const a = document.activeElement;
+        if (!a) return false;
+        if (a.getAttribute('contenteditable') === 'true' && a.classList && a.classList.contains('grid-textarea')) {
+            if (a.closest && (a.closest('.col-target') || a.closest('.col-source'))) return true;
+        }
+        if (a.closest && a.closest('.rt-editor')) return true;
+        return false;
+    }
+
+    function lineTopsInRange(r) {
+        if (!r || !r.getClientRects) return [];
+        const set = new Set();
+        for (const cr of r.getClientRects()) {
+            if (cr && cr.height > 0) set.add(Math.round((cr.top + cr.height / 2) / 2) * 2);
+        }
+        return set.size;
+    }
+
+    function targetTextareaOnFirstLine(editor, selRange) {
+        if (!selRange) return true;
+        const toCaret = document.createRange();
+        try {
+            toCaret.selectNodeContents(editor);
+            toCaret.setEnd(selRange.startContainer, selRange.startOffset);
+        } catch (_) {
+            return true;
+        }
+        return lineTopsInRange(toCaret) <= 1;
+    }
+
+    function targetTextareaOnLastLine(editor, selRange) {
+        if (!selRange) return true;
+        const toEnd = document.createRange();
+        try {
+            toEnd.selectNodeContents(editor);
+            toEnd.setStart(selRange.endContainer, selRange.endOffset);
+        } catch (_) {
+            return true;
+        }
+        if (lineTopsInRange(toEnd) <= 0) return true;
+        return lineTopsInRange(toEnd) <= 1;
+    }
+
+    function focusTargetEditorStartAtGlobalIndex(gIdx) {
+        const gRows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+        const r = gRows[gIdx];
+        if (!r || !isGridDataRowFilterVisible(r)) return;
+        const ed = r.querySelector('.col-target .grid-textarea');
+        if (ed && ed.contentEditable !== 'false') {
+            r.scrollIntoView({ block: 'nearest' });
+            setCaretAtEditorStart(ed);
+        }
+    }
+
     function ensureCatFakeCaretEl() {
         if (!catFakeCaretEl) {
             catFakeCaretEl = document.createElement('div');
@@ -9295,6 +9387,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             sfActiveMatchIdx = firstTargetIdx >= 0 ? firstTargetIdx : 0;
             updateMatchHighlightFocus();
         }
+        moveCaretToEndAndShowFakeInTarget(match.segIdx);
     }
 
     function updateSfReplaceAllButtonLabel() {
@@ -9372,6 +9465,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    /** 篩選取代成功後：游標在譯文尾端、失焦，顯示與 `catSavedCaret` 同源的假游標。 */
+    function moveCaretToEndAndShowFakeInTarget(segIdx) {
+        if (segIdx == null || segIdx < 0) return;
+        const seg = currentSegmentsList[segIdx];
+        if (seg && isTargetWriteProtected(seg)) return;
+        const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+        const row = rows[segIdx];
+        if (!row || !isGridDataRowFilterVisible(row)) return;
+        const ed = row.querySelector('.col-target .grid-textarea');
+        if (!ed || ed.contentEditable === 'false') return;
+        ed.focus();
+        if (typeof setCaretAtEditorEnd === 'function') setCaretAtEditorEnd(ed);
+        else {
+            const r = document.createRange();
+            r.selectNodeContents(ed);
+            r.collapse(false);
+            const sel = window.getSelection();
+            if (sel) { sel.removeAllRanges(); sel.addRange(r); }
+            if (typeof saveCatCaretFromSelection === 'function') saveCatCaretFromSelection(ed);
+        }
+        ed.blur();
+        requestAnimationFrame(() => { if (typeof showCatFakeCaretFromSaved === 'function') showCatFakeCaretFromSaved(); });
+    }
+
     async function performReplaceAll() {
         const term = sfInput.value;
         const replaceTerm = sfReplaceInput ? sfReplaceInput.value : '';
@@ -9419,14 +9536,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         runSearchAndFilter();
         if (replacedCount > 0) {
             updateProgress();
-            if (sfMode === 'filter') {
-                const gRows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
-                for (let i = 0; i < gRows.length; i++) {
-                    if (!isGridDataRowFilterVisible(gRows[i])) continue;
-                    focusTargetEditorAtSegmentIndex(i);
-                    break;
-                }
-            }
+            const lastIdx = pending.length ? pending[pending.length - 1].segIdx : null;
+            if (lastIdx != null) moveCaretToEndAndShowFakeInTarget(lastIdx);
         }
     }
 
@@ -11191,25 +11302,32 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 } catch (err) { console.error(err); }
                             });
                         })();
-                    } else if (e.ctrlKey && e.key === 'ArrowUp') {
-                        e.preventDefault();
-                        let prevRow = row.previousElementSibling;
-                        while (prevRow && !isGridDataRowFilterVisible(prevRow)) prevRow = prevRow.previousElementSibling;
-                        if (prevRow) {
-                            const prevEditor = prevRow.querySelector('.grid-textarea');
-                            if (prevEditor && prevEditor.contentEditable !== 'false') prevEditor.focus();
+                    } else if (!e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                        const s = window.getSelection();
+                        if (s && s.rangeCount && s.isCollapsed) {
+                            const r0 = s.getRangeAt(0);
+                            const gRows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+                            if (e.key === 'ArrowUp' && targetTextareaOnFirstLine(targetInput, r0)) {
+                                e.preventDefault();
+                                let prevRow = row.previousElementSibling;
+                                while (prevRow && !isGridDataRowFilterVisible(prevRow)) prevRow = prevRow.previousElementSibling;
+                                if (prevRow) {
+                                    const gIdx = Array.prototype.indexOf.call(gRows, prevRow);
+                                    if (gIdx >= 0) focusTargetEditorStartAtGlobalIndex(gIdx);
+                                }
+                            } else if (e.key === 'ArrowDown' && targetTextareaOnLastLine(targetInput, r0)) {
+                                e.preventDefault();
+                                let nextRow = row.nextElementSibling;
+                                while (nextRow && !isGridDataRowFilterVisible(nextRow)) nextRow = nextRow.nextElementSibling;
+                                if (nextRow) {
+                                    const gIdx = Array.prototype.indexOf.call(gRows, nextRow);
+                                    if (gIdx >= 0) focusTargetEditorStartAtGlobalIndex(gIdx);
+                                }
+                            }
                         }
-                    } else if (e.ctrlKey && e.key === 'ArrowDown') {
+                    } else if (e.ctrlKey && !e.altKey && e.key >= '1' && e.key <= '9') {
                         e.preventDefault();
-                        let nextRow = row.nextElementSibling;
-                        while (nextRow && !isGridDataRowFilterVisible(nextRow)) nextRow = nextRow.nextElementSibling;
-                        if (nextRow) {
-                            const nextEditor = nextRow.querySelector('.grid-textarea');
-                            if (nextEditor && nextEditor.contentEditable !== 'false') nextEditor.focus();
-                        }
-                    } else if (e.ctrlKey && e.key >= '1' && e.key <= '9') {
-                        e.preventDefault();
-                        if (typeof window.applyCatMatchAtIndex === 'function') window.applyCatMatchAtIndex(parseInt(e.key, 10) - 1);
+                        if (typeof window.applyNumpadMatchForActiveTab === 'function') window.applyNumpadMatchForActiveTab(parseInt(e.key, 10) - 1);
                     }
                 });
 
@@ -11921,9 +12039,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.handleCatResultApply(el || document.body, m.type, m.targetText, scoreArg, relativeIndex);
     };
     
-    // Alt+上/下：在右側 CAT 比對列表中移動選取（跨分頁）
+    // Ctrl+上/下：在右側 CAT 比對列表中移動選取（跨分頁）
     document.addEventListener('keydown', function catPanelArrowKey(e) {
-        if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+        if (!e.ctrlKey || e.shiftKey || e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
         if (!currentFileId) return;
         const viewEditor = document.getElementById('viewEditor');
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
@@ -11947,9 +12065,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         else if (typeof window.updateCatPanelSelection === 'function') window.updateCatPanelSelection();
     });
 
-    // Alt+左/右：CAT 比對結果表換頁（每頁 9 筆）
+    // Ctrl+左/右：CAT 比對結果表換頁（每頁 9 筆；格內可編不攔，保留逐字／逐詞）
     document.addEventListener('keydown', function catPanelPageKey(e) {
-        if (!e.altKey || (e.code !== 'ArrowLeft' && e.code !== 'ArrowRight')) return;
+        if (!e.ctrlKey || e.shiftKey || e.altKey || (e.code !== 'ArrowLeft' && e.code !== 'ArrowRight')) return;
+        if (isCatPanelBlockWordNav()) return;
         const viewEditor = document.getElementById('viewEditor');
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
         if (!currentFileId) return;
@@ -12939,6 +13058,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         return out;
     }
 
+    function tmConcordanceKeyFieldText(seg) {
+        if (!seg || !Array.isArray(seg.keys) || !seg.keys.length) return '';
+        return seg.keys.map((k) => (k == null ? '' : String(k))).join('\n');
+    }
+
     function runTmConcordanceSearch() {
         const input = document.getElementById('tmSearchInput');
         const fieldSel = document.getElementById('tmSearchField');
@@ -12957,7 +13081,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const cache = window.ActiveTmCache || [];
         const matches = [];
         cache.forEach(seg => {
-            const text = field === 'target' ? (seg.targetText || '') : (seg.sourceText || '');
+            const text = field === 'key'
+                ? tmConcordanceKeyFieldText(seg)
+                : (field === 'target' ? (seg.targetText || '') : (seg.sourceText || ''));
             if (tmConcordanceMatchesQuery(text, phrases, tokens)) matches.push(seg);
         });
         if (!matches.length) {
@@ -12970,9 +13096,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         resultsEl.innerHTML = shown.map((m, i) => {
             const src = buildTmConcordanceHighlightedHtml(m.sourceText || '', phrases, tokens);
             const tgt = buildTmConcordanceHighlightedHtml(m.targetText || '', phrases, tokens);
+            const keyHtml = buildTmConcordanceHighlightedHtml(tmConcordanceKeyFieldText(m), phrases, tokens);
+            const keyRow = field === 'key' ? `<div style="margin-bottom:2px;"><b>Key：</b>${keyHtml}</div>` : '';
             const tmLabel = (m.tmName || '').replace(/</g, '&lt;');
             return `<div class="tm-concordance-item${i === 0 ? ' tm-concordance-item--selected' : ''}" data-idx="${i}" title="單擊選取；雙擊套用譯文">
                 <div style="font-size:0.78rem; color:#64748b; margin-bottom:2px;"><strong>${i + 1}</strong> · ${tmLabel}</div>
+                ${keyRow}
                 <div style="margin-bottom:2px;"><b>原：</b>${src}</div>
                 <div><b>譯：</b>${tgt}</div>
             </div>`;

@@ -222,6 +222,7 @@
 | 2026-04-26 | `9c65514` | 5-c：TB footer 灰字兩行 |
 | 2026-04-26 | `5e3c3cc` | 5-c：通用確認標題與無障礙 |
 | 2026-04-28 | `a4e48f5` | 5-f：A1～C1、D1 列色、D2 新增術語回譯文；見 **§五 5-f**（待複驗） |
+| （佔位） |  | 5-g：見 **§五 5-g**；實作完成後補 **commit** |
 
 ### 5-f（第四點五波 UX 補強）：快捷鍵／TM 列／雙擊開關／**列狀態色**／**新增術語焦點**
 
@@ -241,6 +242,25 @@
 | **D2** | **新增術語後回譯文**：在「新增術語」以 **Enter** 或**成功寫入**後，**鍵盤焦點**回到先前譯文格，游標位置以既有 **`catSavedCaret`** 為準（與假游標同源）；實作呼叫 `restoreSavedCaretIntoEditor()`；若還原失敗可 fallback：焦點到主動列譯文格或 `showCatFakeCaretFromSaved()`。 |
 
 **程式預定修改點（實作時對照）**：[`cat-tool/app.js`](../cat-tool/app.js)（Ctrl+F／Ctrl+K／Ctrl+1～9、`setCaretAtEditorStart`、選區還原、TM 欄位 listener、`submitNewTermFromForm` 與**列狀態視覺** helpers）、[`cat-tool/index.html`](../cat-tool/index.html)、[`cat-tool/style.css`](../cat-tool/style.css)（`active-row` 與 `row-bg-*` 對最右三欄的層級；鎖定列全欄一致）、[`cat-tool/editor-focus-notes.txt`](../cat-tool/editor-focus-notes.txt)。
+
+### 5-g（第 4.5 波後續）：快捷鍵重配、復原、句段導覽、TM 搜尋補強
+
+本小節為 **5-g** 之**驗收規格**；**取代** §5-f 表 **A2／A4** 中與本節**牴觸**之敘述（以本節為準）。`cat-tool` 變更經 `npm run sync:cat` 同步至 [`public/cat/`](../public/cat/)。
+
+| 代號 | 驗收項目 |
+|------|----------|
+| **G1** | **Ctrl+K**、反白在**譯文欄**（`.col-target`）且觸發 TM 搜尋等流程完成後，譯文格內**不留選取**，**僅保留 caret**（可於還原 `Range` 後 `collapse` 至尾或首，與產品選定一致，須可驗收）。 |
+| **G2** | **TM 搜尋**分頁：`#tabTmSearch` 外層 **padding／排版** 與 **#tabCAT** 一致（`padding:0` 階層＋內層自帶內距），**「雙擊套用譯文」** 緊貼分頁標、**`border-bottom`** 與下方內容區隔（併 **§5-f B1、B2** 雙欄 **checkbox** 同步、開關語意不變）。 |
+| **G3** | 右欄**快捷鍵**（如 **Ctrl+1～9** 依分頁）、**雙擊**套用、**F8** 插入缺漏 tag 等，凡變更譯文者，皆須併入 **Ctrl+Z／Y** 與 **相符度**（`matchValue`＋`applyMatchCellVisual`）還原邏輯，與**取代此筆／全部取代**同一層次之一致性。特別地：**F8** 路徑納入 `pushEditorUndo`（或等價不拆段之一致狀態）。 |
+| **G4** | **Ctrl+1～9**：在右側 **TM 搜尋**分頁**作用**（該分頁為 active）時，套用 **TM 搜尋** concordance 列表之第 N 筆（`applyTmConcordanceAtIndex`）；在 **CAT** 分頁**作用**時，仍套用右側 **CAT** 比對建議列（`applyCatMatchAtIndex`）。兩分頁皆**無**對應列表則不動作。在 **譯文格** 內與**文件**層兩路 listener 行為**一致**、不互相衝突。 |
+| **G5** | **TM 搜尋**：`#tmSearchField` 新增 **Key** 選項，於 **Active TM 快取** 上以 **key 欄內文** 做 concordance；在 **`col-key-*` 格內**反白後按 **Ctrl+K**，設欄位為依 Key 搜尋、觸發搜尋、焦點到**目前句段譯文開頭**（`setCaretAtEditorStart`）。 |
+| **G6** | **篩選**「**全部取代**／**取代此範圍**」**成功有變更**後，焦點導到**譯文假游標**（`restoreSavedCaretIntoEditor`／`showCatFakeCaretFromSaved` 與既有行為同一路徑，可驗收游標不飄在搜尋列）。 |
+| **G7** | **快捷鍵重配（CAT 比對表）**：原 **Alt+↑／↓、Alt+←／→** 改為 **Ctrl+（對應方向）** 於**右側「CAT」分頁有比對列**且條件符合時，分別為**列表選取上／下**、**多頁時換頁**。**廢除** 譯文欄內**原** **Ctrl+↑／↓**「跳上／下一句段」**行為**（不另指派給該兩鍵在格內的舊行為）。若焦點在**格線可編譯內**且使用 **Ctrl+←／→**，**不得**攔截**逐字／逐詞**預設導航（`catPanelPageKey` 內**早退**；僅在「非上述格內可編譯」或產品允許的焦點時**換頁**）。**Alt+ 箭頭** 不再綁定 CAT 列（快捷鍵 modal 與說明一併更新）。 |
+| **G8** | 譯文可編譯內、**不帶**修飾鍵之 **↑／↓**（`ArrowUp`／`ArrowDown`）：在句段內**第一可視行**再按 **↑** → 焦點**上一可見**句之譯文**開頭**；在**最末可視行**再按 **↓** → 焦點**下一可見**句之譯文**開頭**；**篩選**隱藏之列跳過。 |
+
+**已知衝突與原則**：G7 **水平** 以**格內不換頁**優先。匯出前 `flush` 不新增 undo 堆疊；**預先翻譯、AI 批次** 另單處理。
+
+**程式預定修改點（5-g）**：[`cat-tool/app.js`](../cat-tool/app.js)（`insertNextMissingTag`、`catPanel` 快捷鍵、邊界導覽、`runTmConcordanceSearch`、篩選取代收斂焦點等）、[`cat-tool/index.html`](../cat-tool/index.html)、[`cat-tool/style.css`](../cat-tool/style.css)、必要時 [`cat-tool/editor-focus-notes.txt`](../cat-tool/editor-focus-notes.txt).
 
 ---
 

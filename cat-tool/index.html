@@ -848,19 +848,22 @@
                         <div class="panel-content" id="tabTmSearch">
                             <div class="cat-dblclick-insert-bar" title="關閉時，雙擊比對列與 Ctrl+1～9 不會套用譯文。">
                                 <label class="cat-dblclick-insert-label">
-                                    <input type="checkbox" class="cat-dblclick-insert-cb" checked>
+                                    <input type="checkbox" class="cat-dblclick-insert-cb" id="catDblclickInsertEnabledTm" checked>
                                     <span>雙擊套用譯文</span>
                                 </label>
                             </div>
-                            <div style="display:flex; gap:0.35rem; margin-bottom:0.5rem;">
-                                <input type="text" id="tmSearchInput" placeholder="輸入關鍵字搜尋 TM…" style="flex:1; padding:0.35rem 0.5rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem;">
-                                <select id="tmSearchField" style="padding:0.3rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.82rem;">
+                            <div class="tm-tmsearch-body">
+                            <div class="tm-tmsearch-toolbar" style="display:flex; gap:0.35rem; flex-wrap:wrap; align-items:center;">
+                                <input type="text" id="tmSearchInput" placeholder="輸入關鍵字搜尋 TM…" style="flex:1; min-width:8rem; padding:0.35rem 0.5rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem;">
+                                <select id="tmSearchField" style="padding:0.3rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.82rem; max-width:6rem;">
                                     <option value="source">原文</option>
                                     <option value="target">譯文</option>
+                                    <option value="key">Key</option>
                                 </select>
                                 <button class="primary-btn btn-sm" id="btnTmSearch" style="white-space:nowrap;">搜尋</button>
                             </div>
-                            <div id="tmSearchConcordanceResults" style="overflow-y:auto; max-height:calc(100% - 50px); font-size:0.85rem;"></div>
+                            <div id="tmSearchConcordanceResults" class="tm-tmsearch-results" style="overflow-y:auto; flex:1 1 auto; min-height:56px; font-size:0.85rem;"></div>
+                            </div>
                         </div>
                         <div class="panel-content" id="tabNewTerm" style="padding:0.5rem;">
                             <div id="newTermNoTb" style="color:#64748b; font-size:0.85rem; display:none;">請先在專案設定中指定寫入目標術語庫。</div>
@@ -1183,8 +1186,8 @@
                             <p class="cat-shortcuts-item-desc">對選取的句段清空譯文（已確認者會改為未確認）；請留意無法編輯的鎖定句段會略過。</p>
                         </div>
                         <div class="cat-shortcuts-item">
-                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">套用右側 CAT 第 N 筆建議</span><input type="text" value="Ctrl + 1～9" disabled class="sc-key-input"></div>
-                            <p class="cat-shortcuts-item-desc">右側「CAT」分頁已載入建議列表時，將第 1～9 列對應之譯文套用到目前選取之句段。</p>
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">套用右側第 N 筆建議（依分頁）</span><input type="text" value="Ctrl + 1～9" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">右側在「CAT」分頁且已載入比對建議時，套用到目前句段；在「TM 搜尋」分頁時，套用目前 concordance 列表第 1～9 筆。</p>
                         </div>
                         <div class="cat-shortcuts-item">
                             <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">插入選取文字到譯文游標</span><input type="text" value="Ctrl + 0" disabled class="sc-key-input"></div>
@@ -1195,12 +1198,16 @@
                             <p class="cat-shortcuts-item-desc">在編輯器內復原或重做譯文變更、確認狀態等可追蹤的步驟。焦點在尋找與取代欄位時不觸發，避免和瀏覽器衝突。</p>
                         </div>
                         <div class="cat-shortcuts-item">
-                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">在 CAT 比對列表內移動選取</span><input type="text" value="Alt + ↑ / ↓" disabled class="sc-key-input"></div>
-                            <p class="cat-shortcuts-item-desc">焦點在編輯區時，於右側 CAT 結果表中上移／下移目前選中的那一列。</p>
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">在 CAT 比對列表內移動選取</span><input type="text" value="Ctrl + ↑ / ↓" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">在右側「CAT」分頁且已載入比對列時，上移／下移目前選中的列（可跨分頁）。以 Ctrl+方向鍵操作，不佔用未加修飾的上下鍵。</p>
                         </div>
                         <div class="cat-shortcuts-item">
-                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">CAT 結果換頁</span><input type="text" value="Alt + ← / →" disabled class="sc-key-input"></div>
-                            <p class="cat-shortcuts-item-desc">比對結果超過一頁（每頁至多 9 筆）時，向左／向右換頁瀏覽。</p>
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">CAT 結果換頁</span><input type="text" value="Ctrl + ← / →" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">在「CAT」分頁、比對結果多於 9 筆時，向左／向右換頁。譯文／原文格內仍保留逐字／逐詞的 Ctrl+←／→，不會在格內換頁。</p>
+                        </div>
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">譯文格：上／下鍵越句</span><input type="text" value="↑ / ↓" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">僅在譯文格內、不加 Ctrl。游標在句段內第一可視行再按上，到上一可見句譯文開頭；在最末可視行再按下，到下一可見句譯文開頭；篩選隱藏之列略過。</p>
                         </div>
                         <div class="cat-shortcuts-item">
                             <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">尋找／篩選列</span><input type="text" value="Ctrl + F" disabled class="sc-key-input"></div>
@@ -1208,7 +1215,7 @@
                         </div>
                         <div class="cat-shortcuts-item">
                             <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">TM 一致性搜尋</span><input type="text" value="Ctrl + K" disabled class="sc-key-input"></div>
-                            <p class="cat-shortcuts-item-desc">切到「TM 搜尋」分頁。有反白字時帶入關鍵字並搜尋專案掛載的 TM 快取；反白在譯文欄時以譯文欄比對。沒有反白時不帶字、不搜尋，焦點停在上欄關鍵字框供手動輸入。有反白搜尋後預設把游標移回目前譯文列尾（可於未來依欄位再微調）。</p>
+                            <p class="cat-shortcuts-item-desc">切到「TM 搜尋」分頁。有反白字時帶入關鍵字並搜尋專案掛載的 TM 快取；可選「Key」以 key 欄內文比對；在 Key 格內觸發時會搜尋 Key 且焦點到譯文句首。譯文欄內有反白時，搜尋後不保留反白、僅留游標。無反白時不搜尋，僅關注鍵字欄。</p>
                         </div>
                     </div>
                     <hr style="border:none; border-top:1px solid #e2e8f0; margin:0.25rem 0;">

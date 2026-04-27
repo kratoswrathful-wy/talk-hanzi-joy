@@ -17,7 +17,9 @@ CAT 編輯器：可能主動切換焦點的情境（供後續逐條討論）
 
 7. 遠端衝突未解：blur / Ctrl+Enter 時 queueMicrotask 拉回該列譯文（刻意）。
 
-8. Ctrl+Enter／Ctrl+↑↓：在句段間移動焦點（刻意）。
+8. Ctrl+Enter：確認；原 Ctrl+↑／↓ 換句已改，句段邊界改以未加修飾的 ↑／↓ 越句；CAT 比對表選列／換頁為 Ctrl+方向（5-g）。
+
+8b. 篩選全部取代／取代此範圍成功後：譯文尾＋失焦＋ showCatFakeCaretFromSaved（5-g G6）。
 
 9. insertPlainTextAtCaret：先 focus 編輯格（貼上／插入需要）。
 
