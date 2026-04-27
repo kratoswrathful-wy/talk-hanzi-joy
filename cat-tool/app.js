@@ -13928,10 +13928,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         try { notes = await DBService.getPrivateNotesByProject(pid, ''); } catch (_) {}
         _noteQuills = {};
         Object.keys(_privateNoteEditQuills).forEach((k) => { delete _privateNoteEditQuills[k]; });
-        const noteRows = notes.filter((n) => privateNoteItemType(n) === 'note');
+        const noteRows = notes
+            .filter((n) => privateNoteItemType(n) === 'note')
+            .sort((a, b) => {
+                const ta = new Date(a.createdAt || a.updatedAt || 0).getTime();
+                const tb = new Date(b.createdAt || b.updatedAt || 0).getTime();
+                if (ta !== tb) return ta - tb;
+                return String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
+            });
         const todoRows = notes
             .filter((n) => privateNoteItemType(n) === 'todo')
-            .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+            .sort((a, b) => {
+                const ta = new Date(a.createdAt || a.updatedAt || 0).getTime();
+                const tb = new Date(b.createdAt || b.updatedAt || 0).getTime();
+                if (ta !== tb) return ta - tb;
+                return String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
+            });
 
         function fillLists(listNotes, listTodos, listKey) {
             if (!listNotes || !listTodos) return;
@@ -14060,22 +14072,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             const html = q.root.innerHTML;
             try { if (q && typeof q.enable === 'function') q.enable(false); } catch (_) { /* ignore */ }
             delete _privateNoteEditQuills[idStr];
-            const bodyHost = wrap.querySelector('.guideline-item-body');
-            if (bodyHost) {
-                while (bodyHost.firstChild) {
-                    try { bodyHost.removeChild(bodyHost.firstChild); } catch (_) { break; }
-                }
-            }
             note.content = html;
-            _pnRenderNoteBodyView(wrap, note, lk, html);
-            _pnRewireNoteAside(wrap, note, lk);
             try {
                 await DBService.updatePrivateNote(parseId(note.id), html);
             } catch (err) {
                 console.error(err);
                 alert(err && err.message ? String(err.message) : '儲存失敗');
-                await _loadPrivateNotes();
             }
+            await _loadPrivateNotes();
         });
         wrap.querySelector('.pn-cancel-btn')?.addEventListener('click', async () => {
             const html = q.root.innerHTML;
@@ -14220,7 +14224,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!pid) return;
         let guidelines = [];
         try { guidelines = await DBService.getGuidelinesByProject(pid); } catch (_) {}
-        const items = guidelines.filter((g) => g.type === 'shared_note');
+        const items = guidelines
+            .filter((g) => g.type === 'shared_note')
+            .sort((a, b) => {
+                const ta = new Date(a.createdAt || a.updatedAt || 0).getTime();
+                const tb = new Date(b.createdAt || b.updatedAt || 0).getTime();
+                if (ta !== tb) return ta - tb;
+                return String(a.id).localeCompare(String(b.id), undefined, { numeric: true });
+            });
         _renderGuidelinesList(items, document.getElementById('sharedNotesList'), 'panel');
         _renderGuidelinesList(items, document.getElementById('sharedNotesListProject'), 'projectPage');
     }
