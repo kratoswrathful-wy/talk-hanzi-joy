@@ -16252,6 +16252,32 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
+        function _showPgSaveError(err, fallbackMsg) {
+            const msg = err && err.message ? String(err.message) : fallbackMsg;
+            _showAiToast(msg || '儲存失敗', true);
+            setTimeout(() => { _hideAiToast(); }, 3600);
+        }
+
+        function _pgNormalizeContent(raw) {
+            return String(raw || '').trim();
+        }
+
+        function _pgContentKey(raw) {
+            return _pgNormalizeContent(raw)
+                .replace(/\s+/g, ' ')
+                .toLocaleLowerCase('zh-Hant-TW');
+        }
+
+        function _pgHasDuplicateContent(content, excludeId) {
+            const targetKey = _pgContentKey(content);
+            if (!targetKey) return false;
+            return projectGuidelines.some((row) => {
+                if (!row) return false;
+                if (excludeId != null && String(row.id) === String(excludeId)) return false;
+                return _pgContentKey(row.content) === targetKey;
+            });
+        }
+
         /** 專案準則 `category` 與庫內準則條目相同：JSON 陣列字串或單一字串。 */
         function _pgNormalizeCategory(cat) {
             if (!cat) return ['通用'];
@@ -16289,19 +16315,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             listEl.querySelectorAll('.pg-manage-del').forEach((btn) => {
                 btn.onclick = async () => {
+                    if (!isCatSharedMutator()) return;
                     const sid = btn.getAttribute('data-pg-id');
                     if (!(await openCatConfirmModal('是否確定要刪除此專案準則條目？'))) return;
                     const i = projectGuidelines.findIndex((t) => String(t.id) === String(sid));
                     if (i < 0) return;
-                    projectGuidelines.splice(i, 1);
+                    const [removed] = projectGuidelines.splice(i, 1);
                     try {
-                        await DBService.saveAiProjectSettings(projectId, {
-                            selectedGuidelineIds: [...selectedGuidelineIds],
-                            selectedStyleGuidelineIds: [...selectedStyleIds],
-                            specialInstructions,
-                            projectGuidelines
-                        });
-                    } catch (e) { console.error(e); }
+                        await savePSettings();
+                    } catch (e) {
+                        console.error(e);
+                        if (removed) projectGuidelines.splice(i, 0, removed);
+                        _showPgSaveError(e, '刪除專案準則失敗，已還原。');
+                    }
                     void renderProjectGuidelines();
                     renderPgManageProjectGuidelinesList();
                 };
@@ -16417,27 +16443,46 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
 
-            function onAddClick() {
-                const content = ta.value.trim();
+            async function onAddClick() {
+                if (!isCatSharedMutator()) return;
+                const content = _pgNormalizeContent(ta.value);
                 if (!content) {
                     alert('請輸入專案準則內文');
                     return;
                 }
+                if (_pgHasDuplicateContent(content, null)) {
+                    alert('已有相同內容的專案準則，請勿重複新增。');
+                    return;
+                }
                 let cats = [...new Set(manageAddCategories.filter(Boolean))];
                 if (cats.length === 0) cats = ['通用'];
-                projectGuidelines.push({
+                const newItem = {
                     id: Date.now(),
                     content,
                     category: JSON.stringify(cats),
                     enabled: true,
                     createdAt: new Date().toISOString()
-                });
-                void savePSettings().catch((e) => console.error(e));
+                };
+                projectGuidelines.push(newItem);
+                btnAdd.disabled = true;
+                try {
+                    // 並發規則：採最後寫入者為準，失敗即本地回滾。
+                    await savePSettings();
+                    _showCatBriefToast('已新增專案準則。');
+                } catch (e) {
+                    console.error(e);
+                    const idx = projectGuidelines.findIndex((row) => String(row.id) === String(newItem.id));
+                    if (idx >= 0) projectGuidelines.splice(idx, 1);
+                    _showPgSaveError(e, '新增專案準則失敗，已還原。');
+                    return;
+                } finally {
+                    btnAdd.disabled = false;
+                }
                 ta.value = '';
                 manageAddCategories = ['通用'];
                 updateManageAddDropdown();
                 updateManageAddDisplay();
-                void renderProjectGuidelines();
+                await renderProjectGuidelines();
                 renderPgManageProjectGuidelinesList();
             }
 
@@ -16606,9 +16651,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
 
-            function onSave() {
+            async function onSave() {
+                if (!isCatSharedMutator()) return;
                 showErr('');
-                const content = contentEl.value.trim();
+                const content = _pgNormalizeContent(contentEl.value);
                 if (!content) {
                     showErr('內容不得空白。');
                     contentEl.focus();
@@ -16619,25 +16665,53 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const category = JSON.stringify(normalizedCats);
 
                 const editId = modal.getAttribute('data-pg-edit-id') || '';
+                if (_pgHasDuplicateContent(content, editId || null)) {
+                    showErr('已有相同內容的專案準則，請勿重複儲存。');
+                    contentEl.focus();
+                    return;
+                }
+                let rollback = null;
                 if (editId) {
                     const i = projectGuidelines.findIndex((t) => String(t.id) === String(editId));
                     if (i < 0) {
                         showErr('找不到該條目。');
                         return;
                     }
+                    rollback = { mode: 'edit', index: i, row: { ...projectGuidelines[i] } };
                     projectGuidelines[i].content = content;
                     projectGuidelines[i].category = category;
                 } else {
-                    projectGuidelines.push({
+                    const newItem = {
                         id: Date.now(),
                         content,
                         category,
                         enabled: true,
                         createdAt: new Date().toISOString()
-                    });
+                    };
+                    projectGuidelines.push(newItem);
+                    rollback = { mode: 'new', id: newItem.id };
                 }
-                void savePSettings().catch((e) => console.error(e));
-                void renderProjectGuidelines();
+                btnSave.disabled = true;
+                try {
+                    // 並發行為：最後儲存者內容生效（Last write wins）。
+                    await savePSettings();
+                    _showCatBriefToast(editId ? '已更新專案準則。' : '已新增專案準則。');
+                } catch (e) {
+                    console.error(e);
+                    if (rollback && rollback.mode === 'edit' && rollback.row) {
+                        projectGuidelines[rollback.index] = rollback.row;
+                    }
+                    if (rollback && rollback.mode === 'new') {
+                        const ix = projectGuidelines.findIndex((row) => String(row.id) === String(rollback.id));
+                        if (ix >= 0) projectGuidelines.splice(ix, 1);
+                    }
+                    _showPgSaveError(e, '儲存專案準則失敗，已還原。');
+                    showErr('儲存失敗，請稍後再試。');
+                    return;
+                } finally {
+                    btnSave.disabled = false;
+                }
+                await renderProjectGuidelines();
                 refreshPgManageModalIfOpen();
                 closeModal();
             }
@@ -16992,19 +17066,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             pgList.querySelectorAll('.pg-del-btn').forEach((btn) => {
                 btn.onclick = async () => {
+                    if (!isCatSharedMutator()) return;
                     const sid = btn.getAttribute('data-pg-id');
                     if (!(await openCatConfirmModal('是否確定要刪除此專案準則條目？'))) return;
                     const i = projectGuidelines.findIndex((t) => String(t.id) === String(sid));
                     if (i < 0) return;
-                    projectGuidelines.splice(i, 1);
+                    const [removed] = projectGuidelines.splice(i, 1);
                     try {
-                        await DBService.saveAiProjectSettings(projectId, {
-                            selectedGuidelineIds: [...selectedGuidelineIds],
-                            selectedStyleGuidelineIds: [...selectedStyleIds],
-                            specialInstructions,
-                            projectGuidelines
-                        });
-                    } catch (e) { console.error(e); }
+                        await savePSettings();
+                    } catch (e) {
+                        console.error(e);
+                        if (removed) projectGuidelines.splice(i, 0, removed);
+                        _showPgSaveError(e, '刪除專案準則失敗，已還原。');
+                    }
                     await renderProjectGuidelines();
                     refreshPgManageModalIfOpen();
                 };
@@ -17107,7 +17181,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
         }
         if (manageProjectGuidelineBtn) {
+            manageProjectGuidelineBtn.style.display = isPm ? '' : 'none';
             manageProjectGuidelineBtn.onclick = () => {
+                if (!isCatSharedMutator()) return;
                 void openPgManageProjectGuidelinesModal();
             };
         }
