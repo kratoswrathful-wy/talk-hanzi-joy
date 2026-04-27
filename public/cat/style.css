@@ -244,13 +244,13 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
     border-top: 1px solid #e2e8f0;
 }
 
-/* 專案準則 modal：複選標籤下拉需超出捲動區，避免被裁切 */
+/* 專案準則 modal：維持與條目編輯器一致的固定框高與內層捲動 */
 #pgEditProjectGuidelineModal .pg-project-guideline-modal {
-    overflow: visible;
+    overflow: hidden;
 }
 #pgEditProjectGuidelineModal .ag-edit-guideline-modal-scroll {
-    overflow: visible;
-    max-height: min(70vh, 480px);
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 #pgEditProjectGuidelineModal {
     z-index: 10095;
@@ -2491,6 +2491,8 @@ mark.tm-search-hit {
     gap: 0.35rem;
     padding: 0.25rem 0.55rem;
     min-height: 1.95rem;
+    height: 1.95rem;
+    line-height: 1.2;
     border: 1px solid #94a3b8;
     border-radius: 6px;
     background: #fff;
@@ -2501,6 +2503,10 @@ mark.tm-search-hit {
     max-width: 100%;
     user-select: none;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.ag-edit-guideline-modal-scroll .ai-multiselect-trigger {
+    min-height: 1.95rem;
+    height: 1.95rem;
 }
 .ai-multiselect-trigger:hover {
     border-color: #3b82f6;

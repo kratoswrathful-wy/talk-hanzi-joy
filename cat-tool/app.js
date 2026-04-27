@@ -17194,7 +17194,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
             const toShow = specialInstructions.filter(shouldShowRow);
             if (toShow.length === 0) {
-                specialList.innerHTML = '<p style="font-size:0.78rem; color:#94a3b8; margin:0;">目前沒有特殊指示。</p>';
+                specialList.innerHTML = '<p class="si-empty-placeholder" style="font-size:0.78rem; color:#94a3b8; margin:0;">目前沒有特殊指示。</p>';
                 if (newItemEditor) specialList.appendChild(newItemEditor);
                 return;
             }
@@ -17350,9 +17350,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (i < 0) return;
                         const insertIdx = i;
                         const removed = specialInstructions[i];
-                        const item = specialList.querySelector(`[data-si-id="${sid}"]`);
                         specialInstructions.splice(i, 1);
-                        if (item) item.remove();
+                        await renderSpecialInstructions();
                         try {
                             await _pruneInstructionIdFromAllProjectFiles(projectId, removed.id);
                             await DBService.saveAiProjectSettings(projectId, {
@@ -17481,7 +17480,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Remove any existing new-item editor first
                 specialList.querySelector('.si-new-item')?.remove();
                 // Remove the "no instructions" placeholder if present
-                specialList.querySelector('p')?.remove();
+                specialList.querySelector('.si-empty-placeholder')?.remove();
                 const newItem = document.createElement('div');
                 newItem.className = 'guideline-item si-new-item';
                 newItem.innerHTML = `
