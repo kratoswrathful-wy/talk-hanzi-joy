@@ -593,8 +593,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ---- 可自訂快捷鍵 Registry ----
     const CUSTOM_SC_KEY = 'catToolCustomShortcuts';
     const CUSTOM_SC_DEFS = [
-        { id: 'clearFilter', label: '清除篩選並回到最後編輯位置', def: { ctrl:false, alt:true, shift:false, key:'f' } },
-        { id: 'quickNewTerm', label: '快速填入新增術語', def: { ctrl:true, alt:false, shift:false, key:'q' } },
+        {
+            id: 'clearFilter',
+            label: '清除篩選並回到最後編輯位置',
+            desc: '等同點「清除」Ｘ：清空尋找與篩選條件，並盡量把焦點帶回最後編輯的句段。已鎖定 QA 篩選範圍時可能無法使用。',
+            def: { ctrl:false, alt:true, shift:false, key:'f' }
+        },
+        {
+            id: 'quickNewTerm',
+            label: '快速填入新增術語',
+            desc: '切到「新增術語」分頁。若在原文欄或譯文欄有反白，會帶入對應欄位並聚焦，方便一次新增術語。',
+            def: { ctrl:true, alt:false, shift:false, key:'q' }
+        },
     ];
 
     function _scFormat(sc) {
@@ -630,13 +640,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!container) return;
         container.innerHTML = '';
         // 使用 CSS Grid 讓標籤欄和 key input 欄寬度對齊
-        container.style.cssText = 'display:grid; grid-template-columns:1fr 120px auto; gap:0.4rem 1rem; align-items:center;';
+        container.style.cssText = 'display:grid; grid-template-columns:1fr minmax(108px,130px) auto; gap:0.5rem 0.75rem; align-items:start;';
         CUSTOM_SC_DEFS.forEach(def => {
             const sc = getCustomShortcut(def.id);
-            // label, keyInput, btns 各佔一格（grid row，不用額外 wrapper div）
+            const labelWrap = document.createElement('div');
+            labelWrap.className = 'sc-custom-label-wrap';
             const label = document.createElement('span');
-            label.style.fontSize = '0.88rem';
             label.textContent = def.label;
+            labelWrap.appendChild(label);
+            if (def.desc) {
+                const p = document.createElement('p');
+                p.className = 'sc-custom-desc';
+                p.textContent = def.desc;
+                labelWrap.appendChild(p);
+            }
             const keyInput = document.createElement('input');
             keyInput.type = 'text';
             keyInput.value = _scFormat(sc);
@@ -696,8 +713,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const btns = document.createElement('div');
             btns.style.cssText = 'display:flex; gap:0.3rem; flex-shrink:0;';
             btns.append(recordBtn, resetBtn);
-            // grid: label | keyInput | btns（各自直接加入 container）
-            container.append(label, keyInput, btns);
+            container.append(labelWrap, keyInput, btns);
         });
     }
     
@@ -7705,10 +7721,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const tmSearchFieldEl = document.getElementById('tmSearchField');
                 if (tmSearchFieldEl) tmSearchFieldEl.value = 'target';
             }
-            if (tmSearchInput && tmSearchInput.value.trim()) {
-                runTmConcordanceSearch();
+            if (!selText) {
+                requestAnimationFrame(() => {
+                    if (tmSearchInput && document.body.contains(tmSearchInput)) tmSearchInput.focus();
+                });
+            } else {
+                if (tmSearchInput && tmSearchInput.value.trim()) {
+                    runTmConcordanceSearch();
+                }
+                requestAnimationFrame(() => setCaretAtEditorEnd(editorBeforeTmSearch || getActiveTargetEditor()));
             }
-            requestAnimationFrame(() => setCaretAtEditorEnd(editorBeforeTmSearch || getActiveTargetEditor()));
         }
         if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key === '0' && currentFileId) {
             const ve = document.getElementById('viewEditor');

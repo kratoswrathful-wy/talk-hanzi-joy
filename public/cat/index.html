@@ -572,7 +572,7 @@
                         <button id="btnTagCollapse" class="icon-btn" title="展開標籤 (Ctrl+Shift+T)" style="font-size:0.8rem; font-family:monospace;">{…}</button>
                         <button id="btnShowNonPrint" class="icon-btn" title="顯示 / 隱藏非列印字元" style="font-size:1rem;">¶</button>
                         <button id="btnTagGroupMode" class="icon-btn active" title="標籤群組插入：已停用（F8 固定插入單一 tag）" style="font-size:0.8rem;">T⁺</button>
-                        <button id="btnShortcuts" class="icon-btn" title="快捷鍵設定">⌨️</button>
+                        <button id="btnShortcuts" class="icon-btn" title="快捷鍵一覽（含說明）">⌨️</button>
                         <button id="btnColSettings" class="icon-btn" title="設定">⚙️</button>
                         <button id="btnPreTranslate" class="primary-btn btn-sm">預先翻譯</button>
                         <button id="exportBtn" class="success-btn btn-sm">匯出檔案</button>
@@ -847,6 +847,13 @@
                         </div>
 
                         <div class="panel-content" id="tabTmSearch" style="padding:0.5rem;">
+                            <div class="cat-dblclick-insert-bar" title="僅版面預覽：勾選與雙擊套用行為尚未接上。">
+                                <label class="cat-dblclick-insert-label">
+                                    <input type="checkbox" id="tmDblclickInsertPreview" disabled>
+                                    <span>雙擊套用譯文</span>
+                                </label>
+                                <span class="cat-dblclick-insert-hint">預覽：開關之後會與編輯器設定同步。</span>
+                            </div>
                             <div style="display:flex; gap:0.35rem; margin-bottom:0.5rem;">
                                 <input type="text" id="tmSearchInput" placeholder="輸入關鍵字搜尋 TM…" style="flex:1; padding:0.35rem 0.5rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem;">
                                 <select id="tmSearchField" style="padding:0.3rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.82rem;">
@@ -1135,7 +1142,7 @@
         
         <!-- Shortcuts Modal -->
         <div class="wizard-overlay hidden" id="shortcutsModal">
-            <div class="wizard-modal" style="max-width:660px;">
+            <div class="wizard-modal" style="max-width:720px;">
                 <div class="wizard-header">
                     <h3 style="margin:0; font-size:1.25rem;">快捷鍵</h3>
                     <button class="close-btn" id="btnCloseShortcuts">×</button>
@@ -1143,54 +1150,67 @@
                 <div class="wizard-body" style="display:flex; flex-direction:column; gap:0.75rem; max-height:70vh; overflow-y:auto;">
                     <!-- 固定快捷鍵（不可改）-->
                     <div style="font-size:0.8rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">固定快捷鍵</div>
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.4rem 1.5rem;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
-                            <span style="font-size:0.88rem;">確認 / 取消確認句段</span><input type="text" value="Ctrl + Enter" disabled class="sc-key-input">
+                    <p style="margin:0; font-size:0.78rem; color:#64748b; line-height:1.45;">下列為編輯器中預設可用的快捷鍵。組合鍵依常見寫法標示（Mac 上多用 ⌘ 對應 Ctrl）。</p>
+                    <div class="cat-shortcuts-list">
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">確認／取消確認句段</span><input type="text" value="Ctrl + Enter" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">焦點在該句「譯文」欄時：若為未確認會寫入並標為已確認（可依設定跳到下一句或連動重複句段）；若已是已確認則改回未確認。搭配多選句段時可批次確認。</p>
                         </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
-                            <span style="font-size:0.88rem;">跳到上一句段</span><input type="text" value="Ctrl + ↑" disabled class="sc-key-input">
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">跳到上一／下一句段</span><input type="text" value="Ctrl + ↑ / ↓" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">焦點在譯文欄時，移動到可見列表中上一則或下一則可編輯句段的譯文欄，便於連續校稿。</p>
                         </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
-                            <span style="font-size:0.88rem;">跳到下一句段</span><input type="text" value="Ctrl + ↓" disabled class="sc-key-input">
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">全選目前可見句段</span><input type="text" value="Ctrl + Shift + A" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">在目前搜尋／篩選結果中可見的句段全部勾進「選取」（# 欄會顯示選取框線），方便批次取代或批次確認。</p>
                         </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
-                            <span style="font-size:0.88rem;">全選句段</span><input type="text" value="Ctrl + Shift + A" disabled class="sc-key-input">
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">插入下一個缺漏標籤</span><input type="text" value="F8" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">在譯文中依標籤順序插入下一組缺的占位標籤（有成對規則時可一次補齊）。</p>
                         </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
-                            <span style="font-size:0.88rem;">插入下一個缺漏標籤</span><input type="text" value="F8" disabled class="sc-key-input">
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">標籤展開／收起顯示</span><input type="text" value="Ctrl + Shift + T" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">切換標籤在編輯區是完整展開或收成較短樣式；僅影響畫面呈現，不刪除標籤內容。</p>
                         </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
-                            <span style="font-size:0.88rem;">切換標籤展開 / 收起</span><input type="text" value="Ctrl + Shift + T" disabled class="sc-key-input">
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">清除譯文中所有標籤占位</span><input type="text" value="Ctrl + F8" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">移除譯文裡形如 <code style="font-size:0.76rem;background:#f1f5f9;padding:0 4px;border-radius:3px;">{數字}</code> 的標籤碼，保留可見文字。</p>
                         </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
-                            <span style="font-size:0.88rem;">清除譯文中所有標籤</span><input type="text" value="Ctrl + F8" disabled class="sc-key-input">
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">將原文複製到譯文</span><input type="text" value="Ctrl + Insert" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">對選取的句段（或多選）把原文拷貝到對應譯文欄，沿用標籤對應規則。</p>
                         </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
-                            <span style="font-size:0.88rem;">將原文複製到譯文</span><input type="text" value="Ctrl + Insert" disabled class="sc-key-input">
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">清除譯文</span><input type="text" value="Ctrl + Delete" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">對選取的句段清空譯文（已確認者會改為未確認）；請留意無法編輯的鎖定句段會略過。</p>
                         </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
-                            <span style="font-size:0.88rem;">清除譯文</span><input type="text" value="Ctrl + Delete" disabled class="sc-key-input">
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">套用右側 CAT 第 N 筆建議</span><input type="text" value="Ctrl + 1～9" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">右側「CAT」分頁已載入建議列表時，將第 1～9 列對應之譯文套用到目前選取之句段。</p>
                         </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
-                            <span style="font-size:0.88rem;">套用右側 CAT 第 N 筆建議</span><input type="text" value="Ctrl + 1 - 9" disabled class="sc-key-input">
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">插入選取文字到譯文游標</span><input type="text" value="Ctrl + 0" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">將目前畫面上任意反白的文字插入「譯文」中先前記住的游標位置（或作用中的譯文格）；常用於從 CAT／別列複製片段後貼入。</p>
                         </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
-                            <span style="font-size:0.88rem;">將選取文字插入最後譯文游標</span><input type="text" value="Ctrl + 0" disabled class="sc-key-input">
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">復原／重做</span><input type="text" value="Ctrl + Z / Y" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">在編輯器內復原或重做譯文變更、確認狀態等可追蹤的步驟。焦點在尋找與取代欄位時不觸發，避免和瀏覽器衝突。</p>
                         </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
-                            <span style="font-size:0.88rem;">復原 / 取消復原</span><input type="text" value="Ctrl + Z / Y" disabled class="sc-key-input">
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">在 CAT 比對列表內移動選取</span><input type="text" value="Alt + ↑ / ↓" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">焦點在編輯區時，於右側 CAT 結果表中上移／下移目前選中的那一列。</p>
                         </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
-                            <span style="font-size:0.88rem;">在 CAT 列表移動選取</span><input type="text" value="Alt + ↑ / ↓" disabled class="sc-key-input">
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">CAT 結果換頁</span><input type="text" value="Alt + ← / →" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">比對結果超過一頁（每頁至多 9 筆）時，向左／向右換頁瀏覽。</p>
                         </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
-                            <span style="font-size:0.88rem;">CAT 比對結果換頁（逾 9 筆時）</span><input type="text" value="Alt + ← / →" disabled class="sc-key-input">
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">尋找／篩選列</span><input type="text" value="Ctrl + F" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">第一次：將焦點移到左上「尋找」欄以便輸入或取代。焦點已在尋找欄時再按：在「搜尋」與「篩選」模式間切換（進階篩選鎖定時可能無法切換）。</p>
                         </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
-                            <span style="font-size:0.88rem;">跳到搜尋列 / 連按切換搜尋與篩選</span><input type="text" value="Ctrl + F" disabled class="sc-key-input">
-                        </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
-                            <span style="font-size:0.88rem;">TM 索引一致性搜尋（焦點回譯文尾端）</span><input type="text" value="Ctrl + K" disabled class="sc-key-input">
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">TM 一致性搜尋</span><input type="text" value="Ctrl + K" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">切到「TM 搜尋」分頁。有反白字時帶入關鍵字並搜尋專案掛載的 TM 快取；反白在譯文欄時以譯文欄比對。沒有反白時不帶字、不搜尋，焦點停在上欄關鍵字框供手動輸入。有反白搜尋後預設把游標移回目前譯文列尾（可於未來依欄位再微調）。</p>
                         </div>
                     </div>
                     <hr style="border:none; border-top:1px solid #e2e8f0; margin:0.25rem 0;">
