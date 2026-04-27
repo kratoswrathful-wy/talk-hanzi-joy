@@ -2181,8 +2181,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (gridViewport) {
         gridViewport.addEventListener('scroll', () => {
             if (collabCurrentFileId) applyCollabFocusOutlines();
+            showRealCaretScrollTipIfNeeded();
+            showCatFakeCaretFromSaved();
         });
     }
+    // 焦點移入／移出編輯格時更新真游標提示（改到正確格子時重新判斷，離開時隱藏）
+    document.addEventListener('focusin', (e) => {
+        if (e.target && e.target.classList && e.target.classList.contains('grid-textarea')) {
+            showRealCaretScrollTipIfNeeded();
+        } else {
+            hideCatRealCaretScrollTip();
+        }
+    }, false);
+    document.addEventListener('focusout', (e) => {
+        if (e.target && e.target.classList && e.target.classList.contains('grid-textarea')) {
+            hideCatRealCaretScrollTip();
+        }
+    }, false);
 
     /** 將 ISO 時間字串轉成台灣格式（年/月/日 時:分）供變更紀錄顯示用 */
     function formatDateForLog(iso) {
@@ -8630,6 +8645,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let catSavedCaret = null;
     let catFakeCaretEl = null;
     let catFakeCaretScrollTipEl = null;
+    let catRealCaretScrollTipEl = null;
 
     function getEditorFromSelection() {
         const sel = window.getSelection();
@@ -8802,6 +8818,60 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    function ensureCatRealCaretScrollTipEl() {
+        if (!catRealCaretScrollTipEl) {
+            catRealCaretScrollTipEl = document.createElement('div');
+            catRealCaretScrollTipEl.className = 'cat-fake-caret-scroll-tip hidden';
+            catRealCaretScrollTipEl.setAttribute('role', 'status');
+            document.body.appendChild(catRealCaretScrollTipEl);
+        }
+        return catRealCaretScrollTipEl;
+    }
+
+    function hideCatRealCaretScrollTip() {
+        if (catRealCaretScrollTipEl) {
+            catRealCaretScrollTipEl.classList.add('hidden');
+            catRealCaretScrollTipEl.textContent = '';
+        }
+    }
+
+    function showRealCaretScrollTipIfNeeded() {
+        const active = document.activeElement;
+        if (!active || !active.classList.contains('grid-textarea')) {
+            hideCatRealCaretScrollTip();
+            return;
+        }
+        const editorGrid = document.getElementById('editorGrid');
+        const gridRect = editorGrid ? editorGrid.getBoundingClientRect() : null;
+        if (!gridRect) { hideCatRealCaretScrollTip(); return; }
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) { hideCatRealCaretScrollTip(); return; }
+        let caretRect = null;
+        try {
+            const r = sel.getRangeAt(0);
+            const rects = r.getClientRects ? Array.from(r.getClientRects()) : [];
+            caretRect = rects.length ? rects[rects.length - 1] : r.getBoundingClientRect();
+        } catch (_) { hideCatRealCaretScrollTip(); return; }
+        if (!caretRect || (!caretRect.width && !caretRect.height)) {
+            const edRect = active.getBoundingClientRect();
+            const st = getComputedStyle(active);
+            caretRect = { left: edRect.left + (parseFloat(st.paddingLeft) || 8), top: edRect.top + (parseFloat(st.paddingTop) || 4), height: 16 };
+        }
+        const outAbove = (caretRect.top + (caretRect.height || 0)) < gridRect.top;
+        const outBelow = caretRect.top > gridRect.bottom;
+        if (!outAbove && !outBelow) { hideCatRealCaretScrollTip(); return; }
+        const segId = active.dataset ? active.dataset.segId : null;
+        const segNum = getSegDisplayIndexForTip(segId);
+        const tip = ensureCatRealCaretScrollTipEl();
+        tip.textContent = `游標位於第 ${segNum} 號句段`;
+        tip.classList.remove('hidden');
+        const colTarget = document.querySelector('.col-target');
+        const anchorLeft = colTarget ? colTarget.getBoundingClientRect().left : gridRect.left;
+        tip.style.left = `${anchorLeft + 4}px`;
+        tip.style.top = outAbove ? `${gridRect.top + 4}px` : `${gridRect.bottom - 36}px`;
+        tip.style.maxWidth = `${Math.max(120, gridRect.right - anchorLeft - 8)}px`;
+    }
+
     function ensureCatFakeCaretEl() {
         if (!catFakeCaretEl) {
             catFakeCaretEl = document.createElement('div');
@@ -8875,14 +8945,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 mark.classList.add('hidden');
                 tip.textContent = `暫存游標位於第 ${segNum} 號句段`;
                 tip.classList.remove('hidden');
-                if (outAbove) {
-                    tip.style.left = `${gridRect.left + 8}px`;
-                    tip.style.top = `${gridRect.top + 4}px`;
-                } else {
-                    tip.style.left = `${gridRect.left + 8}px`;
-                    tip.style.top = `${gridRect.bottom - 36}px`;
-                }
-                tip.style.maxWidth = `${Math.max(120, gridRect.width - 16)}px`;
+                const colTarget = document.querySelector('.col-target');
+                const anchorLeft = colTarget ? colTarget.getBoundingClientRect().left : gridRect.left;
+                tip.style.left = `${anchorLeft + 4}px`;
+                tip.style.top = outAbove ? `${gridRect.top + 4}px` : `${gridRect.bottom - 36}px`;
+                tip.style.maxWidth = `${Math.max(120, gridRect.right - anchorLeft - 8)}px`;
                 return;
             }
         }
@@ -12218,7 +12285,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.tmConcordanceSelectedIndex = idx;
             e.preventDefault();
             e.stopPropagation();
-            if (typeof window.updateTmConcordanceSelection === 'function') window.updateTmConcordanceSelection();
+            if (typeof window.updateTmConcordanceSelection === 'function') {
+                window.updateTmConcordanceSelection();
+            } else {
+                renderConcordanceFooter((window.currentTmConcordanceMatches || [])[idx] || null);
+            }
             const el = document.querySelector(`#tmSearchConcordanceResults .tm-concordance-item[data-idx="${idx}"]`);
             el?.scrollIntoView({ block: 'nearest' });
             return;
@@ -12296,14 +12367,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
         e.preventDefault();
         e.stopPropagation();
-        if (e.key === 'ArrowUp' || e.code === 'ArrowUp') {
-            if (catSavedCaret && catSavedCaret.editor) {
-                const r = catSavedCaret.editor.closest('.grid-data-row');
-                r?.scrollIntoView({ block: 'nearest' });
-            }
-            showCatFakeCaretFromSaved();
-            return;
-        }
         if (!restoreSavedCaretIntoEditor()) {
             showCatFakeCaretFromSaved();
         }
@@ -13285,6 +13348,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         return seg.keys.map((k) => (k == null ? '' : String(k))).join('\n');
     }
 
+    function renderConcordanceFooter(m) {
+        const footerDOM = document.getElementById('liveFooterContent');
+        if (!footerDOM) return;
+        if (!m) { footerDOM.innerHTML = '請選取句段以檢視詳細資訊。'; return; }
+        const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const keyText = m.key || tmConcordanceKeyFieldText(m);
+        const createdAt = m.createdAt ? new Date(m.createdAt).toLocaleString('zh-TW', { hour12: false }) : '';
+        footerDOM.innerHTML = `<div class="cat-footer-block-wrap">
+            <div class="cat-footer-section cat-footer-tm-meta">
+                <div><strong>TM 名稱：</strong>${esc(m.tmName || 'N/A')}</div>
+                ${keyText ? `<div><strong>Key：</strong>${esc(keyText)}</div>` : ''}
+                ${m.writtenFile ? `<div><strong>寫入檔案：</strong>${esc(m.writtenFile)}</div>` : ''}
+            </div>
+            ${(m.prevSegment || m.nextSegment) ? `<div class="cat-footer-section cat-footer-context">
+                <div class="cat-footer-context-inner">
+                    <div><strong>上一句</strong><br>${esc(m.prevSegment || '')}</div>
+                    <hr class="cat-footer-divider cat-footer-divider--sub" />
+                    <div><strong>下一句</strong><br>${esc(m.nextSegment || '')}</div>
+                </div>
+            </div>` : ''}
+            ${(m.createdBy || createdAt) ? `<div class="cat-footer-section cat-footer-audit">
+                ${m.createdBy ? `<div><strong>建立者：</strong>${esc(m.createdBy)}</div>` : ''}
+                ${createdAt ? `<div><strong>建立時間：</strong>${esc(createdAt)}</div>` : ''}
+            </div>` : ''}
+        </div>`;
+    }
+
     function runTmConcordanceSearch() {
         const input = document.getElementById('tmSearchInput');
         const fieldSel = document.getElementById('tmSearchField');
@@ -13316,6 +13406,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const maxShow = 50;
         const shown = matches.slice(0, maxShow);
         window.currentTmConcordanceMatches = shown;
+        window.tmConcordanceSelectedIndex = 0;
         resultsEl.innerHTML = shown.map((m, i) => {
             const src = buildTmConcordanceHighlightedHtml(m.sourceText || '', phrases, tokens);
             const tgt = buildTmConcordanceHighlightedHtml(m.targetText || '', phrases, tokens);
@@ -13334,8 +13425,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             resultsEl.querySelectorAll('.tm-concordance-item').forEach((item, i) => {
                 item.classList.toggle('tm-concordance-item--selected', i === window.tmConcordanceSelectedIndex);
             });
+            const m = (window.currentTmConcordanceMatches || [])[window.tmConcordanceSelectedIndex];
+            renderConcordanceFooter(m || null);
         };
         window.updateTmConcordanceSelection = updateConcordanceSelection;
+        renderConcordanceFooter(shown[0] || null);
         resultsEl.querySelectorAll('.tm-concordance-item').forEach(item => {
             item.addEventListener('click', () => {
                 const idx = parseInt(item.getAttribute('data-idx'));
