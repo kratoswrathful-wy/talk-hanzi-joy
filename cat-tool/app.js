@@ -7610,6 +7610,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (selectedRowIds.has(rId)) r.classList.add('selected-row');
                 else r.classList.remove('selected-row');
             });
+            updateSfReplaceAllButtonLabel();
             syncSelectedRowAbutmentTopClass();
         }
         // F8: 插入下一個缺漏標籤（只插單一 tag；有選取且下一個可成對才包一對）
@@ -10623,6 +10624,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (selectedRowIds.has(rId)) r.classList.add('selected-row');
                         else r.classList.remove('selected-row');
                     });
+                    updateSfReplaceAllButtonLabel();
                     syncSelectedRowAbutmentTopClass();
                 }
                 renderLiveTmMatches(seg);
@@ -11895,6 +11897,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             selectedRowIds.add(targetId);
             document.querySelectorAll('.grid-data-row').forEach(r => r.classList.remove('selected-row'));
             targetRow.classList.add('selected-row');
+            updateSfReplaceAllButtonLabel();
             syncSelectedRowAbutmentTopClass();
         }
 
