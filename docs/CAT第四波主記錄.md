@@ -67,7 +67,7 @@
 
 - **自動化**：各子階交付時執行 `npm run test:cat-sf`、`npm test`（依需要）。
 - **手動 smoke（建議）**
-  - **A**：TM 單擊不貼上、雙擊貼上（受「雙擊套用譯文」開關約束，見 **§五 5-f**）；**Ctrl+1…9** 一律套用右側 **CAT** 建議（與焦點是否在 TM 搜尋框無關）；**Ctrl+K**：譯文欄反白後搜尋結束游標／選取須與觸發前一致；非譯文欄反白後搜尋結束焦點在譯文**開頭**；原文欄反白時 TM 搜尋欄位為 **原文**、譯文欄為 **譯文**；**Ctrl+F** 由編輯區帶選字時寫入篩選搜尋列；**#tmSearchField** 變更且已有關鍵字時自動重搜；假游標與 Ctrl+0；快捷鍵 modal 與實際一致。
+  - **A**：TM 單擊不貼上、雙擊貼上（受「雙擊套用譯文」開關約束，見 **§五 5-f**）；**Ctrl+1…9** 一律套用右側 **CAT** 建議（與焦點是否在 TM 搜尋框無關）；**Ctrl+K**：譯文欄反白後搜尋結束游標／選取須與觸發前一致；非譯文欄反白後搜尋結束焦點在譯文**開頭**；原文欄反白時 TM 搜尋欄位為 **原文**、譯文欄為 **譯文**；**Ctrl+F** 由編輯區帶選字時寫入篩選搜尋列；**#tmSearchField** 變更且已有關鍵字時自動重搜；假游標與 Ctrl+0；**句段列狀態色全欄一致**（**5-f D1**）；**新增術語成功或 Enter 後回譯文游標**（**5-f D2**）；快捷鍵 modal 與實際一致。
   - **B**：單人流程不誤觸 `SEGMENT_REVISION_CONFLICT` alert（或根因已修之驗收標準）；協作路徑 (B) 依主計畫 §3 驗收；團隊模式除錯時可設 **`localStorage.catCollabDebug='1'`** 後重載，觀察主控台 `[cat-collab]`／`[cat-revision]` 訊息。
 - **複驗紀錄（2026-04-25 起）**
   - **`8f8cea8` 三項**：`Ctrl+0` undo／redo、`Ctrl+K` 譯文範圍、`Ctrl+0` 游標位置 — **通過**。
@@ -140,7 +140,7 @@
 
 本節為 **主計畫鏡像** [`docs/mirror/cat_工具綜合改版_42ac9451.plan.md`](mirror/cat_工具綜合改版_42ac9451.plan.md) 於第四波結案後**補記**之 **第 4.5 波**，**不屬**第四波 A（§11）／B（§3）原定驗收範圍，**不影響**上文「第四波整體已結案」之判定。
 
-**本波 5-d 已結案**（**§10.3** 欄位映射＋`matchFlags`＋預覽＋摘要；實作見 **5-d** 小節與 `cat-tool` 匯入 modal）。**5-f**（快捷鍵／TM 列／雙擊開關）驗收規格見 **§五 5-f**，**程式尚未實作**。**第五波**（主計畫 §6～§7）與本節無關，**未**因本波啟動。
+**本波 5-d 已結案**（**§10.3** 欄位映射＋`matchFlags`＋預覽＋摘要；實作見 **5-d** 小節與 `cat-tool` 匯入 modal）。**5-f**（快捷鍵／TM 列／雙擊開關／列上色／新增術語焦點）驗收規格見 **§五 5-f**（**D1**／**D2** 與 A～C 併列）；**第五波**（主計畫 §6～§7）與本節無關，**未**因本波啟動。
 
 ### 5-a（已完成）
 
@@ -221,10 +221,11 @@
 | 2026-04-26 | `4617619` | 5-b：CAT 分頁、TB footer 資料與 UI、新增術語、Ctrl+Q |
 | 2026-04-26 | `9c65514` | 5-c：TB footer 灰字兩行 |
 | 2026-04-26 | `5e3c3cc` | 5-c：通用確認標題與無障礙 |
+| 2026-04-28 | `a4e48f5` | 5-f：A1～C1、D1 列色、D2 新增術語回譯文；見 **§五 5-f**（待複驗） |
 
-### 5-f（第四點五波 UX 補強，**規格已入檔／程式待實作**）：快捷鍵／TM 列／雙擊開關
+### 5-f（第四點五波 UX 補強）：快捷鍵／TM 列／雙擊開關／**列狀態色**／**新增術語焦點**
 
-本小節為 **5-f** 之**驗收規格**；**`cat-tool` 尚未依此改程式**時，實機行為仍以現行程式為準（與下列矩陣不符處屬待辦）。實作完成後請複驗、於本表補 **commit**，並執行 `npm run sync:cat` 一併提交 [`public/cat/`](../public/cat/)。
+本小節為 **5-f** 之**驗收規格**；`cat-tool` 變更經 `npm run sync:cat` 同步至 [`public/cat/`](../public/cat/)。**複驗**通過後請於 **§5-e 實作時序** 本列補 **commit** 雜湊。
 
 | 代號 | 驗收項目 |
 |------|----------|
@@ -236,8 +237,10 @@
 | **B1** | **CAT**／**TM 搜尋**兩分頁頂部「雙擊套用譯文」列：**緊密風格一致**（TM 分頁外層不再獨留大 padding）。 |
 | **B2** | 「雙擊套用譯文」為**可寫入開關**（建議 `localStorage` 單鍵、兩分頁 checkbox **同步**）；關閉時雙擊與 `applyCatMatchAtIndex`／`applyTmConcordanceAtIndex` 觸發之套用皆**不執行**；**移除**「僅版面預覽／尚未接上」等未接線文案。 |
 | **C1** | **`#tmSearchField`** `change`：若 `#tmSearchInput` 已有非空白關鍵字，**自動** `runTmConcordanceSearch()`；無字時不強制搜尋。 |
+| **D1** | **句段狀態全列上色**：未確認／已確認／使用者鎖定／系統禁止等狀態下，**該列各欄**（含**重複、相符度、狀態**）背景須與狀態一致，避免與中間編輯區斷層。已知成因包含 **`active-row` 淺藍**與 **`row-bg-confirmed`／inline 綠**不同步、確認路徑僅設 inline 未加 class 等；收斂為**列 class 與狀態同步**、盡量減少分裂來源。**例外（較上層，勿被列底色蓋沒）**：**搜尋／篩選命中**（`mark.search-match` 等）維持可讀高亮；**相符度**依 `applyMatchCellVisual` 門檻色（如 ≥100、≥70）**優先於**列狀態底。 |
+| **D2** | **新增術語後回譯文**：在「新增術語」以 **Enter** 或**成功寫入**後，**鍵盤焦點**回到先前譯文格，游標位置以既有 **`catSavedCaret`** 為準（與假游標同源）；實作呼叫 `restoreSavedCaretIntoEditor()`；若還原失敗可 fallback：焦點到主動列譯文格或 `showCatFakeCaretFromSaved()`。 |
 
-**程式預定修改點（實作時對照）**：[`cat-tool/app.js`](../cat-tool/app.js)（Ctrl+F／Ctrl+K／Ctrl+1～9、`setCaretAtEditorStart`、選區還原、TM 欄位 listener）、[`cat-tool/index.html`](../cat-tool/index.html)、[`cat-tool/style.css`](../cat-tool/style.css)、[`cat-tool/editor-focus-notes.txt`](../cat-tool/editor-focus-notes.txt)。
+**程式預定修改點（實作時對照）**：[`cat-tool/app.js`](../cat-tool/app.js)（Ctrl+F／Ctrl+K／Ctrl+1～9、`setCaretAtEditorStart`、選區還原、TM 欄位 listener、`submitNewTermFromForm` 與**列狀態視覺** helpers）、[`cat-tool/index.html`](../cat-tool/index.html)、[`cat-tool/style.css`](../cat-tool/style.css)（`active-row` 與 `row-bg-*` 對最右三欄的層級；鎖定列全欄一致）、[`cat-tool/editor-focus-notes.txt`](../cat-tool/editor-focus-notes.txt)。
 
 ---
 

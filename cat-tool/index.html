@@ -824,12 +824,11 @@
                         </div>
                         
                         <div class="panel-content active" id="tabCAT">
-                            <div class="cat-dblclick-insert-bar" title="僅版面預覽：勾選與雙擊套用行為尚未接上。">
+                            <div class="cat-dblclick-insert-bar" title="關閉時，雙擊比對列與 Ctrl+1～9 不會套用譯文。">
                                 <label class="cat-dblclick-insert-label">
-                                    <input type="checkbox" id="catDblclickInsertPreview" disabled>
+                                    <input type="checkbox" class="cat-dblclick-insert-cb" id="catDblclickInsertEnabled" checked>
                                     <span>雙擊套用譯文</span>
                                 </label>
-                                <span class="cat-dblclick-insert-hint">預覽：開關之後會與編輯器設定同步。</span>
                             </div>
                             <div class="concordance-search concordance-search-cat">
                                 <div class="search-results" id="tmSearchResults">
@@ -846,13 +845,12 @@
                             </div>
                         </div>
 
-                        <div class="panel-content" id="tabTmSearch" style="padding:0.5rem;">
-                            <div class="cat-dblclick-insert-bar" title="僅版面預覽：勾選與雙擊套用行為尚未接上。">
+                        <div class="panel-content" id="tabTmSearch">
+                            <div class="cat-dblclick-insert-bar" title="關閉時，雙擊比對列與 Ctrl+1～9 不會套用譯文。">
                                 <label class="cat-dblclick-insert-label">
-                                    <input type="checkbox" id="tmDblclickInsertPreview" disabled>
+                                    <input type="checkbox" class="cat-dblclick-insert-cb" checked>
                                     <span>雙擊套用譯文</span>
                                 </label>
-                                <span class="cat-dblclick-insert-hint">預覽：開關之後會與編輯器設定同步。</span>
                             </div>
                             <div style="display:flex; gap:0.35rem; margin-bottom:0.5rem;">
                                 <input type="text" id="tmSearchInput" placeholder="輸入關鍵字搜尋 TM…" style="flex:1; padding:0.35rem 0.5rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.85rem;">

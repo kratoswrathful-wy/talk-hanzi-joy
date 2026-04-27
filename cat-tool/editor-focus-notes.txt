@@ -3,9 +3,11 @@ CAT 編輯器：可能主動切換焦點的情境（供後續逐條討論）
 1. runSearchAndFilter → updateMatchHighlightFocus
    - 已修正：當焦點在 sfInput / sfReplaceInput / sfTmMatch 或進階篩選面板內時，不將焦點移到譯文格，且不重捲動（避免搶焦點）。
 
-2. Ctrl+F：聚焦搜尋欄 sfInput（刻意）。
+2. Ctrl+F：有選字且焦點不在 sfInput 時，選字帶入 sfInput 再聚焦；否則僅聚焦 sfInput（5-f A1）。
 
-3. Ctrl+K：切 TM 分頁並可能聚焦 tmSearchInput（刻意）。
+3. Ctrl+K：切 TM 分頁、寫關鍵字並可 runTmConcordanceSearch；譯文欄選字則盡力還原同一 Range，否則非譯文格有字時游標在譯文首（5-f A2/A3/A5）；無選字則聚焦 tmSearchInput。
+
+3b. 新增術語寫入成功或 Enter 後：切回 CAT 分頁，restoreSavedCaretIntoEditor 或顯示假游標（5-f D2）。
 
 4. 搜尋上一筆／下一筆：updateMatchHighlightFocus（刻意跟隨命中）。
 

@@ -476,6 +476,17 @@ button { font-family: inherit; cursor: pointer; }
 .grid-data-row.active-row.row-bg-confirmed .col-repetition {
     background-color: #f0fdf4;
 }
+/* 使用中列 + 鎖定／禁止：最右三欄勿被 active 淺藍切斷，與列身一致 */
+.grid-data-row.active-row.locked-user .col-status,
+.grid-data-row.active-row.locked-user .col-match,
+.grid-data-row.active-row.locked-user .col-repetition {
+    background-color: #f1f5f9;
+}
+.grid-data-row.active-row.locked-system .col-status,
+.grid-data-row.active-row.locked-system .col-match,
+.grid-data-row.active-row.locked-system .col-repetition {
+    background-color: #fff7ed;
+}
 /* 選取句段：只保留框線，不套底色，避免與鎖定句段視覺混淆 */
 .grid-data-row > div { border-right: 1px solid #e2e8f0; box-sizing: border-box; }
 

@@ -7602,6 +7602,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!sfInput) return;
             const isSfInputFocused = document.activeElement === sfInput;
             if (!isSfInputFocused) {
+                const tsel = window.getSelection();
+                const t = tsel ? tsel.toString().trim() : '';
+                if (t) sfInput.value = t;
                 sfInput.focus();
             } else {
                 if (isSfAdvancedFilterInUse()) {
@@ -7713,13 +7716,32 @@ document.addEventListener('DOMContentLoaded', async () => {
                 (ae && ae.classList && ae.classList.contains('grid-textarea') && ae.closest && ae.closest('.col-target')) ||
                 (anchorEl && anchorEl.closest && anchorEl.closest('.col-target'))
             );
+            const triggeredFromSourceCol = !!(
+                (anchorEl && anchorEl.closest && anchorEl.closest('.col-source')) ||
+                (ae && ae.closest && ae.closest('.col-source'))
+            );
+            let savedRange = null;
+            let savedRangeEditor = null;
+            if (sel && sel.rangeCount > 0 && triggeredFromTargetCol && selText) {
+                const r0 = sel.getRangeAt(0);
+                const tEd = (ae && ae.classList && ae.classList.contains('grid-textarea') && ae.closest && ae.closest('.col-target'))
+                    ? ae
+                    : (anchorEl && anchorEl.closest ? anchorEl.closest('.grid-textarea') : null);
+                if (tEd && tEd.contains(r0.commonAncestorContainer)) {
+                    try {
+                        savedRange = r0.cloneRange();
+                        savedRangeEditor = tEd;
+                    } catch (_) { savedRange = null; }
+                }
+            }
             const tmSearchInput = document.getElementById('tmSearchInput');
             if (selText && tmSearchInput) tmSearchInput.value = selText;
             const tabBtn = document.querySelector('.tab-btn[data-tab="tabTmSearch"]');
             if (tabBtn) tabBtn.click();
-            if (triggeredFromTargetCol) {
-                const tmSearchFieldEl = document.getElementById('tmSearchField');
-                if (tmSearchFieldEl) tmSearchFieldEl.value = 'target';
+            const tmSearchFieldEl = document.getElementById('tmSearchField');
+            if (tmSearchFieldEl) {
+                if (triggeredFromTargetCol) tmSearchFieldEl.value = 'target';
+                else if (triggeredFromSourceCol) tmSearchFieldEl.value = 'source';
             }
             if (!selText) {
                 requestAnimationFrame(() => {
@@ -7729,7 +7751,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (tmSearchInput && tmSearchInput.value.trim()) {
                     runTmConcordanceSearch();
                 }
-                requestAnimationFrame(() => setCaretAtEditorEnd(editorBeforeTmSearch || getActiveTargetEditor()));
+                requestAnimationFrame(() => {
+                    if (savedRange && savedRangeEditor && document.body.contains(savedRangeEditor) && savedRange) {
+                        try {
+                            savedRangeEditor.focus();
+                            const s = window.getSelection();
+                            if (s) {
+                                s.removeAllRanges();
+                                s.addRange(savedRange);
+                                hideCatFakeCaret();
+                                saveCatCaretFromSelection(savedRangeEditor);
+                            }
+                        } catch (_) {
+                            const ed = editorBeforeTmSearch || getActiveTargetEditor();
+                            setCaretAtEditorStart(ed);
+                        }
+                    } else if (selText && !triggeredFromTargetCol) {
+                        setCaretAtEditorStart(editorBeforeTmSearch || getActiveTargetEditor());
+                    }
+                });
             }
         }
         if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key === '0' && currentFileId) {
@@ -7802,17 +7842,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!e.ctrlKey || !/^[1-9]$/.test(e.key) || !currentFileId) return;
         const ve = document.getElementById('viewEditor');
         if (!ve || ve.classList.contains('hidden')) return;
-        const ae = document.activeElement;
-        if (ae && ae.id === 'tmSearchInput') return;
-        const tmSearchTab = document.getElementById('tabTmSearch');
-        if (tmSearchTab && tmSearchTab.classList.contains('active') && window.currentTmConcordanceMatches?.length) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (typeof window.applyTmConcordanceAtIndex === 'function') {
-                window.applyTmConcordanceAtIndex(parseInt(e.key, 10) - 1);
-            }
-            return;
-        }
         if (!window.currentTmMatches || !window.currentTmMatches.length) return;
         e.preventDefault();
         e.stopPropagation();
@@ -8569,6 +8598,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    function setCaretAtEditorStart(editorEl) {
+        if (!editorEl || editorEl.contentEditable === 'false') return false;
+        editorEl.focus();
+        try {
+            const range = document.createRange();
+            range.selectNodeContents(editorEl);
+            range.collapse(true);
+            const sel = window.getSelection();
+            if (sel) {
+                sel.removeAllRanges();
+                sel.addRange(range);
+            }
+            saveCatCaretFromSelection(editorEl);
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
     function ensureCatFakeCaretEl() {
         if (!catFakeCaretEl) {
             catFakeCaretEl = document.createElement('div');
@@ -8737,6 +8785,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    /** 已確認列淡綠底與 `row-bg-confirmed`（全欄 CSS 一致）；鎖定／非確認時清除。 */
+    function syncRowConfirmedStateClass(row, seg) {
+        if (!row || !seg) return;
+        const effectiveLocked = !!(isDynamicForbidden(seg) || seg.isLockedUser);
+        if (seg.status === 'confirmed' && !effectiveLocked) {
+            row.style.backgroundColor = '#f0fdf4';
+            row.classList.add('row-bg-confirmed');
+        } else {
+            row.style.backgroundColor = '';
+            row.classList.remove('row-bg-confirmed');
+        }
+    }
+
     function snapshotSegForUndo(seg) {
         if (!seg) return null;
         return {
@@ -8868,15 +8929,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 updateTagColors(row, tgt);
             }
             applyMatchCellVisual(row, seg.matchValue);
-            const effectiveLocked = !!(isDynamicForbidden(seg) || seg.isLockedUser);
             const isConfirmed = seg.status === 'confirmed';
-            if (isConfirmed && !effectiveLocked) {
-                row.style.backgroundColor = '#f0fdf4';
-                row.classList.add('row-bg-confirmed');
-            } else {
-                row.style.backgroundColor = '';
-                row.classList.remove('row-bg-confirmed');
-            }
+            syncRowConfirmedStateClass(row, seg);
             const si = row.querySelector('.status-icon');
             if (si) {
                 if (isConfirmed) {
@@ -8948,13 +9002,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 else if (seg.isLockedUser) row.title = '句段鎖定中，請解除鎖定後再編輯';
                 else row.title = '';
                 const isConfirmed = seg.status === 'confirmed';
-                if (isConfirmed && !effectiveLocked) {
-                    row.style.backgroundColor = '#f0fdf4';
-                    row.classList.add('row-bg-confirmed');
-                } else {
-                    row.style.backgroundColor = '';
-                    row.classList.remove('row-bg-confirmed');
-                }
+                syncRowConfirmedStateClass(row, seg);
                 const si = row.querySelector('.status-icon');
                 if (si) {
                     if (isConfirmed) {
@@ -9263,8 +9311,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
         const row = rows[segIdx];
         if (row) {
-            row.style.backgroundColor = '';
-            row.classList.remove('row-bg-confirmed');
+            syncRowConfirmedStateClass(row, seg);
             const si = row.querySelector('.status-icon');
             if (si) {
                 si.classList.remove('done');
@@ -9739,7 +9786,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     si.classList.add('done');
                     paintMqStatusIcon(si, other);
                 }
-                if (!isDynamicForbidden(other) && !other.isLockedUser) row.style.backgroundColor = '#f0fdf4';
+                if (!isDynamicForbidden(other) && !other.isLockedUser) syncRowConfirmedStateClass(row, other);
             }
         }
         updateProgress();
@@ -9798,7 +9845,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                     }
                 }
-                if (!isDynamicForbidden(other) && !other.isLockedUser) rows[j].style.backgroundColor = '#f0fdf4';
+                if (!isDynamicForbidden(other) && !other.isLockedUser) syncRowConfirmedStateClass(rows[j], other);
             }
         }
         updateProgress();
@@ -10658,11 +10705,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const isConfirmed = seg.status === 'confirmed';
             const isSelected = selectedRowIds.has(seg.id);
             if (isSelected) row.classList.add('selected-row');
-            // 已確認套淡綠底，但鎖定/禁止句段保留其本身底色（灰/橘）不覆蓋
-            if (isConfirmed && !effectiveLocked) {
-                row.style.backgroundColor = '#f0fdf4';
-                row.classList.add('row-bg-confirmed');
-            }
+            // 已確認套淡綠底＋`row-bg-confirmed` 全欄，鎖定句段不覆蓋
+            if (isConfirmed && !effectiveLocked) syncRowConfirmedStateClass(row, seg);
 
             let rowInnerContent = '';
             rowInnerContent += `<div class="col-id" title="點擊選取 (Ctrl: 單獨加減, Shift: 連續選取)" data-idx="${i}" data-id="${seg.id}">${seg.globalId || (seg.rowIdx+1)}</div>`;
@@ -10883,7 +10927,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (seg.status === 'confirmed') {
                         seg.status = 'unconfirmed';
                         statusIcon.classList.remove('done');
-                        row.style.backgroundColor = '';
+                        syncRowConfirmedStateClass(row, seg);
                         await DBService.updateSegmentStatus(seg.id, seg.status);
                     }
 
@@ -11082,7 +11126,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if (seg.status !== 'confirmed') {
                                 seg.status = 'confirmed';
                                 statusIcon.classList.add('done');
-                                if (!effectiveLocked) row.style.backgroundColor = '#f0fdf4';
+                                if (!effectiveLocked) syncRowConfirmedStateClass(row, seg);
                                 if (currentFileFormat === 'mqxliff') {
                                     seg.confirmationRole = resolveConfirmationRole(seg);
                                 }
@@ -11246,7 +11290,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             });
                             seg.status = 'confirmed';
                             statusIcon.classList.add('done');
-                            if (!effectiveLocked) row.style.backgroundColor = '#f0fdf4';
+                            if (!effectiveLocked) syncRowConfirmedStateClass(row, seg);
                             if (currentFileFormat === 'mqxliff') {
                                 seg.confirmationRole = resolveConfirmationRole(seg);
                             }
@@ -11308,7 +11352,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (currentFileFormat === 'mqxliff') {
                             statusIcon.innerHTML = '';
                         }
-                        row.style.backgroundColor = '';
+                        syncRowConfirmedStateClass(row, seg);
                         const afterSnap = snapshotSegForUndo(seg);
                         pushUndoEntry({ kind: 'segmentState', items: [{ id: seg.id, beforeSnap, afterSnap }] });
                         enqueueConfirmSideEffects(async () => {
@@ -11780,6 +11824,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    const CAT_DBLCLICK_INSERT_KEY = 'catToolDblclickInsert';
+    function isCatDblclickInsertEnabled() {
+        return localStorage.getItem(CAT_DBLCLICK_INSERT_KEY) !== '0';
+    }
+    function setCatDblclickInsertCheckboxes(checked) {
+        document.querySelectorAll('.cat-dblclick-insert-cb').forEach((cb) => { cb.checked = checked; });
+    }
+    (function initCatDblclickInsert() {
+        const cbs = document.querySelectorAll('.cat-dblclick-insert-cb');
+        if (!cbs.length) return;
+        setCatDblclickInsertCheckboxes(isCatDblclickInsertEnabled());
+        cbs.forEach((cb) => {
+            cb.addEventListener('change', (ev) => {
+                const on = !!(ev.target && ev.target.checked);
+                localStorage.setItem(CAT_DBLCLICK_INSERT_KEY, on ? '1' : '0');
+                setCatDblclickInsertCheckboxes(on);
+            });
+        });
+    })();
+
     // 單擊：選取該列（外框 + 下方中繼／追蹤修訂）
     window.handleCatResultClick = function(el, matchIndex) {
         const idx = typeof matchIndex === 'number' ? matchIndex : parseInt(matchIndex, 10);
@@ -11791,6 +11855,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 雙擊：套用該列的譯文至目前句段
     window.handleCatResultApply = async function(el, type, text, score, matchIndex) {
+        if (!isCatDblclickInsertEnabled()) return;
         const activeRow = document.querySelector('.grid-data-row.active-row');
         if (!activeRow) return;
         const textarea = activeRow.querySelector('.grid-textarea');
@@ -12952,6 +13017,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (tmSearchInputEl) tmSearchInputEl.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') { e.preventDefault(); runTmConcordanceSearch(); }
     });
+    const tmFieldEl = document.getElementById('tmSearchField');
+    if (tmFieldEl) {
+        tmFieldEl.addEventListener('change', () => {
+            const input = document.getElementById('tmSearchInput');
+            if (input && (input.value || '').trim()) runTmConcordanceSearch();
+        });
+    }
 
     // ── New Term Panel ───────────────────────────────────────────────────────
 
@@ -13013,6 +13085,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (document.getElementById('newTermSource')) document.getElementById('newTermSource').value = '';
         if (document.getElementById('newTermTarget')) document.getElementById('newTermTarget').value = '';
         if (document.getElementById('newTermNote')) document.getElementById('newTermNote').value = '';
+        const catTabBtn = document.querySelector('.tab-btn[data-tab="tabCAT"]');
+        if (catTabBtn) catTabBtn.click();
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                if (!restoreSavedCaretIntoEditor()) showCatFakeCaretFromSaved();
+            });
+        });
     }
 
     const btnAddNewTerm = document.getElementById('btnAddNewTerm');
