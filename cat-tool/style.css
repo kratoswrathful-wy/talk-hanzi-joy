@@ -850,6 +850,49 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
 
 .search-bar { background: white; padding: 0.5rem 1rem; border: 1px solid var(--border-color); border-radius: 16px; font-size: 0.85rem; color: var(--text-light); margin-bottom: 1rem; text-align: center;}
 
+/* CAT 分頁：雙擊套用開關（預覽列，靠左） */
+.cat-dblclick-insert-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.35rem 0.65rem;
+    padding: 0.35rem 0.45rem 0.4rem;
+    margin: 0 0 0.35rem 0;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+    border-radius: 6px 6px 0 0;
+    font-size: 0.8rem;
+    color: #334155;
+}
+.cat-dblclick-insert-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: default;
+    user-select: none;
+    font-weight: 500;
+}
+.cat-dblclick-insert-label input[type="checkbox"] {
+    margin: 0;
+    width: 0.95rem;
+    height: 0.95rem;
+    accent-color: var(--primary-color, #6366f1);
+    cursor: not-allowed;
+}
+.cat-dblclick-insert-hint {
+    font-size: 0.72rem;
+    color: #64748b;
+    line-height: 1.35;
+    flex: 1 1 100%;
+}
+@media (min-width: 420px) {
+    .cat-dblclick-insert-hint {
+        flex: 1 1 auto;
+        margin-left: 0.15rem;
+    }
+}
+
 /* CAT 比對建議列表（# | 原文 | 相符/類型 | 譯文） */
 .result-block {
     border-bottom: 1px solid #e2e8f0;
