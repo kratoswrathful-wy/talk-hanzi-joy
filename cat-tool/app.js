@@ -13605,10 +13605,67 @@ document.addEventListener('DOMContentLoaded', async () => {
         return q;
     }
 
+    /** 私人筆記「共用至共用資訊」對話框：僅綁定一次；專案頁未開編輯器時也須可用（不可只放在 initNotesPanel 內）。 */
+    function initPrivateNoteShareModalOnce() {
+        if (document.documentElement.dataset.catPrivateNoteShareWired === '1') return;
+        document.documentElement.dataset.catPrivateNoteShareWired = '1';
+        document.getElementById('btnPrivateNoteShareCopy')?.addEventListener('click', async () => {
+            const note = _privateNoteSharePending;
+            const pid = _notesProjectIdOrNull();
+            if (!note || !pid) {
+                _closePrivateNoteShareDialog();
+                return;
+            }
+            try {
+                await DBService.addGuideline({
+                    projectId: pid,
+                    type: 'shared_note',
+                    content: note.content,
+                    createdByName: getCurrentUserName()
+                });
+                _closePrivateNoteShareDialog();
+                _showCatBriefToast('已複製到共用筆記。');
+                void _refreshSharedInfoUi();
+            } catch (err) {
+                console.error(err);
+                alert(err && err.message ? String(err.message) : '複製失敗');
+            }
+        });
+        document.getElementById('btnPrivateNoteShareMove')?.addEventListener('click', async () => {
+            const note = _privateNoteSharePending;
+            const pid = _notesProjectIdOrNull();
+            if (!note || !pid) {
+                _closePrivateNoteShareDialog();
+                return;
+            }
+            try {
+                await DBService.addGuideline({
+                    projectId: pid,
+                    type: 'shared_note',
+                    content: note.content,
+                    createdByName: getCurrentUserName()
+                });
+                delete _privateNoteEditQuills[String(note.id)];
+                await DBService.deletePrivateNote(parseId(note.id));
+                _closePrivateNoteShareDialog();
+                _showCatBriefToast('已移動到共用筆記。');
+                void _refreshSharedInfoUi();
+                void _loadPrivateNotes();
+            } catch (err) {
+                console.error(err);
+                alert(err && err.message ? String(err.message) : '移動失敗');
+            }
+        });
+        document.getElementById('btnPrivateNoteShareCancel')?.addEventListener('click', () => {
+            _closePrivateNoteShareDialog();
+        });
+    }
+
     // ---- Notes panel init (tabs, resize, collapse) ----
     function initNotesPanel() {
         if (_notesPanelInitialized) return;
         _notesPanelInitialized = true;
+        initPrivateNoteShareModalOnce();
 
         const panel = document.getElementById('notesPanel');
         const resizer = document.getElementById('notesPanelResizer');
@@ -13743,62 +13800,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
-        document.getElementById('btnPrivateNoteShareCopy')?.addEventListener('click', async () => {
-            const note = _privateNoteSharePending;
-            const pid = _notesProjectIdOrNull();
-            if (!note || !pid) {
-                _closePrivateNoteShareDialog();
-                return;
-            }
-            try {
-                await DBService.addGuideline({
-                    projectId: pid,
-                    type: 'shared_note',
-                    content: note.content,
-                    createdByName: getCurrentUserName()
-                });
-                _closePrivateNoteShareDialog();
-                _showCatBriefToast('已複製到共用筆記。');
-                void _refreshSharedInfoUi();
-            } catch (err) {
-                console.error(err);
-                alert(err && err.message ? String(err.message) : '複製失敗');
-            }
-        });
-        document.getElementById('btnPrivateNoteShareMove')?.addEventListener('click', async () => {
-            const note = _privateNoteSharePending;
-            const pid = _notesProjectIdOrNull();
-            if (!note || !pid) {
-                _closePrivateNoteShareDialog();
-                return;
-            }
-            try {
-                await DBService.addGuideline({
-                    projectId: pid,
-                    type: 'shared_note',
-                    content: note.content,
-                    createdByName: getCurrentUserName()
-                });
-                delete _privateNoteEditQuills[String(note.id)];
-                await DBService.deletePrivateNote(parseId(note.id));
-                _closePrivateNoteShareDialog();
-                _showCatBriefToast('已移動到共用筆記。');
-                void _refreshSharedInfoUi();
-                void _loadPrivateNotes();
-            } catch (err) {
-                console.error(err);
-                alert(err && err.message ? String(err.message) : '移動失敗');
-            }
-        });
-        document.getElementById('btnPrivateNoteShareCancel')?.addEventListener('click', () => {
-            _closePrivateNoteShareDialog();
-        });
-
     }
 
     function initProjectDetailNotesPanel() {
         if (_projectDetailNotesPanelInitialized) return;
         _projectDetailNotesPanelInitialized = true;
+        initPrivateNoteShareModalOnce();
         const root = document.getElementById('projectDetailNotesPanel');
         if (!root) return;
         root.querySelectorAll('[data-project-notes-tab]').forEach((btn) => {
@@ -14053,6 +14060,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             const html = q.root.innerHTML;
             try { if (q && typeof q.enable === 'function') q.enable(false); } catch (_) { /* ignore */ }
             delete _privateNoteEditQuills[idStr];
+            const bodyHost = wrap.querySelector('.guideline-item-body');
+            if (bodyHost) {
+                while (bodyHost.firstChild) {
+                    try { bodyHost.removeChild(bodyHost.firstChild); } catch (_) { break; }
+                }
+            }
             note.content = html;
             _pnRenderNoteBodyView(wrap, note, lk, html);
             _pnRewireNoteAside(wrap, note, lk);
