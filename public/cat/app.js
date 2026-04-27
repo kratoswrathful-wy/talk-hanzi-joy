@@ -17058,10 +17058,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             requestAnimationFrame(() => { contentEl.focus(); });
         }
 
+        /**
+         * 共用資訊各列表的空狀態統一入口，避免不同區塊各自手刻造成漏更新。
+         * @param {HTMLElement | null} listEl
+         * @param {string} text
+         * @param {{ key?: string, keepNode?: HTMLElement | null }} [options]
+         */
+        function setSharedListEmptyState(listEl, text, options = {}) {
+            if (!listEl) return;
+            const key = options.key ? String(options.key) : 'default';
+            const keepNode = options.keepNode || null;
+            listEl.innerHTML = `<p class="shared-empty-placeholder shared-empty-${_esc(key)}" style="font-size:0.78rem; color:#94a3b8; margin:0;">${_esc(text)}</p>`;
+            if (keepNode) listEl.appendChild(keepNode);
+        }
+
         function renderSelectedGuidelines() {
             if (!selectedList) return;
             const selected = allTranslation.filter(g => selectedGuidelineIds.has(g.id));
-            if (selected.length === 0) { selectedList.innerHTML = '<p style="font-size:0.78rem; color:#94a3b8; margin:0;">尚未選擇任何翻譯準則。</p>'; return; }
+            if (selected.length === 0) {
+                setSharedListEmptyState(selectedList, '尚未選擇任何翻譯準則。', { key: 'translation-guidelines' });
+                return;
+            }
             selectedList.innerHTML = selected.map(g => `
                 <div class="ai-selected-guideline-item ai-pg-shared-card">
                     <div style="flex:1; min-width:0;">
@@ -17109,7 +17126,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         function renderSelectedStyleGuidelines() {
             if (!selectedStyleList) return;
             const selected = allStyle.filter(g => selectedStyleIds.has(g.id));
-            if (selected.length === 0) { selectedStyleList.innerHTML = '<p style="font-size:0.78rem; color:#94a3b8; margin:0;">尚未選擇文風條目。</p>'; return; }
+            if (selected.length === 0) {
+                setSharedListEmptyState(selectedStyleList, '尚未選擇文風條目。', { key: 'style-guidelines' });
+                return;
+            }
             selectedStyleList.innerHTML = selected.map(g => `
                 <div class="ai-selected-guideline-item ai-pg-shared-card">
                     <div style="flex:1; min-width:0;">
@@ -17194,8 +17214,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
             const toShow = specialInstructions.filter(shouldShowRow);
             if (toShow.length === 0) {
-                specialList.innerHTML = '<p class="si-empty-placeholder" style="font-size:0.78rem; color:#94a3b8; margin:0;">目前沒有特殊指示。</p>';
-                if (newItemEditor) specialList.appendChild(newItemEditor);
+                setSharedListEmptyState(specialList, '目前沒有特殊指示。', { key: 'special-instructions', keepNode: newItemEditor });
                 return;
             }
             specialList.innerHTML = toShow.map((s) => {
@@ -17378,7 +17397,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const isPm = isCatSharedMutator();
             const toShow = projectGuidelines.filter((g) => g);
             if (toShow.length === 0) {
-                pgList.innerHTML = '<p style="font-size:0.78rem; color:#94a3b8; margin:0;">目前沒有專案準則。</p>';
+                setSharedListEmptyState(pgList, '目前沒有專案準則。', { key: 'project-guidelines' });
                 return;
             }
             pgList.innerHTML = toShow.map((s) => {
@@ -17480,7 +17499,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Remove any existing new-item editor first
                 specialList.querySelector('.si-new-item')?.remove();
                 // Remove the "no instructions" placeholder if present
-                specialList.querySelector('.si-empty-placeholder')?.remove();
+                specialList.querySelector('.shared-empty-special-instructions')?.remove();
                 const newItem = document.createElement('div');
                 newItem.className = 'guideline-item si-new-item';
                 newItem.innerHTML = `
