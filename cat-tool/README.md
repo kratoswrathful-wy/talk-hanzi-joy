@@ -16,3 +16,27 @@
 
 - **`public/cat/` 不是第二套原始碼**：專案根的 `scripts/sync-cat.mjs` 會刪除整個 `public/cat` 再從本目錄複製。只手改 `public/cat` 而未回寫此處的變更，在下次 `npm run sync:cat` 或 CI `prebuild` 時**會被覆寫**。
 - **建議提交流程**：只在此目錄與關聯靜態檔修改 → 在專案根執行 `npm run sync:cat` → 提交**本目錄**與 **`public/cat` 的變更**一併入庫。正式建置已透過 `prebuild` 自動 sync。更多捷徑見專案根目錄 [`AGENTS.md`](../AGENTS.md)。
+
+## 下拉選單樣式範本（CAT）
+
+為避免同功能選單出現不同視覺與互動，CAT 統一下拉樣式代號如下。新開發請先選代號，不要另外做一套。
+
+- **`DD-A`（原生精簡）**：原生 `select` 單選，白底灰框。用於一般篩選列（如「全部類別 / 全部群組 / 依建立順序」）。
+- **`DD-B`（多選標籤）**：`ai-multiselect-trigger` + `ai-multiselect-dropdown`，清單內為 checkbox，可含 `button.ai-multiselect-add-new-row`（如「+ 新增標籤」）。
+- **`DD-C`（單選互斥）**：沿用 `DD-B` 的觸發列與面板，但清單為 radio；互斥群組選取列採主色高亮。建議透過 `js/cat-mutex-dropdown.js` 的 `catMutexDropdownBind()` 綁定原生 select。
+
+### 視覺契約（DD-B / DD-C）
+
+- 觸發列 class：`ai-multiselect-trigger`
+- 箭頭 class：`ai-multiselect-chevron`（不要再使用文字 `▼`）
+- 展開態 class：`ai-multiselect-trigger--open`
+- 浮層 class：`ai-multiselect-dropdown`
+- 列項 class：`ai-multiselect-option`
+- 尾端新增列：`button.ai-multiselect-add-new-row`
+
+### 套用原則
+
+- 新增「標籤多選」優先用 `DD-B`。
+- 新增「互斥單選」優先用 `DD-C`。
+- 僅在非常簡單的固定篩選器使用 `DD-A`。
+- 若舊畫面改版，優先對齊到上述代號之一，避免混搭。

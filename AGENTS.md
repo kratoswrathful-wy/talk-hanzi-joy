@@ -22,3 +22,4 @@
 
 - [`docs/HANDOFF.md`](docs/HANDOFF.md) — TMS 本體（React / Vite）
 - [`docs/CODEMAP.md`](docs/CODEMAP.md) — 功能與路徑對照
+- [`cat-tool/README.md`](cat-tool/README.md) — CAT 維護說明（含下拉選單樣式代號 `DD-A / DD-B / DD-C`）
