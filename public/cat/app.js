@@ -529,7 +529,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return !!(row && row.style && row.style.display !== 'none');
     }
 
-    /** 篩選下已隱藏列自 selectedRowIds 剔除，並同步 .selected-row 與「在選取範圍取代」文案。 */
+    /** 篩選下已隱藏列自 selectedRowIds 剔除，並同步 .selected-row 與「取代此範圍」文案。 */
     function syncSelectedRowIdsWithVisibleGrid() {
         if (sfMode !== 'filter' || !gridBody) return;
         if (!selectedRowIds || selectedRowIds.size === 0) {
@@ -9229,7 +9229,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function updateSfReplaceAllButtonLabel() {
         if (!btnSfReplaceAll) return;
         const multi = selectedRowIds && selectedRowIds.size > 1;
-        btnSfReplaceAll.textContent = multi ? '在選取範圍取代' : '全部取代';
+        btnSfReplaceAll.textContent = multi ? '取代此範圍' : '全部取代';
         btnSfReplaceAll.title = multi
             ? '將取代目前已選取句段中的所有相符內容。'
             : '將取代目前可見範圍中的所有相符內容。';

@@ -645,6 +645,13 @@ button { font-family: inherit; cursor: pointer; }
     width: 100%;
     box-sizing: border-box;
 }
+#btnSfReplaceAll {
+    font-size: 0.72rem;
+    white-space: nowrap;
+    line-height: 1.2;
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+}
 .sf-match-count { font-size: 0.75rem; color: var(--text-light); min-width: 2rem; text-align: left; }
 .sf-clear-nav-btn { color: #ef4444; border: 1px solid transparent; background: transparent; }
 .sf-clear-nav-btn:hover { background: #fee2e2; }
@@ -2463,21 +2470,23 @@ mark.tm-search-hit {
 
 /* ---- CAT 自製下拉範本（全系統單／複選）：框線觸發列 + 浮層；主色藍焦點／展開 ---- */
 .ai-multiselect-chevron {
-    display: inline-block;
-    width: 0.5rem;
-    height: 0.5rem;
-    border-right: 1.5px solid #64748b;
-    border-bottom: 1.5px solid #64748b;
-    transform: rotate(45deg);
-    margin-left: 0.35rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 0.9rem;
+    margin-left: 0.3rem;
     flex-shrink: 0;
-    box-sizing: border-box;
-    align-self: center;
-    margin-top: -0.08rem;
+    color: #64748b;
+    font-size: 0.66rem;
+    line-height: 1;
+    transform: rotate(0deg);
+    transition: transform 0.18s ease;
+}
+.ai-multiselect-chevron::before {
+    content: "▼";
 }
 .ai-multiselect-trigger--open .ai-multiselect-chevron {
-    transform: rotate(225deg);
-    margin-top: 0.1rem;
+    transform: rotate(180deg);
 }
 .ai-multiselect-trigger > span:first-child {
     flex: 1;
@@ -2489,24 +2498,57 @@ mark.tm-search-hit {
     align-items: center;
     justify-content: space-between;
     gap: 0.35rem;
-    padding: 0.25rem 0.55rem;
-    min-height: 1.95rem;
-    height: 1.95rem;
+    padding: 0.3rem 0.5rem !important;
+    min-height: 1.95rem !important;
+    height: 1.95rem !important;
     line-height: 1.2;
-    border: 1px solid #94a3b8;
+    border: 1px solid #cbd5e1;
     border-radius: 6px;
     background: #fff;
     font-size: 0.82rem;
-    color: #374151;
+    color: #334155;
     cursor: pointer;
-    min-width: 120px;
+    min-width: 110px;
     max-width: 100%;
     user-select: none;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .ag-edit-guideline-modal-scroll .ai-multiselect-trigger {
-    min-height: 1.95rem;
-    height: 1.95rem;
+    min-height: 1.95rem !important;
+    height: 1.95rem !important;
+}
+.ai-multiselect-trigger#aiGuidelineCategorySelector,
+.ai-multiselect-trigger#aiPickerMgmtCategorySelector,
+.ai-multiselect-trigger#agEditGuidelineCategorySelector,
+.ai-multiselect-trigger#pgEditProjectGuidelineCategorySelector,
+.ai-multiselect-trigger#pgManageProjectGuidelineCategorySelector {
+    min-height: 1.95rem !important;
+    height: 1.95rem !important;
+    padding-top: 0.3rem !important;
+    padding-bottom: 0.3rem !important;
+}
+.ag-ex-badge-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.3rem;
+}
+.ag-ex-count-badge {
+    font-size: 0.72rem;
+}
+.ag-ex-toggle-btn {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #475569;
+    border-radius: 999px;
+    padding: 0.1rem 0.45rem;
+    font-size: 0.7rem;
+    line-height: 1.25;
+    cursor: pointer;
+}
+.ag-ex-toggle-btn:hover {
+    border-color: #93c5fd;
+    color: #1d4ed8;
 }
 .ai-multiselect-trigger:hover {
     border-color: #3b82f6;
