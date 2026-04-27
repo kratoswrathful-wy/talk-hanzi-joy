@@ -8629,6 +8629,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let catSavedCaret = null;
     let catFakeCaretEl = null;
+    let catFakeCaretScrollTipEl = null;
 
     function getEditorFromSelection() {
         const sel = window.getSelection();
@@ -8747,6 +8748,60 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    function getGridDataRowForSegNav() {
+        const ar = document.querySelector('.grid-data-row.active-row');
+        if (ar) return ar;
+        const tae = getActiveTargetEditor();
+        if (tae && tae.closest) return tae.closest('.grid-data-row');
+        return null;
+    }
+
+    function moveVisibleTargetRowByCtrlArrow(delta) {
+        const row = getGridDataRowForSegNav();
+        if (!row || !gridBody) return;
+        const gRows = gridBody.querySelectorAll('.grid-data-row');
+        if (delta < 0) {
+            let prev = row.previousElementSibling;
+            while (prev && !isGridDataRowFilterVisible(prev)) prev = prev.previousElementSibling;
+            if (prev) {
+                const gIdx = Array.prototype.indexOf.call(gRows, prev);
+                if (gIdx >= 0) focusTargetEditorStartAtGlobalIndex(gIdx);
+            }
+        } else {
+            let next = row.nextElementSibling;
+            while (next && !isGridDataRowFilterVisible(next)) next = next.nextElementSibling;
+            if (next) {
+                const gIdx = Array.prototype.indexOf.call(gRows, next);
+                if (gIdx >= 0) focusTargetEditorStartAtGlobalIndex(gIdx);
+            }
+        }
+    }
+
+    function getSegDisplayIndexForTip(segId) {
+        const seg = currentSegmentsList && currentSegmentsList.find(s => String(s.id) === String(segId));
+        if (!seg) return '—';
+        if (seg.globalId != null) return String(seg.globalId);
+        if (seg.rowIdx != null) return String(seg.rowIdx + 1);
+        return '—';
+    }
+
+    function ensureCatFakeCaretScrollTipEl() {
+        if (!catFakeCaretScrollTipEl) {
+            catFakeCaretScrollTipEl = document.createElement('div');
+            catFakeCaretScrollTipEl.className = 'cat-fake-caret-scroll-tip hidden';
+            catFakeCaretScrollTipEl.setAttribute('role', 'status');
+            document.body.appendChild(catFakeCaretScrollTipEl);
+        }
+        return catFakeCaretScrollTipEl;
+    }
+
+    function hideCatFakeCaretScrollTip() {
+        if (catFakeCaretScrollTipEl) {
+            catFakeCaretScrollTipEl.classList.add('hidden');
+            catFakeCaretScrollTipEl.textContent = '';
+        }
+    }
+
     function ensureCatFakeCaretEl() {
         if (!catFakeCaretEl) {
             catFakeCaretEl = document.createElement('div');
@@ -8759,6 +8814,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function hideCatFakeCaret() {
         if (catFakeCaretEl) catFakeCaretEl.classList.add('hidden');
+        hideCatFakeCaretScrollTip();
     }
 
     function saveCatCaretFromSelection(editorEl) {
@@ -8792,16 +8848,53 @@ document.addEventListener('DOMContentLoaded', async () => {
             hideCatFakeCaret();
             return;
         }
+        const editorGrid = document.getElementById('editorGrid');
+        const gridRect = editorGrid ? editorGrid.getBoundingClientRect() : null;
+
         let rect = null;
         try { rect = getRectForRange(catSavedCaret.range); } catch (_) { rect = null; }
-        if (!rect) {
+        if (!rect || (rect.width === 0 && rect.height === 0)) {
             const edRect = editor.getBoundingClientRect();
-            rect = { left: edRect.right - 2, top: edRect.top + 4, height: Math.max(16, edRect.height - 8) };
+            const st = getComputedStyle(editor);
+            const pl = parseFloat(st.paddingLeft) || 8;
+            const pt = parseFloat(st.paddingTop) || 4;
+            const h0 = Math.max(14, Math.min(28, edRect.height - pt * 2));
+            rect = { left: edRect.left + pl, top: edRect.top + pt, width: 2, height: h0 };
         }
-        const mark = ensureCatFakeCaretEl();
         const h = Math.max(14, Math.min(28, rect.height || 18));
-        mark.style.left = `${Math.max(0, rect.left)}px`;
-        mark.style.top = `${Math.max(0, rect.top)}px`;
+        const mark = ensureCatFakeCaretEl();
+        const segNum = getSegDisplayIndexForTip(catSavedCaret.segId);
+        const tip = ensureCatFakeCaretScrollTipEl();
+
+        if (gridRect) {
+            const trueTop = rect.top;
+            const trueBottom = rect.top + h;
+            const outAbove = trueBottom < gridRect.top;
+            const outBelow = trueTop > gridRect.bottom;
+            if (outAbove || outBelow) {
+                mark.classList.add('hidden');
+                tip.textContent = `暫存游標位於第 ${segNum} 號句段`;
+                tip.classList.remove('hidden');
+                if (outAbove) {
+                    tip.style.left = `${gridRect.left + 8}px`;
+                    tip.style.top = `${gridRect.top + 4}px`;
+                } else {
+                    tip.style.left = `${gridRect.left + 8}px`;
+                    tip.style.top = `${gridRect.bottom - 36}px`;
+                }
+                tip.style.maxWidth = `${Math.max(120, gridRect.width - 16)}px`;
+                return;
+            }
+        }
+        tip.classList.add('hidden');
+        let left = rect.left;
+        let top = rect.top;
+        if (gridRect) {
+            left = Math.min(Math.max(left, gridRect.left + 1), gridRect.right - 3);
+            top = Math.min(Math.max(top, gridRect.top + 1), gridRect.bottom - h - 1);
+        }
+        mark.style.left = `${left}px`;
+        mark.style.top = `${top}px`;
         mark.style.height = `${h}px`;
         mark.classList.remove('hidden');
     }
@@ -8823,6 +8916,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             return null;
         }
     }
+
+    // 全域：Ctrl+↑／↓ 上一可見句／下一可見句譯文開頭（與分頁焦點無關）
+    document.addEventListener('keydown', (e) => {
+        if (!e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+        if (!currentFileId) return;
+        const ve = document.getElementById('viewEditor');
+        if (!ve || ve.classList.contains('hidden')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        moveVisibleTargetRowByCtrlArrow(e.key === 'ArrowUp' ? -1 : 1);
+    }, true);
 
     function insertSelectedTextAtSavedCaret() {
         const sel = window.getSelection();
@@ -11093,7 +11198,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const myGen = ++targetWriteGeneration;
                         const latest = extractTextFromEditor(targetInput);
                         const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
-                        if (oldVal !== latest) {
+                        const statusDirty = editorUndoStatusStart[seg.id] !== seg.status;
+                        const matchDirty = (editorUndoMatchStart[seg.id] ?? null) !== (seg.matchValue ?? null);
+                        if (oldVal !== latest || statusDirty || matchDirty) {
                             pushEditorUndo(seg.id, oldVal, latest, {
                                 oldMatchValue: editorUndoMatchStart[seg.id],
                                 newMatchValue: seg.matchValue,
@@ -11101,6 +11208,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 newStatus: seg.status
                             });
                             editorUndoEditStart[seg.id] = latest;
+                            editorUndoStatusStart[seg.id] = seg.status;
+                            editorUndoMatchStart[seg.id] = seg.matchValue;
                         }
                         seg.targetText = latest;
                         try {
@@ -11158,7 +11267,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const myGen = ++targetWriteGeneration;
                     const newVal = extractTextFromEditor(targetInput);
                     const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
-                    if (oldVal !== newVal) {
+                    const statusDirty = editorUndoStatusStart[seg.id] !== seg.status;
+                    const matchDirty = (editorUndoMatchStart[seg.id] ?? null) !== (seg.matchValue ?? null);
+                    if (oldVal !== newVal || statusDirty || matchDirty) {
                         pushEditorUndo(seg.id, oldVal, newVal, {
                             oldMatchValue: editorUndoMatchStart[seg.id],
                             newMatchValue: seg.matchValue,
@@ -11166,6 +11277,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                             newStatus: seg.status
                         });
                         editorUndoEditStart[seg.id] = newVal;
+                        editorUndoStatusStart[seg.id] = seg.status;
+                        editorUndoMatchStart[seg.id] = seg.matchValue;
                     }
                     seg.targetText = newVal;
                     try {
@@ -11347,23 +11460,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 } catch (err) { console.error(err); }
                             });
                         })();
-                    } else if (e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-                        e.preventDefault();
-                        if (e.key === 'ArrowUp') {
-                            let prevRow = row.previousElementSibling;
-                            while (prevRow && !isGridDataRowFilterVisible(prevRow)) prevRow = prevRow.previousElementSibling;
-                            if (prevRow) {
-                                const gIdx = Array.prototype.indexOf.call(gRows, prevRow);
-                                if (gIdx >= 0) focusTargetEditorStartAtGlobalIndex(gIdx);
-                            }
-                        } else {
-                            let nextRow = row.nextElementSibling;
-                            while (nextRow && !isGridDataRowFilterVisible(nextRow)) nextRow = nextRow.nextElementSibling;
-                            if (nextRow) {
-                                const gIdx = Array.prototype.indexOf.call(gRows, nextRow);
-                                if (gIdx >= 0) focusTargetEditorStartAtGlobalIndex(gIdx);
-                            }
-                        }
                     } else if (!e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
                         const s = window.getSelection();
                         if (s && s.rangeCount && s.isCollapsed) {
@@ -12101,12 +12197,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.handleCatResultApply(el || document.body, m.type, m.targetText, scoreArg, relativeIndex);
     };
     
-    // Alt+上/下：在右側 CAT 比對列表中移動選取（跨分頁）
-    document.addEventListener('keydown', function catPanelArrowKey(e) {
+    // Alt+上/下：CAT 分頁比對表或 TM 搜尋 concordance 列表中移動選取（不套用譯文）
+    document.addEventListener('keydown', function rightPanelMatchListAltArrow(e) {
         if (e.ctrlKey || e.metaKey || e.shiftKey || !e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
         if (!currentFileId) return;
         const viewEditor = document.getElementById('viewEditor');
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
+        const tabTm = document.getElementById('tabTmSearch');
+        if (tabTm && tabTm.classList.contains('active')) {
+            const conc = window.currentTmConcordanceMatches;
+            if (!conc || !conc.length) return;
+            let idx = typeof window.tmConcordanceSelectedIndex === 'number' ? window.tmConcordanceSelectedIndex : 0;
+            if (e.key === 'ArrowDown') {
+                if (idx >= conc.length - 1) return;
+                idx++;
+            } else {
+                if (idx <= 0) return;
+                idx--;
+            }
+            window.tmConcordanceSelectedIndex = idx;
+            e.preventDefault();
+            e.stopPropagation();
+            if (typeof window.updateTmConcordanceSelection === 'function') window.updateTmConcordanceSelection();
+            const el = document.querySelector(`#tmSearchConcordanceResults .tm-concordance-item[data-idx="${idx}"]`);
+            el?.scrollIntoView({ block: 'nearest' });
+            return;
+        }
         const matches = window.currentTmMatches;
         if (!matches || matches.length === 0) return;
         const catTab = document.getElementById('tabCAT');
@@ -12171,15 +12287,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }, true);
 
-    // Ctrl+Alt+下：焦點到假游標／還原儲存游標
+    // Ctrl+Alt+上／下：還原儲存游標、捲到暫存句、顯示假游標（不限焦點位置）
     document.addEventListener('keydown', function focusFakeCaretChord(e) {
         if (!e.ctrlKey || !e.altKey || e.shiftKey || e.metaKey) return;
-        if (e.key !== 'ArrowDown' && e.code !== 'ArrowDown') return;
+        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown' && e.code !== 'ArrowUp' && e.code !== 'ArrowDown') return;
         if (!currentFileId) return;
         const viewEditor = document.getElementById('viewEditor');
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
         e.preventDefault();
         e.stopPropagation();
+        if (e.key === 'ArrowUp' || e.code === 'ArrowUp') {
+            if (catSavedCaret && catSavedCaret.editor) {
+                const r = catSavedCaret.editor.closest('.grid-data-row');
+                r?.scrollIntoView({ block: 'nearest' });
+            }
+            showCatFakeCaretFromSaved();
+            return;
+        }
         if (!restoreSavedCaretIntoEditor()) {
             showCatFakeCaretFromSaved();
         }
@@ -13166,6 +13290,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const fieldSel = document.getElementById('tmSearchField');
         const resultsEl = document.getElementById('tmSearchConcordanceResults');
         if (!input || !resultsEl) return;
+        window.updateTmConcordanceSelection = null;
         const raw = (input.value || '').trim();
         window.currentTmConcordanceMatches = [];
         window.tmConcordanceSelectedIndex = 0;
@@ -13210,6 +13335,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 item.classList.toggle('tm-concordance-item--selected', i === window.tmConcordanceSelectedIndex);
             });
         };
+        window.updateTmConcordanceSelection = updateConcordanceSelection;
         resultsEl.querySelectorAll('.tm-concordance-item').forEach(item => {
             item.addEventListener('click', () => {
                 const idx = parseInt(item.getAttribute('data-idx'));
