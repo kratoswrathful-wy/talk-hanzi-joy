@@ -15205,6 +15205,46 @@ document.addEventListener('DOMContentLoaded', async () => {
             return [cat];
         }
 
+        function _normalizeGuidelineExamples(examples) {
+            if (!Array.isArray(examples)) return [];
+            return examples.map((ex, idx) => {
+                const state = ex && ex.state === 'bad' ? 'bad' : (ex && ex.state === 'neutral' ? 'neutral' : 'ok');
+                return {
+                    id: ex && ex.id != null ? String(ex.id) : `ex-${Date.now()}-${idx}`,
+                    state,
+                    src: ex && ex.src != null ? String(ex.src) : '',
+                    tgt: ex && ex.tgt != null ? String(ex.tgt) : '',
+                    note: ex && ex.note != null ? String(ex.note) : ''
+                };
+            });
+        }
+
+        function _guidelineExampleStateGlyph(state) {
+            if (state === 'bad') return 'X';
+            if (state === 'neutral') return '-';
+            return 'O';
+        }
+
+        function _guidelineExamplesHtml(examples) {
+            const rows = _normalizeGuidelineExamples(examples);
+            if (rows.length === 0) return '';
+            const body = rows.map((ex) => {
+                const lines = [];
+                if (ex.src && ex.src.trim()) lines.push(`<div class="ag-shared-ex-line"><span class="ag-shared-ex-key">原文</span><span>${_esc(ex.src.trim())}</span></div>`);
+                if (ex.tgt && ex.tgt.trim()) lines.push(`<div class="ag-shared-ex-line"><span class="ag-shared-ex-key">譯文</span><span>${_esc(ex.tgt.trim())}</span></div>`);
+                if (ex.note && ex.note.trim()) lines.push(`<div class="ag-shared-ex-line"><span class="ag-shared-ex-key">※</span><span>${_esc(ex.note.trim())}</span></div>`);
+                if (lines.length === 0) return '';
+                const stateClass = ex.state === 'bad' ? 'is-bad' : (ex.state === 'neutral' ? 'is-neutral' : 'is-ok');
+                return `
+                    <div class="ag-shared-ex-row">
+                        <div class="ag-shared-ex-state ${stateClass}">${_guidelineExampleStateGlyph(ex.state)}</div>
+                        <div class="ag-shared-ex-card">${lines.join('')}</div>
+                    </div>`;
+            }).filter(Boolean).join('');
+            if (!body) return '';
+            return `<div class="ag-shared-ex-list">${body}</div>`;
+        }
+
         function updateFilterBarOptions() {
             const catSel = document.getElementById('aiGuidelinesFilterCat');
             const mutexSel = document.getElementById('aiGuidelinesFilterMutex');
@@ -15285,6 +15325,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (item.type === 'single') {
                     const g = item.g;
                     const catBadges = _normalizeCategory(g.category).map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
+                    const exCount = _normalizeGuidelineExamples(g.examples).length;
+                    const exCountBadge = exCount > 0 ? `<span class="ai-badge selected-green" style="font-size:0.72rem;">${exCount} 個範例</span>` : '';
                     const defLabel = (!isStyleColumn && g.isDefault) ? ' <span class="ai-badge" style="background:#e0e7ff;">預設條目</span>' : '';
                     const contentBlock = isStyleColumn
                         ? `<div class="ai-guideline-item-content">${_esc(g.content)}</div>`
@@ -15296,7 +15338,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <div class="ai-guideline-item" data-id="${g.id}">
                             <div class="ai-guideline-item-body">
                                 ${contentBlock}
-                                <div class="ai-guideline-item-meta">${catBadges}</div>
+                                <div class="ai-guideline-item-meta">${catBadges}${exCountBadge}</div>
                             </div>
                             <div class="ai-guideline-item-side">
                                 <label class="ag-only-on-ai-guidelines-page" style="font-size:0.72rem; display:flex; align-items:center; gap:0.2rem; cursor:pointer;">
@@ -15318,6 +15360,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const mxPick = pickerCtx ? `picker-mx-${mxRN}` : `agmx-${mxRN}`;
                 const rows = gMembers.map(g => {
                     const catBadges = _normalizeCategory(g.category).map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
+                    const exCount = _normalizeGuidelineExamples(g.examples).length;
+                    const exCountBadge = exCount > 0 ? `<span class="ai-badge selected-green" style="font-size:0.72rem;">${exCount} 個範例</span>` : '';
                     const radChecked = defPicked ? g.id === defPicked.id : false;
                     const libRadio = `<div class="ai-guideline-item-sel" title="作為庫內預設（互斥擇一）"><input type="radio" class="ag-mutex-libdef-radio" name="${mxPick}" data-mutex="${_esc(item.name)}" data-gid="${g.id}" ${radChecked ? 'checked' : ''}></div>`;
                     const pickRadio = pickerCtx
@@ -15326,7 +15370,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const cardCore = `
                             <div class="ai-guideline-item-body">
                                 <div class="ai-guideline-item-content">${_esc(g.content)}</div>
-                                <div class="ai-guideline-item-meta">${catBadges}</div>
+                                <div class="ai-guideline-item-meta">${catBadges}${exCountBadge}</div>
                             </div>
                             <div class="ai-guideline-item-side">
                                 <button type="button" class="secondary-btn btn-sm ag-leave-mutex" data-leave-gid="${g.id}" style="font-size:0.72rem;">脫離群組</button>
@@ -15716,8 +15760,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         async function openAgEditGuidelineModal(row, editOpts) {
             const options = editOpts || {};
             const lockMutex = options.lockMutex === false ? false : true;
-            const lockScope = !!options.lockScope;
-            const fixedScope = options.fixedScope === 'style' ? 'style' : (options.fixedScope === 'translation' ? 'translation' : null);
             const afterSaveCb = typeof options.afterSave === 'function' ? options.afterSave : null;
             const pool = Array.isArray(options.guidelinePool) ? options.guidelinePool : allGuidelines;
             const modal = document.getElementById('agEditGuidelineModal');
@@ -15729,13 +15771,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             const mutexSel = document.getElementById('agEditGuidelineMutexSelect');
             const mutexCustom = document.getElementById('agEditGuidelineMutexCustom');
             const isDefEl = document.getElementById('agEditGuidelineIsDefault');
-            const hintScopeDefaultEl = document.getElementById('agEditGuidelineScopeDefaultHint');
+            const examplesListEl = document.getElementById('agEditGuidelineExamplesList');
+            const btnAddExample = document.getElementById('btnAgEditGuidelineAddExample');
             const errEl = document.getElementById('agEditGuidelineErr');
             const btnSave = document.getElementById('btnAgEditGuidelineSave');
             const btnCancel = document.getElementById('btnAgEditGuidelineCancel');
             const mutexBlock = mutexSel ? mutexSel.closest('.form-group') : null;
             const mutexCustomBlock = mutexCustom ? mutexCustom.closest('.form-group') : null;
-            if (!modal || !contentEl || !catSelector || !catDisplay || !catDropdown || !scopeEl || !mutexSel || !mutexCustom || !isDefEl || !btnSave || !btnCancel) return;
+            if (!modal || !contentEl || !catSelector || !catDisplay || !catDropdown || !scopeEl || !mutexSel || !mutexCustom || !isDefEl || !examplesListEl || !btnAddExample || !btnSave || !btnCancel) return;
 
             let allAgEditCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
             if (allAgEditCategoryTags.length === 0) {
@@ -15815,25 +15858,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             const gid = row.id;
             const origMutex = row.mutexGroup != null ? row.mutexGroup : null;
             const origIsDefault = !!row.isDefault;
-            const defaultScopeDefaultHint = (hintScopeDefaultEl && hintScopeDefaultEl.getAttribute('data-default-hint')) ||
-                '若屬於互斥群組且勾選為預設，系統會將該群組內其餘條目的「預設條目」取消。';
-            const pickerScopeDefaultHint = '性質及預設條目請至「準則管理」變更';
             modal.setAttribute('data-edit-id', String(gid));
             contentEl.value = String(row.content || '');
             const rowScope = (row.scope || 'translation') === 'style' ? 'style' : 'translation';
-            if (lockScope && fixedScope) {
-                modal.setAttribute('data-lock-scope-default', '1');
-                scopeEl.disabled = true;
-                scopeEl.value = fixedScope;
-                isDefEl.disabled = true;
-                if (hintScopeDefaultEl) hintScopeDefaultEl.textContent = pickerScopeDefaultHint;
-            } else {
-                modal.removeAttribute('data-lock-scope-default');
-                scopeEl.disabled = false;
-                scopeEl.value = rowScope;
-                isDefEl.disabled = false;
-                if (hintScopeDefaultEl) hintScopeDefaultEl.textContent = defaultScopeDefaultHint;
-            }
+            modal.removeAttribute('data-lock-scope-default');
+            scopeEl.disabled = false;
+            scopeEl.value = rowScope;
+            isDefEl.disabled = false;
             fillAgEditMutexSelect(mutexSel, row.mutexGroup || null, pool);
             mutexCustom.value = '';
             isDefEl.checked = !!row.isDefault;
@@ -15847,6 +15878,105 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             updateAgEditCategoryDropdown();
             catSetDropdownPanelOpen(catSelector, catDropdown, false);
+            let editExamples = _normalizeGuidelineExamples(row.examples);
+            let openStateMenuId = null;
+
+            function _stateLabel(state) {
+                return state === 'bad' ? 'X' : (state === 'neutral' ? '-' : 'O');
+            }
+
+            function renderExamples() {
+                if (!examplesListEl) return;
+                if (!editExamples || editExamples.length === 0) {
+                    examplesListEl.innerHTML = '<p style="font-size:0.8rem; color:#94a3b8; margin:0;">尚無範例。可按「＋ 新增範例」。</p>';
+                    return;
+                }
+                examplesListEl.innerHTML = editExamples.map((ex) => {
+                    const stateClass = ex.state === 'bad' ? 'bad' : (ex.state === 'neutral' ? 'neutral' : 'ok');
+                    const stateLabel = _stateLabel(ex.state);
+                    const menuHidden = openStateMenuId === ex.id ? '' : 'hidden';
+                    const opt1 = ex.state === 'ok' ? 'bad' : 'ok';
+                    const opt2 = ex.state === 'neutral' ? 'ok' : 'neutral';
+                    const opt3 = ex.state === 'bad' ? 'neutral' : 'bad';
+                    const optionsOrdered = [opt1, opt2, opt3].filter((s, i, arr) => s !== ex.state && arr.indexOf(s) === i).slice(0, 2);
+                    const [oA, oB] = optionsOrdered;
+                    return `
+                        <div class="ag-edit-ex-row" data-ex-id="${_esc(ex.id)}">
+                            <div class="ag-edit-ex-state">
+                                <button type="button" class="ag-edit-ex-state-btn" data-state="${stateClass}" data-toggle-ex-state="${_esc(ex.id)}">${stateLabel}</button>
+                                <div class="ag-edit-ex-state-menu ${menuHidden}">
+                                    <button type="button" class="ag-edit-ex-state-opt" data-state="${_esc(oA)}" data-pick-ex-state="${_esc(ex.id)}">${_stateLabel(oA)}</button>
+                                    <button type="button" class="ag-edit-ex-state-opt" data-state="${_esc(oB)}" data-pick-ex-state="${_esc(ex.id)}">${_stateLabel(oB)}</button>
+                                </div>
+                            </div>
+                            <div class="ag-edit-ex-card">
+                                <div class="ag-edit-ex-line">
+                                    <span class="ag-edit-ex-key">原文</span>
+                                    <input type="text" class="ag-edit-ex-input" data-ex-field="src" data-ex-id="${_esc(ex.id)}" value="${_esc(ex.src)}" placeholder="可留空">
+                                </div>
+                                <div class="ag-edit-ex-line">
+                                    <span class="ag-edit-ex-key">譯文</span>
+                                    <input type="text" class="ag-edit-ex-input" data-ex-field="tgt" data-ex-id="${_esc(ex.id)}" value="${_esc(ex.tgt)}" placeholder="可留空">
+                                </div>
+                                <div class="ag-edit-ex-line">
+                                    <span class="ag-edit-ex-key">※</span>
+                                    <input type="text" class="ag-edit-ex-input" data-ex-field="note" data-ex-id="${_esc(ex.id)}" value="${_esc(ex.note)}" placeholder="可留空">
+                                </div>
+                                <div class="ag-edit-ex-actions">
+                                    <button type="button" class="ag-edit-ex-inline-btn ag-edit-ex-del" data-del-ex="${_esc(ex.id)}">刪除範例</button>
+                                </div>
+                            </div>
+                        </div>`;
+                }).join('');
+
+                examplesListEl.querySelectorAll('[data-toggle-ex-state]').forEach((btn) => {
+                    btn.onclick = (e) => {
+                        e.stopPropagation();
+                        const id = btn.getAttribute('data-toggle-ex-state');
+                        openStateMenuId = openStateMenuId === id ? null : id;
+                        renderExamples();
+                    };
+                });
+                examplesListEl.querySelectorAll('[data-pick-ex-state]').forEach((btn) => {
+                    btn.onclick = (e) => {
+                        e.stopPropagation();
+                        const id = btn.getAttribute('data-pick-ex-state');
+                        const state = btn.getAttribute('data-state');
+                        const rowEx = editExamples.find((x) => String(x.id) === String(id));
+                        if (!rowEx) return;
+                        rowEx.state = state === 'bad' ? 'bad' : (state === 'neutral' ? 'neutral' : 'ok');
+                        openStateMenuId = null;
+                        renderExamples();
+                    };
+                });
+                examplesListEl.querySelectorAll('[data-ex-field]').forEach((input) => {
+                    input.oninput = () => {
+                        const id = input.getAttribute('data-ex-id');
+                        const field = input.getAttribute('data-ex-field');
+                        const rowEx = editExamples.find((x) => String(x.id) === String(id));
+                        if (!rowEx || !field) return;
+                        rowEx[field] = input.value;
+                    };
+                });
+                examplesListEl.querySelectorAll('[data-del-ex]').forEach((btn) => {
+                    btn.onclick = () => {
+                        const id = btn.getAttribute('data-del-ex');
+                        editExamples = editExamples.filter((x) => String(x.id) !== String(id));
+                        if (openStateMenuId === id) openStateMenuId = null;
+                        renderExamples();
+                    };
+                });
+            }
+            renderExamples();
+
+            function onDocClickCloseStateMenu(e) {
+                const target = e.target;
+                if (target && target.closest && target.closest('.ag-edit-ex-state')) return;
+                if (openStateMenuId != null) {
+                    openStateMenuId = null;
+                    renderExamples();
+                }
+            }
 
             function showErr(msg) {
                 if (!errEl) return;
@@ -15865,13 +15995,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 catSetDropdownPanelOpen(catSelector, catDropdown, false);
                 catSelector.removeEventListener('click', onAgCategorySelectorClick);
                 document.removeEventListener('click', onAgCategoryDocClick);
-                modal.removeAttribute('data-lock-scope-default');
                 if (mutexBlock) mutexBlock.classList.remove('hidden');
                 if (mutexCustomBlock) mutexCustomBlock.classList.remove('hidden');
                 scopeEl.disabled = false;
                 isDefEl.disabled = false;
-                if (hintScopeDefaultEl) hintScopeDefaultEl.textContent = defaultScopeDefaultHint;
+                document.removeEventListener('click', onDocClickCloseStateMenu);
                 btnSave.removeEventListener('click', onSave);
+                btnAddExample.removeEventListener('click', onAddExample);
                 btnCancel.removeEventListener('click', onCancel);
                 modal.removeEventListener('click', onOverlay);
                 document.removeEventListener('keydown', onKey);
@@ -15903,13 +16033,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 let normalizedCats = [...new Set(selectedAgCategories.filter(Boolean))];
                 if (normalizedCats.length === 0) normalizedCats = ['通用'];
                 const category = JSON.stringify(normalizedCats);
-                const scope = lockScope && fixedScope ? fixedScope : (scopeEl.value === 'style' ? 'style' : 'translation');
+                const scope = (scopeEl.value === 'style' ? 'style' : 'translation');
                 const customM = mutexCustom.value.trim();
                 const selMRaw = mutexSel.value != null ? String(mutexSel.value).trim() : '';
                 const addvSel = typeof window.CAT_SELECT_ADD_NEW_VALUE === 'string' ? window.CAT_SELECT_ADD_NEW_VALUE : '';
                 const selM = selMRaw === addvSel ? '' : selMRaw;
                 const mutexGroup = lockMutex ? origMutex : (customM || selM || null);
-                const isDefault = (lockScope && fixedScope) ? origIsDefault : !!isDefEl.checked;
+                const isDefault = !!isDefEl.checked;
+                const examples = editExamples.map((ex, idx) => ({
+                    id: ex && ex.id != null ? String(ex.id) : `ex-${Date.now()}-${idx}`,
+                    state: ex && ex.state === 'bad' ? 'bad' : (ex && ex.state === 'neutral' ? 'neutral' : 'ok'),
+                    src: ex && ex.src != null ? String(ex.src).trim() : '',
+                    tgt: ex && ex.tgt != null ? String(ex.tgt).trim() : '',
+                    note: ex && ex.note != null ? String(ex.note).trim() : ''
+                }));
 
                 try {
                     await DBService.updateAiGuideline(gid, {
@@ -15917,13 +16054,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                         category,
                         mutexGroup,
                         scope,
-                        isDefault
+                        isDefault,
+                        examples
                     });
                     row.content = content;
                     row.category = category;
                     row.mutexGroup = mutexGroup;
                     row.scope = scope;
                     row.isDefault = isDefault;
+                    row.examples = examples;
 
                     if (mutexGroup && isDefault) {
                         const inGroup = pool.filter(g => g && g.mutexGroup === mutexGroup).sort((a, b) => a.id - b.id);
@@ -15949,8 +16088,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
 
+            function onAddExample() {
+                const nextId = `ex-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                editExamples.push({ id: nextId, state: 'ok', src: '', tgt: '', note: '' });
+                openStateMenuId = null;
+                renderExamples();
+            }
+
             catSelector.addEventListener('click', onAgCategorySelectorClick);
             document.addEventListener('click', onAgCategoryDocClick);
+            document.addEventListener('click', onDocClickCloseStateMenu);
+            btnAddExample.addEventListener('click', onAddExample);
             btnSave.addEventListener('click', onSave);
             btnCancel.addEventListener('click', onCancel);
             modal.addEventListener('click', onOverlay);
@@ -16017,7 +16165,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (!content) { alert('請輸入準則內容'); return; }
                     if (!_isCatPmOrExecutive()) return;
                     const id = await DBService.addAiGuideline({ content, category, mutexGroup, sortOrder: allGuidelines.length, scope, isDefault });
-                    const newRow = { id, content, category, mutexGroup: mutexGroup || null, sortOrder: allGuidelines.length, scope, isDefault };
+                    const newRow = { id, content, category, mutexGroup: mutexGroup || null, sortOrder: allGuidelines.length, scope, isDefault, examples: [] };
                     allGuidelines.push(newRow);
                     if (mutexGroup && isDefault) {
                         const inGroup = allGuidelines.filter(g => g && g.mutexGroup === mutexGroup).sort((a, b) => a.id - b.id);
@@ -16752,6 +16900,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div class="ai-selected-guideline-item ai-pg-shared-card">
                     <div style="flex:1; min-width:0;">
                         <span class="ai-selected-guideline-item-content">${_esc(g.content)}</span>
+                        ${(() => {
+                            const ex = _normalizeGuidelineExamples(g.examples);
+                            const countBadge = ex.length > 0 ? `<div style="margin-top:0.3rem;"><span class="ai-badge selected-green" style="font-size:0.72rem;">${ex.length} 個範例</span></div>` : '';
+                            return `${countBadge}${_guidelineExamplesHtml(ex)}`;
+                        })()}
                     </div>
                     ${isCatSharedMutator() ? `<div class="ai-pg-shared-actions">
                         <button type="button" class="secondary-btn btn-sm ai-guideline-inline-edit ag-sel-gl-edit" data-edit-gid="${g.id}">編輯</button>
@@ -16773,10 +16926,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     void window.CatToolOpenAgEditGuideline(row, {
                         lockMutex: true,
-                        lockScope: true,
-                        fixedScope: 'translation',
                         guidelinePool: allTranslation,
-                        afterSave: () => { renderSelectedGuidelines(); }
+                        afterSave: () => { renderSelectedGuidelines(); renderSelectedStyleGuidelines(); }
                     });
                 };
             });
@@ -16797,6 +16948,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div class="ai-selected-guideline-item ai-pg-shared-card">
                     <div style="flex:1; min-width:0;">
                         <span class="ai-selected-guideline-item-content">${_esc(g.content)}</span>
+                        ${(() => {
+                            const ex = _normalizeGuidelineExamples(g.examples);
+                            const countBadge = ex.length > 0 ? `<div style="margin-top:0.3rem;"><span class="ai-badge selected-green" style="font-size:0.72rem;">${ex.length} 個範例</span></div>` : '';
+                            return `${countBadge}${_guidelineExamplesHtml(ex)}`;
+                        })()}
                     </div>
                     ${isCatSharedMutator() ? `<div class="ai-pg-shared-actions">
                         <button type="button" class="secondary-btn btn-sm ai-guideline-inline-edit ag-sel-gl-edit-style" data-edit-gid-style="${g.id}">編輯</button>
@@ -16818,10 +16974,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     void window.CatToolOpenAgEditGuideline(row, {
                         lockMutex: true,
-                        lockScope: true,
-                        fixedScope: 'style',
                         guidelinePool: allStyle,
-                        afterSave: () => { renderSelectedStyleGuidelines(); }
+                        afterSave: () => { renderSelectedGuidelines(); renderSelectedStyleGuidelines(); }
                     });
                 };
             });
@@ -17600,7 +17754,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 scope: scopeFixed,
                                 isDefault
                             });
-                            const newRow = { id, content, category: categoryVal, mutexGroup: mutexGroup || null, sortOrder: allGuidelines.length, scope: scopeFixed, isDefault };
+                            const newRow = { id, content, category: categoryVal, mutexGroup: mutexGroup || null, sortOrder: allGuidelines.length, scope: scopeFixed, isDefault, examples: [] };
                             allGuidelines.push(newRow);
                             if (mutexGroup && isDefault) {
                                 const inGroup = allGuidelines.filter((g) => g && g.mutexGroup === mutexGroup).sort((a, b) => a.id - b.id);

@@ -78,6 +78,152 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
     resize: vertical;
     min-height: 6rem;
 }
+.ag-edit-prop-row {
+    display: grid;
+    grid-template-columns: minmax(220px, 280px) 1fr;
+    gap: 0.85rem;
+    align-items: start;
+}
+.ag-edit-scope-default-inline {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 2.15rem;
+}
+.ag-edit-scope-select {
+    max-width: 220px;
+    min-height: 2.15rem;
+}
+.ag-edit-examples-box {
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    background: #fff;
+    padding: 0.65rem 0.7rem 0.7rem;
+}
+.ag-edit-examples-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.55rem;
+    font-size: 0.86rem;
+    color: #1f2937;
+}
+.ag-edit-examples-list {
+    max-height: 280px;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.ag-edit-ex-row {
+    display: grid;
+    grid-template-columns: 42px 1fr;
+    gap: 0.5rem;
+    align-items: stretch;
+}
+.ag-edit-ex-state {
+    position: relative;
+}
+.ag-edit-ex-state-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 0.95rem;
+    cursor: pointer;
+    color: #475569;
+}
+.ag-edit-ex-state-btn[data-state="ok"] { color: #16a34a; border-color: #86efac; }
+.ag-edit-ex-state-btn[data-state="bad"] { color: #dc2626; border-color: #fca5a5; }
+.ag-edit-ex-state-btn[data-state="neutral"] { color: #94a3b8; border-color: #cbd5e1; }
+.ag-edit-ex-state-menu {
+    position: absolute;
+    top: 38px;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+    padding: 0.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    z-index: 20;
+}
+.ag-edit-ex-state-menu.hidden { display: none; }
+.ag-edit-ex-state-opt {
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    font-weight: 800;
+    font-size: 0.78rem;
+    color: #64748b;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+.ag-edit-ex-state-opt[data-state="ok"] { color: #16a34a; }
+.ag-edit-ex-state-opt[data-state="bad"] { color: #dc2626; }
+.ag-edit-ex-state-opt[data-state="neutral"] { color: #94a3b8; }
+.ag-edit-ex-card {
+    border: 1px solid #93c5fd;
+    background: #eff6ff;
+    border-radius: 8px;
+    padding: 0.45rem 0.55rem 0.5rem;
+}
+.ag-edit-ex-line {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.82rem;
+    color: #334155;
+    margin-bottom: 0.3rem;
+}
+.ag-edit-ex-line:last-child { margin-bottom: 0; }
+.ag-edit-ex-key {
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.ag-edit-ex-input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid #bfdbfe;
+    border-radius: 6px;
+    background: #fff;
+    padding: 0.22rem 0.4rem;
+    font-size: 0.82rem;
+    color: #1f2937;
+}
+.ag-edit-ex-actions {
+    margin-top: 0.45rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.35rem;
+}
+.ag-edit-ex-inline-btn {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #475569;
+    border-radius: 6px;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+.ag-edit-ex-inline-btn.ag-edit-ex-del {
+    color: #dc2626;
+    border-color: #fca5a5;
+}
 .ag-edit-guideline-modal-footer {
     box-sizing: border-box;
     flex-shrink: 0;
@@ -1604,6 +1750,46 @@ mark.search-match {
     align-items: center;
     gap: 0.35rem;
     flex-shrink: 0;
+}
+.ag-shared-ex-list {
+    margin-top: 0.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.ag-shared-ex-row {
+    display: grid;
+    grid-template-columns: 1.2rem 1fr;
+    gap: 0.4rem;
+    align-items: stretch;
+}
+.ag-shared-ex-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 0.9rem;
+    color: #475569;
+}
+.ag-shared-ex-state.is-ok { color: #16a34a; }
+.ag-shared-ex-state.is-bad { color: #dc2626; }
+.ag-shared-ex-state.is-neutral { color: #94a3b8; }
+.ag-shared-ex-card {
+    border: 1px solid #93c5fd;
+    background: #eff6ff;
+    border-radius: 7px;
+    padding: 0.35rem 0.45rem;
+}
+.ag-shared-ex-line {
+    font-size: 0.8rem;
+    color: #334155;
+    line-height: 1.35;
+    margin-bottom: 0.22rem;
+}
+.ag-shared-ex-line:last-child { margin-bottom: 0; }
+.ag-shared-ex-key {
+    font-weight: 700;
+    margin-right: 0.35rem;
 }
 
 /* 準則管理／選擇器：條目卡片（選擇鈕最左垂直置中；編輯與刪除同一列） */

@@ -263,6 +263,7 @@ const mapAiGuidelineRow = (r: any) => ({
   sortOrder: Number(r.sort_order ?? 0),
   scope: r.scope === "style" ? "style" : "translation",
   isDefault: !!r.is_default,
+  examples: tryParseJson<any[]>(r.examples, []),
   createdAt: r.created_at,
 });
 
@@ -985,6 +986,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           sort_order: Number(entry.sortOrder ?? 0) || 0,
           scope: entry.scope === "style" ? "style" : "translation",
           is_default: !!entry.isDefault,
+          examples: Array.isArray(entry.examples) ? entry.examples : [],
           created_at: nowIso(),
           updated_at: nowIso(),
           created_by: userId,
@@ -1011,6 +1013,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       if (payload.patch?.sortOrder !== undefined) patch.sort_order = Number(payload.patch.sortOrder ?? 0) || 0;
       if (payload.patch?.scope !== undefined) patch.scope = payload.patch.scope === "style" ? "style" : "translation";
       if (payload.patch?.isDefault !== undefined) patch.is_default = !!payload.patch.isDefault;
+      if (payload.patch?.examples !== undefined) patch.examples = Array.isArray(payload.patch.examples) ? payload.patch.examples : [];
       const { error } = await supabase
         .from("cat_ai_guidelines" as any)
         .update(patch as any)

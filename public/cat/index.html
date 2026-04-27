@@ -2140,29 +2140,36 @@
 
     <!-- ====== 準則管理：編輯條目（頁內對話框，取代 prompt）====== -->
     <div id="agEditGuidelineModal" class="modal-overlay hidden" data-edit-id="">
-        <div class="modal-box ag-edit-guideline-modal-box" style="max-width:520px; width:92vw; max-height:90vh; padding:0; overflow:hidden; display:flex; flex-direction:column;">
+        <div class="modal-box ag-edit-guideline-modal-box" style="max-width:980px; width:94vw; max-height:90vh; padding:0; overflow:hidden; display:flex; flex-direction:column;">
             <div class="ag-edit-guideline-modal-scroll">
                 <h3 style="margin:0 0 0.75rem 0;">編輯準則條目</h3>
                 <div class="form-group">
                     <label class="form-label" for="agEditGuidelineContent">內容</label>
                     <textarea id="agEditGuidelineContent" class="form-input ag-edit-guideline-field" rows="5" placeholder="準則內文…"></textarea>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">套用標籤</label>
-                    <div style="display:flex; align-items:center; gap:0.4rem; position:relative; flex-wrap:wrap;">
-                        <div id="agEditGuidelineCategorySelector" class="ai-multiselect-trigger" title="點擊選擇標籤" role="button" tabindex="0">
-                            <span id="agEditGuidelineCategoryDisplay">通用</span>
-                            <span class="ai-multiselect-chevron" aria-hidden="true"></span>
+                <div class="ag-edit-prop-row">
+                    <div class="form-group">
+                        <label class="form-label">套用標籤</label>
+                        <div style="display:flex; align-items:center; gap:0.4rem; position:relative; flex-wrap:wrap;">
+                            <div id="agEditGuidelineCategorySelector" class="ai-multiselect-trigger" title="點擊選擇標籤" role="button" tabindex="0">
+                                <span id="agEditGuidelineCategoryDisplay">通用</span>
+                                <span class="ai-multiselect-chevron" aria-hidden="true"></span>
+                            </div>
+                            <div id="agEditGuidelineCategoryDropdown" class="ai-multiselect-dropdown hidden"></div>
                         </div>
-                        <div id="agEditGuidelineCategoryDropdown" class="ai-multiselect-dropdown hidden"></div>
                     </div>
-                </div>
-                <div class="form-group ag-edit-scope-default-group">
-                    <label class="form-label" for="agEditGuidelineScope">性質</label>
-                    <select id="agEditGuidelineScope" class="form-input ag-edit-guideline-field">
-                        <option value="translation">翻譯準則</option>
-                        <option value="style">文風偏好</option>
-                    </select>
+                    <div class="form-group ag-edit-scope-default-group">
+                        <label class="form-label" for="agEditGuidelineScope">性質</label>
+                        <div class="ag-edit-scope-default-inline">
+                            <select id="agEditGuidelineScope" class="form-input ag-edit-guideline-field ag-edit-scope-select">
+                                <option value="translation">翻譯準則</option>
+                                <option value="style">文風偏好</option>
+                            </select>
+                            <label id="agEditGuidelineIsDefaultLabel" style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; font-size:0.9rem;">
+                                <input type="checkbox" id="agEditGuidelineIsDefault"> 預設條目
+                            </label>
+                        </div>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="agEditGuidelineMutexSelect">互斥群組</label>
@@ -2172,11 +2179,14 @@
                     <label class="form-label" for="agEditGuidelineMutexCustom" style="margin-top:0.5rem;">或新群組名稱（選填，若填寫則優先於上方選單）</label>
                     <input type="text" id="agEditGuidelineMutexCustom" class="form-input ag-edit-guideline-field" placeholder="留空則以上方選單為準" autocomplete="off">
                 </div>
-                <div class="form-group ag-edit-scope-default-group">
-                    <label id="agEditGuidelineIsDefaultLabel" style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; font-size:0.9rem;">
-                        <input type="checkbox" id="agEditGuidelineIsDefault"> 預設條目
-                    </label>
-                    <p id="agEditGuidelineScopeDefaultHint" class="ag-edit-scope-default-hint" data-default-hint="若屬於互斥群組且勾選為預設，系統會將該群組內其餘條目的「預設條目」取消。" style="font-size:0.78rem; color:#64748b; margin:0.35rem 0 0 0;">若屬於互斥群組且勾選為預設，系統會將該群組內其餘條目的「預設條目」取消。</p>
+                <div class="form-group">
+                    <div class="ag-edit-examples-box">
+                        <div class="ag-edit-examples-head">
+                            <strong>範例編輯區（統一在條目編輯畫面）</strong>
+                            <button type="button" id="btnAgEditGuidelineAddExample" class="primary-btn btn-sm">＋ 新增範例</button>
+                        </div>
+                        <div id="agEditGuidelineExamplesList" class="ag-edit-examples-list"></div>
+                    </div>
                 </div>
                 <p id="agEditGuidelineErr" class="hidden" style="color:#dc2626; font-size:0.82rem; margin:0.5rem 0 0 0;"></p>
             </div>

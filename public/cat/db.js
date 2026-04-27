@@ -841,6 +841,7 @@ const DBService = {
             sortOrder: entry.sortOrder || 0,
             scope,
             isDefault: !!entry.isDefault,
+            examples: Array.isArray(entry.examples) ? entry.examples : [],
             createdAt: now
         });
     },
@@ -861,6 +862,7 @@ const DBService = {
         if (patch.content !== undefined) allowed.content = patch.content;
         if (patch.scope === 'style' || patch.scope === 'translation') allowed.scope = patch.scope;
         if (patch.isDefault !== undefined) allowed.isDefault = !!patch.isDefault;
+        if (patch.examples !== undefined) allowed.examples = Array.isArray(patch.examples) ? patch.examples : [];
         return await db.aiGuidelines.update(id, allowed);
     },
     async deleteAiGuideline(id) {
