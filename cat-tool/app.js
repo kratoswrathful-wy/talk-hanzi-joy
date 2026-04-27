@@ -16347,8 +16347,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             const sel = document.getElementById('pgManageProjectGuidelineCategorySelector');
             const disp = document.getElementById('pgManageProjectGuidelineCategoryDisplay');
             const dd = document.getElementById('pgManageProjectGuidelineCategoryDropdown');
+            const manageErrEl = document.getElementById('pgManageProjectGuidelineErr');
             if (!modal || !btnClose || !btnAdd || !ta || !sel || !disp || !dd) return;
             if (!isCatSharedMutator()) return;
+
+            function showManageErr(msg) {
+                if (!manageErrEl) return;
+                if (msg) {
+                    manageErrEl.textContent = msg;
+                    manageErrEl.classList.remove('hidden');
+                } else {
+                    manageErrEl.textContent = '';
+                    manageErrEl.classList.add('hidden');
+                }
+            }
 
             let manageAllTags = await DBService.getAiCategoryTags().catch(() => []);
             if (manageAllTags.length === 0) {
@@ -16423,6 +16435,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             function closePgManage() {
                 modal.classList.add('hidden');
+                showManageErr('');
                 catSetDropdownPanelOpen(sel, dd, false);
                 sel.removeEventListener('click', onSelClick);
                 document.removeEventListener('click', onDocClick);
@@ -16445,13 +16458,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             async function onAddClick() {
                 if (!isCatSharedMutator()) return;
+                showManageErr('');
                 const content = _pgNormalizeContent(ta.value);
                 if (!content) {
-                    alert('請輸入專案準則內文');
+                    showManageErr('請輸入專案準則內文。');
+                    ta.focus();
                     return;
                 }
                 if (_pgHasDuplicateContent(content, null)) {
-                    alert('已有相同內容的專案準則，請勿重複新增。');
+                    showManageErr('已有相同內容的專案準則，請勿重複新增。');
+                    ta.focus();
                     return;
                 }
                 let cats = [...new Set(manageAddCategories.filter(Boolean))];
@@ -16473,11 +16489,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     console.error(e);
                     const idx = projectGuidelines.findIndex((row) => String(row.id) === String(newItem.id));
                     if (idx >= 0) projectGuidelines.splice(idx, 1);
+                    showManageErr('新增失敗，請稍後再試。');
                     _showPgSaveError(e, '新增專案準則失敗，已還原。');
                     return;
                 } finally {
                     btnAdd.disabled = false;
                 }
+                showManageErr('');
                 ta.value = '';
                 manageAddCategories = ['通用'];
                 updateManageAddDropdown();
@@ -16487,6 +16505,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             ta.value = '';
+            showManageErr('');
             manageAddCategories = ['通用'];
             updateManageAddDropdown();
             updateManageAddDisplay();
