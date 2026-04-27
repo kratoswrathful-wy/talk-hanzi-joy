@@ -38,6 +38,12 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
     background: rgba(15, 23, 42, 0.55);
     backdrop-filter: blur(3px);
 }
+/* 通用確認／提示框永遠浮在其他 modal 之上（避免被後出現的 modal 疊蓋） */
+#catGenericConfirmModal,
+#catGenericPromptModal,
+#agLeaveMutexConfirmModal {
+    z-index: 10100;
+}
 .modal-overlay.hidden {
     display: none !important;
 }
