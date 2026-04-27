@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CAT 自製下拉範本 — 靜態預覽</title>
+  <style>
+    :root {
+      --primary-color: #2563eb;
+      --primary-hover: #1d4ed8;
+      --text-main: #334155;
+      --text-light: #64748b;
+      --border-color: #cbd5e1;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Inter', system-ui, sans-serif;
+      background: #f1f5f9;
+      color: var(--text-main);
+      padding: 1.25rem 1.5rem 2rem;
+      min-height: 100vh;
+    }
+    h1 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #1e293b;
+      margin: 0 0 0.35rem;
+    }
+    p.lead {
+      font-size: 0.82rem;
+      color: var(--text-light);
+      margin: 0 0 1.25rem;
+      max-width: 42rem;
+      line-height: 1.5;
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem 2.5rem;
+      align-items: flex-end;
+    }
+    .field { position: relative; }
+    .field > label {
+      display: block;
+      font-size: 0.82rem;
+      color: #475569;
+      font-weight: 500;
+      margin-bottom: 0.35rem;
+    }
+    /* 與 cat-tool .ai-multiselect-* 對齊：藍系、框線觸發、chevron */
+    .ai-multiselect-trigger > span:first-child {
+      flex: 1;
+      min-width: 0;
+      text-align: left;
+    }
+    .ai-multiselect-chevron {
+      display: inline-block;
+      width: 0.5rem;
+      height: 0.5rem;
+      border-right: 1.5px solid #64748b;
+      border-bottom: 1.5px solid #64748b;
+      transform: rotate(45deg);
+      margin-left: 0.4rem;
+      flex-shrink: 0;
+      box-sizing: border-box;
+      align-self: center;
+      margin-top: -0.1rem;
+    }
+    .ai-multiselect-trigger--open .ai-multiselect-chevron {
+      transform: rotate(225deg);
+      margin-top: 0.1rem;
+    }
+    .ai-multiselect-trigger {
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.35rem;
+      padding: 0.35rem 0.55rem;
+      min-height: 2.15rem;
+      min-width: 200px;
+      max-width: 100%;
+      border: 1px solid #94a3b8;
+      border-radius: 6px;
+      background: #fff;
+      font-size: 0.82rem;
+      color: #374151;
+      cursor: pointer;
+      user-select: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .ai-multiselect-trigger:hover { border-color: #3b82f6; }
+    .ai-multiselect-trigger:focus { outline: none; }
+    .ai-multiselect-trigger:focus-visible,
+    .ai-multiselect-trigger--open {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+    }
+    .ai-multiselect-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      z-index: 10;
+      min-width: 100%;
+      background: #fff;
+      border: 1px solid var(--primary-color);
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(15, 23, 42, 0.12);
+      padding: 0.35rem 0;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    .ai-multiselect-trigger--open + .ai-multiselect-dropdown { display: block; }
+    .ai-multiselect-option {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.75rem;
+      font-size: 0.83rem;
+      color: #374151;
+      cursor: pointer;
+    }
+    .ai-multiselect-option:hover { background: #eff6ff; }
+    .ai-multiselect-option input[type=checkbox],
+    .ai-multiselect-option input[type=radio] { cursor: pointer; }
+    .ai-multiselect-option.cat-mutex-dd-opt:has(input[type=radio]:checked) {
+      background: var(--primary-color);
+      color: #fff;
+    }
+    .ai-multiselect-option.cat-mutex-dd-opt:has(input[type=radio]:checked) input[type=radio] {
+      accent-color: #fff;
+    }
+    button.ai-multiselect-add-new-row {
+      display: block;
+      width: 100%;
+      margin: 0;
+      padding: 0.45rem 0.75rem;
+      border: none;
+      border-top: 1px solid #e2e8f0;
+      background: #eff6ff;
+      font-size: 0.82rem;
+      color: var(--primary-hover);
+      text-align: left;
+      cursor: pointer;
+    }
+    button.ai-multiselect-add-new-row:hover { background: #dbeafe; }
+    .hint {
+      margin-top: 1.5rem;
+      font-size: 0.75rem;
+      color: #64748b;
+      max-width: 40rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>自製下拉（.ai-multiselect-*）靜態預覽</h1>
+  <p class="lead">
+    觸發列＝框線＋主色焦點／展開、右側為 <strong>chevron</strong>（非實心 ▼）。雙點觸發列可開合；點他處關閉。此檔僅供視覺參考，不連實際 CAT 邏輯。
+  </p>
+  <div class="row">
+    <div class="field" id="wrap1">
+      <label>類別</label>
+      <div class="ai-multiselect-trigger" id="t1" tabindex="0" role="button" aria-haspopup="listbox" aria-expanded="false">
+        <span>通用</span>
+        <span class="ai-multiselect-chevron" aria-hidden="true"></span>
+      </div>
+      <div class="ai-multiselect-dropdown" id="d1">
+        <label class="ai-multiselect-option">
+          <input type="checkbox" checked /> 通用
+        </label>
+        <label class="ai-multiselect-option">
+          <input type="checkbox" /> 遊戲
+        </label>
+        <button type="button" class="ai-multiselect-add-new-row" onclick="return false">＋ 新增標籤</button>
+      </div>
+    </div>
+    <div class="field" id="wrap2">
+      <label>互斥群組</label>
+      <div class="ai-multiselect-trigger" id="t2" tabindex="0" role="button" aria-haspopup="listbox" aria-expanded="false">
+        <span>無互斥群組</span>
+        <span class="ai-multiselect-chevron" aria-hidden="true"></span>
+      </div>
+      <div class="ai-multiselect-dropdown" id="d2">
+        <label class="ai-multiselect-option cat-mutex-dd-opt">
+          <input type="radio" name="mx" checked /> 無互斥群組
+        </label>
+        <label class="ai-multiselect-option cat-mutex-dd-opt">
+          <input type="radio" name="mx" value="add" /> ＋ 新增群組
+        </label>
+      </div>
+    </div>
+  </div>
+  <p class="hint">檔案路徑：<code>previews/ai-multiselect-dropdown-preview.html</code>（專案根相對路徑）。在檔案總管雙擊，或用 <kbd>Ctrl</kbd>+<kbd>O</kbd> 於瀏覽器開啟。</p>
+  <script>
+    function wire(toggleId) {
+      const t = document.getElementById(toggleId);
+      const wrap = t.closest('.field');
+      const d = wrap.querySelector('.ai-multiselect-dropdown');
+      function setOpen(o) {
+        t.classList.toggle('ai-multiselect-trigger--open', o);
+        t.setAttribute('aria-expanded', o ? 'true' : 'false');
+      }
+      function close() { setOpen(false); }
+      function open() {
+        document.querySelectorAll('.ai-multiselect-trigger--open').forEach((x) => {
+          if (x !== t) {
+            x.classList.remove('ai-multiselect-trigger--open');
+            x.setAttribute('aria-expanded', 'false');
+          }
+        });
+        setOpen(true);
+      }
+      t.addEventListener('click', (e) => {
+        e.stopPropagation();
+        t.classList.contains('ai-multiselect-trigger--open') ? close() : open();
+      });
+      t.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          t.classList.contains('ai-multiselect-trigger--open') ? close() : open();
+        } else if (e.key === 'Escape') { close(); }
+      });
+      document.addEventListener('click', () => close());
+      d.addEventListener('click', (e) => e.stopPropagation());
+    }
+    wire('t1');
+    wire('t2');
+  </script>
+</body>
+</html>

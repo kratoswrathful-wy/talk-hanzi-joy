@@ -13954,16 +13954,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function _pnRenderNoteBodyView(wrap, note, listKey, html) {
-        const lk = listKey || wrap.getAttribute('data-private-scope') || 'editor';
-        const bodyEl = wrap.querySelector(`#pn-body-${lk}-${note.id}`);
+        const bodyEl = wrap && wrap.querySelector('.guideline-item-body');
         if (!bodyEl) return;
         const show = html && !isQuillHtmlEffectivelyEmpty(html);
         bodyEl.innerHTML = show ? `<div class="ql-editor ql-snow">${html}</div>` : '<div class="guideline-item-empty">（無內容）</div>';
     }
 
     function _pnRewireNoteAside(wrap, note, listKey) {
-        const lk = listKey || wrap.getAttribute('data-private-scope') || 'editor';
-        const acts = wrap.querySelector(`.pn-aside-${lk}-${note.id}`) || wrap.querySelector('.guideline-item-aside-actions');
+        const acts = wrap.querySelector('.guideline-item-aside-actions');
         if (!acts) return;
         acts.innerHTML = `
             <button type="button" class="pn-edit-btn" title="編輯">✏️</button>
@@ -14012,10 +14010,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </div>
                 </div>
             </div>`;
-        const bodyEl = wrap.querySelector(`#pn-body-${lk}-${note.id}`);
-        bodyEl.innerHTML = note.content
-            ? `<div class="ql-editor ql-snow">${note.content}</div>`
-            : '<div class="guideline-item-empty">（無內容）</div>';
+        const bodyEl = wrap.querySelector('.guideline-item-body');
+        if (bodyEl) {
+            bodyEl.innerHTML = note.content
+                ? `<div class="ql-editor ql-snow">${note.content}</div>`
+                : '<div class="guideline-item-empty">（無內容）</div>';
+        }
         wrap.querySelector('.pn-edit-btn')?.addEventListener('click', () => _startPrivateNoteEdit(note, wrap));
         wrap.querySelector('.pn-share-btn')?.addEventListener('click', () => _openPrivateNoteShareDialog(note));
         wrap.querySelector('.pn-del-btn')?.addEventListener('click', async () => {
@@ -14037,13 +14037,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     function _startPrivateNoteEdit(note, wrap) {
         const idStr = String(note.id);
         const lk = wrap.getAttribute('data-private-scope') || 'editor';
-        const bodyEl = wrap.querySelector(`#pn-body-${lk}-${note.id}`);
+        const bodyEl = wrap.querySelector('.guideline-item-body');
         if (!bodyEl) return;
         bodyEl.innerHTML = '';
         const q = _makeQuill(bodyEl, NOTES_TOOLBAR, '輸入內容…');
         if (note.content) { try { q.root.innerHTML = note.content; } catch (_) {} }
         _privateNoteEditQuills[idStr] = q;
-        const acts = wrap.querySelector(`.pn-aside-${lk}-${note.id}`) || wrap.querySelector('.guideline-item-aside-actions');
+        const acts = wrap.querySelector('.guideline-item-aside-actions');
         if (acts) {
             acts.innerHTML = `
                 <button type="button" class="pn-save-btn primary-btn btn-sm">儲存</button>
@@ -14051,6 +14051,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         wrap.querySelector('.pn-save-btn')?.addEventListener('click', async () => {
             const html = q.root.innerHTML;
+            try { if (q && typeof q.enable === 'function') q.enable(false); } catch (_) { /* ignore */ }
             delete _privateNoteEditQuills[idStr];
             note.content = html;
             _pnRenderNoteBodyView(wrap, note, lk, html);
@@ -14502,21 +14503,29 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (cancelBtn) cancelBtn.onclick = null;
             };
             if (cancelBtn) cancelBtn.onclick = () => { cleanup(); resolve(false); };
-            if (confirmBtn) confirmBtn.onclick = async () => {
+            if (confirmBtn) confirmBtn.onclick = () => {
                 const items = list.querySelectorAll('.note-sharing-item');
-                for (let i = 0; i < notes.length && i < items.length; i++) {
+                const decisions = [];
+                for (let i = 0; i < notes.length; i++) {
                     const note = notes[i];
-                    const chosen = items[i].querySelector(`input[name="nshare-${note.id}"]:checked`)?.value || 'keep';
-                    if (chosen === 'copy' || chosen === 'move') {
-                        await DBService.addGuideline({ projectId: pid, type: 'shared_note', content: note.content, createdByName: getCurrentUserName() }).catch(() => {});
-                    }
-                    if (chosen === 'move') {
-                        await DBService.deletePrivateNote(parseId(note.id)).catch(() => {});
-                    }
+                    const item = items[i];
+                    const chosen = item?.querySelector(`input[name="nshare-${note.id}"]:checked`)?.value || 'keep';
+                    decisions.push({ note, chosen });
                 }
-                await _refreshSharedInfoUi();
                 cleanup();
                 resolve(true);
+                void (async () => {
+                    for (const { note, chosen } of decisions) {
+                        if (chosen === 'copy' || chosen === 'move') {
+                            await DBService.addGuideline({ projectId: pid, type: 'shared_note', content: note.content, createdByName: getCurrentUserName() }).catch(() => {});
+                        }
+                        if (chosen === 'move') {
+                            await DBService.deletePrivateNote(parseId(note.id)).catch(() => {});
+                        }
+                    }
+                    try { await _refreshSharedInfoUi(); } catch (e) { console.error(e); }
+                    try { await _loadPrivateNotes(); } catch (e) { console.error(e); }
+                })();
             };
         });
     }
@@ -16628,7 +16637,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <span class="ai-selected-guideline-item-content">${_esc(g.content)}</span>
                     </div>
                     ${isCatSharedMutator() ? `<div class="ai-pg-shared-actions">
-                        <button type="button" class="secondary-btn btn-sm ag-sel-gl-edit" data-edit-gid="${g.id}">編輯</button>
+                        <button type="button" class="secondary-btn btn-sm ai-guideline-inline-edit ag-sel-gl-edit" data-edit-gid="${g.id}">編輯</button>
                         <button type="button" class="ai-note-item-del" data-unselect="${g.id}" title="取消選擇">✕</button>
                     </div>` : ''}
                 </div>
@@ -16673,7 +16682,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <span class="ai-selected-guideline-item-content">${_esc(g.content)}</span>
                     </div>
                     ${isCatSharedMutator() ? `<div class="ai-pg-shared-actions">
-                        <button type="button" class="secondary-btn btn-sm ag-sel-gl-edit-style" data-edit-gid-style="${g.id}">編輯</button>
+                        <button type="button" class="secondary-btn btn-sm ai-guideline-inline-edit ag-sel-gl-edit-style" data-edit-gid-style="${g.id}">編輯</button>
                         <button type="button" class="ai-note-item-del" data-unselect-style="${g.id}" title="取消選擇">✕</button>
                     </div>` : ''}
                 </div>

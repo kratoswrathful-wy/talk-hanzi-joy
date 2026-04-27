@@ -220,8 +220,8 @@
                                         <div class="shared-info-section-header">
                                             <h4 class="shared-info-section-title">翻譯準則</h4>
                                             <span class="pm-only-ui shared-info-ai-picker-actions">
-                                                <button type="button" class="notes-add-btn" id="btnOpenAiGuidelinePickerProject">選擇準則</button>
-                                                <button type="button" class="notes-add-btn" id="btnApplyDefaultGuidelinesProject" title="以庫內勾選的預設條目覆寫本專案選取">套用預設</button>
+                                                <button type="button" class="primary-btn btn-sm" id="btnOpenAiGuidelinePickerProject">選擇準則</button>
+                                                <button type="button" class="secondary-btn btn-sm" id="btnApplyDefaultGuidelinesProject" title="以庫內勾選的預設條目覆寫本專案選取">套用預設</button>
                                             </span>
                                         </div>
                                         <div id="aiSelectedGuidelinesListProject" class="notes-items-list" style="font-size:0.82rem;"></div>
@@ -230,8 +230,8 @@
                                         <div class="shared-info-section-header">
                                             <h4 class="shared-info-section-title">文風偏好</h4>
                                             <span class="pm-only-ui shared-info-ai-picker-actions">
-                                                <button type="button" class="notes-add-btn" id="btnOpenAiStyleGuidelinePickerProject">選擇文風</button>
-                                                <button type="button" class="notes-add-btn" id="btnApplyDefaultStylesProject">套用預設</button>
+                                                <button type="button" class="primary-btn btn-sm" id="btnOpenAiStyleGuidelinePickerProject">選擇文風</button>
+                                                <button type="button" class="secondary-btn btn-sm" id="btnApplyDefaultStylesProject">套用預設</button>
                                             </span>
                                         </div>
                                         <div id="aiSelectedStyleGuidelinesListProject" class="notes-items-list" style="font-size:0.82rem;"></div>
@@ -753,8 +753,8 @@
                                                 <div class="shared-info-section-header">
                                                     <h4 class="shared-info-section-title">翻譯準則</h4>
                                                     <span class="pm-only-ui shared-info-ai-picker-actions">
-                                                        <button type="button" class="notes-add-btn" id="btnOpenAiGuidelinePicker">選擇準則</button>
-                                                        <button type="button" class="notes-add-btn" id="btnApplyDefaultGuidelines" title="以庫內勾選的預設條目覆寫本專案選取">套用預設</button>
+                                                        <button type="button" class="primary-btn btn-sm" id="btnOpenAiGuidelinePicker">選擇準則</button>
+                                                        <button type="button" class="secondary-btn btn-sm" id="btnApplyDefaultGuidelines" title="以庫內勾選的預設條目覆寫本專案選取">套用預設</button>
                                                     </span>
                                                 </div>
                                                 <div id="aiSelectedGuidelinesList" class="notes-items-list" style="font-size:0.82rem;"></div>
@@ -763,8 +763,8 @@
                                                 <div class="shared-info-section-header">
                                                     <h4 class="shared-info-section-title">文風偏好</h4>
                                                     <span class="pm-only-ui shared-info-ai-picker-actions">
-                                                        <button type="button" class="notes-add-btn" id="btnOpenAiStyleGuidelinePicker">選擇文風</button>
-                                                        <button type="button" class="notes-add-btn" id="btnApplyDefaultStyles">套用預設</button>
+                                                        <button type="button" class="primary-btn btn-sm" id="btnOpenAiStyleGuidelinePicker">選擇文風</button>
+                                                        <button type="button" class="secondary-btn btn-sm" id="btnApplyDefaultStyles">套用預設</button>
                                                     </span>
                                                 </div>
                                                 <div id="aiSelectedStyleGuidelinesList" class="notes-items-list" style="font-size:0.82rem;"></div>
@@ -1079,7 +1079,7 @@
                                 <label style="font-size:0.82rem; color:#374151; white-space:nowrap;">類別</label>
                                 <div id="aiGuidelineCategorySelector" class="ai-multiselect-trigger" title="點擊選擇類別" role="button" tabindex="0">
                                     <span id="aiGuidelineCategoryDisplay">通用</span>
-                                    <span style="font-size:0.7rem; color:#94a3b8; margin-left:0.25rem;">▼</span>
+                                    <span class="ai-multiselect-chevron" aria-hidden="true"></span>
                                 </div>
                                 <div id="aiGuidelineCategoryDropdown" class="ai-multiselect-dropdown hidden"></div>
                                 <input type="hidden" id="aiGuidelineNewCategory" value="通用">
@@ -2071,7 +2071,7 @@
                             <label style="font-size:0.82rem; color:#374151; white-space:nowrap;">類別</label>
                             <div id="aiPickerMgmtCategorySelector" class="ai-multiselect-trigger" title="點擊選擇類別" role="button" tabindex="0">
                                 <span id="aiPickerMgmtCategoryDisplay">通用</span>
-                                <span style="font-size:0.7rem; color:#94a3b8; margin-left:0.25rem;" aria-hidden="true">▼</span>
+                                <span class="ai-multiselect-chevron" aria-hidden="true"></span>
                             </div>
                             <div id="aiPickerMgmtCategoryDropdown" class="ai-multiselect-dropdown hidden"></div>
                             <input type="hidden" id="aiPickerMgmtNewCategory" value="通用">
@@ -2152,7 +2152,7 @@
                     <div style="display:flex; align-items:center; gap:0.4rem; position:relative; flex-wrap:wrap;">
                         <div id="agEditGuidelineCategorySelector" class="ai-multiselect-trigger" title="點擊選擇標籤" role="button" tabindex="0">
                             <span id="agEditGuidelineCategoryDisplay">通用</span>
-                            <span style="font-size:0.7rem; color:#94a3b8; margin-left:0.25rem;" aria-hidden="true">▼</span>
+                            <span class="ai-multiselect-chevron" aria-hidden="true"></span>
                         </div>
                         <div id="agEditGuidelineCategoryDropdown" class="ai-multiselect-dropdown hidden"></div>
                     </div>
@@ -2201,7 +2201,7 @@
                     <div style="display:flex; align-items:center; gap:0.4rem; position:relative; flex-wrap:wrap;">
                         <div id="pgEditProjectGuidelineCategorySelector" class="ai-multiselect-trigger" title="點擊選擇標籤" role="button" tabindex="0">
                             <span id="pgEditProjectGuidelineCategoryDisplay">通用</span>
-                            <span style="font-size:0.7rem; color:#94a3b8; margin-left:0.25rem;" aria-hidden="true">▼</span>
+                            <span class="ai-multiselect-chevron" aria-hidden="true"></span>
                         </div>
                         <div id="pgEditProjectGuidelineCategoryDropdown" class="ai-multiselect-dropdown hidden"></div>
                     </div>
@@ -2243,7 +2243,7 @@
                             <label style="font-size:0.82rem; color:#374151; white-space:nowrap;">套用標籤</label>
                             <div id="pgManageProjectGuidelineCategorySelector" class="ai-multiselect-trigger" title="點擊選擇標籤" role="button" tabindex="0">
                                 <span id="pgManageProjectGuidelineCategoryDisplay">通用</span>
-                                <span style="font-size:0.7rem; color:#94a3b8; margin-left:0.25rem;" aria-hidden="true">▼</span>
+                                <span class="ai-multiselect-chevron" aria-hidden="true"></span>
                             </div>
                             <div id="pgManageProjectGuidelineCategoryDropdown" class="ai-multiselect-dropdown hidden"></div>
                         </div>

@@ -51,9 +51,8 @@
         var trigSpan = document.createElement('span');
         trigSpan.className = 'cat-mutex-dd-display';
         var trigArrow = document.createElement('span');
-        trigArrow.style.cssText = 'font-size:0.7rem;color:#94a3b8;margin-left:0.25rem;';
+        trigArrow.className = 'ai-multiselect-chevron';
         trigArrow.setAttribute('aria-hidden', 'true');
-        trigArrow.textContent = '▼';
         trigger.appendChild(trigSpan);
         trigger.appendChild(trigArrow);
         var panel = document.createElement('div');
