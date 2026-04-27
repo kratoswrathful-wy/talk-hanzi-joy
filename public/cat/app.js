@@ -490,6 +490,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const tbExcelCreatorCol = document.getElementById('tbExcelCreatorCol');
     const tbExcelCreatedAtCol = document.getElementById('tbExcelCreatedAtCol');
     const tbExcelRowsRange = document.getElementById('tbExcelRowsRange');
+    const tbExcelMatchCaseCol = document.getElementById('tbExcelMatchCaseCol');
+    const tbExcelMatchExactCol = document.getElementById('tbExcelMatchExactCol');
+    const tbExcelPreviewBlock = document.getElementById('tbExcelPreviewBlock');
+    const tbExcelPreviewTable = document.getElementById('tbExcelPreviewTable');
+    const btnPreviewTbExcelMapping = document.getElementById('btnPreviewTbExcelMapping');
     const tbExcelImportError = document.getElementById('tbExcelImportError');
     const btnCloseTbExcelImport = document.getElementById('btnCloseTbExcelImport');
     const btnCancelTbExcelImport = document.getElementById('btnCancelTbExcelImport');
@@ -4432,6 +4437,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `${y}-${m}-${day} ${hh}:${mm}:${ss}`;
     }
 
+    /** 與 TB Excel 匯出欄位一致：是/否，亦接受 y/n、1/0 等；空白 = 該筆用預設。無法辨識則回 undefined。 */
+    function parseTbLooseYesNoCell(raw) {
+        if (raw == null) return null;
+        const t = String(raw).trim();
+        if (!t) return null;
+        if (t === '是') return true;
+        if (t === '否') return false;
+        const low = t.toLowerCase();
+        if (low === 'y' || low === 'yes' || low === 'true' || t === '1') return true;
+        if (low === 'n' || low === 'no' || low === 'false' || t === '0') return false;
+        return undefined;
+    }
+
+    function buildMatchFlagsForTbImportRow(row, caseIdx, exactIdx) {
+        const mf = { caseInsensitive: true, wholeWord: false };
+        if (caseIdx >= 0) {
+            const p = parseTbLooseYesNoCell(row[caseIdx]);
+            if (p === undefined) {
+                return { error: '「區分大小寫」儲格無法辨識（請用 是／否，與匯出 Excel 相同）。' };
+            }
+            if (p !== null) mf.caseInsensitive = !p;
+        }
+        if (exactIdx >= 0) {
+            const p = parseTbLooseYesNoCell(row[exactIdx]);
+            if (p === undefined) {
+                return { error: '「精確比對」儲格無法辨識（請用 是／否，與匯出 Excel 相同）。' };
+            }
+            if (p !== null) mf.wholeWord = p;
+        }
+        return { matchFlags: mf };
+    }
+
     const TB_ONLINE_NAME_SUFFIX = '（擷取自線上表單）';
     function ensureOnlineTbDisplayName(name) {
         const n = String(name || '').trim() || '未命名術語庫';
@@ -4526,6 +4563,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (tbExcelCreatorCol) tbExcelCreatorCol.value = cfg.creatorCol || '';
         if (tbExcelCreatedAtCol) tbExcelCreatedAtCol.value = cfg.createdAtCol || '';
         if (tbExcelRowsRange) tbExcelRowsRange.value = cfg.rowsRange || '2-';
+        if (tbExcelMatchCaseCol) tbExcelMatchCaseCol.value = cfg.caseMatchCol || '';
+        if (tbExcelMatchExactCol) tbExcelMatchExactCol.value = cfg.exactMatchCol || '';
     }
 
     // 全選邏輯：依左側勾選數更新「全選」勾選與標籤（全選→顯示「取消全選」，未全選→顯示「全選」）
@@ -4586,7 +4625,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     noteCols: tbExcelNoteCols ? tbExcelNoteCols.value.trim() : '',
                     creatorCol: tbExcelCreatorCol ? tbExcelCreatorCol.value.trim() : '',
                     createdAtCol: tbExcelCreatedAtCol ? tbExcelCreatedAtCol.value.trim() : '',
-                    rowsRange: tbExcelRowsRange ? tbExcelRowsRange.value.trim() : ''
+                    rowsRange: tbExcelRowsRange ? tbExcelRowsRange.value.trim() : '',
+                    caseMatchCol: tbExcelMatchCaseCol ? tbExcelMatchCaseCol.value.trim() : '',
+                    exactMatchCol: tbExcelMatchExactCol ? tbExcelMatchExactCol.value.trim() : ''
                 };
             }
             setTbExcelActiveSheet(tbExcelSheetSelect.value);
@@ -4638,7 +4679,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 noteCols: '',
                                 creatorCol: '',
                                 createdAtCol: '',
-                                rowsRange: '2-'
+                                rowsRange: '2-',
+                                caseMatchCol: '',
+                                exactMatchCol: ''
                             };
                             if (tbExcelSheetList) {
                                 const rowEl = document.createElement('div');
@@ -4701,6 +4744,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (tbExcelCreatorCol) tbExcelCreatorCol.value = cfg.creatorCol || '';
             if (tbExcelCreatedAtCol) tbExcelCreatedAtCol.value = cfg.createdAtCol || '';
             if (tbExcelRowsRange) tbExcelRowsRange.value = cfg.rowsRange || '2-';
+            if (tbExcelMatchCaseCol) tbExcelMatchCaseCol.value = cfg.caseMatchCol || '';
+            if (tbExcelMatchExactCol) tbExcelMatchExactCol.value = cfg.exactMatchCol || '';
+            if (tbExcelPreviewBlock) tbExcelPreviewBlock.classList.add('hidden');
+            if (tbExcelPreviewTable) tbExcelPreviewTable.innerHTML = '';
             if (tbExcelImportModal) tbExcelImportModal.classList.remove('hidden');
         });
     }
@@ -4714,9 +4761,239 @@ document.addEventListener('DOMContentLoaded', async () => {
             tbExcelConfigs = {};
             tbExcelActiveSheet = null;
             tbImportInput.value = '';
+            if (tbExcelPreviewBlock) tbExcelPreviewBlock.classList.add('hidden');
+            if (tbExcelPreviewTable) tbExcelPreviewTable.innerHTML = '';
         };
         if (btnCloseTbExcelImport) btnCloseTbExcelImport.addEventListener('click', closeTbExcelModal);
         if (btnCancelTbExcelImport) btnCancelTbExcelImport.addEventListener('click', closeTbExcelModal);
+        const ONLINE_SHEET_KEY = '__ONLINE__';
+        /** 共用：讀取線上 CSV 或 Excel 檔、組出 sheetConfigs（失敗則寫入 errEl 並回傳 null） */
+        async function buildTbImportSheetConfigsFromModal(errEl) {
+            const srcColEl = document.getElementById('tbExcelSourceCol');
+            const tgtColEl = document.getElementById('tbExcelTargetCol');
+            if (!srcColEl || !tgtColEl) {
+                if (errEl) errEl.textContent = '無法取得匯入表單。';
+                return null;
+            }
+            if (!currentTbId) {
+                if (errEl) { errEl.textContent = '尚未選擇術語庫。'; errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+                return null;
+            }
+            if (!tbExcelImportIsOnline && !tbExcelPendingFile) {
+                if (errEl) { errEl.textContent = '請先選擇 Excel 檔案。'; errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+                return null;
+            }
+            let selectedSheets = [];
+            let onlineCsvRows = null;
+            let onlinePasteUrl = '';
+            if (tbExcelImportIsOnline) {
+                const urlEl = document.getElementById('tbOnlineSheetUrl');
+                onlinePasteUrl = (urlEl && urlEl.value.trim()) || '';
+                if (!onlinePasteUrl) {
+                    if (errEl) errEl.textContent = '請貼上 Google 試算表連結。';
+                    return null;
+                }
+                let csvText;
+                try {
+                    csvText = await fetchGoogleSheetCsvViaProxy(onlinePasteUrl);
+                } catch (e) {
+                    if (errEl) errEl.textContent = (e && e.message) ? e.message : String(e);
+                    return null;
+                }
+                onlineCsvRows = parseTbCsvText(csvText);
+                if (!onlineCsvRows.length) {
+                    if (errEl) errEl.textContent = 'CSV 無資料列。';
+                    return null;
+                }
+                selectedSheets = [ONLINE_SHEET_KEY];
+            } else {
+                const sheetCheckboxes = tbExcelSheetList ? Array.from(tbExcelSheetList.querySelectorAll('.tb-excel-sheet-cb')) : [];
+                selectedSheets = sheetCheckboxes.filter(cb => cb.checked).map(cb => cb.value);
+                if (!selectedSheets.length) {
+                    if (errEl) errEl.textContent = '請至少勾選一個要匯入的工作表。';
+                    return null;
+                }
+            }
+            const activeSheetFromDropdown = (!tbExcelImportIsOnline && tbExcelSheetSelect && tbExcelSheetSelect.value)
+                ? tbExcelSheetSelect.value
+                : tbExcelActiveSheet;
+            const useSameConfig = tbExcelImportIsOnline ? true : !!(tbExcelUseSameConfig && tbExcelUseSameConfig.checked);
+            if (!tbExcelImportIsOnline && activeSheetFromDropdown && tbExcelConfigs[activeSheetFromDropdown]) {
+                tbExcelConfigs[activeSheetFromDropdown] = {
+                    sourceCol: srcColEl.value.trim(),
+                    targetCol: tgtColEl.value.trim(),
+                    noteCols: tbExcelNoteCols ? tbExcelNoteCols.value.trim() : '',
+                    creatorCol: tbExcelCreatorCol ? tbExcelCreatorCol.value.trim() : '',
+                    createdAtCol: tbExcelCreatedAtCol ? tbExcelCreatedAtCol.value.trim() : '',
+                    rowsRange: tbExcelRowsRange ? tbExcelRowsRange.value.trim() : '',
+                    caseMatchCol: tbExcelMatchCaseCol ? tbExcelMatchCaseCol.value.trim() : '',
+                    exactMatchCol: tbExcelMatchExactCol ? tbExcelMatchExactCol.value.trim() : ''
+                };
+            }
+            if (!tbExcelImportIsOnline && !useSameConfig) {
+                for (const name of selectedSheets) {
+                    if (name === activeSheetFromDropdown) continue;
+                    const stored = tbExcelConfigs[name] || {};
+                    const src = (stored.sourceCol || '').trim();
+                    const tgt = (stored.targetCol || '').trim();
+                    if (!src || !tgt) {
+                        if (errEl) errEl.textContent = `請在右側切換至工作表「${name}」並設定原文／譯文欄位。`;
+                        return null;
+                    }
+                }
+            }
+            const formCfg = {
+                sourceCol: srcColEl.value.trim(),
+                targetCol: tgtColEl.value.trim(),
+                noteCols: tbExcelNoteCols ? tbExcelNoteCols.value.trim() : '',
+                creatorCol: tbExcelCreatorCol ? tbExcelCreatorCol.value.trim() : '',
+                createdAtCol: tbExcelCreatedAtCol ? tbExcelCreatedAtCol.value.trim() : '',
+                rowsRange: tbExcelRowsRange ? tbExcelRowsRange.value.trim() : '',
+                caseMatchCol: tbExcelMatchCaseCol ? tbExcelMatchCaseCol.value.trim() : '',
+                exactMatchCol: tbExcelMatchExactCol ? tbExcelMatchExactCol.value.trim() : ''
+            };
+            const sheetConfigs = {};
+            for (const name of selectedSheets) {
+                const isActiveSheet = tbExcelImportIsOnline || (name === activeSheetFromDropdown);
+                const cfg = (tbExcelImportIsOnline || useSameConfig || isActiveSheet) ? formCfg : (tbExcelConfigs[name] || {});
+                const srcColStr = (cfg.sourceCol || '').trim();
+                const tgtColStr = (cfg.targetCol || '').trim();
+                const sheetLabel = tbExcelImportIsOnline ? '線上 CSV' : name;
+                if (!srcColStr || !tgtColStr) {
+                    if (errEl) errEl.textContent = `「${sheetLabel}」的原文/譯文欄位為必填。`;
+                    return null;
+                }
+                const srcIdx = parseTbSingleColumn(srcColStr);
+                const tgtIdx = parseTbSingleColumn(tgtColStr);
+                if (srcIdx < 0 || tgtIdx < 0) {
+                    if (errEl) errEl.textContent = `「${sheetLabel}」的原文/譯文欄位格式錯誤，例如 A 或 B。`;
+                    return null;
+                }
+                const caseMc = (cfg.caseMatchCol || '').trim();
+                const exMc = (cfg.exactMatchCol || '').trim();
+                let caseMIdx = -1;
+                let exMIdx = -1;
+                if (caseMc) {
+                    caseMIdx = parseTbSingleColumn(caseMc);
+                    if (caseMIdx < 0) {
+                        if (errEl) errEl.textContent = `「${sheetLabel}」的「區分大小寫」欄代號格式不正確。`;
+                        return null;
+                    }
+                }
+                if (exMc) {
+                    exMIdx = parseTbSingleColumn(exMc);
+                    if (exMIdx < 0) {
+                        if (errEl) errEl.textContent = `「${sheetLabel}」的「精確比對」欄代號格式不正確。`;
+                        return null;
+                    }
+                }
+                sheetConfigs[name] = {
+                    srcIdx,
+                    tgtIdx,
+                    caseMIdx,
+                    exMIdx,
+                    noteIdxs: parseTbColumnList(cfg.noteCols || ''),
+                    includeSheetName: (cfg.noteCols || '').includes('#'),
+                    creatorIdx: parseTbSingleColumn(cfg.creatorCol || ''),
+                    createdAtIdx: parseTbSingleColumn(cfg.createdAtCol || ''),
+                    rowsRangeStr: (cfg.rowsRange || '2-').trim()
+                };
+            }
+            let workbook = null;
+            if (!tbExcelImportIsOnline) {
+                const buffer = await tbExcelPendingFile.arrayBuffer();
+                workbook = XLSX.read(buffer, { type: 'array' });
+            }
+            return { selectedSheets, sheetConfigs, onlineCsvRows, onlinePasteUrl, workbook };
+        }
+        if (btnPreviewTbExcelMapping) {
+            btnPreviewTbExcelMapping.addEventListener('click', () => {
+                const errEl = document.getElementById('tbExcelImportError');
+                (async () => {
+                    if (errEl) errEl.textContent = '預覽中…';
+                    const out = await buildTbImportSheetConfigsFromModal(errEl);
+                    if (!out) return;
+                    if (errEl) errEl.textContent = '';
+                    const parseRowRange = (str) => {
+                        const cleaned = (str || '').replace(/\s+/g, '');
+                        if (!cleaned) return { start: 2, end: Infinity };
+                        if (cleaned.includes('-')) {
+                            const [a, b] = cleaned.split('-');
+                            const start = a ? parseInt(a, 10) : 2;
+                            const end = b ? parseInt(b, 10) : Infinity;
+                            return { start, end };
+                        }
+                        const v = parseInt(cleaned, 10);
+                        if (isNaN(v)) return { start: 2, end: Infinity };
+                        return { start: v, end: v };
+                    };
+                    const { selectedSheets, sheetConfigs, onlineCsvRows, workbook } = out;
+                    const sheetName0 = selectedSheets[0];
+                    const scfg = sheetConfigs[sheetName0];
+                    if (!scfg) {
+                        if (errEl) errEl.textContent = '無法產生預覽。';
+                        return;
+                    }
+                    let rows;
+                    if (tbExcelImportIsOnline) rows = onlineCsvRows;
+                    else {
+                        const sh = workbook && workbook.Sheets && workbook.Sheets[sheetName0];
+                        if (!sh) { if (errEl) errEl.textContent = '讀取不到工作表。'; return; }
+                        rows = XLSX.utils.sheet_to_json(sh, { header: 1, defval: '' });
+                    }
+                    const rowRange = parseRowRange(scfg.rowsRangeStr || '2-');
+                    const startRow = Math.max(0, rowRange.start - 1);
+                    const endRow = isFinite(rowRange.end) ? rowRange.end - 1 : rows.length - 1;
+                    const maxRows = 8;
+                    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const sheetLabel = tbExcelImportIsOnline ? '線上 CSV' : sheetName0;
+                    let shown = 0;
+                    const bodyRows = [];
+                    const flagErrs = [];
+                    for (let r = startRow; r < rows.length && r <= endRow && shown < maxRows; r++) {
+                        const row = rows[r] || [];
+                        const source = String(row[scfg.srcIdx] ?? '').trim();
+                        const target = String(row[scfg.tgtIdx] ?? '').trim();
+                        if (!source && !target) continue;
+                        shown++;
+                        const mfb = buildMatchFlagsForTbImportRow(row, scfg.caseMIdx, scfg.exMIdx);
+                        let n1 = '—';
+                        let n2 = '—';
+                        if (mfb.matchFlags) {
+                            n1 = mfb.matchFlags.caseInsensitive === false ? '是' : '否';
+                            n2 = mfb.matchFlags.wholeWord ? '是' : '否';
+                        }
+                        if (mfb.error) flagErrs.push(`第 ${r + 1} 列`);
+                        bodyRows.push(
+                            '<tr><td style="border:1px solid #e2e8f0;padding:0.2rem 0.35rem;">' + (r + 1) + '</td>' +
+                            '<td style="border:1px solid #e2e8f0;padding:0.2rem 0.35rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(source) + '">' + esc(source) + '</td>' +
+                            '<td style="border:1px solid #e2e8f0;padding:0.2rem 0.35rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(target) + '">' + esc(target) + '</td>' +
+                            '<td style="border:1px solid #e2e8f0;padding:0.2rem 0.35rem;">' + n1 + '</td>' +
+                            '<td style="border:1px solid #e2e8f0;padding:0.2rem 0.35rem;">' + n2 + '</td>' +
+                            (mfb.error ? '<td style="border:1px solid #fecaca;padding:0.2rem 0.35rem;color:#b91c1c;">' + esc(mfb.error) + '</td>' : '<td style="border:1px solid #e2e8f0;padding:0.2rem 0.35rem;">—</td>') +
+                            '</tr>'
+                        );
+                    }
+                    if (tbExcelPreviewTable) {
+                        const cap = (selectedSheets.length > 1) ? '（顯示第一個勾選之工作表「' + esc(sheetName0) + '」' + (tbExcelImportIsOnline ? '）' : '；多表請切換工作表再預覽）') : '（' + esc(sheetLabel) + '）';
+                        const tbl = '<table style="width:100%; border-collapse:collapse; table-layout:fixed;">' +
+                            '<thead><tr><th style="text-align:left;border:1px solid #cbd5e1;padding:0.25rem;">列#</th>' +
+                            '<th style="text-align:left;border:1px solid #cbd5e1;padding:0.25rem;">原文</th>' +
+                            '<th style="text-align:left;border:1px solid #cbd5e1;padding:0.25rem;">譯文</th>' +
+                            '<th style="text-align:left;border:1px solid #cbd5e1;padding:0.25rem;">區分</th><th style="text-align:left;border:1px solid #cbd5e1;padding:0.25rem;">精確</th><th style="text-align:left;border:1px solid #cbd5e1;padding:0.25rem;">比對屬性錯誤</th></tr></thead><tbody>' +
+                            (bodyRows.length ? bodyRows.join('') : '<tr><td colspan="6" style="padding:0.35rem; color:#64748b;">此範圍內沒有原文／譯文皆有或僅一欄有內容之列（空白列不顯示）。</td></tr>') +
+                            '</tbody></table><p style="margin:0.35rem 0 0 0;font-size:0.72rem;color:#64748b;">最多顯示前 8 筆有內容之列。' + cap + (flagErrs.length ? ' 匯入時若仍有無法辨識之比對儲格，將整批中止並顯示列號。' : '') + '</p>';
+                        tbExcelPreviewTable.innerHTML = tbl;
+                    }
+                    if (tbExcelPreviewBlock) tbExcelPreviewBlock.classList.remove('hidden');
+                    if (errEl) errEl.textContent = flagErrs.length
+                        ? '比對屬性預覽偵測到問題列：' + flagErrs.join('、') + '。請修正後再匯入。'
+                        : (bodyRows.length ? '預覽就緒，可調整欄位後「開始匯入」。' : '請確認匯入列數與欄位。');
+                })().catch((err) => {
+                    if (errEl) errEl.textContent = '預覽失敗：' + (err && err.message);
+                });
+            });
+        }
         // 使用 modal 上的事件委派，確保「開始匯入」點擊一定會被處理
         tbExcelImportModal.addEventListener('click', (e) => {
             if (!e.target.closest('#btnConfirmTbExcelImport')) return;
@@ -4736,126 +5013,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                         else alert(msg);
                         return;
                     }
-                    const msgNoTb = '無法匯入：尚未選擇術語庫，請關閉視窗後重新操作。';
-                    if (!currentTbId) {
-                        if (errEl) { errEl.textContent = msgNoTb; errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
-                        else alert(msgNoTb);
-                        return;
-                    }
-                    const msgNoFile = '無法匯入：尚未選擇 Excel 檔案。';
-                    if (!tbExcelImportIsOnline && !tbExcelPendingFile) {
-                        if (errEl) { errEl.textContent = msgNoFile; errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
-                        else alert(msgNoFile);
-                        return;
-                    }
                     const msgNoCols = '無法取得原文／譯文欄位，請關閉視窗後重新選擇檔案再試。';
                     if (!srcColEl || !tgtColEl) {
-                        console.log('runImport 提早結束: 無原文/譯文欄位');
                         if (errEl) { errEl.textContent = msgNoCols; errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
                         else alert(msgNoCols);
                         return;
                     }
-
-                    const ONLINE_SHEET_KEY = '__ONLINE__';
-                    let selectedSheets = [];
-                    let onlineCsvRows = null;
-                    let onlinePasteUrl = '';
-
-                    if (tbExcelImportIsOnline) {
-                        const urlEl = document.getElementById('tbOnlineSheetUrl');
-                        onlinePasteUrl = (urlEl && urlEl.value.trim()) || '';
-                        if (!onlinePasteUrl) {
-                            if (errEl) errEl.textContent = '請貼上 Google 試算表連結。';
-                            return;
-                        }
-                        let csvText;
-                        try {
-                            csvText = await fetchGoogleSheetCsvViaProxy(onlinePasteUrl);
-                        } catch (e) {
-                            if (errEl) errEl.textContent = (e && e.message) ? e.message : String(e);
-                            return;
-                        }
-                        onlineCsvRows = parseTbCsvText(csvText);
-                        if (!onlineCsvRows.length) {
-                            if (errEl) errEl.textContent = 'CSV 無資料列。';
-                            return;
-                        }
-                        selectedSheets = [ONLINE_SHEET_KEY];
-                    } else {
-                        const sheetCheckboxes = tbExcelSheetList ? Array.from(tbExcelSheetList.querySelectorAll('.tb-excel-sheet-cb')) : [];
-                        selectedSheets = sheetCheckboxes.filter(cb => cb.checked).map(cb => cb.value);
-                        if (!selectedSheets.length) {
-                            console.log('runImport 提早結束: 未勾選任何工作表');
-                            if (errEl) errEl.textContent = '請至少勾選一個要匯入的工作表。';
-                            return;
-                        }
-                    }
-
-                    const activeSheetFromDropdown = (!tbExcelImportIsOnline && tbExcelSheetSelect && tbExcelSheetSelect.value)
-                        ? tbExcelSheetSelect.value
-                        : tbExcelActiveSheet;
-                    const useSameConfig = tbExcelImportIsOnline ? true : !!(tbExcelUseSameConfig && tbExcelUseSameConfig.checked);
-                    if (!tbExcelImportIsOnline && activeSheetFromDropdown && tbExcelConfigs[activeSheetFromDropdown]) {
-                        tbExcelConfigs[activeSheetFromDropdown] = {
-                            sourceCol: srcColEl.value.trim(),
-                            targetCol: tgtColEl.value.trim(),
-                            noteCols: tbExcelNoteCols ? tbExcelNoteCols.value.trim() : '',
-                            creatorCol: tbExcelCreatorCol ? tbExcelCreatorCol.value.trim() : '',
-                            createdAtCol: tbExcelCreatedAtCol ? tbExcelCreatedAtCol.value.trim() : '',
-                            rowsRange: tbExcelRowsRange ? tbExcelRowsRange.value.trim() : ''
-                        };
-                    }
-
-                    if (!tbExcelImportIsOnline && !useSameConfig) {
-                        for (const name of selectedSheets) {
-                            if (name === activeSheetFromDropdown) continue;
-                            const stored = tbExcelConfigs[name] || {};
-                            const src = (stored.sourceCol || '').trim();
-                            const tgt = (stored.targetCol || '').trim();
-                            if (!src || !tgt) {
-                                if (errEl) errEl.textContent = `請在右側切換至工作表「${name}」並設定原文／譯文欄位後再匯入。`;
-                                return;
-                            }
-                        }
-                    }
-
-                    const formCfg = {
-                        sourceCol: srcColEl.value.trim(),
-                        targetCol: tgtColEl.value.trim(),
-                        noteCols: tbExcelNoteCols ? tbExcelNoteCols.value.trim() : '',
-                        creatorCol: tbExcelCreatorCol ? tbExcelCreatorCol.value.trim() : '',
-                        createdAtCol: tbExcelCreatedAtCol ? tbExcelCreatedAtCol.value.trim() : '',
-                        rowsRange: tbExcelRowsRange ? tbExcelRowsRange.value.trim() : ''
-                    };
-                    const sheetConfigs = {};
-                    for (const name of selectedSheets) {
-                        const isActiveSheet = tbExcelImportIsOnline || (name === activeSheetFromDropdown);
-                        const cfg = (tbExcelImportIsOnline || useSameConfig || isActiveSheet) ? formCfg : (tbExcelConfigs[name] || {});
-                        const srcColStr = (cfg.sourceCol || '').trim();
-                        const tgtColStr = (cfg.targetCol || '').trim();
-                        const sheetLabel = tbExcelImportIsOnline ? '線上 CSV' : name;
-                        if (!srcColStr || !tgtColStr) {
-                            console.log('runImport 提早結束: 工作表原文/譯文為空', name);
-                            if (errEl) errEl.textContent = `「${sheetLabel}」的原文/譯文欄位為必填。`;
-                            return;
-                        }
-                        const srcIdx = parseTbSingleColumn(srcColStr);
-                        const tgtIdx = parseTbSingleColumn(tgtColStr);
-                        if (srcIdx < 0 || tgtIdx < 0) {
-                            console.log('runImport 提早結束: 欄位格式錯誤', name, srcColStr, tgtColStr);
-                            if (errEl) errEl.textContent = `「${sheetLabel}」的原文/譯文欄位格式錯誤，請輸入欄位代號，例如 A 或 B。`;
-                            return;
-                        }
-                        sheetConfigs[name] = {
-                            srcIdx,
-                            tgtIdx,
-                            noteIdxs: parseTbColumnList(cfg.noteCols || ''),
-                            includeSheetName: (cfg.noteCols || '').includes('#'),
-                            creatorIdx: parseTbSingleColumn(cfg.creatorCol || ''),
-                            createdAtIdx: parseTbSingleColumn(cfg.createdAtCol || ''),
-                            rowsRangeStr: (cfg.rowsRange || '2-').trim()
-                        };
-                    }
+                    const built = await buildTbImportSheetConfigsFromModal(errEl);
+                    if (!built) return;
+                    const { selectedSheets, sheetConfigs, onlineCsvRows, onlinePasteUrl, workbook } = built;
                     if (!tbExcelImportIsOnline && selectedSheets.length > 1) {
                         selectedSheets.forEach(name => {
                             const c = sheetConfigs[name];
@@ -4865,15 +5031,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     console.log(tbExcelImportIsOnline ? 'runImport 通過檢查（線上 CSV）' : 'runImport 通過檢查，即將讀取 Excel');
                 try {
-                    let workbook = null;
-                    if (!tbExcelImportIsOnline) {
-                        const buffer = await tbExcelPendingFile.arrayBuffer();
-                        console.log('runImport 已取得 arrayBuffer，長度:', buffer.byteLength);
-                        workbook = XLSX.read(buffer, { type: 'array' });
-                        console.log('runImport 已解析 workbook，工作表:', workbook.SheetNames && workbook.SheetNames.length);
-                    }
                     const newTerms = [];
                     const scanStats = [];
+                    const flagRowErrors = [];
                     const userName = localStorage.getItem('localCatUserProfile') || 'Unknown User';
                     const parseRowRange = (str) => {
                         const cleaned = (str || '').replace(/\s+/g, '');
@@ -4892,6 +5052,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const cfg = sheetConfigs[sheetName];
                         if (!cfg) continue;
                         const rowRange = parseRowRange(cfg.rowsRangeStr || '2-');
+                        const sheetLabel = tbExcelImportIsOnline ? '線上 CSV' : sheetName;
                         let rows;
                         if (tbExcelImportIsOnline) {
                             rows = onlineCsvRows;
@@ -4917,6 +5078,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if (!source && !target) continue;
                             withContent++;
 
+                            const mfb = buildMatchFlagsForTbImportRow(row, cfg.caseMIdx, cfg.exMIdx);
+                            if (mfb.error) {
+                                flagRowErrors.push({ sheet: sheetLabel, dataRow: r + 1, detail: mfb.error });
+                                continue;
+                            }
+
                             let noteLines = [];
                             cfg.noteIdxs.forEach(idx => {
                                 const v = String(row[idx] ?? '').trim();
@@ -4937,11 +5104,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 source,
                                 target,
                                 note,
+                                matchFlags: mfb.matchFlags,
                                 createdBy: creator,
                                 createdAt
                             });
                         }
                         scanStats.push({ sheet: sheetName, inRange, withContent });
+                    }
+
+                    if (flagRowErrors.length) {
+                        const maxShow = 12;
+                        const head = '比對屬性欄位無法匯入，共 ' + flagRowErrors.length + ' 筆。';
+                        const body = flagRowErrors.slice(0, maxShow).map(e => `第 ${e.dataRow} 列（${e.sheet}）：${e.detail}`).join(' ');
+                        const more = flagRowErrors.length > maxShow ? ' …' : '';
+                        if (errEl) errEl.textContent = head + ' ' + body + more;
+                        return;
                     }
 
                     if (!newTerms.length) {
@@ -5018,7 +5195,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         noteCols: tbExcelNoteCols ? tbExcelNoteCols.value.trim() : '',
                         creatorCol: tbExcelCreatorCol ? tbExcelCreatorCol.value.trim() : '',
                         createdAtCol: tbExcelCreatedAtCol ? tbExcelCreatedAtCol.value.trim() : '',
-                        rowsRange: tbExcelRowsRange ? tbExcelRowsRange.value.trim() : ''
+                        rowsRange: tbExcelRowsRange ? tbExcelRowsRange.value.trim() : '',
+                        caseMatchCol: tbExcelMatchCaseCol ? tbExcelMatchCaseCol.value.trim() : '',
+                        exactMatchCol: tbExcelMatchExactCol ? tbExcelMatchExactCol.value.trim() : ''
                     };
                     const updatePayload = {
                         terms: merged,

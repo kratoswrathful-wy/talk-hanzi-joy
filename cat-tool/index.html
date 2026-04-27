@@ -1593,12 +1593,12 @@
 
         <!-- TB Excel Import Mapping Modal -->
         <div class="wizard-overlay hidden" id="tbExcelImportModal">
-            <div class="wizard-modal" style="max-width: 640px;">
+            <div class="wizard-modal" style="max-width: 760px;">
                 <div class="wizard-header">
                     <h3 id="tbExcelImportModalTitle" style="margin:0; font-size:1.2rem;">術語匯入 (Excel)</h3>
                     <button class="close-btn" id="btnCloseTbExcelImport">×</button>
                 </div>
-                <div class="wizard-body" style="display:flex; flex-direction:row; gap:1.25rem; max-height:380px; overflow:hidden;">
+                <div class="wizard-body" style="display:flex; flex-direction:row; gap:1.25rem; max-height:min(70vh, 520px); overflow-y:auto; overflow-x:hidden;">
                     <div id="tbExcelSheetPickerColumn" style="width:230px; border-right:1px solid #e2e8f0; padding-right:0.75rem;">
                         <p style="font-size:0.85rem; color:#64748b; margin:0 0 0.25rem 0;">選擇要匯入的工作表：</p>
                         <label style="display:flex; align-items:center; gap:0.25rem; font-size:0.85rem; font-weight:600; margin-bottom:0.25rem; border-bottom:1px solid #e2e8f0; padding-bottom:0.25rem;">
@@ -1641,19 +1641,31 @@
 
                             <label style="font-size:0.9rem; text-align:right;">匯入列數</label>
                             <input type="text" id="tbExcelRowsRange" placeholder="例如: 2- 或 2-99" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
+
+                            <label style="font-size:0.9rem; text-align:right;">區分大小寫欄 (選填)</label>
+                            <input type="text" id="tbExcelMatchCaseCol" placeholder="例如: D，與匯出欄「區分大小寫」相同（是/否）" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
+
+                            <label style="font-size:0.9rem; text-align:right;">精確比對欄 (選填)</label>
+                            <input type="text" id="tbExcelMatchExactCol" placeholder="例如: E，與匯出欄「精確比對」相同（是/否）" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
                         </div>
                         <div style="font-size:0.8rem; color:#64748b; margin-top:0.1rem;">
                             備註欄可輸入多欄，例如：<code>C-E, G, H-J</code>；會依欄位順序合併為多行備註。<br>
-                            若在備註欄輸入 <code>#</code>，會額外插入該列所屬的工作表名稱。<br>
+                            若在備註欄輸入 <code>#</code>，會額外插入該列所屬的工作表名稱（線上單一 CSV 不會插入；Excel 多工作表會插入表名）。<br>
                             建立時間欄支援常見日期時間格式，例如：<br>
                             <code>YYYY-MM-DD HH:mm:ss</code>、<code>YYYY/MM/DD HH:mm</code>、或 ISO 8601 (<code>2026-03-16T14:30:00</code>)。<br>
-                            若欄位為空或格式無法解析，將自動以匯入當下時間（台北時間，24 小時制）填入。
+                            若欄位為空或格式無法解析，將自動以匯入當下時間（台北時間，24 小時制）填入。<br>
+                            比對屬性兩欄可選；空欄格表示該筆採用預設（不區分大小寫、非精確比對）。儲格值請與匯出 Excel 相同：<strong>是</strong>／<strong>否</strong>，亦接受 <code>y</code>／<code>n</code>、<code>1</code>／<code>0</code> 等（空白則用預設）。
+                        </div>
+                        <div id="tbExcelPreviewBlock" class="hidden" style="border:1px solid #e2e8f0; border-radius:6px; background:#f8fafc; padding:0.5rem 0.6rem; max-height:200px; overflow:auto;">
+                            <div style="font-size:0.8rem; font-weight:600; color:#334155; margin-bottom:0.35rem;">映射預覽（前列資料，不含標題列）</div>
+                            <div id="tbExcelPreviewTable" style="font-size:0.75rem;"></div>
                         </div>
                         <div id="tbExcelImportError" style="font-size:0.8rem; color:#b91c1c; min-height:1.2em;"></div>
                     </div>
                 </div>
-                <div class="panel-footer" style="padding:1rem 2rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; background:#f8fafc;">
+                <div class="panel-footer" style="padding:1rem 2rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; flex-wrap:wrap; background:#f8fafc;">
                     <button type="button" class="secondary-btn" id="btnCancelTbExcelImport">取消</button>
+                    <button type="button" class="secondary-btn" id="btnPreviewTbExcelMapping">預覽映射</button>
                     <button type="button" class="primary-btn" id="btnConfirmTbExcelImport">開始匯入</button>
                 </div>
             </div>
