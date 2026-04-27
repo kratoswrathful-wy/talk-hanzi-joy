@@ -16391,6 +16391,43 @@ document.addEventListener('DOMContentLoaded', async () => {
         let specialInstructions = Array.isArray(psettings?.specialInstructions) ? [...psettings.specialInstructions] : [];
         let projectGuidelines = Array.isArray(psettings?.projectGuidelines) ? [...psettings.projectGuidelines] : [];
 
+        function _siNormalizeGuidelineExamples(examples) {
+            if (!Array.isArray(examples)) return [];
+            return examples.map((ex, idx) => ({
+                id: ex && ex.id != null ? String(ex.id) : `ex-${Date.now()}-${idx}`,
+                state: ex && ex.state === 'bad' ? 'bad' : (ex && ex.state === 'neutral' ? 'neutral' : 'ok'),
+                src: ex && ex.src != null ? String(ex.src) : '',
+                tgt: ex && ex.tgt != null ? String(ex.tgt) : '',
+                note: ex && ex.note != null ? String(ex.note) : ''
+            }));
+        }
+
+        function _siExampleStateGlyph(state) {
+            if (state === 'bad') return 'X';
+            if (state === 'neutral') return '-';
+            return 'O';
+        }
+
+        function _siGuidelineExamplesHtml(examples) {
+            const rows = _siNormalizeGuidelineExamples(examples);
+            if (rows.length === 0) return '';
+            const body = rows.map((ex) => {
+                const lines = [];
+                if (ex.src && ex.src.trim()) lines.push(`<div class="ag-shared-ex-line"><span class="ag-shared-ex-key">原文</span><span>${_esc(ex.src.trim())}</span></div>`);
+                if (ex.tgt && ex.tgt.trim()) lines.push(`<div class="ag-shared-ex-line"><span class="ag-shared-ex-key">譯文</span><span>${_esc(ex.tgt.trim())}</span></div>`);
+                if (ex.note && ex.note.trim()) lines.push(`<div class="ag-shared-ex-line"><span class="ag-shared-ex-key">※</span><span>${_esc(ex.note.trim())}</span></div>`);
+                if (lines.length === 0) return '';
+                const stateClass = ex.state === 'bad' ? 'is-bad' : (ex.state === 'neutral' ? 'is-neutral' : 'is-ok');
+                return `
+                    <div class="ag-shared-ex-row">
+                        <div class="ag-shared-ex-state ${stateClass}">${_siExampleStateGlyph(ex.state)}</div>
+                        <div class="ag-shared-ex-card">${lines.join('')}</div>
+                    </div>`;
+            }).filter(Boolean).join('');
+            if (!body) return '';
+            return `<div class="ag-shared-ex-list">${body}</div>`;
+        }
+
         function savePSettings() {
             return DBService.saveAiProjectSettings(projectId, {
                 selectedGuidelineIds: [...selectedGuidelineIds],
@@ -16901,9 +16938,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <div style="flex:1; min-width:0;">
                         <span class="ai-selected-guideline-item-content">${_esc(g.content)}</span>
                         ${(() => {
-                            const ex = _normalizeGuidelineExamples(g.examples);
+                            const ex = _siNormalizeGuidelineExamples(g.examples);
                             const countBadge = ex.length > 0 ? `<div style="margin-top:0.3rem;"><span class="ai-badge selected-green" style="font-size:0.72rem;">${ex.length} 個範例</span></div>` : '';
-                            return `${countBadge}${_guidelineExamplesHtml(ex)}`;
+                            return `${countBadge}${_siGuidelineExamplesHtml(ex)}`;
                         })()}
                     </div>
                     ${isCatSharedMutator() ? `<div class="ai-pg-shared-actions">
@@ -16949,9 +16986,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <div style="flex:1; min-width:0;">
                         <span class="ai-selected-guideline-item-content">${_esc(g.content)}</span>
                         ${(() => {
-                            const ex = _normalizeGuidelineExamples(g.examples);
+                            const ex = _siNormalizeGuidelineExamples(g.examples);
                             const countBadge = ex.length > 0 ? `<div style="margin-top:0.3rem;"><span class="ai-badge selected-green" style="font-size:0.72rem;">${ex.length} 個範例</span></div>` : '';
-                            return `${countBadge}${_guidelineExamplesHtml(ex)}`;
+                            return `${countBadge}${_siGuidelineExamplesHtml(ex)}`;
                         })()}
                     </div>
                     ${isCatSharedMutator() ? `<div class="ai-pg-shared-actions">
