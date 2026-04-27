@@ -8860,7 +8860,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const outAbove = (caretRect.top + (caretRect.height || 0)) < gridRect.top;
         const outBelow = caretRect.top > gridRect.bottom;
         if (!outAbove && !outBelow) { hideCatRealCaretScrollTip(); return; }
-        const segId = active.dataset ? active.dataset.segId : null;
+        const segId = getEditorSegId(active);
         const segNum = getSegDisplayIndexForTip(segId);
         const tip = ensureCatRealCaretScrollTipEl();
         tip.textContent = `游標位於第 ${segNum} 號句段`;
@@ -12367,6 +12367,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
         e.preventDefault();
         e.stopPropagation();
+        // 優先：焦點在編輯格時，捲回使真游標可見
+        const activeEl = document.activeElement;
+        if (activeEl && activeEl.classList.contains('grid-textarea')) {
+            activeEl.closest('.grid-data-row')?.scrollIntoView({ block: 'nearest' });
+            return;
+        }
+        // 次選：嘗試恢復儲存游標；失敗則顯示假游標提示
         if (!restoreSavedCaretIntoEditor()) {
             showCatFakeCaretFromSaved();
         }
