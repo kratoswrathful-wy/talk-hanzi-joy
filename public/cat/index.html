@@ -567,8 +567,8 @@
                                 </div>
                             </div>
                         </div>
-                        <button id="btnCopySourceToTarget" class="icon-btn" title="將原文複製到譯文 (Ctrl+Insert)&#10;支援批次：選取多個句段後點擊" style="font-size:1rem;">⬇</button>
-                        <button id="btnClearTarget" class="icon-btn" title="清除譯文 (Ctrl+Delete)&#10;支援批次：選取多個句段後點擊" style="font-size:1rem;">✕</button>
+                        <button id="btnCopySourceToTarget" class="icon-btn" style="font-size:1rem;">⬇</button>
+                        <button id="btnClearTarget" class="icon-btn" style="font-size:1rem;">✕</button>
                         <button id="btnTagCollapse" class="icon-btn" title="展開標籤 (Ctrl+Shift+T)" style="font-size:0.8rem; font-family:monospace;">{…}</button>
                         <button id="btnShowNonPrint" class="icon-btn" title="顯示 / 隱藏非列印字元" style="font-size:1rem;">¶</button>
                         <button id="btnTagGroupMode" class="icon-btn active" title="標籤群組插入：已停用（F8 固定插入單一 tag）" style="font-size:0.8rem;">T⁺</button>
@@ -1158,8 +1158,8 @@
                             <p class="cat-shortcuts-item-desc">焦點在該句「譯文」欄時：若為未確認會寫入並標為已確認（可依設定跳到下一句或連動重複句段）；若已是已確認則改回未確認。搭配多選句段時可批次確認。</p>
                         </div>
                         <div class="cat-shortcuts-item">
-                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">跳到上一／下一句段</span><input type="text" value="Ctrl + ↑ / ↓" disabled class="sc-key-input"></div>
-                            <p class="cat-shortcuts-item-desc">焦點在譯文欄時，移動到可見列表中上一則或下一則可編輯句段的譯文欄，便於連續校稿。</p>
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">跳到上一／下一句段</span><input type="text" id="scFixedKeySegNav" value="Ctrl + ↑ / ↓" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">焦點在譯文欄時，移動到可見列表中上一則或下一則可編輯句段的譯文開頭（略過篩選隱藏列）。</p>
                         </div>
                         <div class="cat-shortcuts-item">
                             <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">全選目前可見句段</span><input type="text" value="Ctrl + Shift + A" disabled class="sc-key-input"></div>
@@ -1178,11 +1178,11 @@
                             <p class="cat-shortcuts-item-desc">移除譯文裡形如 <code style="font-size:0.76rem;background:#f1f5f9;padding:0 4px;border-radius:3px;">{數字}</code> 的標籤碼，保留可見文字。</p>
                         </div>
                         <div class="cat-shortcuts-item">
-                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">將原文複製到譯文</span><input type="text" value="Ctrl + Insert" disabled class="sc-key-input"></div>
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">將原文複製到譯文</span><input type="text" id="scFixedKeyCopySource" value="Ctrl + Insert" disabled class="sc-key-input"></div>
                             <p class="cat-shortcuts-item-desc">對選取的句段（或多選）把原文拷貝到對應譯文欄，沿用標籤對應規則。</p>
                         </div>
                         <div class="cat-shortcuts-item">
-                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">清除譯文</span><input type="text" value="Ctrl + Delete" disabled class="sc-key-input"></div>
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">清除譯文</span><input type="text" id="scFixedKeyClearTarget" value="Ctrl + Shift + Insert" disabled class="sc-key-input"></div>
                             <p class="cat-shortcuts-item-desc">對選取的句段清空譯文（已確認者會改為未確認）；請留意無法編輯的鎖定句段會略過。</p>
                         </div>
                         <div class="cat-shortcuts-item">
@@ -1198,12 +1198,20 @@
                             <p class="cat-shortcuts-item-desc">在編輯器內復原或重做譯文變更、確認狀態等可追蹤的步驟。焦點在尋找與取代欄位時不觸發，避免和瀏覽器衝突。</p>
                         </div>
                         <div class="cat-shortcuts-item">
-                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">在 CAT 比對列表內移動選取</span><input type="text" value="Ctrl + ↑ / ↓" disabled class="sc-key-input"></div>
-                            <p class="cat-shortcuts-item-desc">在右側「CAT」分頁且已載入比對列時，上移／下移目前選中的列（可跨分頁）。以 Ctrl+方向鍵操作，不佔用未加修飾的上下鍵。</p>
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">在 CAT 比對列表內移動選取</span><input type="text" id="scFixedKeyCatList" value="Alt + ↑ / ↓" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">在右側「CAT」分頁且已載入比對列時，上移／下移目前選中的列（可跨分頁）。</p>
                         </div>
                         <div class="cat-shortcuts-item">
-                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">CAT 結果換頁</span><input type="text" value="Ctrl + ← / →" disabled class="sc-key-input"></div>
-                            <p class="cat-shortcuts-item-desc">在「CAT」分頁、比對結果多於 9 筆時，向左／向右換頁。譯文／原文格內仍保留逐字／逐詞的 Ctrl+←／→，不會在格內換頁。</p>
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">CAT 結果換頁</span><input type="text" id="scFixedKeyCatPage" value="Alt + ← / →" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">在「CAT」分頁、比對結果多於 9 筆時，向左／向右換頁。在譯文／原文可編格內不觸發（保留 Alt+←／→ 的預設行為或格內導向）。</p>
+                        </div>
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">右欄分頁切換</span><input type="text" id="scFixedKeyRightTab" value="Ctrl + Alt + ← / →" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">在 CAT、TM 搜尋、新增術語、QA 等分頁間循環切換，不佔用僅帶 Ctrl 的左右鍵（格內逐字）。</p>
+                        </div>
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">焦點到譯文假游標</span><input type="text" id="scFixedKeyFakeCaret" value="Ctrl + Alt + ↓" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">將鍵盤焦點帶到先前記下的譯文游標位置（與靜止時顯示的垂直條假游標同源）。</p>
                         </div>
                         <div class="cat-shortcuts-item">
                             <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">譯文格：上／下鍵越句</span><input type="text" value="↑ / ↓" disabled class="sc-key-input"></div>

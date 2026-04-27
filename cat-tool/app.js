@@ -616,6 +616,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         return parts.join(' + ');
     }
 
+    /** 與 keydown 實際綁定一致之顯示字串（單一真相，供按鈕 title 與快捷鍵 modal 灌入） */
+    const FIXED_SHORTCUT_LABELS = {
+        copySourceToTarget: 'Ctrl + Insert',
+        clearTarget: 'Ctrl + Shift + Insert',
+        segNavUpDown: 'Ctrl + ↑ / ↓',
+        catListNav: 'Alt + ↑ / ↓',
+        catResultPage: 'Alt + ← / →',
+        rightPanelTab: 'Ctrl + Alt + ← / →',
+        fakeCaretFocus: 'Ctrl + Alt + ↓'
+    };
+
+    function refreshFixedShortcutTitles() {
+        const L = FIXED_SHORTCUT_LABELS;
+        const btnCopy = document.getElementById('btnCopySourceToTarget');
+        if (btnCopy) {
+            btnCopy.setAttribute('title', `將原文複製到譯文 (${L.copySourceToTarget})\n支援批次：選取多個句段後點擊`);
+        }
+        const btnClear = document.getElementById('btnClearTarget');
+        if (btnClear) {
+            btnClear.setAttribute('title', `清除譯文 (${L.clearTarget})\n支援批次：選取多個句段後點擊`);
+        }
+        const map = [
+            ['scFixedKeySegNav', 'segNavUpDown'],
+            ['scFixedKeyClearTarget', 'clearTarget'],
+            ['scFixedKeyCopySource', 'copySourceToTarget'],
+            ['scFixedKeyCatList', 'catListNav'],
+            ['scFixedKeyCatPage', 'catResultPage'],
+            ['scFixedKeyRightTab', 'rightPanelTab'],
+            ['scFixedKeyFakeCaret', 'fakeCaretFocus']
+        ];
+        for (const [id, k] of map) {
+            const el = document.getElementById(id);
+            if (el && L[k]) el.value = L[k];
+        }
+    }
+
     function loadCustomShortcuts() {
         try {
             const raw = localStorage.getItem(CUSTOM_SC_KEY);
@@ -720,10 +756,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (btnShortcuts) {
         btnShortcuts.addEventListener('click', () => {
             renderCustomShortcutRows();
+            refreshFixedShortcutTitles();
             shortcutsModal.classList.remove('hidden');
         });
         btnCloseShortcuts.addEventListener('click', () => shortcutsModal.classList.add('hidden'));
     }
+    refreshFixedShortcutTitles();
 
     /** Esc：關閉最上層蓋版（等同取消／關閉鈕）；錄製自訂快捷鍵時 Esc 由錄製 handler 中止、不關視窗 */
     (function setupCatGlobalModalEscape() {
@@ -7696,8 +7734,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             e.preventDefault();
             runTextOpOnSelection('copy-source');
         }
-        // Ctrl+Delete：清除譯文
-        if (e.ctrlKey && e.key === 'Delete' && currentFileId) {
+        // Ctrl+Shift+Insert：清除譯文
+        if (e.ctrlKey && e.shiftKey && e.key === 'Insert' && currentFileId) {
             e.preventDefault();
             runTextOpOnSelection('clear');
         }
@@ -8653,7 +8691,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return t ? t.getAttribute('data-tab') : null;
     }
 
-    /** 格內可編：CAT 分頁換頁 (Ctrl+←/→) 不攔截，保留逐字／逐詞。 */
+    /** 格內可編：CAT 分頁換頁 (Alt+←/→) 不攔截。 */
     function isCatPanelBlockWordNav() {
         const a = document.activeElement;
         if (!a) return false;
@@ -8929,7 +8967,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /** @param extras.oldMatchValue, newMatchValue, oldStatus, newStatus, oldTargetTags, newTargetTags */
     function pushEditorUndo(segmentId, oldTarget, newTarget, extras = {}) {
-        if (oldTarget === newTarget && !extras.force) return;
+        if (!extras.force) {
+            if (oldTarget === newTarget) {
+                const mvEqual = (extras.oldMatchValue ?? null) === (extras.newMatchValue ?? null);
+                const stEqual = (extras.oldStatus === extras.newStatus) || (extras.oldStatus === undefined && extras.newStatus === undefined);
+                const tagEqual = JSON.stringify(extras.oldTargetTags || null) === JSON.stringify(extras.newTargetTags || null);
+                if (mvEqual && stEqual && tagEqual) return;
+            }
+        }
         pushUndoEntry({
             kind: 'target',
             segmentId,
@@ -11302,6 +11347,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 } catch (err) { console.error(err); }
                             });
                         })();
+                    } else if (e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                        e.preventDefault();
+                        if (e.key === 'ArrowUp') {
+                            let prevRow = row.previousElementSibling;
+                            while (prevRow && !isGridDataRowFilterVisible(prevRow)) prevRow = prevRow.previousElementSibling;
+                            if (prevRow) {
+                                const gIdx = Array.prototype.indexOf.call(gRows, prevRow);
+                                if (gIdx >= 0) focusTargetEditorStartAtGlobalIndex(gIdx);
+                            }
+                        } else {
+                            let nextRow = row.nextElementSibling;
+                            while (nextRow && !isGridDataRowFilterVisible(nextRow)) nextRow = nextRow.nextElementSibling;
+                            if (nextRow) {
+                                const gIdx = Array.prototype.indexOf.call(gRows, nextRow);
+                                if (gIdx >= 0) focusTargetEditorStartAtGlobalIndex(gIdx);
+                            }
+                        }
                     } else if (!e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
                         const s = window.getSelection();
                         if (s && s.rangeCount && s.isCollapsed) {
@@ -12039,9 +12101,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.handleCatResultApply(el || document.body, m.type, m.targetText, scoreArg, relativeIndex);
     };
     
-    // Ctrl+上/下：在右側 CAT 比對列表中移動選取（跨分頁）
+    // Alt+上/下：在右側 CAT 比對列表中移動選取（跨分頁）
     document.addEventListener('keydown', function catPanelArrowKey(e) {
-        if (!e.ctrlKey || e.shiftKey || e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+        if (e.ctrlKey || e.metaKey || e.shiftKey || !e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
         if (!currentFileId) return;
         const viewEditor = document.getElementById('viewEditor');
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
@@ -12061,13 +12123,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.catMatchPageIndex = Math.floor(abs / ps);
         window.catPanelSelectedIndex = abs % ps;
         e.preventDefault();
+        e.stopPropagation();
         if (typeof window._repaintCatTmMatchTable === 'function') window._repaintCatTmMatchTable();
         else if (typeof window.updateCatPanelSelection === 'function') window.updateCatPanelSelection();
-    });
+    }, true);
 
-    // Ctrl+左/右：CAT 比對結果表換頁（每頁 9 筆；格內可編不攔，保留逐字／逐詞）
+    // Alt+左/右：CAT 比對結果表換頁（每頁 9 筆；格內可編不攔）
     document.addEventListener('keydown', function catPanelPageKey(e) {
-        if (!e.ctrlKey || e.shiftKey || e.altKey || (e.code !== 'ArrowLeft' && e.code !== 'ArrowRight')) return;
+        if (e.ctrlKey || e.metaKey || e.shiftKey || !e.altKey || (e.code !== 'ArrowLeft' && e.code !== 'ArrowRight')) return;
         if (isCatPanelBlockWordNav()) return;
         const viewEditor = document.getElementById('viewEditor');
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
@@ -12085,6 +12148,41 @@ document.addEventListener('DOMContentLoaded', async () => {
         e.preventDefault();
         e.stopPropagation();
         if (typeof window._repaintCatTmMatchTable === 'function') window._repaintCatTmMatchTable();
+    }, true);
+
+    // Ctrl+Alt+左/右：右欄分頁切換
+    document.addEventListener('keydown', function rightPanelTabByChord(e) {
+        if (!e.ctrlKey || !e.altKey || e.shiftKey || e.metaKey) return;
+        if (e.code !== 'ArrowLeft' && e.code !== 'ArrowRight') return;
+        if (!currentFileId) return;
+        const viewEditor = document.getElementById('viewEditor');
+        if (!viewEditor || viewEditor.classList.contains('hidden')) return;
+        const order = ['tabCAT', 'tabTmSearch', 'tabNewTerm', 'tabQA'];
+        const activeBtn = document.querySelector('.tab-btn.active');
+        const curId = activeBtn ? activeBtn.getAttribute('data-tab') : null;
+        const i0 = order.indexOf(curId);
+        if (i0 < 0) return;
+        const next = e.code === 'ArrowRight' ? (i0 + 1) % order.length : (i0 - 1 + order.length) % order.length;
+        const btn = document.querySelector(`.tab-btn[data-tab="${order[next]}"]`);
+        if (btn) {
+            e.preventDefault();
+            e.stopPropagation();
+            btn.click();
+        }
+    }, true);
+
+    // Ctrl+Alt+下：焦點到假游標／還原儲存游標
+    document.addEventListener('keydown', function focusFakeCaretChord(e) {
+        if (!e.ctrlKey || !e.altKey || e.shiftKey || e.metaKey) return;
+        if (e.key !== 'ArrowDown' && e.code !== 'ArrowDown') return;
+        if (!currentFileId) return;
+        const viewEditor = document.getElementById('viewEditor');
+        if (!viewEditor || viewEditor.classList.contains('hidden')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (!restoreSavedCaretIntoEditor()) {
+            showCatFakeCaretFromSaved();
+        }
     }, true);
 
     // Grid Level Context Menu for Batch Actions (確認 / 鎖定)
