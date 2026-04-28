@@ -1,7 +1,7 @@
 # CAT：準則、專案準則與團隊版 AI 資料 — 變更與修正紀錄
 
 > 本文件記錄 **2026-04** 前後與「準則庫／共用資訊／專案準則／團隊版雲端 AI」相關的設計、實作與踩坑，供維運與後續迭代對照。  
-> 與分階段重建總覽的關係：見 [CAT-phased-rebuild-audit.md](./CAT-phased-rebuild-audit.md)（較偏進度稽核）；**本文件**偏 **行為、資料表、部署與 AI 組字**。
+> 與分階段重建總覽的關係：見 [CAT-phased-rebuild-audit.md](./CAT-phased-rebuild-audit.md)（較偏進度稽核）；**本文件**偏 **行為、資料表、部署與 AI 組字**。**本主題之後續波次（範例送 prompt、議題群組、alert 收斂等）** 之**建議順序**見 **§12**。
 
 ---
 
@@ -16,7 +16,7 @@
 
 | 表名 | 用途（簡述） |
 |------|----------------|
-| `cat_ai_guidelines` | 準則條目（翻譯／文風、互斥群組、預設旗標等） |
+| `cat_ai_guidelines` | 準則條目（翻譯／文風、互斥群組、預設旗標、**`examples` 範例卡** 等） |
 | `cat_ai_category_tags` | 準則「類別」標籤（含預設「通用」） |
 | `cat_ai_settings` | 全站 AI 連線／模型／prompt 等（單列 `id = 1`） |
 | `cat_ai_project_settings` | 每專案：已選準則 ID、文風 ID、`special_instructions`、`project_guidelines`（見第 5 節）、更新時間等 |
@@ -27,6 +27,7 @@
 - [`supabase/migrations/20260426143000_cat_ai_cloud.sql`](../supabase/migrations/20260426143000_cat_ai_cloud.sql) — 建立上述核心表與 RLS。
 - [`supabase/migrations/20260426220000_cat_ai_project_guidelines.sql`](../supabase/migrations/20260426220000_cat_ai_project_guidelines.sql) — 為 `cat_ai_project_settings` 新增 **`project_guidelines`**（JSONB，預設 `[]`）。
 - [`supabase/migrations/20260427153000_cat_ai_category_tags_list_hidden.sql`](../supabase/migrations/20260427153000_cat_ai_category_tags_list_hidden.sql) — `cat_ai_category_tags` 新增 **`list_hidden`**（軟隱藏自清單，見第 9 節）。
+- [`supabase/migrations/20260429203000_cat_ai_guidelines_examples.sql`](../supabase/migrations/20260429203000_cat_ai_guidelines_examples.sql) — `cat_ai_guidelines` 新增 **`examples`**（JSONB，預設 `[]`；陣列元素含 `id`、`state`（`ok` \| `bad` \| `neutral`）、`src`、`tgt`、`note`，見第 11 節）。
 
 ### 1.3 程式對照
 
@@ -155,7 +156,7 @@ flowchart LR
 
 ## 6. 部署與維運
 
-1. **新環境或新 Supabase 專案**：須套用含 **`cat_ai_*`**、**`project_guidelines`** 與 **`cat_ai_category_tags.list_hidden`** 的 migrations（見第 1.2 節檔名）。未套用時，PostgREST 可能回類似 **「Could not find the table … in the schema cache」** 或請求失敗。
+1. **新環境或新 Supabase 專案**：須套用含 **`cat_ai_*`**、**`project_guidelines`**、**`cat_ai_guidelines.examples`**（`20260429203000`）與 **`cat_ai_category_tags.list_hidden`** 的 migrations（見第 1.2 節檔名）。未套用時，PostgREST 可能回類似 **「Could not find the table … in the schema cache」** 或請求失敗。
 2. **Vercel／TMS**：部署後若 CAT 團隊版讀不到表，優先確認 **連到的 Supabase 專案** 是否已 `db push` / 執行 migration。
 3. 與上線檢查清單的關係：仍請搭配 [`DEPLOYMENT_CHECKLIST.md`](./DEPLOYMENT_CHECKLIST.md)；**CAT AI 表與欄位**以本文件第 1–2、5–6 節為準。
 
@@ -198,7 +199,7 @@ flowchart LR
 - [x] `ToolbarButtonStyleSection.tsx`：確認文案統一  
 - [x] 通用／脫離互斥確認：**不顯示**僅「確認」二字之標題列（見 **§9.4**）  
 - [ ] 其餘僅 **`alert`** 之非阻斷體驗（選做，見第 7 節）  
-- [ ] 部署：既有 Supabase 專案須套用 **第 1.2 節** 含 `20260427153000` 之 migration  
+- [ ] 部署：既有 Supabase 專案須套用 **第 1.2 節** 含 `20260427153000` 及（若使用庫內範例卡）`20260429203000` 之 migration  
 
 **驗收（手動）**：團隊版執行 migration 後，於 **AI 管理** 測標籤「僅隱藏／復原／從參考刪除」；於 **準則管理／學習範例／專案刪除** 等操作確認皆出現 **頁內** 確認框且文案為「是否確定要…？」；`npm run sync:cat` 後提交 `cat-tool` 與 `public/cat`。
 
@@ -226,6 +227,7 @@ flowchart LR
 | 2026-04-29 | **§5.3**：共用資訊專案準則改綠卡列＋「管理準則」`#pgManageProjectGuidelinesModal`（啟用僅於管理列表）；準則管理互斥副標改「下列條目限選其一」、文風單條不顯示內文「預設條目」徽章 |
 | 2026-04-29（補強） | **專案準則穩定性補強**：權限顯示與操作守門一致（專案頁/編輯器同規則）、新增/編輯防呆（空白/重複）、刪除/新增/編輯儲存失敗回滾與錯誤提示、並發採 **Last write wins**（最後儲存者為準）並於程式註解明示；新增精簡回歸驗收清單（見下方 §10）。 |
 | 2026-04-29（驗收收斂） | 專案準則管理視窗新增改為**頁內錯誤訊息**（`#pgManageProjectGuidelineErr`，不再彈瀏覽器 `alert`）；通用確認／提示框與脫離互斥確認框 `z-index` 提升（`10100`），修正「刪除專案準則時確認框被管理視窗遮蓋」問題。 |
+| 2026-04-30 | **§1.2** 補列 `20260429203000`（`cat_ai_guidelines.examples`）；**§6** 部署清單併列該 migration。**§11** 自「下一階段」改為 **MVP 已實作**，補 `state`、專案準則列內 `examples`、§11.3 驗收勾選；**新增 §12** 分階段執行建議與主計畫 §9～10 邊界說明。 |
 
 ---
 
@@ -242,43 +244,52 @@ flowchart LR
 
 ---
 
-## 11. 下一階段預計執行內容（第 3 項：條目範例卡片）
+## 11. 庫內／專案準則條目範例卡片（MVP，已實作）
 
-本階段目標是為「庫內準則條目」加入可維護的範例資料（原文/譯文/說明），優先完成最小可用版本（MVP），並保留後續接軌議題群組與拖曳排序的擴充空間。
+本節所述 **MVP 已落地**（`cat-tool`、團隊 RPC、離線合併）。後續接軌**議題群組**、**拖曳排序**、**可選：送進 prompt** 之優先序見 **§12**。
 
-### 11.1 實作範圍（MVP）
+### 11.1 實作範圍（事實）
 
-1. **資料層（MVP 優先 JSON 欄位）**
-   - 在 `cat_ai_guidelines` 條目新增 `examples`（JSON 陣列）欄位；每筆包含：
-     - `id`（本地唯一字串）
-     - `src`（原文示例）
-     - `tgt`（譯文示例）
-     - `note`（備註，可空）
-   - `src/lib/cat-cloud-rpc.ts` 的 guideline 映射與寫入 patch 同步支援 `examples`。
-   - `cat-tool/db.js`（離線/團隊 provider）同步欄位讀寫，避免 patch 覆寫掉既有欄位。
+1. **資料層**
+   - **庫內準則**：`public.cat_ai_guidelines.examples`（JSONB，預設 `[]`），見 [`supabase/migrations/20260429203000_cat_ai_guidelines_examples.sql`](../supabase/migrations/20260429203000_cat_ai_guidelines_examples.sql)。陣列元素欄位包含：`id`、`src`、`tgt`、`note`（備註可空），以及實作所採 **`state`**：`ok` | `bad` | `neutral`（UI 以 O／X／- 與薄荷綠卡呈現，見 [`cat-tool/app.js`](../cat-tool/app.js) 之 `_guidelineExamplesHtml`、`_guidelineExampleStateGlyph` 等）。
+   - **專案準則**：`cat_ai_project_settings.project_guidelines` 為 JSON 陣列，**單一條目**物件可含同結構之 **`examples`** 陣列，與 [`#pgEditProjectGuidelineModal`](../cat-tool/index.html) 儲存路徑一致（不另加表欄，與專案準則條目一併寫入 `project_guidelines`）。
+   - **RPC／離線**：[`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts) 對 guideline 的 `examples` 讀寫與 patch；[`cat-tool/db.js`](../cat-tool/db.js) 於相關 `saveAiProjectSettings` 等路徑合併 `patch.examples`，避免覆寫。
 
-2. **編輯介面（`#agEditGuidelineModal`）**
-   - 在現有欄位下方新增「範例卡片」區塊，支援新增、編輯、刪除。
-   - 權限沿用條目權限：PM/主管可編輯，譯者唯讀。
-   - 驗證：`src`、`tgt` 必填；`note` 選填；空白內容阻擋儲存。
+2. **編輯介面**
+   - 庫內：[`#agEditGuidelineModal`](../cat-tool/index.html) 內「範例」區塊，支援新增、編輯、刪除；權限與條目一致（PM／主管可編，譯者唯讀）。
+   - 專案：[`#pgEditProjectGuidelineModal`](../cat-tool/index.html) 同結構之範例區塊（如「＋ 新增範例」按鈕與內聯卡）。
 
-3. **列表呈現（準則管理清單）**
-   - 條目卡片顯示「範例數」徽章（如 `範例 2`），避免主列表過度膨脹。
-   - 詳細範例內容僅在編輯 modal 展開。
+3. **列表（準則管理）**
+   - 條目卡顯示 **「N 個範例」** 徽章；完整內容於編輯 modal 內維護。
 
 4. **視覺樣式**
-   - 預設採 **薄荷綠**：背景 `#ecfdf5`、邊框 `#6ee7b7`、標題 `#047857`。
-   - 若後續要改為淡紫灰，僅調整樣式 token，不影響資料結構。
+   - 預設採 **薄荷綠**系（`ag-shared-ex-*` 等，與原草案一致）；若僅改 token 不影響資料形狀。
 
-### 11.2 AI 組字策略（預設）
+### 11.2 AI 組字（現行策略）
 
-- **MVP 預設不送入 prompt**：範例卡片先作為人員維護與審稿輔助資料，不立即改動 `buildPrompt`。
-- 下一小步（可選）再評估是否追加「範例」段落，並觀察 token 成本與品質增益。
+- **MVP 預設不將範例送入** `buildPrompt`／掃描 prompt：範例作維運與審稿輔助。產品若要啟用，見 **§12 階段 C**。
 
-### 11.3 驗收清單（下一階段）
+### 11.3 MVP 驗收要點（已對齊實作；產品回歸由維運／QA 執行）
 
-- [ ] PM/主管可在 `#agEditGuidelineModal` 新增、編輯、刪除範例卡片；譯者唯讀。
-- [ ] 空白 `src`/`tgt` 不能儲存，錯誤提示採頁內訊息（不使用瀏覽器原生提示）。
-- [ ] 重新整理後範例仍存在（雲端與離線模式皆可讀取）。
-- [ ] 準則主列表可看到範例數，且不影響既有互斥/預設條目行為。
-- [ ] 不改 prompt 的前提下，現有 AI 翻譯/掃描流程行為不回歸。
+- [x] PM/主管可在 `#agEditGuidelineModal` 與 `#pgEditProjectGuidelineModal` 管理範例；譯者唯讀。
+- [x] 空白 `src`／`tgt` 阻擋儲存，以頁內驗證為主（與全站減少原生 `alert` 之目標一致）。
+- [x] 重新載入後範例持續存在（雲端與離線讀寫路徑已接）。
+- [x] 準則主列表可見範例數徽章，且不影響互斥／預設條目既有行為。
+- [x] 在預設不送範例進 prompt 之前提下，AI 翻譯／掃描不因本功能路徑回歸；若日後啟用送 prompt，另做 **階段 C** 專案驗收。
+
+---
+
+## 12. 本主題之後續分階段執行建議
+
+以下彙整本檔內**分散**之待辦（含 §5 議題群組、§7、§9.3、範例進 prompt 等），**不取代**主計畫，只作**本主題**之執行順序參考。
+
+| 階段 | 內容 | 依賴／說明 |
+|------|------|------------|
+| **A** | 維運：既有 Supabase 專案須已套用至 **`20260429203000`**（與 §1.2 一致）；團隊版手動驗收「範例可存、重載不丟」 | 未套用則雲端無法讀寫 `cat_ai_guidelines.examples` |
+| **B** | **全站「議題群組」**（**§5.2／§5.4** 已承諾）：庫內與專案準則條目皆能選擇／顯示所屬群組；migration／RPC 於該功能定稿時另述 | 宜單一產品設計後再實作，避免兩邊 UI 分岔 |
+| **C** | **可選**：範例段落送入 [`cat-tool/js/ai-translate.js`](../cat-tool/js/ai-translate.js) `buildPrompt` 等（§11.2）— 先小流量實驗 token 與品質，再決定預設是否開啟 | 依賴 **A**；與成本／品質權衡 |
+| **（加值）** | 範例卡 **拖曳排序**（陣列順序、無額外 schema 變更） | 次優；可併在 **C** 之後或與 **B** 錯峰 |
+| **D** | **§7**／**§9.3** 剩餘僅 **`alert`** 之處，改非阻斷 toast 等，與全站一致 | 與 AI 規則邏輯可平行 |
+| **E** | TMS 主站 [`src/components/settings/ToolbarButtonStyleSection.tsx`](../src/components/settings/ToolbarButtonStyleSection.tsx) 之瀏覽器 **`confirm`** 改 React 對話（§7 第 2 點） | 獨立於 CAT iframe，不阻塞 **A～D** |
+
+**與主計畫邊界**：**術語 TBX `matchFlags` IO、編輯器內改 TB 條目**（主計畫 **§9～10**）以 [`docs/mirror/cat_工具綜合改版_42ac9451.plan.md`](./mirror/cat_工具綜合改版_42ac9451.plan.md) 為準，**本檔不重複**展開細部 backlog，避免兩份文件打架。
