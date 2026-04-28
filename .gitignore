@@ -37,3 +37,6 @@ supabase/.temp/
 
 # 遷移用個資 CSV（若不需要版本控制可保留此行）
 scripts/profiles-migrate-users.csv
+
+# 本機預覽／臨時 HTML（勿進 Git）
+downloads/
