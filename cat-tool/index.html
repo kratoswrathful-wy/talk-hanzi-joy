@@ -2059,6 +2059,15 @@
                     </div>
                     <div style="margin-top:0.35rem; font-size:0.78rem; color:#64748b;">參照來源合計：<span id="aiBatchRefTokTotal">0</span></div>
                 </div>
+                <!-- 專案 AI 指示 -->
+                <div>
+                    <label class="form-label">專案 AI 指示</label>
+                    <div id="aiBatchProjectInstructionsList" style="display:flex; flex-direction:column; gap:0.45rem;"></div>
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; margin-top:0.45rem;">
+                        <button type="button" id="btnAiBatchAddProjectInstruction" class="secondary-btn btn-sm">+ 新增指示</button>
+                        <span id="aiBatchProjectInstructionsHint" style="font-size:0.78rem; color:#64748b;">建議每列 20~120 字；輸入即時儲存。</span>
+                    </div>
+                </div>
                 <!-- 單批特殊指示 -->
                 <div>
                     <label class="form-label">本批特殊指示（選填，翻完後自動清除）</label>

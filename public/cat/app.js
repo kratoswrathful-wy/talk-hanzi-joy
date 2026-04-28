@@ -19645,6 +19645,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     let __aiBatchExampleRows = [];
     let __aiBatchSelectedExampleIds = new Set();
     let __aiBatchPendingExampleIds = new Set();
+    let __aiBatchProjectInstructions = [];
+    let __aiBatchProjectSiSaveTimer = null;
+    let __aiBatchProjectSiSaving = false;
 
     function _aiSleep(ms) {
         return new Promise((resolve) => setTimeout(resolve, ms));
@@ -19837,6 +19840,113 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (pickBtn) pickBtn.textContent = `${__aiBatchSelectedExampleIds.size}/15`;
     }
 
+    async function _saveAiBatchProjectInstructions() {
+        if (!currentProjectId) return;
+        if (__aiBatchProjectSiSaving) return;
+        __aiBatchProjectSiSaving = true;
+        try {
+            const psettings = await DBService.getAiProjectSettings(currentProjectId).catch(() => null);
+            await DBService.saveAiProjectSettings(currentProjectId, {
+                selectedGuidelineIds: Array.isArray(psettings?.selectedGuidelineIds) ? psettings.selectedGuidelineIds : [],
+                selectedStyleGuidelineIds: Array.isArray(psettings?.selectedStyleGuidelineIds) ? psettings.selectedStyleGuidelineIds : [],
+                projectGuidelines: Array.isArray(psettings?.projectGuidelines) ? psettings.projectGuidelines : [],
+                specialInstructions: __aiBatchProjectInstructions.map((row) => ({
+                    id: row.id,
+                    content: String(row.content || '').trim(),
+                    enabled: row.enabled !== false
+                }))
+            });
+        } finally {
+            __aiBatchProjectSiSaving = false;
+        }
+    }
+
+    function _queueSaveAiBatchProjectInstructions() {
+        if (__aiBatchProjectSiSaveTimer) clearTimeout(__aiBatchProjectSiSaveTimer);
+        __aiBatchProjectSiSaveTimer = setTimeout(() => {
+            __aiBatchProjectSiSaveTimer = null;
+            void _saveAiBatchProjectInstructions();
+        }, 180);
+    }
+
+    function _renderAiBatchProjectInstructions() {
+        const listEl = document.getElementById('aiBatchProjectInstructionsList');
+        const hintEl = document.getElementById('aiBatchProjectInstructionsHint');
+        if (!listEl) return;
+        if (!currentProjectId) {
+            listEl.innerHTML = '<div style="font-size:0.8rem; color:#94a3b8; border:1px dashed #cbd5e1; border-radius:8px; padding:0.5rem;">未選擇專案，無法設定專案 AI 指示。</div>';
+            if (hintEl) hintEl.textContent = '請先選擇專案後再編輯。';
+            return;
+        }
+        const rows = Array.isArray(__aiBatchProjectInstructions) ? __aiBatchProjectInstructions : [];
+        if (!rows.length) {
+            listEl.innerHTML = '<div style="font-size:0.8rem; color:#94a3b8; border:1px dashed #cbd5e1; border-radius:8px; padding:0.5rem;">尚無專案 AI 指示，可新增後即時套用。</div>';
+        } else {
+            listEl.innerHTML = rows.map((row) => {
+                const chars = _charsOfText(row.content || '');
+                const tok = _estimateTokensByChars(chars);
+                const rid = _esc(String(row.id));
+                return `<div style="border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; padding:0.45rem 0.5rem;">
+                    <div style="display:flex; align-items:center; gap:0.45rem;">
+                        <input type="checkbox" class="ai-batch-si-enabled" data-si-id="${rid}" ${row.enabled !== false ? 'checked' : ''}>
+                        <input type="text" class="form-input ai-batch-si-input" data-si-id="${rid}" value="${_esc(row.content || '')}" placeholder="輸入專案 AI 指示…" style="flex:1; min-width:180px;">
+                        <button type="button" class="danger-btn btn-sm ai-batch-si-del" data-si-id="${rid}">刪除</button>
+                    </div>
+                    <div style="margin-top:0.35rem; font-size:0.76rem; color:#64748b;">${chars} 字元（約 ${tok} tokens）</div>
+                </div>`;
+            }).join('');
+        }
+        const sumChars = rows.reduce((sum, r) => sum + _charsOfText(r.content || ''), 0);
+        const sumTok = _estimateTokensByChars(sumChars);
+        if (hintEl) hintEl.textContent = `建議每列 20~120 字；目前共 ${rows.length} 列，${sumChars} 字元（約 ${sumTok} tokens）；輸入即時儲存。`;
+        listEl.querySelectorAll('.ai-batch-si-enabled').forEach((el) => {
+            el.onchange = () => {
+                const sid = String(el.getAttribute('data-si-id') || '');
+                const idx = __aiBatchProjectInstructions.findIndex((r) => String(r.id) === sid);
+                if (idx < 0) return;
+                __aiBatchProjectInstructions[idx].enabled = !!el.checked;
+                _renderAiBatchProjectInstructions();
+                _queueSaveAiBatchProjectInstructions();
+            };
+        });
+        listEl.querySelectorAll('.ai-batch-si-input').forEach((el) => {
+            el.oninput = () => {
+                const sid = String(el.getAttribute('data-si-id') || '');
+                const idx = __aiBatchProjectInstructions.findIndex((r) => String(r.id) === sid);
+                if (idx < 0) return;
+                __aiBatchProjectInstructions[idx].content = String(el.value || '');
+                _renderAiBatchProjectInstructions();
+                _queueSaveAiBatchProjectInstructions();
+            };
+        });
+        listEl.querySelectorAll('.ai-batch-si-del').forEach((btn) => {
+            btn.onclick = () => {
+                const sid = String(btn.getAttribute('data-si-id') || '');
+                const idx = __aiBatchProjectInstructions.findIndex((r) => String(r.id) === sid);
+                if (idx < 0) return;
+                __aiBatchProjectInstructions.splice(idx, 1);
+                _renderAiBatchProjectInstructions();
+                _queueSaveAiBatchProjectInstructions();
+            };
+        });
+    }
+
+    async function _loadAiBatchProjectInstructions() {
+        if (!currentProjectId) {
+            __aiBatchProjectInstructions = [];
+            _renderAiBatchProjectInstructions();
+            return;
+        }
+        const psettings = await DBService.getAiProjectSettings(currentProjectId).catch(() => null);
+        const srcRows = Array.isArray(psettings?.specialInstructions) ? psettings.specialInstructions : [];
+        __aiBatchProjectInstructions = srcRows.map((row, i) => ({
+            id: row?.id != null ? row.id : (`tmp_${Date.now()}_${i}`),
+            content: String(row?.content || ''),
+            enabled: row?.enabled !== false
+        }));
+        _renderAiBatchProjectInstructions();
+    }
+
     function _renderAiBatchExamplePickerList() {
         const listEl = document.getElementById('aiBatchExampleList');
         if (!listEl) return;
@@ -19949,6 +20059,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const startEl = document.getElementById('aiBatchRangeStart');
         const endEl = document.getElementById('aiBatchRangeEnd');
         const pickExBtn = document.getElementById('btnAiBatchPickExamples');
+        const addProjectSiBtn = document.getElementById('btnAiBatchAddProjectInstruction');
 
         function close() { modal.classList.add('hidden'); }
         if (cancelBtn) cancelBtn.onclick = close;
@@ -19974,10 +20085,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (pickExBtn) pickExBtn.onclick = async () => {
             await _openAiBatchExamplePicker();
         };
+        if (addProjectSiBtn) addProjectSiBtn.onclick = () => {
+            const item = {
+                id: Date.now(),
+                content: '',
+                enabled: true
+            };
+            __aiBatchProjectInstructions.push(item);
+            _renderAiBatchProjectInstructions();
+            _queueSaveAiBatchProjectInstructions();
+        };
         ['aiBatchRefTm','aiBatchRefTb','aiBatchRefTbNote','aiBatchRefKey','aiBatchRefExtra','aiBatchRefExamples','aiBatchRefConfirmed'].forEach((id) => {
             const el = document.getElementById(id);
             if (el) el.onchange = () => _updateBatchStats();
         });
+        void _loadAiBatchProjectInstructions();
         if (runBtn) runBtn.onclick = async () => {
             const range = _validateAiBatchRange();
             if (!range.ok) {
@@ -20274,13 +20396,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const allGuidelines = await DBService.getAiGuidelines().catch(() => []);
         const guidelines = allGuidelines.filter(g => (g.scope || 'translation') === 'translation' && selectedGuidelineIds.has(g.id));
         const styleGuidelines = allGuidelines.filter(g => (g.scope || '') === 'style' && selectedStyleIds.has(g.id));
-        const specialInstructions = psettings?.specialInstructions || [];
-        const siById = new Map(specialInstructions.map((s) => [Number(s.id), s]));
-        const fileApplicable = _normalizeApplicableSiIds(fileRec);
-        const applicableContents = fileApplicable
-            .map((id) => siById.get(id))
+        const specialInstructions = Array.isArray(psettings?.specialInstructions) ? psettings.specialInstructions : [];
+        const applicableContents = specialInstructions
             .filter((s) => s && s.enabled !== false)
-            .map((s) => s.content);
+            .map((s) => String(s.content || '').trim())
+            .filter(Boolean);
         const projectGuidelinesList = Array.isArray(psettings?.projectGuidelines) ? psettings.projectGuidelines : [];
         const pgBodies = projectGuidelinesList
             .filter((g) => g && String(g.content || '').trim())
