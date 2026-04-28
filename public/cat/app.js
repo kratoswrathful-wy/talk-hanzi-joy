@@ -16447,13 +16447,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             const options = [...merged.values()].sort((a, b) =>
                 String(a.name).localeCompare(String(b.name), 'zh-Hant-TW', { sensitivity: 'base' })
             );
+            const addNewValue = typeof window.CAT_SELECT_ADD_NEW_VALUE === 'string' ? window.CAT_SELECT_ADD_NEW_VALUE : '__cat_add_new__';
             const current = issueSel.value || '';
             issueSel.innerHTML = '<option value="">無議題群組</option>' +
-                options.map((r) => `<option value="${_esc(String(r.id))}">${_esc(r.name)}</option>`).join('');
+                options.map((r) => `<option value="${_esc(String(r.id))}">${_esc(r.name)}</option>`).join('') +
+                `<option value="${_esc(addNewValue)}">+ 新增群組</option>`;
             if (current && !options.some((r) => String(r.id) === current)) {
                 issueSel.insertAdjacentHTML('beforeend', `<option value="${_esc(current)}">${_esc(current)}</option>`);
             }
             issueSel.value = current && Array.from(issueSel.options).some((o) => o.value === current) ? current : '';
+        }
+        function notifyIssueGroupsChanged(scope) {
+            try {
+                window.dispatchEvent(new CustomEvent('cat:issue-groups-changed', { detail: { scope: scope || null } }));
+            } catch (_) { /* ignore */ }
+        }
+        if (window.__catIssueGroupRefreshBound !== true) {
+            window.__catIssueGroupRefreshBound = true;
+            window.addEventListener('cat:issue-groups-changed', () => {
+                void updateIssueSelectOptions();
+            });
         }
 
         /** 頁內 modal：單選既有互斥群組或建立新群組（取代 window.prompt）。 */
@@ -17157,8 +17170,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const newScopeEl = document.getElementById('aiGuidelineNewScope');
+        const newIssueSelEl = document.getElementById('aiGuidelineNewIssueGroupSelect');
         if (newScopeEl) {
             newScopeEl.onchange = () => { void updateIssueSelectOptions(); };
+        }
+        if (newIssueSelEl) {
+            newIssueSelEl.onchange = async () => {
+                const addv = typeof window.CAT_SELECT_ADD_NEW_VALUE === 'string' ? window.CAT_SELECT_ADD_NEW_VALUE : '__cat_add_new__';
+                if (newIssueSelEl.value !== addv) return;
+                if (!_isCatPmOrExecutive()) {
+                    newIssueSelEl.value = '';
+                    return;
+                }
+                const scope = (newScopeEl && newScopeEl.value === 'style') ? 'style' : 'translation';
+                const raw = await openCatPromptModal({ title: '新增議題群組', label: '新群組名稱', defaultValue: '' });
+                const name = raw != null ? String(raw).trim() : '';
+                if (!name || name === addv) {
+                    newIssueSelEl.value = '';
+                    return;
+                }
+                try {
+                    const id = await DBService.addAiIssueGroup({ scope, name });
+                    void updateIssueSelectOptions();
+                    newIssueSelEl.value = String(id);
+                } catch (e) {
+                    console.error(e);
+                    alert('新增議題群組失敗：' + (e && e.message ? e.message : String(e)));
+                    void updateIssueSelectOptions();
+                    newIssueSelEl.value = '';
+                }
+            };
         }
         void updateIssueSelectOptions();
 
@@ -18248,7 +18289,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 setSharedListEmptyState(selectedList, '尚未選擇任何翻譯準則。', { key: 'translation-guidelines' });
                 return;
             }
-            selectedList.innerHTML = selected.map(g => `
+            const groupedMap = new Map();
+            const singles = [];
+            selected.forEach((g) => {
+                const gid = g && g.issueGroupId != null ? String(g.issueGroupId).trim() : '';
+                const gname = g && g.issueGroupName != null ? String(g.issueGroupName).trim() : '';
+                if (!gid && !gname) {
+                    singles.push(g);
+                    return;
+                }
+                const key = gid || `name:${gname}`;
+                if (!groupedMap.has(key)) groupedMap.set(key, { name: gname || '（議題群組）', items: [] });
+                groupedMap.get(key).items.push(g);
+            });
+            const renderRow = (g) => `
                 <div class="ai-selected-guideline-item ai-pg-shared-card">
                     <div style="flex:1; min-width:0;">
                         <span class="ai-selected-guideline-item-content">${_esc(g.content)}</span>
@@ -18263,7 +18317,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <button type="button" class="ai-note-item-del" data-unselect="${g.id}" title="取消選擇">✕</button>
                     </div>` : ''}
                 </div>
-            `).join('');
+            `;
+            const groupedHtml = [...groupedMap.entries()]
+                .sort((a, b) => String(a[1].name).localeCompare(String(b[1].name), 'zh-Hant-TW'))
+                .map(([gid, box]) => `<div class="ag-guideline-issue-groupbox" data-selected-issue-box="${_esc(gid)}" style="border:1px solid #7dd3fc; border-radius:8px; background:#f0f9ff; padding:0.6rem 0.75rem;">
+                    <div style="font-size:0.8rem; font-weight:700; color:#0369a1; margin-bottom:0.45rem;">${_esc(box.name)}</div>
+                    <div style="display:flex; flex-direction:column; gap:0.35rem;">${box.items.map((g) => renderRow(g)).join('')}</div>
+                </div>`).join('');
+            selectedList.innerHTML = groupedHtml + singles.map((g) => renderRow(g)).join('');
             selectedList.querySelectorAll('.ag-sel-gl-edit').forEach((btn) => {
                 btn.onclick = async () => {
                     const id = parseInt(btn.getAttribute('data-edit-gid'), 10);
@@ -18306,7 +18367,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 setSharedListEmptyState(selectedStyleList, '尚未選擇文風條目。', { key: 'style-guidelines' });
                 return;
             }
-            selectedStyleList.innerHTML = selected.map(g => `
+            const groupedMap = new Map();
+            const singles = [];
+            selected.forEach((g) => {
+                const gid = g && g.issueGroupId != null ? String(g.issueGroupId).trim() : '';
+                const gname = g && g.issueGroupName != null ? String(g.issueGroupName).trim() : '';
+                if (!gid && !gname) {
+                    singles.push(g);
+                    return;
+                }
+                const key = gid || `name:${gname}`;
+                if (!groupedMap.has(key)) groupedMap.set(key, { name: gname || '（議題群組）', items: [] });
+                groupedMap.get(key).items.push(g);
+            });
+            const renderRow = (g) => `
                 <div class="ai-selected-guideline-item ai-pg-shared-card">
                     <div style="flex:1; min-width:0;">
                         <span class="ai-selected-guideline-item-content">${_esc(g.content)}</span>
@@ -18321,7 +18395,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <button type="button" class="ai-note-item-del" data-unselect-style="${g.id}" title="取消選擇">✕</button>
                     </div>` : ''}
                 </div>
-            `).join('');
+            `;
+            const groupedHtml = [...groupedMap.entries()]
+                .sort((a, b) => String(a[1].name).localeCompare(String(b[1].name), 'zh-Hant-TW'))
+                .map(([gid, box]) => `<div class="ag-guideline-issue-groupbox" data-selected-style-issue-box="${_esc(gid)}" style="border:1px solid #7dd3fc; border-radius:8px; background:#f0f9ff; padding:0.6rem 0.75rem;">
+                    <div style="font-size:0.8rem; font-weight:700; color:#0369a1; margin-bottom:0.45rem;">${_esc(box.name)}</div>
+                    <div style="display:flex; flex-direction:column; gap:0.35rem;">${box.items.map((g) => renderRow(g)).join('')}</div>
+                </div>`).join('');
+            selectedStyleList.innerHTML = groupedHtml + singles.map((g) => renderRow(g)).join('');
             selectedStyleList.querySelectorAll('.ag-sel-gl-edit-style').forEach((btn) => {
                 btn.onclick = async () => {
                     const id = parseInt(btn.getAttribute('data-edit-gid-style'), 10);
@@ -18905,6 +18986,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             function wirePickerGuidelines() {
                 if (!pickerList) return;
+                // 專案頁/編輯器管理介面：不顯示「預設條目」勾選，勾選僅代表是否套用到本專案
+                pickerList.querySelectorAll('.ag-only-on-ai-guidelines-page').forEach((el) => el.remove());
                 pickerList.querySelectorAll('.ai-picker-proj-cb').forEach((cb) => {
                     cb.addEventListener('change', () => {
                         const id = parseInt(cb.getAttribute('data-id'), 10);
