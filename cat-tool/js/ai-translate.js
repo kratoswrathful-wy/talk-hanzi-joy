@@ -222,6 +222,41 @@
         return { resp, fromProxy: false, noKey: false };
     }
 
+    const RETRYABLE_MAX_ATTEMPTS = 4;
+    const RETRYABLE_BASE_DELAY_MS = 700;
+
+    function _sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    function _isRetryableError(status, body) {
+        if (!status) return true;
+        if (status === 429) {
+            const code = body?.error?.code || '';
+            return code !== 'insufficient_quota';
+        }
+        return status >= 500;
+    }
+
+    async function postChatCompletionsWithRetry(settings, openaiBody) {
+        let last = null;
+        for (let attempt = 1; attempt <= RETRYABLE_MAX_ATTEMPTS; attempt++) {
+            const call = await postChatCompletions(settings, openaiBody);
+            let body = null;
+            try { body = await call.resp.json(); } catch (_) { body = null; }
+            last = { ...call, body };
+            if (call.resp && call.resp.ok) return last;
+            if (call.noKey) return last;
+            if (!_isRetryableError(call.resp && call.resp.status, body) || attempt >= RETRYABLE_MAX_ATTEMPTS) {
+                return last;
+            }
+            const jitter = Math.floor(Math.random() * 240);
+            const waitMs = Math.min(5000, RETRYABLE_BASE_DELAY_MS * (2 ** (attempt - 1)) + jitter);
+            await _sleep(waitMs);
+        }
+        return last || { resp: { ok: false, status: 0 }, body: null, noKey: false };
+    }
+
     /**
      * 送出翻譯請求。
      * @param {boolean} jsonMode - true（預設）時要求 JSON 回傳格式；false 時回傳純文字（用於掃描）
@@ -232,9 +267,7 @@
             ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
             temperature: 0.3
         });
-        const { resp, fromProxy, noKey } = await postChatCompletions(settings, openaiBody);
-        let body;
-        try { body = await resp.json(); } catch (_) { body = null; }
+        const { resp, noKey, body } = await postChatCompletionsWithRetry(settings, openaiBody);
 
         if (!resp || !resp.ok) {
             if (noKey) {
@@ -269,9 +302,7 @@
             response_format: { type: 'json_object' },
             temperature: 0.2
         });
-        const { resp, noKey } = await postChatCompletions(settings, openaiBody);
-        let body;
-        try { body = await resp.json(); } catch (_) { body = null; }
+        const { resp, noKey, body } = await postChatCompletionsWithRetry(settings, openaiBody);
 
         if (!resp || !resp.ok) {
             if (noKey) {

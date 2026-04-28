@@ -1074,13 +1074,13 @@
                         <option value="cat">依類別</option>
                         <option value="content">依內容（A–Z）</option>
                     </select>
-                    <label style="font-size:0.82rem; color:#334155; display:flex; align-items:center; gap:0.35rem;">
-                        列表依
-                        <select id="aiGuidelinesViewMode" class="form-input" style="width:auto; min-width:120px; padding:0.3rem 0.5rem; font-size:0.82rem;" title="僅本次瀏覽器工作階段有效">
-                            <option value="mutex">互斥群組</option>
-                            <option value="issue">議題群組</option>
-                        </select>
-                    </label>
+                    <div style="font-size:0.82rem; color:#334155; display:flex; align-items:center; gap:0.35rem;">
+                        <span>列表依</span>
+                        <div id="aiGuidelinesViewModeSwitch" role="group" aria-label="列表依切換" style="display:inline-flex; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden;">
+                            <button type="button" id="aiGuidelinesViewModeMutex" class="secondary-btn btn-sm" style="border:0; border-radius:0; min-width:88px; padding:0.3rem 0.55rem;">互斥群組</button>
+                            <button type="button" id="aiGuidelinesViewModeIssue" class="secondary-btn btn-sm" style="border:0; border-left:1px solid #cbd5e1; border-radius:0; min-width:88px; padding:0.3rem 0.55rem;">議題群組</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="ai-guidelines-two-cols" style="display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; max-width:1000px; margin-bottom:1.5rem; align-items:start;">
                     <div>
@@ -2181,7 +2181,7 @@
             <div id="agMutexJoinRadioList" style="max-height:42vh; overflow-y:auto; display:flex; flex-direction:column; gap:0.15rem;"></div>
             <div id="agMutexJoinNewRow" style="display:none; margin-top:0.65rem;">
                 <label for="agMutexJoinNewName" style="font-size:0.82rem; font-weight:600;">新群組名稱</label>
-                <input type="text" id="agMutexJoinNewName" class="form-input" placeholder="輸入群組名稱…" style="width:100%; margin-top:0.25rem;" autocomplete="off">
+                <input type="text" id="agMutexJoinNewName" class="form-input" placeholder="輸入群組名稱…" style="width:70%; min-width:260px; margin-top:0.25rem;" autocomplete="off">
             </div>
             <p id="agMutexJoinErr" class="hidden" style="color:#dc2626; font-size:0.8rem; margin:0.5rem 0 0 0;"></p>
             <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
@@ -2199,7 +2199,7 @@
             <div id="agIssueJoinRadioList" style="max-height:42vh; overflow-y:auto; display:flex; flex-direction:column; gap:0.15rem;"></div>
             <div id="agIssueJoinNewRow" style="display:none; margin-top:0.65rem;">
                 <label for="agIssueJoinNewName" style="font-size:0.82rem; font-weight:600;">新群組名稱</label>
-                <input type="text" id="agIssueJoinNewName" class="form-input" placeholder="輸入群組名稱…" style="width:100%; margin-top:0.25rem;" autocomplete="off">
+                <input type="text" id="agIssueJoinNewName" class="form-input" placeholder="輸入群組名稱…" style="width:70%; min-width:260px; margin-top:0.25rem;" autocomplete="off">
             </div>
             <p id="agIssueJoinErr" class="hidden" style="color:#dc2626; font-size:0.8rem; margin:0.5rem 0 0 0;"></p>
             <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">

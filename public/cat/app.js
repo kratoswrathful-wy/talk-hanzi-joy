@@ -15789,17 +15789,30 @@ document.addEventListener('DOMContentLoaded', async () => {
             agListViewMode = sessionStorage.getItem('catAgListViewMode') === 'issue' ? 'issue' : 'mutex';
         } catch (_) { agListViewMode = 'mutex'; }
 
-        const viewModeSel = document.getElementById('aiGuidelinesViewMode');
-        if (viewModeSel) {
-            viewModeSel.value = agListViewMode;
-            viewModeSel.onchange = () => {
-                agListViewMode = viewModeSel.value === 'issue' ? 'issue' : 'mutex';
-                try {
-                    sessionStorage.setItem('catAgListViewMode', agListViewMode);
-                } catch (_) { /* ignore */ }
-                renderList();
-            };
+        const viewModeBtnMutex = document.getElementById('aiGuidelinesViewModeMutex');
+        const viewModeBtnIssue = document.getElementById('aiGuidelinesViewModeIssue');
+        function refreshViewModeSwitchUi() {
+            const isIssue = agListViewMode === 'issue';
+            if (viewModeBtnMutex) {
+                viewModeBtnMutex.classList.toggle('primary-btn', !isIssue);
+                viewModeBtnMutex.classList.toggle('secondary-btn', isIssue);
+            }
+            if (viewModeBtnIssue) {
+                viewModeBtnIssue.classList.toggle('primary-btn', isIssue);
+                viewModeBtnIssue.classList.toggle('secondary-btn', !isIssue);
+            }
         }
+        function setAgListViewMode(nextMode) {
+            agListViewMode = nextMode === 'issue' ? 'issue' : 'mutex';
+            try {
+                sessionStorage.setItem('catAgListViewMode', agListViewMode);
+            } catch (_) { /* ignore */ }
+            refreshViewModeSwitchUi();
+            renderList();
+        }
+        if (viewModeBtnMutex) viewModeBtnMutex.onclick = () => setAgListViewMode('mutex');
+        if (viewModeBtnIssue) viewModeBtnIssue.onclick = () => setAgListViewMode('issue');
+        refreshViewModeSwitchUi();
 
         // ---- 多選類別下拉 ----
         let selectedNewCategories = ['通用'];
@@ -16235,6 +16248,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     try {
                         await applyMutexGroupDefault(name, cb.checked);
                     } catch (e) { console.error(e); }
+                    void updateIssueSelectOptions();
                     renderList();
                 };
             });
@@ -16257,6 +16271,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const gcb = box && box.querySelector('.ag-mutex-group-default');
                         if (gcb && !gcb.checked) gcb.checked = true;
                     } catch (e) { console.error(e); }
+                    void updateIssueSelectOptions();
                     renderList();
                 };
             });
@@ -16317,6 +16332,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         row.issueGroupId = issueGroupId || null;
                         row.issueGroupName = issueGroupName || null;
                     } catch (e) { console.error(e); }
+                    void updateIssueSelectOptions();
                     renderList();
                 };
             });
@@ -16333,6 +16349,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             row.issueGroupName = null;
                         }
                     } catch (e) { console.error(e); }
+                    void updateIssueSelectOptions();
                     renderList();
                 };
             });
@@ -17041,6 +17058,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     } else {
                         updateFilterBarOptions();
                         updateMutexSelectOptions();
+                        void updateIssueSelectOptions();
                         renderList();
                     }
                     closeModal();
@@ -17172,6 +17190,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     updateMultiselectDisplay();
                     updateFilterBarOptions();
                     updateMutexSelectOptions();
+                    void updateIssueSelectOptions();
                     renderList();
                 } catch (err) {
                     alert('新增準則失敗：' + err.message);
@@ -17492,7 +17511,41 @@ document.addEventListener('DOMContentLoaded', async () => {
                 listEl.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; padding:0.25rem 0;">尚無專案準則。請使用下方表單新增。</p>';
                 return;
             }
-            listEl.innerHTML = projectGuidelines.map((s) => {
+            const withGroup = projectGuidelines.filter((g) => g && g.issueGroupId);
+            const withoutGroup = projectGuidelines.filter((g) => g && !g.issueGroupId);
+            const byGroup = new Map();
+            withGroup.forEach((row) => {
+                const key = String(row.issueGroupId);
+                if (!byGroup.has(key)) {
+                    byGroup.set(key, { name: row.issueGroupName || '（議題群組）', items: [] });
+                }
+                byGroup.get(key).items.push(row);
+            });
+            const groupedBoxes = [...byGroup.entries()]
+                .sort((a, b) => String(a[1].name).localeCompare(String(b[1].name), 'zh-Hant-TW'))
+                .map(([gid, box]) => {
+                    const rows = [...box.items].map((s) => {
+                        const idAttr = String(s.id);
+                        const ex = _siNormalizeGuidelineExamples(s.examples);
+                        const sec = _siGuidelineExampleSection(ex, `pg-manage:${idAttr}`);
+                        return `<div class="ai-guideline-item" data-pg-manage-id="${_esc(idAttr)}">
+                            <div style="flex:1; min-width:0;">
+                                <div class="ai-guideline-item-content">${s.content ? _esc(s.content) : '（無內容）'}</div>
+                                ${sec.badgeHtml}
+                                ${sec.listHtml}
+                            </div>
+                            <div class="ai-guideline-item-actions" style="display:flex; flex-direction:column; gap:0.25rem; align-items:flex-end;">
+                                <button type="button" class="secondary-btn btn-sm pg-manage-edit" data-pg-id="${_esc(idAttr)}" style="font-size:0.72rem;">編輯</button>
+                                <button type="button" class="notes-add-btn pg-manage-del" data-pg-id="${_esc(idAttr)}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
+                            </div>
+                        </div>`;
+                    }).join('');
+                    return `<div class="ag-guideline-issue-groupbox" data-pg-issue-box="${_esc(gid)}" style="border:1px solid #7dd3fc; border-radius:8px; background:#f0f9ff; padding:0.6rem 0.75rem;">
+                        <div style="font-size:0.8rem; font-weight:700; color:#0369a1; margin-bottom:0.45rem;">${_esc(box.name)}</div>
+                        <div style="display:flex; flex-direction:column; gap:0.35rem;">${rows}</div>
+                    </div>`;
+                });
+            const singles = withoutGroup.map((s) => {
                 const idAttr = String(s.id);
                 const ex = _siNormalizeGuidelineExamples(s.examples);
                 const sec = _siGuidelineExampleSection(ex, `pg-manage:${idAttr}`);
@@ -17507,7 +17560,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <button type="button" class="notes-add-btn pg-manage-del" data-pg-id="${_esc(idAttr)}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
                     </div>
                 </div>`;
-            }).join('');
+            });
+            listEl.innerHTML = [...groupedBoxes, ...singles].join('');
             listEl.querySelectorAll('[data-ex-toggle]').forEach((btn) => {
                 btn.onclick = () => {
                     const key = btn.getAttribute('data-ex-toggle') || '';
@@ -18477,27 +18531,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         async function renderProjectGuidelines() {
             if (!pgList) return;
             const isPm = isCatSharedMutator();
-            let toShow = projectGuidelines.filter((g) => g);
+            const toShow = projectGuidelines.filter((g) => g);
             if (toShow.length === 0) {
                 setSharedListEmptyState(pgList, '目前沒有專案準則。', { key: 'project-guidelines' });
                 return;
             }
-            toShow = [...toShow].sort((a, b) => {
-                const ai = a.issueGroupId ? 0 : 1;
-                const bi = b.issueGroupId ? 0 : 1;
-                if (ai !== bi) return ai - bi;
-                const an = a.issueGroupName ? String(a.issueGroupName) : '';
-                const bn = b.issueGroupName ? String(b.issueGroupName) : '';
-                if (an && bn && an !== bn) return an.localeCompare(bn, 'zh-Hant-TW');
-                return 0;
+            const withGroup = toShow.filter((g) => g.issueGroupId);
+            const withoutGroup = toShow.filter((g) => !g.issueGroupId);
+            const byGroup = new Map();
+            withGroup.forEach((row) => {
+                const key = String(row.issueGroupId);
+                if (!byGroup.has(key)) byGroup.set(key, { name: row.issueGroupName || '（議題群組）', items: [] });
+                byGroup.get(key).items.push(row);
             });
-            pgList.innerHTML = toShow.map((s) => {
+
+            const renderGuidelineCard = (s) => {
                 const idAttr = String(s.id);
                 const ex = _siNormalizeGuidelineExamples(s.examples);
                 const sec = _siGuidelineExampleSection(ex, `project:${idAttr}`);
-                const igBadge = s.issueGroupName
-                    ? `<span class="ai-badge" style="background:#e0f2fe;color:#0c4a6e;font-size:0.72rem;margin-right:0.35rem;">${_esc(String(s.issueGroupName))}</span>`
-                    : '';
                 const actionsHtml = isPm
                     ? `<div class="ai-pg-shared-actions">
                         <button type="button" class="secondary-btn btn-sm pg-edit-btn ai-guideline-inline-edit" data-pg-id="${_esc(idAttr)}">編輯</button>
@@ -18506,13 +18557,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                     : '';
                 return `<div class="ai-selected-guideline-item ai-pg-shared-card" data-pg-id="${_esc(idAttr)}">
                     <div style="flex:1; min-width:0;">
-                        <div class="ai-selected-guideline-item-content">${igBadge}${s.content ? _esc(s.content) : '（無內容）'}</div>
+                        <div class="ai-selected-guideline-item-content">${s.content ? _esc(s.content) : '（無內容）'}</div>
                         ${sec.badgeHtml}
                         ${sec.listHtml}
                     </div>
                     ${actionsHtml}
                 </div>`;
-            }).join('');
+            };
+
+            const groupedBoxes = [...byGroup.entries()]
+                .sort((a, b) => String(a[1].name).localeCompare(String(b[1].name), 'zh-Hant-TW'))
+                .map(([gid, box]) => {
+                    const rows = [...box.items].map((row) => renderGuidelineCard(row)).join('');
+                    return `<div class="ag-guideline-issue-groupbox" data-project-issue-box="${_esc(gid)}" style="border:1px solid #7dd3fc; border-radius:8px; background:#f0f9ff; padding:0.6rem 0.75rem;">
+                        <div style="font-size:0.8rem; font-weight:700; color:#0369a1; margin-bottom:0.45rem;">${_esc(box.name)}</div>
+                        <div style="display:flex; flex-direction:column; gap:0.35rem;">${rows}</div>
+                    </div>`;
+                });
+            const singles = withoutGroup.map((row) => renderGuidelineCard(row));
+            pgList.innerHTML = [...groupedBoxes, ...singles].join('');
             pgList.querySelectorAll('.pg-edit-btn').forEach((btn) => {
                 btn.onclick = () => {
                     const sid = btn.getAttribute('data-pg-id');
@@ -18555,7 +18618,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (btnDefG) {
             btnDefG.onclick = async () => {
                 if (!isCatSharedMutator()) return;
-                const defIds = allTranslation.filter(g => g.isDefault).map(g => g.id);
+                const latest = await DBService.getAiGuidelines().catch(() => []);
+                const defIds = latest.filter(g => (g.scope || 'translation') !== 'style' && g.isDefault).map(g => g.id);
                 selectedGuidelineIds = new Set(defIds);
                 renderSelectedGuidelines();
                 void savePSettings().catch((e) => console.error(e));
@@ -18564,7 +18628,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (btnDefS) {
             btnDefS.onclick = async () => {
                 if (!isCatSharedMutator()) return;
-                const defIds = allStyle.filter(g => g.isDefault).map(g => g.id);
+                const latest = await DBService.getAiGuidelines().catch(() => []);
+                const defIds = latest.filter(g => (g.scope || 'translation') === 'style' && g.isDefault).map(g => g.id);
                 selectedStyleIds = new Set(defIds);
                 renderSelectedStyleGuidelines();
                 void savePSettings().catch((e) => console.error(e));
@@ -19074,11 +19139,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 const applyDefBtn = document.getElementById('btnAiPickerApplyDefaults');
                 if (applyDefBtn) {
-                    applyDefBtn.onclick = () => {
+                    applyDefBtn.onclick = async () => {
+                        const latest = await DBService.getAiGuidelines().catch(() => []);
+                        const defaults = latest
+                            .filter((g) => ((g.scope || 'translation') === scopeFixed) && g.isDefault)
+                            .map((g) => g.id);
                         checked.clear();
-                        allGuidelines.forEach((g) => {
-                            if (g.isDefault) checked.add(g.id);
-                        });
+                        defaults.forEach((id) => checked.add(id));
                         renderMgmt();
                     };
                 }
