@@ -16054,9 +16054,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const contentBlock = isStyleColumn
                             ? `<div class="ai-guideline-item-content">${_esc(g.content)}</div>`
                             : `<div class="ai-guideline-item-content">${defLabel}<br>${_esc(g.content)}</div>`;
-                        const pickCell = pickerCtx
-                            ? `<div class="ai-guideline-item-sel ai-guideline-item-sel--picker" title="納入本專案"><input type="checkbox" class="ai-picker-proj-cb" data-id="${g.id}" ${pickerCtx.checked.has(g.id) ? 'checked' : ''}></div>`
-                            : '';
+                        const pickCell = '';
                         const inner = `
                         <div class="ai-guideline-item" data-id="${g.id}">
                             <div class="ai-guideline-item-body">
@@ -16076,9 +16074,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </div>`;
                         return pickerCtx ? `<div class="ai-picker-mgmt-row">${pickCell}${inner}</div>` : inner;
                     }).join('');
+                    const allPicked = pickerCtx ? gMembers.every((g) => pickerCtx.checked.has(g.id)) : false;
+                    const anyPicked = pickerCtx ? gMembers.some((g) => pickerCtx.checked.has(g.id)) : false;
+                    const groupPickCell = pickerCtx
+                        ? `<div class="ai-guideline-item-sel ai-guideline-item-sel--picker" title="整組納入本專案"><input type="checkbox" class="ai-picker-issue-group-cb" data-issue-group="${_esc(item.groupKey)}" ${allPicked ? 'checked' : ''} ${!allPicked && anyPicked ? 'data-indeterminate=\"1\"' : ''}></div>`
+                        : '';
                     return `
                     <div class="ag-guideline-issue-groupbox" style="border:1px solid #7dd3fc; border-radius:8px; background:#f0f9ff; padding:0.6rem 0.75rem;" data-issue-box="${_esc(item.groupKey)}">
-                        <div style="font-size:0.8rem; font-weight:700; color:#0369a1; margin-bottom:0.45rem;">${_esc(item.name)}</div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.4rem; margin-bottom:0.45rem;">
+                            <div style="font-size:0.8rem; font-weight:700; color:#0369a1;">${_esc(item.name)}</div>
+                            ${groupPickCell}
+                        </div>
                         <div style="display:flex; flex-direction:column; gap:0.35rem;">
                             ${rows}
                         </div>
@@ -16418,6 +16424,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!issueSel) return;
             const scope = (scopeEl && scopeEl.value === 'style') ? 'style' : 'translation';
             const rows = await DBService.getAiIssueGroups({ scope }).catch(() => []);
+            const latestGuidelines = await DBService.getAiGuidelines().catch(() => []);
             // 與互斥群組一致：同時納入目前記憶體中的條目群組，避免雲端延遲造成下拉未即時更新
             const merged = new Map();
             rows.forEach((r) => {
@@ -16426,7 +16433,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!id) return;
                 merged.set(id, { id, name: String(r.name || '').trim() || id });
             });
-            allGuidelines.forEach((g) => {
+            [...allGuidelines, ...latestGuidelines].forEach((g) => {
                 if (!g) return;
                 const gScope = (g.scope || 'translation') === 'style' ? 'style' : 'translation';
                 if (gScope !== scope) return;
@@ -17111,6 +17118,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         window.CatToolOpenAgEditGuideline = openAgEditGuidelineModal;
         window.CatToolOpenAgMutexJoinChoiceModal = openAgMutexJoinChoiceModal;
+        window.CatToolOpenAgIssueJoinChoiceModal = openAgIssueJoinChoiceModal;
         window.CatToolOpenAgLeaveMutexConfirmModal = openAgLeaveMutexConfirmModal;
         window.__catColumnHtmlFromItems = columnHtmlFromItems;
 
@@ -18789,7 +18797,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const checked = new Set(currentCheckedIds);
             let filterCat = '';
-            let filterMutex = '';
+            let filterIssue = '';
             let sortKey = 'order';
             let pickerCategoryTags = [];
             let pickerSelectedCats = ['通用'];
@@ -18804,33 +18812,42 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return [...names].sort((a, b) => a.localeCompare(b, 'zh-Hant-TW', { sensitivity: 'base' }));
             }
 
-            function _pickerMutexMapFrom(list) {
-                const mutexGroupsMap = {};
+            function _pickerIssueMapFrom(list) {
+                const issueGroupsMap = {};
                 list.forEach((g) => {
-                    if (g && g.mutexGroup) {
-                        if (!mutexGroupsMap[g.mutexGroup]) mutexGroupsMap[g.mutexGroup] = [];
-                        mutexGroupsMap[g.mutexGroup].push(g);
-                    }
+                    if (!g) return;
+                    const gid = g.issueGroupId != null ? String(g.issueGroupId).trim() : '';
+                    const gname = g.issueGroupName != null ? String(g.issueGroupName).trim() : '';
+                    if (!gid && !gname) return;
+                    const key = gid || `name:${gname}`;
+                    if (!issueGroupsMap[key]) issueGroupsMap[key] = [];
+                    issueGroupsMap[key].push(g);
                 });
-                return mutexGroupsMap;
+                return issueGroupsMap;
             }
 
             function _pickerBuildItems(filtered) {
-                const mutexGroupsMap = _pickerMutexMapFrom(filtered);
-                const renderedGroups = new Set();
-                const items = [];
-                filtered.forEach((g) => {
-                    if (g.mutexGroup) {
-                        if (!renderedGroups.has(g.mutexGroup)) {
-                            renderedGroups.add(g.mutexGroup);
-                            const groupMembers = filtered.filter((x) => x.mutexGroup === g.mutexGroup);
-                            items.push({ type: 'mutex', name: g.mutexGroup, guidelines: groupMembers });
-                        }
-                    } else {
-                        items.push({ type: 'single', g });
-                    }
+                const withIg = filtered.filter((g) => {
+                    const gid = g.issueGroupId != null ? String(g.issueGroupId).trim() : '';
+                    const gname = g.issueGroupName != null ? String(g.issueGroupName).trim() : '';
+                    return !!gid || !!gname;
                 });
-                return { items, mutexGroupsMap };
+                const withoutIg = filtered.filter((g) => {
+                    const gid = g.issueGroupId != null ? String(g.issueGroupId).trim() : '';
+                    const gname = g.issueGroupName != null ? String(g.issueGroupName).trim() : '';
+                    return !gid && !gname;
+                });
+                const by = new Map();
+                withIg.forEach((g) => {
+                    const gid = g.issueGroupId != null ? String(g.issueGroupId).trim() : '';
+                    const gname = g.issueGroupName != null ? String(g.issueGroupName).trim() : '';
+                    const key = gid || `name:${gname}`;
+                    if (!by.has(key)) by.set(key, { type: 'issue', groupKey: key, name: gname || '（議題群組）', guidelines: [] });
+                    by.get(key).guidelines.push(g);
+                });
+                const grouped = [...by.values()].sort((a, b) => String(a.name).localeCompare(String(b.name), 'zh-Hant-TW'));
+                const singles = withoutIg.map((g) => ({ type: 'single', g }));
+                return { items: [...grouped, ...singles], issueGroupsMap: _pickerIssueMapFrom(filtered) };
             }
 
             function _pickerRefillMutexSelect() {
@@ -18856,8 +18873,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!pickerList) return;
                 let filtered = allGuidelines.filter((g) => {
                     if (filterCat && !_pickerNormalizeCategory(g.category).includes(filterCat)) return false;
-                    if (filterMutex === '__none__' && g.mutexGroup) return false;
-                    if (filterMutex && filterMutex !== '__none__' && g.mutexGroup !== filterMutex) return false;
+                    const gid = g.issueGroupId != null ? String(g.issueGroupId).trim() : '';
+                    const gname = g.issueGroupName != null ? String(g.issueGroupName).trim() : '';
+                    const ikey = gid || (gname ? `name:${gname}` : '');
+                    if (filterIssue === '__none__' && ikey) return false;
+                    if (filterIssue && filterIssue !== '__none__' && ikey !== filterIssue) return false;
                     return true;
                 });
                 if (sortKey === 'cat') {
@@ -18873,10 +18893,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     pickerList.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem;">尚無符合條件的條目。</p>';
                     return;
                 }
-                const { items, mutexGroupsMap } = _pickerBuildItems(filtered);
+                const { items, issueGroupsMap } = _pickerBuildItems(filtered);
                 const html = window.__catColumnHtmlFromItems(items, {
                     isStyleColumn: scopeFixed === 'style',
-                    pickerSelection: { checked, mutexGroupsMap }
+                    viewMode: 'issue',
+                    pickerSelection: { checked, issueGroupsMap }
                 });
                 pickerList.innerHTML = html;
                 wirePickerGuidelines();
@@ -18891,13 +18912,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                         renderMgmt();
                     });
                 });
-                pickerList.querySelectorAll('.ai-picker-proj-radio').forEach((rb) => {
-                    rb.addEventListener('change', () => {
-                        const id = parseInt(rb.getAttribute('data-id'), 10);
-                        const groupName = rb.getAttribute('data-mutex');
-                        const mmap = _pickerMutexMapFrom(allGuidelines);
-                        if (groupName && mmap[groupName]) mmap[groupName].forEach((g) => checked.delete(g.id));
-                        if (rb.checked) checked.add(id);
+                pickerList.querySelectorAll('.ai-picker-issue-group-cb').forEach((cb) => {
+                    if (cb.dataset.indeterminate === '1') cb.indeterminate = true;
+                    cb.addEventListener('change', () => {
+                        const key = String(cb.getAttribute('data-issue-group') || '').trim();
+                        if (!key) return;
+                        const mmap = _pickerIssueMapFrom(allGuidelines);
+                        const members = Array.isArray(mmap[key]) ? mmap[key] : [];
+                        if (members.length === 0) return;
+                        if (cb.checked) members.forEach((g) => checked.add(g.id));
+                        else members.forEach((g) => checked.delete(g.id));
                         renderMgmt();
                     });
                 });
@@ -18987,34 +19011,44 @@ document.addEventListener('DOMContentLoaded', async () => {
                         renderMgmt();
                     };
                 });
-                pickerList.querySelectorAll('.ag-leave-mutex').forEach((btn) => {
+                pickerList.querySelectorAll('.ag-leave-issue').forEach((btn) => {
                     btn.onclick = async () => {
-                        const id = parseInt(btn.getAttribute('data-leave-gid'), 10);
+                        const id = parseInt(btn.getAttribute('data-leave-issue-gid'), 10);
                         if (!id) return;
-                        const ok = await window.CatToolOpenAgLeaveMutexConfirmModal();
+                        const ok = await openCatConfirmModal('是否確定要讓這筆條目脫離議題群組？');
                         if (!ok) return;
                         try {
-                            await DBService.updateAiGuideline(id, { mutexGroup: null, isDefault: false });
+                            await DBService.updateAiGuideline(id, { issueGroupId: null });
                             const row = allGuidelines.find((g) => g.id === id);
-                            if (row) { row.mutexGroup = null; row.isDefault = false; }
+                            if (row) { row.issueGroupId = null; row.issueGroupName = null; }
                         } catch (e) { console.error(e); }
-                        _pickerRefillMutexSelect();
                         renderMgmt();
                     };
                 });
-                pickerList.querySelectorAll('.ag-join-mutex').forEach((btn) => {
+                pickerList.querySelectorAll('.ag-join-issue').forEach((btn) => {
                     btn.onclick = async () => {
                         const id = parseInt(btn.getAttribute('data-join-gid'), 10);
                         if (!id) return;
-                        const name = await window.CatToolOpenAgMutexJoinChoiceModal();
-                        if (name == null || String(name).trim() === '') return;
-                        const finalName = String(name).trim();
+                        const picked = await window.CatToolOpenAgIssueJoinChoiceModal(scopeFixed);
+                        if (!picked) return;
+                        let issueGroupId = null;
+                        let issueGroupName = null;
+                        if (picked.type === 'existing') {
+                            issueGroupId = String(picked.id || '');
+                            const groups = await DBService.getAiIssueGroups({ scope: scopeFixed }).catch(() => []);
+                            const hit = groups.find((x) => String(x.id) === issueGroupId);
+                            issueGroupName = hit ? hit.name : null;
+                        } else if (picked.type === 'new' && _isCatPmOrExecutive()) {
+                            issueGroupId = await DBService.addAiIssueGroup({ scope: scopeFixed, name: picked.name });
+                            issueGroupName = picked.name;
+                        } else {
+                            return;
+                        }
                         try {
-                            await DBService.updateAiGuideline(id, { mutexGroup: finalName, isDefault: false });
+                            await DBService.updateAiGuideline(id, { issueGroupId: issueGroupId || null });
                             const row = allGuidelines.find((g) => g.id === id);
-                            if (row) { row.mutexGroup = finalName; row.isDefault = false; }
+                            if (row) { row.issueGroupId = issueGroupId || null; row.issueGroupName = issueGroupName || null; }
                         } catch (e) { console.error(e); }
-                        _pickerRefillMutexSelect();
                         renderMgmt();
                     };
                 });
@@ -19023,18 +19057,30 @@ document.addEventListener('DOMContentLoaded', async () => {
             function updatePickerFilterBar() {
                 if (!filterBar) return;
                 const catSelId = 'aiPickerFilterCat';
-                const mutexSelId = 'aiPickerFilterMutex';
+                const issueSelId = 'aiPickerFilterIssue';
                 const sortSelId = 'aiPickerFilterSort';
                 const tagsForFilter = pickerCategoryTags.filter((t) => !t.listHidden);
+                const issueGroupMap = new Map();
+                allGuidelines.forEach((g) => {
+                    if (!g) return;
+                    const gid = g.issueGroupId != null ? String(g.issueGroupId).trim() : '';
+                    const gname = g.issueGroupName != null ? String(g.issueGroupName).trim() : '';
+                    if (!gid && !gname) return;
+                    const key = gid || `name:${gname}`;
+                    if (!issueGroupMap.has(key)) issueGroupMap.set(key, gname || '（議題群組）');
+                });
+                const issueOptions = [...issueGroupMap.entries()].sort((a, b) =>
+                    String(a[1]).localeCompare(String(b[1]), 'zh-Hant-TW', { sensitivity: 'base' })
+                );
                 filterBar.innerHTML =
                     `<select id="${catSelId}" class="form-input" style="width:auto; min-width:110px; padding:0.3rem 0.5rem; font-size:0.82rem;">` +
                     `<option value="">全部類別</option>` +
                     tagsForFilter.map((t) => `<option value="${_esc(t.name)}" ${filterCat === t.name ? 'selected' : ''}>${_esc(t.name)}</option>`).join('') +
                     `</select>` +
-                    `<select id="${mutexSelId}" class="form-input" style="width:auto; min-width:110px; padding:0.3rem 0.5rem; font-size:0.82rem;">` +
-                    `<option value="">全部群組</option><option value="__none__" ${filterMutex === '__none__' ? 'selected' : ''}>無互斥群組</option>` +
-                    [...new Set(allGuidelines.map((g) => g.mutexGroup).filter(Boolean))].sort().map((m) =>
-                        `<option value="${_esc(m)}" ${filterMutex === m ? 'selected' : ''}>${_esc(m)}</option>`).join('') +
+                    `<select id="${issueSelId}" class="form-input" style="width:auto; min-width:110px; padding:0.3rem 0.5rem; font-size:0.82rem;">` +
+                    `<option value="">全部群組</option><option value="__none__" ${filterIssue === '__none__' ? 'selected' : ''}>無議題群組</option>` +
+                    issueOptions.map(([key, name]) =>
+                        `<option value="${_esc(key)}" ${filterIssue === key ? 'selected' : ''}>${_esc(name)}</option>`).join('') +
                     `</select>` +
                     `<select id="${sortSelId}" class="form-input" style="width:auto; min-width:130px; padding:0.3rem 0.5rem; font-size:0.82rem;">` +
                     `<option value="order" ${sortKey === 'order' ? 'selected' : ''}>依建立順序</option>` +
@@ -19042,10 +19088,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     `<option value="content" ${sortKey === 'content' ? 'selected' : ''}>依內容（A–Z）</option>` +
                     `</select>`;
                 const cEl = document.getElementById(catSelId);
-                const mEl = document.getElementById(mutexSelId);
+                const mEl = document.getElementById(issueSelId);
                 const sEl = document.getElementById(sortSelId);
                 if (cEl) cEl.onchange = () => { filterCat = cEl.value; renderMgmt(); };
-                if (mEl) mEl.onchange = () => { filterMutex = mEl.value; renderMgmt(); };
+                if (mEl) mEl.onchange = () => { filterIssue = mEl.value; renderMgmt(); };
                 if (sEl) sEl.onchange = () => { sortKey = sEl.value; renderMgmt(); };
             }
 
