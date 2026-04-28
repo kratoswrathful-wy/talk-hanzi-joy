@@ -224,6 +224,7 @@
 
     const RETRYABLE_MAX_ATTEMPTS = 4;
     const RETRYABLE_BASE_DELAY_MS = 700;
+    const RETRYABLE_MAX_DELAY_MS = 15000;
 
     function _sleep(ms) {
         return new Promise((resolve) => setTimeout(resolve, ms));
@@ -236,6 +237,20 @@
             return code !== 'insufficient_quota';
         }
         return status >= 500;
+    }
+
+    function _retryAfterToMs(resp) {
+        try {
+            const raw = resp?.headers?.get?.('retry-after');
+            if (!raw) return 0;
+            const seconds = Number(raw);
+            if (Number.isFinite(seconds) && seconds > 0) return Math.floor(seconds * 1000);
+            const at = Date.parse(String(raw));
+            if (!Number.isFinite(at)) return 0;
+            return Math.max(0, at - Date.now());
+        } catch (_) {
+            return 0;
+        }
     }
 
     async function postChatCompletionsWithRetry(settings, openaiBody) {
@@ -251,7 +266,9 @@
                 return last;
             }
             const jitter = Math.floor(Math.random() * 240);
-            const waitMs = Math.min(5000, RETRYABLE_BASE_DELAY_MS * (2 ** (attempt - 1)) + jitter);
+            const backoffMs = Math.min(RETRYABLE_MAX_DELAY_MS, RETRYABLE_BASE_DELAY_MS * (2 ** (attempt - 1)) + jitter);
+            const retryAfterMs = (call.resp && call.resp.status === 429) ? _retryAfterToMs(call.resp) : 0;
+            const waitMs = Math.max(backoffMs, retryAfterMs);
             await _sleep(waitMs);
         }
         return last || { resp: { ok: false, status: 0 }, body: null, noKey: false };

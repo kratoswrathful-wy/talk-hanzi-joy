@@ -19642,9 +19642,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    const AI_BATCH_COOLDOWN_MS = 450;
+    const AI_BATCH_MIN_SIZE = 5;
+    let __catAiFlowRunning = false;
+
+    function _aiSleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    function _acquireAiFlowLock() {
+        if (__catAiFlowRunning) return false;
+        __catAiFlowRunning = true;
+        return true;
+    }
+
+    function _releaseAiFlowLock() {
+        __catAiFlowRunning = false;
+    }
+
     async function _runAiScan(settings, extraPrompt, reportOpts) {
+        if (!_acquireAiFlowLock()) {
+            _showAiToast('已有 AI 任務執行中，請稍候目前任務完成。', true);
+            return;
+        }
         if (!settings || (settings.preferOpenAiProxy === false && !settings.apiKey)) {
             _showAiToast('請先在「AI 管理」設定可連線方式或 API Key', true);
+            _releaseAiFlowLock();
             return;
         }
         _showAiToast('正在掃描全文，請稍候…');
@@ -19675,6 +19698,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             _hideAiToast();
         } catch (err) {
             _showAiToast('掃描失敗：' + err.message, true);
+        } finally {
+            _releaseAiFlowLock();
         }
     }
 
@@ -19689,30 +19714,134 @@ document.addEventListener('DOMContentLoaded', async () => {
             : '<span style="font-size:0.8rem;color:#94a3b8;">（尚無標籤，請到「AI 管理」建立文字類型標籤）</span>';
     }
 
+    function _setAiBatchRangeMode(mode) {
+        const btnAll = document.getElementById('aiBatchModeAll');
+        const btnRange = document.getElementById('aiBatchModeRange');
+        const isAll = mode === 'all';
+        if (btnAll) {
+            btnAll.classList.toggle('primary-btn', isAll);
+            btnAll.classList.toggle('secondary-btn', !isAll);
+        }
+        if (btnRange) {
+            btnRange.classList.toggle('primary-btn', !isAll);
+            btnRange.classList.toggle('secondary-btn', isAll);
+        }
+        window.__catAiBatchRangeMode = isAll ? 'all' : 'range';
+    }
+
+    function _validateAiBatchRange() {
+        const mode = window.__catAiBatchRangeMode || 'all';
+        const errEl = document.getElementById('aiBatchRangeError');
+        const startRaw = String(document.getElementById('aiBatchRangeStart')?.value || '').trim();
+        const endRaw = String(document.getElementById('aiBatchRangeEnd')?.value || '').trim();
+        const clearErr = () => { if (errEl) errEl.textContent = ''; };
+        const setErr = (msg) => { if (errEl) errEl.textContent = msg; };
+        if (mode === 'all') {
+            clearErr();
+            return { ok: true, allFile: true, rangeStart: 1, rangeEnd: currentSegmentsList.length };
+        }
+        if (!startRaw || !endRaw) {
+            setErr('指定範圍需同時填寫起始與結束句段。');
+            return { ok: false };
+        }
+        const s = Number(startRaw);
+        const e = Number(endRaw);
+        if (!Number.isFinite(s) || !Number.isFinite(e) || s < 1 || e < 1 || !Number.isInteger(s) || !Number.isInteger(e)) {
+            setErr('範圍僅可輸入正整數。');
+            return { ok: false };
+        }
+        if (e < s) {
+            setErr('範圍錯誤：結束句段不可小於起始句段。');
+            return { ok: false };
+        }
+        if (e > currentSegmentsList.length) {
+            setErr(`範圍超出上限：最大句段為 ${currentSegmentsList.length}。`);
+            return { ok: false };
+        }
+        clearErr();
+        return { ok: true, allFile: false, rangeStart: s, rangeEnd: e };
+    }
+
+    function _segmentSourceCharCount(seg) {
+        return [...String(seg?.sourceText || '')].length;
+    }
+
+    function _nextBatchByRowsAndChars(list, startIdx, rowLimit, charLimit) {
+        const out = [];
+        let sumChars = 0;
+        for (let i = startIdx; i < list.length; i++) {
+            const seg = list[i];
+            const c = _segmentSourceCharCount(seg);
+            const hitRowLimit = out.length >= rowLimit;
+            const hitCharLimit = out.length > 0 && (sumChars + c) > charLimit;
+            if (hitRowLimit || hitCharLimit) break;
+            out.push(seg);
+            sumChars += c;
+        }
+        return out;
+    }
+
     function openAiBatchModal() {
         const modal = document.getElementById('aiBatchModal');
         if (!modal) return;
         _refreshAiBatchStyleCategoryList().then(() => {}).catch(() => {});
+        window.__catAiBatchRangeMode = 'all';
+        _setAiBatchRangeMode('all');
+        const rowLimitEl = document.getElementById('aiBatchLimitRows');
+        const charLimitEl = document.getElementById('aiBatchLimitChars');
+        DBService.getAiSettings().then((s) => {
+            if (rowLimitEl) rowLimitEl.value = String((s && s.batchSize && s.batchSize >= 1) ? s.batchSize : 20);
+            if (charLimitEl) charLimitEl.value = String((s && s.batchChars && s.batchChars >= 200) ? s.batchChars : 2500);
+        }).catch(() => {});
         _updateBatchStats();
         modal.classList.remove('hidden');
 
         const cancelBtn = document.getElementById('btnCancelAiBatch');
         const runBtn = document.getElementById('btnRunAiBatch');
         const closeBtn = document.getElementById('btnCloseAiBatchModal');
+        const btnAll = document.getElementById('aiBatchModeAll');
+        const btnRange = document.getElementById('aiBatchModeRange');
+        const startEl = document.getElementById('aiBatchRangeStart');
+        const endEl = document.getElementById('aiBatchRangeEnd');
 
         function close() { modal.classList.add('hidden'); }
         if (cancelBtn) cancelBtn.onclick = close;
         if (closeBtn) closeBtn.onclick = close;
+        if (btnAll) btnAll.onclick = () => {
+            _setAiBatchRangeMode('all');
+            if (startEl) startEl.value = '';
+            if (endEl) endEl.value = '';
+            _updateBatchStats();
+        };
+        if (btnRange) btnRange.onclick = () => {
+            _setAiBatchRangeMode('range');
+            _updateBatchStats();
+        };
+        if (startEl) startEl.oninput = () => {
+            if (String(startEl.value || '').trim()) _setAiBatchRangeMode('range');
+            _updateBatchStats();
+        };
+        if (endEl) endEl.oninput = () => {
+            if (String(endEl.value || '').trim()) _setAiBatchRangeMode('range');
+            _updateBatchStats();
+        };
         if (runBtn) runBtn.onclick = async () => {
-            close();
+            const range = _validateAiBatchRange();
+            if (!range.ok) {
+                _showAiToast('指定範圍有誤，請修正後再開始翻譯。', true);
+                return;
+            }
             const customCats = [];
             document.querySelectorAll('#aiBatchStyleCategoryWrap .ai-batch-style-cat-cb:checked').forEach(cb => {
                 if (cb.value) customCats.push(cb.value);
             });
+            const rowLimit = Math.max(1, parseInt(document.getElementById('aiBatchLimitRows')?.value || '20', 10) || 20);
+            const charLimit = Math.max(200, parseInt(document.getElementById('aiBatchLimitChars')?.value || '2500', 10) || 2500);
+            close();
             const config = {
-                allFile: document.getElementById('aiBatchAllFile')?.checked ?? true,
-                rangeStart: parseInt(document.getElementById('aiBatchRangeStart')?.value || '1', 10) || 1,
-                rangeEnd: parseInt(document.getElementById('aiBatchRangeEnd')?.value || '0', 10) || currentSegmentsList.length,
+                allFile: range.allFile,
+                rangeStart: range.rangeStart,
+                rangeEnd: range.rangeEnd,
                 handleConfirmed: document.getElementById('aiBatchHandleConfirmed')?.value || 'skip',
                 handleUnconfirmed: document.getElementById('aiBatchHandleUnconfirmed')?.value || 'skip',
                 tmThreshold: parseInt(document.getElementById('aiBatchTmThreshold')?.value || '102', 10),
@@ -19720,6 +19849,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tmRefThreshold: parseInt(document.getElementById('aiBatchTmRefThreshold')?.value || '0', 10),
                 handleRepetitions: document.getElementById('aiBatchHandleRepetitions')?.value || 'yes',
                 batchNote: document.getElementById('aiBatchNote')?.value?.trim() || '',
+                batchRowLimit: rowLimit,
+                batchCharLimit: charLimit,
                 batchStyleExampleCategories: customCats
             };
             await runAiBatchTranslate(config);
@@ -19729,32 +19860,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     function _updateBatchStats() {
         const statsEl = document.getElementById('aiBatchStats');
         if (!statsEl || !currentSegmentsList) return;
-        const allFile = document.getElementById('aiBatchAllFile')?.checked ?? true;
+        const allFile = (window.__catAiBatchRangeMode || 'all') === 'all';
         const start = allFile ? 1 : (parseInt(document.getElementById('aiBatchRangeStart')?.value || '1', 10) || 1);
         const end = allFile ? currentSegmentsList.length : (parseInt(document.getElementById('aiBatchRangeEnd')?.value || String(currentSegmentsList.length), 10) || currentSegmentsList.length);
         const rangeSegs = currentSegmentsList.filter((s, i) => (i + 1) >= start && (i + 1) <= end);
         const confirmed = rangeSegs.filter(s => s.status === 'confirmed').length;
         const withText = rangeSegs.filter(s => s.status !== 'confirmed' && (s.targetText || '').trim()).length;
         const empty = rangeSegs.length - confirmed - withText;
-        statsEl.textContent = `範圍內共 ${rangeSegs.length} 句，其中已確認 ${confirmed} 句、已輸入未確認 ${withText} 句、空白 ${empty} 句。`;
+        const chars = rangeSegs.reduce((sum, seg) => sum + _segmentSourceCharCount(seg), 0);
+        const rowLimit = Math.max(1, parseInt(document.getElementById('aiBatchLimitRows')?.value || '20', 10) || 20);
+        const charLimit = Math.max(200, parseInt(document.getElementById('aiBatchLimitChars')?.value || '2500', 10) || 2500);
+        const estBatches = rangeSegs.length > 0 ? Math.max(Math.ceil(rangeSegs.length / rowLimit), Math.ceil(chars / charLimit)) : 0;
+        statsEl.textContent = `範圍內共 ${rangeSegs.length} 句（約 ${chars} 字元），已確認 ${confirmed} 句、已輸入未確認 ${withText} 句、空白 ${empty} 句；依目前上限預估約 ${estBatches} 批。`;
+        void _validateAiBatchRange();
     }
 
     (function bindAiBatchModalRange() {
-        document.getElementById('aiBatchAllFile')?.addEventListener('change', _updateBatchStats);
         document.getElementById('aiBatchRangeStart')?.addEventListener('input', _updateBatchStats);
         document.getElementById('aiBatchRangeEnd')?.addEventListener('input', _updateBatchStats);
+        document.getElementById('aiBatchLimitRows')?.addEventListener('input', _updateBatchStats);
+        document.getElementById('aiBatchLimitChars')?.addEventListener('input', _updateBatchStats);
     })();
 
     // ---- runAiBatchTranslate Orchestrator ----
     async function runAiBatchTranslate(config) {
         if (!currentSegmentsList || currentSegmentsList.length === 0) return;
-        _showAiToast('正在準備批次翻譯…');
-
-        const settings = await DBService.getAiSettings();
-        if (!settings.apiKey) {
-            _showAiToast('請先在「AI 設定」頁面填入 API Key', true);
+        if (!_acquireAiFlowLock()) {
+            _showAiToast('已有 AI 任務執行中，請稍候目前任務完成。', true);
             return;
         }
+        _showAiToast('正在準備批次翻譯…');
+        try {
+            const settings = await DBService.getAiSettings();
+            if (!settings.apiKey) {
+                _showAiToast('請先在「AI 設定」頁面填入 API Key', true);
+                return;
+            }
 
         // Collect segments in range
         const start = config.allFile ? 0 : (config.rangeStart - 1);
@@ -19880,33 +20021,62 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        const batchSize = (settings.batchSize && settings.batchSize >= 1) ? settings.batchSize : 20;
-        let processed = 0;
-        const options = await _buildAiOptions(settings, config.batchNote, config.batchStyleExampleCategories);
-        let allMissing = [];
+            let dynamicBatchSize = Math.max(1, Number(config.batchRowLimit) || (settings.batchSize && settings.batchSize >= 1 ? settings.batchSize : 20));
+            const dynamicCharLimitBase = Math.max(200, Number(config.batchCharLimit) || (settings.batchChars && settings.batchChars >= 200 ? settings.batchChars : 2500));
+            let dynamicCharLimit = dynamicCharLimitBase;
+            const roughChars = finalAiSegs.reduce((sum, seg) => sum + _segmentSourceCharCount(seg), 0);
+            const totalBatchesHint = Math.max(
+                1,
+                Math.ceil(finalAiSegs.length / Math.max(dynamicBatchSize, 1)),
+                Math.ceil(roughChars / Math.max(dynamicCharLimit, 1))
+            );
+            let processed = 0;
+            const options = await _buildAiOptions(settings, config.batchNote, config.batchStyleExampleCategories);
+            let allMissing = [];
+            const cooldownMs = Number.isFinite(Number(settings.aiBatchCooldownMs)) ? Math.max(0, Number(settings.aiBatchCooldownMs)) : AI_BATCH_COOLDOWN_MS;
+            let i = 0;
+            let batchNo = 1;
 
-        _showAiToast(`正在翻譯第 1/${Math.ceil(finalAiSegs.length/batchSize)} 批…`);
+            _showAiToast(`正在翻譯第 1/${totalBatchesHint} 批…`);
 
-        for (let i = 0; i < finalAiSegs.length; i += batchSize) {
-            const batch = finalAiSegs.slice(i, i + batchSize);
-            _showAiToast(`正在翻譯第 ${Math.ceil(i/batchSize)+1}/${Math.ceil(finalAiSegs.length/batchSize)} 批（${i+1}–${Math.min(i+batchSize, finalAiSegs.length)}）…`);
-            const result = await window.CatAiTranslate.translate(batch, options);
-            if (result.error && result.results.length === 0) {
-                _showAiToast(`翻譯失敗：${result.error}`, true);
-                return;
-            }
-            for (const r of result.results) {
-                const seg = batch.find(s => s.id === r.segId);
-                if (seg && r.translation) {
-                    seg.targetText = r.translation;
-                    seg.aiSuggestion = r.translation;
-                    seg.aiSuggestionAt = new Date().toISOString();
-                    await applyUpdateSegmentTarget(seg, seg.targetText, { aiSuggestion: r.translation, aiSuggestionAt: seg.aiSuggestionAt }).catch(console.error);
+            while (i < finalAiSegs.length) {
+                let batch = _nextBatchByRowsAndChars(finalAiSegs, i, dynamicBatchSize, dynamicCharLimit);
+                _showAiToast(`正在翻譯第 ${batchNo}/${Math.max(batchNo, Math.ceil(finalAiSegs.length / Math.max(dynamicBatchSize, 1)))} 批（${i + 1}–${Math.min(i + batch.length, finalAiSegs.length)}）…`);
+                let result = await window.CatAiTranslate.translate(batch, options);
+                let guardRetry = 0;
+                while (result.error && result.results.length === 0) {
+                    const isRateLimit = String(result.error || '').includes('請求速率超過上限');
+                    if (!isRateLimit || guardRetry >= 2) {
+                        _showAiToast(`翻譯失敗：${result.error}`, true);
+                        return;
+                    }
+                    guardRetry += 1;
+                    dynamicBatchSize = Math.max(AI_BATCH_MIN_SIZE, Math.floor(dynamicBatchSize / 2));
+                    dynamicCharLimit = Math.max(500, Math.floor(dynamicCharLimit * 0.75));
+                    const backoffMs = Math.min(12000, 1200 * guardRetry + Math.floor(Math.random() * 400));
+                    _showAiToast(`偵測到速率限制，降載為每批 ${dynamicBatchSize} 句 / ${dynamicCharLimit} 字元，${Math.ceil(backoffMs / 1000)} 秒後重試…`);
+                    await _aiSleep(backoffMs);
+                    batch = _nextBatchByRowsAndChars(finalAiSegs, i, dynamicBatchSize, dynamicCharLimit);
+                    result = await window.CatAiTranslate.translate(batch, options);
+                }
+
+                for (const r of result.results) {
+                    const seg = batch.find(s => s.id === r.segId);
+                    if (seg && r.translation) {
+                        seg.targetText = r.translation;
+                        seg.aiSuggestion = r.translation;
+                        seg.aiSuggestionAt = new Date().toISOString();
+                        await applyUpdateSegmentTarget(seg, seg.targetText, { aiSuggestion: r.translation, aiSuggestionAt: seg.aiSuggestionAt }).catch(console.error);
+                    }
+                }
+                allMissing.push(...result.missing);
+                processed += result.results.length;
+                i += batch.length;
+                batchNo += 1;
+                if (cooldownMs > 0 && i < finalAiSegs.length) {
+                    await _aiSleep(cooldownMs + Math.floor(Math.random() * 120));
                 }
             }
-            allMissing.push(...result.missing);
-            processed += result.results.length;
-        }
 
         // Retry missing
         if (allMissing.length > 0) {
@@ -19923,9 +20093,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        _showAiToast(`批次翻譯完成！共處理 ${processed} 句。`, false);
-        setTimeout(_hideAiToast, 4000);
-        rerenderCurrentSegments();
+            _showAiToast(`批次翻譯完成！共處理 ${processed} 句。`, false);
+            setTimeout(_hideAiToast, 4000);
+            rerenderCurrentSegments();
+        } finally {
+            _releaseAiFlowLock();
+        }
     }
 
     async function _buildAiOptions(settings, batchNote, batchStyleExampleCategories) {

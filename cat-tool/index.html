@@ -1958,15 +1958,16 @@
                 <!-- 範圍 -->
                 <div>
                     <label class="form-label">翻譯範圍</label>
-                    <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
-                        <label style="display:flex; align-items:center; gap:0.35rem; font-size:0.85rem; cursor:pointer;">
-                            <input type="checkbox" id="aiBatchAllFile"> 全文
-                        </label>
-                        <span style="font-size:0.85rem; color:#64748b;">或指定範圍：</span>
+                    <div id="aiBatchRangeModeSwitch" role="group" aria-label="翻譯範圍切換" style="display:inline-flex; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden; margin-bottom:0.45rem;">
+                        <button type="button" id="aiBatchModeAll" class="secondary-btn btn-sm" style="border:0; border-radius:0; min-width:88px; padding:0.32rem 0.6rem;">全文</button>
+                        <button type="button" id="aiBatchModeRange" class="secondary-btn btn-sm" style="border:0; border-left:1px solid #cbd5e1; border-radius:0; min-width:88px; padding:0.32rem 0.6rem;">指定範圍</button>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:0.55rem; flex-wrap:wrap;">
                         <input type="number" id="aiBatchRangeStart" class="form-input" placeholder="起始句段編號" min="1" style="width:130px;">
                         <span style="color:#64748b;">—</span>
                         <input type="number" id="aiBatchRangeEnd" class="form-input" placeholder="結束句段編號" min="1" style="width:130px;">
                     </div>
+                    <div id="aiBatchRangeError" style="margin-top:0.35rem; font-size:0.78rem; color:#dc2626; min-height:1.05rem;"></div>
                 </div>
                 <!-- 已確認句段 -->
                 <div style="display:flex; align-items:center; gap:0.75rem;">
@@ -2012,6 +2013,15 @@
                         <option value="ask">逐批詢問</option>
                     </select>
                 </div>
+                <!-- 分批上限 -->
+                <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+                    <label class="form-label" style="margin:0; width:160px; flex-shrink:0;">分批上限</label>
+                    <span style="font-size:0.82rem; color:#64748b;">每批句數</span>
+                    <input type="number" id="aiBatchLimitRows" class="form-input" value="20" min="1" max="100" style="width:84px;">
+                    <span style="font-size:0.82rem; color:#64748b;">每批字元</span>
+                    <input type="number" id="aiBatchLimitChars" class="form-input" value="2500" min="200" max="30000" style="width:96px;">
+                </div>
+                <div style="font-size:0.78rem; color:#64748b; margin-top:-0.45rem;">大範圍內容會依每批句數與每批字元上限自動拆成多批，逐批送交 AI。</div>
                 <!-- 單批特殊指示 -->
                 <div>
                     <label class="form-label">本批特殊指示（選填，翻完後自動清除）</label>
