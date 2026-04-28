@@ -12028,18 +12028,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                             <div><strong>TM 名稱：</strong>${escFoot(m.tmName || 'N/A')}</div>
                             ${m.key ? `<div><strong>Key：</strong>${escFoot(m.key)}</div>` : ''}
                             <div><strong>寫入檔案：</strong>${escFoot(m.writtenFile || 'N/A')}</div>
+                            <div><strong>建立者：</strong>${escFoot(m.createdBy || 'N/A')}</div>
+                            <div><strong>建立時間：</strong>${m.createdAt ? escFoot(new Date(m.createdAt).toLocaleString('zh-TW', { hour12: false })) : 'N/A'}</div>
                         </div>`;
                         footerHtml += `<div class="cat-footer-section cat-footer-context">
                             <div class="cat-footer-context-inner">
                                 <div><strong>上一句</strong><br>${escFoot(m.prevSegment || '')}</div>
-                                <hr class="cat-footer-divider cat-footer-divider--sub" />
                                 <div><strong>下一句</strong><br>${escFoot(m.nextSegment || '')}</div>
                             </div>
                         </div>`;
                         footerHtml += `<div class="cat-footer-section cat-footer-audit">
-                            <div><strong>建立者：</strong>${escFoot(m.createdBy || 'N/A')}</div>
-                            <div><strong>建立時間：</strong>${m.createdAt ? escFoot(new Date(m.createdAt).toLocaleString('zh-TW', { hour12: false })) : 'N/A'}</div>
-                            <hr class="cat-footer-divider cat-footer-divider--before-changelog" />
                             <div><strong>更新紀錄</strong></div>
                             <div class="cat-footer-changelog">${formatCatTmChangeLogForFooter(m.changeLog)}</div>
                         </div>`;
@@ -12255,7 +12253,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             applyMatchCellVisual(activeRow, String(score));
         }
 
-        setCaretAtEditorEnd(textarea);
+        if (type === 'TM') {
+            setCaretAtEditorEnd(textarea);
+        }
         if (el && el.style) {
         el.style.opacity = 0.5;
             setTimeout(() => { el.style.opacity = 1; }, 300);
@@ -13377,17 +13377,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div><strong>TM 名稱：</strong>${esc(m.tmName || 'N/A')}</div>
                 ${keyText ? `<div><strong>Key：</strong>${esc(keyText)}</div>` : ''}
                 ${m.writtenFile ? `<div><strong>寫入檔案：</strong>${esc(m.writtenFile)}</div>` : ''}
+                ${m.createdBy ? `<div><strong>建立者：</strong>${esc(m.createdBy)}</div>` : ''}
+                ${createdAt ? `<div><strong>建立時間：</strong>${esc(createdAt)}</div>` : ''}
             </div>
             ${(m.prevSegment || m.nextSegment) ? `<div class="cat-footer-section cat-footer-context">
                 <div class="cat-footer-context-inner">
                     <div><strong>上一句</strong><br>${esc(m.prevSegment || '')}</div>
-                    <hr class="cat-footer-divider cat-footer-divider--sub" />
                     <div><strong>下一句</strong><br>${esc(m.nextSegment || '')}</div>
                 </div>
-            </div>` : ''}
-            ${(m.createdBy || createdAt) ? `<div class="cat-footer-section cat-footer-audit">
-                ${m.createdBy ? `<div><strong>建立者：</strong>${esc(m.createdBy)}</div>` : ''}
-                ${createdAt ? `<div><strong>建立時間：</strong>${esc(createdAt)}</div>` : ''}
             </div>` : ''}
         </div>`;
     }
