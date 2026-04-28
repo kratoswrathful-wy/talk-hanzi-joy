@@ -1063,6 +1063,10 @@ const DBService = {
     },
     async getAiStyleExamples(filters = {}) {
         let rows = await db.aiStyleExamples.orderBy('createdAt').reverse().toArray();
+        if (Array.isArray(filters.ids) && filters.ids.length > 0) {
+            const idSet = new Set(filters.ids.map((x) => Number(x)).filter((x) => Number.isFinite(x)));
+            rows = rows.filter((r) => idSet.has(Number(r.id)));
+        }
         if (filters.sourceLang) rows = rows.filter(r => r.sourceLang === filters.sourceLang);
         if (filters.targetLang) rows = rows.filter(r => r.targetLang === filters.targetLang);
         if (Array.isArray(filters.categories) && filters.categories.length > 0) {

@@ -432,10 +432,10 @@
                 segId: seg.id,
                 source: clean,
                 tagMap,
-                keys: seg.keys || [],
-                extraValue: seg.extraValue || '',
-                contextPrev: seg.contextPrev || '',
-                contextNext: seg.contextNext || '',
+                keys: options.includeKeys === false ? [] : (seg.keys || []),
+                extraValue: options.includeExtraValue === false ? '' : (seg.extraValue || ''),
+                contextPrev: options.includeContext === false ? '' : (seg.contextPrev || ''),
+                contextNext: options.includeContext === false ? '' : (seg.contextNext || ''),
                 tmHint: seg._tmHint || null
             };
         });

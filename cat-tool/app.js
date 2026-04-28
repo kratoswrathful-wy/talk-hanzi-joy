@@ -19642,6 +19642,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const AI_BATCH_COOLDOWN_MS = 450;
     const AI_BATCH_MIN_SIZE = 5;
     let __catAiFlowRunning = false;
+    let __aiBatchExampleRows = [];
+    let __aiBatchSelectedExampleIds = new Set();
+    let __aiBatchPendingExampleIds = new Set();
 
     function _aiSleep(ms) {
         return new Promise((resolve) => setTimeout(resolve, ms));
@@ -19778,6 +19781,138 @@ document.addEventListener('DOMContentLoaded', async () => {
         return out;
     }
 
+    function _estimateTokensByChars(chars) {
+        return Math.max(0, Math.ceil((Number(chars) || 0) / 2.6));
+    }
+
+    function _charsOfText(s) {
+        return [...String(s || '')].length;
+    }
+
+    function _computeAiBatchRefTokens(rangeSegs) {
+        const refs = {
+            tm: !!document.getElementById('aiBatchRefTm')?.checked,
+            tb: !!document.getElementById('aiBatchRefTb')?.checked,
+            tbNote: !!document.getElementById('aiBatchRefTbNote')?.checked,
+            key: !!document.getElementById('aiBatchRefKey')?.checked,
+            extra: !!document.getElementById('aiBatchRefExtra')?.checked,
+            examples: !!document.getElementById('aiBatchRefExamples')?.checked,
+            confirmed: !!document.getElementById('aiBatchRefConfirmed')?.checked
+        };
+        const tmChars = refs.tm ? Math.min(1200, rangeSegs.length * 48) : 0;
+        const tbTerms = refs.tb ? (window.ActiveTbTerms || []) : [];
+        const tbChars = tbTerms.reduce((sum, t) => {
+            const base = _charsOfText(t.source) + _charsOfText(t.target) + 4;
+            const note = refs.tbNote ? (_charsOfText(t.note) + 2) : 0;
+            return sum + base + note;
+        }, 0);
+        const keyChars = refs.key ? rangeSegs.reduce((sum, s) => sum + _charsOfText((s.keys || []).join(' / ')), 0) : 0;
+        const extraChars = refs.extra ? rangeSegs.reduce((sum, s) => sum + _charsOfText(s.extraValue || ''), 0) : 0;
+        const exRows = refs.examples
+            ? __aiBatchExampleRows.filter((r) => __aiBatchSelectedExampleIds.has(Number(r.id)))
+            : [];
+        const exChars = exRows.reduce((sum, r) => sum + _charsOfText(r.sourceText) + _charsOfText(r.aiDraft) + _charsOfText(r.userFinal), 0);
+        const confirmedChars = refs.confirmed ? rangeSegs.filter((s) => s.status === 'confirmed').reduce((sum, s) => sum + _charsOfText(s.sourceText || ''), 0) : 0;
+        return {
+            tm: _estimateTokensByChars(tmChars),
+            tb: _estimateTokensByChars(tbChars),
+            key: _estimateTokensByChars(keyChars),
+            extra: _estimateTokensByChars(extraChars),
+            examples: _estimateTokensByChars(exChars),
+            confirmed: _estimateTokensByChars(confirmedChars)
+        };
+    }
+
+    function _renderAiBatchRefTokens(rangeSegs) {
+        const t = _computeAiBatchRefTokens(rangeSegs || []);
+        const setNum = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v || 0); };
+        setNum('aiBatchRefTokTm', t.tm);
+        setNum('aiBatchRefTokTb', t.tb);
+        setNum('aiBatchRefTokKey', t.key);
+        setNum('aiBatchRefTokExtra', t.extra);
+        setNum('aiBatchRefTokExamples', t.examples);
+        setNum('aiBatchRefTokConfirmed', t.confirmed);
+        setNum('aiBatchRefTokTotal', t.tm + t.tb + t.key + t.extra + t.examples + t.confirmed);
+        const pickBtn = document.getElementById('btnAiBatchPickExamples');
+        if (pickBtn) pickBtn.textContent = `${__aiBatchSelectedExampleIds.size}/15`;
+    }
+
+    function _renderAiBatchExamplePickerList() {
+        const listEl = document.getElementById('aiBatchExampleList');
+        if (!listEl) return;
+        const q = String(document.getElementById('aiBatchExampleSearch')?.value || '').trim().toLowerCase();
+        const pickedEl = document.getElementById('aiBatchExampleSelectedCount');
+        if (pickedEl) pickedEl.textContent = String(__aiBatchPendingExampleIds.size);
+        const rows = __aiBatchExampleRows.filter((r) => {
+            if (!q) return true;
+            const blob = `${r.sourceText || ''}\n${r.aiDraft || ''}\n${r.userFinal || ''}\n${(r.modTags || []).join(' ')}`.toLowerCase();
+            return blob.includes(q);
+        });
+        listEl.innerHTML = rows.map((r) => {
+            const checked = __aiBatchPendingExampleIds.has(Number(r.id)) ? 'checked' : '';
+            const tags = Array.isArray(r.modTags) ? r.modTags.filter(Boolean).join('、') : '';
+            return `<label style="display:block; border:1px solid #dbe2ea; border-radius:8px; background:#fff; padding:0.45rem 0.55rem; cursor:pointer;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem;">
+                    <span style="font-size:0.78rem; color:#334155;"><input type="checkbox" class="ai-batch-ex-picker-cb" data-id="${Number(r.id)}" ${checked}> #${Number(r.id)} ${tags ? `・${String(tags).replace(/</g, '&lt;')}` : ''}</span>
+                    <span style="font-size:0.72rem; color:#94a3b8;">${_estimateTokensByChars(_charsOfText(r.sourceText) + _charsOfText(r.userFinal))}</span>
+                </div>
+                <div style="font-size:0.76rem; color:#64748b; margin-top:0.2rem;"><strong>原文：</strong>${String(r.sourceText || '').replace(/</g, '&lt;')}</div>
+                <div style="font-size:0.76rem; color:#334155; margin-top:0.15rem;"><strong>最終：</strong>${String(r.userFinal || '').replace(/</g, '&lt;')}</div>
+            </label>`;
+        }).join('') || '<div style="font-size:0.8rem; color:#94a3b8; padding:0.35rem;">沒有符合的範例。</div>';
+        listEl.querySelectorAll('.ai-batch-ex-picker-cb').forEach((cb) => {
+            cb.addEventListener('change', () => {
+                const id = Number(cb.getAttribute('data-id'));
+                if (!Number.isFinite(id)) return;
+                if (cb.checked) {
+                    if (__aiBatchPendingExampleIds.size >= 15) {
+                        cb.checked = false;
+                        _showAiToast('修改案例最多只能選 15 筆。', true);
+                        return;
+                    }
+                    __aiBatchPendingExampleIds.add(id);
+                } else {
+                    __aiBatchPendingExampleIds.delete(id);
+                }
+                if (pickedEl) pickedEl.textContent = String(__aiBatchPendingExampleIds.size);
+            });
+        });
+    }
+
+    async function _openAiBatchExamplePicker() {
+        const modal = document.getElementById('aiBatchExamplePickerModal');
+        if (!modal) return;
+        const closeBtn = document.getElementById('btnCloseAiBatchExamplePicker');
+        const cancelBtn = document.getElementById('btnCancelAiBatchExamplePicker');
+        const applyBtn = document.getElementById('btnApplyAiBatchExamplePicker');
+        const searchEl = document.getElementById('aiBatchExampleSearch');
+        if (!__aiBatchExampleRows.length) {
+            const fileRec = currentFileId ? await DBService.getFile(currentFileId).catch(() => null) : null;
+            __aiBatchExampleRows = await DBService.getAiStyleExamples({
+                limit: 200,
+                sourceLang: fileRec?.sourceLang || undefined,
+                targetLang: fileRec?.targetLang || undefined
+            }).catch(() => []);
+        }
+        __aiBatchPendingExampleIds = new Set(__aiBatchSelectedExampleIds);
+        if (searchEl) searchEl.value = '';
+        _renderAiBatchExamplePickerList();
+        modal.classList.remove('hidden');
+        const close = () => modal.classList.add('hidden');
+        if (closeBtn) closeBtn.onclick = close;
+        if (cancelBtn) cancelBtn.onclick = close;
+        if (searchEl) searchEl.oninput = () => _renderAiBatchExamplePickerList();
+        if (applyBtn) applyBtn.onclick = () => {
+            __aiBatchSelectedExampleIds = new Set(__aiBatchPendingExampleIds);
+            const allFile = (window.__catAiBatchRangeMode || 'all') === 'all';
+            const start = allFile ? 1 : (parseInt(document.getElementById('aiBatchRangeStart')?.value || '1', 10) || 1);
+            const end = allFile ? currentSegmentsList.length : (parseInt(document.getElementById('aiBatchRangeEnd')?.value || String(currentSegmentsList.length), 10) || currentSegmentsList.length);
+            const rangeSegs = currentSegmentsList.filter((s, i) => (i + 1) >= start && (i + 1) <= end);
+            _renderAiBatchRefTokens(rangeSegs);
+            close();
+        };
+    }
+
     function openAiBatchModal() {
         const modal = document.getElementById('aiBatchModal');
         if (!modal) return;
@@ -19790,6 +19925,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (rowLimitEl) rowLimitEl.value = String((s && s.batchSize && s.batchSize >= 1) ? s.batchSize : 20);
             if (charLimitEl) charLimitEl.value = String((s && s.batchChars && s.batchChars >= 200) ? s.batchChars : 2500);
         }).catch(() => {});
+        const refDefaults = [
+            ['aiBatchRefTm', true],
+            ['aiBatchRefTb', true],
+            ['aiBatchRefTbNote', true],
+            ['aiBatchRefKey', true],
+            ['aiBatchRefExtra', true],
+            ['aiBatchRefExamples', true],
+            ['aiBatchRefConfirmed', true]
+        ];
+        refDefaults.forEach(([id, v]) => {
+            const el = document.getElementById(id);
+            if (el && typeof el.checked === 'boolean') el.checked = v;
+        });
         _updateBatchStats();
         modal.classList.remove('hidden');
 
@@ -19800,6 +19948,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const btnRange = document.getElementById('aiBatchModeRange');
         const startEl = document.getElementById('aiBatchRangeStart');
         const endEl = document.getElementById('aiBatchRangeEnd');
+        const pickExBtn = document.getElementById('btnAiBatchPickExamples');
 
         function close() { modal.classList.add('hidden'); }
         if (cancelBtn) cancelBtn.onclick = close;
@@ -19822,6 +19971,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (String(endEl.value || '').trim()) _setAiBatchRangeMode('range');
             _updateBatchStats();
         };
+        if (pickExBtn) pickExBtn.onclick = async () => {
+            await _openAiBatchExamplePicker();
+        };
+        ['aiBatchRefTm','aiBatchRefTb','aiBatchRefTbNote','aiBatchRefKey','aiBatchRefExtra','aiBatchRefExamples','aiBatchRefConfirmed'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) el.onchange = () => _updateBatchStats();
+        });
         if (runBtn) runBtn.onclick = async () => {
             const range = _validateAiBatchRange();
             if (!range.ok) {
@@ -19848,6 +20004,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 batchNote: document.getElementById('aiBatchNote')?.value?.trim() || '',
                 batchRowLimit: rowLimit,
                 batchCharLimit: charLimit,
+                refOptions: {
+                    useTm: !!document.getElementById('aiBatchRefTm')?.checked,
+                    useTb: !!document.getElementById('aiBatchRefTb')?.checked,
+                    useTbNote: !!document.getElementById('aiBatchRefTbNote')?.checked,
+                    useKey: !!document.getElementById('aiBatchRefKey')?.checked,
+                    useExtra: !!document.getElementById('aiBatchRefExtra')?.checked,
+                    useExamples: !!document.getElementById('aiBatchRefExamples')?.checked,
+                    useConfirmedContext: !!document.getElementById('aiBatchRefConfirmed')?.checked,
+                    selectedExampleIds: Array.from(__aiBatchSelectedExampleIds)
+                },
                 batchStyleExampleCategories: customCats
             };
             await runAiBatchTranslate(config);
@@ -19869,6 +20035,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const charLimit = Math.max(200, parseInt(document.getElementById('aiBatchLimitChars')?.value || '2500', 10) || 2500);
         const estBatches = rangeSegs.length > 0 ? Math.max(Math.ceil(rangeSegs.length / rowLimit), Math.ceil(chars / charLimit)) : 0;
         statsEl.textContent = `範圍內共 ${rangeSegs.length} 句（約 ${chars} 字元），已確認 ${confirmed} 句、已輸入未確認 ${withText} 句、空白 ${empty} 句；依目前上限預估約 ${estBatches} 批。`;
+        _renderAiBatchRefTokens(rangeSegs);
         void _validateAiBatchRange();
     }
 
@@ -19971,7 +20138,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         // Attach TM reference hints for segments going to AI
-        if (config.tmRefThreshold > 0) {
+        if (config.refOptions?.useTm !== false && config.tmRefThreshold > 0) {
             const tmCache = window.ActiveTmCache || [];
             const calcSim = window.calculateSimilarity || (() => 0);
             const _aiPenalties = window.ActiveTmPenalties || {};
@@ -19995,7 +20162,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (confirmAskSegs.length > 0) {
             _showAiToast(`正在翻譯 ${confirmAskSegs.length} 句…（詢問確認）`);
-            const aiResult = await window.CatAiTranslate.translate(confirmAskSegs, await _buildAiOptions(settings, config.batchNote, config.batchStyleExampleCategories));
+            const aiResult = await window.CatAiTranslate.translate(confirmAskSegs, await _buildAiOptions(settings, config.batchNote, config.batchStyleExampleCategories, config.refOptions));
             const aiMap = new Map(aiResult.results.map(r => [r.segId, r.translation]));
             const askItems = confirmAskSegs.map(seg => ({ seg, existingText: seg.targetText, aiText: aiMap.get(seg.id) || '', label: '' }));
             const chosen = await _showBatchAskModal(askItems, '選擇要保留的版本');
@@ -20028,7 +20195,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 Math.ceil(roughChars / Math.max(dynamicCharLimit, 1))
             );
             let processed = 0;
-            const options = await _buildAiOptions(settings, config.batchNote, config.batchStyleExampleCategories);
+            const options = await _buildAiOptions(settings, config.batchNote, config.batchStyleExampleCategories, config.refOptions);
             let allMissing = [];
             const cooldownMs = Number.isFinite(Number(settings.aiBatchCooldownMs)) ? Math.max(0, Number(settings.aiBatchCooldownMs)) : AI_BATCH_COOLDOWN_MS;
             let i = 0;
@@ -20098,7 +20265,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    async function _buildAiOptions(settings, batchNote, batchStyleExampleCategories) {
+    async function _buildAiOptions(settings, batchNote, batchStyleExampleCategories, refOptions = {}) {
         const fileRec = currentFileId ? await DBService.getFile(currentFileId).catch(() => null) : null;
         const styleCats = Array.isArray(batchStyleExampleCategories) ? batchStyleExampleCategories : undefined;
         const psettings = currentProjectId ? await DBService.getAiProjectSettings(currentProjectId).catch(() => null) : null;
@@ -20130,8 +20297,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             targetLang: fileRec?.targetLang || undefined
         };
         if (Array.isArray(styleCats) && styleCats.length > 0) styleExFilters.categories = styleCats;
-        const styleExamples = await DBService.getAiStyleExamples(styleExFilters).catch(() => []);
-        const tbTerms = (window.ActiveTbTerms || []).map(t => ({ source: t.source, target: t.target, note: t.note }));
+        const useExamples = refOptions.useExamples !== false;
+        if (Array.isArray(refOptions.selectedExampleIds) && refOptions.selectedExampleIds.length > 0) {
+            styleExFilters.ids = refOptions.selectedExampleIds.map((x) => Number(x)).filter((x) => Number.isFinite(x));
+            styleExFilters.limit = Math.min(15, styleExFilters.ids.length || 15);
+        }
+        const styleExamples = useExamples ? await DBService.getAiStyleExamples(styleExFilters).catch(() => []) : [];
+        const useTb = refOptions.useTb !== false;
+        const useTbNote = refOptions.useTbNote !== false;
+        const tbTerms = useTb
+            ? (window.ActiveTbTerms || []).map(t => ({ source: t.source, target: t.target, note: useTbNote ? t.note : '' }))
+            : [];
         const pr = (settings && settings.prompts) ? settings.prompts : {};
         return {
             settings,
@@ -20143,7 +20319,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             tbTerms,
             batchNote: siPart,
             projectGuidelinesNote,
-            systemPrefix: (pr && pr.translateSystemPrefix) || ''
+            systemPrefix: (pr && pr.translateSystemPrefix) || '',
+            includeKeys: refOptions.useKey !== false,
+            includeExtraValue: refOptions.useExtra !== false,
+            includeContext: refOptions.useConfirmedContext !== false
         };
     }
 

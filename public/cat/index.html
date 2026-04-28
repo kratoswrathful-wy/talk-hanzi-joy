@@ -2022,6 +2022,43 @@
                     <input type="number" id="aiBatchLimitChars" class="form-input" value="2500" min="200" max="30000" style="width:96px;">
                 </div>
                 <div style="font-size:0.78rem; color:#64748b; margin-top:-0.45rem;">大範圍內容會依每批句數與每批字元上限自動拆成多批，逐批送交 AI。</div>
+                <!-- 參照來源 -->
+                <div>
+                    <label class="form-label">參照來源（附估計 token 數）</label>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+                        <label style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; border:1px solid #e2e8f0; background:#f8fafc; border-radius:8px; padding:0.4rem 0.55rem; font-size:0.82rem;">
+                            <span><input type="checkbox" id="aiBatchRefTm" checked> TM</span>
+                            <span id="aiBatchRefTokTm">0</span>
+                        </label>
+                        <label style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; border:1px solid #e2e8f0; background:#f8fafc; border-radius:8px; padding:0.4rem 0.55rem; font-size:0.82rem;">
+                            <span style="display:flex; align-items:center; gap:0.5rem;">
+                                <span><input type="checkbox" id="aiBatchRefTb" checked> TB</span>
+                                <span style="display:flex; align-items:center; gap:0.2rem;"><input type="checkbox" id="aiBatchRefTbNote" checked> 參照註解</span>
+                            </span>
+                            <span id="aiBatchRefTokTb">0</span>
+                        </label>
+                        <label style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; border:1px solid #e2e8f0; background:#f8fafc; border-radius:8px; padding:0.4rem 0.55rem; font-size:0.82rem;">
+                            <span><input type="checkbox" id="aiBatchRefKey" checked> 句段 Key</span>
+                            <span id="aiBatchRefTokKey">0</span>
+                        </label>
+                        <label style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; border:1px solid #e2e8f0; background:#f8fafc; border-radius:8px; padding:0.4rem 0.55rem; font-size:0.82rem;">
+                            <span><input type="checkbox" id="aiBatchRefExtra" checked> 句段額外資訊</span>
+                            <span id="aiBatchRefTokExtra">0</span>
+                        </label>
+                        <label style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; border:1px solid #e2e8f0; background:#f8fafc; border-radius:8px; padding:0.4rem 0.55rem; font-size:0.82rem;">
+                            <span style="display:flex; align-items:center; gap:0.5rem;">
+                                <span><input type="checkbox" id="aiBatchRefExamples" checked> 修改案例</span>
+                                <button type="button" id="btnAiBatchPickExamples" class="secondary-btn btn-sm" style="padding:0.2rem 0.45rem; font-size:0.78rem;">0/15</button>
+                            </span>
+                            <span id="aiBatchRefTokExamples">0</span>
+                        </label>
+                        <label style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; border:1px solid #e2e8f0; background:#f8fafc; border-radius:8px; padding:0.4rem 0.55rem; font-size:0.82rem;">
+                            <span><input type="checkbox" id="aiBatchRefConfirmed" checked> 同檔案已確認句段</span>
+                            <span id="aiBatchRefTokConfirmed">0</span>
+                        </label>
+                    </div>
+                    <div style="margin-top:0.35rem; font-size:0.78rem; color:#64748b;">參照來源合計：<span id="aiBatchRefTokTotal">0</span></div>
+                </div>
                 <!-- 單批特殊指示 -->
                 <div>
                     <label class="form-label">本批特殊指示（選填，翻完後自動清除）</label>
@@ -2059,6 +2096,25 @@
             <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.75rem; flex-shrink:0; border-top:1px solid #e2e8f0; padding-top:0.75rem;">
                 <button type="button" id="btnBatchAskCancel" class="secondary-btn btn-sm">取消</button>
                 <button type="button" id="btnBatchAskConfirm" class="primary-btn btn-sm">套用選擇</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====== AI 批次翻譯：修改案例挑選 ====== -->
+    <div id="aiBatchExamplePickerModal" class="modal-overlay hidden" style="align-items:flex-start; padding-top:2rem;">
+        <div class="modal-box" style="max-width:min(1000px,96vw); width:94vw; max-height:90vh; display:flex; flex-direction:column;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem; flex-shrink:0;">
+                <h3 style="margin:0;">AI 學習範例（最多 15 筆）</h3>
+                <button type="button" id="btnCloseAiBatchExamplePicker" class="secondary-btn btn-sm">關閉</button>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.65rem; flex-wrap:wrap;">
+                <input id="aiBatchExampleSearch" class="form-input" style="flex:1; min-width:220px;" placeholder="搜尋原文 / AI 初稿 / 最終採用 / 標籤">
+                <span style="font-size:0.8rem; color:#64748b;">已選 <b id="aiBatchExampleSelectedCount">0</b>/15</span>
+            </div>
+            <div id="aiBatchExampleList" style="overflow-y:auto; flex:1; min-height:0; display:flex; flex-direction:column; gap:0.45rem; border:1px solid #e2e8f0; border-radius:8px; padding:0.55rem; background:#f8fafc;"></div>
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.75rem; flex-shrink:0; border-top:1px solid #e2e8f0; padding-top:0.75rem;">
+                <button type="button" id="btnCancelAiBatchExamplePicker" class="secondary-btn btn-sm">取消</button>
+                <button type="button" id="btnApplyAiBatchExamplePicker" class="primary-btn btn-sm">套用</button>
             </div>
         </div>
     </div>
