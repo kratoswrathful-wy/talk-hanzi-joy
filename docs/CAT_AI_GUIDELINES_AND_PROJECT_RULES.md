@@ -201,6 +201,21 @@ flowchart LR
 - **團隊**：[`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts) 讀寫時帶入 `issue_group_id`／`issueGroupId`；`saveAiProjectSettings` 合併 patch 時 **不得**覆寫清空未傳入之 `project_guidelines` 子欄。
 - **離線**：[`cat-tool/db.js`](../cat-tool/db.js) Dexie 升級、`aiGuidelines` 與本地議題群組快取；舊資料預設無群組。
 
+#### 5.6.9 本波次收斂（2026-04-28 晚間）
+
+本段補記「規格已落地後」的收斂修正，避免後續只看 §5.6 規格卻不知實際踩坑與最終行為。
+
+- **準則管理頁切換**：`列表依` 由下拉改為二態開關（互斥／議題），並維持 Session 記憶。
+- **互斥／議題操作分流**：加入群組、脫離群組、modal 文案與事件綁定改為兩條路徑，避免誤觸互斥邏輯。
+- **排序一致性**：互斥視圖與議題視圖皆強制「有群組在前、無群組在後」。
+- **專案頁／編輯器管理介面（選擇準則／文風）**：
+  - 勾選語意僅代表「是否套用到本專案」，不再混入庫內「預設條目」控制。
+  - 議題群組採「整張卡片一個勾選框」，同群條目全進全出；不做群內逐條勾選。
+- **共用資訊欄（準則／文風）**：改為依議題群組卡片聚合顯示（不再僅以標籤散列）。
+- **新增條目工具列**：議題群組下拉補 `+ 新增群組` 入口，並在建立後即時回填與選取。
+- **空群組回收**：條目脫離／刪除後，若群組無任何引用，於本機與團隊 RPC 路徑皆自動清理空群組。
+- **429 保護**：翻譯呼叫加入 retry（exponential backoff + jitter）；`insufficient_quota` 不重試。
+
 ---
 
 ## 6. 部署與維運
@@ -208,6 +223,10 @@ flowchart LR
 1. **新環境或新 Supabase 專案**：須套用含 **`cat_ai_*`**、**`project_guidelines`**、**`cat_ai_guidelines.examples`**（`20260429203000`）、**議題群組**（`20260502120000`，見 **§5.6**）與 **`cat_ai_category_tags.list_hidden`** 的 migrations（見第 1.2 節檔名）。未套用時，PostgREST 可能回類似 **「Could not find the table … in the schema cache」** 或請求失敗。
 2. **Vercel／TMS**：部署後若 CAT 團隊版讀不到表，優先確認 **連到的 Supabase 專案** 是否已 `db push` / 執行 migration。
 3. 與上線檢查清單的關係：仍請搭配 [`DEPLOYMENT_CHECKLIST.md`](./DEPLOYMENT_CHECKLIST.md)；**CAT AI 表與欄位**以本文件第 1–2、5–6 節為準。
+4. **本波次額外驗證（議題群組）**：
+   - 驗證「選擇準則／選擇文風」modal 能正常開啟（避免初始化錯誤造成按鈕無反應）。
+   - 驗證共用資訊欄與管理介面的議題群組顯示一致（卡片聚合 vs. 套用勾選語意）。
+   - 驗證新增條目之議題群組下拉可即時更新，且含 `+ 新增群組`。
 
 ---
 
@@ -279,6 +298,7 @@ flowchart LR
 | 2026-04-30 | **§1.2** 補列 `20260429203000`（`cat_ai_guidelines.examples`）；**§6** 部署清單併列該 migration。**§11** 自「下一階段」改為 **MVP 已實作**，補 `state`、專案準則列內 `examples`、§11.3 驗收勾選；**新增 §12** 分階段執行建議與主計畫 §9～10 邊界說明。 |
 | 2026-04-28 | **階段 A 維運**：linked 遠端補齊 `20260428120000`（`--include-all`）並確認至 `20260429203000`；基線與手動驗收提示見 [`CAT_AI_PHASE_A_BASELINE.md`](./CAT_AI_PHASE_A_BASELINE.md) |
 | 2026-05-02 | **新增 §5.6** 議題群組完整規格（Session 雙視圖、管理／參與者「僅一條」差異、排序、權限、prompt、離線／團隊）；**§1.2／§5.2／§5.4／§12** 交叉引用；**§6** 部署補 **`20260502120000`** |
+| 2026-04-28（晚間收斂） | 議題群組實作收斂：雙視圖開關化、互斥/議題操作分流、無群組後排一致、共用資訊欄改議題卡片聚合、管理介面改整卡全進全出與套用語意分離、下拉補 `+ 新增群組`、空群組自動回收、429 重試保護。同步更新 **§5.6.9／§6／§12**。本輪整合來源為 [本次執行對話](b5283eac-a4e1-47c6-a2d2-7375992aad23)；`docs/mirror/*.plan.md` 維持不動。 |
 
 ---
 
@@ -337,7 +357,7 @@ flowchart LR
 | 階段 | 內容 | 依賴／說明 |
 |------|------|------------|
 | **A** | 維運：既有 Supabase 專案須已套用至 **`20260429203000`**（與 §1.2 一致）；團隊版手動驗收「範例可存、重載不丟」。**已用 CLI 驗之 linked 專案**：見 [`CAT_AI_PHASE_A_BASELINE.md`](./CAT_AI_PHASE_A_BASELINE.md)（`npm run verify:supabase-migrations`） | 未套用則雲端無法讀寫 `cat_ai_guidelines.examples` |
-| **B** | **全站「議題群組」**：規格 **§5.6**；migration [`20260502120000_cat_ai_issue_groups.sql`](../supabase/migrations/20260502120000_cat_ai_issue_groups.sql)、RPC、`cat-tool` UI（雙視圖 Session、管理／參與者差異）、prompt 前綴 | 依賴 **A**；與互斥群組並存 |
+| **B** | **全站「議題群組」**：規格 **§5.6**；migration [`20260502120000_cat_ai_issue_groups.sql`](../supabase/migrations/20260502120000_cat_ai_issue_groups.sql)、RPC、`cat-tool` UI（雙視圖 Session、管理／參與者差異）、prompt 前綴 | **核心已完成**；目前進入收斂維運（見 **§5.6.9** 與 **§6**） |
 | **C** | **可選**：範例段落送入 [`cat-tool/js/ai-translate.js`](../cat-tool/js/ai-translate.js) `buildPrompt` 等（§11.2）— 先小流量實驗 token 與品質，再決定預設是否開啟 | 依賴 **A**；與成本／品質權衡 |
 | **（加值）** | 範例卡 **拖曳排序**（陣列順序、無額外 schema 變更） | 次優；可併在 **C** 之後或與 **B** 錯峰 |
 | **D** | **§7**／**§9.3** 剩餘僅 **`alert`** 之處，改非阻斷 toast 等，與全站一致 | 與 AI 規則邏輯可平行 |
