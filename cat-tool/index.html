@@ -1074,6 +1074,13 @@
                         <option value="cat">依類別</option>
                         <option value="content">依內容（A–Z）</option>
                     </select>
+                    <label style="font-size:0.82rem; color:#334155; display:flex; align-items:center; gap:0.35rem;">
+                        列表依
+                        <select id="aiGuidelinesViewMode" class="form-input" style="width:auto; min-width:120px; padding:0.3rem 0.5rem; font-size:0.82rem;" title="僅本次瀏覽器工作階段有效">
+                            <option value="mutex">互斥群組</option>
+                            <option value="issue">議題群組</option>
+                        </select>
+                    </label>
                 </div>
                 <div class="ai-guidelines-two-cols" style="display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; max-width:1000px; margin-bottom:1.5rem; align-items:start;">
                     <div>
@@ -2219,6 +2226,14 @@
                     <label class="form-label" for="agEditGuidelineMutexCustom" style="margin-top:0.5rem;">或新群組名稱（選填，若填寫則優先於上方選單）</label>
                     <input type="text" id="agEditGuidelineMutexCustom" class="form-input ag-edit-guideline-field" placeholder="留空則以上方選單為準" autocomplete="off">
                 </div>
+                <div class="form-group ag-only-on-ai-guidelines-page">
+                    <label class="form-label" for="agEditGuidelineIssueGroupSelect">議題群組</label>
+                    <select id="agEditGuidelineIssueGroupSelect" class="form-input ag-edit-guideline-field ag-edit-compact-select">
+                        <option value="">無</option>
+                    </select>
+                    <label class="form-label" for="agEditGuidelineIssueGroupNew" style="margin-top:0.5rem;">或新議題群組名稱（PM／主管；選填）</label>
+                    <input type="text" id="agEditGuidelineIssueGroupNew" class="form-input ag-edit-guideline-field" placeholder="留空則以上方選單為準" autocomplete="off">
+                </div>
                 <div class="form-group">
                     <div class="ag-edit-examples-box">
                         <div class="ag-edit-examples-head">
@@ -2255,6 +2270,14 @@
                         </div>
                         <div id="pgEditProjectGuidelineCategoryDropdown" class="ai-multiselect-dropdown hidden"></div>
                     </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="pgEditProjectGuidelineIssueGroupSelect">議題群組</label>
+                    <select id="pgEditProjectGuidelineIssueGroupSelect" class="form-input ag-edit-guideline-field ag-edit-compact-select">
+                        <option value="">無</option>
+                    </select>
+                    <label class="form-label" for="pgEditProjectGuidelineIssueGroupNew" style="margin-top:0.5rem;">或新議題群組名稱（PM／主管；選填）</label>
+                    <input type="text" id="pgEditProjectGuidelineIssueGroupNew" class="form-input ag-edit-guideline-field" placeholder="留空則以上方選單為準" autocomplete="off">
                 </div>
                 <div class="form-group">
                     <div class="ag-edit-examples-box">

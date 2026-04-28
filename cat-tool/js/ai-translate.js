@@ -101,17 +101,19 @@
         let system = (systemPrefix && String(systemPrefix).trim() ? String(systemPrefix).trim() + '\n\n' : '') +
             `你是專業的 ${srcLabel}→${tgtLabel} 翻譯人員，請嚴格依照以下指示進行翻譯。\n`;
 
-        // 翻譯準則
+        // 翻譯準則（§5.6：有議題群組時前綴〔群組名〕）
         if (guidelines.length > 0) {
             system += '\n【翻譯準則】\n';
             guidelines.forEach((g, i) => {
-                system += `${i + 1}. ${g.content}\n`;
+                const prefix = (g && g.issueGroupName) ? `〔${g.issueGroupName}〕 ` : '';
+                system += `${i + 1}. ${prefix}${g.content}\n`;
             });
         }
         if (Array.isArray(styleGuidelines) && styleGuidelines.length > 0) {
             system += '\n【文風偏好】\n';
             styleGuidelines.forEach((g, i) => {
-                system += `${i + 1}. ${g.content}\n`;
+                const prefix = (g && g.issueGroupName) ? `〔${g.issueGroupName}〕 ` : '';
+                system += `${i + 1}. ${prefix}${g.content}\n`;
             });
         }
 
@@ -519,10 +521,16 @@
         ];
 
         if (guidelines && guidelines.length > 0) {
-            systemParts.push('\n目前已定義的翻譯準則：\n' + guidelines.map(g => `- ${g.content}`).join('\n'));
+            systemParts.push('\n目前已定義的翻譯準則：\n' + guidelines.map((g) => {
+                const p = (g && g.issueGroupName) ? `〔${g.issueGroupName}〕 ` : '';
+                return `- ${p}${g.content}`;
+            }).join('\n'));
         }
         if (Array.isArray(styleGuidelines) && styleGuidelines.length > 0) {
-            systemParts.push('\n文風偏好：\n' + styleGuidelines.map(g => `- ${g.content}`).join('\n'));
+            systemParts.push('\n文風偏好：\n' + styleGuidelines.map((g) => {
+                const p = (g && g.issueGroupName) ? `〔${g.issueGroupName}〕 ` : '';
+                return `- ${p}${g.content}`;
+            }).join('\n'));
         }
         if (tbTerms && tbTerms.length > 0) {
             systemParts.push('\n術語庫：\n' + tbTerms.slice(0, 50).map(t => `${t.source} → ${t.target}`).join('\n'));

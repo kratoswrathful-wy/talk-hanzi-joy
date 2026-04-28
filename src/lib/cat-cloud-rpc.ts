@@ -255,17 +255,37 @@ function serializeAiCategories(v: unknown): string {
   return JSON.stringify(arr.length > 0 ? arr : ["通用"]);
 }
 
-const mapAiGuidelineRow = (r: any) => ({
-  id: Number(r.id),
-  content: r.content ?? "",
-  category: serializeAiCategories(r.category),
-  mutexGroup: r.mutex_group ?? null,
-  sortOrder: Number(r.sort_order ?? 0),
-  scope: r.scope === "style" ? "style" : "translation",
-  isDefault: !!r.is_default,
-  examples: tryParseJson<any[]>(r.examples, []),
-  createdAt: r.created_at,
-});
+function mapAiGuidelineIssueGroup(r: any): { issueGroupId: string | null; issueGroupName: string | null } {
+  const raw = r?.issue_group;
+  const ig = Array.isArray(raw) ? raw[0] : raw;
+  if (ig && typeof ig === "object") {
+    return {
+      issueGroupId: ig.id != null ? String(ig.id) : r.issue_group_id != null ? String(r.issue_group_id) : null,
+      issueGroupName: ig.name != null ? String(ig.name) : null,
+    };
+  }
+  return {
+    issueGroupId: r.issue_group_id != null ? String(r.issue_group_id) : null,
+    issueGroupName: null,
+  };
+}
+
+const mapAiGuidelineRow = (r: any) => {
+  const ig = mapAiGuidelineIssueGroup(r);
+  return {
+    id: Number(r.id),
+    content: r.content ?? "",
+    category: serializeAiCategories(r.category),
+    mutexGroup: r.mutex_group ?? null,
+    sortOrder: Number(r.sort_order ?? 0),
+    scope: r.scope === "style" ? "style" : "translation",
+    isDefault: !!r.is_default,
+    examples: tryParseJson<any[]>(r.examples, []),
+    issueGroupId: ig.issueGroupId,
+    issueGroupName: ig.issueGroupName,
+    createdAt: r.created_at,
+  };
+};
 
 const mapAiCategoryTagRow = (r: any) => ({
   id: Number(r.id),
@@ -977,7 +997,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     // ---- AI Guidelines / Tags / Settings / Project Settings ----
     case "db.addAiGuideline": {
       const entry = payload.entry ?? {};
-      const { data, error } = await supabase
+        const { data, error } = await supabase
         .from("cat_ai_guidelines" as any)
         .insert({
           content: entry.content || "",
@@ -987,6 +1007,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           scope: entry.scope === "style" ? "style" : "translation",
           is_default: !!entry.isDefault,
           examples: Array.isArray(entry.examples) ? entry.examples : [],
+          issue_group_id: entry.issueGroupId || null,
           created_at: nowIso(),
           updated_at: nowIso(),
           created_by: userId,
@@ -999,7 +1020,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     case "db.getAiGuidelines": {
       const { data, error } = await supabase
         .from("cat_ai_guidelines" as any)
-        .select("*")
+        .select("*, issue_group:cat_ai_issue_groups(id, name, scope, project_id)")
         .order("sort_order", { ascending: true })
         .order("id", { ascending: true });
       if (error) throw error;
@@ -1014,6 +1035,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       if (payload.patch?.scope !== undefined) patch.scope = payload.patch.scope === "style" ? "style" : "translation";
       if (payload.patch?.isDefault !== undefined) patch.is_default = !!payload.patch.isDefault;
       if (payload.patch?.examples !== undefined) patch.examples = Array.isArray(payload.patch.examples) ? payload.patch.examples : [];
+      if (payload.patch?.issueGroupId !== undefined) patch.issue_group_id = payload.patch.issueGroupId || null;
       const { error } = await supabase
         .from("cat_ai_guidelines" as any)
         .update(patch as any)
@@ -1027,6 +1049,94 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .delete()
         .eq("id", payload.id);
       if (error) throw error;
+      return true;
+    }
+    case "db.getAiIssueGroups": {
+      const scope = String(payload.scope || "");
+      if (!["translation", "style", "project"].includes(scope)) throw new Error("invalid scope");
+      let q = supabase.from("cat_ai_issue_groups" as any).select("*").eq("scope", scope).order("sort_order", { ascending: true }).order("name", { ascending: true });
+      if (scope === "project") {
+        const pid = payload.projectId;
+        if (!pid) throw new Error("projectId required");
+        q = (q as any).eq("project_id", pid);
+      }
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []).map((row: any) => ({
+        id: String(row.id),
+        scope: row.scope,
+        projectId: row.project_id ?? null,
+        name: row.name ?? "",
+        sortOrder: Number(row.sort_order ?? 0) || 0,
+        createdAt: row.created_at,
+      }));
+    }
+    case "db.addAiIssueGroup": {
+      const scope = String(payload.scope || "");
+      if (!["translation", "style", "project"].includes(scope)) throw new Error("invalid scope");
+      const name = String(payload.name || "").trim();
+      if (!name) throw new Error("群組名稱不得空白");
+      const projectId = scope === "project" ? payload.projectId : null;
+      if (scope === "project" && !projectId) throw new Error("projectId required");
+      const { data, error } = await supabase
+        .from("cat_ai_issue_groups" as any)
+        .insert({
+          scope,
+          project_id: projectId || null,
+          name,
+          sort_order: Number(payload.sortOrder ?? 0) || 0,
+          created_at: nowIso(),
+        } as any)
+        .select("id")
+        .single();
+      if (error) throw error;
+      return String((data as any)?.id);
+    }
+    case "db.updateAiIssueGroup": {
+      const id = String(payload.id || "");
+      if (!id) throw new Error("invalid id");
+      const name = payload.name !== undefined ? String(payload.name).trim() : undefined;
+      if (name === "") throw new Error("群組名稱不得空白");
+      const up: Record<string, unknown> = {};
+      if (name !== undefined) up.name = name;
+      if (payload.sortOrder !== undefined) up.sort_order = Number(payload.sortOrder ?? 0) || 0;
+      if (Object.keys(up).length === 0) return true;
+      const { error } = await supabase.from("cat_ai_issue_groups" as any).update(up as any).eq("id", id);
+      if (error) throw error;
+      return true;
+    }
+    case "db.deleteAiIssueGroup": {
+      const groupId = String(payload.id || "");
+      if (!groupId) throw new Error("invalid id");
+      const { data: groupRow, error: gErr } = await supabase
+        .from("cat_ai_issue_groups" as any)
+        .select("id, scope, project_id")
+        .eq("id", groupId)
+        .maybeSingle();
+      if (gErr) throw gErr;
+      if (!groupRow) return true;
+      const gAny = groupRow as any;
+      await supabase.from("cat_ai_guidelines" as any).update({ issue_group_id: null, updated_at: nowIso() } as any).eq("issue_group_id", groupId);
+      if (gAny.scope === "project" && gAny.project_id) {
+        const { data: settingsRows } = await supabase.from("cat_ai_project_settings" as any).select("project_id, project_guidelines").eq("project_id", gAny.project_id);
+        for (const sr of (settingsRows as any[]) ?? []) {
+          const pg = Array.isArray(sr.project_guidelines) ? sr.project_guidelines : [];
+          const next = pg.map((el: Record<string, unknown>) => {
+            if (!el || typeof el !== "object") return el;
+            if (String((el as any).issueGroupId || "") === groupId) {
+              const { issueGroupId: _ig, ...rest } = el as any;
+              return rest;
+            }
+            return el;
+          });
+          await supabase
+            .from("cat_ai_project_settings" as any)
+            .update({ project_guidelines: next, updated_at: nowIso(), updated_by: userId } as any)
+            .eq("project_id", sr.project_id);
+        }
+      }
+      const { error: delErr } = await supabase.from("cat_ai_issue_groups" as any).delete().eq("id", groupId);
+      if (delErr) throw delErr;
       return true;
     }
     case "db.getAiCategoryTags": {

@@ -1,7 +1,7 @@
 # CAT：準則、專案準則與團隊版 AI 資料 — 變更與修正紀錄
 
 > 本文件記錄 **2026-04** 前後與「準則庫／共用資訊／專案準則／團隊版雲端 AI」相關的設計、實作與踩坑，供維運與後續迭代對照。  
-> 與分階段重建總覽的關係：見 [CAT-phased-rebuild-audit.md](./CAT-phased-rebuild-audit.md)（較偏進度稽核）；**本文件**偏 **行為、資料表、部署與 AI 組字**。**本主題之後續波次（範例送 prompt、議題群組、alert 收斂等）** 之**建議順序**見 **§12**。
+> 與分階段重建總覽的關係：見 [CAT-phased-rebuild-audit.md](./CAT-phased-rebuild-audit.md)（較偏進度稽核）；**本文件**偏 **行為、資料表、部署與 AI 組字**。**議題群組**之產品與技術權威見 **§5.6**。**本主題之後續波次（範例送 prompt、alert 收斂等）** 之**建議順序**見 **§12**。
 
 ---
 
@@ -21,6 +21,7 @@
 | `cat_ai_settings` | 全站 AI 連線／模型／prompt 等（單列 `id = 1`） |
 | `cat_ai_project_settings` | 每專案：已選準則 ID、文風 ID、`special_instructions`、`project_guidelines`（見第 5 節）、更新時間等 |
 | `cat_ai_style_examples` | AI 學習範例 |
+| `cat_ai_issue_groups` | **議題群組**定義（依 **scope** 區分翻譯準則／文風／專案；專案 scope 時綁定 `project_id`，見 **§5.6**） |
 
 **Migrations（起點與擴充）**
 
@@ -28,6 +29,7 @@
 - [`supabase/migrations/20260426220000_cat_ai_project_guidelines.sql`](../supabase/migrations/20260426220000_cat_ai_project_guidelines.sql) — 為 `cat_ai_project_settings` 新增 **`project_guidelines`**（JSONB，預設 `[]`）。
 - [`supabase/migrations/20260427153000_cat_ai_category_tags_list_hidden.sql`](../supabase/migrations/20260427153000_cat_ai_category_tags_list_hidden.sql) — `cat_ai_category_tags` 新增 **`list_hidden`**（軟隱藏自清單，見第 9 節）。
 - [`supabase/migrations/20260429203000_cat_ai_guidelines_examples.sql`](../supabase/migrations/20260429203000_cat_ai_guidelines_examples.sql) — `cat_ai_guidelines` 新增 **`examples`**（JSONB，預設 `[]`；陣列元素含 `id`、`state`（`ok` \| `bad` \| `neutral`）、`src`、`tgt`、`note`，見第 11 節）。
+- [`supabase/migrations/20260502120000_cat_ai_issue_groups.sql`](../supabase/migrations/20260502120000_cat_ai_issue_groups.sql) — **`cat_ai_issue_groups`**、`cat_ai_guidelines.issue_group_id`；專案準則 JSON 元素之 **`issueGroupId`**（見 **§5.6**）。
 
 ### 1.3 程式對照
 
@@ -107,7 +109,7 @@ flowchart LR
 ### 5.2 資料
 
 - 欄位：`cat_ai_project_settings.project_guidelines`（JSONB 陣列）。
-- 元素建議欄位：`id`、`content`、`enabled`、`createdAt`（與 `special_instructions` 條目風格一致，語意為「專案層文字準則」）。**未來**可再納入與 **議題群組** 之關聯（欄名與 JSON 形狀待該功能實作時定稿；產品邊界見 **§5.4**）。
+- 元素欄位：`id`、`content`、`enabled`、`createdAt`（與 `special_instructions` 條目風格一致），以及 **`issueGroupId`**（可選，UUID 字串，指向該專案 scope 之 `cat_ai_issue_groups`；見 **§5.6**）。
 
 ### 5.3 程式
 
@@ -126,7 +128,7 @@ flowchart LR
 
 - **內文**（對應儲存欄位仍為 `content` 等既有元素欄位）。
 - **標籤**（與庫內準則條目之「類別／標籤」語意一致：文字類型標籤，供篩選與 AI 行為一致）。
-- **議題群組**：全站 **議題群組** 功能**目前尚未實作**；實作完成後，專案準則條目**必須**一併支援選擇／顯示所屬議題群組，並寫入 `project_guidelines`（或關聯欄位，細節於該功能之 migration／RPC 章節另述）。本節先作**文件層承諾**，不要求立即改 DB。
+- **議題群組**：規格與資料形狀見 **§5.6**；實作後於編輯 modal 選擇／顯示，並寫入 `project_guidelines` 元素之 **`issueGroupId`**（migration 見 **§1.2** `20260502120000`）。
 
 **不包含（專案準則編輯介面不顯示、不提供）**
 
@@ -144,7 +146,7 @@ flowchart LR
 | 性質（翻譯／文風） | 有 | **無**（固定為專案準則） |
 | 互斥群組 | 有 | **無** |
 | 預設條目 | 有 | **無** |
-| 議題群組 | 尚未於庫內條目實作（全站功能另開） | **預留；完成後必納入** |
+| 議題群組 | 規格／實作見 **§5.6**（庫內與專案準則皆支援） | 與互斥群組並存但語意不同 |
 
 ### 5.5 AI 組字（固定標題「專案準則」）
 
@@ -152,11 +154,58 @@ flowchart LR
 - [`cat-tool/js/ai-translate.js`](../cat-tool/js/ai-translate.js) `buildPrompt`：在 **「【本批次特殊指示】」** 區塊**之前**，插入獨立一段：第一行固定 **`專案準則`**，換行後為各條內文（多條以空行分隔）。
 - **掃描全文**：`cat-tool/app.js` `_runAiScan` 將 `projectGuidelinesNote` 傳入 `scanFullText`，於 system 中同樣以「專案準則」標題區塊呈現。
 
+### 5.6 議題群組（產品規格與技術對照）
+
+本節為 **階段 B** 之權威規格；與 **互斥群組** 並存為另一套機制（專案準則列仍 **不包含**互斥群組欄位，見 **§5.4**「不包含」列）。
+
+#### 5.6.1 範圍與語意
+
+- 可為 **庫內翻譯準則**、**庫內文風偏好**、**專案準則**條目各自指定 **議題群組**（類似互斥群組之「把條目歸類」），但 **不得跨類型共用**同一筆議題群組定義（命名空間依 **scope** 區分：`translation`／`style`／`project`，其中 `project` 綁定 **`project_id`**）。
+- 與互斥不同：**議題群組**為閱讀／整理用；**所有人皆可見**列表與群組卡片（互斥仍維持「擇一」語意）。
+- 每條目 **最多一個**議題群組，或 **無群組**。
+
+#### 5.6.2 權限
+
+- **群組定義**（新增／更名／刪除議題群組名稱）：**僅 PM 以上**（與既有 `_isCatPmOrExecutive()`／共用資訊可編輯者一致）。
+- **選群組**：編輯條目時指定／變更／移除所屬議題群組；與群組定義 CRUD **同為 PM 以上**（譯者不得變更條目所屬議題群組）。
+
+#### 5.6.3 資料概要
+
+- **庫內**：`cat_ai_guidelines.issue_group_id` → `cat_ai_issue_groups`（`scope` 須與該列 `scope` 一致）。
+- **專案準則**：`project_guidelines[]` 元素之 **`issueGroupId`**（UUID 字串，可缺省）；對應 `cat_ai_issue_groups` 中 **`scope = 'project'`** 且 **`project_id`** 為該專案之列。
+- **刪除議題群組定義**：該群引用之條目／JSON 元素 **清空** `issue_group_id`／`issueGroupId`；若已無任何引用則 **自動刪除**該群組列。
+
+#### 5.6.4 管理介面：雙視圖與 Session
+
+- **互斥群組視圖**與 **議題群組視圖**兩種列表呈現，以 **開關**切換；狀態 **僅 Session**（例如 `sessionStorage`，不寫入使用者設定檔）；**預設為互斥群組視圖**。
+- 在當前視圖下，另一套群組屬性以 **與該類卡片同色系的標籤**呈現（互斥視圖下顯示議題名；議題視圖下顯示互斥群組名）。
+
+#### 5.6.5 列表排序與「僅一條」規則
+
+- **無群組**之條目在 **兩種視圖**中皆排在 **有群組之條目之後**（同一欄／同一列表）。
+- **「群內僅一條不顯示議題卡」** 僅適用於 **專案頁／編輯器** 向 **案件參與者** 展示之專案準則列表（一般成員視圖）：僅一條時 **不以議題卡片包裝**，避免冗餘。
+- **準則管理**與 **專案準則管理介面**（含 `#pgManageProjectGuidelinesModal` 等）：在議題群組視圖下 **仍顯示**該議題群組卡片（**即使群內僅一條**），供維運辨識。
+
+#### 5.6.6 視覺
+
+- 議題群組卡片 **標題僅顯示群組名稱**（例如「空格規則」），**不加**「議題：」等前綴。
+- **色票**（與互斥群組區隔）：以預覽稿提供多版本比對後定稿；文件不定死色碼。
+
+#### 5.6.7 AI 組字（寫入 prompt）
+
+- 議題群組名稱 **寫入**翻譯／掃描所用之 system 片段：於 [`cat-tool/js/ai-translate.js`](../cat-tool/js/ai-translate.js) `buildPrompt`、`scanFullText` 路徑中，對已套用之庫內準則／文風／專案準則條目，在條目前綴 **〔群組名〕**（僅當該條目有議題群組時）。
+- 與 **§5.5**「專案準則」區塊並存：專案準則仍可有獨立「專案準則」標題區塊；議題前綴標示語意為 **分類**，不改互斥或預設條目邏輯。
+
+#### 5.6.8 離線／團隊
+
+- **團隊**：[`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts) 讀寫時帶入 `issue_group_id`／`issueGroupId`；`saveAiProjectSettings` 合併 patch 時 **不得**覆寫清空未傳入之 `project_guidelines` 子欄。
+- **離線**：[`cat-tool/db.js`](../cat-tool/db.js) Dexie 升級、`aiGuidelines` 與本地議題群組快取；舊資料預設無群組。
+
 ---
 
 ## 6. 部署與維運
 
-1. **新環境或新 Supabase 專案**：須套用含 **`cat_ai_*`**、**`project_guidelines`**、**`cat_ai_guidelines.examples`**（`20260429203000`）與 **`cat_ai_category_tags.list_hidden`** 的 migrations（見第 1.2 節檔名）。未套用時，PostgREST 可能回類似 **「Could not find the table … in the schema cache」** 或請求失敗。
+1. **新環境或新 Supabase 專案**：須套用含 **`cat_ai_*`**、**`project_guidelines`**、**`cat_ai_guidelines.examples`**（`20260429203000`）、**議題群組**（`20260502120000`，見 **§5.6**）與 **`cat_ai_category_tags.list_hidden`** 的 migrations（見第 1.2 節檔名）。未套用時，PostgREST 可能回類似 **「Could not find the table … in the schema cache」** 或請求失敗。
 2. **Vercel／TMS**：部署後若 CAT 團隊版讀不到表，優先確認 **連到的 Supabase 專案** 是否已 `db push` / 執行 migration。
 3. 與上線檢查清單的關係：仍請搭配 [`DEPLOYMENT_CHECKLIST.md`](./DEPLOYMENT_CHECKLIST.md)；**CAT AI 表與欄位**以本文件第 1–2、5–6 節為準。
 
@@ -229,6 +278,7 @@ flowchart LR
 | 2026-04-29（驗收收斂） | 專案準則管理視窗新增改為**頁內錯誤訊息**（`#pgManageProjectGuidelineErr`，不再彈瀏覽器 `alert`）；通用確認／提示框與脫離互斥確認框 `z-index` 提升（`10100`），修正「刪除專案準則時確認框被管理視窗遮蓋」問題。 |
 | 2026-04-30 | **§1.2** 補列 `20260429203000`（`cat_ai_guidelines.examples`）；**§6** 部署清單併列該 migration。**§11** 自「下一階段」改為 **MVP 已實作**，補 `state`、專案準則列內 `examples`、§11.3 驗收勾選；**新增 §12** 分階段執行建議與主計畫 §9～10 邊界說明。 |
 | 2026-04-28 | **階段 A 維運**：linked 遠端補齊 `20260428120000`（`--include-all`）並確認至 `20260429203000`；基線與手動驗收提示見 [`CAT_AI_PHASE_A_BASELINE.md`](./CAT_AI_PHASE_A_BASELINE.md) |
+| 2026-05-02 | **新增 §5.6** 議題群組完整規格（Session 雙視圖、管理／參與者「僅一條」差異、排序、權限、prompt、離線／團隊）；**§1.2／§5.2／§5.4／§12** 交叉引用；**§6** 部署補 **`20260502120000`** |
 
 ---
 
@@ -287,7 +337,7 @@ flowchart LR
 | 階段 | 內容 | 依賴／說明 |
 |------|------|------------|
 | **A** | 維運：既有 Supabase 專案須已套用至 **`20260429203000`**（與 §1.2 一致）；團隊版手動驗收「範例可存、重載不丟」。**已用 CLI 驗之 linked 專案**：見 [`CAT_AI_PHASE_A_BASELINE.md`](./CAT_AI_PHASE_A_BASELINE.md)（`npm run verify:supabase-migrations`） | 未套用則雲端無法讀寫 `cat_ai_guidelines.examples` |
-| **B** | **全站「議題群組」**（**§5.2／§5.4** 已承諾）：庫內與專案準則條目皆能選擇／顯示所屬群組；migration／RPC 於該功能定稿時另述 | 宜單一產品設計後再實作，避免兩邊 UI 分岔 |
+| **B** | **全站「議題群組」**：規格 **§5.6**；migration [`20260502120000_cat_ai_issue_groups.sql`](../supabase/migrations/20260502120000_cat_ai_issue_groups.sql)、RPC、`cat-tool` UI（雙視圖 Session、管理／參與者差異）、prompt 前綴 | 依賴 **A**；與互斥群組並存 |
 | **C** | **可選**：範例段落送入 [`cat-tool/js/ai-translate.js`](../cat-tool/js/ai-translate.js) `buildPrompt` 等（§11.2）— 先小流量實驗 token 與品質，再決定預設是否開啟 | 依賴 **A**；與成本／品質權衡 |
 | **（加值）** | 範例卡 **拖曳排序**（陣列順序、無額外 schema 變更） | 次優；可併在 **C** 之後或與 **B** 錯峰 |
 | **D** | **§7**／**§9.3** 剩餘僅 **`alert`** 之處，改非阻斷 toast 等，與全站一致 | 與 AI 規則邏輯可平行 |

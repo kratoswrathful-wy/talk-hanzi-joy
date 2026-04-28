@@ -316,6 +316,33 @@ db.version(18).stores({
     });
 });
 
+// v19：議題群組（庫內 issueGroupId；專案 scope 之群組列於 aiIssueGroups 並帶 projectId）
+db.version(19).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, *changeLog, sourceLang, targetLang',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId',
+    wordCountReports: '++id, projectId, createdAt, label',
+    aiGuidelines: '++id, category, createdAt, scope, isDefault',
+    aiStyleExamples: '++id, sourceLang, targetLang, segId, createdAt',
+    aiSettings: '++id',
+    aiProjectSettings: '++id, projectId',
+    aiCategoryTags: '++id, name, createdAt, listHidden',
+    fileAiReports: 'fileId, updatedAt',
+    aiIssueGroups: 'id, scope, projectId, name, sortOrder, createdAt'
+}).upgrade(async tx => {
+    await tx.aiGuidelines.toCollection().modify((g) => {
+        if (g.issueGroupId === undefined) g.issueGroupId = null;
+    });
+});
+
 /** 比對／空白判定：取 HTML 可見文字並壓縮空白，與 cat-cloud-rpc / app.js 邏輯一致 */
 function normalizeCatGuidelineContent(html) {
     if (html == null) return '';
@@ -842,6 +869,8 @@ const DBService = {
             scope,
             isDefault: !!entry.isDefault,
             examples: Array.isArray(entry.examples) ? entry.examples : [],
+            issueGroupId: entry.issueGroupId != null ? String(entry.issueGroupId) : null,
+            issueGroupName: entry.issueGroupName != null ? String(entry.issueGroupName) : null,
             createdAt: now
         });
     },
@@ -863,11 +892,92 @@ const DBService = {
         if (patch.scope === 'style' || patch.scope === 'translation') allowed.scope = patch.scope;
         if (patch.isDefault !== undefined) allowed.isDefault = !!patch.isDefault;
         if (patch.examples !== undefined) allowed.examples = Array.isArray(patch.examples) ? patch.examples : [];
+        if (patch.issueGroupId !== undefined) allowed.issueGroupId = patch.issueGroupId || null;
+        if (patch.issueGroupName !== undefined) allowed.issueGroupName = patch.issueGroupName || null;
         return await db.aiGuidelines.update(id, allowed);
     },
     async deleteAiGuideline(id) {
         return await db.aiGuidelines.delete(id);
     },
+
+    /** 議題群組（離線：Dexie `aiIssueGroups`；團隊見 enableTeamCloudProvider） */
+    async getAiIssueGroups(params = {}) {
+        const scope = params.scope === 'style' ? 'style' : (params.scope === 'project' ? 'project' : 'translation');
+        const rows = await db.aiIssueGroups.toArray();
+        let list = rows.filter((r) => (r.scope || 'translation') === scope);
+        if (scope === 'project') {
+            const pid = params.projectId;
+            if (pid == null) return [];
+            list = list.filter((r) => Number(r.projectId) === Number(pid));
+        } else {
+            list = list.filter((r) => r.projectId == null);
+        }
+        list.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || String(a.name).localeCompare(String(b.name), 'zh-Hant-TW'));
+        return list.map((r) => ({
+            id: String(r.id),
+            scope: r.scope || 'translation',
+            projectId: r.projectId != null ? r.projectId : null,
+            name: r.name || '',
+            sortOrder: r.sortOrder ?? 0,
+            createdAt: r.createdAt
+        }));
+    },
+    async addAiIssueGroup(payload) {
+        const scope = payload.scope === 'style' ? 'style' : (payload.scope === 'project' ? 'project' : 'translation');
+        const name = String(payload.name || '').trim();
+        if (!name) throw new Error('群組名稱不得空白');
+        const projectId = scope === 'project' ? payload.projectId : null;
+        if (scope === 'project' && projectId == null) throw new Error('projectId required');
+        const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `ig-${Date.now()}`;
+        const now = new Date().toISOString();
+        await db.aiIssueGroups.put({
+            id,
+            scope,
+            projectId: projectId != null ? Number(projectId) : null,
+            name,
+            sortOrder: Number(payload.sortOrder ?? 0) || 0,
+            createdAt: now
+        });
+        return id;
+    },
+    async updateAiIssueGroup(id, patch) {
+        const row = await db.aiIssueGroups.get(String(id));
+        if (!row) throw new Error('找不到議題群組');
+        const name = patch.name !== undefined ? String(patch.name).trim() : row.name;
+        if (!name) throw new Error('群組名稱不得空白');
+        await db.aiIssueGroups.update(String(id), {
+            name,
+            sortOrder: patch.sortOrder !== undefined ? Number(patch.sortOrder ?? 0) || 0 : row.sortOrder
+        });
+        return true;
+    },
+    async deleteAiIssueGroup(id) {
+        const gid = String(id);
+        await db.aiGuidelines.toCollection().modify((g) => {
+            if (g.issueGroupId === gid) {
+                g.issueGroupId = null;
+                g.issueGroupName = null;
+            }
+        });
+        const rows = await db.aiProjectSettings.toArray();
+        for (const pr of rows) {
+            if (!Array.isArray(pr.projectGuidelines)) continue;
+            let changed = false;
+            const next = pr.projectGuidelines.map((el) => {
+                if (!el || typeof el !== 'object') return el;
+                if (String(el.issueGroupId || '') === gid) {
+                    changed = true;
+                    const { issueGroupId, ...rest } = el;
+                    return rest;
+                }
+                return el;
+            });
+            if (changed) await db.aiProjectSettings.update(pr.id, { ...pr, projectGuidelines: next });
+        }
+        await db.aiIssueGroups.delete(gid);
+        return true;
+    },
+
     async getAiGuidelineCategories() {
         const rows = await db.aiGuidelines.toArray();
         const cats = [...new Set(rows.map(r => r.category || '通用'))].sort();
@@ -1366,6 +1476,10 @@ const DBService = {
     DBService.saveAiSettings = async (settings) => rpc('db.saveAiSettings', { settings });
     DBService.getAiProjectSettings = async (projectId) => rpc('db.getAiProjectSettings', { projectId });
     DBService.saveAiProjectSettings = async (projectId, patch) => rpc('db.saveAiProjectSettings', { projectId, patch });
+    DBService.getAiIssueGroups = async (params) => rpc('db.getAiIssueGroups', params || {});
+    DBService.addAiIssueGroup = async (payload) => rpc('db.addAiIssueGroup', payload);
+    DBService.updateAiIssueGroup = async (id, patch) => rpc('db.updateAiIssueGroup', { id, ...patch });
+    DBService.deleteAiIssueGroup = async (id) => rpc('db.deleteAiIssueGroup', { id });
 
     // table handles are local-only; prevent accidental direct Dexie usage in team mode.
     DBService.db = null;

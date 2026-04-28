@@ -15783,6 +15783,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         let filterCat = '';
         let filterMutex = '';
         let sortKey = 'order';
+        let agListViewMode = 'mutex';
+        try {
+            agListViewMode = sessionStorage.getItem('catAgListViewMode') === 'issue' ? 'issue' : 'mutex';
+        } catch (_) { agListViewMode = 'mutex'; }
+
+        const viewModeSel = document.getElementById('aiGuidelinesViewMode');
+        if (viewModeSel) {
+            viewModeSel.value = agListViewMode;
+            viewModeSel.onchange = () => {
+                agListViewMode = viewModeSel.value === 'issue' ? 'issue' : 'mutex';
+                try {
+                    sessionStorage.setItem('catAgListViewMode', agListViewMode);
+                } catch (_) { /* ignore */ }
+                renderList();
+            };
+        }
 
         // ---- 多選類別下拉 ----
         let selectedNewCategories = ['通用'];
@@ -15978,10 +15994,81 @@ document.addEventListener('DOMContentLoaded', async () => {
             return items;
         }
 
+        /** 議題群組視圖：依 issueGroupId 聚合；無群組者排在後（§5.6）。準則管理頁為管理介面，僅一條仍顯示卡片。 */
+        function buildItemsFromIssueGroups(filtered) {
+            const withIg = filtered.filter(g => g && g.issueGroupId);
+            const withoutIg = filtered.filter(g => g && !g.issueGroupId);
+            const by = new Map();
+            withIg.forEach((g) => {
+                const k = String(g.issueGroupId);
+                if (!by.has(k)) {
+                    by.set(k, { type: 'issue', groupKey: k, name: g.issueGroupName || '（議題群組）', guidelines: [] });
+                }
+                by.get(k).guidelines.push(g);
+            });
+            const boxes = [...by.values()].sort((a, b) => String(a.name).localeCompare(String(b.name), 'zh-Hant-TW'));
+            boxes.forEach((box) => { box.guidelines.sort((a, b) => a.id - b.id); });
+            const singles = withoutIg.map(g => ({ type: 'single', g }));
+            return [...boxes, ...singles];
+        }
+
+        function _agRowExtraBadges(g, viewMode) {
+            if (!g) return '';
+            let html = '';
+            if (viewMode === 'mutex' && g.issueGroupName) {
+                html += `<span class="ai-badge" style="background:#e0f2fe;color:#0c4a6e;font-size:0.72rem;">${_esc(g.issueGroupName)}</span>`;
+            }
+            if (viewMode === 'issue' && g.mutexGroup) {
+                html += `<span class="ai-badge" style="background:#fff7ed;color:#9a3412;font-size:0.72rem;">互斥 ${_esc(g.mutexGroup)}</span>`;
+            }
+            return html;
+        }
+
         function columnHtmlFromItems(items, opts) {
             const isStyleColumn = opts && opts.isStyleColumn === true;
+            const viewMode = opts && opts.viewMode === 'issue' ? 'issue' : 'mutex';
             const pickerCtx = opts && opts.pickerSelection;
             return items.map(item => {
+                if (item.type === 'issue') {
+                    const gMembers = [...item.guidelines].sort((a, b) => a.id - b.id);
+                    const rows = gMembers.map((g) => {
+                        const catBadges = _normalizeCategory(g.category).map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
+                        const exCount = _normalizeGuidelineExamples(g.examples).length;
+                        const exCountBadge = exCount > 0 ? `<span class="ai-badge selected-green" style="font-size:0.72rem;">${exCount} 個範例</span>` : '';
+                        const defLabel = (!isStyleColumn && g.isDefault) ? ' <span class="ai-badge" style="background:#e0e7ff;">預設條目</span>' : '';
+                        const contentBlock = isStyleColumn
+                            ? `<div class="ai-guideline-item-content">${_esc(g.content)}</div>`
+                            : `<div class="ai-guideline-item-content">${defLabel}<br>${_esc(g.content)}</div>`;
+                        const pickCell = pickerCtx
+                            ? `<div class="ai-guideline-item-sel ai-guideline-item-sel--picker" title="納入本專案"><input type="checkbox" class="ai-picker-proj-cb" data-id="${g.id}" ${pickerCtx.checked.has(g.id) ? 'checked' : ''}></div>`
+                            : '';
+                        const inner = `
+                        <div class="ai-guideline-item" data-id="${g.id}">
+                            <div class="ai-guideline-item-body">
+                                ${contentBlock}
+                                <div class="ai-guideline-item-meta">${catBadges}${exCountBadge}${_agRowExtraBadges(g, 'issue')}</div>
+                            </div>
+                            <div class="ai-guideline-item-side">
+                                <label class="ag-only-on-ai-guidelines-page" style="font-size:0.72rem; display:flex; align-items:center; gap:0.2rem; cursor:pointer;">
+                                    <input type="checkbox" class="ag-toggle-default" data-gid="${g.id}" ${g.isDefault ? 'checked' : ''}/> 預設條目
+                                </label>
+                                <button type="button" class="secondary-btn btn-sm ag-join-mutex" data-join-gid="${g.id}" style="font-size:0.72rem;">加入互斥</button>
+                                <div class="ai-guideline-edit-del-row">
+                                    <button type="button" class="secondary-btn btn-sm ag-edit-guideline ai-guideline-inline-edit" data-edit-gid="${g.id}">編輯</button>
+                                    <button type="button" class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
+                                </div>
+                            </div>
+                        </div>`;
+                        return pickerCtx ? `<div class="ai-picker-mgmt-row">${pickCell}${inner}</div>` : inner;
+                    }).join('');
+                    return `
+                    <div class="ag-guideline-issue-groupbox" style="border:1px solid #7dd3fc; border-radius:8px; background:#f0f9ff; padding:0.6rem 0.75rem;" data-issue-box="${_esc(item.groupKey)}">
+                        <div style="font-size:0.8rem; font-weight:700; color:#0369a1; margin-bottom:0.45rem;">${_esc(item.name)}</div>
+                        <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                            ${rows}
+                        </div>
+                    </div>`;
+                }
                 if (item.type === 'single') {
                     const g = item.g;
                     const catBadges = _normalizeCategory(g.category).map(c => `<span class="ai-badge selected">${_esc(c)}</span>`).join('');
@@ -15998,7 +16085,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <div class="ai-guideline-item" data-id="${g.id}">
                             <div class="ai-guideline-item-body">
                                 ${contentBlock}
-                                <div class="ai-guideline-item-meta">${catBadges}${exCountBadge}</div>
+                                <div class="ai-guideline-item-meta">${catBadges}${exCountBadge}${_agRowExtraBadges(g, viewMode)}</div>
                             </div>
                             <div class="ai-guideline-item-side">
                                 <label class="ag-only-on-ai-guidelines-page" style="font-size:0.72rem; display:flex; align-items:center; gap:0.2rem; cursor:pointer;">
@@ -16030,7 +16117,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const cardCore = `
                             <div class="ai-guideline-item-body">
                                 <div class="ai-guideline-item-content">${_esc(g.content)}</div>
-                                <div class="ai-guideline-item-meta">${catBadges}${exCountBadge}</div>
+                                <div class="ai-guideline-item-meta">${catBadges}${exCountBadge}${_agRowExtraBadges(g, viewMode)}</div>
                             </div>
                             <div class="ai-guideline-item-side">
                                 <button type="button" class="secondary-btn btn-sm ag-leave-mutex" data-leave-gid="${g.id}" style="font-size:0.72rem;">脫離群組</button>
@@ -16229,16 +16316,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (tFiltered.length === 0) {
                     listTranslation.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; padding:0.25rem 0;">尚無符合條件的翻譯準則。</p>';
                 } else {
-                    const itemsT = buildItemsFromFiltered(tFiltered);
-                    listTranslation.innerHTML = columnHtmlFromItems(itemsT, { isStyleColumn: false });
+                    const itemsT = agListViewMode === 'issue' ? buildItemsFromIssueGroups(tFiltered) : buildItemsFromFiltered(tFiltered);
+                    listTranslation.innerHTML = columnHtmlFromItems(itemsT, { isStyleColumn: false, viewMode: agListViewMode });
                 }
             }
             if (listStyle) {
                 if (sFiltered.length === 0) {
                     listStyle.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; padding:0.25rem 0;">尚無符合條件的文風條目。</p>';
                 } else {
-                    const itemsS = buildItemsFromFiltered(sFiltered);
-                    listStyle.innerHTML = columnHtmlFromItems(itemsS, { isStyleColumn: true });
+                    const itemsS = agListViewMode === 'issue' ? buildItemsFromIssueGroups(sFiltered) : buildItemsFromFiltered(sFiltered);
+                    listStyle.innerHTML = columnHtmlFromItems(itemsS, { isStyleColumn: true, viewMode: agListViewMode });
                 }
             }
             wireColumn(listTranslation);
@@ -16528,6 +16615,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             fillAgEditMutexSelect(mutexSel, row.mutexGroup || null, pool);
             mutexCustom.value = '';
             isDefEl.checked = !!row.isDefault;
+            const issueSel = document.getElementById('agEditGuidelineIssueGroupSelect');
+            const issueNew = document.getElementById('agEditGuidelineIssueGroupNew');
+            if (issueNew) issueNew.value = '';
+            if (issueSel) {
+                const sc = rowScope === 'style' ? 'style' : 'translation';
+                const igroups = await DBService.getAiIssueGroups({ scope: sc }).catch(() => []);
+                const curIg = row.issueGroupId != null ? String(row.issueGroupId) : '';
+                issueSel.innerHTML = '<option value="">無</option>' + igroups.map((gr) => `<option value="${_esc(String(gr.id))}">${_esc(gr.name)}</option>`).join('');
+                if (curIg) {
+                    issueSel.value = curIg;
+                    if (issueSel.value !== curIg && row.issueGroupName) {
+                        issueSel.insertAdjacentHTML('beforeend', `<option value="${_esc(curIg)}">${_esc(row.issueGroupName)}</option>`);
+                        issueSel.value = curIg;
+                    }
+                } else {
+                    issueSel.value = '';
+                }
+            }
             if (lockMutex) {
                 if (mutexBlock) mutexBlock.classList.add('hidden');
                 if (mutexCustomBlock) mutexCustomBlock.classList.add('hidden');
@@ -16708,6 +16813,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                     note: ex && ex.note != null ? String(ex.note).trim() : ''
                 }));
 
+                const issueSelEl = document.getElementById('agEditGuidelineIssueGroupSelect');
+                const issueNewEl = document.getElementById('agEditGuidelineIssueGroupNew');
+                let issueGroupId = issueSelEl && issueSelEl.value ? String(issueSelEl.value) : null;
+                const issueNewName = issueNewEl && issueNewEl.value ? String(issueNewEl.value).trim() : '';
+                if (_isCatPmOrExecutive() && issueNewName) {
+                    const sc = scope === 'style' ? 'style' : 'translation';
+                    try {
+                        issueGroupId = await DBService.addAiIssueGroup({ scope: sc, name: issueNewName });
+                    } catch (e) {
+                        showErr('議題群組建立失敗：' + (e && e.message ? e.message : String(e)));
+                        return;
+                    }
+                }
+
                 try {
                     await DBService.updateAiGuideline(gid, {
                         content,
@@ -16715,7 +16834,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         mutexGroup,
                         scope,
                         isDefault,
-                        examples
+                        examples,
+                        issueGroupId: issueGroupId || null
                     });
                     row.content = content;
                     row.category = category;
@@ -16723,6 +16843,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     row.scope = scope;
                     row.isDefault = isDefault;
                     row.examples = examples;
+                    row.issueGroupId = issueGroupId || null;
+                    if (issueSelEl && issueGroupId) {
+                        const opt = issueSelEl.options[issueSelEl.selectedIndex];
+                        row.issueGroupName = opt ? opt.textContent.trim() : (row.issueGroupName || null);
+                    } else {
+                        row.issueGroupName = null;
+                    }
 
                     if (mutexGroup && isDefault) {
                         const inGroup = pool.filter(g => g && g.mutexGroup === mutexGroup).sort((a, b) => a.id - b.id);
@@ -17050,6 +17177,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         let selectedStyleIds = new Set((psettings?.selectedStyleGuidelineIds || []).map(Number));
         let specialInstructions = Array.isArray(psettings?.specialInstructions) ? [...psettings.specialInstructions] : [];
         let projectGuidelines = Array.isArray(psettings?.projectGuidelines) ? [...psettings.projectGuidelines] : [];
+        try {
+            const igl = await DBService.getAiIssueGroups({ scope: 'project', projectId }).catch(() => []);
+            const nameBy = new Map(igl.map((x) => [String(x.id), x.name]));
+            projectGuidelines.forEach((row) => {
+                if (row && row.issueGroupId && !row.issueGroupName) {
+                    const nm = nameBy.get(String(row.issueGroupId));
+                    if (nm) row.issueGroupName = nm;
+                }
+            });
+        } catch (_) { /* ignore */ }
         const sharedExampleCollapseState = new Map();
 
         function _siNormalizeGuidelineExamples(examples) {
@@ -17506,6 +17643,29 @@ document.addEventListener('DOMContentLoaded', async () => {
             updatePgCategoryDisplay();
             catSetDropdownPanelOpen(catSelector, catDropdown, false);
 
+            const pgIssueSel = document.getElementById('pgEditProjectGuidelineIssueGroupSelect');
+            const pgIssueNew = document.getElementById('pgEditProjectGuidelineIssueGroupNew');
+            if (pgIssueNew) pgIssueNew.value = '';
+            if (pgIssueSel && projectId) {
+                const igroups = await DBService.getAiIssueGroups({ scope: 'project', projectId }).catch(() => []);
+                pgIssueSel.innerHTML = '<option value="">無</option>' + igroups.map((gr) => `<option value="${_esc(String(gr.id))}">${_esc(gr.name)}</option>`).join('');
+                if (!isNew) {
+                    const row = projectGuidelines.find((t) => String(t.id) === String(entryId));
+                    const cur = row && row.issueGroupId != null ? String(row.issueGroupId) : '';
+                    if (cur) {
+                        pgIssueSel.value = cur;
+                        if (pgIssueSel.value !== cur && row.issueGroupName) {
+                            pgIssueSel.insertAdjacentHTML('beforeend', `<option value="${_esc(cur)}">${_esc(row.issueGroupName)}</option>`);
+                            pgIssueSel.value = cur;
+                        }
+                    } else {
+                        pgIssueSel.value = '';
+                    }
+                } else {
+                    pgIssueSel.value = '';
+                }
+            }
+
             catSelector.addEventListener('click', onPgCategorySelectorClick);
             document.addEventListener('click', onPgCategoryDocClick);
             let openStateMenuId = null;
@@ -17680,6 +17840,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                     contentEl.focus();
                     return;
                 }
+                const pgIssueSelEl = document.getElementById('pgEditProjectGuidelineIssueGroupSelect');
+                const pgIssueNewEl = document.getElementById('pgEditProjectGuidelineIssueGroupNew');
+                let issueGroupId = pgIssueSelEl && pgIssueSelEl.value ? String(pgIssueSelEl.value) : null;
+                const ignew = pgIssueNewEl && pgIssueNewEl.value ? String(pgIssueNewEl.value).trim() : '';
+                if (isCatSharedMutator() && ignew && projectId) {
+                    try {
+                        issueGroupId = await DBService.addAiIssueGroup({ scope: 'project', projectId, name: ignew });
+                    } catch (e) {
+                        showErr('議題群組建立失敗：' + (e && e.message ? e.message : String(e)));
+                        return;
+                    }
+                }
+
                 let rollback = null;
                 if (editId) {
                     const i = projectGuidelines.findIndex((t) => String(t.id) === String(editId));
@@ -17691,6 +17864,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     projectGuidelines[i].content = content;
                     projectGuidelines[i].category = category;
                     projectGuidelines[i].examples = examples;
+                    if (issueGroupId) {
+                        projectGuidelines[i].issueGroupId = issueGroupId;
+                        const opt = pgIssueSelEl && pgIssueSelEl.options[pgIssueSelEl.selectedIndex];
+                        projectGuidelines[i].issueGroupName = opt ? opt.textContent.trim() : projectGuidelines[i].issueGroupName;
+                    } else {
+                        delete projectGuidelines[i].issueGroupId;
+                        delete projectGuidelines[i].issueGroupName;
+                    }
                 } else {
                     const newItem = {
                         id: Date.now(),
@@ -17698,7 +17879,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         category,
                         examples,
                         enabled: true,
-                        createdAt: new Date().toISOString()
+                        createdAt: new Date().toISOString(),
+                        ...(issueGroupId ? {
+                            issueGroupId,
+                            issueGroupName: pgIssueSelEl && pgIssueSelEl.options[pgIssueSelEl.selectedIndex]
+                                ? pgIssueSelEl.options[pgIssueSelEl.selectedIndex].textContent.trim()
+                                : ''
+                        } : {})
                     };
                     projectGuidelines.push(newItem);
                     rollback = { mode: 'new', id: newItem.id };
@@ -18090,15 +18277,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         async function renderProjectGuidelines() {
             if (!pgList) return;
             const isPm = isCatSharedMutator();
-            const toShow = projectGuidelines.filter((g) => g);
+            let toShow = projectGuidelines.filter((g) => g);
             if (toShow.length === 0) {
                 setSharedListEmptyState(pgList, '目前沒有專案準則。', { key: 'project-guidelines' });
                 return;
             }
+            toShow = [...toShow].sort((a, b) => {
+                const ai = a.issueGroupId ? 0 : 1;
+                const bi = b.issueGroupId ? 0 : 1;
+                if (ai !== bi) return ai - bi;
+                const an = a.issueGroupName ? String(a.issueGroupName) : '';
+                const bn = b.issueGroupName ? String(b.issueGroupName) : '';
+                if (an && bn && an !== bn) return an.localeCompare(bn, 'zh-Hant-TW');
+                return 0;
+            });
             pgList.innerHTML = toShow.map((s) => {
                 const idAttr = String(s.id);
                 const ex = _siNormalizeGuidelineExamples(s.examples);
                 const sec = _siGuidelineExampleSection(ex, `project:${idAttr}`);
+                const igBadge = s.issueGroupName
+                    ? `<span class="ai-badge" style="background:#e0f2fe;color:#0c4a6e;font-size:0.72rem;margin-right:0.35rem;">${_esc(String(s.issueGroupName))}</span>`
+                    : '';
                 const actionsHtml = isPm
                     ? `<div class="ai-pg-shared-actions">
                         <button type="button" class="secondary-btn btn-sm pg-edit-btn ai-guideline-inline-edit" data-pg-id="${_esc(idAttr)}">編輯</button>
@@ -18107,7 +18306,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     : '';
                 return `<div class="ai-selected-guideline-item ai-pg-shared-card" data-pg-id="${_esc(idAttr)}">
                     <div style="flex:1; min-width:0;">
-                        <div class="ai-selected-guideline-item-content">${s.content ? _esc(s.content) : '（無內容）'}</div>
+                        <div class="ai-selected-guideline-item-content">${igBadge}${s.content ? _esc(s.content) : '（無內容）'}</div>
                         ${sec.badgeHtml}
                         ${sec.listHtml}
                     </div>
@@ -19253,7 +19452,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const projectGuidelinesList = Array.isArray(psettings?.projectGuidelines) ? psettings.projectGuidelines : [];
         const pgBodies = projectGuidelinesList
             .filter((g) => g && String(g.content || '').trim())
-            .map((g) => String(g.content).trim());
+            .map((g) => {
+                const body = String(g.content).trim();
+                const nm = g.issueGroupName ? String(g.issueGroupName).trim() : '';
+                return nm ? `〔${nm}〕 ${body}` : body;
+            });
         const siPart = [batchNote, ...applicableContents].filter(Boolean).join('\n');
         const projectGuidelinesNote = pgBodies.length ? pgBodies.join('\n\n') : '';
         const styleExFilters = {
