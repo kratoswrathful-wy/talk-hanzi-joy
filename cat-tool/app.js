@@ -6108,8 +6108,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         ]);
         const allTranslation = (allG || []).filter(g => (g.scope || 'translation') === 'translation');
         const allStyleG = (allG || []).filter(g => (g.scope || 'translation') === 'style');
-        let selectedGuidelineIds = new Set((psettings?.selectedGuidelineIds || []).map(Number));
-        let selectedStyleIds = new Set((psettings?.selectedStyleGuidelineIds || []).map(Number));
+        const normalizeGuidelineId = (v) => {
+            const n = Number(v);
+            return Number.isFinite(n) ? n : null;
+        };
+        const normalizeGuidelineIdSet = (arr) => new Set(
+            (Array.isArray(arr) ? arr : [])
+                .map(normalizeGuidelineId)
+                .filter((n) => n !== null)
+        );
+        let selectedGuidelineIds = normalizeGuidelineIdSet(psettings?.selectedGuidelineIds || []);
+        let selectedStyleIds = normalizeGuidelineIdSet(psettings?.selectedStyleGuidelineIds || []);
         const siKeep = Array.isArray(psettings?.specialInstructions) ? psettings.specialInstructions : [];
         const pgKeep = Array.isArray(psettings?.projectGuidelines) ? psettings.projectGuidelines : [];
 
@@ -16074,8 +16083,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </div>`;
                         return pickerCtx ? `<div class="ai-picker-mgmt-row">${pickCell}${inner}</div>` : inner;
                     }).join('');
-                    const allPicked = pickerCtx ? gMembers.every((g) => pickerCtx.checked.has(g.id)) : false;
-                    const anyPicked = pickerCtx ? gMembers.some((g) => pickerCtx.checked.has(g.id)) : false;
+                    const allPicked = pickerCtx ? gMembers.every((g) => pickerCtx.checked.has(Number(g.id))) : false;
+                    const anyPicked = pickerCtx ? gMembers.some((g) => pickerCtx.checked.has(Number(g.id))) : false;
                     const groupPickCell = pickerCtx
                         ? `<div class="ai-guideline-item-sel ai-guideline-item-sel--picker" title="整組納入本專案"><input type="checkbox" class="ai-picker-issue-group-cb" data-issue-group="${_esc(item.groupKey)}" ${allPicked ? 'checked' : ''} ${!allPicked && anyPicked ? 'data-indeterminate=\"1\"' : ''}></div>`
                         : '';
@@ -16100,7 +16109,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         ? `<div class="ai-guideline-item-content">${_esc(g.content)}</div>`
                         : `<div class="ai-guideline-item-content">${defLabel}<br>${_esc(g.content)}</div>`;
                     const pickCell = pickerCtx
-                        ? `<div class="ai-guideline-item-sel ai-guideline-item-sel--picker" title="納入本專案"><input type="checkbox" class="ai-picker-proj-cb" data-id="${g.id}" ${pickerCtx.checked.has(g.id) ? 'checked' : ''}></div>`
+                        ? `<div class="ai-guideline-item-sel ai-guideline-item-sel--picker" title="納入本專案"><input type="checkbox" class="ai-picker-proj-cb" data-id="${g.id}" ${pickerCtx.checked.has(Number(g.id)) ? 'checked' : ''}></div>`
                         : '';
                     const inner = `
                         <div class="ai-guideline-item" data-id="${g.id}">
@@ -16133,7 +16142,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const radChecked = defPicked ? g.id === defPicked.id : false;
                     const libRadio = `<div class="ai-guideline-item-sel" title="作為庫內預設（互斥擇一）"><input type="radio" class="ag-mutex-libdef-radio" name="${mxPick}" data-mutex="${_esc(item.name)}" data-gid="${g.id}" ${radChecked ? 'checked' : ''}></div>`;
                     const pickRadio = pickerCtx
-                        ? `<div class="ai-guideline-item-sel ai-guideline-item-sel--picker" title="納入本專案（群組擇一）"><input type="radio" class="ai-picker-proj-radio" name="${mxPick}" data-id="${g.id}" data-mutex="${_esc(item.name)}" ${pickerCtx.checked.has(g.id) ? 'checked' : ''}></div>`
+                        ? `<div class="ai-guideline-item-sel ai-guideline-item-sel--picker" title="納入本專案（群組擇一）"><input type="radio" class="ai-picker-proj-radio" name="${mxPick}" data-id="${g.id}" data-mutex="${_esc(item.name)}" ${pickerCtx.checked.has(Number(g.id)) ? 'checked' : ''}></div>`
                         : '';
                     const cardCore = `
                             <div class="ai-guideline-item-body">
@@ -18284,7 +18293,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         function renderSelectedGuidelines() {
             if (!selectedList) return;
-            const selected = allTranslation.filter(g => selectedGuidelineIds.has(g.id));
+            const selected = allTranslation.filter((g) => {
+                const gid = normalizeGuidelineId(g && g.id);
+                return gid !== null && selectedGuidelineIds.has(gid);
+            });
             if (selected.length === 0) {
                 setSharedListEmptyState(selectedList, '尚未選擇任何翻譯準則。', { key: 'translation-guidelines' });
                 return;
@@ -18362,7 +18374,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         function renderSelectedStyleGuidelines() {
             if (!selectedStyleList) return;
-            const selected = allStyle.filter(g => selectedStyleIds.has(g.id));
+            const selected = allStyle.filter((g) => {
+                const gid = normalizeGuidelineId(g && g.id);
+                return gid !== null && selectedStyleIds.has(gid);
+            });
             if (selected.length === 0) {
                 setSharedListEmptyState(selectedStyleList, '尚未選擇文風條目。', { key: 'style-guidelines' });
                 return;
@@ -18876,7 +18891,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (scopeHidden) scopeHidden.value = scopeFixed;
             if (!modal || !pickerList) { resolve(null); return; }
 
-            const checked = new Set(currentCheckedIds);
+            const checked = normalizeGuidelineIdSet(currentCheckedIds || []);
             let filterCat = '';
             let filterIssue = '';
             let sortKey = 'order';
@@ -18990,7 +19005,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 pickerList.querySelectorAll('.ag-only-on-ai-guidelines-page').forEach((el) => el.remove());
                 pickerList.querySelectorAll('.ai-picker-proj-cb').forEach((cb) => {
                     cb.addEventListener('change', () => {
-                        const id = parseInt(cb.getAttribute('data-id'), 10);
+                        const id = normalizeGuidelineId(cb.getAttribute('data-id'));
+                        if (id === null) return;
                         if (cb.checked) checked.add(id); else checked.delete(id);
                         renderMgmt();
                     });
@@ -19003,8 +19019,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const mmap = _pickerIssueMapFrom(allGuidelines);
                         const members = Array.isArray(mmap[key]) ? mmap[key] : [];
                         if (members.length === 0) return;
-                        if (cb.checked) members.forEach((g) => checked.add(g.id));
-                        else members.forEach((g) => checked.delete(g.id));
+                        if (cb.checked) {
+                            members.forEach((g) => {
+                                const gid = normalizeGuidelineId(g && g.id);
+                                if (gid !== null) checked.add(gid);
+                            });
+                        } else {
+                            members.forEach((g) => {
+                                const gid = normalizeGuidelineId(g && g.id);
+                                if (gid !== null) checked.delete(gid);
+                            });
+                        }
                         renderMgmt();
                     });
                 });
@@ -19300,7 +19325,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                             pickerSelectedCats = ['通用'];
                             updatePickerMultiselectDropdown();
                             updatePickerMultiselectDisplay();
-                            checked.add(id);
+                            const normalizedId = normalizeGuidelineId(id);
+                            if (normalizedId !== null) checked.add(normalizedId);
                             updatePickerFilterBar();
                             _pickerRefillMutexSelect();
                             renderMgmt();
@@ -19319,7 +19345,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                             .filter((g) => ((g.scope || 'translation') === scopeFixed) && g.isDefault)
                             .map((g) => g.id);
                         checked.clear();
-                        defaults.forEach((id) => checked.add(id));
+                        defaults.forEach((id) => {
+                            const normalizedId = normalizeGuidelineId(id);
+                            if (normalizedId !== null) checked.add(normalizedId);
+                        });
                         renderMgmt();
                     };
                 }
@@ -19333,7 +19362,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                     catSetDropdownPanelOpen(pSel, pDd, false);
                 };
                 if (closeBtn) closeBtn.onclick = () => { cleanup(); resolve(null); };
-                if (confirmBtn) confirmBtn.onclick = () => { cleanup(); resolve([...checked]); };
+                if (confirmBtn) confirmBtn.onclick = () => {
+                    cleanup();
+                    resolve(
+                        [...checked]
+                            .map(normalizeGuidelineId)
+                            .filter((n) => n !== null)
+                    );
+                };
             })().catch((e) => {
                 console.error(e);
                 resolve(null);
