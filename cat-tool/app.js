@@ -774,6 +774,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             aiReviewModal: 'btnSkipAiReview',
             aiGuidelinePickerModal: 'btnCloseAiGuidelinePicker',
             agMutexJoinModal: 'btnAgMutexJoinCancel',
+            agIssueJoinModal: 'btnAgIssueJoinCancel',
             agEditGuidelineModal: 'btnAgEditGuidelineCancel',
             pgEditProjectGuidelineModal: 'btnPgEditProjectGuidelineCancel',
             pgManageProjectGuidelinesModal: 'btnPgManageProjectGuidelinesClose',
@@ -15979,19 +15980,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         // ---- 準則清單（翻譯／文風兩欄） ----
         function buildItemsFromFiltered(filtered) {
             const renderedGroups = new Set();
-            const items = [];
+            const grouped = [];
+            const singles = [];
             filtered.forEach(g => {
                 if (g.mutexGroup) {
                     if (!renderedGroups.has(g.mutexGroup)) {
                         renderedGroups.add(g.mutexGroup);
                         const groupMembers = filtered.filter(x => x.mutexGroup === g.mutexGroup);
-                        items.push({ type: 'mutex', name: g.mutexGroup, guidelines: groupMembers });
+                        grouped.push({ type: 'mutex', name: g.mutexGroup, guidelines: groupMembers });
                     }
                 } else {
-                    items.push({ type: 'single', g });
+                    singles.push({ type: 'single', g });
                 }
             });
-            return items;
+            return [...grouped, ...singles];
         }
 
         /** 議題群組視圖：依 issueGroupId 聚合；無群組者排在後（§5.6）。準則管理頁為管理介面，僅一條仍顯示卡片。 */
@@ -16052,7 +16054,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 <label class="ag-only-on-ai-guidelines-page" style="font-size:0.72rem; display:flex; align-items:center; gap:0.2rem; cursor:pointer;">
                                     <input type="checkbox" class="ag-toggle-default" data-gid="${g.id}" ${g.isDefault ? 'checked' : ''}/> 預設條目
                                 </label>
-                                <button type="button" class="secondary-btn btn-sm ag-join-mutex" data-join-gid="${g.id}" style="font-size:0.72rem;">加入互斥</button>
+                                <button type="button" class="secondary-btn btn-sm ag-leave-issue" data-leave-issue-gid="${g.id}" style="font-size:0.72rem;">脫離議題</button>
                                 <div class="ai-guideline-edit-del-row">
                                     <button type="button" class="secondary-btn btn-sm ag-edit-guideline ai-guideline-inline-edit" data-edit-gid="${g.id}">編輯</button>
                                     <button type="button" class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
@@ -16091,7 +16093,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 <label class="ag-only-on-ai-guidelines-page" style="font-size:0.72rem; display:flex; align-items:center; gap:0.2rem; cursor:pointer;">
                                     <input type="checkbox" class="ag-toggle-default" data-gid="${g.id}" ${g.isDefault ? 'checked' : ''}/> 預設條目
                                 </label>
-                                <button type="button" class="secondary-btn btn-sm ag-join-mutex" data-join-gid="${g.id}" style="font-size:0.72rem;">加入群組</button>
+                                <button type="button" class="secondary-btn btn-sm ${viewMode === 'issue' ? 'ag-join-issue' : 'ag-join-mutex'}" data-join-gid="${g.id}" style="font-size:0.72rem;">${viewMode === 'issue' ? '加入議題群組' : '加入互斥群組'}</button>
                                 <div class="ai-guideline-edit-del-row">
                                     <button type="button" class="secondary-btn btn-sm ag-edit-guideline ai-guideline-inline-edit" data-edit-gid="${g.id}">編輯</button>
                                     <button type="button" class="notes-add-btn" data-del="${g.id}" style="color:#ef4444; border-color:#fca5a5; background:#fff;" title="刪除">✕</button>
@@ -16290,6 +16292,50 @@ document.addEventListener('DOMContentLoaded', async () => {
                     renderList();
                 };
             });
+            listEl.querySelectorAll('.ag-join-issue').forEach((btn) => {
+                btn.onclick = async () => {
+                    const id = parseInt(btn.getAttribute('data-join-gid'), 10);
+                    if (!id) return;
+                    const row = allGuidelines.find((g) => g.id === id);
+                    if (!row) return;
+                    const scope = (row.scope || 'translation') === 'style' ? 'style' : 'translation';
+                    const picked = await openAgIssueJoinChoiceModal(scope);
+                    if (!picked) return;
+                    try {
+                        let issueGroupId = null;
+                        let issueGroupName = null;
+                        if (picked.mode === 'existing') {
+                            issueGroupId = String(picked.id || '');
+                            const groups = await DBService.getAiIssueGroups({ scope }).catch(() => []);
+                            const hit = groups.find((x) => String(x.id) === issueGroupId);
+                            issueGroupName = hit ? hit.name : null;
+                        } else if (picked.mode === 'new') {
+                            issueGroupId = await DBService.addAiIssueGroup({ scope, name: picked.name });
+                            issueGroupName = picked.name;
+                        }
+                        await DBService.updateAiGuideline(id, { issueGroupId: issueGroupId || null });
+                        row.issueGroupId = issueGroupId || null;
+                        row.issueGroupName = issueGroupName || null;
+                    } catch (e) { console.error(e); }
+                    renderList();
+                };
+            });
+            listEl.querySelectorAll('.ag-leave-issue').forEach((btn) => {
+                btn.onclick = async () => {
+                    const id = parseInt(btn.getAttribute('data-leave-issue-gid'), 10);
+                    if (!id) return;
+                    if (!(await openCatConfirmModal('是否確定要讓此條目脫離議題群組？'))) return;
+                    try {
+                        await DBService.updateAiGuideline(id, { issueGroupId: null });
+                        const row = allGuidelines.find((g) => g.id === id);
+                        if (row) {
+                            row.issueGroupId = null;
+                            row.issueGroupName = null;
+                        }
+                    } catch (e) { console.error(e); }
+                    renderList();
+                };
+            });
         }
 
         function renderList() {
@@ -16347,6 +16393,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             const has = Array.from(mutexGroupSelect.options).some(o => o.value === current);
             mutexGroupSelect.value = has ? current : '';
             mutexGroupSelect.dataset.catSelectAddNewPrev = mutexGroupSelect.value || '';
+        }
+
+        async function updateIssueSelectOptions() {
+            const issueSel = document.getElementById('aiGuidelineNewIssueGroupSelect');
+            const scopeEl = document.getElementById('aiGuidelineNewScope');
+            if (!issueSel) return;
+            const scope = (scopeEl && scopeEl.value === 'style') ? 'style' : 'translation';
+            const rows = await DBService.getAiIssueGroups({ scope }).catch(() => []);
+            const current = issueSel.value || '';
+            issueSel.innerHTML = '<option value="">無議題群組</option>' +
+                rows.map((r) => `<option value="${_esc(String(r.id))}">${_esc(r.name)}</option>`).join('');
+            if (current && !rows.some((r) => String(r.id) === current)) {
+                issueSel.insertAdjacentHTML('beforeend', `<option value="${_esc(current)}">${_esc(current)}</option>`);
+            }
+            issueSel.value = current && Array.from(issueSel.options).some((o) => o.value === current) ? current : '';
         }
 
         /** 頁內 modal：單選既有互斥群組或建立新群組（取代 window.prompt）。 */
@@ -16483,6 +16544,119 @@ document.addEventListener('DOMContentLoaded', async () => {
                 requestAnimationFrame(() => {
                     if (groups.length === 0) newInput.focus();
                 });
+            });
+        }
+
+        async function openAgIssueJoinChoiceModal(scope) {
+            const modal = document.getElementById('agIssueJoinModal');
+            const listEl = document.getElementById('agIssueJoinRadioList');
+            const newRow = document.getElementById('agIssueJoinNewRow');
+            const newInput = document.getElementById('agIssueJoinNewName');
+            const errEl = document.getElementById('agIssueJoinErr');
+            const btnOk = document.getElementById('btnAgIssueJoinOk');
+            const btnCancel = document.getElementById('btnAgIssueJoinCancel');
+            if (!modal || !listEl || !newRow || !newInput || !btnOk || !btnCancel) return null;
+            const rows = await DBService.getAiIssueGroups({ scope }).catch(() => []);
+            listEl.innerHTML = '';
+            rows.forEach((row) => {
+                const lab = document.createElement('label');
+                lab.className = 'ag-mutex-join-opt';
+                lab.style.cssText = 'display:flex; align-items:flex-start; gap:0.45rem; cursor:pointer; font-size:0.88rem; padding:0.4rem 0.35rem; border-radius:6px;';
+                const inp = document.createElement('input');
+                inp.type = 'radio';
+                inp.name = 'agIssueJoinPick';
+                inp.value = 'g:' + encodeURIComponent(String(row.id));
+                const span = document.createElement('span');
+                span.style.flex = '1';
+                span.textContent = row.name || '';
+                lab.appendChild(inp);
+                lab.appendChild(span);
+                listEl.appendChild(lab);
+            });
+            const labNew = document.createElement('label');
+            labNew.className = 'ag-mutex-join-opt';
+            labNew.style.cssText = 'display:flex; align-items:flex-start; gap:0.45rem; cursor:pointer; font-size:0.88rem; padding:0.45rem 0.35rem; border-radius:6px; margin-top:0.2rem; border-top:1px solid #e2e8f0;';
+            const inpNew = document.createElement('input');
+            inpNew.type = 'radio';
+            inpNew.name = 'agIssueJoinPick';
+            inpNew.value = '__new__';
+            const spanNew = document.createElement('span');
+            spanNew.style.flex = '1';
+            spanNew.textContent = '建立新群組…';
+            labNew.appendChild(inpNew);
+            labNew.appendChild(spanNew);
+            listEl.appendChild(labNew);
+
+            return new Promise((resolve) => {
+                let settled = false;
+                const radios = () => listEl.querySelectorAll('input[name="agIssueJoinPick"]');
+                function showErr(msg) {
+                    if (!errEl) return;
+                    if (msg) {
+                        errEl.textContent = msg;
+                        errEl.classList.remove('hidden');
+                    } else {
+                        errEl.textContent = '';
+                        errEl.classList.add('hidden');
+                    }
+                }
+                function syncNewRow() {
+                    const picked = modal.querySelector('input[name="agIssueJoinPick"]:checked');
+                    const showNew = picked && picked.value === '__new__';
+                    newRow.style.display = showNew ? 'block' : 'none';
+                    if (!showNew) newInput.value = '';
+                    showErr('');
+                }
+                function onRadioChange() { syncNewRow(); }
+                function finish(payload) {
+                    if (settled) return;
+                    settled = true;
+                    modal.classList.add('hidden');
+                    btnOk.removeEventListener('click', onOk);
+                    btnCancel.removeEventListener('click', onCancel);
+                    modal.removeEventListener('click', onOverlay);
+                    radios().forEach((r) => { r.removeEventListener('change', onRadioChange); });
+                    resolve(payload);
+                }
+                function onOk() {
+                    const picked = modal.querySelector('input[name="agIssueJoinPick"]:checked');
+                    if (!picked) {
+                        showErr('請選擇一個群組。');
+                        return;
+                    }
+                    if (picked.value === '__new__') {
+                        const name = newInput.value.trim();
+                        if (!name) {
+                            showErr('請輸入新群組名稱。');
+                            newInput.focus();
+                            return;
+                        }
+                        finish({ mode: 'new', name });
+                        return;
+                    }
+                    if (picked.value.indexOf('g:') === 0) {
+                        finish({ mode: 'existing', id: decodeURIComponent(picked.value.slice(2)) });
+                        return;
+                    }
+                    finish(null);
+                }
+                function onCancel() { finish(null); }
+                function onOverlay(e) { if (e.target === modal) onCancel(); }
+
+                btnOk.addEventListener('click', onOk);
+                btnCancel.addEventListener('click', onCancel);
+                modal.addEventListener('click', onOverlay);
+                radios().forEach((r) => { r.addEventListener('change', onRadioChange); });
+                if (rows.length === 0) {
+                    inpNew.checked = true;
+                    newRow.style.display = 'block';
+                } else {
+                    newRow.style.display = 'none';
+                    newInput.value = '';
+                }
+                showErr('');
+                modal.classList.remove('hidden');
+                requestAnimationFrame(() => { if (rows.length === 0) newInput.focus(); });
             });
         }
 
@@ -16934,6 +17108,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
+        const newScopeEl = document.getElementById('aiGuidelineNewScope');
+        if (newScopeEl) {
+            newScopeEl.onchange = () => { void updateIssueSelectOptions(); };
+        }
+        void updateIssueSelectOptions();
+
         const addBtn = document.getElementById('btnAddAiGuideline');
         if (addBtn) {
             addBtn.onclick = async () => {
@@ -16948,11 +17128,30 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const mutexGroup = mVal || null;
                     const scopeEl = document.getElementById('aiGuidelineNewScope');
                     const scope = (scopeEl && scopeEl.value === 'style') ? 'style' : 'translation';
+                    const issueSel = document.getElementById('aiGuidelineNewIssueGroupSelect');
+                    const issueGroupId = issueSel && issueSel.value ? String(issueSel.value) : null;
                     const isDefault = !!(document.getElementById('aiGuidelineNewIsDefault')?.checked);
                     if (!content) { alert('請輸入準則內容'); return; }
                     if (!_isCatPmOrExecutive()) return;
-                    const id = await DBService.addAiGuideline({ content, category, mutexGroup, sortOrder: allGuidelines.length, scope, isDefault });
-                    const newRow = { id, content, category, mutexGroup: mutexGroup || null, sortOrder: allGuidelines.length, scope, isDefault, examples: [] };
+                    const id = await DBService.addAiGuideline({ content, category, mutexGroup, issueGroupId, sortOrder: allGuidelines.length, scope, isDefault });
+                    let issueGroupName = null;
+                    if (issueGroupId) {
+                        const issueRows = await DBService.getAiIssueGroups({ scope }).catch(() => []);
+                        const hit = issueRows.find((r) => String(r.id) === String(issueGroupId));
+                        issueGroupName = hit ? hit.name : null;
+                    }
+                    const newRow = {
+                        id,
+                        content,
+                        category,
+                        mutexGroup: mutexGroup || null,
+                        issueGroupId: issueGroupId || null,
+                        issueGroupName,
+                        sortOrder: allGuidelines.length,
+                        scope,
+                        isDefault,
+                        examples: []
+                    };
                     allGuidelines.push(newRow);
                     if (mutexGroup && isDefault) {
                         const inGroup = allGuidelines.filter(g => g && g.mutexGroup === mutexGroup).sort((a, b) => a.id - b.id);
@@ -16967,6 +17166,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     document.getElementById('aiGuidelineNewContent').value = '';
                     if (mSel) mSel.value = '';
+                    if (issueSel) issueSel.value = '';
                     selectedNewCategories = ['通用'];
                     updateMultiselectDropdown();
                     updateMultiselectDisplay();

@@ -1112,6 +1112,12 @@
                                     <option value="">無互斥群組</option>
                                 </select>
                             </div>
+                            <div style="display:flex; align-items:center; gap:0.4rem;">
+                                <label style="font-size:0.82rem; color:#374151; white-space:nowrap;">議題群組</label>
+                                <select id="aiGuidelineNewIssueGroupSelect" class="form-input" style="min-width:140px; max-width:200px; padding:0.3rem 0.45rem; font-size:0.82rem;">
+                                    <option value="">無議題群組</option>
+                                </select>
+                            </div>
                             <div style="display:flex; align-items:center; gap:0.35rem;">
                                 <label style="font-size:0.8rem; color:#374151;">性質</label>
                                 <select id="aiGuidelineNewScope" class="form-input" style="width:auto; padding:0.25rem 0.4rem; font-size:0.8rem;">
@@ -2181,6 +2187,24 @@
             <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
                 <button type="button" id="btnAgMutexJoinCancel" class="secondary-btn">取消</button>
                 <button type="button" id="btnAgMutexJoinOk" class="primary-btn">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====== 準則管理：加入議題群組（單選＋可建立新群組）====== -->
+    <div id="agIssueJoinModal" class="modal-overlay hidden">
+        <div class="modal-box" style="max-width:440px; width:92vw;">
+            <h3 style="margin:0 0 0.35rem 0;">加入議題群組</h3>
+            <p style="font-size:0.82rem; color:#64748b; margin:0 0 0.65rem 0;">請選擇既有議題群組，或選擇「建立新群組」並輸入名稱。</p>
+            <div id="agIssueJoinRadioList" style="max-height:42vh; overflow-y:auto; display:flex; flex-direction:column; gap:0.15rem;"></div>
+            <div id="agIssueJoinNewRow" style="display:none; margin-top:0.65rem;">
+                <label for="agIssueJoinNewName" style="font-size:0.82rem; font-weight:600;">新群組名稱</label>
+                <input type="text" id="agIssueJoinNewName" class="form-input" placeholder="輸入群組名稱…" style="width:100%; margin-top:0.25rem;" autocomplete="off">
+            </div>
+            <p id="agIssueJoinErr" class="hidden" style="color:#dc2626; font-size:0.8rem; margin:0.5rem 0 0 0;"></p>
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
+                <button type="button" id="btnAgIssueJoinCancel" class="secondary-btn">取消</button>
+                <button type="button" id="btnAgIssueJoinOk" class="primary-btn">確定</button>
             </div>
         </div>
     </div>
