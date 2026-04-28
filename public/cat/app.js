@@ -19147,11 +19147,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             (async () => {
                 pickerCategoryTags = await DBService.getAiCategoryTags().catch(() => []);
                 if (tabBar) tabBar.innerHTML = '';
-                const mmap0 = _pickerMutexMapFrom(allGuidelines);
-                Object.values(mmap0).forEach((group) => {
-                    const checkedInGroup = group.filter((g) => checked.has(g.id));
-                    if (checkedInGroup.length > 1) checkedInGroup.slice(1).forEach((g) => checked.delete(g.id));
-                });
+                _pickerIssueMapFrom(allGuidelines);
                 updatePickerFilterBar();
                 _pickerRefillMutexSelect();
                 const mSel = document.getElementById('aiPickerMgmtMutexSelect');
