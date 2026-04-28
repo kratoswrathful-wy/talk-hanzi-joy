@@ -375,6 +375,27 @@ function _serializeGuidelineCategoryField(arr) {
 
 // Helper Database Methods
 const DBService = {
+    async _cleanupEmptyAiIssueGroupLocal(groupId) {
+        const gid = groupId != null ? String(groupId).trim() : '';
+        if (!gid) return false;
+        const group = await db.aiIssueGroups.get(gid);
+        if (!group) return false;
+        const scope = group.scope === 'style' ? 'style' : (group.scope === 'project' ? 'project' : 'translation');
+        const stillUsedByGuideline = await db.aiGuidelines
+            .filter((g) => (g && String(g.issueGroupId || '') === gid))
+            .count();
+        if (stillUsedByGuideline > 0) return false;
+        if (scope === 'project') {
+            const rows = await db.aiProjectSettings.toArray();
+            const stillUsedByProjectGuideline = rows.some((pr) =>
+                Array.isArray(pr.projectGuidelines) &&
+                pr.projectGuidelines.some((el) => el && String(el.issueGroupId || '') === gid)
+            );
+            if (stillUsedByProjectGuideline) return false;
+        }
+        await db.aiIssueGroups.delete(gid);
+        return true;
+    },
     // ---- Module-level Logs ----
     async addModuleLog(module, payload) {
         if (!module) return;
@@ -884,6 +905,7 @@ const DBService = {
         return rows;
     },
     async updateAiGuideline(id, patch) {
+        const before = await db.aiGuidelines.get(id);
         const allowed = {};
         if (patch.category !== undefined) allowed.category = patch.category;
         if (patch.mutexGroup !== undefined) allowed.mutexGroup = patch.mutexGroup;
@@ -894,10 +916,22 @@ const DBService = {
         if (patch.examples !== undefined) allowed.examples = Array.isArray(patch.examples) ? patch.examples : [];
         if (patch.issueGroupId !== undefined) allowed.issueGroupId = patch.issueGroupId || null;
         if (patch.issueGroupName !== undefined) allowed.issueGroupName = patch.issueGroupName || null;
-        return await db.aiGuidelines.update(id, allowed);
+        const updated = await db.aiGuidelines.update(id, allowed);
+        if (before && patch.issueGroupId !== undefined) {
+            const prevGid = before.issueGroupId != null ? String(before.issueGroupId).trim() : '';
+            const nextGid = patch.issueGroupId != null ? String(patch.issueGroupId).trim() : '';
+            if (prevGid && prevGid !== nextGid) {
+                await DBService._cleanupEmptyAiIssueGroupLocal(prevGid).catch(() => {});
+            }
+        }
+        return updated;
     },
     async deleteAiGuideline(id) {
-        return await db.aiGuidelines.delete(id);
+        const before = await db.aiGuidelines.get(id);
+        const removed = await db.aiGuidelines.delete(id);
+        const gid = before && before.issueGroupId != null ? String(before.issueGroupId).trim() : '';
+        if (gid) await DBService._cleanupEmptyAiIssueGroupLocal(gid).catch(() => {});
+        return removed;
     },
 
     /** 議題群組（離線：Dexie `aiIssueGroups`；團隊見 enableTeamCloudProvider） */
@@ -1177,12 +1211,20 @@ const DBService = {
         if (!Array.isArray(merged.selectedStyleGuidelineIds)) merged.selectedStyleGuidelineIds = [];
         if (!Array.isArray(merged.specialInstructions)) merged.specialInstructions = [];
         if (!Array.isArray(merged.projectGuidelines)) merged.projectGuidelines = [];
+        let result;
         if (rows.length > 0) {
             const rowId = rows[0].id;
-            return await db.aiProjectSettings.update(rowId, { ...merged, id: rowId });
+            result = await db.aiProjectSettings.update(rowId, { ...merged, id: rowId });
+        } else {
+            const { id: _omitId, ...toAdd } = merged;
+            result = await db.aiProjectSettings.add(toAdd);
         }
-        const { id: _omitId, ...toAdd } = merged;
-        return await db.aiProjectSettings.add(toAdd);
+        const issueRows = await db.aiIssueGroups.toArray();
+        const projectIssueGroups = issueRows.filter((r) => (r.scope || 'translation') === 'project' && Number(r.projectId) === Number(projectId));
+        for (const g of projectIssueGroups) {
+            await DBService._cleanupEmptyAiIssueGroupLocal(g.id).catch(() => {});
+        }
+        return result;
     },
     /** 新專案依庫內 isDefault 帶入勾選的準則／文風 id */
     async applyDefaultAiProjectSettingsForNewProject(projectId) {

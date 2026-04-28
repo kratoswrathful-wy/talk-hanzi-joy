@@ -16418,10 +16418,32 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!issueSel) return;
             const scope = (scopeEl && scopeEl.value === 'style') ? 'style' : 'translation';
             const rows = await DBService.getAiIssueGroups({ scope }).catch(() => []);
+            // 與互斥群組一致：同時納入目前記憶體中的條目群組，避免雲端延遲造成下拉未即時更新
+            const merged = new Map();
+            rows.forEach((r) => {
+                if (!r || r.id == null) return;
+                const id = String(r.id);
+                if (!id) return;
+                merged.set(id, { id, name: String(r.name || '').trim() || id });
+            });
+            allGuidelines.forEach((g) => {
+                if (!g) return;
+                const gScope = (g.scope || 'translation') === 'style' ? 'style' : 'translation';
+                if (gScope !== scope) return;
+                const id = g.issueGroupId != null ? String(g.issueGroupId).trim() : '';
+                if (!id) return;
+                if (!merged.has(id)) {
+                    const name = String(g.issueGroupName || '').trim() || id;
+                    merged.set(id, { id, name });
+                }
+            });
+            const options = [...merged.values()].sort((a, b) =>
+                String(a.name).localeCompare(String(b.name), 'zh-Hant-TW', { sensitivity: 'base' })
+            );
             const current = issueSel.value || '';
             issueSel.innerHTML = '<option value="">無議題群組</option>' +
-                rows.map((r) => `<option value="${_esc(String(r.id))}">${_esc(r.name)}</option>`).join('');
-            if (current && !rows.some((r) => String(r.id) === current)) {
+                options.map((r) => `<option value="${_esc(String(r.id))}">${_esc(r.name)}</option>`).join('');
+            if (current && !options.some((r) => String(r.id) === current)) {
                 issueSel.insertAdjacentHTML('beforeend', `<option value="${_esc(current)}">${_esc(current)}</option>`);
             }
             issueSel.value = current && Array.from(issueSel.options).some((o) => o.value === current) ? current : '';
@@ -17396,16 +17418,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         let selectedStyleIds = new Set((psettings?.selectedStyleGuidelineIds || []).map(Number));
         let specialInstructions = Array.isArray(psettings?.specialInstructions) ? [...psettings.specialInstructions] : [];
         let projectGuidelines = Array.isArray(psettings?.projectGuidelines) ? [...psettings.projectGuidelines] : [];
-        try {
-            const igl = await DBService.getAiIssueGroups({ scope: 'project', projectId }).catch(() => []);
-            const nameBy = new Map(igl.map((x) => [String(x.id), x.name]));
-            projectGuidelines.forEach((row) => {
-                if (row && row.issueGroupId && !row.issueGroupName) {
-                    const nm = nameBy.get(String(row.issueGroupId));
-                    if (nm) row.issueGroupName = nm;
-                }
-            });
-        } catch (_) { /* ignore */ }
+        async function hydrateProjectGuidelineIssueGroupNames() {
+            try {
+                const igl = await DBService.getAiIssueGroups({ scope: 'project', projectId }).catch(() => []);
+                const nameBy = new Map(igl.map((x) => [String(x.id), x.name]));
+                projectGuidelines.forEach((row) => {
+                    if (!row || typeof row !== 'object') return;
+                    const gid = row.issueGroupId != null ? String(row.issueGroupId).trim() : '';
+                    if (gid) {
+                        const nm = nameBy.get(gid);
+                        if (nm) row.issueGroupName = nm;
+                    }
+                });
+            } catch (_) { /* ignore */ }
+        }
+        await hydrateProjectGuidelineIssueGroupNames();
         const sharedExampleCollapseState = new Map();
 
         function _siNormalizeGuidelineExamples(examples) {
@@ -17511,13 +17538,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                 listEl.innerHTML = '<p style="color:#94a3b8; font-size:0.85rem; padding:0.25rem 0;">尚無專案準則。請使用下方表單新增。</p>';
                 return;
             }
-            const withGroup = projectGuidelines.filter((g) => g && g.issueGroupId);
-            const withoutGroup = projectGuidelines.filter((g) => g && !g.issueGroupId);
+            const withGroup = projectGuidelines.filter((g) => {
+                if (!g) return false;
+                const gid = g.issueGroupId != null ? String(g.issueGroupId).trim() : '';
+                const gname = g.issueGroupName != null ? String(g.issueGroupName).trim() : '';
+                return !!gid || !!gname;
+            });
+            const withoutGroup = projectGuidelines.filter((g) => {
+                if (!g) return false;
+                const gid = g.issueGroupId != null ? String(g.issueGroupId).trim() : '';
+                const gname = g.issueGroupName != null ? String(g.issueGroupName).trim() : '';
+                return !gid && !gname;
+            });
             const byGroup = new Map();
             withGroup.forEach((row) => {
-                const key = String(row.issueGroupId);
+                const gid = row.issueGroupId != null ? String(row.issueGroupId).trim() : '';
+                const gname = row.issueGroupName != null ? String(row.issueGroupName).trim() : '';
+                const key = gid || `name:${gname}`;
                 if (!byGroup.has(key)) {
-                    byGroup.set(key, { name: row.issueGroupName || '（議題群組）', items: [] });
+                    byGroup.set(key, { name: gname || '（議題群組）', items: [] });
                 }
                 byGroup.get(key).items.push(row);
             });
@@ -18536,12 +18575,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                 setSharedListEmptyState(pgList, '目前沒有專案準則。', { key: 'project-guidelines' });
                 return;
             }
-            const withGroup = toShow.filter((g) => g.issueGroupId);
-            const withoutGroup = toShow.filter((g) => !g.issueGroupId);
+            const withGroup = toShow.filter((g) => {
+                const gid = g.issueGroupId != null ? String(g.issueGroupId).trim() : '';
+                const gname = g.issueGroupName != null ? String(g.issueGroupName).trim() : '';
+                return !!gid || !!gname;
+            });
+            const withoutGroup = toShow.filter((g) => {
+                const gid = g.issueGroupId != null ? String(g.issueGroupId).trim() : '';
+                const gname = g.issueGroupName != null ? String(g.issueGroupName).trim() : '';
+                return !gid && !gname;
+            });
             const byGroup = new Map();
             withGroup.forEach((row) => {
-                const key = String(row.issueGroupId);
-                if (!byGroup.has(key)) byGroup.set(key, { name: row.issueGroupName || '（議題群組）', items: [] });
+                const gid = row.issueGroupId != null ? String(row.issueGroupId).trim() : '';
+                const gname = row.issueGroupName != null ? String(row.issueGroupName).trim() : '';
+                const key = gid || `name:${gname}`;
+                if (!byGroup.has(key)) byGroup.set(key, { name: gname || '（議題群組）', items: [] });
                 byGroup.get(key).items.push(row);
             });
 

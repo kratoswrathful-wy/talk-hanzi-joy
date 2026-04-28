@@ -330,6 +330,47 @@ const mapAiProjectSettingsRow = (r: any) => ({
   updatedAt: r.updated_at,
 });
 
+async function cleanupEmptyIssueGroups(params: { scope: "translation" | "style" | "project"; projectId?: string | null }) {
+  const { scope } = params;
+  let q = supabase
+    .from("cat_ai_issue_groups" as any)
+    .select("id, scope, project_id")
+    .eq("scope", scope);
+  if (scope === "project") {
+    if (!params.projectId) return;
+    q = (q as any).eq("project_id", params.projectId);
+  }
+  const { data: groups, error: groupErr } = await q;
+  if (groupErr || !groups || groups.length === 0) return;
+
+  let projectGuidelines: any[] = [];
+  if (scope === "project" && params.projectId) {
+    const { data: psRow } = await supabase
+      .from("cat_ai_project_settings" as any)
+      .select("project_guidelines")
+      .eq("project_id", params.projectId)
+      .maybeSingle();
+    projectGuidelines = Array.isArray((psRow as any)?.project_guidelines) ? (psRow as any).project_guidelines : [];
+  }
+
+  for (const g of groups as any[]) {
+    const gid = String(g.id || "");
+    if (!gid) continue;
+    const { data: linkedGuideline, error: glErr } = await supabase
+      .from("cat_ai_guidelines" as any)
+      .select("id")
+      .eq("issue_group_id", gid)
+      .limit(1)
+      .maybeSingle();
+    if (glErr) continue;
+    const usedByGuideline = !!linkedGuideline;
+    const usedByProjectGuideline = scope === "project" && projectGuidelines.some((el) => el && String((el as any).issueGroupId || "") === gid);
+    if (!usedByGuideline && !usedByProjectGuideline) {
+      await supabase.from("cat_ai_issue_groups" as any).delete().eq("id", gid);
+    }
+  }
+}
+
 export async function handleCatCloudRpc(action: string, payload: RpcPayload, userId: string) {
   switch (action) {
     case "db.addModuleLog": {
@@ -1027,6 +1068,12 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       return (data ?? []).map(mapAiGuidelineRow);
     }
     case "db.updateAiGuideline": {
+      const guidelineId = Number(payload.id);
+      const { data: before } = await supabase
+        .from("cat_ai_guidelines" as any)
+        .select("id, scope, issue_group_id")
+        .eq("id", guidelineId)
+        .maybeSingle();
       const patch: Record<string, unknown> = { updated_at: nowIso() };
       if (payload.patch?.content !== undefined) patch.content = payload.patch.content ?? "";
       if (payload.patch?.category !== undefined) patch.category = parseAiCategories(payload.patch.category);
@@ -1039,16 +1086,30 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       const { error } = await supabase
         .from("cat_ai_guidelines" as any)
         .update(patch as any)
-        .eq("id", payload.id);
+        .eq("id", guidelineId);
       if (error) throw error;
+      if (payload.patch?.issueGroupId !== undefined && before) {
+        const oldScope = (before as any).scope === "style" ? "style" : "translation";
+        await cleanupEmptyIssueGroups({ scope: oldScope }).catch(() => {});
+      }
       return true;
     }
     case "db.deleteAiGuideline": {
+      const guidelineId = Number(payload.id);
+      const { data: before } = await supabase
+        .from("cat_ai_guidelines" as any)
+        .select("id, scope, issue_group_id")
+        .eq("id", guidelineId)
+        .maybeSingle();
       const { error } = await supabase
         .from("cat_ai_guidelines" as any)
         .delete()
-        .eq("id", payload.id);
+        .eq("id", guidelineId);
       if (error) throw error;
+      if (before) {
+        const oldScope = (before as any).scope === "style" ? "style" : "translation";
+        await cleanupEmptyIssueGroups({ scope: oldScope }).catch(() => {});
+      }
       return true;
     }
     case "db.getAiIssueGroups": {
@@ -1357,6 +1418,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       };
       const { error } = await supabase.from("cat_ai_project_settings" as any).upsert(row as any, { onConflict: "project_id" });
       if (error) throw error;
+      await cleanupEmptyIssueGroups({ scope: "project", projectId }).catch(() => {});
       return true;
     }
     case "db.replaceAiDataset":
