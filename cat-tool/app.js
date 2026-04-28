@@ -18782,7 +18782,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!isCatSharedMutator()) return;
                 const latest = await DBService.getAiGuidelines().catch(() => []);
                 const defIds = latest.filter(g => (g.scope || 'translation') !== 'style' && g.isDefault).map(g => g.id);
-                selectedGuidelineIds = new Set(defIds);
+                selectedGuidelineIds = normalizeGuidelineIdSet(defIds);
                 renderSelectedGuidelines();
                 void savePSettings().catch((e) => console.error(e));
             };
@@ -18792,7 +18792,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!isCatSharedMutator()) return;
                 const latest = await DBService.getAiGuidelines().catch(() => []);
                 const defIds = latest.filter(g => (g.scope || 'translation') === 'style' && g.isDefault).map(g => g.id);
-                selectedStyleIds = new Set(defIds);
+                selectedStyleIds = normalizeGuidelineIdSet(defIds);
                 renderSelectedStyleGuidelines();
                 void savePSettings().catch((e) => console.error(e));
             };
@@ -18803,7 +18803,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!isCatSharedMutator()) return;
                 const chosen = await openAiGuidelinePicker([...selectedGuidelineIds], allTranslation, { scope: 'translation' });
                 if (chosen !== null) {
-                    selectedGuidelineIds = new Set(chosen);
+                    selectedGuidelineIds = normalizeGuidelineIdSet(chosen);
                     renderSelectedGuidelines();
                     void savePSettings().catch((e) => console.error(e));
                 }
@@ -18814,7 +18814,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!isCatSharedMutator()) return;
                 const chosen = await openAiGuidelinePicker([...selectedStyleIds], allStyle, { scope: 'style' });
                 if (chosen !== null) {
-                    selectedStyleIds = new Set(chosen);
+                    selectedStyleIds = normalizeGuidelineIdSet(chosen);
                     renderSelectedStyleGuidelines();
                     void savePSettings().catch((e) => console.error(e));
                 }
