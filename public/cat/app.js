@@ -17472,8 +17472,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         const isPm = isCatSharedMutator();
         const allTranslation = allGuidelines.filter(g => (g.scope || 'translation') === 'translation');
         const allStyle = allGuidelines.filter(g => (g.scope || 'style') === 'style');
-        let selectedGuidelineIds = new Set((psettings?.selectedGuidelineIds || []).map(Number));
-        let selectedStyleIds = new Set((psettings?.selectedStyleGuidelineIds || []).map(Number));
+        const normalizeGuidelineId = (v) => {
+            const n = Number(v);
+            return Number.isFinite(n) ? n : null;
+        };
+        const normalizeGuidelineIdSet = (arr) => new Set(
+            (Array.isArray(arr) ? arr : [])
+                .map(normalizeGuidelineId)
+                .filter((n) => n !== null)
+        );
+        let selectedGuidelineIds = normalizeGuidelineIdSet(psettings?.selectedGuidelineIds || []);
+        let selectedStyleIds = normalizeGuidelineIdSet(psettings?.selectedStyleGuidelineIds || []);
         let specialInstructions = Array.isArray(psettings?.specialInstructions) ? [...psettings.specialInstructions] : [];
         let projectGuidelines = Array.isArray(psettings?.projectGuidelines) ? [...psettings.projectGuidelines] : [];
         async function hydrateProjectGuidelineIssueGroupNames() {
@@ -18891,6 +18900,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (scopeHidden) scopeHidden.value = scopeFixed;
             if (!modal || !pickerList) { resolve(null); return; }
 
+            const normalizeGuidelineId = (v) => {
+                const n = Number(v);
+                return Number.isFinite(n) ? n : null;
+            };
+            const normalizeGuidelineIdSet = (arr) => new Set(
+                (Array.isArray(arr) ? arr : [])
+                    .map(normalizeGuidelineId)
+                    .filter((n) => n !== null)
+            );
             const checked = normalizeGuidelineIdSet(currentCheckedIds || []);
             let filterCat = '';
             let filterIssue = '';
