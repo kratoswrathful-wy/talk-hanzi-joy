@@ -370,11 +370,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnProjectToolbarDelete = document.getElementById('btnProjectToolbarDelete');
     const btnProjectWordCount = document.getElementById('btnProjectWordCount');
     const btnProjectSplitAssign = document.getElementById('btnProjectSplitAssign');
+    const casePickerDialog = document.getElementById('casePickerDialog');
+    const casePickerKeywordInput = document.getElementById('casePickerKeywordInput');
+    const btnCasePickerSearch = document.getElementById('btnCasePickerSearch');
+    const btnCasePickerCancel = document.getElementById('btnCasePickerCancel');
+    const btnCasePickerClose = document.getElementById('btnCasePickerClose');
+    const btnCasePickerClear = document.getElementById('btnCasePickerClear');
+    const casePickerResultList = document.getElementById('casePickerResultList');
+    const casePickerResultHint = document.getElementById('casePickerResultHint');
     const projectClientFormUrlInput = document.getElementById('projectClientFormUrlInput');
     const projectClientFormStatus = document.getElementById('projectClientFormStatus');
     const projectClientFormDisplay = document.getElementById('projectClientFormDisplay');
     const btnSaveProjectClientForm = document.getElementById('btnSaveProjectClientForm');
-    const btnEditProjectClientForm = document.getElementById('btnEditProjectClientForm');
     const btnRemoveProjectClientForm = document.getElementById('btnRemoveProjectClientForm');
     const wordCountModal = document.getElementById('wordCountModal');
     const btnCloseWordCountModal = document.getElementById('btnCloseWordCountModal');
@@ -2448,6 +2455,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let namingActionContext = null;
     let currentAssignFileId = null;
     let currentAssignFileName = '';
+    let casePickerTargetFileId = null;
     window._tmsAssignableUsers = [];
     window._tmsCanAssign = false;
     window._tmsTranslatorOnly = false;
@@ -2867,7 +2875,51 @@ document.addEventListener('DOMContentLoaded', async () => {
         const label = caseTitle || '選擇案件';
         const safeTitle = String(label).replace(/</g, '&lt;').replace(/>/g, '&gt;');
         const safeId = String(caseId).replace(/"/g, '&quot;');
-        return `<a href="#" class="project-file-case-link" data-case-id="${safeId}" style="color:var(--primary-color); text-decoration:underline;">${safeTitle}</a>`;
+        const isBound = !!caseTitle;
+        return `<a href="#" class="project-file-case-link" data-case-id="${safeId}" data-case-bound="${isBound ? '1' : '0'}" style="color:var(--primary-color); text-decoration:underline;">${safeTitle}</a>`;
+    }
+
+    async function runCasePickerSearch() {
+        if (!casePickerKeywordInput || !casePickerResultList || !casePickerResultHint) return;
+        const keyword = String(casePickerKeywordInput.value || '').trim();
+        if (!keyword) {
+            casePickerResultHint.textContent = '請先輸入關鍵字。';
+            casePickerResultList.innerHTML = '';
+            return;
+        }
+        casePickerResultHint.textContent = '搜尋中…';
+        const rows = await DBService.searchLmsCases(currentProjectId, keyword, 30);
+        if (!rows || rows.length === 0) {
+            casePickerResultHint.textContent = '查無符合案件。';
+            casePickerResultList.innerHTML = '';
+            return;
+        }
+        casePickerResultHint.textContent = `找到 ${rows.length} 筆，點一下即可直接選用。`;
+        casePickerResultList.innerHTML = rows.map((r) => {
+            const rawTitle = String(r.title || '');
+            const title = rawTitle.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const keywordLabel = String(r.keyword || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const status = String(r.status || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return `<button type="button" class="case-picker-result-btn" data-id="${r.id}" data-title="${encodeURIComponent(rawTitle)}" style="display:block; width:100%; text-align:left; border:1px solid #e2e8f0; background:#fff; border-radius:6px; padding:0.45rem 0.55rem; margin:0.25rem 0; cursor:pointer;">
+                <div style="font-size:0.88rem; color:#0f172a; font-weight:600;">${title || '(未命名案件)'}</div>
+                <div style="font-size:0.78rem; color:#64748b;">${keywordLabel ? `關鍵字：${keywordLabel}` : '無關鍵字'}${status ? ` · 狀態：${status}` : ''}</div>
+            </button>`;
+        }).join('');
+    }
+
+    function closeCasePickerDialog() {
+        casePickerTargetFileId = null;
+        if (casePickerDialog && casePickerDialog.open) casePickerDialog.close();
+    }
+
+    function openCasePickerDialog(fileId) {
+        if (!casePickerDialog || !casePickerKeywordInput || !casePickerResultList || !casePickerResultHint) return;
+        casePickerTargetFileId = fileId;
+        casePickerKeywordInput.value = '';
+        casePickerResultHint.textContent = '請輸入關鍵字後按「搜尋」。';
+        casePickerResultList.innerHTML = '';
+        casePickerDialog.showModal();
+        casePickerKeywordInput.focus();
     }
 
     function renderProjectClientFormSettings(project) {
@@ -2875,12 +2927,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const url = String(project?.clientQuestionFormUrl || '').trim();
         const hasUrl = !!url;
         projectClientFormUrlInput.value = url;
-        projectClientFormUrlInput.disabled = hasUrl;
+        projectClientFormUrlInput.disabled = false;
         projectClientFormStatus.textContent = hasUrl ? '已設定' : '尚未設定';
         projectClientFormStatus.style.color = hasUrl ? '#059669' : '#64748b';
         projectClientFormDisplay.style.display = hasUrl ? 'block' : 'none';
         projectClientFormDisplay.innerHTML = hasUrl
-            ? `目前連結：<a href="${url}" target="_blank" rel="noopener noreferrer">${url.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</a>`
+            ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${url.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</a>`
             : '';
     }
 
@@ -2917,13 +2969,37 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     btnBackToProjects.addEventListener('click', () => switchView('viewProjects'));
 
-    if (btnEditProjectClientForm && projectClientFormUrlInput) {
-        btnEditProjectClientForm.addEventListener('click', () => {
-            projectClientFormUrlInput.disabled = false;
-            projectClientFormUrlInput.focus();
-            projectClientFormUrlInput.select?.();
+    if (btnCasePickerSearch) btnCasePickerSearch.addEventListener('click', () => { runCasePickerSearch(); });
+    if (casePickerKeywordInput) {
+        casePickerKeywordInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                runCasePickerSearch();
+            }
         });
     }
+    if (btnCasePickerCancel) btnCasePickerCancel.addEventListener('click', () => closeCasePickerDialog());
+    if (btnCasePickerClose) btnCasePickerClose.addEventListener('click', () => closeCasePickerDialog());
+    if (btnCasePickerClear) {
+        btnCasePickerClear.addEventListener('click', async () => {
+            if (!casePickerTargetFileId) return closeCasePickerDialog();
+            await DBService.updateFile(casePickerTargetFileId, { relatedLmsCaseId: null, relatedLmsCaseTitle: '' });
+            closeCasePickerDialog();
+            await loadFilesList();
+        });
+    }
+    if (casePickerResultList) {
+        casePickerResultList.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.case-picker-result-btn');
+            if (!btn || !casePickerTargetFileId) return;
+            const caseId = btn.getAttribute('data-id') || null;
+            const caseTitle = decodeURIComponent(btn.getAttribute('data-title') || '');
+            await DBService.updateFile(casePickerTargetFileId, { relatedLmsCaseId: caseId, relatedLmsCaseTitle: caseTitle });
+            closeCasePickerDialog();
+            await loadFilesList();
+        });
+    }
+
     if (btnSaveProjectClientForm && projectClientFormUrlInput) {
         btnSaveProjectClientForm.addEventListener('click', async () => {
             if (!currentProjectId) return;
@@ -3385,7 +3461,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const fileTgt = f.targetLang || '';
             let fileLangHtml = '';
             if (fileSrc || fileTgt) {
-                fileLangHtml = `${langBadgeHtml([fileSrc].filter(Boolean))} <span style="color:#94a3b8;">→</span> ${langBadgeHtml([fileTgt].filter(Boolean))}`;
+                fileLangHtml = `<div style="display:flex; align-items:center; gap:0.25rem; margin-bottom:0.2rem;">${langBadgeHtml([fileSrc].filter(Boolean))}</div>
+                    <div style="display:flex; align-items:center; gap:0.25rem;"><span style="color:#94a3b8;">→</span>${langBadgeHtml([fileTgt].filter(Boolean))}</div>`;
                 const origSrc = f.originalSourceLang || '';
                 const origTgt = f.originalTargetLang || '';
                 const mismatch = (origSrc && origSrc.toLowerCase() !== fileSrc.toLowerCase()) ||
@@ -3402,7 +3479,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const assignees = (window._fileAssigneesByFileId && window._fileAssigneesByFileId[aid]) || [];
             const assignPlain = assignees.length ? assignees.join('、') : '';
             const assignCell = assignees.length
-                ? assignees.map((n) => String(n).replace(/</g, '&lt;').replace(/>/g, '&gt;')).join('、')
+                ? assignees.map((n) => `<div style="line-height:1.4;">${String(n).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`).join('')
                 : '—';
             const assignTitle = assignPlain.replace(/"/g, '&quot;');
             const progressCellHtml = `
@@ -3416,7 +3493,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="edit-file-btn" data-id="${f.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a>${progressCellHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${fileLangHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:80px;">${roleStr}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#334155; max-width:220px; overflow:hidden; text-overflow:ellipsis;" title="${assignTitle}">${assignCell}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#334155; width:120px; vertical-align:top;" title="${assignTitle}">${assignCell}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${getFileCaseLinkHtml(f)}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;">${modStr}</td>
             `;
@@ -3436,38 +3513,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         filesListBody.querySelectorAll('.project-file-case-link').forEach((link) => {
             link.addEventListener('click', async (e) => {
                 e.preventDefault();
+                const fileRow = link.closest('tr');
+                const fileId = fileRow?.getAttribute('data-file-id');
+                if (!fileId) return;
+                const isBound = link.getAttribute('data-case-bound') === '1';
                 const linkedCaseId = String(link.getAttribute('data-case-id') || '').trim();
-                if (linkedCaseId && !e.shiftKey) {
+                if (isBound && linkedCaseId && !e.shiftKey) {
                     window.parent.postMessage({
                         type: 'CAT_OPEN_CASE_PAGE',
                         payload: { caseId: linkedCaseId }
                     }, window.location.origin);
                     return;
                 }
-                const fileRow = link.closest('tr');
-                const fileId = fileRow?.getAttribute('data-file-id');
-                if (!fileId) return;
-                const keyword = prompt('輸入案件關鍵字以搜尋 LMS 案件（可輸入標題或關鍵字）');
-                if (keyword == null) return;
-                const rows = await DBService.searchLmsCases(currentProjectId, keyword, 12);
-                if (!rows || rows.length === 0) {
-                    alert('查無符合案件，請嘗試其他關鍵字。');
-                    return;
-                }
-                const menu = rows.map((r, i) => `${i + 1}. ${r.title}${r.keyword ? `（${r.keyword}）` : ''}`).join('\n');
-                const pick = prompt(`請輸入要綁定的編號：\n${menu}\n\n輸入 0 可清除綁定`, '1');
-                if (pick == null) return;
-                const idx = Number(pick);
-                if (idx === 0) {
-                    await DBService.updateFile(fileId, { relatedLmsCaseId: null, relatedLmsCaseTitle: '' });
-                } else if (Number.isFinite(idx) && idx >= 1 && idx <= rows.length) {
-                    const chosen = rows[idx - 1];
-                    await DBService.updateFile(fileId, { relatedLmsCaseId: chosen.id, relatedLmsCaseTitle: chosen.title || '' });
-                } else {
-                    alert('輸入格式錯誤。');
-                    return;
-                }
-                await loadFilesList();
+                openCasePickerDialog(fileId);
             });
         });
         syncProjectFilesSelectAll();
@@ -7654,6 +7712,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const url = String(project?.clientQuestionFormUrl || '').trim();
             if (url) {
                 btnClientQuestionForm.style.display = '';
+                btnClientQuestionForm.textContent = '提問表單';
                 btnClientQuestionForm.onclick = () => window.open(url, '_blank', 'noopener,noreferrer');
             } else {
                 btnClientQuestionForm.style.display = 'none';
@@ -7769,7 +7828,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.ActiveTmPenalties = {};
         // 記錄當前檔案的語言對，供 TM 篩選及寫入使用
         window.ActiveFileLangs = { sourceLang: file.sourceLang || '', targetLang: file.targetLang || '' };
-        const project = await DBService.getProject(resolvedProjectId);
+        let project = await DBService.getProject(resolvedProjectId);
+        if (!project && file.projectId && String(file.projectId) !== String(resolvedProjectId)) {
+            project = await DBService.getProject(file.projectId);
+        }
+        if (!project && currentProjectId && String(currentProjectId) !== String(resolvedProjectId)) {
+            project = await DBService.getProject(currentProjectId);
+        }
         window.ActiveTmPenalties = (project && project.tmPenalties) ? project.tmPenalties : {};
         updateEditorQuestionButtons(file, project);
         window.ActiveReadTmIds = (project && Array.isArray(project.readTms)) ? project.readTms : [];

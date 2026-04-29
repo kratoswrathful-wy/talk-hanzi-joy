@@ -150,13 +150,12 @@
                 <div style="margin-bottom:1.5rem;">
                     <div style="border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; padding:0.9rem 1rem; margin-bottom:0.75rem;">
                         <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; flex-wrap:wrap;">
-                            <h3 style="margin:0; font-size:0.95rem; color:#334155;">客戶提問表單連結</h3>
+                            <h3 style="margin:0; font-size:0.95rem; color:#334155;">外部提問表單連結</h3>
                             <span id="projectClientFormStatus" style="font-size:0.8rem; color:#64748b;">尚未設定</span>
                         </div>
                         <div style="margin-top:0.6rem; display:flex; align-items:center; gap:0.45rem; flex-wrap:wrap;">
                             <input type="url" id="projectClientFormUrlInput" class="form-input" placeholder="https://..." style="max-width:680px; flex:1 1 420px; min-width:260px;">
                             <button type="button" class="primary-btn btn-sm" id="btnSaveProjectClientForm">儲存</button>
-                            <button type="button" class="secondary-btn btn-sm" id="btnEditProjectClientForm">編輯</button>
                             <button type="button" class="danger-btn btn-sm" id="btnRemoveProjectClientForm">移除</button>
                         </div>
                         <div id="projectClientFormDisplay" style="margin-top:0.55rem; font-size:0.82rem; color:#475569; word-break:break-all; display:none;"></div>
@@ -181,10 +180,10 @@
                                     </th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">序號</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:130px;">語言對</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:100px;">語言對</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:80px;">預設身分</th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; min-width:120px; max-width:220px;">指派</th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:220px;">LMS 案件</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">指派</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:160px;">LMS 案件</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">最後修改</th>
                                 </tr>
                             </thead>
@@ -597,7 +596,7 @@
                         <button id="btnClearTarget" class="icon-btn" style="font-size:1rem;">✕</button>
                         <button id="btnTagCollapse" class="icon-btn" title="展開標籤 (Ctrl+Shift+T)" style="font-size:0.8rem; font-family:monospace;">{…}</button>
                         <button id="btnShowNonPrint" class="icon-btn" title="顯示 / 隱藏非列印字元" style="font-size:1rem;">¶</button>
-                        <button id="btnClientQuestionForm" class="secondary-btn btn-sm" style="display:none;">客戶表單</button>
+                        <button id="btnClientQuestionForm" class="secondary-btn btn-sm" style="display:none;">提問表單</button>
                         <button id="btnInternalNote" class="secondary-btn btn-sm" style="display:none;">內部註記</button>
                         <button id="btnShortcuts" class="icon-btn" title="快捷鍵一覽（含說明）">⌨️</button>
                         <button id="btnColSettings" class="icon-btn" title="設定">⚙️</button>
@@ -2637,6 +2636,27 @@
     <div id="aiProgressToast" class="ai-progress-toast" style="display:none;">
         <span id="aiProgressMsg">正在翻譯…</span>
     </div>
+
+    <dialog id="casePickerDialog" style="border:1px solid #cbd5e1; border-radius:10px; padding:0; width:min(560px, calc(100vw - 32px));">
+        <form method="dialog" style="margin:0;">
+            <div style="padding:0.85rem 1rem; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between;">
+                <h3 style="margin:0; font-size:1rem; color:#1e293b;">選擇 LMS 案件</h3>
+                <button type="button" id="btnCasePickerClose" class="close-btn" style="position:static;">×</button>
+            </div>
+            <div style="padding:0.9rem 1rem;">
+                <div style="display:flex; gap:0.45rem; align-items:center;">
+                    <input type="text" id="casePickerKeywordInput" class="form-input" placeholder="輸入案件標題或關鍵字" style="flex:1;">
+                    <button type="button" id="btnCasePickerSearch" class="primary-btn btn-sm">搜尋</button>
+                </div>
+                <div id="casePickerResultHint" style="margin-top:0.55rem; font-size:0.82rem; color:#64748b;">請輸入關鍵字後按「搜尋」。</div>
+                <div id="casePickerResultList" style="margin-top:0.5rem; border:1px solid #e2e8f0; border-radius:8px; max-height:300px; overflow:auto; padding:0.35rem;"></div>
+            </div>
+            <div style="padding:0.75rem 1rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.45rem; background:#f8fafc;">
+                <button type="button" id="btnCasePickerClear" class="secondary-btn btn-sm">清除綁定</button>
+                <button type="button" id="btnCasePickerCancel" class="secondary-btn btn-sm">取消</button>
+            </div>
+        </form>
+    </dialog>
 
     <script src="js/tm-utils.js"></script>
     <script src="js/data-provider.js"></script>
