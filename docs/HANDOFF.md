@@ -69,10 +69,11 @@
 - **TB 詳情取不到 TB**：`openTbDetail` 失敗時回到 **`viewTB`**（避免卡在空白詳情頁）。
 - **編輯器**：檔案不存在或 mqxliff **取消身分**時會將 **`currentFileId` 清空**並回到儀表板或專案詳情，避免停在空白編輯 view。
 
-### TMS React（[`src/App.tsx`](../src/App.tsx)）
+### TMS React（[`App.tsx`](../src/App.tsx)）
 
 - **問題**：詳情頁只改網址 **`id`** 時，若不強制重掛，可能短暫顯示上一筆資料。
 - **作法**：比照既有 **`TranslatorFeeDetailWrapper`**，對案件／請款／客戶請款／頁面範本編輯／內部註記包一層 **`CaseDetailPageWrapper`** 等，`**key={id}`**；內部註記列表與單筆並存路由使用 **`key={noteId ?? '__list'}`**，讓 **`noteId` 有無切換**時也會重置。
+- **驗收**：手動驗收（CAT 專案／TM／TB／編輯器換 id、深連結首屏有載入提示；TMS 各詳情頁僅改 id／note）狀況良好；新版部署後若有環境差異可再抽樣回歸。
 
 ### 已知後續風險（尚未實作）：嵌入 CAT 與父頁網址不同步
 

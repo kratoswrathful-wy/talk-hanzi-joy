@@ -21,6 +21,8 @@
 
 ### CAT：防殘影、深連結載入、詳情頁 key
 
+手動驗收已通過（見 [`HANDOFF.md`](./HANDOFF.md)「CAT：防殘影…」小節）。
+
 | 項目 | 位置 |
 |------|------|
 | fetch 前清空／切 view（專案／TM／TB／編輯器） | `cat-tool/app.js`：`beginOpenProjectDetailLoading`、`beginOpenTmDetailLoading`、`beginOpenTbDetailLoading`、`beginEditorViewLoadingShell` |

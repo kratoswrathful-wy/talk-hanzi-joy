@@ -19,6 +19,7 @@
 
 ## 防殘影與深連結載入（維運備忘）
 
+- **驗收**：此批行為經手動驗收狀況良好；細項與已知後續風險（父頁／iframe 網址不同步）見 [`docs/HANDOFF.md`](../docs/HANDOFF.md)。
 - **同一 view 內換 id**：導向詳情／編輯器時應在 **await DB 前**清空列表或顯示「載入中」，並先切到目標 `view-section`，避免上一筆 DOM 殘留。實作集中於 `app.js` 內 `beginOpenProjectDetailLoading` 等 helper。
 - **深連結**：`index.html` 的 `#catMainRouteLoading` 供首屏顯示；`app.js` 於路由還原結束後務必隱藏（`hideCatMainRouteLoadingEl`），詳見 [`docs/HANDOFF.md`](../docs/HANDOFF.md)「CAT：防殘影、深連結載入」。
 - **TMS 嵌入**：若父頁網址已變而 iframe 仍舊內容，屬 **CatToolPage** 與 iframe URL／`postMessage` 同步議題，不在此目錄單獨修；見 `HANDOFF.md`「已知後續風險」。
