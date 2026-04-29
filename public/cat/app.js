@@ -4251,6 +4251,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function renderOnlineTabsSection(tb) {
+        const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         const listEl = document.getElementById('tbOnlineTabsList');
         if (!listEl) return;
         const tabs = Array.isArray(tb.onlineTabs) ? tb.onlineTabs : [];
@@ -4337,9 +4338,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (action === 'update') openTbTabModal(currentTbId, tabId);
                 if (action === 'delete') {
                     openCatConfirmModal(
-                        `確定要刪除分頁「${escHtml(tab.name || '')}」？此操作將移除該分頁所有術語，且無法復原。`,
-                        () => deleteTbTab(currentTbId, tabId)
-                    );
+                        `確定要刪除分頁「${escHtml(tab.name || '')}」？此操作將移除該分頁所有術語，且無法復原。`
+                    ).then(confirmed => { if (confirmed) deleteTbTab(currentTbId, tabId); });
                 }
             });
 
@@ -4770,8 +4770,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const isCaseSensitive = mf.caseInsensitive === false;
             const isExact = !!mf.wholeWord;
             const tabName = showSourceCol ? (tabMap[term.tabId] || '') : '';
+            const _escTab = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const sourceCell = showSourceCol
-                ? `<td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.8rem; color:#64748b; white-space:nowrap; max-width:90px; overflow:hidden; text-overflow:ellipsis;" title="${escHtml(tabName)}">${escHtml(tabName) || '—'}</td>`
+                ? `<td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.8rem; color:#64748b; white-space:nowrap; max-width:90px; overflow:hidden; text-overflow:ellipsis;" title="${_escTab(tabName)}">${_escTab(tabName) || '—'}</td>`
                 : '';
             tr.innerHTML = `
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="tb-term-row-cb" data-term-index="${idx}"${isOnlineTb ? ' disabled' : ''}></td>

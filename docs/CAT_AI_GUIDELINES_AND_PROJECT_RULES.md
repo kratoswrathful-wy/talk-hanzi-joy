@@ -242,6 +242,26 @@ flowchart LR
 2. **TMS 主站**：[`src/components/settings/ToolbarButtonStyleSection.tsx`](../src/components/settings/ToolbarButtonStyleSection.tsx) 仍使用瀏覽器 **`confirm`**（文案已與「是否確定要…？」一致）；若全站要改為 React 對話元件，可另開任務。
 3. **稽核與舊 plan 對齊**：若需對照「分階段重建」與本檔差異，見 [CAT-phased-rebuild-audit.md](./CAT-phased-rebuild-audit.md)。
 
+### 7.1 AI 長任務：進度提示與任務紀錄（規劃；介面預覽見 `downloads/`）
+
+以下為**即將實作**之產品與文件約定；與 **§7 第 1 點**（全站 `alert` 逐步收斂）**分開**：本期**不**承諾一次替換所有 `alert` 或 TMS 主站對話框。
+
+1. **進度提示列（`#aiProgressToast`）**  
+   - **移除**右側 **✕（`btnDismissAiProgress`）**：該按鈕在現行程式中**僅隱藏 toast**，**無法**中止 API 或解除 `__catAiFlowRunning` 鎖，易造成「以為關掉就停」之誤解。  
+   - 實作後：長任務進行中時，使用者**不可**透過該列將提示隱藏；若未來另做「中止」或「詳情蓋板」，另列驗收（**不**納入本期最小範圍者見本節末）。
+
+2. **AI 任務紀錄（初版）**  
+   - **位置**：**AI 管理 → AI 設定** 同一視圖（`cat-tool/index.html` 之 AI 設定區、`loadAiSettingsView`）內新增區塊，標題建議 **「AI 任務紀錄」** 或等價文案。  
+   - **列表欄位（建議）**：開始時間、結束時間（或進行中）、**任務類型**（例如批次翻譯、全文掃描）、**專案**／**檔案**顯示名、**執行範圍**（全文／句段區間等）、**狀態**（進行中／成功／失敗／中止—中止功能若未做則略）、**進度摘要**（例如已處理句數／總數、第幾批—以 `runAiBatchTranslate` 等現有資料可取得者為準）。  
+   - **持久化**：初版以 **瀏覽器 `localStorage`**（版本化 key，例如 `catAiTaskLogV1`）為主，並設**最多保留筆數**（例如 50）；**不**將初版列為 Supabase 同步／跨裝置審計（若未來要做，另開 migration 與 RLS）。  
+   - **掛鉤**：以集中 **start／update／finish** 函式寫入，於 **`runAiBatchTranslate`**、**`_runAiScan`** 等長流程綁定，避免僅依賴 `_showAiToast` 字串拼裝。
+
+3. **介面預覽（靜態 HTML，非執行中產物）**  
+   - 倉庫根目錄 [`downloads/`](../downloads/) 內提供 **僅供視覺對照** 之 `.html`（不依賴 `cat-tool` 建置）；入口見 [`downloads/index.html`](../downloads/index.html)。**實際嵌入 CAT 時**仍須改 `cat-tool` 並執行 `npm run sync:cat`。
+
+4. **選做（本節不承諾本期）**  
+   點進度列開**詳情蓋板**、明確 **中止** 鈕與 API 取消、完成／失敗改**頁內蓋板**（取代短暫 toast）、`Enter` 關閉單鍵提示等，與 **§13 E** 之 `alert` 收斂可平行規劃。
+
 ---
 
 ## 9. 短期計畫與執行狀況（頁內對話框／標籤軟隱藏／文案）
@@ -308,6 +328,7 @@ flowchart LR
 | 2026-04-29（C／D 收斂） | **§12**：標示 **§12.1** 已落地；**§12.2** 改為「MVP 已涵蓋／可恢復重跑為加值」並對照 `ai-translate.js`／`app.js`；**§12.4** 驗收項勾選；**§13** 更新 **C** 為已驗收、**D** 為 MVP 已涵蓋。程式修正：`cat-tool/app.js` 補上 **`_acquireAiFlowLock`**（掃描／批次互斥）、**`_aiSleep`** 改為真正 `setTimeout` 延遲（cooldown／降載退避生效）。 |
 | 2026-04-29（加值收斂） | **範例拖曳排序**：庫內／專案準則編輯 modal 左側 ⋮⋮ 拖曳，`style.css` 三欄版面。**批次接續**：`runAiBatchTranslate` 以 `sessionStorage` 儲存進度，成功收尾或取消恢復時清除。**§5.6.9**／**§6** 補 migration 例行對照說明。**§12.2**／**§12.4**／**§13** 更新。 |
 | 2026-04-29（§11 與實作對齊） | **修改內容**：首段第 4 行改為指向 **§11.2** 與 **§13**（alert／維運等），不再暗示「範例送 prompt」仍屬未決波次；**§11** 節首改為敘明議題群組／拖曳已落地，並以 **§11.2**／**§12** 分擔「範例是否進提示語」之說明；**§11.2** 改為分情境（批次＋`candidatePool` vs 未傳 pool 之路徑），刪除「MVP 一律不送範例／啟用見 §13 階段 C」之過時句（**§13** 已標 **C** 落地）；**§11.3** 最後一條驗收改為兩路徑分別回歸；**§13** 表前說明改為含 **§11.2**、不以「範例進 prompt」籠統帶過。**緣由**：實作上批次候選條目池已可將勾選之條目與範例經 `_buildAiOptions` 併入提示語，舊 §11 敘述易使讀者誤以為範例從不進 prompt 或仍待「階段 C」；本次**僅修正文件**，**不變更程式**。 |
+| 2026-04-29（§7.1 與介面預覽） | **新增 §7.1**：AI 長任務進度列**移除隱藏（✕）鈕**之決策與理由；**AI 設定頁「AI 任務紀錄」**初版規格（列表欄位、`localStorage` 持久化、筆數上限、掛鉤於 `runAiBatchTranslate`／`_runAiScan`）；與 **§7 第 1 點** `alert` 全站收斂之分界；**選做**（詳情蓋板、中止、完成／失敗蓋板等）僅列為後續。**緣由**：先文件與靜態預覽對齊產品，再實作 `cat-tool`。**介面預覽**：倉庫 [`downloads/`](../downloads/)（入口 `index.html`）。**本列提交時**尚未改 `cat-tool` 行為。 |
 
 ---
 
