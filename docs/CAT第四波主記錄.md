@@ -176,7 +176,7 @@
 |------|------|
 | **主計畫位置** | 第 **10** 節 **§10.3 重製線上 TB 匯入**；todo **`tb-online-import-column-mapping`**（與 **§10.1** Excel 欄位讀取 `matchFlags` 併採同一套欄位代號＋`是/否` 語意，見 `cat-tool/app.js` 匯入 modal） |
 | **目標（摘要）** | 與 Excel 匯入相同之**可自選欄位映射**（含**區分大小寫欄、精確比對欄**可選，對應 `matchFlags`）、**預覽映射**首批列、比對屬性解析錯誤時**整批中止＋列號摘要**；`onlineImportConfig` 一併保存上述欄位代號供「更新」帶入 |
-| **驗收（摘自主計畫）** | 可映欄並成功匯入；比對屬性儲格不合法有明確摘要；匯出 Excel 欄**是/否**與匯入解析一致；線上與本機 xlsx 共用 `buildTbImportSheetConfigsFromModal` 與寫入 `term.matchFlags` |
+| **驗收（摘自主計畫）** | 可映欄並成功匯入；比對屬性儲存格不合法有明確摘要；匯出 Excel 欄**是/否**與匯入解析一致；線上與本機 xlsx 共用 `buildTbImportSheetConfigsFromModal` 與寫入 `term.matchFlags` |
 
 #### 5-d.1 來源範圍（本波定案）
 

@@ -1706,6 +1706,9 @@
                             <label style="font-size:0.9rem; text-align:right;">備註欄 (可多欄)</label>
                             <input type="text" id="tbExcelNoteCols" placeholder="例如: C-E, G 或 C,#" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
 
+                            <label style="font-size:0.9rem; text-align:right;">備註表頭列 (選填)</label>
+                            <input type="text" id="tbExcelNoteHeaderRow" placeholder="預設: 1；留白=不套用表頭" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
+
                             <label style="font-size:0.9rem; text-align:right;">建立者欄 (選填)</label>
                             <input type="text" id="tbExcelCreatorCol" placeholder="例如: F" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
 
@@ -1713,7 +1716,7 @@
                             <input type="text" id="tbExcelCreatedAtCol" placeholder="例如: G" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
 
                             <label style="font-size:0.9rem; text-align:right;">匯入列數</label>
-                            <input type="text" id="tbExcelRowsRange" placeholder="例如: 2- 或 2-99" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
+                            <input type="text" id="tbExcelRowsRange" placeholder="例如: 2-11, 13, 15-19, 26-" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
 
                             <label style="font-size:0.9rem; text-align:right;">區分大小寫欄 (選填)</label>
                             <input type="text" id="tbExcelMatchCaseCol" placeholder="例如: D，與匯出欄「區分大小寫」相同（是/否）" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
@@ -1727,7 +1730,8 @@
                             建立時間欄支援常見日期時間格式，例如：<br>
                             <code>YYYY-MM-DD HH:mm:ss</code>、<code>YYYY/MM/DD HH:mm</code>、或 ISO 8601 (<code>2026-03-16T14:30:00</code>)。<br>
                             若欄位為空或格式無法解析，將自動以匯入當下時間（台北時間，24 小時制）填入。<br>
-                            比對屬性兩欄可選；空欄格表示該筆採用預設（不區分大小寫、非精確比對）。儲格值請與匯出 Excel 相同：<strong>是</strong>／<strong>否</strong>，亦接受 <code>y</code>／<code>n</code>、<code>1</code>／<code>0</code> 等（空白則用預設）。
+                            比對屬性兩欄可選；空欄格表示該筆採用預設（不區分大小寫、非精確比對）。儲存格值請與匯出 Excel 相同：<strong>是</strong>／<strong>否</strong>，亦接受 <code>y</code>／<code>n</code>、<code>1</code>／<code>0</code> 等（空白則用預設）。<br>
+                            匯入列數支援多區間，請以逗號分隔，例如：<code>2-11, 13, 15-19, 26-</code>。
                         </div>
                         <div id="tbExcelPreviewBlock" class="hidden" style="border:1px solid #e2e8f0; border-radius:6px; background:#f8fafc; padding:0.5rem 0.6rem; max-height:200px; overflow:auto;">
                             <div style="font-size:0.8rem; font-weight:600; color:#334155; margin-bottom:0.35rem;">映射預覽（前列資料，不含標題列）</div>
@@ -1773,8 +1777,11 @@
                             <label style="font-size:0.9rem; text-align:right;">備註欄 (可多欄)</label>
                             <input type="text" id="tbTabNoteCols" placeholder="例如: C-E, G" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
 
+                            <label style="font-size:0.9rem; text-align:right;">備註表頭列 (選填)</label>
+                            <input type="text" id="tbTabNoteHeaderRow" placeholder="預設: 1；留白=不套用表頭" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
+
                             <label style="font-size:0.9rem; text-align:right;">匯入列數</label>
-                            <input type="text" id="tbTabRowsRange" placeholder="例如: 2- 或 2-99" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
+                            <input type="text" id="tbTabRowsRange" placeholder="例如: 2-11, 13, 15-19, 26-" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
 
                             <label style="font-size:0.9rem; text-align:right;">區分大小寫欄</label>
                             <input type="text" id="tbTabMatchCaseCol" placeholder="例如: D（是/否）" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">

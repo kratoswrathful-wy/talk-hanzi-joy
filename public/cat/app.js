@@ -487,6 +487,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const tbExcelSourceCol = document.getElementById('tbExcelSourceCol');
     const tbExcelTargetCol = document.getElementById('tbExcelTargetCol');
     const tbExcelNoteCols = document.getElementById('tbExcelNoteCols');
+    const tbExcelNoteHeaderRow = document.getElementById('tbExcelNoteHeaderRow');
     const tbExcelCreatorCol = document.getElementById('tbExcelCreatorCol');
     const tbExcelCreatedAtCol = document.getElementById('tbExcelCreatedAtCol');
     const tbExcelRowsRange = document.getElementById('tbExcelRowsRange');
@@ -4224,7 +4225,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         return updated;
     }
 
+    // #region agent log
+    const __agentDebugLog = (payload) => {
+        fetch('http://127.0.0.1:7378/ingest/552f26c1-e6b7-4327-966c-84e791e0a37c', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'c5b0e1' },
+            body: JSON.stringify({
+                sessionId: 'c5b0e1',
+                runId: 'scan1',
+                timestamp: Date.now(),
+                ...payload,
+            }),
+        }).catch(() => {});
+    };
+    // #endregion
+
     async function openTbDetail(tbId) {
+        // #region agent log
+        __agentDebugLog({
+            hypothesisId: 'H1',
+            location: 'cat-tool/app.js:openTbDetail',
+            message: 'enter openTbDetail',
+            data: { tbId },
+        });
+        // #endregion
         let tb = await DBService.getTB(tbId);
         if (!tb) return;
         tb = await migrateOnlineTbToTabs(tb);
@@ -4252,6 +4276,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function renderOnlineTabsSection(tb) {
         const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        // #region agent log
+        __agentDebugLog({
+            hypothesisId: 'H2',
+            location: 'cat-tool/app.js:renderOnlineTabsSection',
+            message: 'render tabs section',
+            data: {
+                tbId: tb && tb.id,
+                hasTabsArray: Array.isArray(tb && tb.onlineTabs),
+                tabCount: Array.isArray(tb && tb.onlineTabs) ? tb.onlineTabs.length : -1,
+                termCount: Array.isArray(tb && tb.terms) ? tb.terms.length : -1,
+            },
+        });
+        // #endregion
         const listEl = document.getElementById('tbOnlineTabsList');
         if (!listEl) return;
         const tabs = Array.isArray(tb.onlineTabs) ? tb.onlineTabs : [];
@@ -4391,6 +4428,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             sourceCol:      (document.getElementById('tbTabSourceCol')     || {}).value || '',
             targetCol:      (document.getElementById('tbTabTargetCol')     || {}).value || '',
             noteCols:       (document.getElementById('tbTabNoteCols')      || {}).value || '',
+            noteHeaderRow:  (document.getElementById('tbTabNoteHeaderRow') || {}).value || '',
             rowsRange:      (document.getElementById('tbTabRowsRange')     || {}).value || '',
             caseMatchCol:   (document.getElementById('tbTabMatchCaseCol')  || {}).value || '',
             exactMatchCol:  (document.getElementById('tbTabMatchExactCol') || {}).value || '',
@@ -4404,6 +4442,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         set('tbTabSourceCol',    vals.sourceCol    || '');
         set('tbTabTargetCol',    vals.targetCol    || '');
         set('tbTabNoteCols',     vals.noteCols     || '');
+        set('tbTabNoteHeaderRow',vals.noteHeaderRow|| '');
         set('tbTabRowsRange',    vals.rowsRange    || '');
         set('tbTabMatchCaseCol', vals.caseMatchCol || '');
         set('tbTabMatchExactCol',vals.exactMatchCol|| '');
@@ -4432,6 +4471,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 sourceCol:    cfg.sourceCol    || '',
                 targetCol:    cfg.targetCol    || '',
                 noteCols:     cfg.noteCols     || '',
+                noteHeaderRow: cfg.noteHeaderRow || '1',
                 rowsRange:    cfg.rowsRange    || '',
                 caseMatchCol: cfg.caseMatchCol || '',
                 exactMatchCol:cfg.exactMatchCol|| '',
@@ -4445,7 +4485,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 noteEl.classList.remove('hidden');
             }
         } else {
-            _fillTbTabForm({ rowsRange: '2-' });
+            _fillTbTabForm({ noteHeaderRow: '1', rowsRange: '2-' });
             if (noteEl) noteEl.classList.add('hidden');
         }
 
@@ -4458,6 +4498,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function _runTbTabFetch(tbId) {
         const vals = _readTbTabFormValues();
         const errEl = document.getElementById('tbTabFormError');
+        // #region agent log
+        __agentDebugLog({
+            hypothesisId: 'H3',
+            location: 'cat-tool/app.js:_runTbTabFetch',
+            message: 'start tab fetch',
+            data: {
+                tbId,
+                tabId: _tbTabModalTabId,
+                hasName: !!vals.name.trim(),
+                hasUrl: !!vals.url.trim(),
+                sourceCol: (vals.sourceCol || '').trim().toUpperCase(),
+                targetCol: (vals.targetCol || '').trim().toUpperCase(),
+                rowsRange: (vals.rowsRange || '2-').trim(),
+            },
+        });
+        // #endregion
 
         // 驗證
         if (!vals.name.trim()) { if (errEl) errEl.textContent = '請填寫分頁名稱。'; return; }
@@ -4480,6 +4536,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const csvText = await fetchGoogleSheetCsvViaProxy(vals.url.trim());
             csvRows = parseTbCsvText(csvText);
+            // #region agent log
+            __agentDebugLog({
+                hypothesisId: 'H4',
+                location: 'cat-tool/app.js:_runTbTabFetch',
+                message: 'csv parsed',
+                data: { rowCount: Array.isArray(csvRows) ? csvRows.length : -1 },
+            });
+            // #endregion
         } catch (e) {
             await _tbTabFetchFailed(tbId, _tbTabModalTabId, (e && e.message) ? e.message : String(e));
             return;
@@ -4489,38 +4553,42 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        // 解析列範圍
-        const parseRange = (str) => {
-            const s = (str || '').replace(/\s+/g, '');
-            if (!s) return { start: 2, end: Infinity };
-            if (s.includes('-')) {
-                const [a, b] = s.split('-');
-                return { start: a ? parseInt(a, 10) : 2, end: b ? parseInt(b, 10) : Infinity };
-            }
-            const v = parseInt(s, 10);
-            return isNaN(v) ? { start: 2, end: Infinity } : { start: v, end: v };
-        };
-        const rng = parseRange(rowsRangeStr);
-        const startRow = Math.max(0, rng.start - 1);
-        const endRow = isFinite(rng.end) ? rng.end - 1 : csvRows.length - 1;
+        const rowRanges = parseTbRowRanges(rowsRangeStr, 2);
         const userName = localStorage.getItem('localCatUserProfile') || 'Unknown User';
 
         const newTerms = [];
         const flagErrors = [];
-        for (let r = startRow; r < csvRows.length && r <= endRow; r++) {
+        const noteHeaderRow = parseTbHeaderRowValue((vals.noteHeaderRow || ''), 1);
+        const noteHeaderValues = noteHeaderRow ? (csvRows[noteHeaderRow - 1] || []) : [];
+        for (let r = 0; r < csvRows.length; r++) {
+            if (!isTbRowInRanges(r + 1, rowRanges)) continue;
             const row = csvRows[r] || [];
             const source = String(row[srcIdx] ?? '').trim();
             const target = String(row[tgtIdx] ?? '').trim();
             if (!source && !target) continue;
             const mfb = buildMatchFlagsForTbImportRow(row, caseMIdx, exactMIdx);
             if (mfb.error) { flagErrors.push(`第 ${r + 1} 列：${mfb.error}`); continue; }
-            let noteLines = noteIdxs.map(ni => String(row[ni] ?? '').trim()).filter(Boolean);
+            let noteLines = [];
+            noteIdxs.forEach(ni => {
+                const val = String(row[ni] ?? '').trim();
+                if (!val) return;
+                const h = String(noteHeaderValues[ni] ?? '').trim();
+                noteLines.push(h ? `${h}：${val}` : val);
+            });
             const note = noteLines.join('\n');
             const createdAt = parseTbDate(new Date()) || '';
             newTerms.push({ source, target, note, matchFlags: mfb.matchFlags, createdBy: userName, createdAt });
         }
 
         if (flagErrors.length) {
+            // #region agent log
+            __agentDebugLog({
+                hypothesisId: 'H5',
+                location: 'cat-tool/app.js:_runTbTabFetch',
+                message: 'match flag parse error',
+                data: { firstError: flagErrors[0] || '', errorCount: flagErrors.length },
+            });
+            // #endregion
             await _tbTabFetchFailed(tbId, _tbTabModalTabId, '比對屬性欄位錯誤：' + flagErrors.slice(0, 5).join('；'));
             return;
         }
@@ -4539,6 +4607,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             sourceCol: vals.sourceCol.trim().toUpperCase(),
             targetCol: vals.targetCol.trim().toUpperCase(),
             noteCols:  vals.noteCols.trim(),
+            noteHeaderRow: String(vals.noteHeaderRow || '').trim(),
             rowsRange: rowsRangeStr,
             caseMatchCol:  vals.caseMatchCol.trim().toUpperCase(),
             exactMatchCol: vals.exactMatchCol.trim().toUpperCase(),
@@ -4576,6 +4645,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             nextTermNumber: merged.length + 1,
             changeLog,
         });
+        // #region agent log
+        __agentDebugLog({
+            hypothesisId: 'H4',
+            location: 'cat-tool/app.js:_runTbTabFetch',
+            message: 'db update completed',
+            data: { mergedTerms: merged.length, tabCount: existingTabs.length },
+        });
+        // #endregion
 
         const fresh = await DBService.getTB(tbId);
         if (fresh) renderOnlineTabsSection(fresh);
@@ -4593,6 +4670,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function _tbTabFetchFailed(tbId, tabId, errMsg) {
+        // #region agent log
+        __agentDebugLog({
+            hypothesisId: 'H4',
+            location: 'cat-tool/app.js:_tbTabFetchFailed',
+            message: 'tab fetch failed handler',
+            data: { tbId, tabId, errMsg: String(errMsg || '').slice(0, 220) },
+        });
+        // #endregion
         const tb = await DBService.getTB(tbId);
         if (tb && tabId) {
             const updatedTabs = (tb.onlineTabs || []).map(t =>
@@ -4765,7 +4850,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const num = typeof term.termNumber === 'number' ? String(term.termNumber) : '—';
             const src = (term.source || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const tgt = (term.target || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            const note = (term.note || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').substring(0, 80);
+            const noteHtml = renderNoteWithLinksHtml(term.note || '');
             const mf = term.matchFlags || { caseInsensitive: true, wholeWord: false };
             const isCaseSensitive = mf.caseInsensitive === false;
             const isExact = !!mf.wholeWord;
@@ -4779,7 +4864,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:40px;">${num}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:200px; overflow:hidden; text-overflow:ellipsis;" title="${src}">${src || '—'}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:200px; overflow:hidden; text-overflow:ellipsis;" title="${tgt}">${tgt || '—'}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:180px; overflow:hidden; text-overflow:ellipsis; font-size:0.85rem; color:#64748b;" title="${(term.note || '').replace(/</g, '&lt;')}">${note || '—'}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:260px; white-space:pre-line; font-size:0.85rem; color:#64748b; line-height:1.35;" title="${(term.note || '').replace(/</g, '&lt;')}">${noteHtml || '—'}</td>
                 ${sourceCell}
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; white-space:nowrap; font-size:0.82rem;">
                     <label style="display:flex; align-items:center; gap:0.2rem; cursor:default;" title="區分大小寫（唯讀，進編輯頁面才能修改）">
@@ -4967,6 +5052,67 @@ document.addEventListener('DOMContentLoaded', async () => {
         return cols.length ? cols[0] : -1;
     }
 
+    // 解析列範圍字串，例如 "2-11,13,15-19,26-" -> [{start,end}, ...]
+    function parseTbRowRanges(str, defaultStart = 2) {
+        const cleaned = String(str || '').replace(/\s+/g, '');
+        if (!cleaned) return [{ start: defaultStart, end: Infinity }];
+        const ranges = [];
+        cleaned.split(',').forEach(token => {
+            if (!token) return;
+            if (token.includes('-')) {
+                const [a, b] = token.split('-');
+                const start = a ? parseInt(a, 10) : defaultStart;
+                const end = b ? parseInt(b, 10) : Infinity;
+                if (!Number.isFinite(start) || start <= 0) return;
+                if (end !== Infinity && (!Number.isFinite(end) || end <= 0)) return;
+                ranges.push({ start, end: end === Infinity ? Infinity : Math.max(start, end) });
+                return;
+            }
+            const v = parseInt(token, 10);
+            if (Number.isFinite(v) && v > 0) ranges.push({ start: v, end: v });
+        });
+        return ranges.length ? ranges : [{ start: defaultStart, end: Infinity }];
+    }
+
+    function isTbRowInRanges(rowNumber1Based, ranges) {
+        return (ranges || []).some(r => rowNumber1Based >= r.start && rowNumber1Based <= r.end);
+    }
+
+    function parseTbHeaderRowValue(raw, fallback = 1) {
+        const s = String(raw || '').trim();
+        if (!s) return null;
+        const n = parseInt(s, 10);
+        return Number.isFinite(n) && n > 0 ? n : fallback;
+    }
+
+    function escTbHtml(s) {
+        return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // 備註顯示：支援 [文字](https://...) 與裸 URL（顯示為 [連結]）
+    function renderNoteWithLinksHtml(rawNote) {
+        const src = String(rawNote || '');
+        if (!src) return '';
+        const regex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>"')\]]+)/g;
+        let out = '';
+        let last = 0;
+        let m;
+        while ((m = regex.exec(src)) !== null) {
+            out += escTbHtml(src.slice(last, m.index));
+            if (m[2]) {
+                const label = escTbHtml(m[1] || '連結');
+                const href = escTbHtml(m[2]);
+                out += `<a href="${href}" target="_blank" rel="noopener noreferrer">[${label}]</a>`;
+            } else {
+                const href = escTbHtml(m[3]);
+                out += `<a href="${href}" target="_blank" rel="noopener noreferrer">[連結]</a>`;
+            }
+            last = regex.lastIndex;
+        }
+        out += escTbHtml(src.slice(last));
+        return out.replace(/\n/g, '<br>');
+    }
+
     function parseTbDate(value) {
         if (!value) return null;
         const trimmed = String(value).trim();
@@ -5001,14 +5147,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (caseIdx >= 0) {
             const p = parseTbLooseYesNoCell(row[caseIdx]);
             if (p === undefined) {
-                return { error: '「區分大小寫」儲格無法辨識（請用 是／否，與匯出 Excel 相同）。' };
+                return { error: '「區分大小寫」儲存格無法辨識（請用 是／否，與匯出 Excel 相同）。' };
             }
             if (p !== null) mf.caseInsensitive = !p;
         }
         if (exactIdx >= 0) {
             const p = parseTbLooseYesNoCell(row[exactIdx]);
             if (p === undefined) {
-                return { error: '「精確比對」儲格無法辨識（請用 是／否，與匯出 Excel 相同）。' };
+                return { error: '「精確比對」儲存格無法辨識（請用 是／否，與匯出 Excel 相同）。' };
             }
             if (p !== null) mf.wholeWord = p;
         }
@@ -5106,6 +5252,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (tbExcelSourceCol) tbExcelSourceCol.value = cfg.sourceCol || '';
         if (tbExcelTargetCol) tbExcelTargetCol.value = cfg.targetCol || '';
         if (tbExcelNoteCols) tbExcelNoteCols.value = cfg.noteCols || '';
+        if (tbExcelNoteHeaderRow) tbExcelNoteHeaderRow.value = cfg.noteHeaderRow || '1';
         if (tbExcelCreatorCol) tbExcelCreatorCol.value = cfg.creatorCol || '';
         if (tbExcelCreatedAtCol) tbExcelCreatedAtCol.value = cfg.createdAtCol || '';
         if (tbExcelRowsRange) tbExcelRowsRange.value = cfg.rowsRange || '2-';
@@ -5169,6 +5316,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     sourceCol: tbExcelSourceCol ? tbExcelSourceCol.value.trim() : '',
                     targetCol: tbExcelTargetCol ? tbExcelTargetCol.value.trim() : '',
                     noteCols: tbExcelNoteCols ? tbExcelNoteCols.value.trim() : '',
+                    noteHeaderRow: tbExcelNoteHeaderRow ? tbExcelNoteHeaderRow.value.trim() : '',
                     creatorCol: tbExcelCreatorCol ? tbExcelCreatorCol.value.trim() : '',
                     createdAtCol: tbExcelCreatedAtCol ? tbExcelCreatedAtCol.value.trim() : '',
                     rowsRange: tbExcelRowsRange ? tbExcelRowsRange.value.trim() : '',
@@ -5223,6 +5371,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 sourceCol: 'A',
                                 targetCol: 'B',
                                 noteCols: '',
+                                noteHeaderRow: '1',
                                 creatorCol: '',
                                 createdAtCol: '',
                                 rowsRange: '2-',
@@ -5287,6 +5436,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (tbExcelSourceCol) tbExcelSourceCol.value = cfg.sourceCol || 'A';
             if (tbExcelTargetCol) tbExcelTargetCol.value = cfg.targetCol || 'B';
             if (tbExcelNoteCols) tbExcelNoteCols.value = cfg.noteCols || '';
+            if (tbExcelNoteHeaderRow) tbExcelNoteHeaderRow.value = cfg.noteHeaderRow || '1';
             if (tbExcelCreatorCol) tbExcelCreatorCol.value = cfg.creatorCol || '';
             if (tbExcelCreatedAtCol) tbExcelCreatedAtCol.value = cfg.createdAtCol || '';
             if (tbExcelRowsRange) tbExcelRowsRange.value = cfg.rowsRange || '2-';
@@ -5369,6 +5519,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     sourceCol: srcColEl.value.trim(),
                     targetCol: tgtColEl.value.trim(),
                     noteCols: tbExcelNoteCols ? tbExcelNoteCols.value.trim() : '',
+                    noteHeaderRow: tbExcelNoteHeaderRow ? tbExcelNoteHeaderRow.value.trim() : '',
                     creatorCol: tbExcelCreatorCol ? tbExcelCreatorCol.value.trim() : '',
                     createdAtCol: tbExcelCreatedAtCol ? tbExcelCreatedAtCol.value.trim() : '',
                     rowsRange: tbExcelRowsRange ? tbExcelRowsRange.value.trim() : '',
@@ -5392,6 +5543,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 sourceCol: srcColEl.value.trim(),
                 targetCol: tgtColEl.value.trim(),
                 noteCols: tbExcelNoteCols ? tbExcelNoteCols.value.trim() : '',
+                noteHeaderRow: tbExcelNoteHeaderRow ? tbExcelNoteHeaderRow.value.trim() : '',
                 creatorCol: tbExcelCreatorCol ? tbExcelCreatorCol.value.trim() : '',
                 createdAtCol: tbExcelCreatedAtCol ? tbExcelCreatedAtCol.value.trim() : '',
                 rowsRange: tbExcelRowsRange ? tbExcelRowsRange.value.trim() : '',
@@ -5439,6 +5591,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     caseMIdx,
                     exMIdx,
                     noteIdxs: parseTbColumnList(cfg.noteCols || ''),
+                    noteHeaderRow: parseTbHeaderRowValue(cfg.noteHeaderRow || '', 1),
                     includeSheetName: (cfg.noteCols || '').includes('#'),
                     creatorIdx: parseTbSingleColumn(cfg.creatorCol || ''),
                     createdAtIdx: parseTbSingleColumn(cfg.createdAtCol || ''),
@@ -5460,19 +5613,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const out = await buildTbImportSheetConfigsFromModal(errEl);
                     if (!out) return;
                     if (errEl) errEl.textContent = '';
-                    const parseRowRange = (str) => {
-                        const cleaned = (str || '').replace(/\s+/g, '');
-                        if (!cleaned) return { start: 2, end: Infinity };
-                        if (cleaned.includes('-')) {
-                            const [a, b] = cleaned.split('-');
-                            const start = a ? parseInt(a, 10) : 2;
-                            const end = b ? parseInt(b, 10) : Infinity;
-                            return { start, end };
-                        }
-                        const v = parseInt(cleaned, 10);
-                        if (isNaN(v)) return { start: 2, end: Infinity };
-                        return { start: v, end: v };
-                    };
                     const { selectedSheets, sheetConfigs, onlineCsvRows, workbook } = out;
                     const sheetName0 = selectedSheets[0];
                     const scfg = sheetConfigs[sheetName0];
@@ -5487,16 +5627,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (!sh) { if (errEl) errEl.textContent = '讀取不到工作表。'; return; }
                         rows = XLSX.utils.sheet_to_json(sh, { header: 1, defval: '' });
                     }
-                    const rowRange = parseRowRange(scfg.rowsRangeStr || '2-');
-                    const startRow = Math.max(0, rowRange.start - 1);
-                    const endRow = isFinite(rowRange.end) ? rowRange.end - 1 : rows.length - 1;
+                    const rowRanges = parseTbRowRanges(scfg.rowsRangeStr || '2-', 2);
                     const maxRows = 8;
                     const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                     const sheetLabel = tbExcelImportIsOnline ? '線上 CSV' : sheetName0;
                     let shown = 0;
                     const bodyRows = [];
                     const flagErrs = [];
-                    for (let r = startRow; r < rows.length && r <= endRow && shown < maxRows; r++) {
+                    for (let r = 0; r < rows.length && shown < maxRows; r++) {
+                        if (!isTbRowInRanges(r + 1, rowRanges)) continue;
                         const row = rows[r] || [];
                         const source = String(row[scfg.srcIdx] ?? '').trim();
                         const target = String(row[scfg.tgtIdx] ?? '').trim();
@@ -5528,7 +5667,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             '<th style="text-align:left;border:1px solid #cbd5e1;padding:0.25rem;">譯文</th>' +
                             '<th style="text-align:left;border:1px solid #cbd5e1;padding:0.25rem;">區分</th><th style="text-align:left;border:1px solid #cbd5e1;padding:0.25rem;">精確</th><th style="text-align:left;border:1px solid #cbd5e1;padding:0.25rem;">比對屬性錯誤</th></tr></thead><tbody>' +
                             (bodyRows.length ? bodyRows.join('') : '<tr><td colspan="6" style="padding:0.35rem; color:#64748b;">此範圍內沒有原文／譯文皆有或僅一欄有內容之列（空白列不顯示）。</td></tr>') +
-                            '</tbody></table><p style="margin:0.35rem 0 0 0;font-size:0.72rem;color:#64748b;">最多顯示前 8 筆有內容之列。' + cap + (flagErrs.length ? ' 匯入時若仍有無法辨識之比對儲格，將整批中止並顯示列號。' : '') + '</p>';
+                            '</tbody></table><p style="margin:0.35rem 0 0 0;font-size:0.72rem;color:#64748b;">最多顯示前 8 筆有內容之列。' + cap + (flagErrs.length ? ' 匯入時若仍有無法辨識之比對儲存格，將整批中止並顯示列號。' : '') + '</p>';
                         tbExcelPreviewTable.innerHTML = tbl;
                     }
                     if (tbExcelPreviewBlock) tbExcelPreviewBlock.classList.remove('hidden');
@@ -5581,23 +5720,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const scanStats = [];
                     const flagRowErrors = [];
                     const userName = localStorage.getItem('localCatUserProfile') || 'Unknown User';
-                    const parseRowRange = (str) => {
-                        const cleaned = (str || '').replace(/\s+/g, '');
-                        if (!cleaned) return { start: 2, end: Infinity };
-                        if (cleaned.includes('-')) {
-                            const [a, b] = cleaned.split('-');
-                            const start = a ? parseInt(a, 10) : 2;
-                            const end = b ? parseInt(b, 10) : Infinity;
-                            return { start, end };
-                        }
-                        const v = parseInt(cleaned, 10);
-                        if (isNaN(v)) return { start: 2, end: Infinity };
-                        return { start: v, end: v };
-                    };
                     for (const sheetName of selectedSheets) {
                         const cfg = sheetConfigs[sheetName];
                         if (!cfg) continue;
-                        const rowRange = parseRowRange(cfg.rowsRangeStr || '2-');
+                        const rowRanges = parseTbRowRanges(cfg.rowsRangeStr || '2-', 2);
                         const sheetLabel = tbExcelImportIsOnline ? '線上 CSV' : sheetName;
                         let rows;
                         if (tbExcelImportIsOnline) {
@@ -5611,12 +5737,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                             rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
                         }
                         if (!rows.length) continue;
-                        const startRow = Math.max(0, rowRange.start - 1);
-                        const endRow = isFinite(rowRange.end) ? rowRange.end - 1 : rows.length - 1;
+                        const noteHeaderValues = cfg.noteHeaderRow ? (rows[cfg.noteHeaderRow - 1] || []) : [];
                         let inRange = 0;
                         let withContent = 0;
 
-                        for (let r = startRow; r < rows.length && r <= endRow; r++) {
+                        for (let r = 0; r < rows.length; r++) {
+                            if (!isTbRowInRanges(r + 1, rowRanges)) continue;
                             inRange++;
                             const row = rows[r] || [];
                             const source = String(row[cfg.srcIdx] ?? '').trim();
@@ -5633,7 +5759,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                             let noteLines = [];
                             cfg.noteIdxs.forEach(idx => {
                                 const v = String(row[idx] ?? '').trim();
-                                if (v) noteLines.push(v);
+                                if (!v) return;
+                                const h = String(noteHeaderValues[idx] ?? '').trim();
+                                noteLines.push(h ? `${h}：${v}` : v);
                             });
                             if (cfg.includeSheetName && !tbExcelImportIsOnline) {
                                 noteLines.push(sheetName);
@@ -5739,6 +5867,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         sourceCol: srcColEl.value.trim(),
                         targetCol: tgtColEl.value.trim(),
                         noteCols: tbExcelNoteCols ? tbExcelNoteCols.value.trim() : '',
+                        noteHeaderRow: tbExcelNoteHeaderRow ? tbExcelNoteHeaderRow.value.trim() : '',
                         creatorCol: tbExcelCreatorCol ? tbExcelCreatorCol.value.trim() : '',
                         createdAtCol: tbExcelCreatedAtCol ? tbExcelCreatedAtCol.value.trim() : '',
                         rowsRange: tbExcelRowsRange ? tbExcelRowsRange.value.trim() : '',
@@ -12458,10 +12587,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const _tbBaseName = String(m.tbName || '').replace(TB_ONLINE_NAME_SUFFIX, '').trim();
                         const _tabSuffix = (m.tabName && m.tabName !== _tbBaseName)
                             ? '〔' + escFoot(m.tabName) + '〕' : '';
+                        const noteHtml = m.note ? renderNoteWithLinksHtml(m.note) : '';
                         footerHtml += `<div class="cat-footer-section">
                             <div style="font-size:0.8rem;">
                             <strong>術語庫：</strong>${escFoot(m.tbName || 'N/A')}${_tabSuffix}<br>
-                            ${m.note ? `<strong>備註：</strong>${escFoot(m.note)}<br>` : ''}
+                            ${noteHtml ? `<strong>備註：</strong>${noteHtml}<br>` : ''}
                             <div><strong>區分大小寫：</strong>${caseRow}</div>
                             <div><strong>精確比對：</strong>${exactRow}</div>
                             <p style="margin:0.35rem 0 0 0; font-size:0.72rem; color:#94a3b8; line-height:1.45; white-space:pre-line;">${greyHint}</p>
