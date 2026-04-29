@@ -38,6 +38,31 @@ function TranslatorFeeDetailWrapper() {
   return <TranslatorFeeDetail key={id} />;
 }
 
+function CaseDetailPageWrapper() {
+  const { id } = useParams();
+  return <CaseDetailPage key={id} />;
+}
+
+function InvoiceDetailPageWrapper() {
+  const { id } = useParams();
+  return <InvoiceDetailPage key={id} />;
+}
+
+function ClientInvoiceDetailPageWrapper() {
+  const { id } = useParams();
+  return <ClientInvoiceDetailPage key={id} />;
+}
+
+function InternalNotesPageWrapper() {
+  const { noteId } = useParams();
+  return <InternalNotesPage key={noteId ?? "__list"} />;
+}
+
+function PageTemplateEditorPageWrapper() {
+  const { id } = useParams();
+  return <PageTemplateEditorPage key={id} />;
+}
+
 const queryClient = new QueryClient();
 
 /** 非 PM/Executive 造訪 /settings 時顯示（不再靜默導向個人檔案，避免誤以為程式錯誤） */
@@ -115,19 +140,19 @@ function AuthenticatedRoutes() {
       <Routes>
         <Route path="/" element={<Navigate to="/cases" replace />} />
         <Route path="/cases" element={<CasesPage />} />
-        <Route path="/cases/:id" element={<CaseDetailPage />} />
+        <Route path="/cases/:id" element={<CaseDetailPageWrapper />} />
         <Route path="/fees" element={<TranslatorFees />} />
         <Route path="/fees/new" element={<NewTranslatorFee />} />
         <Route path="/fees/:id" element={<TranslatorFeeDetailWrapper />} />
         <Route path="/invoices" element={<InvoicesPage />} />
-        <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
+        <Route path="/invoices/:id" element={<InvoiceDetailPageWrapper />} />
         <Route path="/client-invoices" element={<ClientInvoicesPage />} />
-        <Route path="/client-invoices/:id" element={<ClientInvoiceDetailPage />} />
+        <Route path="/client-invoices/:id" element={<ClientInvoiceDetailPageWrapper />} />
         <Route path="/tools" element={<ToolManagementPage />} />
-        <Route path="/tools/page-template/:id" element={<PageTemplateEditorPage />} />
+        <Route path="/tools/page-template/:id" element={<PageTemplateEditorPageWrapper />} />
         <Route path="/field-reference" element={<FieldReferencePage />} />
-        <Route path="/internal-notes/:noteId" element={<InternalNotesPage />} />
-        <Route path="/internal-notes" element={<InternalNotesPage />} />
+        <Route path="/internal-notes/:noteId" element={<InternalNotesPageWrapper />} />
+        <Route path="/internal-notes" element={<InternalNotesPageWrapper />} />
         <Route path="/settings" element={<SettingsRoute />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/members" element={<MembersPage />} />

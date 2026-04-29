@@ -42,6 +42,11 @@
 
         <!-- Main Content Area -->
         <main class="main-content">
+            <!-- 深連結：app.js restore 完成前顯示（見頁尾 inline script） -->
+            <div id="catMainRouteLoading" class="cat-main-route-loading hidden" role="status" aria-live="polite">
+                <div class="cat-loading-spinner" aria-hidden="true"></div>
+                <p class="cat-main-route-loading-text">載入中…</p>
+            </div>
             <!-- (Other views omitted for brevity in this snippet. We will combine them properly.) -->
             <!-- VIEW: Dashboard -->
             <section class="view-section active" id="viewDashboard" style="padding: 2rem; overflow-y: auto;">
@@ -2685,6 +2690,8 @@
         document.querySelectorAll('.sidebar-nav .nav-item').forEach(function (a) {
             a.classList.remove('active');
         });
+        var loadEl = document.getElementById('catMainRouteLoading');
+        if (loadEl) loadEl.classList.remove('hidden');
     } catch (e) { /* ignore */ }
 })();
     </script>

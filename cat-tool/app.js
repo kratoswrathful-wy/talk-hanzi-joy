@@ -2684,6 +2684,66 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (_) { /* ignore */ }
     }
 
+    /** 深連結首屏：index.html 顯示 #catMainRouteLoading，restore 完成後隱藏 */
+    function hideCatMainRouteLoadingEl() {
+        const el = document.getElementById('catMainRouteLoading');
+        if (el) el.classList.add('hidden');
+    }
+    function showCatMainRouteLoadingEl() {
+        const el = document.getElementById('catMainRouteLoading');
+        if (el) el.classList.remove('hidden');
+    }
+
+    /** 同一 view 內換 id 時，await 前先清空／顯示載入，避免上一筆 DOM 殘留 */
+    function beginOpenProjectDetailLoading(projectId) {
+        currentProjectId = projectId;
+        if (detailProjectName) detailProjectName.textContent = '載入中…';
+        const langEl = document.getElementById('detailProjectLangs');
+        if (langEl) langEl.innerHTML = '';
+        if (projectDetailChangeLog) projectDetailChangeLog.innerHTML = '';
+        if (filesListBody) {
+            filesListBody.innerHTML = '<tr><td colspan="8" style="padding:1rem; color:#64748b;">載入中…</td></tr>';
+        }
+        switchView('viewProjectDetail');
+    }
+
+    function beginOpenTmDetailLoading(tmId) {
+        currentTmId = tmId;
+        tmDupFilterActive = false;
+        _tmSegUpdateDupFilterButton();
+        if (detailTmName) detailTmName.textContent = '載入中…';
+        if (tmSegmentCount) tmSegmentCount.textContent = '—';
+        if (tmDetailChangeLog) tmDetailChangeLog.innerHTML = '';
+        if (tmSegmentsListBody) {
+            tmSegmentsListBody.innerHTML = '<tr><td colspan="5" style="padding:1rem; color:#64748b;">載入中…</td></tr>';
+        }
+        switchView('viewTmDetail');
+    }
+
+    function beginOpenTbDetailLoading(tbId) {
+        currentTbId = tbId;
+        tbChangeLogShowAll = false;
+        if (detailTbName) detailTbName.textContent = '載入中…';
+        const tabsEl = document.getElementById('tbOnlineTabsList');
+        if (tabsEl) tabsEl.innerHTML = '';
+        const relEl = document.getElementById('tbRelatedProjects');
+        if (relEl) relEl.innerHTML = '';
+        if (tbChangeLog) tbChangeLog.innerHTML = '';
+        if (tbTermsList) {
+            tbTermsList.innerHTML = '<tr><td colspan="8" style="padding:1rem; color:#64748b;">載入中…</td></tr>';
+        }
+        switchView('viewTbDetail');
+    }
+
+    /** 開啟編輯器：立即進入編輯 view 並清空旧 grid，避免句段殘留（後續仍會建表頭／render） */
+    function beginEditorViewLoadingShell() {
+        currentSegmentsList = [];
+        if (gridBody) gridBody.innerHTML = '';
+        if (editorFileName) editorFileName.textContent = '載入中…';
+        sidebar.classList.add('collapsed');
+        switchView('viewEditor');
+    }
+
     navItems.forEach(item => {
         item.addEventListener('click', async (e) => {
             e.preventDefault();
@@ -2996,7 +3056,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --- Project Detail (Files CRUD) ---
     async function openProjectDetail(projectId) {
-        currentProjectId = projectId;
+        beginOpenProjectDetailLoading(projectId);
         const p = await DBService.getProject(projectId);
         if(!p) return switchView('viewProjects');
         detailProjectName.textContent = p.name;
@@ -3014,7 +3074,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        switchView('viewProjectDetail');
         await updateProjectDetailChangeLog(p);
         await loadFilesList();
         await loadProjectTms(p);
@@ -4489,14 +4548,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function openTbDetail(tbId) {
+        beginOpenTbDetailLoading(tbId);
         let tb = await DBService.getTB(tbId);
-        if (!tb) return;
+        if (!tb) return switchView('viewTB');
         tb = await migrateOnlineTbToTabs(tb);
-        currentTbId = tbId;
         tbChangeLogShowAll = false;
         if (detailTbName) detailTbName.textContent = tb.name || `TB #${tbId}`;
         applyTbTypeUI(tb);
-        switchView('viewTbDetail');
         await loadTbTermsList();
         await loadTbRelatedProjects(tbId);
     }
@@ -6500,13 +6558,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function openTmDetail(tmId) {
-        currentTmId = tmId;
-        tmDupFilterActive = false;
-        _tmSegUpdateDupFilterButton();
+        beginOpenTmDetailLoading(tmId);
         const tm = await DBService.getTM(tmId);
         if(!tm) return switchView('viewTM');
         detailTmName.textContent = tm.name;
-        switchView('viewTmDetail');
         await loadTmSegments();
         await updateTmDetailChangeLog(tm);
         await loadTmRelatedProjects(tmId);
@@ -7906,8 +7961,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         emptySegUserEditedIds = new Set();
         emptySegAutoConsumedIds = new Set();
         pendingRemoteBySegId.clear();
+        beginEditorViewLoadingShell();
         const file = await DBService.getFile(fileId);
-        if(!file) return alert('檔案不存在');
+        if (!file) {
+            alert('檔案不存在');
+            currentFileId = null;
+            switchView('viewDashboard');
+            await loadDashboardData();
+            return;
+        }
 
         const resolvedProjectId = file.projectId || currentProjectId;
         if (resolvedProjectId) currentProjectId = resolvedProjectId;
@@ -7930,7 +7992,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             const rawDefault = file.defaultMqRole === 'T' ? 'T_ALLOW_R1' : (file.defaultMqRole || 'T_ALLOW_R1');
             const importDefault = rawDefault;
             const role = await showMqRoleModal({ defaultRole: importDefault });
-            if (role === null) return;
+            if (role === null) {
+                currentFileId = null;
+                if (currentProjectId) {
+                    await openProjectDetail(currentProjectId);
+                } else {
+                    switchView('viewDashboard');
+                    await loadDashboardData();
+                }
+                return;
+            }
             currentMqConfirmationRole = role;
             if (!file.defaultMqRole) {
                 await DBService.updateFile(fileId, { defaultMqRole: role });
@@ -8195,11 +8266,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             sortColSelect.dispatchEvent(e);
         }
 
-        // Remove active class from Nav Items and show Editor View specifically
-        navItems.forEach(n => n.classList.remove('active'));
-        viewSections.forEach(sec => sec.classList.add('hidden'));
-        document.getElementById('viewEditor').classList.remove('hidden');
-        sidebar.classList.add('collapsed');
+        // 編輯器視窗已由 beginEditorViewLoadingShell() 切換（此處不再重複隱藏／顯示 sections）
 
         sfFilterSnapshotSegIds = null;
         sfFilterLockedSpecHash = '';
@@ -16377,6 +16444,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.warn('[cat] restore route failed', e);
         } finally {
             catTmsParentRouteSyncReady = true;
+            hideCatMainRouteLoadingEl();
         }
     }
 
