@@ -78,6 +78,7 @@ const mapProjectRow = (r: any) => ({
   writeTb: r.write_tb ?? null,
   changeLog: r.change_log ?? [],
   tmPenalties: r.tm_penalties ?? {},
+  clientQuestionFormUrl: r.client_question_form_url ?? "",
   assignmentId: r.assignment_id ?? null,
   env: r.env ?? "production",
   createdAt: r.created_at,
@@ -97,6 +98,8 @@ const mapFileRow = (r: any) => ({
   applicableSpecialInstructionIds: Array.isArray(r.applicable_special_instruction_ids)
     ? r.applicable_special_instruction_ids.map((x: unknown) => Number(x)).filter((n) => !Number.isNaN(n))
     : [],
+  relatedLmsCaseId: r.related_lms_case_id ?? null,
+  relatedLmsCaseTitle: r.related_lms_case_title ?? "",
   createdAt: r.created_at,
   lastModified: r.last_modified,
 });
@@ -425,6 +428,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         ...(payload.updates?.writeTms != null ? { write_tms: payload.updates.writeTms } : {}),
         ...(payload.updates?.changeLog != null ? { change_log: payload.updates.changeLog } : {}),
         ...(payload.updates?.tmPenalties != null ? { tm_penalties: payload.updates.tmPenalties } : {}),
+        ...(payload.updates?.clientQuestionFormUrl != null ? { client_question_form_url: payload.updates.clientQuestionFormUrl } : {}),
         last_modified: nowIso(),
       } as any).eq("id", payload.projectId);
     case "db.getProjects": {
@@ -470,6 +474,33 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       const { data } = await supabase.from("cat_files").select("*").eq("id", payload.fileId).maybeSingle();
       return data ? mapFileRow(data) : null;
     }
+    case "db.searchLmsCases": {
+      const keyword = String(payload.keyword || "").trim();
+      const limit = Math.min(Math.max(Number(payload.limit) || 20, 1), 50);
+      if (!keyword) return [];
+      let env = "production";
+      if (payload.projectId) {
+        const { data: prj } = await supabase
+          .from("cat_projects")
+          .select("env")
+          .eq("id", payload.projectId)
+          .maybeSingle();
+        env = (prj as any)?.env || "production";
+      }
+      const { data } = await supabase
+        .from("cases")
+        .select("id,title,keyword,status,updated_at")
+        .eq("env", env)
+        .or(`title.ilike.%${keyword}%,keyword.ilike.%${keyword}%`)
+        .order("updated_at", { ascending: false })
+        .limit(limit);
+      return (data ?? []).map((r: any) => ({
+        id: r.id,
+        title: r.title ?? "",
+        keyword: r.keyword ?? "",
+        status: r.status ?? "",
+      }));
+    }
     case "db.updateFile":
       return await supabase.from("cat_files").update({
         ...(payload.updates?.name != null ? { name: payload.updates.name } : {}),
@@ -486,6 +517,8 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
                 : [],
             }
           : {}),
+        ...(payload.updates?.relatedLmsCaseId !== undefined ? { related_lms_case_id: payload.updates.relatedLmsCaseId } : {}),
+        ...(payload.updates?.relatedLmsCaseTitle !== undefined ? { related_lms_case_title: payload.updates.relatedLmsCaseTitle ?? "" } : {}),
         last_modified: nowIso(),
       } as any).eq("id", payload.fileId);
     case "db.deleteFile":

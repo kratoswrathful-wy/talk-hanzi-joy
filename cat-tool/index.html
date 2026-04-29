@@ -148,6 +148,19 @@
                     </div>
                 </div>
                 <div style="margin-bottom:1.5rem;">
+                    <div style="border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; padding:0.9rem 1rem; margin-bottom:0.75rem;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; flex-wrap:wrap;">
+                            <h3 style="margin:0; font-size:0.95rem; color:#334155;">客戶提問表單連結</h3>
+                            <span id="projectClientFormStatus" style="font-size:0.8rem; color:#64748b;">尚未設定</span>
+                        </div>
+                        <div style="margin-top:0.6rem; display:flex; align-items:center; gap:0.45rem; flex-wrap:wrap;">
+                            <input type="url" id="projectClientFormUrlInput" class="form-input" placeholder="https://..." style="max-width:680px; flex:1 1 420px; min-width:260px;">
+                            <button type="button" class="primary-btn btn-sm" id="btnSaveProjectClientForm">儲存</button>
+                            <button type="button" class="secondary-btn btn-sm" id="btnEditProjectClientForm">編輯</button>
+                            <button type="button" class="danger-btn btn-sm" id="btnRemoveProjectClientForm">移除</button>
+                        </div>
+                        <div id="projectClientFormDisplay" style="margin-top:0.55rem; font-size:0.82rem; color:#475569; word-break:break-all; display:none;"></div>
+                    </div>
                     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:0.5rem;">
                         <h2 style="font-size:1.1rem; color:#1e293b; margin:0;">檔案清單</h2>
                         <div id="projectFilesToolbar" style="display:flex; flex-wrap:wrap; gap:0.45rem; align-items:center;">
@@ -171,8 +184,8 @@
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:130px;">語言對</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:80px;">預設身分</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; min-width:120px; max-width:220px;">指派</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:220px;">LMS 案件</th>
                                     <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">最後修改</th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:160px;">進度</th>
                                 </tr>
                             </thead>
                             <tbody id="filesListBody"></tbody>
@@ -560,7 +573,6 @@
                     <div class="toolbar-left">
                         <button class="icon-btn" id="btnExitEditor" title="返回檔案清單">←</button>
                         <span class="editor-file-title" id="editorFileName">檔案名稱</span>
-                        <div id="collabPresenceBar" style="display:none; margin-left:0.5rem; gap:0.35rem; align-items:center; flex-wrap:wrap;"></div>
                     </div>
                     <div class="toolbar-right" style="display:flex; align-items:center; gap:0.5rem;">
                         <div class="dropdown-container">
@@ -585,7 +597,8 @@
                         <button id="btnClearTarget" class="icon-btn" style="font-size:1rem;">✕</button>
                         <button id="btnTagCollapse" class="icon-btn" title="展開標籤 (Ctrl+Shift+T)" style="font-size:0.8rem; font-family:monospace;">{…}</button>
                         <button id="btnShowNonPrint" class="icon-btn" title="顯示 / 隱藏非列印字元" style="font-size:1rem;">¶</button>
-                        <button id="btnTagGroupMode" class="icon-btn active" title="標籤群組插入：已停用（F8 固定插入單一 tag）" style="font-size:0.8rem;">T⁺</button>
+                        <button id="btnClientQuestionForm" class="secondary-btn btn-sm" style="display:none;">客戶表單</button>
+                        <button id="btnInternalNote" class="secondary-btn btn-sm" style="display:none;">內部註記</button>
                         <button id="btnShortcuts" class="icon-btn" title="快捷鍵一覽（含說明）">⌨️</button>
                         <button id="btnColSettings" class="icon-btn" title="設定">⚙️</button>
                         <button id="btnPreTranslate" class="primary-btn btn-sm">預先翻譯</button>
@@ -986,6 +999,10 @@
                         <button id="btnProgressRange" title="設定統計範圍" style="margin-left:0.5rem; background:none; border:1px solid #cbd5e1; border-radius:4px; cursor:pointer; font-size:0.78rem; color:#64748b; padding:2px 8px; line-height:1.5; position:relative; z-index:1; white-space:nowrap;">調整統計範圍</button>
                     </div>
                     <div id="progressRangeLabel" style="font-size:0.78rem; color:#7c3aed; display:none; font-weight:500;"></div>
+                    <div style="display:flex; align-items:center; gap:0.45rem; min-width:220px;">
+                        <span style="font-size:0.78rem; color:#64748b;">使用者</span>
+                        <div id="collabPresenceBar" style="display:none; gap:0.35rem; align-items:center; flex-wrap:wrap;"></div>
+                    </div>
                     <div style="flex:1; text-align:right;">快捷鍵: <kbd style="background:#e2e8f0; padding:2px 6px; border-radius:4px; color:#334155;">Ctrl+Enter</kbd> 確認句段並跳至下一行</div>
                 </footer>
             </section>

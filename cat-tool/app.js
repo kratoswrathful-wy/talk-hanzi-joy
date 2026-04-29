@@ -370,6 +370,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnProjectToolbarDelete = document.getElementById('btnProjectToolbarDelete');
     const btnProjectWordCount = document.getElementById('btnProjectWordCount');
     const btnProjectSplitAssign = document.getElementById('btnProjectSplitAssign');
+    const projectClientFormUrlInput = document.getElementById('projectClientFormUrlInput');
+    const projectClientFormStatus = document.getElementById('projectClientFormStatus');
+    const projectClientFormDisplay = document.getElementById('projectClientFormDisplay');
+    const btnSaveProjectClientForm = document.getElementById('btnSaveProjectClientForm');
+    const btnEditProjectClientForm = document.getElementById('btnEditProjectClientForm');
+    const btnRemoveProjectClientForm = document.getElementById('btnRemoveProjectClientForm');
     const wordCountModal = document.getElementById('wordCountModal');
     const btnCloseWordCountModal = document.getElementById('btnCloseWordCountModal');
     const btnDismissWordCountModal = document.getElementById('btnDismissWordCountModal');
@@ -584,6 +590,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const progressFill = document.getElementById('progressFill');
     const exportBtn = document.getElementById('exportBtn');
+    const btnClientQuestionForm = document.getElementById('btnClientQuestionForm');
+    const btnInternalNote = document.getElementById('btnInternalNote');
     const viewSettingsModal = document.getElementById('viewSettingsModal');
     const btnSortMenu = document.getElementById('btnSortMenu');
     const sortDropdown = document.getElementById('sortDropdown');
@@ -1119,19 +1127,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
             requestAnimationFrame(() => applyNonPrintMarkers(el));
         }
-    }
-
-    // 標籤群組插入模式切換按鈕
-    const btnTagGroupMode = document.getElementById('btnTagGroupMode');
-    if (btnTagGroupMode) {
-        btnTagGroupMode.addEventListener('click', () => {
-            tagGroupInsertMode = !tagGroupInsertMode;
-            localStorage.setItem('tagGroupInsertMode', tagGroupInsertMode ? 'group' : 'single');
-            btnTagGroupMode.classList.toggle('active', tagGroupInsertMode);
-                btnTagGroupMode.title = tagGroupInsertMode
-                    ? '標籤群組插入：已停用（F8 固定插入單一 tag）'
-                    : '標籤群組插入：已停用（F8 固定插入單一 tag）';
-        });
     }
 
     // --- Change Log Helpers ---
@@ -2866,12 +2861,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    function getFileCaseLinkHtml(file) {
+        const caseId = file?.relatedLmsCaseId || '';
+        const caseTitle = file?.relatedLmsCaseTitle || '';
+        const label = caseTitle || '選擇案件';
+        const safeTitle = String(label).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const safeId = String(caseId).replace(/"/g, '&quot;');
+        return `<a href="#" class="project-file-case-link" data-case-id="${safeId}" style="color:var(--primary-color); text-decoration:underline;">${safeTitle}</a>`;
+    }
+
+    function renderProjectClientFormSettings(project) {
+        if (!projectClientFormUrlInput || !projectClientFormStatus || !projectClientFormDisplay) return;
+        const url = String(project?.clientQuestionFormUrl || '').trim();
+        const hasUrl = !!url;
+        projectClientFormUrlInput.value = url;
+        projectClientFormUrlInput.disabled = hasUrl;
+        projectClientFormStatus.textContent = hasUrl ? '已設定' : '尚未設定';
+        projectClientFormStatus.style.color = hasUrl ? '#059669' : '#64748b';
+        projectClientFormDisplay.style.display = hasUrl ? 'block' : 'none';
+        projectClientFormDisplay.innerHTML = hasUrl
+            ? `目前連結：<a href="${url}" target="_blank" rel="noopener noreferrer">${url.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</a>`
+            : '';
+    }
+
     // --- Project Detail (Files CRUD) ---
     async function openProjectDetail(projectId) {
         currentProjectId = projectId;
         const p = await DBService.getProject(projectId);
         if(!p) return switchView('viewProjects');
         detailProjectName.textContent = p.name;
+        renderProjectClientFormSettings(p);
 
         // 顯示專案語言標籤
         const langEl = document.getElementById('detailProjectLangs');
@@ -2897,6 +2916,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     btnBackToProjects.addEventListener('click', () => switchView('viewProjects'));
+
+    if (btnEditProjectClientForm && projectClientFormUrlInput) {
+        btnEditProjectClientForm.addEventListener('click', () => {
+            projectClientFormUrlInput.disabled = false;
+            projectClientFormUrlInput.focus();
+            projectClientFormUrlInput.select?.();
+        });
+    }
+    if (btnSaveProjectClientForm && projectClientFormUrlInput) {
+        btnSaveProjectClientForm.addEventListener('click', async () => {
+            if (!currentProjectId) return;
+            const raw = String(projectClientFormUrlInput.value || '').trim();
+            if (raw && !/^https?:\/\//i.test(raw)) {
+                alert('請輸入完整網址（需含 http:// 或 https://）。');
+                return;
+            }
+            await DBService.patchProject(currentProjectId, { clientQuestionFormUrl: raw });
+            const p = await DBService.getProject(currentProjectId);
+            renderProjectClientFormSettings(p || {});
+        });
+    }
+    if (btnRemoveProjectClientForm) {
+        btnRemoveProjectClientForm.addEventListener('click', async () => {
+            if (!currentProjectId) return;
+            await DBService.patchProject(currentProjectId, { clientQuestionFormUrl: '' });
+            const p = await DBService.getProject(currentProjectId);
+            renderProjectClientFormSettings(p || {});
+        });
+    }
 
     async function commitProjectTmMounts(readTms, writeTms) {
         if (!currentProjectId) return;
@@ -3318,7 +3366,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         filesListBody.innerHTML = '';
         if(files.length === 0) {
             const tr = document.createElement('tr');
-            tr.innerHTML = '<td colspan="7" style="padding:0.75rem; color:#64748b;">此專案內尚無檔案。請點擊上方按鈕匯入檔案。</td>';
+            tr.innerHTML = '<td colspan="8" style="padding:0.75rem; color:#64748b;">此專案內尚無檔案。請點擊上方按鈕匯入檔案。</td>';
             filesListBody.appendChild(tr);
             await loadWorkspaceNotesList();
             return;
@@ -3357,17 +3405,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ? assignees.map((n) => String(n).replace(/</g, '&lt;').replace(/>/g, '&gt;')).join('、')
                 : '—';
             const assignTitle = assignPlain.replace(/"/g, '&quot;');
+            const progressCellHtml = `
+                <div class="file-progress-cell" data-file-id="${f.id}" style="margin-top:0.35rem; width:100%;">
+                    <span style="color:#94a3b8; font-size:0.76rem;">…</span>
+                </div>
+            `;
             tr.innerHTML = `
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="project-file-row-cb" data-id="${f.id}"></td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${idx + 1}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="edit-file-btn" data-id="${f.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a></td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="edit-file-btn" data-id="${f.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a>${progressCellHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${fileLangHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:80px;">${roleStr}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#334155; max-width:220px; overflow:hidden; text-overflow:ellipsis;" title="${assignTitle}">${assignCell}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${getFileCaseLinkHtml(f)}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;">${modStr}</td>
-                <td class="file-progress-cell" data-file-id="${f.id}" style="padding:0.5rem; border:1px solid #e2e8f0; width:160px;">
-                    <span style="color:#94a3b8; font-size:0.8rem;">…</span>
-                </td>
             `;
             filesListBody.appendChild(tr);
         });
@@ -3380,6 +3431,43 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // local mode: Dexie PK is integer; team mode: string UUID
                 const id = isTeamMode() ? idAttr : parseInt(idAttr);
                 openEditor(id);
+            });
+        });
+        filesListBody.querySelectorAll('.project-file-case-link').forEach((link) => {
+            link.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const linkedCaseId = String(link.getAttribute('data-case-id') || '').trim();
+                if (linkedCaseId && !e.shiftKey) {
+                    window.parent.postMessage({
+                        type: 'CAT_OPEN_CASE_PAGE',
+                        payload: { caseId: linkedCaseId }
+                    }, window.location.origin);
+                    return;
+                }
+                const fileRow = link.closest('tr');
+                const fileId = fileRow?.getAttribute('data-file-id');
+                if (!fileId) return;
+                const keyword = prompt('輸入案件關鍵字以搜尋 LMS 案件（可輸入標題或關鍵字）');
+                if (keyword == null) return;
+                const rows = await DBService.searchLmsCases(currentProjectId, keyword, 12);
+                if (!rows || rows.length === 0) {
+                    alert('查無符合案件，請嘗試其他關鍵字。');
+                    return;
+                }
+                const menu = rows.map((r, i) => `${i + 1}. ${r.title}${r.keyword ? `（${r.keyword}）` : ''}`).join('\n');
+                const pick = prompt(`請輸入要綁定的編號：\n${menu}\n\n輸入 0 可清除綁定`, '1');
+                if (pick == null) return;
+                const idx = Number(pick);
+                if (idx === 0) {
+                    await DBService.updateFile(fileId, { relatedLmsCaseId: null, relatedLmsCaseTitle: '' });
+                } else if (Number.isFinite(idx) && idx >= 1 && idx <= rows.length) {
+                    const chosen = rows[idx - 1];
+                    await DBService.updateFile(fileId, { relatedLmsCaseId: chosen.id, relatedLmsCaseTitle: chosen.title || '' });
+                } else {
+                    alert('輸入格式錯誤。');
+                    return;
+                }
+                await loadFilesList();
             });
         });
         syncProjectFilesSelectAll();
@@ -7561,6 +7649,41 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (el) el.style.display = 'none';
     }
 
+    function updateEditorQuestionButtons(file, project) {
+        if (btnClientQuestionForm) {
+            const url = String(project?.clientQuestionFormUrl || '').trim();
+            if (url) {
+                btnClientQuestionForm.style.display = '';
+                btnClientQuestionForm.onclick = () => window.open(url, '_blank', 'noopener,noreferrer');
+            } else {
+                btnClientQuestionForm.style.display = 'none';
+                btnClientQuestionForm.onclick = null;
+            }
+        }
+        if (btnInternalNote) {
+            const caseId = String(file?.relatedLmsCaseId || '').trim();
+            const caseTitle = String(file?.relatedLmsCaseTitle || '').trim();
+            if (caseId || caseTitle) {
+                btnInternalNote.style.display = '';
+                btnInternalNote.onclick = () => {
+                    window.parent.postMessage({
+                        type: 'CAT_OPEN_INTERNAL_NOTE',
+                        payload: {
+                            caseId: caseId || null,
+                            caseTitle: caseTitle || null,
+                            fileId: file?.id || null,
+                            fileName: file?.name || '',
+                            projectId: project?.id || null,
+                        }
+                    }, window.location.origin);
+                };
+            } else {
+                btnInternalNote.style.display = 'none';
+                btnInternalNote.onclick = null;
+            }
+        }
+    }
+
     async function openEditor(fileId) {
         try {
         if (collabCurrentFileId && String(collabCurrentFileId) !== String(fileId)) {
@@ -7648,6 +7771,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.ActiveFileLangs = { sourceLang: file.sourceLang || '', targetLang: file.targetLang || '' };
         const project = await DBService.getProject(resolvedProjectId);
         window.ActiveTmPenalties = (project && project.tmPenalties) ? project.tmPenalties : {};
+        updateEditorQuestionButtons(file, project);
         window.ActiveReadTmIds = (project && Array.isArray(project.readTms)) ? project.readTms : [];
         if (project && project.readTms && project.readTms.length > 0) {
             for (const tmId of project.readTms) {
@@ -8133,7 +8257,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }, Math.max(0, delayMs | 0));
     }
-    ['sfModeSearch', 'sfModeFilter', 'btnSfPrev', 'btnSfNext', 'btnSfClearNav', 'btnToggleAdvancedSF', 'btnPreTranslate', 'btnSortMenu', 'btnCopySourceToTarget', 'btnClearTarget', 'btnTagCollapse', 'btnTagGroupMode', 'btnShortcuts', 'btnColSettings', 'exportBtn'].forEach((id) => {
+    ['sfModeSearch', 'sfModeFilter', 'btnSfPrev', 'btnSfNext', 'btnSfClearNav', 'btnToggleAdvancedSF', 'btnPreTranslate', 'btnSortMenu', 'btnCopySourceToTarget', 'btnClearTarget', 'btnTagCollapse', 'btnShortcuts', 'btnColSettings', 'exportBtn'].forEach((id) => {
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener('click', () => emitCollabFocus('control', id));
@@ -8252,9 +8376,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     })();
-
-    // 標籤群組插入模式：預設開啟（一次插入所有相鄰缺漏標籤）
-    let tagGroupInsertMode = localStorage.getItem('tagGroupInsertMode') !== 'single'; // default: group
 
     // 標籤展開/收起：預設收起
     let tagsExpanded = false;

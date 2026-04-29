@@ -428,6 +428,7 @@ const DBService = {
             name: name || '未命名專案',
             sourceLangs: sourceLangs || [],
             targetLangs: targetLangs || [],
+            clientQuestionFormUrl: '',
             createdAt: new Date().toISOString(),
             lastModified: new Date().toISOString(),
         });
@@ -502,6 +503,8 @@ const DBService = {
             targetLang: targetLang || '',
             originalSourceLang: originalSourceLang || '',
             originalTargetLang: originalTargetLang || '',
+            relatedLmsCaseId: null,
+            relatedLmsCaseTitle: '',
             applicableSpecialInstructionIds: [],
             createdAt: new Date().toISOString(),
             lastModified: new Date().toISOString(),
@@ -532,6 +535,9 @@ const DBService = {
             if (!isNaN(n)) result = await db.files.get(n);
         }
         return result ?? null;
+    },
+    async searchLmsCases() {
+        return [];
     },
 
     async updateFile(fileId, updates) {
@@ -1409,6 +1415,7 @@ const DBService = {
     DBService.getFiles = async (projectId) => (await rpc('db.getFiles', { projectId })).map(hydrateFile);
     DBService.getRecentFiles = async (limit = 10) => (await rpc('db.getRecentFiles', { limit })).map(hydrateFile);
     DBService.getFile = async (fileId) => hydrateFile(await rpc('db.getFile', { fileId }));
+    DBService.searchLmsCases = async (projectId, keyword, limit = 20) => rpc('db.searchLmsCases', { projectId, keyword, limit });
     DBService.updateFile = async (fileId, updates) => {
         const patch = { ...updates };
         if (patch.originalFileBuffer) {

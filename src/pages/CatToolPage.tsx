@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { handleCatCloudRpc } from "@/lib/cat-cloud-rpc";
+import { getEnvironment } from "@/lib/environment";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 /**
@@ -462,6 +463,65 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
             },
             window.location.origin
           );
+        }
+      } else if (event.data?.type === "CAT_OPEN_CASE_PAGE") {
+        const caseId = String(event.data?.payload?.caseId || "");
+        if (!caseId) return;
+        window.open(`/cases/${caseId}`, "_blank", "noopener,noreferrer");
+      } else if (event.data?.type === "CAT_OPEN_INTERNAL_NOTE") {
+        const p = event.data?.payload ?? {};
+        const caseId = String(p.caseId || "");
+        const fallbackCaseTitle = String(p.caseTitle || "");
+        const env = getEnvironment();
+        let caseTitle = fallbackCaseTitle;
+        let keyword = "";
+        if (caseId) {
+          const { data: caseRow } = await supabase
+            .from("cases")
+            .select("title,keyword")
+            .eq("id", caseId)
+            .eq("env", env)
+            .maybeSingle();
+          caseTitle = (caseRow as any)?.title || caseTitle;
+          keyword = (caseRow as any)?.keyword || "";
+        }
+        const prefixRaw = String(keyword || caseTitle || "NOTE").trim();
+        const prefix = prefixRaw
+          .replace(/\s+/g, "-")
+          .replace(/[^A-Za-z0-9\u4e00-\u9fa5_-]/g, "")
+          .slice(0, 24) || "NOTE";
+        const { data: titleRows } = await supabase
+          .from("internal_notes")
+          .select("title")
+          .eq("env", env)
+          .ilike("title", `${prefix}-%`)
+          .limit(200);
+        const maxSeq = (titleRows ?? []).reduce((acc, row: any) => {
+          const m = String(row?.title || "").match(new RegExp(`^${prefix}-(\\d+)$`));
+          if (!m) return acc;
+          return Math.max(acc, Number(m[1]) || 0);
+        }, 0);
+        const title = `${prefix}-${String(maxSeq + 1).padStart(3, "0")}`;
+        const creator = profile?.display_name?.trim() || user?.email || "Unknown User";
+        const { data: inserted } = await supabase
+          .from("internal_notes")
+          .insert({
+            title,
+            related_case: caseTitle || "",
+            creator,
+            status: "open",
+            note_type: "question",
+            file_name: String(p.fileName || ""),
+            env,
+            created_by: user?.id ?? null,
+            updated_at: new Date().toISOString(),
+          } as any)
+          .select("id")
+          .single();
+        if (inserted?.id) {
+          window.open(`/internal-notes/${inserted.id}`, "_blank", "noopener,noreferrer");
+        } else {
+          window.open("/internal-notes", "_blank", "noopener,noreferrer");
         }
       }
     };
