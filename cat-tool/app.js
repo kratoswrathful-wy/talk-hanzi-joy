@@ -2689,10 +2689,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const el = document.getElementById('catMainRouteLoading');
         if (el) el.classList.add('hidden');
     }
-    function showCatMainRouteLoadingEl() {
-        const el = document.getElementById('catMainRouteLoading');
-        if (el) el.classList.remove('hidden');
-    }
 
     /** 同一 view 內換 id 時，await 前先清空／顯示載入，避免上一筆 DOM 殘留 */
     function beginOpenProjectDetailLoading(projectId) {
