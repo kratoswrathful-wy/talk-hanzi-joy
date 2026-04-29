@@ -35,6 +35,20 @@
 
 > 維運提醒：CAT 功能只改 `cat-tool`；任何異動後都要 `npm run sync:cat` 並同步提交 `public/cat`。
 
+### CAT：提問整合（客戶表單 / LMS 案件綁定）
+
+| 項目 | 位置 |
+|------|------|
+| 專案詳情（檔案清單、LMS 案件欄位） | `cat-tool/index.html`：`#viewProjectDetail`、`#filesListBody` |
+| 編輯器工具列（客戶表單 / 內部註記按鈕顯示） | `cat-tool/index.html`：`#viewEditor`、`.editor-toolbar` |
+| 編輯器底部資訊列（進度條與「使用者」標籤） | `cat-tool/index.html`：`.editor-status-bar` |
+| 使用者標籤渲染與顯隱 | `cat-tool/app.js`：`collabPresenceBar` 相關邏輯 |
+| 按鈕條件顯示主邏輯 | `cat-tool/app.js`（依專案 URL、檔案綁案狀態判斷） |
+| 既有內部註記建立入口（對照 `relatedCase` 語意） | `src/pages/CaseDetailPage.tsx`：`handleCreateInternalNote` |
+| 內部註記 `relatedCase` 映射 | `src/stores/internal-notes-store.ts`：`relatedCase` ↔ `related_case` |
+
+> 實作注意：僅「客戶表單」「內部註記」屬條件式按鈕；`AI 輔助` 必須維持原顯示規則，不可連帶隱藏。
+
 ## 案件
 
 | 項目 | 位置 |
