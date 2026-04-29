@@ -194,6 +194,39 @@
 
 - **Migration** `20260323120000_case_files_bucket_file_size_limit.sql`：將 `case-files` bucket 的 **`file_size_limit`** 設為 **50 MiB**（與常見上限對齊）；若專案全域更小，實際仍以 Dashboard 為準。
 
+### 費用總表：篩選器與欄位顯示對齊（2026-04）
+
+**現象（曾發生）**
+
+- 詳情頁「營收內容」已勾選「請款完成」，但總表篩選「未勾選請款完成」仍會列出該筆。
+- 非 TWD 客戶時，依「利潤」排序／數值篩選結果與畫面上以 TWD 顯示的利潤不一致。
+- 「無須開立稿費」譯者：詳情頁「費率無誤」視為已勾選，總表欄位與篩選曾僅讀 `clientInfo.rateConfirmed`，與詳情頁不一致。
+
+**根本原因**
+
+- **`請款完成`**：詳情頁 [`ClientInfoSection.tsx`](../src/components/ClientInfoSection.tsx) 顯示為 `clientInfo.invoiced || isInClientInvoice`（已收錄客戶請款單即視為勾選）；總表篩選僅讀 `clientInfo.invoiced`，未納入「已在客戶請款單」。
+- **`利潤`**：總表與頁尾統計以「客戶幣別營收 × 對 TWD 匯率 − 稿費（TWD）」計算；[`use-table-views.ts`](../src/hooks/use-table-views.ts) 的 `getFieldValue("profit")` 曾用「未換算營收 − 稿費」，排序／篩選與畫面數值不同維度。
+- **`費率無誤`**：詳情頁對無稿費譯者強制顯示已勾選；篩選與總表欄位僅讀 `rateConfirmed`，未納入 [`member_translator_settings.no_fee`](../src/integrations/supabase/types.ts)（無須開立稿費）。
+
+**已落地修正（須保留）**
+
+| 項目 | 作法 |
+|------|------|
+| 請款完成 | [`use-table-views.ts`](../src/hooks/use-table-views.ts)：`invoiced` 為 true 若 `clientInfo.invoiced` **或** `FeeFilterContext.clientInvoices` 任一納入該 `fee.id`。總表 [`TranslatorFees.tsx`](../src/pages/TranslatorFees.tsx)「請款完成」欄同步：勾選狀態為「資料已勾選」或「已列入任一客戶請款單」（讀 [`clientInvoiceStore.getInvoices()`](../src/stores/client-invoice-store.ts)）。 |
+| 利潤 | `getFieldValue("profit")` 與列顯示一致：依客戶選項幣別 [`currencyStore.getTwdRate`](../src/stores/currency-store.ts) 換算後再減稿費。 |
+| 費率無誤 | [`select-options-store.ts`](../src/stores/select-options-store.ts)：`SelectOption` 增加 **`noFee`**（由 `loadAssignees` 回填 `member_translator_settings.no_fee`）。`getFieldValue("rateConfirmed")`：`rateConfirmed` 為 true 若 DB 已勾選 **或** `assignee` 對應選項 `noFee === true`。總表「費率無誤」欄：`checked` 與 **`editable && !noFee`** 與上述一致。 |
+
+**維運注意**
+
+- **`noFee`** 依賴 [`loadAssignees`](../src/stores/select-options-store.ts)；登入後 [`initSettings`](../src/stores/settings-init.ts) 會載入譯者選項。若極端情境下選項尚未載入，`noFee` 可能暫缺，行為會退回僅看 `rateConfirmed`（與舊版相近）。
+- 篩選／排序用的費用欄位集中於 **`getFieldValue`**（[`use-table-views.ts`](../src/hooks/use-table-views.ts)）；新增「衍生顯示」欄位時，應同步檢查總表 `ColumnDef.render` 與 `getFieldValue`，避免再出現維度不一致。
+
+**驗收（已通過）**
+
+1. 費用僅因收錄客戶請款單而視為請款完成：總表勾選與「請款完成」篩選（含未勾選）一致。
+2. 非 TWD 客戶：依利潤排序／篩選與畫面 TWD 利潤合理對齊。
+3. 無須開立稿費譯者：總表「費率無誤」顯示勾選；篩選「已勾選費率無誤」包含該列。
+
 ## 延伸閱讀
 
 - [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md) — 本機／遠端 Supabase 部署步驟、case-files 與 Slack、驗收與 `db push` 失敗排除

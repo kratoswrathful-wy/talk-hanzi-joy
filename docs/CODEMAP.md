@@ -77,6 +77,21 @@
 | 重複標題邏輯 | `src/lib/case-title-duplicate.ts`、測試 `*.test.ts` |
 | 案件資料 store | `src/hooks/use-case-store.ts`、`src/stores/case-store.ts`（依實際 import） |
 
+## 費用管理（稿費總表／請款）
+
+| 項目 | 位置 |
+|------|------|
+| 費用總表頁 | `src/pages/TranslatorFees.tsx`（欄位定義 `allColumnDefs`、篩選上下文 `filterCtx`） |
+| 費用詳情頁 | `src/pages/TranslatorFeeDetail.tsx` |
+| 總表篩選／排序取值（**須與欄位顯示同一維度**） | `src/hooks/use-table-views.ts`：`getFieldValue`、`FeeFilterContext`（`invoices`、`clientInvoices`） |
+| 營收區（對帳／請款完成 checkbox） | `src/components/ClientInfoSection.tsx` |
+| 稿費資料 store | `src/stores/fee-store.ts`、`src/hooks/use-fee-store.ts` |
+| 客戶請款單 store（總表「請款完成」欄衍生顯示） | `src/stores/client-invoice-store.ts` |
+| 譯者選項含 **`noFee`**（無須開立稿費，`member_translator_settings.no_fee`） | `src/stores/select-options-store.ts`：`loadAssignees` |
+| 客戶幣別 → TWD 匯率（利潤換算） | `src/stores/currency-store.ts` |
+
+> 維運：`請款完成`／`利潤`／`費率無誤` 曾發生「詳情與總表篩選不一致」；修正紀錄與驗收見 [`HANDOFF.md`](./HANDOFF.md)「費用總表：篩選器與欄位顯示對齊」。
+
 ## 設定頁
 
 | 項目 | 位置 |
