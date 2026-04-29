@@ -2599,6 +2599,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         persistCatRoute();
     }
 
+    function clearEditorCaretArtifacts() {
+        // 離開編輯器時強制清除暫存游標與捲動提示，避免殘留在其他頁面。
+        catSavedCaret = null;
+        if (catFakeCaretEl) catFakeCaretEl.classList.add('hidden');
+        if (catFakeCaretScrollTipEl) {
+            catFakeCaretScrollTipEl.classList.add('hidden');
+            catFakeCaretScrollTipEl.textContent = '';
+        }
+        if (catRealCaretScrollTipEl) {
+            catRealCaretScrollTipEl.classList.add('hidden');
+            catRealCaretScrollTipEl.textContent = '';
+        }
+    }
+
     function getSessionRouteStorageKey() {
         try {
             const s = (new URLSearchParams(window.location.search).get('catStorage') || 'offline').toLowerCase();
@@ -2642,6 +2656,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (inEditor) {
                 const ok = await ensureWorkspaceNoteLeaveResolved();
                 if (!ok) return;
+                clearEditorCaretArtifacts();
                 leaveCollabForCurrentFile();
                 currentFileId = null;
                 _syncFileScopedNotesTabs();
@@ -2671,6 +2686,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('beforeunload', (e) => {
         try { persistCatRoute(); } catch (_) { /* ignore */ }
         try { persistCatSidebarState(); } catch (_) { /* ignore */ }
+        clearEditorCaretArtifacts();
         leaveCollabForCurrentFile();
         const viewEditorEl = document.getElementById('viewEditor');
         if (!currentFileId || !viewEditorEl || viewEditorEl.classList.contains('hidden')) return;
@@ -2680,6 +2696,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('pagehide', () => {
         try { persistCatRoute(); } catch (_) { /* ignore */ }
         try { persistCatSidebarState(); } catch (_) { /* ignore */ }
+        clearEditorCaretArtifacts();
         leaveCollabForCurrentFile();
         autoSaveAllNotes().catch(() => {});
     });
@@ -8076,6 +8093,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnExitEditor.addEventListener('click', async () => {
         const ok = await ensureWorkspaceNoteLeaveResolved();
         if (!ok) return;
+        clearEditorCaretArtifacts();
         leaveCollabForCurrentFile();
         currentFileId = null;
         _syncFileScopedNotesTabs();
