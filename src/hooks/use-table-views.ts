@@ -2,7 +2,8 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import { type TranslatorFee } from "@/data/fee-mock-data";
 import { type Invoice } from "@/data/invoice-types";
 import { type ClientInvoice } from "@/data/client-invoice-types";
-import { getStatusSortIndex, FEE_STATUS_LABEL_MAP } from "@/stores/select-options-store";
+import { getStatusSortIndex, FEE_STATUS_LABEL_MAP, selectOptionsStore } from "@/stores/select-options-store";
+import { currencyStore } from "@/stores/currency-store";
 import {
   type TableFilter, type TableSort, type TableView, type FilterGroup,
   type FilterOperator, type FieldMeta, type LogicOperator,
@@ -106,11 +107,23 @@ function getFieldValue(fee: TranslatorFee, field: string, ctx?: FeeFilterContext
       if (!fee.clientInfo || fee.clientInfo.notFirstFee) return 0;
       const rev = fee.clientInfo.clientTaskItems.reduce((s, i) => s + Number(i.unitCount) * Number(i.clientPrice), 0);
       const cost = fee.taskItems.reduce((s, i) => s + i.unitCount * i.unitPrice, 0);
-      return rev - cost;
+      const clientOpt = selectOptionsStore.getSortedOptions("client").find((o) => o.label === fee.clientInfo?.client);
+      const twdRate = currencyStore.getTwdRate(clientOpt?.currency || "TWD");
+      return rev * twdRate - cost;
     }
     case "reconciled": return !!fee.clientInfo?.reconciled;
-    case "rateConfirmed": return !!fee.clientInfo?.rateConfirmed;
-    case "invoiced": return !!fee.clientInfo?.invoiced;
+    case "rateConfirmed": {
+      if (!!fee.clientInfo?.rateConfirmed) return true;
+      const assigneeOpt = selectOptionsStore.getSortedOptions("assignee").find(
+        (o) => o.email === fee.assignee || o.label === fee.assignee
+      );
+      return assigneeOpt?.noFee === true;
+    }
+    case "invoiced": {
+      if (!!fee.clientInfo?.invoiced) return true;
+      if (!ctx) return false;
+      return ctx.clientInvoices.some((inv) => inv.feeIds.includes(fee.id));
+    }
     case "sameCase": return !!fee.clientInfo?.sameCase;
     case "translatorInvoiceStatus": {
       if (!ctx) return "";

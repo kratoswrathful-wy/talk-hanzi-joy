@@ -22,6 +22,8 @@ export interface SelectOption {
   toolFields?: ToolFieldDef[];
   defaultFieldValues?: Record<string, string>; // default values for tool fields (used when tool is selected in case)
   currency?: string; // currency code for client options, e.g. "TWD", "USD"
+  /** Assignee: from member_translator_settings.no_fee（無須開立稿費） */
+  noFee?: boolean;
 }
 
 export const PRESET_COLORS = [
@@ -446,6 +448,7 @@ export const selectOptionsStore = {
         avatarUrl: p.avatar_url || null,
         timezone: p.timezone || null,
         statusMessage: p.status_message || null,
+        noFee: s?.no_fee || false,
       });
     });
 
@@ -460,6 +463,7 @@ export const selectOptionsStore = {
           email: inv.email,
           color: PRESET_COLORS[(profiles?.length || 0 + i) % PRESET_COLORS.length],
           note: s?.note || "",
+          noFee: s?.no_fee || false,
         });
       }
     });

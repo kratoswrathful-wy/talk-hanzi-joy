@@ -43,6 +43,7 @@ import AssigneeTag from "@/components/AssigneeTag";
 import { supabase } from "@/integrations/supabase/client";
 import { getFieldLock, getMultiSelectFieldLock, type FeeFieldLockContext } from "@/lib/fee-field-locks";
 import { currencyStore } from "@/stores/currency-store";
+import { clientInvoiceStore } from "@/stores/client-invoice-store";
 import {
   fetchNoFeeByEmails,
   getFinalizeEligibility,
@@ -290,26 +291,35 @@ const allColumnDefs: ColumnDef[] = [
     label: "費率無誤",
     minWidth: 50,
     managerOnly: true,
-    render: (f, { editable, lockedTooltip, onCommit }) => (
-      <InlineEditCell value={!!f.clientInfo?.rateConfirmed} type="checkbox" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("rateConfirmed", v)}>
-        <div className="flex justify-center">
-          <Checkbox checked={!!f.clientInfo?.rateConfirmed} disabled className="pointer-events-none" />
-        </div>
-      </InlineEditCell>
-    ),
+    render: (f, { editable, lockedTooltip, onCommit }) => {
+      const assigneeOpts = selectOptionsStore.getSortedOptions("assignee");
+      const opt = assigneeOpts.find((o) => o.email === f.assignee || o.label === f.assignee);
+      const checked = opt?.noFee === true || !!f.clientInfo?.rateConfirmed;
+      return (
+        <InlineEditCell value={checked} type="checkbox" editable={editable && !opt?.noFee} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("rateConfirmed", v)}>
+          <div className="flex justify-center">
+            <Checkbox checked={checked} disabled className="pointer-events-none" />
+          </div>
+        </InlineEditCell>
+      );
+    },
   },
   {
     key: "invoiced",
     label: "請款完成",
     minWidth: 50,
     managerOnly: true,
-    render: (f, { editable, lockedTooltip, onCommit }) => (
-      <InlineEditCell value={!!f.clientInfo?.invoiced} type="checkbox" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("invoiced", v)}>
-        <div className="flex justify-center">
-          <Checkbox checked={!!f.clientInfo?.invoiced} disabled className="pointer-events-none" />
-        </div>
-      </InlineEditCell>
-    ),
+    render: (f, { editable, lockedTooltip, onCommit }) => {
+      const isInClientInvoice = clientInvoiceStore.getInvoices().some((inv) => inv.feeIds.includes(f.id));
+      const checked = !!f.clientInfo?.invoiced || isInClientInvoice;
+      return (
+        <InlineEditCell value={checked} type="checkbox" editable={editable} lockedTooltip={lockedTooltip} onCommit={(v) => onCommit("invoiced", v)}>
+          <div className="flex justify-center">
+            <Checkbox checked={checked} disabled className="pointer-events-none" />
+          </div>
+        </InlineEditCell>
+      );
+    },
   },
   {
     key: "sameCase",
