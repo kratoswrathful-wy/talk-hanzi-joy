@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>預覽 03 — 清空任務紀錄確認</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; min-height: 100vh; background: #64748b; padding: 2rem; }
+    a.back { font-size: 0.85rem; color: #e0e7ff; }
+    .note { color: #e2e8f0; font-size: 0.88rem; max-width: 28rem; margin: 1rem 0 2rem; line-height: 1.5; }
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(15,23,42,0.45); display: flex; align-items: center; justify-content: center; padding: 1rem;
+    }
+    .modal-box {
+      background: #fff; border-radius: 10px; max-width: 440px; width: 92vw; padding: 1.25rem 1.35rem; box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    }
+    .modal-box[role="dialog"] { outline: none; }
+    p.msg { margin: 0; font-size: 0.9rem; color: #334155; line-height: 1.6; white-space: pre-wrap; }
+    .actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
+    button {
+      padding: 0.45rem 1rem; border-radius: 6px; font-size: 0.85rem; cursor: pointer; border: 1px solid transparent;
+    }
+    .secondary-btn { background: #fff; border-color: #cbd5e1; color: #334155; }
+    .primary-btn { background: #2563eb; color: #fff; border-color: #2563eb; }
+  </style>
+</head>
+<body>
+  <a class="back" href="index.html">← 索引</a>
+  <p class="note">若「清空紀錄」採用既有 <code>openCatConfirmModal</code> 流程，文案建議與全站一致：<strong>「是否確定要……？」</strong>。此為靜態預覽。</p>
+
+  <div class="modal-overlay" aria-hidden="false">
+    <div class="modal-box" role="dialog" aria-modal="true" aria-describedby="clearMsg">
+      <p id="clearMsg" class="msg">是否確定要清空本機的 AI 任務紀錄？此動作無法復原。</p>
+      <div class="actions">
+        <button type="button" class="secondary-btn">取消</button>
+        <button type="button" class="primary-btn">確定</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>預覽 01 — AI 進度提示列</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 2rem; background: #f8fafc; color: #334155; }
+    h1 { font-size: 1.1rem; margin: 0 0 0.5rem; }
+    p.lead { font-size: 0.88rem; color: #64748b; margin: 0 0 2rem; max-width: 40rem; }
+    .row { display: flex; flex-wrap: wrap; gap: 2rem; align-items: flex-start; }
+    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; min-width: 260px; flex: 1; }
+    .card h2 { font-size: 0.95rem; margin: 0 0 1rem; color: #0f172a; }
+    .ai-progress-toast {
+      position: relative;
+      background: #1e293b;
+      color: #f1f5f9;
+      padding: 0.6rem 1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      min-width: 200px;
+      max-width: 420px;
+    }
+    .ai-progress-toast--error { background: #dc2626; }
+    .ai-progress-toast .dismiss {
+      background: none; border: none; cursor: pointer; color: #fff; font-size: 1rem; padding: 0 0 0 0.5rem;
+    }
+    .badge { display: inline-block; font-size: 0.72rem; padding: 0.15rem 0.45rem; border-radius: 4px; margin-bottom: 0.75rem; }
+    .badge--old { background: #fef3c7; color: #92400e; }
+    .badge--new { background: #dcfce7; color: #166534; }
+    a.back { font-size: 0.85rem; color: #2563eb; }
+  </style>
+</head>
+<body>
+  <a class="back" href="index.html">← 索引</a>
+  <h1>01 — AI 進度提示列（規劃對照）</h1>
+  <p class="lead">現況：<code>#aiProgressToast</code> 右側 ✕ 僅隱藏條列，<strong>不會</strong>中止任務。規劃：<strong>移除 ✕</strong>，避免誤解。（樣式對齊 <code>cat-tool/style.css</code> <code>.ai-progress-toast</code>）</p>
+  <div class="row">
+    <div class="card">
+      <span class="badge badge--old">現況（將移除 ✕）</span>
+      <h2>含關閉鈕</h2>
+      <div class="ai-progress-toast">
+        <span>正在翻譯第 3／12 批（41–60）…</span>
+        <button type="button" class="dismiss" aria-label="隱藏提示">✕</button>
+      </div>
+    </div>
+    <div class="card">
+      <span class="badge badge--new">規劃</span>
+      <h2>無關閉鈕</h2>
+      <div class="ai-progress-toast">
+        <span>正在翻譯第 3／12 批（41–60）…</span>
+      </div>
+      <p style="font-size: 0.78rem; color: #64748b; margin: 1rem 0 0;">錯誤態仍可用紅底（<code>isError</code>），同樣不附 ✕。</p>
+      <div class="ai-progress-toast ai-progress-toast--error" style="margin-top: 0.75rem;">
+        <span>翻譯失敗：請求速率超過上限，請稍後再試。</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

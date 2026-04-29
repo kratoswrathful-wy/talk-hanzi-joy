@@ -257,7 +257,7 @@ flowchart LR
    - **掛鉤**：以集中 **start／update／finish** 函式寫入，於 **`runAiBatchTranslate`**、**`_runAiScan`** 等長流程綁定，避免僅依賴 `_showAiToast` 字串拼裝。
 
 3. **介面預覽（靜態 HTML，非執行中產物）**  
-   - 倉庫根目錄 [`downloads/`](../downloads/) 內提供 **僅供視覺對照** 之 `.html`（不依賴 `cat-tool` 建置）；入口見 [`downloads/index.html`](../downloads/index.html)。**實際嵌入 CAT 時**仍須改 `cat-tool` 並執行 `npm run sync:cat`。
+   - 於 [`docs/preview-cat-ai-task-ux/`](./preview-cat-ai-task-ux/) 提供 **僅供視覺對照** 之 `.html`（不依賴 `cat-tool` 建置）；入口見 [`index.html`](./preview-cat-ai-task-ux/index.html)。（倉庫根目錄 `downloads/` 列於 `.gitignore`，故版控預覽放在 `docs/` 下；若需複製到作業系統「下載」資料夾可自行另存。）**實際嵌入 CAT 時**仍須改 `cat-tool` 並執行 `npm run sync:cat`。
 
 4. **選做（本節不承諾本期）**  
    點進度列開**詳情蓋板**、明確 **中止** 鈕與 API 取消、完成／失敗改**頁內蓋板**（取代短暫 toast）、`Enter` 關閉單鍵提示等，與 **§13 E** 之 `alert` 收斂可平行規劃。
@@ -328,7 +328,7 @@ flowchart LR
 | 2026-04-29（C／D 收斂） | **§12**：標示 **§12.1** 已落地；**§12.2** 改為「MVP 已涵蓋／可恢復重跑為加值」並對照 `ai-translate.js`／`app.js`；**§12.4** 驗收項勾選；**§13** 更新 **C** 為已驗收、**D** 為 MVP 已涵蓋。程式修正：`cat-tool/app.js` 補上 **`_acquireAiFlowLock`**（掃描／批次互斥）、**`_aiSleep`** 改為真正 `setTimeout` 延遲（cooldown／降載退避生效）。 |
 | 2026-04-29（加值收斂） | **範例拖曳排序**：庫內／專案準則編輯 modal 左側 ⋮⋮ 拖曳，`style.css` 三欄版面。**批次接續**：`runAiBatchTranslate` 以 `sessionStorage` 儲存進度，成功收尾或取消恢復時清除。**§5.6.9**／**§6** 補 migration 例行對照說明。**§12.2**／**§12.4**／**§13** 更新。 |
 | 2026-04-29（§11 與實作對齊） | **修改內容**：首段第 4 行改為指向 **§11.2** 與 **§13**（alert／維運等），不再暗示「範例送 prompt」仍屬未決波次；**§11** 節首改為敘明議題群組／拖曳已落地，並以 **§11.2**／**§12** 分擔「範例是否進提示語」之說明；**§11.2** 改為分情境（批次＋`candidatePool` vs 未傳 pool 之路徑），刪除「MVP 一律不送範例／啟用見 §13 階段 C」之過時句（**§13** 已標 **C** 落地）；**§11.3** 最後一條驗收改為兩路徑分別回歸；**§13** 表前說明改為含 **§11.2**、不以「範例進 prompt」籠統帶過。**緣由**：實作上批次候選條目池已可將勾選之條目與範例經 `_buildAiOptions` 併入提示語，舊 §11 敘述易使讀者誤以為範例從不進 prompt 或仍待「階段 C」；本次**僅修正文件**，**不變更程式**。 |
-| 2026-04-29（§7.1 與介面預覽） | **新增 §7.1**：AI 長任務進度列**移除隱藏（✕）鈕**之決策與理由；**AI 設定頁「AI 任務紀錄」**初版規格（列表欄位、`localStorage` 持久化、筆數上限、掛鉤於 `runAiBatchTranslate`／`_runAiScan`）；與 **§7 第 1 點** `alert` 全站收斂之分界；**選做**（詳情蓋板、中止、完成／失敗蓋板等）僅列為後續。**緣由**：先文件與靜態預覽對齊產品，再實作 `cat-tool`。**介面預覽**：倉庫 [`downloads/`](../downloads/)（入口 `index.html`）。**本列提交時**尚未改 `cat-tool` 行為。 |
+| 2026-04-29（§7.1 與介面預覽） | **新增 §7.1**：AI 長任務進度列**移除隱藏（✕）鈕**之決策與理由；**AI 設定頁「AI 任務紀錄」**初版規格（列表欄位、`localStorage` 持久化、筆數上限、掛鉤於 `runAiBatchTranslate`／`_runAiScan`）；與 **§7 第 1 點** `alert` 全站收斂之分界；**選做**（詳情蓋板、中止、完成／失敗蓋板等）僅列為後續。**緣由**：先文件與靜態預覽對齊產品，再實作 `cat-tool`。**介面預覽**：[`docs/preview-cat-ai-task-ux/`](./preview-cat-ai-task-ux/)（入口 `index.html`）。**本列提交時**尚未改 `cat-tool` 行為。 |
 
 ---
 
