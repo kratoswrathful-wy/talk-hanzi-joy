@@ -284,11 +284,15 @@ window.catSetDropdownPanelOpen = catSetDropdownPanelOpen;
 document.addEventListener('DOMContentLoaded', async () => {
     const Xliff = window.CatToolXliffTags;
     const XliffImport = window.CatToolXliffImport;
+    const PoImport = window.CatToolPoImport;
     if (!Xliff) {
         console.error('my-cat-tool：請在 index.html 於 app.js 之前載入 js/xliff-tag-pipeline.js');
     }
     if (!XliffImport) {
         console.error('my-cat-tool：請在 index.html 於 app.js 之前載入 js/xliff-import.js');
+    }
+    if (!PoImport) {
+        console.error('my-cat-tool：請在 index.html 於 app.js 之前載入 js/po-import.js');
     }
     try {
         const catStorage = (new URLSearchParams(window.location.search).get('catStorage') || '').toLowerCase();
@@ -7052,6 +7056,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const isExcel = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls');
         const isXliffLike = lowerName.endsWith('.xlf') || lowerName.endsWith('.xliff') || lowerName.endsWith('.mxliff') || lowerName.endsWith('.mqxliff') || lowerName.endsWith('.sdlxliff');
+        const isPo = lowerName.endsWith('.po') || lowerName.endsWith('.pot');
 
         // ---- 語言對選擇（匯入前必選）----
         // 先取得目前專案的語言設定
@@ -7126,8 +7131,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                     sourceFileInput.value = '';
                 }
             }
+        } else if (isPo) {
+            try {
+                if (!PoImport || typeof PoImport.handlePoImport !== 'function') {
+                    throw new Error('PO 匯入模組未載入（js/po-import.js）');
+                }
+                await PoImport.handlePoImport(xliffImportCtx(), file);
+            } catch (err) {
+                console.error(err);
+                alert('匯入 PO 檔案時發生錯誤：' + (err.message || err));
+            } finally {
+                sourceFileInput.value = '';
+            }
         } else {
-            alert('目前僅支援 Excel (.xlsx/.xls) 以及 XLIFF (.xlf/.xliff/.mxliff/.mqxliff/.sdlxliff) 檔案。');
+            alert('目前僅支援 Excel (.xlsx/.xls)、XLIFF (.xlf/.xliff/.mxliff/.mqxliff/.sdlxliff) 以及 GNU PO (.po/.pot) 檔案。');
             sourceFileInput.value = '';
         }
     });
@@ -7571,6 +7588,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (lowerName.endsWith('.mqxliff')) currentFileFormat = 'mqxliff';
         else if (lowerName.endsWith('.sdlxliff')) currentFileFormat = 'sdlxliff';
         else if (lowerName.endsWith('.xlf') || lowerName.endsWith('.xliff') || lowerName.endsWith('.mxliff')) currentFileFormat = 'xliff';
+        else if (lowerName.endsWith('.po') || lowerName.endsWith('.pot')) currentFileFormat = 'po';
         else currentFileFormat = 'excel';
 
         currentFileDefaultMqRole = currentFileFormat === 'mqxliff'
@@ -14663,6 +14681,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     throw new Error('XLIFF 匯出模組未載入（請確認已載入 js/xliff-tag-pipeline.js）');
                 }
                 await Xliff.exportXliffFamily(f, segs, currentFileFormat);
+            } else if (currentFileFormat === 'po') {
+                if (!PoImport || typeof PoImport.exportPo !== 'function') {
+                    throw new Error('PO 匯出模組未載入（請確認已載入 js/po-import.js）');
+                }
+                await PoImport.exportPo(f, segs);
             } else {
                 // Excel 匯出：直接修改原工作簿以保留樣式與 Rich Text
                 if (!f.originalFileBuffer || !(f.originalFileBuffer.byteLength > 0)) {
