@@ -3155,7 +3155,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!btn || !casePickerTargetFileIds.length) return;
             const caseId = btn.getAttribute('data-id') || null;
             const caseTitle = decodeURIComponent(btn.getAttribute('data-title') || '');
-            casePickerMode = 'set';
+            if (casePickerMode !== 'import') casePickerMode = 'set';
             casePickerSelectedCase = { caseId, caseTitle };
             casePickerResultList.querySelectorAll('.case-picker-result-btn').forEach((el) => {
                 el.style.borderColor = '#e2e8f0';
