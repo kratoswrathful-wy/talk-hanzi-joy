@@ -2022,6 +2022,24 @@
                     <input type="number" id="aiBatchLimitChars" class="form-input" value="2500" min="200" max="30000" style="width:96px;">
                 </div>
                 <div style="font-size:0.78rem; color:#64748b; margin-top:-0.45rem;">大範圍內容會依每批句數與每批字元上限自動拆成多批，逐批送交 AI。</div>
+                <!-- 候選條目池 -->
+                <div id="aiBatchCandidatePoolSection">
+                    <label class="form-label">候選條目池（本批送進提示語）</label>
+                    <p style="font-size:0.76rem; color:#64748b; margin:-0.25rem 0 0.5rem 0;">勾選要併入本批提示語的條目與範例。勾選條目會一併勾選其下範例；取消條目會清空範例；取消範例不會取消條目；未勾條目時範例鎖定。每列顯示約略字元與 tokens。</p>
+                    <div id="aiBatchCandidatePoolTrans" style="margin-bottom:0.65rem;"></div>
+                    <div id="aiBatchCandidatePoolStyle" style="margin-bottom:0.65rem;"></div>
+                    <div id="aiBatchCandidatePoolPg" style="margin-bottom:0.65rem;"></div>
+                    <div id="aiBatchCandidatePoolSi" style="margin-bottom:0.65rem;"></div>
+                </div>
+                <!-- 專案 AI 指示 -->
+                <div>
+                    <label class="form-label">專案 AI 指示</label>
+                    <div id="aiBatchProjectInstructionsList" style="display:flex; flex-direction:column; gap:0.45rem;"></div>
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; margin-top:0.45rem;">
+                        <button type="button" id="btnAiBatchAddProjectInstruction" class="secondary-btn btn-sm">+ 新增指示</button>
+                        <span id="aiBatchProjectInstructionsHint" style="font-size:0.78rem; color:#64748b;">建議每列 20~120 字；輸入即時儲存。</span>
+                    </div>
+                </div>
                 <!-- 參照來源 -->
                 <div>
                     <label class="form-label">參照來源（附估計 token 數）</label>
@@ -2058,15 +2076,6 @@
                         </label>
                     </div>
                     <div style="margin-top:0.35rem; font-size:0.78rem; color:#64748b;">參照來源合計：<span id="aiBatchRefTokTotal">0</span></div>
-                </div>
-                <!-- 專案 AI 指示 -->
-                <div>
-                    <label class="form-label">專案 AI 指示</label>
-                    <div id="aiBatchProjectInstructionsList" style="display:flex; flex-direction:column; gap:0.45rem;"></div>
-                    <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; margin-top:0.45rem;">
-                        <button type="button" id="btnAiBatchAddProjectInstruction" class="secondary-btn btn-sm">+ 新增指示</button>
-                        <span id="aiBatchProjectInstructionsHint" style="font-size:0.78rem; color:#64748b;">建議每列 20~120 字；輸入即時儲存。</span>
-                    </div>
                 </div>
                 <!-- Token 長度建議（約略） -->
                 <div id="aiBatchTokenGuidance" style="font-size:0.76rem; color:#64748b; line-height:1.45; padding:0.45rem 0.55rem; background:#fffbeb; border:1px solid #fde68a; border-radius:8px;">
@@ -2134,11 +2143,11 @@
             <div id="aiBatchPreviewTokenEst" style="font-size:0.78rem; color:#334155; margin-bottom:0.5rem;"></div>
             <div style="overflow:auto; flex:1; min-height:0; display:flex; flex-direction:column; gap:0.75rem;">
                 <div>
-                    <div style="font-size:0.82rem; font-weight:600; margin-bottom:0.35rem;">System</div>
+                    <div style="font-size:0.82rem; font-weight:600; margin-bottom:0.35rem;">提示語</div>
                     <pre id="aiBatchPreviewSystem" style="margin:0; white-space:pre-wrap; word-break:break-word; font-size:0.76rem; line-height:1.45; padding:0.55rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; max-height:38vh; overflow:auto;"></pre>
                 </div>
                 <div>
-                    <div style="font-size:0.82rem; font-weight:600; margin-bottom:0.35rem;">User</div>
+                    <div style="font-size:0.82rem; font-weight:600; margin-bottom:0.35rem;">翻譯內容</div>
                     <pre id="aiBatchPreviewUser" style="margin:0; white-space:pre-wrap; word-break:break-word; font-size:0.76rem; line-height:1.45; padding:0.55rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; max-height:38vh; overflow:auto;"></pre>
                 </div>
             </div>

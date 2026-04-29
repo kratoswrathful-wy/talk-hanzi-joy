@@ -19648,12 +19648,265 @@ document.addEventListener('DOMContentLoaded', async () => {
     let __aiBatchProjectInstructions = [];
     let __aiBatchProjectSiSaveTimer = null;
     let __aiBatchProjectSiSaving = false;
+    /** @type {{ trans: Object, style: Object, pg: Object, si: Object } | null} */
+    let __aiBatchPool = null;
+    let __aiBatchPoolGuidelines = [];
+    let __aiBatchPoolPgList = [];
 
-    function _aiSleep(ms) {
-        return new Promise((resolve) => setTimeout(resolve, ms));
+    function _poolNormalizeExamples(examples) {
+        if (!Array.isArray(examples)) return [];
+        return examples.map((ex, idx) => ({
+            id: ex && ex.id != null ? String(ex.id) : `i-${idx}`,
+            src: ex && ex.src != null ? String(ex.src) : '',
+            tgt: ex && ex.tgt != null ? String(ex.tgt) : '',
+            note: ex && ex.note != null ? String(ex.note) : ''
+        }));
     }
 
-    function _acquireAiFlowLock() {
+    function _defaultAiBatchPoolFromProjectData(psettings, allGuidelines) {
+        const selectedGuidelineIds = new Set((psettings?.selectedGuidelineIds || []).map(Number));
+        const selectedStyleIds = new Set((psettings?.selectedStyleGuidelineIds || []).map(Number));
+        const trans = {};
+        const style = {};
+        (allGuidelines || []).forEach((g) => {
+            const scope = (g.scope || 'translation') === 'style' ? 'style' : 'translation';
+            const id = Number(g.id);
+            const bucket = scope === 'style' ? style : trans;
+            const sel = scope === 'style' ? selectedStyleIds : selectedGuidelineIds;
+            if (!sel.has(id)) return;
+            const exMap = {};
+            _poolNormalizeExamples(g.examples).forEach((ex) => { exMap[ex.id] = true; });
+            bucket[String(g.id)] = { item: true, ex: exMap };
+        });
+        const pg = {};
+        (Array.isArray(psettings?.projectGuidelines) ? psettings.projectGuidelines : []).forEach((row) => {
+            if (!row || !String(row.content || '').trim()) return;
+            const exMap = {};
+            _poolNormalizeExamples(row.examples).forEach((ex) => { exMap[ex.id] = true; });
+            pg[String(row.id)] = { item: true, ex: exMap };
+        });
+        const si = {};
+        (Array.isArray(psettings?.specialInstructions) ? psettings.specialInstructions : []).forEach((s) => {
+            if (!s) return;
+            si[String(s.id)] = s.enabled !== false;
+        });
+        return { trans, style, pg, si };
+    }
+
+    async function _initAiBatchCandidatePool() {
+        const transEl = document.getElementById('aiBatchCandidatePoolTrans');
+        const styleEl = document.getElementById('aiBatchCandidatePoolStyle');
+        const pgEl = document.getElementById('aiBatchCandidatePoolPg');
+        const siEl = document.getElementById('aiBatchCandidatePoolSi');
+        if (!transEl || !styleEl || !pgEl || !siEl) return;
+        if (!currentProjectId) {
+            __aiBatchPool = null;
+            __aiBatchPoolGuidelines = [];
+            __aiBatchPoolPgList = [];
+            transEl.innerHTML = '<span style="font-size:0.78rem;color:#94a3b8;">（未選擇專案）</span>';
+            styleEl.innerHTML = '';
+            pgEl.innerHTML = '';
+            siEl.innerHTML = '';
+            return;
+        }
+        const psettings = await DBService.getAiProjectSettings(currentProjectId).catch(() => null);
+        const allGuidelines = await DBService.getAiGuidelines().catch(() => []);
+        __aiBatchPoolGuidelines = allGuidelines;
+        __aiBatchPoolPgList = Array.isArray(psettings?.projectGuidelines) ? psettings.projectGuidelines : [];
+        __aiBatchPool = _defaultAiBatchPoolFromProjectData(psettings, allGuidelines);
+        _renderAiBatchCandidatePool();
+    }
+
+    function _poolTokLine(contentStr, exList) {
+        const c = _charsOfText(contentStr) + exList.reduce((sum, ex) => sum + _charsOfText(ex.src) + _charsOfText(ex.tgt) + _charsOfText(ex.note), 0);
+        const tok = _estimateTokensByChars(c);
+        return `${c} 字元（約 ${tok} tokens）`;
+    }
+
+    function _renderAiBatchCandidatePool() {
+        const transEl = document.getElementById('aiBatchCandidatePoolTrans');
+        const styleEl = document.getElementById('aiBatchCandidatePoolStyle');
+        const pgEl = document.getElementById('aiBatchCandidatePoolPg');
+        const siEl = document.getElementById('aiBatchCandidatePoolSi');
+        if (!transEl || !styleEl || !pgEl || !siEl || !__aiBatchPool) return;
+        const pool = __aiBatchPool;
+        const sectionHead = (title) => `<div style="font-size:0.78rem; font-weight:700; color:#166534; margin:0.35rem 0 0.25rem 0;">${title}</div>`;
+        const renderGuidelineSection = (kind, labelEmpty) => {
+            const ids = Object.keys(kind === 'trans' ? pool.trans : pool.style).sort((a, b) => Number(a) - Number(b));
+            if (!ids.length) return `<span style="font-size:0.78rem;color:#94a3b8;">${labelEmpty}</span>`;
+            return ids.map((gidStr) => {
+                const g = __aiBatchPoolGuidelines.find((x) => String(x.id) === String(gidStr));
+                if (!g) return '';
+                const gScope = (g.scope || 'translation') === 'style' ? 'style' : 'translation';
+                if (kind === 'trans' && gScope !== 'translation') return '';
+                if (kind === 'style' && gScope !== 'style') return '';
+                const st = kind === 'trans' ? pool.trans[gidStr] : pool.style[gidStr];
+                if (!st) return '';
+                const exNorm = _poolNormalizeExamples(g.examples);
+                const pickedEx = exNorm.filter((ex) => st.ex[ex.id]);
+                const prev = String(g.content || '').trim().slice(0, 120) + (String(g.content || '').length > 120 ? '…' : '');
+                const est = _poolTokLine(String(g.content || ''), pickedEx);
+                const ig = g.issueGroupName ? `<span style="color:#0369a1;">〔${_esc(String(g.issueGroupName))}〕</span> ` : '';
+                const exHtml = exNorm.map((ex) => {
+                    const on = !!st.ex[ex.id];
+                    const dis = !st.item ? 'disabled' : '';
+                    const lab = [ex.src && `原文：${_esc(ex.src.slice(0, 80))}${ex.src.length > 80 ? '…' : ''}`, ex.tgt && `譯文：${_esc(ex.tgt.slice(0, 80))}`].filter(Boolean).join(' · ') || '（空範例）';
+                    return `<label style="display:flex; align-items:flex-start; gap:0.35rem; font-size:0.76rem; color:#334155; cursor:pointer;">
+                        <input type="checkbox" class="ai-batch-pool-ex" data-pool-kind="${kind}" data-pool-gid="${_esc(gidStr)}" data-ex-id="${_esc(ex.id)}" ${on ? 'checked' : ''} ${dis}>
+                        <span>${lab}</span>
+                    </label>`;
+                }).join('');
+                return `<div class="ai-batch-pool-card" style="border:1px solid #bbf7d0; background:#f0fdf4; border-radius:8px; padding:0.45rem 0.55rem; margin-bottom:0.35rem;">
+                    <label style="display:flex; align-items:flex-start; gap:0.45rem; cursor:pointer; font-size:0.82rem; color:#14532d;">
+                        <input type="checkbox" class="ai-batch-pool-item" data-pool-kind="${kind}" data-pool-id="${_esc(gidStr)}" ${st.item ? 'checked' : ''}>
+                        <span style="flex:1; min-width:0;">${ig}<span>${_esc(prev || '（無內容）')}</span>
+                        <div style="font-size:0.72rem; color:#64748b;">${est}</div></span>
+                    </label>
+                    ${exHtml ? `<div style="margin-left:1.45rem; margin-top:0.35rem; display:flex; flex-direction:column; gap:0.2rem;">${exHtml}</div>` : ''}
+                </div>`;
+            }).join('');
+        };
+        transEl.innerHTML = sectionHead('翻譯準則') + renderGuidelineSection('trans', '（專案未套用庫內翻譯準則）');
+        styleEl.innerHTML = sectionHead('文風偏好') + renderGuidelineSection('style', '（專案未套用文風偏好）');
+        const pgIds = Object.keys(pool.pg).sort((a, b) => String(a).localeCompare(String(b)));
+        if (!pgIds.length) {
+            pgEl.innerHTML = sectionHead('專案準則') + '<span style="font-size:0.78rem;color:#94a3b8;">（無專案準則）</span>';
+        } else {
+            pgEl.innerHTML = sectionHead('專案準則') + pgIds.map((gidStr) => {
+                const row = __aiBatchPoolPgList.find((r) => String(r.id) === String(gidStr));
+                if (!row) return '';
+                const st = pool.pg[gidStr];
+                const exNorm = _poolNormalizeExamples(row.examples);
+                const pickedEx = exNorm.filter((ex) => st.ex[ex.id]);
+                const prev = String(row.content || '').trim().slice(0, 120) + (String(row.content || '').length > 120 ? '…' : '');
+                const nm = row.issueGroupName ? `<span style="color:#0369a1;">〔${_esc(String(row.issueGroupName))}〕</span> ` : '';
+                const est = _poolTokLine(String(row.content || ''), pickedEx);
+                const exHtml = exNorm.map((ex) => {
+                    const on = !!st.ex[ex.id];
+                    const dis = !st.item ? 'disabled' : '';
+                    const lab = [ex.src && `原文：${_esc(ex.src.slice(0, 80))}`, ex.tgt && `譯文：${_esc(ex.tgt.slice(0, 80))}`].filter(Boolean).join(' · ') || '（空範例）';
+                    return `<label style="display:flex; align-items:flex-start; gap:0.35rem; font-size:0.76rem; color:#334155; cursor:pointer;">
+                        <input type="checkbox" class="ai-batch-pool-ex" data-pool-kind="pg" data-pool-gid="${_esc(gidStr)}" data-ex-id="${_esc(ex.id)}" ${on ? 'checked' : ''} ${dis}>
+                        <span>${lab}</span>
+                    </label>`;
+                }).join('');
+                return `<div class="ai-batch-pool-card" style="border:1px solid #bbf7d0; background:#f0fdf4; border-radius:8px; padding:0.45rem 0.55rem; margin-bottom:0.35rem;">
+                    <label style="display:flex; align-items:flex-start; gap:0.45rem; cursor:pointer; font-size:0.82rem; color:#14532d;">
+                        <input type="checkbox" class="ai-batch-pool-item" data-pool-kind="pg" data-pool-id="${_esc(gidStr)}" ${st.item ? 'checked' : ''}>
+                        <span style="flex:1; min-width:0;">${nm}<span>${_esc(prev || '（無內容）')}</span>
+                        <div style="font-size:0.72rem; color:#64748b;">${est}</div></span>
+                    </label>
+                    ${exHtml ? `<div style="margin-left:1.45rem; margin-top:0.35rem; display:flex; flex-direction:column; gap:0.2rem;">${exHtml}</div>` : ''}
+                </div>`;
+            }).join('');
+        }
+        const siIds = Object.keys(pool.si).sort((a, b) => String(a).localeCompare(String(b)));
+        if (!siIds.length) {
+            siEl.innerHTML = sectionHead('本案特殊指示') + '<span style="font-size:0.78rem;color:#94a3b8;">（無指示）</span>';
+        } else {
+            siEl.innerHTML = sectionHead('本案特殊指示') + siIds.map((sid) => {
+                const row = (__aiBatchProjectInstructions || []).find((r) => String(r.id) === String(sid));
+                const txt = row ? String(row.content || '').trim() : '';
+                const prev = txt.slice(0, 120) + (txt.length > 120 ? '…' : '');
+                const on = !!pool.si[sid];
+                const est = _poolTokLine(txt, []);
+                const dis = row && row.enabled === false ? 'disabled' : '';
+                return `<div class="ai-batch-pool-card" style="border:1px solid #bbf7d0; background:#f0fdf4; border-radius:8px; padding:0.45rem 0.55rem; margin-bottom:0.35rem;">
+                    <label style="display:flex; align-items:flex-start; gap:0.45rem; cursor:pointer; font-size:0.82rem; color:#14532d;">
+                        <input type="checkbox" class="ai-batch-pool-si" data-si-id="${_esc(sid)}" ${on ? 'checked' : ''} ${dis}>
+                        <span style="flex:1;">${_esc(prev || '（空白）')}<div style="font-size:0.72rem; color:#64748b;">${est}</div></span>
+                    </label>
+                </div>`;
+            }).join('');
+        }
+        const bindItem = (el) => {
+            el.querySelectorAll('.ai-batch-pool-item').forEach((cb) => {
+                cb.onchange = () => {
+                    const kind = cb.getAttribute('data-pool-kind');
+                    const id = cb.getAttribute('data-pool-id');
+                    if (!kind || id == null || !pool[kind] || !pool[kind][id]) return;
+                    const checked = !!cb.checked;
+                    pool[kind][id].item = checked;
+                    if (kind !== 'pg') {
+                        const g = __aiBatchPoolGuidelines.find((x) => String(x.id) === String(id));
+                        const exNorm = _poolNormalizeExamples(g && g.examples);
+                        if (checked) exNorm.forEach((ex) => { pool[kind][id].ex[ex.id] = true; });
+                        else exNorm.forEach((ex) => { pool[kind][id].ex[ex.id] = false; });
+                    } else {
+                        const row = __aiBatchPoolPgList.find((r) => String(r.id) === String(id));
+                        const exNorm = _poolNormalizeExamples(row && row.examples);
+                        if (checked) exNorm.forEach((ex) => { pool[kind][id].ex[ex.id] = true; });
+                        else exNorm.forEach((ex) => { pool[kind][id].ex[ex.id] = false; });
+                    }
+                    _renderAiBatchCandidatePool();
+                };
+            });
+        };
+        bindItem(transEl); bindItem(styleEl); bindItem(pgEl);
+        transEl.querySelectorAll('.ai-batch-pool-ex').forEach((cb) => {
+            cb.onchange = () => {
+                const kind = cb.getAttribute('data-pool-kind');
+                const gid = cb.getAttribute('data-pool-gid');
+                const exid = cb.getAttribute('data-ex-id');
+                if (!kind || !gid || !exid || !pool[kind] || !pool[kind][gid]) return;
+                pool[kind][gid].ex[exid] = !!cb.checked;
+                _renderAiBatchCandidatePool();
+            };
+        });
+        styleEl.querySelectorAll('.ai-batch-pool-ex').forEach((cb) => {
+            cb.onchange = () => {
+                const kind = cb.getAttribute('data-pool-kind');
+                const gid = cb.getAttribute('data-pool-gid');
+                const exid = cb.getAttribute('data-ex-id');
+                if (!kind || !gid || !exid || !pool[kind] || !pool[kind][gid]) return;
+                pool[kind][gid].ex[exid] = !!cb.checked;
+                _renderAiBatchCandidatePool();
+            };
+        });
+        pgEl.querySelectorAll('.ai-batch-pool-ex').forEach((cb) => {
+            cb.onchange = () => {
+                const gid = cb.getAttribute('data-pool-gid');
+                const exid = cb.getAttribute('data-ex-id');
+                if (!gid || !exid || !pool.pg[gid]) return;
+                pool.pg[gid].ex[exid] = !!cb.checked;
+                _renderAiBatchCandidatePool();
+            };
+        });
+        siEl.querySelectorAll('.ai-batch-pool-si').forEach((cb) => {
+            cb.onchange = () => {
+                const sid = cb.getAttribute('data-si-id');
+                if (sid == null) return;
+                pool.si[sid] = !!cb.checked;
+                _renderAiBatchCandidatePool();
+            };
+        });
+    }
+
+    function _snapshotAiBatchPool() {
+        if (!__aiBatchPool) return null;
+        try {
+            return JSON.parse(JSON.stringify(__aiBatchPool));
+        } catch (_) {
+            return null;
+        }
+    }
+
+    /** 與專案 AI 指示列表對齊 pool.si 的鍵（新增列／刪除列後仍能正確進 prompt） */
+    function _syncAiBatchPoolSiKeys() {
+        if (!__aiBatchPool || typeof __aiBatchPool.si !== 'object') return;
+        const si = __aiBatchPool.si;
+        const rows = Array.isArray(__aiBatchProjectInstructions) ? __aiBatchProjectInstructions : [];
+        const rowIds = new Set(rows.map((r) => String(r.id)));
+        rows.forEach((r) => {
+            const id = String(r.id);
+            if (si[id] === undefined) si[id] = r.enabled !== false;
+        });
+        Object.keys(si).forEach((id) => {
+            if (!rowIds.has(id)) delete si[id];
+        });
+    }
+
+    function _aiSleep(ms) {
         if (__catAiFlowRunning) return false;
         __catAiFlowRunning = true;
         return true;
@@ -19675,7 +19928,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         _showAiToast('正在掃描全文，請稍候…');
         try {
-            const aiOptions = await _buildAiOptions(settings, '');
+            const aiOptions = await _buildAiOptions(settings, '', undefined, {}, null);
             const report = await window.CatAiTranslate.scanFullText(currentSegmentsList || [], {
                 settings,
                 extraPrompt,
@@ -19876,6 +20129,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const meta = Array.from(listEl.querySelectorAll('.ai-batch-si-meta')).find((el) => String(el.getAttribute('data-si-id')) === String(sid));
         if (meta) meta.textContent = `${chars} 字元（約 ${tok} tokens）`;
         _updateAiBatchProjectInstructionsHintOnly();
+        if (__aiBatchPool) _renderAiBatchCandidatePool();
     }
 
     function _renderAiBatchProjectInstructions() {
@@ -19913,6 +20167,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (idx < 0) return;
                 __aiBatchProjectInstructions[idx].enabled = !!el.checked;
                 _queueSaveAiBatchProjectInstructions();
+                _refreshAiBatchCandidatePoolAfterSiEdit();
             };
         });
         listEl.querySelectorAll('.ai-batch-si-input').forEach((el) => {
@@ -19933,8 +20188,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 __aiBatchProjectInstructions.splice(idx, 1);
                 _renderAiBatchProjectInstructions();
                 _queueSaveAiBatchProjectInstructions();
+                _refreshAiBatchCandidatePoolAfterSiEdit();
             };
         });
+        _syncAiBatchPoolSiKeys();
+    }
+
+    function _refreshAiBatchCandidatePoolAfterSiEdit() {
+        _syncAiBatchPoolSiKeys();
+        if (__aiBatchPool) _renderAiBatchCandidatePool();
     }
 
     async function _loadAiBatchProjectInstructions() {
@@ -20084,7 +20346,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             useConfirmedContext: !!document.getElementById('aiBatchRefConfirmed')?.checked,
             selectedExampleIds: Array.from(__aiBatchSelectedExampleIds)
         };
-        const options = await _buildAiOptions(settings, '', undefined, refOptions);
+        const options = await _buildAiOptions(settings, '', undefined, refOptions, _snapshotAiBatchPool());
         if (!window.CatAiTranslate || typeof window.CatAiTranslate.buildTranslatePromptMessages !== 'function') {
             _showAiToast('預覽模組未載入。', true);
             return;
@@ -20181,12 +20443,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             __aiBatchProjectInstructions.push(item);
             _renderAiBatchProjectInstructions();
             _queueSaveAiBatchProjectInstructions();
+            _refreshAiBatchCandidatePoolAfterSiEdit();
         };
         ['aiBatchRefTm','aiBatchRefTb','aiBatchRefTbNote','aiBatchRefKey','aiBatchRefExtra','aiBatchRefExamples','aiBatchRefConfirmed'].forEach((id) => {
             const el = document.getElementById(id);
             if (el) el.onchange = () => _updateBatchStats();
         });
-        void _loadAiBatchProjectInstructions();
+        void (async () => {
+            await _loadAiBatchProjectInstructions();
+            await _initAiBatchCandidatePool();
+        })();
         if (previewBtn) previewBtn.onclick = () => { void _openAiBatchPromptPreview(); };
         if (runBtn) runBtn.onclick = async () => {
             const range = _validateAiBatchRange();
@@ -20220,7 +20486,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     useConfirmedContext: !!document.getElementById('aiBatchRefConfirmed')?.checked,
                     selectedExampleIds: Array.from(__aiBatchSelectedExampleIds)
                 },
-                batchStyleExampleCategories: []
+                batchStyleExampleCategories: [],
+                candidatePool: _snapshotAiBatchPool()
             };
             await runAiBatchTranslate(config);
         };
@@ -20368,7 +20635,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (confirmAskSegs.length > 0) {
             _showAiToast(`正在翻譯 ${confirmAskSegs.length} 句…（詢問確認）`);
-            const aiResult = await window.CatAiTranslate.translate(confirmAskSegs, await _buildAiOptions(settings, config.batchNote, config.batchStyleExampleCategories, config.refOptions));
+            const aiResult = await window.CatAiTranslate.translate(confirmAskSegs, await _buildAiOptions(settings, config.batchNote, config.batchStyleExampleCategories, config.refOptions, config.candidatePool));
             const aiMap = new Map(aiResult.results.map(r => [r.segId, r.translation]));
             const askItems = confirmAskSegs.map(seg => ({ seg, existingText: seg.targetText, aiText: aiMap.get(seg.id) || '', label: '' }));
             const chosen = await _showBatchAskModal(askItems, '選擇要保留的版本');
@@ -20401,7 +20668,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 Math.ceil(roughChars / Math.max(dynamicCharLimit, 1))
             );
             let processed = 0;
-            const options = await _buildAiOptions(settings, config.batchNote, config.batchStyleExampleCategories, config.refOptions);
+            const options = await _buildAiOptions(settings, config.batchNote, config.batchStyleExampleCategories, config.refOptions, config.candidatePool);
             let allMissing = [];
             const cooldownMs = Number.isFinite(Number(settings.aiBatchCooldownMs)) ? Math.max(0, Number(settings.aiBatchCooldownMs)) : AI_BATCH_COOLDOWN_MS;
             let i = 0;
@@ -20471,28 +20738,93 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    async function _buildAiOptions(settings, batchNote, batchStyleExampleCategories, refOptions = {}) {
+    async function _buildAiOptions(settings, batchNote, batchStyleExampleCategories, refOptions = {}, candidatePool = null) {
         const fileRec = currentFileId ? await DBService.getFile(currentFileId).catch(() => null) : null;
         const styleCats = Array.isArray(batchStyleExampleCategories) ? batchStyleExampleCategories : undefined;
         const psettings = currentProjectId ? await DBService.getAiProjectSettings(currentProjectId).catch(() => null) : null;
         const selectedGuidelineIds = new Set((psettings?.selectedGuidelineIds || []).map(Number));
         const selectedStyleIds = new Set((psettings?.selectedStyleGuidelineIds || []).map(Number));
         const allGuidelines = await DBService.getAiGuidelines().catch(() => []);
-        const guidelines = allGuidelines.filter(g => (g.scope || 'translation') === 'translation' && selectedGuidelineIds.has(g.id));
-        const styleGuidelines = allGuidelines.filter(g => (g.scope || '') === 'style' && selectedStyleIds.has(g.id));
+        const pool = candidatePool;
+        const _expandLibGuidelineBody = (g, st) => {
+            let block = String(g.content || '').trim();
+            const exs = _poolNormalizeExamples(g.examples).filter((ex) => st.ex[ex.id]);
+            if (exs.length) {
+                block += '\n' + exs.map((ex) => {
+                    const p = [];
+                    if (ex.src.trim()) p.push(`原文：${ex.src.trim()}`);
+                    if (ex.tgt.trim()) p.push(`譯文：${ex.tgt.trim()}`);
+                    if (ex.note.trim()) p.push(`※ ${ex.note.trim()}`);
+                    return `  · ${p.join('；')}`;
+                }).join('\n');
+            }
+            return block;
+        };
+        const _expandPgBodyForPrompt = (g, st) => {
+            const body = String(g.content || '').trim();
+            const nm = g.issueGroupName ? String(g.issueGroupName).trim() : '';
+            let text = nm ? `〔${nm}〕 ${body}` : body;
+            const exs = _poolNormalizeExamples(g.examples).filter((ex) => st.ex[ex.id]);
+            if (exs.length) {
+                text += '\n' + exs.map((ex) => {
+                    const p = [];
+                    if (ex.src.trim()) p.push(`原文：${ex.src.trim()}`);
+                    if (ex.tgt.trim()) p.push(`譯文：${ex.tgt.trim()}`);
+                    if (ex.note.trim()) p.push(`※ ${ex.note.trim()}`);
+                    return `  · ${p.join('；')}`;
+                }).join('\n');
+            }
+            return text;
+        };
+        let guidelines;
+        let styleGuidelines;
+        if (pool && pool.trans && pool.style) {
+            guidelines = allGuidelines.filter((g) => (g.scope || 'translation') === 'translation' && selectedGuidelineIds.has(g.id) && pool.trans[String(g.id)]?.item).map((g) => ({
+                ...g,
+                content: _expandLibGuidelineBody(g, pool.trans[String(g.id)])
+            }));
+            styleGuidelines = allGuidelines.filter((g) => (g.scope || '') === 'style' && selectedStyleIds.has(g.id) && pool.style[String(g.id)]?.item).map((g) => ({
+                ...g,
+                content: _expandLibGuidelineBody(g, pool.style[String(g.id)])
+            }));
+        } else {
+            guidelines = allGuidelines.filter((g) => (g.scope || 'translation') === 'translation' && selectedGuidelineIds.has(g.id));
+            styleGuidelines = allGuidelines.filter((g) => (g.scope || '') === 'style' && selectedStyleIds.has(g.id));
+        }
         const specialInstructions = Array.isArray(psettings?.specialInstructions) ? psettings.specialInstructions : [];
-        const applicableContents = specialInstructions
-            .filter((s) => s && s.enabled !== false)
-            .map((s) => String(s.content || '').trim())
-            .filter(Boolean);
+        let applicableContents;
+        if (pool && pool.si && Array.isArray(__aiBatchProjectInstructions)) {
+            applicableContents = __aiBatchProjectInstructions
+                .filter((row) => {
+                    if (!row || row.enabled === false) return false;
+                    return pool.si[String(row.id)] !== false;
+                })
+                .map((row) => String(row.content || '').trim())
+                .filter(Boolean);
+        } else {
+            applicableContents = specialInstructions
+                .filter((s) => {
+                    if (!s || s.enabled === false) return false;
+                    return true;
+                })
+                .map((s) => String(s.content || '').trim())
+                .filter(Boolean);
+        }
         const projectGuidelinesList = Array.isArray(psettings?.projectGuidelines) ? psettings.projectGuidelines : [];
-        const pgBodies = projectGuidelinesList
-            .filter((g) => g && String(g.content || '').trim())
-            .map((g) => {
-                const body = String(g.content).trim();
-                const nm = g.issueGroupName ? String(g.issueGroupName).trim() : '';
-                return nm ? `〔${nm}〕 ${body}` : body;
-            });
+        let pgBodies;
+        if (pool && pool.pg) {
+            pgBodies = projectGuidelinesList
+                .filter((g) => g && String(g.content || '').trim() && pool.pg[String(g.id)]?.item)
+                .map((g) => _expandPgBodyForPrompt(g, pool.pg[String(g.id)]));
+        } else {
+            pgBodies = projectGuidelinesList
+                .filter((g) => g && String(g.content || '').trim())
+                .map((g) => {
+                    const body = String(g.content).trim();
+                    const nm = g.issueGroupName ? String(g.issueGroupName).trim() : '';
+                    return nm ? `〔${nm}〕 ${body}` : body;
+                });
+        }
         const siPart = [batchNote, ...applicableContents].filter(Boolean).join('\n');
         const projectGuidelinesNote = pgBodies.length ? pgBodies.join('\n\n') : '';
         const styleExFilters = {
