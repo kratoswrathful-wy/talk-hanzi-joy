@@ -1945,6 +1945,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         _syncFileScopedNotesTabs();
     }
 
+    function catUrlPrefersNonDashboardView() {
+        try {
+            const v = (new URLSearchParams(window.location.search).get('catView') || '').trim();
+            return !!v && v !== 'viewDashboard';
+        } catch (_) {
+            return false;
+        }
+    }
+
     function enforceTeamRoleLayout() {
         if (!isTeamMode()) {
             if (btnProjectToolbarAssign) btnProjectToolbarAssign.style.display = 'none';
@@ -1974,7 +1983,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const inEditor = !!(viewEditorEl && !viewEditorEl.classList.contains('hidden'));
             const hasOpenFile = currentFileId != null && currentFileId !== '';
             if (!inEditor && !hasOpenFile) {
-                switchView('viewDashboard');
+                // 深連結時 URL 已帶 catView；勿在 restore 前強制儀表板，否則會先閃儀表板再切目標頁
+                if (!catUrlPrefersNonDashboardView()) {
+                    switchView('viewDashboard');
+                }
             }
         }
         _applyAiPmOnlyVisibility();
