@@ -2491,7 +2491,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentAssignFileNames = [];
     let casePickerTargetFileIds = [];
     let casePickerSelectedCase = null;
-    let casePickerMode = 'set'; // 'set' | 'remove'
+    let casePickerMode = 'set'; // 'set' | 'remove' | 'import'
+    let _casePickerImportResolve = null;
+
+    // Google Sheet 作業檔匯入暫存狀態
+    let _gsCsvData = null;
+    let _gsSourceUrl = '';
+    let _gsImportCaseId = '';
+    let _gsImportCaseTitle = '';
     window._tmsAssignableUsers = [];
     window._tmsCanAssign = false;
     window._tmsTranslatorOnly = false;
@@ -3029,6 +3036,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (casePickerDialog && casePickerDialog.open) casePickerDialog.close();
     }
 
+    function showCasePickerForImport() {
+        return new Promise((resolve) => {
+            if (!casePickerDialog) { resolve(null); return; }
+            _casePickerImportResolve = resolve;
+            casePickerMode = 'import';
+            casePickerTargetFileIds = ['__import__'];
+            casePickerSelectedCase = null;
+            if (casePickerKeywordInput) casePickerKeywordInput.value = '';
+            if (casePickerResultList) casePickerResultList.innerHTML = '';
+            if (casePickerResultHint) casePickerResultHint.textContent = '請輸入關鍵字後按「搜尋」以選擇要綁定的案件。';
+            casePickerDialog.showModal();
+            if (casePickerKeywordInput) casePickerKeywordInput.focus();
+        });
+    }
+
     function openCasePickerDialog(fileIds) {
         if (!casePickerDialog || !casePickerKeywordInput || !casePickerResultList || !casePickerResultHint) return;
         casePickerTargetFileIds = (Array.isArray(fileIds) ? fileIds : [fileIds]).filter(Boolean);
@@ -3096,8 +3118,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     }
-    if (btnCasePickerCancel) btnCasePickerCancel.addEventListener('click', () => closeCasePickerDialog());
-    if (btnCasePickerClose) btnCasePickerClose.addEventListener('click', () => closeCasePickerDialog());
+    if (btnCasePickerCancel) btnCasePickerCancel.addEventListener('click', () => {
+        if (casePickerMode === 'import' && _casePickerImportResolve) {
+            const resolve = _casePickerImportResolve;
+            _casePickerImportResolve = null;
+            closeCasePickerDialog();
+            resolve(null);
+        } else {
+            closeCasePickerDialog();
+        }
+    });
+    if (btnCasePickerClose) btnCasePickerClose.addEventListener('click', () => {
+        if (casePickerMode === 'import' && _casePickerImportResolve) {
+            const resolve = _casePickerImportResolve;
+            _casePickerImportResolve = null;
+            closeCasePickerDialog();
+            resolve(null);
+        } else {
+            closeCasePickerDialog();
+        }
+    });
     if (btnCasePickerRemove && casePickerResultHint) {
         btnCasePickerRemove.addEventListener('click', () => {
             casePickerMode = 'remove';
@@ -3128,6 +3168,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (btnCasePickerConfirm) {
         btnCasePickerConfirm.addEventListener('click', async () => {
+            if (casePickerMode === 'import') {
+                if (!casePickerSelectedCase) { alert('請先選擇一個案件。'); return; }
+                const result = casePickerSelectedCase;
+                const resolve = _casePickerImportResolve;
+                _casePickerImportResolve = null;
+                closeCasePickerDialog();
+                resolve && resolve(result);
+                return;
+            }
             if (!casePickerTargetFileIds.length) return closeCasePickerDialog();
             if (casePickerMode === 'remove') {
                 for (const fid of casePickerTargetFileIds) {
@@ -7352,11 +7401,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         sourceFileInput.value = '';
     });
 
-    btnCloseWizard.addEventListener('click', () => wizardOverlay.classList.add('hidden'));
+    btnCloseWizard.addEventListener('click', () => {
+        wizardOverlay.classList.add('hidden');
+        _gsCsvData = null; _gsSourceUrl = '';
+        _gsImportCaseId = ''; _gsImportCaseTitle = '';
+        showWizardStep('wizardStep1');
+    });
 
     function showWizardStep(stepId) {
-        [wizardStep1, wizardStep2].forEach(el => el.classList.add('hidden'));
-        document.getElementById(stepId).classList.remove('hidden');
+        ['wizardStep1', 'wizardStep2', 'wizardStep3'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.add('hidden');
+        });
+        const target = document.getElementById(stepId);
+        if (target) target.classList.remove('hidden');
     }
 
     sourceFileInput.addEventListener('change', async (e) => {
@@ -7484,6 +7542,155 @@ document.addEventListener('DOMContentLoaded', async () => {
         sourceFileInput.value = '';
         showWizardStep('wizardStep1');
     });
+
+    // ==========================================
+    // GOOGLE SHEET 作業檔匯入
+    // ==========================================
+    const btnGsImportStart = document.getElementById('btnGsImportStart');
+    const gsImportUrlInput = document.getElementById('gsImportUrlInput');
+    const btnGsWizBack = document.getElementById('btnGsWizBack');
+    const btnGsWizFinish = document.getElementById('btnGsWizFinish');
+    const gsConfigSourceCol = document.getElementById('gsConfigSourceCol');
+    const gsConfigTargetCol = document.getElementById('gsConfigTargetCol');
+    const gsConfigIdCol = document.getElementById('gsConfigIdCol');
+    const gsConfigExtraCol = document.getElementById('gsConfigExtraCol');
+    const gsConfigRows = document.getElementById('gsConfigRows');
+
+    if (btnGsImportStart) {
+        btnGsImportStart.addEventListener('click', async () => {
+            const url = gsImportUrlInput ? gsImportUrlInput.value.trim() : '';
+            if (!url) { alert('請先貼上 Google Sheet 連結。'); return; }
+
+            wizardOverlay.classList.add('hidden');
+
+            const caseResult = await showCasePickerForImport();
+            if (!caseResult) { wizardOverlay.classList.remove('hidden'); return; }
+            _gsImportCaseId = caseResult.caseId || '';
+            _gsImportCaseTitle = caseResult.caseTitle || '';
+
+            const project = currentProjectId ? await DBService.getProject(currentProjectId) : null;
+            const projectSrcLangs = (project && project.sourceLangs) ? project.sourceLangs : [];
+            const projectTgtLangs = (project && project.targetLangs) ? project.targetLangs : [];
+            const langChoice = await showFileLangModal(projectSrcLangs, projectTgtLangs);
+            if (!langChoice) { wizardOverlay.classList.remove('hidden'); return; }
+            _importSelectedSrcLang = langChoice.sourceLang;
+            _importSelectedTgtLang = langChoice.targetLang;
+
+            let csvText;
+            try {
+                if (btnGsImportStart) { btnGsImportStart.disabled = true; btnGsImportStart.textContent = '讀取中…'; }
+                csvText = await fetchGoogleSheetCsvViaProxy(url);
+            } catch (err) {
+                alert('無法讀取 Google Sheet：' + (err.message || err));
+                wizardOverlay.classList.remove('hidden');
+                return;
+            } finally {
+                if (btnGsImportStart) { btnGsImportStart.disabled = false; btnGsImportStart.textContent = '匯入'; }
+            }
+
+            _gsCsvData = parseTbCsvText(csvText);
+            if (!_gsCsvData.length) {
+                alert('Google Sheet 無可讀取的資料列，請確認表格有內容。');
+                wizardOverlay.classList.remove('hidden');
+                return;
+            }
+            _gsSourceUrl = url;
+
+            wizardOverlay.classList.remove('hidden');
+            showWizardStep('wizardStep3');
+        });
+    }
+
+    if (btnGsWizBack) {
+        btnGsWizBack.addEventListener('click', () => {
+            _gsCsvData = null; _gsSourceUrl = '';
+            _gsImportCaseId = ''; _gsImportCaseTitle = '';
+            showWizardStep('wizardStep1');
+        });
+    }
+
+    if (btnGsWizFinish) {
+        btnGsWizFinish.addEventListener('click', async () => {
+            try {
+                const sCols = parseColumnString(gsConfigSourceCol ? gsConfigSourceCol.value : '');
+                const tCols = parseColumnString(gsConfigTargetCol ? gsConfigTargetCol.value : '');
+                const idCols = parseColumnString(gsConfigIdCol ? gsConfigIdCol.value : '');
+                const extCols = parseColumnString(gsConfigExtraCol ? gsConfigExtraCol.value : '');
+                const rowRanges = parseTbRowRanges(gsConfigRows ? gsConfigRows.value : '2-', 1);
+                const extraDelimiter = '\n';
+
+                if (!sCols.length || !tCols.length) throw new Error('原文欄位與譯文欄位為必填');
+                if (sCols.length !== tCols.length) throw new Error('原文與譯文欄位數量不一致');
+                if (idCols.length > 1) throw new Error('String Key 欄位僅允許單一欄位');
+                if (!_gsCsvData || !_gsCsvData.length) throw new Error('無 CSV 資料，請重新匯入');
+                if (!_gsImportCaseTitle) throw new Error('尚未選擇案件');
+
+                const gsSegs = [];
+                for (let r = 0; r < _gsCsvData.length; r++) {
+                    if (!isTbRowInRanges(r + 1, rowRanges)) continue;
+                    const row = _gsCsvData[r];
+                    for (let ci = 0; ci < sCols.length; ci++) {
+                        const srcText = row[sCols[ci]] !== undefined ? String(row[sCols[ci]]).trim() : '';
+                        const tgtText = row[tCols[ci]] !== undefined ? String(row[tCols[ci]]).trim() : '';
+                        let idVal = idCols.length === 1 && row[idCols[0]] !== undefined ? String(row[idCols[0]]).trim() : '';
+                        const extVals = extCols.map(ec => row[ec] !== undefined ? String(row[ec]).trim() : '').filter(v => v);
+                        const extVal = extVals.join(extraDelimiter);
+                        if (srcText === '' && tgtText === '') continue;
+                        gsSegs.push({
+                            sourceText: srcText || '（原文欄空白）',
+                            targetText: tgtText,
+                            stringKey: idVal,
+                            extraText: extVal,
+                            sheetName: 'Sheet1',
+                            rowIdx: r,
+                            colSrc: sCols[ci],
+                            colTgt: tCols[ci],
+                            isLockedSystem: false,
+                            sourceTags: [],
+                            targetTags: [],
+                        });
+                    }
+                }
+
+                if (!gsSegs.length) throw new Error('指定範圍內無可匯入的資料列，請確認欄位與列數設定');
+
+                btnGsWizFinish.disabled = true; btnGsWizFinish.textContent = '處理中…';
+
+                const fId = await DBService.createFile(
+                    currentProjectId, _gsImportCaseTitle, null,
+                    _importSelectedSrcLang, _importSelectedTgtLang
+                );
+                await DBService.updateFile(fId, {
+                    relatedLmsCaseId: _gsImportCaseId || null,
+                    relatedLmsCaseTitle: _gsImportCaseTitle,
+                    fileFormat: 'googlesheet',
+                    googleSheetUrl: _gsSourceUrl
+                });
+
+                const entry = makeBaseLogEntry('create', 'project-file', { entityId: fId, entityName: _gsImportCaseTitle });
+                if (currentProjectId) {
+                    await appendProjectChangeLog(currentProjectId, entry);
+                    await DBService.addModuleLog('projects', entry);
+                }
+
+                const mappedSegments = gsSegs.map((s, idx) => ({ ...s, fileId: fId, globalId: idx + 1 }));
+                const savedCount = await DBService.addSegments(mappedSegments);
+                if (isTeamMode() && mappedSegments.length > 0 && !savedCount) {
+                    console.warn('[CAT] GS addSegments returned 0 — segments may not have been saved to cloud.');
+                }
+
+                wizardOverlay.classList.add('hidden');
+                _gsCsvData = null; _gsSourceUrl = '';
+                _gsImportCaseId = ''; _gsImportCaseTitle = '';
+                if (gsImportUrlInput) gsImportUrlInput.value = '';
+                await loadFilesList();
+            } catch (e) {
+                alert('Google Sheet 匯入失敗：' + e.message);
+            } finally {
+                if (btnGsWizFinish) { btnGsWizFinish.disabled = false; btnGsWizFinish.textContent = '匯入檔案'; }
+            }
+        });
+    }
 
     /** 顯示 mqxliff 身分選擇視窗，回傳選中的 'T'|'R1'|'R2'，取消則回傳 null。opts.hideWizardFirst: 匯入時先隱藏 wizard；opts.defaultRole: 預設選中的身分 */
     function showMqRoleModal(opts = {}) {
@@ -7661,7 +7868,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tCols = parseColumnString(configTargetCol.value);
             const idCols = parseColumnString(configIdCol.value);
             const extCols = parseColumnString(configExtraCol.value);
-            const rRange = parseRowString(configRows.value);
+            const rowRanges = parseTbRowRanges(configRows.value, 1);
             const dir = configDirection.value;
             const extraDelimiter = '\n';
 
@@ -7675,11 +7882,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             selSheets.forEach(sheetName => {
                 const data = excelDataBySheet[sheetName];
                 const rawSheet = excelWorkbook ? excelWorkbook.Sheets[sheetName] : null;
-                const endR = Math.min(rRange.end, data.length-1);
                 if (dir === 'top-down') {
-                    for(let c=0; c<sCols.length; c++) for(let r = rRange.start; r <= endR; r++) extractSegmentIntoBackup(data, sheetName, r, sCols[c], tCols[c], idCols, extCols, extraDelimiter, rawSheet);
+                    for(let c=0; c<sCols.length; c++) for(let r=0; r<data.length; r++) { if(isTbRowInRanges(r+1, rowRanges)) extractSegmentIntoBackup(data, sheetName, r, sCols[c], tCols[c], idCols, extCols, extraDelimiter, rawSheet); }
                 } else {
-                    for(let r = rRange.start; r <= endR; r++) for(let c=0; c<sCols.length; c++) extractSegmentIntoBackup(data, sheetName, r, sCols[c], tCols[c], idCols, extCols, extraDelimiter, rawSheet);
+                    for(let r=0; r<data.length; r++) { if(!isTbRowInRanges(r+1, rowRanges)) continue; for(let c=0; c<sCols.length; c++) extractSegmentIntoBackup(data, sheetName, r, sCols[c], tCols[c], idCols, extCols, extraDelimiter, rawSheet); }
                 }
             });
 
@@ -7920,6 +8126,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function updateEditorQuestionButtons(file, project) {
+        const btnGsSourceLink = document.getElementById('btnGsSourceLink');
+        if (btnGsSourceLink) {
+            const gsUrl = String(file?.googleSheetUrl || '').trim();
+            if (gsUrl) {
+                btnGsSourceLink.style.display = '';
+                btnGsSourceLink.onclick = () => window.open(gsUrl, '_blank', 'noopener,noreferrer');
+            } else {
+                btnGsSourceLink.style.display = 'none';
+                btnGsSourceLink.onclick = null;
+            }
+        }
         if (btnClientQuestionForm) {
             const url = String(project?.clientQuestionFormUrl || '').trim();
             if (url) {
@@ -8002,7 +8219,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // 先判斷格式與 mq 身分（mqxliff 須先選身分；全螢幕載入層 z-index 高於身分視窗，會擋住操作故延後顯示）
         const lowerName = (file.name || '').toLowerCase();
-        if (lowerName.endsWith('.mqxliff')) currentFileFormat = 'mqxliff';
+        if (file.fileFormat === 'googlesheet') currentFileFormat = 'googlesheet';
+        else if (lowerName.endsWith('.mqxliff')) currentFileFormat = 'mqxliff';
         else if (lowerName.endsWith('.sdlxliff')) currentFileFormat = 'sdlxliff';
         else if (lowerName.endsWith('.xlf') || lowerName.endsWith('.xliff') || lowerName.endsWith('.mxliff')) currentFileFormat = 'xliff';
         else if (lowerName.endsWith('.po') || lowerName.endsWith('.pot')) currentFileFormat = 'po';
@@ -15115,6 +15333,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                     throw new Error('PO 匯出模組未載入（請確認已載入 js/po-import.js）');
                 }
                 await PoImport.exportPo(f, segs);
+            } else if (currentFileFormat === 'googlesheet') {
+                const hasKey = segs.some(s => s.stringKey);
+                const hasExtra = segs.some(s => s.extraText);
+                const headers = [];
+                if (hasKey) headers.push('String Key');
+                headers.push('原文', '譯文');
+                if (hasExtra) headers.push('額外資訊');
+                const rows = [headers, ...segs.map(s => {
+                    const row = [];
+                    if (hasKey) row.push(s.stringKey || '');
+                    row.push(s.sourceText || '', s.targetText || '');
+                    if (hasExtra) row.push(s.extraText || '');
+                    return row;
+                })];
+                const ws = XLSX.utils.aoa_to_sheet(rows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Translations');
+                const exportName = (f.name || 'GoogleSheet').replace(/\.xlsx$/i, '') + '_Translated.xlsx';
+                XLSX.writeFile(wb, exportName, { bookType: 'xlsx' });
             } else {
                 // Excel 匯出：直接修改原工作簿以保留樣式與 Rich Text
                 if (!f.originalFileBuffer || !(f.originalFileBuffer.byteLength > 0)) {

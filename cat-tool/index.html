@@ -602,6 +602,7 @@
                         <button id="btnClearTarget" class="icon-btn" style="font-size:1rem;">✕</button>
                         <button id="btnTagCollapse" class="icon-btn" title="展開標籤 (Ctrl+Shift+T)" style="font-size:0.8rem; font-family:monospace;">{…}</button>
                         <button id="btnShowNonPrint" class="icon-btn" title="顯示 / 隱藏非列印字元" style="font-size:1rem;">¶</button>
+                        <button id="btnGsSourceLink" class="secondary-btn btn-sm" style="display:none;">原檔連結</button>
                         <button id="btnClientQuestionForm" class="success-btn btn-sm" style="display:none;">提問表單</button>
                         <button id="btnInternalNote" class="danger-btn btn-sm" style="display:none;">內部註記</button>
                         <button id="btnShortcuts" class="icon-btn" title="快捷鍵一覽（含說明）">⌨️</button>
@@ -1649,6 +1650,14 @@
                                 <span style="font-size:2.5rem;">📁</span><span>點擊或拖曳上傳 Excel / XLIFF / PO (.xlsx/.xls/.xlf/.xliff/.mqxliff/.sdlxliff/.po/.pot)</span>
                             </label>
                         </div>
+                        <div style="text-align:center; margin:0.9rem 0 0.5rem; color:#94a3b8; font-size:0.85rem;">— 或 —</div>
+                        <div style="border:1px solid #e2e8f0; border-radius:8px; padding:1rem 1.25rem; background:#f8fafc;">
+                            <div style="font-size:0.88rem; font-weight:600; color:#475569; margin-bottom:0.55rem;">從 Google Sheet 匯入作業檔</div>
+                            <div style="display:flex; gap:0.5rem; align-items:center;">
+                                <input type="text" id="gsImportUrlInput" placeholder="貼上 Google Sheet 連結（需設為知道連結者可檢視）" style="flex:1; padding:0.5rem 0.6rem; border:1px solid #cbd5e1; border-radius:4px; font-size:0.85rem;" />
+                                <button type="button" id="btnGsImportStart" class="primary-btn btn-sm">匯入</button>
+                            </div>
+                        </div>
                     </div>
                     <div class="wizard-step hidden" id="wizardStep2">
                         <div style="display:flex; gap:2rem;">
@@ -1661,7 +1670,7 @@
                                 <div style="background:#eff6ff; padding:1rem; border-radius:8px; font-size:0.85rem; color:#1d4ed8; margin-bottom:1.5rem;">
                                     <p style="margin:0;"><strong>輸入欄位格式說明：</strong>例如「A-C」代表 A, B, C 三欄連續。「A-C, E, F-H」代表匯入 A, B, C, E, F, G, H。<br>
                                     <strong>注意：</strong>原文和譯文欄數必須相等。<br>
-                                    <strong>指定列數說明：</strong>例如「2-99」代表匯入第 2-99 列。「2-」代表第二列到底。</p>
+                                    <strong>指定列數說明：</strong>支援多段，例如「2-5, 8-10, 13, 15-」。「2-」代表第二列到底。</p>
                                 </div>
                                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
                                     <div style="display:flex; flex-direction:column; gap:0.25rem;"><label style="font-size:0.85rem; font-weight:600;">原文欄位 (例如: A-B)</label><input type="text" id="configSourceCol" value="B" style="padding:0.6rem; border:1px solid #cbd5e1; border-radius:4px;"></div>
@@ -1681,6 +1690,23 @@
                                     <button id="btnWizFinish" class="success-btn">匯入檔案</button>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                    <div class="wizard-step hidden" id="wizardStep3">
+                        <div style="background:#eff6ff; padding:1rem; border-radius:8px; font-size:0.85rem; color:#1d4ed8; margin-bottom:1.25rem;">
+                            <p style="margin:0;"><strong>欄位格式說明：</strong>支援單欄「A」、逗號「A, C」、範圍「A-C」、混合「A, C-E, G」。原文與譯文欄數必須相等。<br>
+                            <strong>列數說明：</strong>支援多段，例如「2-5, 8-10, 15-」。「2-」代表第二列到底。</p>
+                        </div>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                            <div style="display:flex; flex-direction:column; gap:0.25rem;"><label style="font-size:0.85rem; font-weight:600;">原文欄位（例如：A）</label><input type="text" id="gsConfigSourceCol" value="A" style="padding:0.6rem; border:1px solid #cbd5e1; border-radius:4px;"></div>
+                            <div style="display:flex; flex-direction:column; gap:0.25rem;"><label style="font-size:0.85rem; font-weight:600;">譯文欄位（例如：B）</label><input type="text" id="gsConfigTargetCol" value="B" style="padding:0.6rem; border:1px solid #cbd5e1; border-radius:4px;"></div>
+                            <div style="display:flex; flex-direction:column; gap:0.25rem;"><label style="font-size:0.85rem; font-weight:600;">String Key 欄位（可留空）</label><input type="text" id="gsConfigIdCol" style="padding:0.6rem; border:1px solid #cbd5e1; border-radius:4px;"></div>
+                            <div style="display:flex; flex-direction:column; gap:0.25rem;"><label style="font-size:0.85rem; font-weight:600;">額外資訊欄位（可留空）</label><input type="text" id="gsConfigExtraCol" style="padding:0.6rem; border:1px solid #cbd5e1; border-radius:4px;"></div>
+                            <div style="grid-column:1/-1; display:flex; flex-direction:column; gap:0.25rem;"><label style="font-size:0.85rem; font-weight:600;">指定列數</label><input type="text" id="gsConfigRows" placeholder="例如：2-" value="2-" style="padding:0.6rem; border:1px solid #cbd5e1; border-radius:4px;"></div>
+                        </div>
+                        <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem;">
+                            <button id="btnGsWizBack" class="secondary-btn">取消</button>
+                            <button id="btnGsWizFinish" class="success-btn">匯入檔案</button>
                         </div>
                     </div>
                 </div>
