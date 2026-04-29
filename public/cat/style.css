@@ -2226,21 +2226,41 @@ mark.tm-search-hit {
    AI 輔助翻譯功能樣式
    ============================================================ */
 
-/* AI 輔助按鈕（工具列） */
+/* AI 輔助按鈕（工具列） — 紫色 */
 .ai-mode-btn {
-    background: #f0fdf4;
-    color: #15803d;
-    border: 1.5px solid #86efac;
+    background: #faf5ff;
+    color: #7c3aed;
+    border: 1.5px solid #c4b5fd;
     font-weight: 500;
     transition: all 0.15s;
 }
-.ai-mode-btn:hover { background: #dcfce7; border-color: #4ade80; }
+.ai-mode-btn:hover { background: #ede9fe; border-color: #a78bfa; }
 .ai-mode-btn.active {
-    background: #15803d;
+    background: #7c3aed;
     color: #fff;
-    border-color: #15803d;
-    box-shadow: 0 0 0 2px #86efac;
+    border-color: #7c3aed;
+    box-shadow: 0 0 0 2px #c4b5fd;
 }
+
+/* 匯出檔案按鈕 — 咖啡色 */
+.export-btn {
+    background: #92400e;
+    color: #fff;
+    border: none;
+    font-weight: 500;
+    transition: background 0.15s;
+}
+.export-btn:hover { background: #78350f; }
+
+/* 原檔連結按鈕 — 黑底白字 */
+.gs-source-link-btn {
+    background: #1e293b;
+    color: #fff;
+    border: none;
+    font-weight: 500;
+    transition: background 0.15s;
+}
+.gs-source-link-btn:hover { background: #334155; }
 
 /* AI Mode Bar（編輯器工具列下方） */
 .ai-mode-bar {
