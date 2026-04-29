@@ -7796,6 +7796,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (el) el.style.display = 'none';
     }
 
+    function getEditorContextForInternalNote() {
+        let seg = null;
+        const activeEditor = getActiveTargetEditor();
+        if (activeEditor) {
+            const segId = getEditorSegId(activeEditor);
+            seg = getSegmentById(segId);
+        }
+        if (!seg && catSavedCaret && catSavedCaret.segId != null) {
+            seg = getSegmentById(catSavedCaret.segId);
+        }
+        if (!seg) {
+            const row = document.querySelector('.grid-data-row.active-row');
+            const segId = row ? row.getAttribute('data-seg-id') : null;
+            if (segId != null) seg = getSegmentById(segId);
+        }
+        if (!seg) return { idRowCount: '', sourceText: '', translatedText: '' };
+
+        let idRowCount = '';
+        if (Array.isArray(seg.keys) && seg.keys.length > 0) {
+            idRowCount = String(seg.keys.find((k) => String(k || '').trim()) || '').trim();
+        }
+        if (!idRowCount) {
+            const idVal = String(seg.idValue || '').trim();
+            if (idVal) idRowCount = idVal.split('\n').map((x) => String(x || '').trim()).find(Boolean) || '';
+        }
+        if (!idRowCount) {
+            if (seg.globalId != null) idRowCount = String(seg.globalId);
+            else if (seg.rowIdx != null) idRowCount = String(Number(seg.rowIdx) + 1);
+        }
+        return {
+            idRowCount,
+            sourceText: String(seg.sourceText || ''),
+            translatedText: String(seg.targetText || ''),
+        };
+    }
+
     function updateEditorQuestionButtons(file, project) {
         if (btnClientQuestionForm) {
             const url = String(project?.clientQuestionFormUrl || '').trim();
@@ -7814,6 +7850,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (caseId || caseTitle) {
                 btnInternalNote.style.display = '';
                 btnInternalNote.onclick = () => {
+                    const context = getEditorContextForInternalNote();
                     window.parent.postMessage({
                         type: 'CAT_OPEN_INTERNAL_NOTE',
                         payload: {
@@ -7822,6 +7859,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                             fileId: file?.id || null,
                             fileName: file?.name || '',
                             projectId: project?.id || null,
+                            idRowCount: context.idRowCount || '',
+                            sourceText: context.sourceText || '',
+                            translatedText: context.translatedText || '',
                         }
                     }, window.location.origin);
                 };

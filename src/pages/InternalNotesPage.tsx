@@ -617,6 +617,30 @@ export default function InternalNotesPage() {
     noteBurstRef.current = {};
   }, [selectedNote?.id]);
 
+  useEffect(() => {
+    if (!selectedNote) return;
+    if (searchParams.get("focusField") !== "questionOrNote") return;
+    const timer = window.setTimeout(() => {
+      const root = document.querySelector(".rich-text-editor");
+      const editable = root?.querySelector('[contenteditable="true"]') as HTMLElement | null;
+      editable?.focus();
+      if (editable) {
+        const sel = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(editable);
+        range.collapse(false);
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("focusField");
+        return next;
+      }, { replace: true });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [selectedNote?.id, searchParams, setSearchParams]);
+
   const handleNoteUpdate = useCallback(
     (updates: Partial<InternalNote>) => {
       const nid = routeNoteId;

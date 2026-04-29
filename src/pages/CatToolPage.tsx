@@ -5,6 +5,16 @@ import { handleCatCloudRpc } from "@/lib/cat-cloud-rpc";
 import { getEnvironment } from "@/lib/environment";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
+function buildInternalNoteTitleBase(caseTitle: string): string {
+  const raw = String(caseTitle || "").trim();
+  if (!raw) return "未命名案件";
+  const baseId = raw
+    .replace(/[_\-]?\d{6,8}$/g, "")
+    .replace(/[_\-]?\d{4}[\-\/]?\d{2}[\-\/]?\d{2}$/, "")
+    .trim();
+  return baseId || raw;
+}
+
 /**
  * Embeds the vanilla CAT app from /cat/index.html (see cat-tool/ → public/cat via npm run sync:cat).
  *
@@ -474,34 +484,29 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         const fallbackCaseTitle = String(p.caseTitle || "");
         const env = getEnvironment();
         let caseTitle = fallbackCaseTitle;
-        let keyword = "";
         if (caseId) {
           const { data: caseRow } = await supabase
             .from("cases")
-            .select("title,keyword")
+            .select("title")
             .eq("id", caseId)
             .eq("env", env)
             .maybeSingle();
           caseTitle = (caseRow as any)?.title || caseTitle;
-          keyword = (caseRow as any)?.keyword || "";
         }
-        const prefixRaw = String(keyword || caseTitle || "NOTE").trim();
-        const prefix = prefixRaw
-          .replace(/\s+/g, "-")
-          .replace(/[^A-Za-z0-9\u4e00-\u9fa5_-]/g, "")
-          .slice(0, 24) || "NOTE";
+        const baseId = buildInternalNoteTitleBase(caseTitle);
+        const prefix = `${baseId}_Note_`;
         const { data: titleRows } = await supabase
           .from("internal_notes")
           .select("title")
           .eq("env", env)
-          .ilike("title", `${prefix}-%`)
-          .limit(200);
+          .ilike("title", `${prefix}%`)
+          .limit(2000);
         const maxSeq = (titleRows ?? []).reduce((acc, row: any) => {
-          const m = String(row?.title || "").match(new RegExp(`^${prefix}-(\\d+)$`));
+          const m = String(row?.title || "").match(new RegExp(`^${prefix}(\\d+)$`));
           if (!m) return acc;
           return Math.max(acc, Number(m[1]) || 0);
         }, 0);
-        const title = `${prefix}-${String(maxSeq + 1).padStart(3, "0")}`;
+        const title = `${prefix}${String(maxSeq + 1).padStart(5, "0")}`;
         const creator = profile?.display_name?.trim() || user?.email || "Unknown User";
         const { data: inserted } = await supabase
           .from("internal_notes")
@@ -512,6 +517,9 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
             status: "open",
             note_type: "question",
             file_name: String(p.fileName || ""),
+            id_row_count: String(p.idRowCount || ""),
+            source_text: String(p.sourceText || ""),
+            translated_text: String(p.translatedText || ""),
             env,
             created_by: user?.id ?? null,
             updated_at: new Date().toISOString(),
@@ -519,7 +527,7 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
           .select("id")
           .single();
         if (inserted?.id) {
-          window.open(`/internal-notes/${inserted.id}`, "_blank", "noopener,noreferrer");
+          window.open(`/internal-notes/${inserted.id}?focusField=questionOrNote`, "_blank", "noopener,noreferrer");
         } else {
           window.open("/internal-notes", "_blank", "noopener,noreferrer");
         }
