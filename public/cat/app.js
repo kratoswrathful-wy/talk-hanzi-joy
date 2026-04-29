@@ -2023,8 +2023,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function closeFileAssignModal() {
         if (fileAssignModal) fileAssignModal.classList.add('hidden');
-        currentAssignFileId = null;
-        currentAssignFileName = '';
+        currentAssignFileIds = [];
+        currentAssignFileNames = [];
     }
 
     async function requestFileAssignments(fileId) {
@@ -2068,19 +2068,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    async function openFileAssignModal(fileId, fileName) {
+    async function openFileAssignModal(fileIds, fileNames = []) {
         if (!fileAssignModal || !fileAssignMembersList) return;
         if (!window._tmsCanAssign) {
             alert('目前身分不可指派檔案。');
             return;
         }
-        currentAssignFileId = fileId;
-        currentAssignFileName = fileName || '';
+        currentAssignFileIds = (Array.isArray(fileIds) ? fileIds : [fileIds]).filter(Boolean);
+        currentAssignFileNames = (Array.isArray(fileNames) ? fileNames : [fileNames]).filter(Boolean);
+        if (!currentAssignFileIds.length) return;
         if (fileAssignModalTitle) {
-            fileAssignModalTitle.textContent = `指派檔案：${currentAssignFileName || fileId}`;
+            if (currentAssignFileIds.length === 1) {
+                fileAssignModalTitle.textContent = `指派檔案：${currentAssignFileNames[0] || currentAssignFileIds[0]}`;
+            } else {
+                fileAssignModalTitle.textContent = `批次指派檔案（${currentAssignFileIds.length} 筆）`;
+            }
         }
-        const existing = await requestFileAssignments(fileId);
-        const selectedSet = new Set(existing.map(a => String(a.assignee_user_id)));
+        const existingByFile = await Promise.all(currentAssignFileIds.map((id) => requestFileAssignments(id)));
+        let selectedSet = new Set();
+        if (existingByFile.length > 0) {
+            const first = existingByFile[0] || [];
+            selectedSet = new Set(first.map(a => String(a.assignee_user_id)));
+            for (let i = 1; i < existingByFile.length; i++) {
+                const ids = new Set((existingByFile[i] || []).map(a => String(a.assignee_user_id)));
+                selectedSet = new Set(Array.from(selectedSet).filter((uid) => ids.has(uid)));
+            }
+        }
         const members = window._tmsAssignableUsers || [];
         if (!members.length) {
             fileAssignMembersList.innerHTML = '<div style="color:#64748b; font-size:0.9rem;">尚無可指派人員。</div>';
@@ -2109,29 +2122,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (btnSaveFileAssign) {
         btnSaveFileAssign.addEventListener('click', async () => {
-            if (!currentAssignFileId || !fileAssignMembersList) return;
+            if (!currentAssignFileIds.length || !fileAssignMembersList) return;
             const selectedUserIds = Array.from(fileAssignMembersList.querySelectorAll('.file-assign-user-cb:checked')).map(cb => cb.value);
-            const existing = await requestFileAssignments(currentAssignFileId);
-            const existingIds = new Set(existing.map(a => String(a.assignee_user_id)));
             const selectedIds = new Set(selectedUserIds.map(x => String(x)));
-
-            // add/update selected
-            if (selectedUserIds.length > 0) {
-                window.parent.postMessage({
-                    type: 'CAT_ASSIGN_FILE',
-                    payload: { fileId: currentAssignFileId, assigneeUserIds: selectedUserIds }
-                }, window.location.origin);
-            }
-            // remove deselected
-            existing.forEach(a => {
-                const uid = String(a.assignee_user_id);
-                if (!selectedIds.has(uid)) {
+            for (const fileId of currentAssignFileIds) {
+                const existing = await requestFileAssignments(fileId);
+                // add/update selected
+                if (selectedUserIds.length > 0) {
                     window.parent.postMessage({
-                        type: 'CAT_UNASSIGN_FILE',
-                        payload: { fileId: currentAssignFileId, assigneeUserId: uid }
+                        type: 'CAT_ASSIGN_FILE',
+                        payload: { fileId, assigneeUserIds: selectedUserIds }
                     }, window.location.origin);
                 }
-            });
+                // remove deselected
+                existing.forEach(a => {
+                    const uid = String(a.assignee_user_id);
+                    if (!selectedIds.has(uid)) {
+                        window.parent.postMessage({
+                            type: 'CAT_UNASSIGN_FILE',
+                            payload: { fileId, assigneeUserId: uid }
+                        }, window.location.origin);
+                    }
+                });
+            }
             closeFileAssignModal();
             await loadFilesList();
         });
@@ -2455,8 +2468,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let workspaceNoteDraftTimer = null;
     let workspaceNoteRenameTargetId = null;
     let namingActionContext = null;
-    let currentAssignFileId = null;
-    let currentAssignFileName = '';
+    let currentAssignFileIds = [];
+    let currentAssignFileNames = [];
     let casePickerTargetFileIds = [];
     let casePickerSelectedCase = null;
     let casePickerMode = 'set'; // 'set' | 'remove'
@@ -4008,16 +4021,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (btnProjectToolbarAssign) {
         btnProjectToolbarAssign.addEventListener('click', async () => {
             const cbs = Array.from(filesListBody ? filesListBody.querySelectorAll('.project-file-row-cb:checked') : []);
-            if (cbs.length !== 1) {
-                alert('請僅勾選一個檔案以進行指派。');
+            if (cbs.length === 0) {
+                alert('請先勾選要指派的檔案。');
                 return;
             }
-            const id = cbs[0].getAttribute('data-id');
-            const tr = cbs[0].closest('tr');
-            const nameLink = tr && tr.querySelector('.edit-file-btn');
-            const name = nameLink ? nameLink.textContent : '';
-            if (!id) return;
-            await openFileAssignModal(id, name);
+            const ids = [];
+            const names = [];
+            cbs.forEach((cb) => {
+                const id = cb.getAttribute('data-id');
+                if (!id) return;
+                ids.push(id);
+                const tr = cb.closest('tr');
+                const nameLink = tr && tr.querySelector('.edit-file-btn');
+                const name = nameLink ? nameLink.textContent : '';
+                names.push(name || id);
+            });
+            if (!ids.length) return;
+            await openFileAssignModal(ids, names);
         });
     }
     if (btnProjectToolbarDelete) {
