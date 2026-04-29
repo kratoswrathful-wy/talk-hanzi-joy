@@ -43,9 +43,16 @@
 | 編輯器工具列（客戶表單 / 內部註記按鈕顯示） | `cat-tool/index.html`：`#viewEditor`、`.editor-toolbar` |
 | 編輯器底部資訊列（進度條與「使用者」標籤） | `cat-tool/index.html`：`.editor-status-bar` |
 | 使用者標籤渲染與顯隱 | `cat-tool/app.js`：`collabPresenceBar` 相關邏輯 |
-| 按鈕條件顯示主邏輯 | `cat-tool/app.js`（依專案 URL、檔案綁案狀態判斷） |
+| 提問表單 / 內部註記按鈕條件顯示主邏輯 | `cat-tool/app.js`（依專案 URL、檔案 `LMS 案件` 綁定狀態判斷） |
+| 專案外部連結儲存後 inline 顯示與可點擊 | `cat-tool/app.js`（專案設定渲染與保存流程） |
+| 檔案批次連結案件、批次指派 | `cat-tool/app.js`（檔案清單勾選批次操作） |
+| iframe 與主站通訊橋接（開啟內部註記 / 帶入預填） | `src/pages/CatToolPage.tsx`（`postMessage` bridge） |
+| 由編輯器建立註記的預填與命名規則收斂 | `src/pages/InternalNotesPage.tsx`、`src/pages/CatToolPage.tsx` |
 | 既有內部註記建立入口（對照 `relatedCase` 語意） | `src/pages/CaseDetailPage.tsx`：`handleCreateInternalNote` |
 | 內部註記 `relatedCase` 映射 | `src/stores/internal-notes-store.ts`：`relatedCase` ↔ `related_case` |
+| 案件狀態驅動 CAT 指派同步（`詢案中 -> 已派出`） | `src/stores/case-store.ts`（狀態轉換偵測與同步） |
+| CAT 資料表（提問/綁案/指派） | `cat_projects`、`cat_files`、`cat_file_assignments` |
+| 內部註記資料表 | `internal_notes` |
 
 > 實作注意：僅「客戶表單」「內部註記」屬條件式按鈕；`AI 輔助` 必須維持原顯示規則，不可連帶隱藏。
 
