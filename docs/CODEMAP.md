@@ -19,6 +19,16 @@
 | 捷徑說明 | 根目錄 `AGENTS.md`、`.cursor/rules/cat-tool-source.mdc` |
 | 準則／專案準則／團隊版雲端 AI 變更與部署 | [CAT_AI_GUIDELINES_AND_PROJECT_RULES.md](./CAT_AI_GUIDELINES_AND_PROJECT_RULES.md) |
 
+### CAT：防殘影、深連結載入、詳情頁 key
+
+| 項目 | 位置 |
+|------|------|
+| fetch 前清空／切 view（專案／TM／TB／編輯器） | `cat-tool/app.js`：`beginOpenProjectDetailLoading`、`beginOpenTmDetailLoading`、`beginOpenTbDetailLoading`、`beginEditorViewLoadingShell` |
+| 深連結首屏主區「載入中」 | `cat-tool/index.html`：`#catMainRouteLoading`；頁尾 inline script 與 `restoreCatRouteFromSession` 之 `finally`（`hideCatMainRouteLoadingEl`） |
+| 樣式（主區載入 vs 全螢幕 overlay） | `cat-tool/style.css`：`.cat-main-route-loading` |
+| TMS 詳情頁 **`key={id}`** | `src/App.tsx`：`CaseDetailPageWrapper`、`InvoiceDetailPageWrapper`、`ClientInvoiceDetailPageWrapper`、`PageTemplateEditorPageWrapper`、`InternalNotesPageWrapper` |
+| 父頁／iframe 網址不同步（待評估） | `src/pages/CatToolPage.tsx`（見 `HANDOFF.md`「已知後續風險」） |
+
 ### CAT：線上 TB 分頁（online tabs）關鍵對照
 
 | 項目 | 位置 |

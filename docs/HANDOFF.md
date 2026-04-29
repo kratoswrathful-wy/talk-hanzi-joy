@@ -58,6 +58,29 @@
 - 線上 TB 分頁功能主要落在 [`cat-tool/app.js`](../cat-tool/app.js) 與 [`cat-tool/index.html`](../cat-tool/index.html)；修改後務必執行 `npm run sync:cat` 同步到 `public/cat` 並一併提交。
 - 雲端團隊版欄位映射在 [`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)；若新增/調整 `onlineTabs` 欄位鍵名，需同步更新讀寫映射。
 
+## CAT：防殘影、深連結載入、TMS 詳情頁 key（已落地）
+
+### Vanilla CAT（[`cat-tool/`](../cat-tool/)）
+
+- **問題**：在同一個 `view-section` 內切換不同 id（專案／TM／TB／檔案）時，若先 `await` DB 再切 view／填 DOM，使用者會短暫看到上一筆 DOM。
+- **作法（fetch 前先換殼）**：[`cat-tool/app.js`](../cat-tool/app.js) 集中使用 helper，於 **await 前**清空標題與列表區、必要時先 `switchView`：  
+  `beginOpenProjectDetailLoading`、`beginOpenTmDetailLoading`、`beginOpenTbDetailLoading`、`beginEditorViewLoadingShell`（編輯器會清空 `#gridBody`、標題改為「載入中…」、切入 `viewEditor` 並收合側欄）。
+- **深連結首屏**：[`cat-tool/index.html`](../cat-tool/index.html) 於 `<main>` 內 **`#catMainRouteLoading`**（預設使用 `.hidden`）；頁尾深連結 inline script 在 **`catView` 存在且非 `viewDashboard`** 時，除隱藏所有 `.view-section` 外**顯示**該區，避免主區全白。[`restoreCatRouteFromSession`](../cat-tool/app.js) 的 **`finally`** 呼叫 **`hideCatMainRouteLoadingEl()`**，避免還原後仍遮住內容。樣式見 [`cat-tool/style.css`](../cat-tool/style.css)（`.cat-main-route-loading`，刻意低於全螢幕 `#catLoadingOverlay` 的 z-index）。
+- **TB 詳情取不到 TB**：`openTbDetail` 失敗時回到 **`viewTB`**（避免卡在空白詳情頁）。
+- **編輯器**：檔案不存在或 mqxliff **取消身分**時會將 **`currentFileId` 清空**並回到儀表板或專案詳情，避免停在空白編輯 view。
+
+### TMS React（[`src/App.tsx`](../src/App.tsx)）
+
+- **問題**：詳情頁只改網址 **`id`** 時，若不強制重掛，可能短暫顯示上一筆資料。
+- **作法**：比照既有 **`TranslatorFeeDetailWrapper`**，對案件／請款／客戶請款／頁面範本編輯／內部註記包一層 **`CaseDetailPageWrapper`** 等，`**key={id}`**；內部註記列表與單筆並存路由使用 **`key={noteId ?? '__list'}`**，讓 **`noteId` 有無切換**時也會重置。
+
+### 已知後續風險（尚未實作）：嵌入 CAT 與父頁網址不同步
+
+此項與「同一 CAT view 內換 id」**不同維度**：CAT 內已處理深連結與 session restore，但若 **TMS 父頁** React 路由或 query 已變（例如 `/cat/offline?catView=…`），而 **iframe 未重新載入或未取得新 URL**，使用者仍可能看到 **iframe 內舊畫面**。
+
+- **評估與修改入口**：[`src/pages/CatToolPage.tsx`](../src/pages/CatToolPage.tsx)（既有 `postMessage`、與 iframe 內 `CAT_NAVIGATE` 等契約）。
+- **可能方向（擇一或並用）**：父頁監聽 **`location.pathname`／`search`** 變更時更新 iframe **`src`**（強制載入新 URL）；或對 iframe **`postMessage`** 請內部執行等同 **`restoreCatRouteFromSession`** 的邏輯。須避免與現有雙向同步互相造成 **無限 reload** 或訊息風暴，改動前建議先梳理 **誰是路由真相來源**（父頁 URL vs iframe `sessionStorage`）。
+
 ## CAT：提問整合（客戶表單 / LMS 案件綁定）維運硬規則
 
 ### 條件式按鈕與不可受影響按鈕
