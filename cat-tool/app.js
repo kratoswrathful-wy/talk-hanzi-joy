@@ -2464,6 +2464,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let colSettings = [];
 
     let activeView = 'viewDashboard';
+    /** 在 restoreCatRouteFromSession 完成前，不把「儀表板」同步到父頁，避免深連結被 TMS 訊息（如 enforceTeamRoleLayout）洗掉 */
+    let catTmsParentRouteSyncReady = false;
     let currentProjectId = null;
     let workspaceNoteDraftTimer = null;
     let workspaceNoteRenameTargetId = null;
@@ -2661,9 +2663,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 payload = { view: activeView || 'viewDashboard' };
             }
             sessionStorage.setItem(getSessionRouteStorageKey(), JSON.stringify(payload));
-            try {
-                window.parent.postMessage({ type: 'CAT_NAVIGATE', payload }, window.location.origin);
-            } catch (_) { /* ignore */ }
+            const postToParent = catTmsParentRouteSyncReady || payload.view !== 'viewDashboard';
+            if (postToParent) {
+                try {
+                    window.parent.postMessage({ type: 'CAT_NAVIGATE', payload }, window.location.origin);
+                } catch (_) { /* ignore */ }
+            }
         } catch (_) { /* ignore */ }
     }
 
@@ -16358,6 +16363,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         } catch (e) {
             console.warn('[cat] restore route failed', e);
+        } finally {
+            catTmsParentRouteSyncReady = true;
         }
     }
 
