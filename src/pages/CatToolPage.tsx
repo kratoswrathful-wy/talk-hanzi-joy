@@ -68,6 +68,21 @@ function parseCatViewParams(pathname: string, search: string, mode: "offline" | 
     return params.toString();
   }
 
+  if (parts[0] === "ai-guidelines") {
+    params.set("catView", "viewAiGuidelines");
+    return params.toString();
+  }
+
+  if (parts[0] === "ai-settings") {
+    params.set("catView", "viewAiSettings");
+    return params.toString();
+  }
+
+  if (parts[0] === "ai-examples") {
+    params.set("catView", "viewAiExamples");
+    return params.toString();
+  }
+
   return fallback.toString();
 }
 
@@ -90,6 +105,9 @@ function buildCatPath(mode: "offline" | "team", payload: Record<string, any>): s
   if (view === "viewTmDetail") return tmId ? `${base}/tm/${encodeURIComponent(tmId)}` : `${base}/tm`;
   if (view === "viewTB") return `${base}/tb`;
   if (view === "viewTbDetail") return tbId ? `${base}/tb/${encodeURIComponent(tbId)}` : `${base}/tb`;
+  if (view === "viewAiGuidelines") return `${base}/ai-guidelines`;
+  if (view === "viewAiSettings") return `${base}/ai-settings`;
+  if (view === "viewAiExamples") return `${base}/ai-examples`;
   return base;
 }
 

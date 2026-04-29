@@ -16297,7 +16297,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             if (!data || typeof data !== 'object') return;
             const view = data.view;
-            const ALLOW = new Set(['viewDashboard', 'viewProjects', 'viewProjectDetail', 'viewTM', 'viewTB', 'viewTmDetail', 'viewTbDetail', 'viewEditor']);
+            const ALLOW = new Set(['viewDashboard', 'viewProjects', 'viewProjectDetail', 'viewTM', 'viewTB', 'viewTmDetail', 'viewTbDetail', 'viewEditor', 'viewAiGuidelines', 'viewAiSettings', 'viewAiExamples']);
             if (!view || !ALLOW.has(view)) return;
 
             if (view === 'viewDashboard') {
@@ -16318,6 +16318,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (view === 'viewTB') {
                 switchView('viewTB');
                 await loadTBList();
+                return;
+            }
+            if (view === 'viewAiGuidelines') {
+                switchView('viewAiGuidelines');
+                return;
+            }
+            if (view === 'viewAiSettings') {
+                switchView('viewAiSettings');
+                return;
+            }
+            if (view === 'viewAiExamples') {
+                switchView('viewAiExamples');
                 return;
             }
             if (view === 'viewProjectDetail' && data.projectId != null && data.projectId !== '') {
