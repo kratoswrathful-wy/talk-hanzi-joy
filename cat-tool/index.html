@@ -481,6 +481,17 @@
                     <button class="secondary-btn btn-sm" id="btnTbImportOnline">擷取線上表單</button>
                 </div>
                 <div id="tbOnlineUrlCaption" class="hidden" style="color:#000; font-size:0.88rem; margin:-0.35rem 0 0.85rem 0; word-break:break-all;"></div>
+                <!-- 線上來源分頁管理區塊（線上 TB 時顯示） -->
+                <div id="tbOnlineTabsSection" class="hidden" style="margin:-0.2rem 0 1rem 0; border:1px solid #e2e8f0; border-radius:10px; background:#f8fafc; padding:0.85rem 1rem;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.6rem;">
+                        <span style="font-size:0.9rem; font-weight:600; color:#334155; display:flex; align-items:center; gap:0.4rem;">
+                            <span style="font-size:1rem;">☰</span> 線上來源分頁
+                            <span style="background:#3b82f6; color:#fff; font-size:0.7rem; font-weight:700; border-radius:9999px; padding:0.1rem 0.45rem;">新</span>
+                        </span>
+                        <button class="primary-btn btn-sm" id="btnTbAddTab">+ 新增分頁</button>
+                    </div>
+                    <div id="tbOnlineTabsList" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+                </div>
                 <div style="margin-bottom:1rem;">
                     <label for="tbTermSearchInput" style="font-size:0.9rem; color:#64748b; margin-right:0.5rem;">搜尋術語（原文／譯文／備註）</label>
                     <input type="text" id="tbTermSearchInput" placeholder="輸入關鍵字篩選…" style="padding:0.4rem 0.6rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.9rem; min-width:220px;">
@@ -498,6 +509,7 @@
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">原文</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">譯文</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">備註</th>
+                                <th id="tbTermSourceHeader" style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:90px; display:none;">來源</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:110px;">比對屬性</th>
                                 <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:80px;">操作</th>
                             </tr>
@@ -1720,6 +1732,85 @@
                     <button type="button" class="secondary-btn" id="btnCancelTbExcelImport">取消</button>
                     <button type="button" class="secondary-btn" id="btnPreviewTbExcelMapping">預覽映射</button>
                     <button type="button" class="primary-btn" id="btnConfirmTbExcelImport">開始匯入</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TB 線上來源分頁 Modal（新增 / 更新共用） -->
+        <div class="wizard-overlay hidden" id="tbTabModal">
+            <div class="wizard-modal" style="max-width:580px;">
+                <div class="wizard-header">
+                    <h3 id="tbTabModalTitle" style="margin:0; font-size:1.2rem;">新增線上來源分頁</h3>
+                    <button class="close-btn" id="btnCloseTbTabModal">×</button>
+                </div>
+                <!-- 表單區 -->
+                <div id="tbTabModalForm">
+                    <div class="wizard-body" style="display:flex; flex-direction:column; gap:0.75rem; max-height:min(70vh, 500px); overflow-y:auto;">
+                        <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                            <label for="tbTabName" style="font-size:0.9rem; font-weight:600;">分頁名稱 <span style="color:#b91c1c;">*</span></label>
+                            <input type="text" id="tbTabName" placeholder="例如：主詞彙、UI 元件名稱" autocomplete="off" style="padding:0.4rem 0.5rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.9rem;">
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:0.35rem;">
+                            <label for="tbTabUrl" style="font-size:0.9rem; font-weight:600;">Google 試算表連結 <span style="color:#b91c1c;">*</span></label>
+                            <input type="url" id="tbTabUrl" placeholder="https://docs.google.com/spreadsheets/d/…" autocomplete="off" style="padding:0.4rem 0.5rem; border:1px solid #cbd5e1; border-radius:6px; font-size:0.88rem;">
+                            <p style="margin:0; font-size:0.78rem; color:#64748b;">須可匿名讀取 CSV（知道連結者可檢視／已發佈）。多工作表請用含不同 gid 的連結。</p>
+                        </div>
+                        <div style="display:grid; grid-template-columns:150px minmax(0,1fr); row-gap:0.4rem; column-gap:0.75rem; align-items:center;">
+                            <label style="font-size:0.9rem; text-align:right;">原文欄 (必填) <span style="color:#b91c1c;">*</span></label>
+                            <input type="text" id="tbTabSourceCol" placeholder="例如: A" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
+
+                            <label style="font-size:0.9rem; text-align:right;">譯文欄 (必填) <span style="color:#b91c1c;">*</span></label>
+                            <input type="text" id="tbTabTargetCol" placeholder="例如: B" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
+
+                            <label style="font-size:0.9rem; text-align:right;">備註欄 (可多欄)</label>
+                            <input type="text" id="tbTabNoteCols" placeholder="例如: C-E, G" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
+
+                            <label style="font-size:0.9rem; text-align:right;">匯入列數</label>
+                            <input type="text" id="tbTabRowsRange" placeholder="例如: 2- 或 2-99" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
+
+                            <label style="font-size:0.9rem; text-align:right;">區分大小寫欄</label>
+                            <input type="text" id="tbTabMatchCaseCol" placeholder="例如: D（是/否）" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
+
+                            <label style="font-size:0.9rem; text-align:right;">精確比對欄</label>
+                            <input type="text" id="tbTabMatchExactCol" placeholder="例如: E（是/否）" style="padding:0.35rem 0.4rem; border:1px solid #cbd5e1; border-radius:4px; width:100%; box-sizing:border-box;">
+                        </div>
+                        <div id="tbTabLastFetchedNote" class="hidden" style="font-size:0.8rem; color:#64748b; background:#f1f5f9; border-radius:6px; padding:0.4rem 0.6rem;"></div>
+                        <div id="tbTabFormError" style="font-size:0.82rem; color:#b91c1c; min-height:1.1em;"></div>
+                    </div>
+                    <div class="panel-footer" style="padding:0.9rem 1.5rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; background:#f8fafc;">
+                        <button type="button" class="secondary-btn" id="btnCancelTbTabModal">取消</button>
+                        <button type="button" class="primary-btn" id="btnConfirmTbTab">確認並擷取</button>
+                    </div>
+                </div>
+                <!-- 進度區 -->
+                <div id="tbTabModalProgress" class="hidden">
+                    <div class="wizard-body" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1rem; min-height:160px;">
+                        <div style="width:36px; height:36px; border:4px solid #e2e8f0; border-top-color:#3b82f6; border-radius:50%; animation:spin 0.8s linear infinite;"></div>
+                        <p style="margin:0; color:#334155; font-size:0.95rem;">正在從 Google 試算表擷取資料⋯</p>
+                    </div>
+                </div>
+                <!-- 結果區 -->
+                <div id="tbTabModalResult" class="hidden">
+                    <div class="wizard-body" style="display:flex; flex-direction:column; gap:0.75rem; min-height:120px;">
+                        <div id="tbTabResultSuccess" class="hidden" style="display:flex; flex-direction:column; gap:0.5rem;">
+                            <div style="display:flex; align-items:center; gap:0.5rem;">
+                                <span style="font-size:1.4rem; color:#16a34a;">✓</span>
+                                <span id="tbTabResultSuccessMsg" style="font-size:0.95rem; color:#15803d; font-weight:600;"></span>
+                            </div>
+                        </div>
+                        <div id="tbTabResultFailure" class="hidden" style="display:flex; flex-direction:column; gap:0.5rem;">
+                            <div style="display:flex; align-items:center; gap:0.5rem;">
+                                <span style="font-size:1.4rem; color:#dc2626;">✗</span>
+                                <span style="font-size:0.95rem; color:#b91c1c; font-weight:600;">擷取失敗</span>
+                            </div>
+                            <div id="tbTabResultErrorMsg" style="font-size:0.85rem; color:#7f1d1d; background:#fef2f2; border-radius:6px; padding:0.5rem 0.7rem; word-break:break-all;"></div>
+                            <p style="margin:0; font-size:0.82rem; color:#64748b;">術語庫內容不受影響，舊有術語已保留。</p>
+                        </div>
+                    </div>
+                    <div class="panel-footer" style="padding:0.9rem 1.5rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; background:#f8fafc;">
+                        <button type="button" class="secondary-btn hidden" id="btnTbTabRetry">修改設定</button>
+                        <button type="button" class="secondary-btn" id="btnCloseTbTabResult">關閉</button>
+                    </div>
                 </div>
             </div>
         </div>

@@ -832,6 +832,7 @@ const DBService = {
             sourceTypeLocked: false,
             googleSheetUrl: '',
             onlineImportConfig: {},
+            onlineTabs: [],
             createdAt: new Date().toISOString(),
             lastModified: new Date().toISOString()
         });

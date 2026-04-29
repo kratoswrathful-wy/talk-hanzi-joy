@@ -180,6 +180,7 @@ const mapTbRow = (r: any) => ({
   sourceTypeLocked: !!r.source_type_locked,
   googleSheetUrl: r.google_sheet_url ?? "",
   onlineImportConfig: r.online_import_config && typeof r.online_import_config === "object" ? r.online_import_config : {},
+  onlineTabs: Array.isArray(r.online_tabs) ? r.online_tabs : [],
   env: r.env ?? "production",
   createdAt: r.created_at,
   lastModified: r.last_modified,
@@ -1012,6 +1013,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         ...(payload.updates?.onlineImportConfig != null
           ? { online_import_config: payload.updates.onlineImportConfig }
           : {}),
+        ...(payload.updates?.onlineTabs != null ? { online_tabs: payload.updates.onlineTabs } : {}),
         last_modified: nowIso(),
       } as any).eq("id", payload.tbId);
     case "db.patchTB":
@@ -1030,6 +1032,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         ...(payload.updates?.onlineImportConfig != null
           ? { online_import_config: payload.updates.onlineImportConfig }
           : {}),
+        ...(payload.updates?.onlineTabs != null ? { online_tabs: payload.updates.onlineTabs } : {}),
         last_modified: nowIso(),
       } as any).eq("id", payload.tbId);
     case "db.deleteTB":

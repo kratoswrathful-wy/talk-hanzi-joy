@@ -4177,18 +4177,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         const btnExportTbEl = document.getElementById('btnExportTb');
         if (btnExportTbEl) btnExportTbEl.style.display = isOnline ? 'none' : '';
         if (btnTbDeleteSelected) btnTbDeleteSelected.style.display = isOnline ? 'none' : '';
-        if (btnTbImportOnline) {
-            btnTbImportOnline.style.display = isOnline ? '' : 'none';
-            btnTbImportOnline.textContent = (tb.googleSheetUrl ? '更新（再擷取）' : '擷取線上表單');
-        }
+        // 線上 TB 改由分頁管理區塊操作，隱藏舊的「擷取線上表單」按鈕
+        if (btnTbImportOnline) btnTbImportOnline.style.display = 'none';
+        // 舊的單一網址說明文字也不再需要
         const urlCap = document.getElementById('tbOnlineUrlCaption');
-        if (urlCap) {
-            if (isOnline && tb.googleSheetUrl) {
-                urlCap.textContent = '目前擷取網址：' + tb.googleSheetUrl;
-                urlCap.classList.remove('hidden');
+        if (urlCap) { urlCap.textContent = ''; urlCap.classList.add('hidden'); }
+
+        const tabsSection = document.getElementById('tbOnlineTabsSection');
+        if (tabsSection) {
+            if (isOnline) {
+                tabsSection.classList.remove('hidden');
+                renderOnlineTabsSection(tb);
             } else {
-                urlCap.textContent = '';
-                urlCap.classList.add('hidden');
+                tabsSection.classList.add('hidden');
             }
         }
     }
@@ -4199,9 +4200,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // 將舊版單一網址 TB 升級為 onlineTabs 格式（一次性自動遷移）
+    async function migrateOnlineTbToTabs(tb) {
+        if (tb.sourceType !== 'online') return tb;
+        if (Array.isArray(tb.onlineTabs) && tb.onlineTabs.length > 0) return tb;
+        if (!tb.googleSheetUrl) return tb;
+
+        const tabId = crypto.randomUUID ? crypto.randomUUID() : ('tab-' + Date.now());
+        const rawName = String(tb.name || '').replace(TB_ONLINE_NAME_SUFFIX, '').trim() || '分頁 1';
+        const newTab = {
+            id: tabId,
+            name: rawName,
+            url: tb.googleSheetUrl,
+            config: tb.onlineImportConfig && typeof tb.onlineImportConfig === 'object'
+                ? { ...tb.onlineImportConfig }
+                : {},
+            lastFetched: null,
+            lastError: null,
+        };
+        const newTerms = (tb.terms || []).map(t => t.tabId ? t : { ...t, tabId });
+        const updated = { ...tb, onlineTabs: [newTab], terms: newTerms };
+        await DBService.updateTB(tb.id, { onlineTabs: [newTab], terms: newTerms });
+        return updated;
+    }
+
     async function openTbDetail(tbId) {
-        const tb = await DBService.getTB(tbId);
+        let tb = await DBService.getTB(tbId);
         if (!tb) return;
+        tb = await migrateOnlineTbToTabs(tb);
         currentTbId = tbId;
         tbChangeLogShowAll = false;
         if (detailTbName) detailTbName.textContent = tb.name || `TB #${tbId}`;
@@ -4212,6 +4238,408 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // TB 層級比對設定已移至術語層級，不再需要此監聽器
+
+    // ---- 線上來源分頁管理 ----
+
+    function _tbTabSummary(tab) {
+        const cfg = tab.config || {};
+        const parts = [];
+        if (cfg.sourceCol) parts.push('原文：' + cfg.sourceCol + ' 欄');
+        if (cfg.targetCol) parts.push('譯文：' + cfg.targetCol + ' 欄');
+        if (cfg.noteCols)  parts.push('備註：' + cfg.noteCols);
+        return parts.join('・') || '（未設定欄位）';
+    }
+
+    function renderOnlineTabsSection(tb) {
+        const listEl = document.getElementById('tbOnlineTabsList');
+        if (!listEl) return;
+        const tabs = Array.isArray(tb.onlineTabs) ? tb.onlineTabs : [];
+        if (tabs.length === 0) {
+            listEl.innerHTML = '<p style="margin:0.3rem 0; font-size:0.88rem; color:#64748b;">尚無分頁，請按「+ 新增分頁」開始。</p>';
+            return;
+        }
+
+        listEl.innerHTML = '';
+        let dragSrcIdx = null;
+
+        tabs.forEach((tab, idx) => {
+            const hasFetched = !!tab.lastFetched;
+            const hasError   = !!tab.lastError;
+
+            let statusHtml = '';
+            if (hasError) {
+                statusHtml = `<span style="color:#b91c1c; font-size:0.78rem;">✗ 上次更新失敗：${escHtml(tab.lastError)}</span>`;
+            } else if (hasFetched) {
+                const termCount = (tb.terms || []).filter(t => t.tabId === tab.id).length;
+                const fetchedStr = tab.lastFetched ? new Date(tab.lastFetched).toLocaleString('zh-TW', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false }) : '';
+                statusHtml = `<span style="color:#16a34a; font-size:0.78rem;">✓ 最後更新：${escHtml(fetchedStr)}・${termCount} 筆術語</span>`;
+            }
+
+            const card = document.createElement('div');
+            card.dataset.tabIdx = idx;
+            card.draggable = true;
+            card.style.cssText = [
+                'display:flex', 'align-items:flex-start', 'justify-content:space-between',
+                'gap:0.75rem', 'background:#fff', 'border:1px solid',
+                hasError ? '#fca5a5' : '#e2e8f0',
+                'border-radius:8px', 'padding:0.6rem 0.8rem',
+                'cursor:grab', hasError ? 'background:#fff7f7' : '',
+            ].join(';');
+
+            card.innerHTML = `
+                <div style="display:flex; align-items:flex-start; gap:0.55rem; flex:1; min-width:0;">
+                    <span style="font-size:0.9rem; font-weight:700; color:#3b82f6; min-width:1.4rem; padding-top:0.05rem;">${idx + 1}</span>
+                    <div style="min-width:0;">
+                        <div style="font-weight:600; font-size:0.9rem; color:#1e293b; margin-bottom:0.15rem;">${escHtml(tab.name || '（未命名）')}</div>
+                        <div style="font-size:0.76rem; color:#64748b; word-break:break-all; margin-bottom:0.15rem;">${escHtml((tab.url || '').substring(0, 80))}${(tab.url || '').length > 80 ? '…' : ''}</div>
+                        <div style="font-size:0.76rem; color:#94a3b8;">${_tbTabSummary(tab)}</div>
+                        ${statusHtml ? '<div style="margin-top:0.2rem;">' + statusHtml + '</div>' : ''}
+                    </div>
+                </div>
+                <div style="display:flex; gap:0.4rem; flex-shrink:0; margin-top:0.1rem;">
+                    <button class="primary-btn btn-sm" data-action="update" data-tabid="${escHtml(tab.id)}" title="更新（重新擷取）">更新</button>
+                    <button class="danger-btn btn-sm" data-action="delete" data-tabid="${escHtml(tab.id)}" title="刪除此分頁">刪除</button>
+                </div>`;
+
+            // 拖曳排序事件
+            card.addEventListener('dragstart', e => {
+                dragSrcIdx = idx;
+                e.dataTransfer.effectAllowed = 'move';
+                card.style.opacity = '0.5';
+            });
+            card.addEventListener('dragend', () => { card.style.opacity = ''; });
+            card.addEventListener('dragover', e => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                card.style.outline = '2px dashed #3b82f6';
+            });
+            card.addEventListener('dragleave', () => { card.style.outline = ''; });
+            card.addEventListener('drop', async e => {
+                e.preventDefault();
+                card.style.outline = '';
+                if (dragSrcIdx === null || dragSrcIdx === idx) return;
+                const freshTb = await DBService.getTB(currentTbId);
+                if (!freshTb) return;
+                const reordered = [...freshTb.onlineTabs];
+                const [moved] = reordered.splice(dragSrcIdx, 1);
+                reordered.splice(idx, 0, moved);
+                await DBService.updateTB(currentTbId, { onlineTabs: reordered });
+                renderOnlineTabsSection({ ...freshTb, onlineTabs: reordered });
+                dragSrcIdx = null;
+            });
+
+            // 按鈕事件
+            card.addEventListener('click', e => {
+                const btn = e.target.closest('[data-action]');
+                if (!btn) return;
+                const action = btn.dataset.action;
+                const tabId  = btn.dataset.tabid;
+                if (action === 'update') openTbTabModal(currentTbId, tabId);
+                if (action === 'delete') {
+                    openCatConfirmModal(
+                        `確定要刪除分頁「${escHtml(tab.name || '')}」？此操作將移除該分頁所有術語，且無法復原。`,
+                        () => deleteTbTab(currentTbId, tabId)
+                    );
+                }
+            });
+
+            listEl.appendChild(card);
+        });
+    }
+
+    // 綁定「+ 新增分頁」按鈕
+    (function () {
+        const btn = document.getElementById('btnTbAddTab');
+        if (btn) btn.addEventListener('click', () => openTbTabModal(currentTbId, null));
+    })();
+
+    async function deleteTbTab(tbId, tabId) {
+        const tb = await DBService.getTB(tbId);
+        if (!tb) return;
+        const newTabs  = (tb.onlineTabs || []).filter(t => t.id !== tabId);
+        const newTerms = (tb.terms || [])
+            .filter(t => t.tabId !== tabId)
+            .map((t, i) => ({ ...t, termNumber: i + 1 }));
+        await DBService.updateTB(tbId, {
+            onlineTabs: newTabs,
+            terms: newTerms,
+            nextTermNumber: newTerms.length + 1,
+        });
+        const fresh = await DBService.getTB(tbId);
+        if (fresh) renderOnlineTabsSection(fresh);
+        await loadTbTermsList();
+    }
+
+    // ---- 分頁新增 / 更新 Modal（openTbTabModal） ----
+    // 狀態變數：紀錄目前正在編輯的 tabId（null = 新增）與各欄位最後填入的值
+    let _tbTabModalTabId = null;
+    let _tbTabModalLastValues = null;
+
+    function _showTbTabModalState(state) {
+        const form     = document.getElementById('tbTabModalForm');
+        const progress = document.getElementById('tbTabModalProgress');
+        const result   = document.getElementById('tbTabModalResult');
+        if (form)     form.classList.toggle('hidden',     state !== 'form');
+        if (progress) progress.classList.toggle('hidden', state !== 'progress');
+        if (result)   result.classList.toggle('hidden',   state !== 'result');
+    }
+
+    function _readTbTabFormValues() {
+        return {
+            name:           (document.getElementById('tbTabName')          || {}).value || '',
+            url:            (document.getElementById('tbTabUrl')           || {}).value || '',
+            sourceCol:      (document.getElementById('tbTabSourceCol')     || {}).value || '',
+            targetCol:      (document.getElementById('tbTabTargetCol')     || {}).value || '',
+            noteCols:       (document.getElementById('tbTabNoteCols')      || {}).value || '',
+            rowsRange:      (document.getElementById('tbTabRowsRange')     || {}).value || '',
+            caseMatchCol:   (document.getElementById('tbTabMatchCaseCol')  || {}).value || '',
+            exactMatchCol:  (document.getElementById('tbTabMatchExactCol') || {}).value || '',
+        };
+    }
+
+    function _fillTbTabForm(vals) {
+        const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+        set('tbTabName',         vals.name         || '');
+        set('tbTabUrl',          vals.url          || '');
+        set('tbTabSourceCol',    vals.sourceCol    || '');
+        set('tbTabTargetCol',    vals.targetCol    || '');
+        set('tbTabNoteCols',     vals.noteCols     || '');
+        set('tbTabRowsRange',    vals.rowsRange    || '');
+        set('tbTabMatchCaseCol', vals.caseMatchCol || '');
+        set('tbTabMatchExactCol',vals.exactMatchCol|| '');
+    }
+
+    async function openTbTabModal(tbId, tabId) {
+        _tbTabModalTabId = tabId || null;
+        const modal = document.getElementById('tbTabModal');
+        if (!modal) return;
+
+        const tb = await DBService.getTB(tbId);
+        if (!tb) return;
+
+        const tab = tabId ? (tb.onlineTabs || []).find(t => t.id === tabId) : null;
+        const titleEl = document.getElementById('tbTabModalTitle');
+        const noteEl  = document.getElementById('tbTabLastFetchedNote');
+        const errEl   = document.getElementById('tbTabFormError');
+        if (titleEl) titleEl.textContent = tab ? `更新分頁「${tab.name || ''}」` : '新增線上來源分頁';
+        if (errEl) errEl.textContent = '';
+
+        if (tab) {
+            const cfg = tab.config || {};
+            _fillTbTabForm({
+                name:         tab.name || '',
+                url:          tab.url  || '',
+                sourceCol:    cfg.sourceCol    || '',
+                targetCol:    cfg.targetCol    || '',
+                noteCols:     cfg.noteCols     || '',
+                rowsRange:    cfg.rowsRange    || '',
+                caseMatchCol: cfg.caseMatchCol || '',
+                exactMatchCol:cfg.exactMatchCol|| '',
+            });
+            if (noteEl) {
+                const termCount = (tb.terms || []).filter(t => t.tabId === tab.id).length;
+                const fetchStr  = tab.lastFetched
+                    ? new Date(tab.lastFetched).toLocaleString('zh-TW', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false })
+                    : '尚未擷取';
+                noteEl.textContent = `上次擷取：${fetchStr}・現有 ${termCount} 筆術語`;
+                noteEl.classList.remove('hidden');
+            }
+        } else {
+            _fillTbTabForm({ rowsRange: '2-' });
+            if (noteEl) noteEl.classList.add('hidden');
+        }
+
+        _tbTabModalLastValues = null;
+        _showTbTabModalState('form');
+        modal.classList.remove('hidden');
+    }
+
+    // 執行擷取邏輯（確認並擷取）
+    async function _runTbTabFetch(tbId) {
+        const vals = _readTbTabFormValues();
+        const errEl = document.getElementById('tbTabFormError');
+
+        // 驗證
+        if (!vals.name.trim()) { if (errEl) errEl.textContent = '請填寫分頁名稱。'; return; }
+        if (!vals.url.trim())  { if (errEl) errEl.textContent = '請填寫 Google 試算表連結。'; return; }
+        const srcIdx = parseTbSingleColumn(vals.sourceCol.trim().toUpperCase());
+        const tgtIdx = parseTbSingleColumn(vals.targetCol.trim().toUpperCase());
+        if (srcIdx < 0) { if (errEl) errEl.textContent = '原文欄格式不正確，例如 A。'; return; }
+        if (tgtIdx < 0) { if (errEl) errEl.textContent = '譯文欄格式不正確，例如 B。'; return; }
+
+        _tbTabModalLastValues = vals; // 保存，供「修改設定」按鈕使用
+
+        const caseMIdx  = parseTbSingleColumn((vals.caseMatchCol  || '').trim().toUpperCase());
+        const exactMIdx = parseTbSingleColumn((vals.exactMatchCol || '').trim().toUpperCase());
+        const noteIdxs  = parseTbColumnList((vals.noteCols || '').trim().toUpperCase());
+        const rowsRangeStr = (vals.rowsRange || '2-').trim();
+
+        _showTbTabModalState('progress');
+
+        let csvRows;
+        try {
+            const csvText = await fetchGoogleSheetCsvViaProxy(vals.url.trim());
+            csvRows = parseTbCsvText(csvText);
+        } catch (e) {
+            await _tbTabFetchFailed(tbId, _tbTabModalTabId, (e && e.message) ? e.message : String(e));
+            return;
+        }
+        if (!csvRows.length) {
+            await _tbTabFetchFailed(tbId, _tbTabModalTabId, 'CSV 無資料列，請確認連結與共用設定。');
+            return;
+        }
+
+        // 解析列範圍
+        const parseRange = (str) => {
+            const s = (str || '').replace(/\s+/g, '');
+            if (!s) return { start: 2, end: Infinity };
+            if (s.includes('-')) {
+                const [a, b] = s.split('-');
+                return { start: a ? parseInt(a, 10) : 2, end: b ? parseInt(b, 10) : Infinity };
+            }
+            const v = parseInt(s, 10);
+            return isNaN(v) ? { start: 2, end: Infinity } : { start: v, end: v };
+        };
+        const rng = parseRange(rowsRangeStr);
+        const startRow = Math.max(0, rng.start - 1);
+        const endRow = isFinite(rng.end) ? rng.end - 1 : csvRows.length - 1;
+        const userName = localStorage.getItem('localCatUserProfile') || 'Unknown User';
+
+        const newTerms = [];
+        const flagErrors = [];
+        for (let r = startRow; r < csvRows.length && r <= endRow; r++) {
+            const row = csvRows[r] || [];
+            const source = String(row[srcIdx] ?? '').trim();
+            const target = String(row[tgtIdx] ?? '').trim();
+            if (!source && !target) continue;
+            const mfb = buildMatchFlagsForTbImportRow(row, caseMIdx, exactMIdx);
+            if (mfb.error) { flagErrors.push(`第 ${r + 1} 列：${mfb.error}`); continue; }
+            let noteLines = noteIdxs.map(ni => String(row[ni] ?? '').trim()).filter(Boolean);
+            const note = noteLines.join('\n');
+            const createdAt = parseTbDate(new Date()) || '';
+            newTerms.push({ source, target, note, matchFlags: mfb.matchFlags, createdBy: userName, createdAt });
+        }
+
+        if (flagErrors.length) {
+            await _tbTabFetchFailed(tbId, _tbTabModalTabId, '比對屬性欄位錯誤：' + flagErrors.slice(0, 5).join('；'));
+            return;
+        }
+        if (!newTerms.length) {
+            await _tbTabFetchFailed(tbId, _tbTabModalTabId, '未找到可匯入的資料列，請確認匯入列數與欄位設定。');
+            return;
+        }
+
+        // 成功 — 更新術語庫
+        const tb = await DBService.getTB(tbId);
+        if (!tb) return;
+
+        const tabId = _tbTabModalTabId;
+        const resolvedTabId = tabId || (crypto.randomUUID ? crypto.randomUUID() : ('tab-' + Date.now()));
+        const newConfig = {
+            sourceCol: vals.sourceCol.trim().toUpperCase(),
+            targetCol: vals.targetCol.trim().toUpperCase(),
+            noteCols:  vals.noteCols.trim(),
+            rowsRange: rowsRangeStr,
+            caseMatchCol:  vals.caseMatchCol.trim().toUpperCase(),
+            exactMatchCol: vals.exactMatchCol.trim().toUpperCase(),
+        };
+        const now = new Date().toISOString();
+
+        // 更新 onlineTabs 陣列
+        let existingTabs = Array.isArray(tb.onlineTabs) ? [...tb.onlineTabs] : [];
+        const tabEntryIdx = existingTabs.findIndex(t => t.id === resolvedTabId);
+        const tabEntry = {
+            id: resolvedTabId,
+            name: vals.name.trim(),
+            url:  vals.url.trim(),
+            config: newConfig,
+            lastFetched: now,
+            lastError: null,
+        };
+        if (tabEntryIdx >= 0) {
+            existingTabs[tabEntryIdx] = tabEntry;
+        } else {
+            existingTabs.push(tabEntry);
+        }
+
+        // 清掉此分頁舊術語，重新插入新術語，再重新編號
+        const otherTerms = (tb.terms || []).filter(t => t.tabId !== resolvedTabId);
+        const tabTerms   = newTerms.map(t => ({ ...t, tabId: resolvedTabId }));
+        const merged = [...otherTerms, ...tabTerms].map((t, i) => ({ ...t, termNumber: i + 1 }));
+
+        const changeLog = Array.isArray(tb.changeLog) ? [...tb.changeLog] : [];
+        changeLog.push({ by: userName, at: now, action: 'online_tab_fetch', tabName: vals.name.trim(), termCount: newTerms.length });
+
+        await DBService.updateTB(tbId, {
+            onlineTabs: existingTabs,
+            terms: merged,
+            nextTermNumber: merged.length + 1,
+            changeLog,
+        });
+
+        const fresh = await DBService.getTB(tbId);
+        if (fresh) renderOnlineTabsSection(fresh);
+        await loadTbTermsList();
+
+        const successMsg = document.getElementById('tbTabResultSuccessMsg');
+        if (successMsg) successMsg.textContent = `擷取完成，共寫入 ${newTerms.length} 筆術語。`;
+        const successEl = document.getElementById('tbTabResultSuccess');
+        const failEl    = document.getElementById('tbTabResultFailure');
+        const retryBtn  = document.getElementById('btnTbTabRetry');
+        if (successEl) { successEl.classList.remove('hidden'); successEl.style.display = ''; }
+        if (failEl)    failEl.classList.add('hidden');
+        if (retryBtn)  retryBtn.classList.add('hidden');
+        _showTbTabModalState('result');
+    }
+
+    async function _tbTabFetchFailed(tbId, tabId, errMsg) {
+        const tb = await DBService.getTB(tbId);
+        if (tb && tabId) {
+            const updatedTabs = (tb.onlineTabs || []).map(t =>
+                t.id === tabId ? { ...t, lastError: errMsg } : t
+            );
+            await DBService.updateTB(tbId, { onlineTabs: updatedTabs });
+            const fresh = await DBService.getTB(tbId);
+            if (fresh) renderOnlineTabsSection(fresh);
+        }
+        const errMsgEl = document.getElementById('tbTabResultErrorMsg');
+        if (errMsgEl) errMsgEl.textContent = errMsg;
+        const successEl = document.getElementById('tbTabResultSuccess');
+        const failEl    = document.getElementById('tbTabResultFailure');
+        const retryBtn  = document.getElementById('btnTbTabRetry');
+        if (successEl) successEl.classList.add('hidden');
+        if (failEl)    { failEl.classList.remove('hidden'); failEl.style.display = ''; }
+        if (retryBtn)  retryBtn.classList.remove('hidden');
+        _showTbTabModalState('result');
+    }
+
+    // Modal 按鈕事件綁定
+    (function () {
+        const closeFn = () => {
+            const modal = document.getElementById('tbTabModal');
+            if (modal) modal.classList.add('hidden');
+        };
+        const closeBtn = document.getElementById('btnCloseTbTabModal');
+        if (closeBtn) closeBtn.addEventListener('click', closeFn);
+
+        const cancelBtn = document.getElementById('btnCancelTbTabModal');
+        if (cancelBtn) cancelBtn.addEventListener('click', closeFn);
+
+        const closeResultBtn = document.getElementById('btnCloseTbTabResult');
+        if (closeResultBtn) closeResultBtn.addEventListener('click', closeFn);
+
+        const confirmBtn = document.getElementById('btnConfirmTbTab');
+        if (confirmBtn) confirmBtn.addEventListener('click', () => _runTbTabFetch(currentTbId));
+
+        const retryBtn = document.getElementById('btnTbTabRetry');
+        if (retryBtn) retryBtn.addEventListener('click', () => {
+            // 回到表單並還原上次填的值
+            if (_tbTabModalLastValues) _fillTbTabForm(_tbTabModalLastValues);
+            const errEl = document.getElementById('tbTabFormError');
+            if (errEl) errEl.textContent = '';
+            _showTbTabModalState('form');
+        });
+    })();
 
     function matchTermSearch(term, q) {
         if (!q) return true;
@@ -4293,6 +4721,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!tbTermsList || !currentTbId) return;
         let tb = await DBService.getTB(currentTbId);
         const isOnlineTb = tb && (tb.sourceType || 'manual') === 'online';
+        const showSourceCol = isOnlineTb && Array.isArray(tb.onlineTabs) && tb.onlineTabs.length > 1;
+        const tabMap = showSourceCol
+            ? Object.fromEntries((tb.onlineTabs || []).map(t => [t.id, t.name]))
+            : {};
+        // 控制「來源」欄表頭的顯隱
+        const srcHeader = document.getElementById('tbTermSourceHeader');
+        if (srcHeader) srcHeader.style.display = showSourceCol ? '' : 'none';
+
         let terms = (tb && tb.terms) ? tb.terms : [];
         const nextTermNumber = typeof tb.nextTermNumber === 'number' ? tb.nextTermNumber : 1;
         const needsMigration = terms.length > 0 && terms.some(t => typeof t.termNumber !== 'number');
@@ -4309,12 +4745,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         tbTermsList.innerHTML = '';
         if (withIndex.length === 0) {
             const tr = document.createElement('tr');
+            const colspan = showSourceCol ? '8' : '7';
             const emptyMsg = q
                 ? '沒有符合搜尋條件的術語。'
                 : (isOnlineTb
-                    ? '尚無術語，請按「擷取線上表單」從 Google 試算表匯入。'
+                    ? '尚無術語，請在上方「線上來源分頁」中新增分頁並擷取。'
                     : '尚無術語，請使用上方「新增術語」或「匯入檔案」加入。');
-            tr.innerHTML = `<td colspan="7" style="padding:0.75rem; color:#64748b; font-size:0.9rem;">${emptyMsg}</td>`;
+            tr.innerHTML = `<td colspan="${colspan}" style="padding:0.75rem; color:#64748b; font-size:0.9rem;">${emptyMsg}</td>`;
             tbTermsList.appendChild(tr);
             if (tbTermSelectAll) tbTermSelectAll.disabled = !!isOnlineTb;
             if (syncTbTermSelectAllLabel) syncTbTermSelectAllLabel();
@@ -4332,12 +4769,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             const mf = term.matchFlags || { caseInsensitive: true, wholeWord: false };
             const isCaseSensitive = mf.caseInsensitive === false;
             const isExact = !!mf.wholeWord;
+            const tabName = showSourceCol ? (tabMap[term.tabId] || '') : '';
+            const sourceCell = showSourceCol
+                ? `<td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.8rem; color:#64748b; white-space:nowrap; max-width:90px; overflow:hidden; text-overflow:ellipsis;" title="${escHtml(tabName)}">${escHtml(tabName) || '—'}</td>`
+                : '';
             tr.innerHTML = `
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="tb-term-row-cb" data-term-index="${idx}"${isOnlineTb ? ' disabled' : ''}></td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:40px;">${num}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:200px; overflow:hidden; text-overflow:ellipsis;" title="${src}">${src || '—'}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:200px; overflow:hidden; text-overflow:ellipsis;" title="${tgt}">${tgt || '—'}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; max-width:180px; overflow:hidden; text-overflow:ellipsis; font-size:0.85rem; color:#64748b;" title="${(term.note || '').replace(/</g, '&lt;')}">${note || '—'}</td>
+                ${sourceCell}
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; white-space:nowrap; font-size:0.82rem;">
                     <label style="display:flex; align-items:center; gap:0.2rem; cursor:default;" title="區分大小寫（唯讀，進編輯頁面才能修改）">
                         <input type="checkbox" ${isCaseSensitive ? 'checked' : ''} disabled> 區分大小寫
@@ -6979,6 +7421,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.ActiveTbNames[full.id] = full.name || `TB #${full.id}`;
             const terms = full.terms ? full.terms : [];
             const _sysDefault = { caseInsensitive: true, wholeWord: false };
+            const _tabMap = Object.fromEntries((full.onlineTabs || []).map(t => [t.id, t.name]));
             terms.forEach(t => {
                 if (t && ((t.source && t.source.trim()) || (t.target && t.target.trim())))
                     window.ActiveTbTerms.push({
@@ -6989,7 +7432,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         tbName: full.name || `TB #${full.id}`,
                         matchFlags: t.matchFlags || _sysDefault, // 術語層級優先，fallback 系統預設
                         createdBy: t.createdBy || '',
-                        createdAt: t.createdAt || ''
+                        createdAt: t.createdAt || '',
+                        tabId: t.tabId || '',
+                        tabName: t.tabId ? (_tabMap[t.tabId] || '') : '',
                     });
             });
         }
@@ -11971,6 +12416,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             sourceText: term.source,
                             targetText: term.target,
                             tbName: term.tbName,
+                            tabName: term.tabName || '',
                             note: term.note,
                             score: 100,
                             matchFlags: term.matchFlags || { caseInsensitive: true, wholeWord: false },
@@ -12008,9 +12454,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const greyHint = '關閉精確比對時，只要句子裡任何地方出現這串原文就算可能命中。\n開啟精確比對時，這串原文要像是獨立的詞（前後不能緊貼其他英文字母或數字）。';
                         const byAt = (m.createdAt ? escFoot(new Date(m.createdAt).toLocaleString('zh-TW', { hour12: false })) : 'N/A');
                         const byWho = escFoot(m.createdBy || 'N/A');
+                        const _tbBaseName = String(m.tbName || '').replace(TB_ONLINE_NAME_SUFFIX, '').trim();
+                        const _tabSuffix = (m.tabName && m.tabName !== _tbBaseName)
+                            ? '〔' + escFoot(m.tabName) + '〕' : '';
                         footerHtml += `<div class="cat-footer-section">
                             <div style="font-size:0.8rem;">
-                            <strong>術語庫：</strong>${escFoot(m.tbName || 'N/A')}<br>
+                            <strong>術語庫：</strong>${escFoot(m.tbName || 'N/A')}${_tabSuffix}<br>
                             ${m.note ? `<strong>備註：</strong>${escFoot(m.note)}<br>` : ''}
                             <div><strong>區分大小寫：</strong>${caseRow}</div>
                             <div><strong>精確比對：</strong>${exactRow}</div>
