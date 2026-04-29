@@ -3,18 +3,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { handleCatCloudRpc } from "@/lib/cat-cloud-rpc";
 import { getEnvironment } from "@/lib/environment";
+import { allocateNextInternalNoteTitle } from "@/lib/internal-note-title";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useLocation, useNavigate } from "react-router-dom";
-
-function buildInternalNoteTitleBase(caseTitle: string): string {
-  const raw = String(caseTitle || "").trim();
-  if (!raw) return "未命名案件";
-  const baseId = raw
-    .replace(/[_\-]?\d{6,8}$/g, "")
-    .replace(/[_\-]?\d{4}[\-\/]?\d{2}[\-\/]?\d{2}$/, "")
-    .trim();
-  return baseId || raw;
-}
 
 function parseCatViewParams(pathname: string, search: string, mode: "offline" | "team"): string {
   const base = `/cat/${mode === "team" ? "team" : "offline"}`;
@@ -599,63 +590,72 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         window.open(`/cases/${caseId}`, "_blank", "noopener,noreferrer");
       } else if (event.data?.type === "CAT_OPEN_INTERNAL_NOTE") {
         const p = event.data?.payload ?? {};
-        const caseId = String(p.caseId || "");
-        const fallbackCaseTitle = String(p.caseTitle || "");
-        const env = getEnvironment();
-        let caseTitle = fallbackCaseTitle;
-        if (caseId) {
-          const { data: caseRow } = await supabase
-            .from("cases")
-            .select("title")
-            .eq("id", caseId)
-            .eq("env", env)
-            .maybeSingle();
-          caseTitle = (caseRow as any)?.title || caseTitle;
+        const requestId = String(p.requestId || "");
+        const ack = (ok: boolean, detail?: { noteId?: string; error?: string }) => {
+          if (!requestId || !iframeRef.current?.contentWindow) return;
+          iframeRef.current.contentWindow.postMessage(
+            {
+              type: "TMS_INTERNAL_NOTE_RESULT",
+              payload: { requestId, ok, noteId: detail?.noteId, error: detail?.error },
+            },
+            window.location.origin
+          );
+        };
+        if (!user?.id) {
+          ack(false, { error: "未登入" });
+          return;
         }
-        const baseId = buildInternalNoteTitleBase(caseTitle);
-        const prefix = `${baseId}_Note_`;
-        const { data: titleRows } = await supabase
-          .from("internal_notes")
-          .select("title")
-          .eq("env", env)
-          .ilike("title", `${prefix}%`)
-          .limit(2000);
-        const maxSeq = (titleRows ?? []).reduce((acc, row: any) => {
-          const m = String(row?.title || "").match(new RegExp(`^${prefix}(\\d+)$`));
-          if (!m) return acc;
-          return Math.max(acc, Number(m[1]) || 0);
-        }, 0);
-        const title = `${prefix}${String(maxSeq + 1).padStart(5, "0")}`;
-        const creator = profile?.display_name?.trim() || user?.email || "Unknown User";
-        const { data: inserted } = await supabase
-          .from("internal_notes")
-          .insert({
-            title,
-            related_case: caseTitle || "",
-            creator,
-            status: "open",
-            note_type: "question",
-            file_name: String(p.fileName || ""),
-            id_row_count: String(p.idRowCount || ""),
-            source_text: String(p.sourceText || ""),
-            translated_text: String(p.translatedText || ""),
-            env,
-            created_by: user?.id ?? null,
-            updated_at: new Date().toISOString(),
-          } as any)
-          .select("id")
-          .single();
-        if (inserted?.id) {
-          window.open(`/internal-notes/${inserted.id}?focusField=questionOrNote`, "_blank", "noopener,noreferrer");
-        } else {
-          window.open("/internal-notes", "_blank", "noopener,noreferrer");
+        try {
+          const caseId = String(p.caseId || "");
+          const fallbackCaseTitle = String(p.caseTitle || "");
+          const env = getEnvironment();
+          let caseTitle = fallbackCaseTitle;
+          if (caseId) {
+            const { data: caseRow } = await supabase
+              .from("cases")
+              .select("title")
+              .eq("id", caseId)
+              .eq("env", env)
+              .maybeSingle();
+            caseTitle = (caseRow as any)?.title || caseTitle;
+          }
+          const { title } = await allocateNextInternalNoteTitle(supabase, caseTitle);
+          const creator = profile?.display_name?.trim() || user?.email || "Unknown User";
+          const { data: inserted, error: insertErr } = await supabase
+            .from("internal_notes")
+            .insert({
+              title,
+              related_case: caseTitle || "",
+              creator,
+              status: "open",
+              note_type: "question",
+              file_name: String(p.fileName || ""),
+              id_row_count: String(p.idRowCount || ""),
+              source_text: String(p.sourceText || ""),
+              translated_text: String(p.translatedText || ""),
+              env,
+              created_by: user?.id ?? null,
+              updated_at: new Date().toISOString(),
+            } as any)
+            .select("id")
+            .single();
+          if (insertErr) throw insertErr;
+          const noteId = (inserted as any)?.id as string | undefined;
+          ack(true, { noteId });
+          if (noteId) {
+            window.open(`/internal-notes/${noteId}?focusField=questionOrNote`, "_blank", "noopener,noreferrer");
+          } else {
+            window.open("/internal-notes", "_blank", "noopener,noreferrer");
+          }
+        } catch (e: any) {
+          ack(false, { error: e?.message || String(e) });
         }
       }
     };
 
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [isPmOrAbove, mode, user]);
+  }, [isPmOrAbove, mode, user, profile]);
 
   useEffect(() => {
     return () => {

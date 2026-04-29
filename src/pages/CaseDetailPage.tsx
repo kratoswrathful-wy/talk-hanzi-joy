@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { CaseIconUploader } from "@/components/CaseIconUploader";
 import { supabase } from "@/integrations/supabase/client";
+import { allocateNextInternalNoteTitle } from "@/lib/internal-note-title";
 import { cn } from "@/lib/utils";
 import { MODULE_TOOLBAR_BTN } from "@/lib/module-toolbar-buttons";
 import { UiToolbarButtonIcon } from "@/lib/ui-button-icon-render";
@@ -1442,32 +1443,37 @@ export default function CaseDetailPage() {
   /* ── Internal Note creation from case ── */
   const handleCreateInternalNote = async () => {
     const caseTitle = caseData?.title || "";
-    const baseId = caseTitle.replace(/[_\-]?\d{6,8}$/g, "").replace(/[_\-]?\d{4}[\-\/]?\d{2}[\-\/]?\d{2}$/, "").trim() || caseTitle;
-    const prefix = `${baseId}_Note_`;
-    const maxSeq = internalNotesStore.getMaxSeqForPrefix(prefix);
-    const nextSeq = String(maxSeq + 1).padStart(5, "0");
+    try {
+      const { title: allocatedTitle } = await allocateNextInternalNoteTitle(supabase, caseTitle);
 
-    const newNote: InternalNote = {
-      id: crypto.randomUUID(),
-      title: `${prefix}${nextSeq}`,
-      relatedCase: caseTitle,
-      createdAt: new Date().toISOString(),
-      creator: profile?.display_name || "",
-      status: "",
-      noteType: "",
-      internalAssignee: caseData?.reviewer ? [caseData.reviewer] : [],
-      fileName: "",
-      idRowCount: "",
-      sourceText: "",
-      translatedText: "",
-      questionOrNote: "",
-      questionOrNoteBlocks: [],
-      referenceFiles: [],
-      comments: [],
-      invalidated: false,
-    };
-    await internalNotesStore.add(newNote);
-    navigate(`/internal-notes/${newNote.id}`);
+      const newNote: InternalNote = {
+        id: crypto.randomUUID(),
+        title: allocatedTitle,
+        relatedCase: caseTitle,
+        createdAt: new Date().toISOString(),
+        creator: profile?.display_name || "",
+        status: "",
+        noteType: "",
+        internalAssignee: caseData?.reviewer ? [caseData.reviewer] : [],
+        fileName: "",
+        idRowCount: "",
+        sourceText: "",
+        translatedText: "",
+        questionOrNote: "",
+        questionOrNoteBlocks: [],
+        referenceFiles: [],
+        comments: [],
+        invalidated: false,
+      };
+      await internalNotesStore.add(newNote);
+      navigate(`/internal-notes/${newNote.id}`);
+    } catch (e: any) {
+      toast({
+        title: "無法建立註記",
+        description: e?.message || String(e),
+        variant: "destructive",
+      });
+    }
   };
 
   // Get linked notes for this case (reactive via useInternalNotes)

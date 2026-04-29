@@ -2207,6 +2207,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             applyCollabFocusOutlines();
             applyCollabEditHardLocks();
             enforceFocusedSegmentLease();
+        } else if (event.data.type === 'TMS_INTERNAL_NOTE_RESULT') {
+            const p = event.data.payload || {};
+            const requestId = String(p.requestId || '');
+            if (!requestId) return;
+            finishPendingInternalNote(requestId, p);
         }
     });
 
@@ -7867,6 +7872,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (el) el.style.display = 'none';
     }
 
+    /** 內部註記：iframe → TMS → iframe ack（TMS_INTERNAL_NOTE_RESULT） */
+    const pendingInternalNoteByRequestId = new Map();
+    function finishPendingInternalNote(requestId, payload) {
+        const pending = pendingInternalNoteByRequestId.get(requestId);
+        if (!pending) return;
+        pendingInternalNoteByRequestId.delete(requestId);
+        if (pending.timerId) clearTimeout(pending.timerId);
+        hideCatLoadingOverlay();
+        if (pending.resolve) pending.resolve(payload || {});
+    }
+
     function getEditorContextForInternalNote() {
         let seg = null;
         const activeEditor = getActiveTargetEditor();
@@ -7922,9 +7938,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                 btnInternalNote.style.display = '';
                 btnInternalNote.onclick = () => {
                     const context = getEditorContextForInternalNote();
+                    const requestId =
+                        (window.crypto && typeof window.crypto.randomUUID === 'function')
+                            ? window.crypto.randomUUID()
+                            : `in_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+                    pendingInternalNoteByRequestId.set(requestId, {
+                        timerId: setTimeout(() => {
+                            finishPendingInternalNote(requestId, { ok: false, error: 'timeout' });
+                        }, 120000),
+                        resolve: null
+                    });
+                    showCatLoadingOverlay('建立內部註記…');
                     window.parent.postMessage({
                         type: 'CAT_OPEN_INTERNAL_NOTE',
                         payload: {
+                            requestId,
                             caseId: caseId || null,
                             caseTitle: caseTitle || null,
                             fileId: file?.id || null,
@@ -7985,8 +8013,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             : null;
 
         if (currentFileFormat === 'mqxliff') {
+            showCatLoadingOverlay('準備開檔…');
             const rawDefault = file.defaultMqRole === 'T' ? 'T_ALLOW_R1' : (file.defaultMqRole || 'T_ALLOW_R1');
             const importDefault = rawDefault;
+            hideCatLoadingOverlay();
             const role = await showMqRoleModal({ defaultRole: importDefault });
             if (role === null) {
                 currentFileId = null;
