@@ -242,9 +242,9 @@ flowchart LR
 2. **TMS 主站**：[`src/components/settings/ToolbarButtonStyleSection.tsx`](../src/components/settings/ToolbarButtonStyleSection.tsx) 仍使用瀏覽器 **`confirm`**（文案已與「是否確定要…？」一致）；若全站要改為 React 對話元件，可另開任務。
 3. **稽核與舊 plan 對齊**：若需對照「分階段重建」與本檔差異，見 [CAT-phased-rebuild-audit.md](./CAT-phased-rebuild-audit.md)。
 
-### 7.1 AI 長任務：進度提示與任務紀錄（規劃；介面預覽見 `downloads/`）
+### 7.1 AI 長任務：進度提示與任務紀錄（第一波已實作；介面預覽見 `docs/preview-cat-ai-task-ux/`）
 
-以下為**即將實作**之產品與文件約定；與 **§7 第 1 點**（全站 `alert` 逐步收斂）**分開**：本期**不**承諾一次替換所有 `alert` 或 TMS 主站對話框。
+以下為**已落地範圍**與文件約定；與 **§7 第 1 點**（全站 `alert` 逐步收斂）**分開**：本期**不**承諾一次替換所有 `alert` 或 TMS 主站對話框。
 
 1. **進度提示列（`#aiProgressToast`）**  
    - **移除**右側 **✕（`btnDismissAiProgress`）**：該按鈕在現行程式中**僅隱藏 toast**，**無法**中止 API 或解除 `__catAiFlowRunning` 鎖，易造成「以為關掉就停」之誤解。  
@@ -328,7 +328,8 @@ flowchart LR
 | 2026-04-29（C／D 收斂） | **§12**：標示 **§12.1** 已落地；**§12.2** 改為「MVP 已涵蓋／可恢復重跑為加值」並對照 `ai-translate.js`／`app.js`；**§12.4** 驗收項勾選；**§13** 更新 **C** 為已驗收、**D** 為 MVP 已涵蓋。程式修正：`cat-tool/app.js` 補上 **`_acquireAiFlowLock`**（掃描／批次互斥）、**`_aiSleep`** 改為真正 `setTimeout` 延遲（cooldown／降載退避生效）。 |
 | 2026-04-29（加值收斂） | **範例拖曳排序**：庫內／專案準則編輯 modal 左側 ⋮⋮ 拖曳，`style.css` 三欄版面。**批次接續**：`runAiBatchTranslate` 以 `sessionStorage` 儲存進度，成功收尾或取消恢復時清除。**§5.6.9**／**§6** 補 migration 例行對照說明。**§12.2**／**§12.4**／**§13** 更新。 |
 | 2026-04-29（§11 與實作對齊） | **修改內容**：首段第 4 行改為指向 **§11.2** 與 **§13**（alert／維運等），不再暗示「範例送 prompt」仍屬未決波次；**§11** 節首改為敘明議題群組／拖曳已落地，並以 **§11.2**／**§12** 分擔「範例是否進提示語」之說明；**§11.2** 改為分情境（批次＋`candidatePool` vs 未傳 pool 之路徑），刪除「MVP 一律不送範例／啟用見 §13 階段 C」之過時句（**§13** 已標 **C** 落地）；**§11.3** 最後一條驗收改為兩路徑分別回歸；**§13** 表前說明改為含 **§11.2**、不以「範例進 prompt」籠統帶過。**緣由**：實作上批次候選條目池已可將勾選之條目與範例經 `_buildAiOptions` 併入提示語，舊 §11 敘述易使讀者誤以為範例從不進 prompt 或仍待「階段 C」；本次**僅修正文件**，**不變更程式**。 |
-| 2026-04-29（§7.1 與介面預覽） | **新增 §7.1**：AI 長任務進度列**移除隱藏（✕）鈕**之決策與理由；**AI 設定頁「AI 任務紀錄」**初版規格（列表欄位、`localStorage` 持久化、筆數上限、掛鉤於 `runAiBatchTranslate`／`_runAiScan`）；與 **§7 第 1 點** `alert` 全站收斂之分界；**選做**（詳情蓋板、中止、完成／失敗蓋板等）僅列為後續。**緣由**：先文件與靜態預覽對齊產品，再實作 `cat-tool`。**介面預覽**：[`docs/preview-cat-ai-task-ux/`](./preview-cat-ai-task-ux/)（入口 `index.html`）。**本列提交時**尚未改 `cat-tool` 行為。 |
+| 2026-04-29（§7.1 與介面預覽） | **新增 §7.1**：AI 長任務進度列**移除隱藏（✕）鈕**之決策與理由；**AI 設定頁「AI 任務紀錄」**初版規格（列表欄位、`localStorage` 持久化、筆數上限、掛鉤於 `runAiBatchTranslate`／`_runAiScan`）；與 **§7 第 1 點** `alert` 全站收斂之分界；**選做**（詳情蓋板、中止、完成／失敗蓋板等）僅列為後續。**緣由**：先文件與靜態預覽對齊產品，再實作 `cat-tool`。**介面預覽**：[`docs/preview-cat-ai-task-ux/`](./preview-cat-ai-task-ux/)（入口 `index.html`）。 |
+| 2026-04-29（§7.1 第一波實作） | **程式變更**：`cat-tool/index.html` 移除 `#aiProgressToast` 右側 `btnDismissAiProgress`；AI 設定視圖新增 **「AI 任務紀錄」**區塊與「清空紀錄」操作。`cat-tool/app.js` 新增 `catAiTaskLogV1` 本機紀錄（最多 50 筆）與 `start/update/finish` 寫入流程，並在 `runAiBatchTranslate`／`_runAiScan` 掛鉤任務狀態與進度摘要；`loadAiSettingsView` 渲染列表與清空確認。**緣由**：避免「關閉提示即中止」誤解，提供可回看之長任務脈絡；保持本期僅 CAT 範圍，不含全站 `alert` 收斂。 |
 
 ---
 

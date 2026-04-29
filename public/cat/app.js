@@ -15893,8 +15893,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (scanBtn) scanBtn.addEventListener('click', () => openAiScanModal());
         const chkManual = document.getElementById('chkRecordManual');
         if (chkManual) chkManual.onchange = e => { _recordManualTranslations = e.target.checked; };
-        const dismissToast = document.getElementById('btnDismissAiProgress');
-        if (dismissToast) dismissToast.addEventListener('click', () => { const t = document.getElementById('aiProgressToast'); if(t) t.style.display='none'; });
         const clearReportBtn = document.getElementById('btnClearAiReport');
         if (clearReportBtn) clearReportBtn.addEventListener('click', async () => {
             if (!currentFileId) return;
@@ -15929,6 +15927,148 @@ document.addEventListener('DOMContentLoaded', async () => {
         toast.style.background = '#15803d';
         toast.style.display = 'flex';
         setTimeout(() => { _hideAiToast(); }, 3200);
+    }
+
+    const CAT_AI_TASK_LOG_KEY = 'catAiTaskLogV1';
+    const CAT_AI_TASK_LOG_MAX = 50;
+
+    function _loadAiTaskLogs() {
+        try {
+            const raw = localStorage.getItem(CAT_AI_TASK_LOG_KEY);
+            const parsed = raw ? JSON.parse(raw) : [];
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (_) {
+            return [];
+        }
+    }
+
+    function _saveAiTaskLogs(items) {
+        try {
+            const arr = Array.isArray(items) ? items.slice(0, CAT_AI_TASK_LOG_MAX) : [];
+            localStorage.setItem(CAT_AI_TASK_LOG_KEY, JSON.stringify(arr));
+        } catch (_) {}
+    }
+
+    function _upsertAiTaskLog(entry) {
+        const logs = _loadAiTaskLogs();
+        const next = [entry, ...logs.filter((x) => String(x.id) !== String(entry.id))].slice(0, CAT_AI_TASK_LOG_MAX);
+        _saveAiTaskLogs(next);
+        _renderAiTaskLogList();
+    }
+
+    function _formatAiTaskTs(isoText) {
+        if (!isoText) return '—';
+        const dt = new Date(isoText);
+        if (Number.isNaN(dt.getTime())) return '—';
+        const p2 = (n) => String(n).padStart(2, '0');
+        return `${dt.getFullYear()}-${p2(dt.getMonth() + 1)}-${p2(dt.getDate())} ${p2(dt.getHours())}:${p2(dt.getMinutes())}`;
+    }
+
+    async function _resolveAiTaskContext() {
+        let projectLabel = '未指定專案';
+        let fileLabel = '未指定檔案';
+        if (currentProjectId) {
+            const p = await DBService.getProject(currentProjectId).catch(() => null);
+            if (p && p.name) projectLabel = String(p.name);
+        }
+        if (currentFileId) {
+            const f = await DBService.getFile(currentFileId).catch(() => null);
+            if (f) fileLabel = String(f.name || f.fileName || f.filename || f.originalName || `#${currentFileId}`);
+        }
+        return {
+            projectId: currentProjectId || null,
+            fileId: currentFileId || null,
+            projectLabel,
+            fileLabel
+        };
+    }
+
+    function _startAiTaskLog(payload = {}) {
+        const id = `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const now = new Date().toISOString();
+        _upsertAiTaskLog({
+            id,
+            kind: payload.kind || 'unknown',
+            status: 'running',
+            startedAt: now,
+            endedAt: null,
+            projectId: payload.projectId || null,
+            fileId: payload.fileId || null,
+            projectLabel: payload.projectLabel || '未指定專案',
+            fileLabel: payload.fileLabel || '未指定檔案',
+            rangeLabel: payload.rangeLabel || '—',
+            progressLabel: payload.progressLabel || '準備中',
+            processed: Number(payload.processed) || 0,
+            total: Number(payload.total) || 0,
+            batchNo: Number(payload.batchNo) || 0,
+            batchTotalHint: Number(payload.batchTotalHint) || 0,
+            errorMessage: ''
+        });
+        return id;
+    }
+
+    function _updateAiTaskLog(taskId, patch = {}) {
+        if (!taskId) return;
+        const logs = _loadAiTaskLogs();
+        const idx = logs.findIndex((x) => String(x.id) === String(taskId));
+        if (idx < 0) return;
+        const next = { ...logs[idx], ...patch };
+        if (patch.processed != null) next.processed = Number(patch.processed) || 0;
+        if (patch.total != null) next.total = Number(patch.total) || 0;
+        if (patch.batchNo != null) next.batchNo = Number(patch.batchNo) || 0;
+        if (patch.batchTotalHint != null) next.batchTotalHint = Number(patch.batchTotalHint) || 0;
+        logs[idx] = next;
+        _saveAiTaskLogs(logs);
+        _renderAiTaskLogList();
+    }
+
+    function _finishAiTaskLog(taskId, patch = {}) {
+        if (!taskId) return;
+        _updateAiTaskLog(taskId, {
+            status: patch.status || 'success',
+            endedAt: patch.endedAt || new Date().toISOString(),
+            progressLabel: patch.progressLabel != null ? patch.progressLabel : undefined,
+            processed: patch.processed,
+            total: patch.total,
+            batchNo: patch.batchNo,
+            batchTotalHint: patch.batchTotalHint,
+            errorMessage: patch.errorMessage || ''
+        });
+    }
+
+    function _renderAiTaskLogList() {
+        const listEl = document.getElementById('aiTaskLogList');
+        const clearBtn = document.getElementById('btnClearAiTaskLog');
+        if (!listEl) return;
+        const rows = _loadAiTaskLogs();
+        if (clearBtn) clearBtn.disabled = rows.length === 0;
+        if (!rows.length) {
+            listEl.innerHTML = '<div style="font-size:0.8rem; color:#94a3b8; border:1px dashed #cbd5e1; border-radius:8px; padding:0.55rem;">尚無任務紀錄。</div>';
+            return;
+        }
+        listEl.innerHTML = rows.map((row) => {
+            const statusMap = {
+                running: { text: '進行中', bg: '#dbeafe', fg: '#1e40af' },
+                success: { text: '成功', bg: '#dcfce7', fg: '#166534' },
+                failed: { text: '失敗', bg: '#fee2e2', fg: '#991b1b' },
+                cancelled: { text: '中止', bg: '#fef3c7', fg: '#92400e' }
+            };
+            const st = statusMap[row.status] || statusMap.failed;
+            const typeText = row.kind === 'batch_translate' ? '批次翻譯' : row.kind === 'scan_fulltext' ? '全文掃描' : 'AI 任務';
+            const prog = row.progressLabel || (row.total > 0 ? `${row.processed || 0}/${row.total}` : '—');
+            const ended = row.endedAt ? _formatAiTaskTs(row.endedAt) : '進行中';
+            const err = row.errorMessage ? `<div style="margin-top:0.25rem; font-size:0.74rem; color:#b91c1c;">${_esc(String(row.errorMessage))}</div>` : '';
+            return `<div style="border:1px solid #dbe2ea; border-radius:8px; background:#fff; padding:0.5rem 0.55rem;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.4rem; flex-wrap:wrap;">
+                    <div style="font-size:0.8rem; color:#334155; font-weight:600;">${typeText}</div>
+                    <span style="display:inline-block; font-size:0.72rem; padding:0.12rem 0.42rem; border-radius:4px; background:${st.bg}; color:${st.fg};">${st.text}</span>
+                </div>
+                <div style="margin-top:0.22rem; font-size:0.76rem; color:#475569;">${_esc(String(row.projectLabel || '未指定專案'))} ／ ${_esc(String(row.fileLabel || '未指定檔案'))}</div>
+                <div style="margin-top:0.22rem; font-size:0.74rem; color:#64748b;">範圍：${_esc(String(row.rangeLabel || '—'))} · 進度：${_esc(String(prog))}</div>
+                <div style="margin-top:0.22rem; font-size:0.72rem; color:#94a3b8;">開始：${_formatAiTaskTs(row.startedAt)} · 結束：${ended}</div>
+                ${err}
+            </div>`;
+        }).join('');
     }
 
     // ---- AI 設定 View ----
@@ -16003,6 +16143,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         const saveBtn = document.getElementById('btnSaveAiSettings');
         const testBtn = document.getElementById('btnTestAiSettings');
         const testResult = document.getElementById('aiSettingsTestResult');
+        const clearTaskLogBtn = document.getElementById('btnClearAiTaskLog');
+
+        _renderAiTaskLogList();
+        if (clearTaskLogBtn) {
+            clearTaskLogBtn.onclick = async () => {
+                const logs = _loadAiTaskLogs();
+                if (!logs.length) return;
+                if (!(await openCatConfirmModal('是否確定要清空本機的 AI 任務紀錄？此動作無法復原。'))) return;
+                _saveAiTaskLogs([]);
+                _renderAiTaskLogList();
+            };
+        }
 
         if (saveBtn) {
             saveBtn.onclick = async () => {
@@ -20470,12 +20622,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             _showAiToast('已有 AI 任務執行中，請稍候目前任務完成。', true);
             return;
         }
+        const ctx = await _resolveAiTaskContext();
+        let taskLogId = _startAiTaskLog({
+            kind: 'scan_fulltext',
+            ...ctx,
+            rangeLabel: '全文',
+            progressLabel: '準備掃描中'
+        });
         if (!settings || (settings.preferOpenAiProxy === false && !settings.apiKey)) {
             _showAiToast('請先在「AI 管理」設定可連線方式或 API Key', true);
+            _finishAiTaskLog(taskLogId, {
+                status: 'failed',
+                progressLabel: '未開始',
+                errorMessage: '缺少可用的 AI 連線設定'
+            });
+            taskLogId = null;
             _releaseAiFlowLock();
             return;
         }
         _showAiToast('正在掃描全文，請稍候…');
+        _updateAiTaskLog(taskLogId, { progressLabel: '掃描執行中' });
         try {
             const aiOptions = await _buildAiOptions(settings, '', undefined, {}, null);
             const report = await window.CatAiTranslate.scanFullText(currentSegmentsList || [], {
@@ -20501,9 +20667,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             const reportTab = document.querySelector('[data-notes-tab="tabAiReport"]');
             if (reportTab) reportTab.click();
             _hideAiToast();
+            _finishAiTaskLog(taskLogId, {
+                status: 'success',
+                progressLabel: `完成（共 ${currentSegmentsList?.length || 0} 句）`
+            });
+            taskLogId = null;
         } catch (err) {
             _showAiToast('掃描失敗：' + err.message, true);
+            _finishAiTaskLog(taskLogId, {
+                status: 'failed',
+                progressLabel: '執行失敗',
+                errorMessage: err?.message || String(err)
+            });
+            taskLogId = null;
         } finally {
+            if (taskLogId) {
+                _finishAiTaskLog(taskLogId, { status: 'cancelled', progressLabel: '已停止' });
+            }
             _releaseAiFlowLock();
         }
     }
@@ -21075,11 +21255,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             _showAiToast('已有 AI 任務執行中，請稍候目前任務完成。', true);
             return;
         }
+        const rangeLabel = config.allFile ? '全文' : `句段 ${config.rangeStart}-${config.rangeEnd}`;
+        const ctx = await _resolveAiTaskContext();
+        let taskLogId = _startAiTaskLog({
+            kind: 'batch_translate',
+            ...ctx,
+            rangeLabel,
+            progressLabel: '準備中'
+        });
         _showAiToast('正在準備批次翻譯…');
         try {
             const settings = await DBService.getAiSettings();
             if (!settings.apiKey) {
                 _showAiToast('請先在「AI 設定」頁面填入 API Key', true);
+                _finishAiTaskLog(taskLogId, {
+                    status: 'failed',
+                    progressLabel: '未開始',
+                    errorMessage: '缺少 API Key'
+                });
+                taskLogId = null;
                 return;
             }
 
@@ -21181,9 +21375,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Batch-ask for confirmed/unconfirmed segments where asked
         const confirmAskSegs = segsForAi.filter(s => (s.status === 'confirmed' && config.handleConfirmed === 'ask') || ((s.targetText||'').trim() && s.status !== 'confirmed' && config.handleUnconfirmed === 'ask'));
         const finalAiSegs = segsForAi.filter(s => !confirmAskSegs.includes(s));
+        _updateAiTaskLog(taskLogId, {
+            total: finalAiSegs.length,
+            processed: 0,
+            progressLabel: finalAiSegs.length > 0 ? `待處理 ${finalAiSegs.length} 句` : '待處理 0 句'
+        });
 
         if (confirmAskSegs.length > 0) {
             _showAiToast(`正在翻譯 ${confirmAskSegs.length} 句…（詢問確認）`);
+            _updateAiTaskLog(taskLogId, {
+                progressLabel: `詢問確認：${confirmAskSegs.length} 句`
+            });
             const aiResult = await window.CatAiTranslate.translate(confirmAskSegs, await _buildAiOptions(settings, config.batchNote, config.batchStyleExampleCategories, config.refOptions, config.candidatePool));
             const aiMap = new Map(aiResult.results.map(r => [r.segId, r.translation]));
             const askItems = confirmAskSegs.map(seg => ({ seg, existingText: seg.targetText, aiText: aiMap.get(seg.id) || '', label: '' }));
@@ -21204,6 +21406,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             _showAiToast('批次翻譯完成（無需 AI 處理的句段）', false);
             setTimeout(_hideAiToast, 3000);
             rerenderCurrentSegments();
+            _finishAiTaskLog(taskLogId, {
+                status: 'success',
+                progressLabel: '完成（無需 AI 處理）',
+                processed: 0,
+                total: 0
+            });
+            taskLogId = null;
             return;
         }
 
@@ -21222,6 +21431,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             const cooldownMs = Number.isFinite(Number(settings.aiBatchCooldownMs)) ? Math.max(0, Number(settings.aiBatchCooldownMs)) : AI_BATCH_COOLDOWN_MS;
             let i = 0;
             let batchNo = 1;
+            _updateAiTaskLog(taskLogId, {
+                total: finalAiSegs.length,
+                processed: 0,
+                batchNo,
+                batchTotalHint: totalBatchesHint,
+                progressLabel: `第 ${batchNo}/${totalBatchesHint} 批準備中`
+            });
             const segIdsOrdered = finalAiSegs.map((s) => s.id);
             const cfgKey = _stableStringifyBatchConfigForResume(config);
             const resumeSnap = _loadCatAiBatchResume();
@@ -21250,10 +21466,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             _showAiToast(`正在翻譯第 ${batchNo}/${totalBatchesHint} 批…`);
+            _updateAiTaskLog(taskLogId, {
+                processed,
+                batchNo,
+                batchTotalHint: totalBatchesHint,
+                progressLabel: `第 ${batchNo}/${totalBatchesHint} 批`
+            });
 
             while (i < finalAiSegs.length) {
                 let batch = _nextBatchByRowsAndChars(finalAiSegs, i, dynamicBatchSize, dynamicCharLimit);
                 _showAiToast(`正在翻譯第 ${batchNo}/${Math.max(batchNo, Math.ceil(finalAiSegs.length / Math.max(dynamicBatchSize, 1)))} 批（${i + 1}–${Math.min(i + batch.length, finalAiSegs.length)}）…`);
+                _updateAiTaskLog(taskLogId, {
+                    processed,
+                    total: finalAiSegs.length,
+                    batchNo,
+                    batchTotalHint: Math.max(batchNo, Math.ceil(finalAiSegs.length / Math.max(dynamicBatchSize, 1))),
+                    progressLabel: `第 ${batchNo} 批（${i + 1}-${Math.min(i + batch.length, finalAiSegs.length)}）`
+                });
                 let result = await window.CatAiTranslate.translate(batch, options);
                 let guardRetry = 0;
                 while (result.error && result.results.length === 0) {
@@ -21271,6 +21500,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                             dynamicCharLimit
                         });
                         _showAiToast(`翻譯失敗：${result.error}`, true);
+                        _finishAiTaskLog(taskLogId, {
+                            status: 'failed',
+                            processed,
+                            total: finalAiSegs.length,
+                            batchNo,
+                            batchTotalHint: totalBatchesHint,
+                            progressLabel: `失敗於第 ${batchNo} 批`,
+                            errorMessage: String(result.error || '翻譯失敗')
+                        });
+                        taskLogId = null;
                         return;
                     }
                     guardRetry += 1;
@@ -21296,6 +21535,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 processed += result.results.length;
                 i += batch.length;
                 batchNo += 1;
+                _updateAiTaskLog(taskLogId, {
+                    processed,
+                    total: finalAiSegs.length,
+                    batchNo: Math.max(1, batchNo - 1),
+                    batchTotalHint: Math.max(1, Math.ceil(finalAiSegs.length / Math.max(dynamicBatchSize, 1))),
+                    progressLabel: `已處理 ${processed}/${finalAiSegs.length} 句`
+                });
                 if (i < finalAiSegs.length) {
                     _saveCatAiBatchResume({
                         v: 1,
@@ -21319,6 +21565,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Retry missing
         if (allMissing.length > 0) {
             _showAiToast(`重試 ${allMissing.length} 句未翻譯句段…`);
+            _updateAiTaskLog(taskLogId, {
+                processed,
+                total: finalAiSegs.length,
+                progressLabel: `重試遺漏句段 ${allMissing.length} 句`
+            });
             const retryResult = await window.CatAiTranslate.retryMissing(allMissing, finalAiSegs, options);
             for (const r of retryResult.results) {
                 const seg = finalAiSegs.find(s => s.id === r.segId);
@@ -21335,7 +21586,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             _showAiToast(`批次翻譯完成！共處理 ${processed} 句。`, false);
             setTimeout(_hideAiToast, 4000);
             rerenderCurrentSegments();
+        _finishAiTaskLog(taskLogId, {
+            status: 'success',
+            processed,
+            total: finalAiSegs.length,
+            batchNo: Math.max(1, batchNo - 1),
+            batchTotalHint: Math.max(1, Math.ceil(finalAiSegs.length / Math.max(dynamicBatchSize, 1))),
+            progressLabel: `完成（${processed}/${finalAiSegs.length} 句）`
+        });
+        taskLogId = null;
+        } catch (err) {
+            _showAiToast('批次翻譯失敗：' + (err?.message || String(err)), true);
+            _finishAiTaskLog(taskLogId, {
+                status: 'failed',
+                progressLabel: '執行失敗',
+                errorMessage: err?.message || String(err)
+            });
+            taskLogId = null;
         } finally {
+            if (taskLogId) {
+                _finishAiTaskLog(taskLogId, { status: 'cancelled', progressLabel: '已停止' });
+            }
             _releaseAiFlowLock();
         }
     }

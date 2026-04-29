@@ -1058,6 +1058,14 @@
                         <button type="button" id="btnTestAiSettings" class="secondary-btn btn-sm">測試連線</button>
                         <span id="aiSettingsTestResult" style="font-size:0.85rem; color:#64748b;"></span>
                     </div>
+                    <div id="aiTaskLogSection" class="form-group" style="border:1px solid #e2e8f0; border-radius:8px; padding:0.85rem 1rem; background:#f8fafc;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap;">
+                            <h4 style="font-size:0.9rem; margin:0; color:#334155;">AI 任務紀錄</h4>
+                            <button type="button" id="btnClearAiTaskLog" class="secondary-btn btn-sm">清空紀錄</button>
+                        </div>
+                        <p style="font-size:0.78rem; color:#64748b; margin:0.45rem 0 0.6rem 0;">顯示本機最近 AI 長任務（批次翻譯、全文掃描等）；資料儲存在此瀏覽器（最多 50 筆）。</p>
+                        <div id="aiTaskLogList" style="display:flex; flex-direction:column; gap:0.45rem; min-height:1.5rem;"></div>
+                    </div>
                     <div style="border-top:1px solid #e2e8f0; padding-top:1rem;">
                         <p style="font-size:0.8rem; color:#94a3b8; margin:0;">
                             ⚠️ 使用 AI 翻譯功能表示您理解：原文內容將傳送至所指定的 API 端點進行處理。
@@ -2602,7 +2610,6 @@
     <!-- ====== AI 翻譯進度 / 錯誤 Toast ====== -->
     <div id="aiProgressToast" class="ai-progress-toast" style="display:none;">
         <span id="aiProgressMsg">正在翻譯…</span>
-        <button type="button" id="btnDismissAiProgress" style="background:none; border:none; cursor:pointer; color:#fff; font-size:1rem; padding:0 0 0 0.5rem;">✕</button>
     </div>
 
     <script src="js/tm-utils.js"></script>
