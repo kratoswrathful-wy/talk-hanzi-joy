@@ -1136,6 +1136,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
             requestAnimationFrame(() => applyNonPrintMarkers(el));
         }
+        refreshSegCharCount(el);
+    }
+
+    /**
+     * 計算譯文欄字元數：text node 全計（含空格），rt-tag / non-print-marker span 跳過。
+     */
+    function countEditorChars(editorEl) {
+        if (!editorEl) return 0;
+        let n = 0;
+        function walkNode(nd) {
+            if (nd.nodeType === 3) { n += nd.nodeValue.length; return; }
+            if (nd.nodeType !== 1) return;
+            if (nd.classList && (nd.classList.contains('rt-tag') || nd.classList.contains('non-print-marker'))) return;
+            if (nd.tagName === 'BR') { n++; return; }
+            nd.childNodes.forEach(walkNode);
+        }
+        editorEl.childNodes.forEach(walkNode);
+        return n;
+    }
+
+    function refreshSegCharCount(editorEl) {
+        if (!editorEl) return;
+        const colTarget = editorEl.closest && editorEl.closest('.col-target');
+        if (!colTarget) return;
+        const el = colTarget.querySelector('.seg-char-count');
+        if (el) el.textContent = countEditorChars(editorEl);
     }
 
     // --- Change Log Helpers ---
@@ -12421,8 +12447,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const sourceHtml = buildTaggedHtml(seg.sourceText, seg.sourceTags || [], true);
             rowInnerContent += `<div class="col-source"><div class="rt-editor" contenteditable="false">${sourceHtml}</div></div>`;
             const targetHtml = buildTaggedHtml(seg.targetText, effectiveTags(seg));
+            const _initCharCount = seg.targetText ? seg.targetText.replace(/\{\/?\d+\}/g, '').length : 0;
             rowInnerContent += `<div class="col-target" style="position:relative;">
                 <div class="rt-editor grid-textarea" contenteditable="${effectiveLocked ? 'false' : 'true'}" spellcheck="false">${targetHtml}</div>
+                <div class="seg-char-count">${_initCharCount}</div>
             </div>`;
             rowInnerContent += `<div class="col-extra" style="padding:0.5rem; font-size:0.8rem; color:#2563eb; word-break:break-all; white-space:pre-wrap;">${seg.extraValue || ''}</div>`;
             
@@ -12619,6 +12647,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     markEmptySegUserEdited(seg.id);
                     const newVal = extractTextFromEditor(targetInput);
                     seg.targetText = newVal;
+                    refreshSegCharCount(targetInput);
                     emitCollabEdit('typing', seg, newVal);
 
                     // Update source tag colours (blue=present, red=missing)

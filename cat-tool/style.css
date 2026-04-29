@@ -461,7 +461,7 @@ button { font-family: inherit; cursor: pointer; }
 .grid-data-row.locked-user .col-target { position: relative; }
 .grid-data-row.locked-user .col-target::after {
     content: "🔒";
-    position: absolute; right: 6px; bottom: 4px; font-size: 0.8rem; opacity: 0.8;
+    position: absolute; right: 30px; bottom: 3px; font-size: 0.8rem; opacity: 0.8;
 }
 /* 禁止編輯（系統鎖定）：淺橘底 */
 .grid-data-row.locked-system { background-color: #fff7ed; color: #94a3b8; }
@@ -469,7 +469,7 @@ button { font-family: inherit; cursor: pointer; }
 .grid-data-row.locked-system .col-target { position: relative; }
 .grid-data-row.locked-system .col-target::after {
     content: "⛔";
-    position: absolute; right: 6px; bottom: 4px; font-size: 0.8rem; opacity: 0.8;
+    position: absolute; right: 30px; bottom: 3px; font-size: 0.8rem; opacity: 0.8;
 }
 .grid-data-row.active-row { outline: 2px solid var(--primary-color); outline-offset: -2px; z-index: 10; position: relative; background: #eff6ff; }
 /* 同時選取 + 編輯中：勿疊 outline 與選取偽元素邊框，避免交界線變粗 */
@@ -2966,4 +2966,17 @@ select.cat-mutex-dd-native-hidden {
     background: #eff6ff;
     outline: 1px solid #bfdbfe;
     outline-offset: -1px;
+}
+
+/* 譯文欄字元數統計 */
+.seg-char-count {
+    position: absolute;
+    bottom: 2px;
+    right: 4px;
+    font-size: 0.68rem;
+    color: #94a3b8;
+    pointer-events: none;
+    user-select: none;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
 }
