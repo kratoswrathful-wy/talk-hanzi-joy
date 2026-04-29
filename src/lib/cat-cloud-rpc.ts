@@ -100,6 +100,8 @@ const mapFileRow = (r: any) => ({
     : [],
   relatedLmsCaseId: r.related_lms_case_id ?? null,
   relatedLmsCaseTitle: r.related_lms_case_title ?? "",
+  googleSheetUrl: r.google_sheet_url ?? "",
+  fileFormat: r.file_format ?? "",
   createdAt: r.created_at,
   lastModified: r.last_modified,
 });
@@ -519,6 +521,8 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
           : {}),
         ...(payload.updates?.relatedLmsCaseId !== undefined ? { related_lms_case_id: payload.updates.relatedLmsCaseId } : {}),
         ...(payload.updates?.relatedLmsCaseTitle !== undefined ? { related_lms_case_title: payload.updates.relatedLmsCaseTitle ?? "" } : {}),
+        ...(payload.updates?.googleSheetUrl != null ? { google_sheet_url: String(payload.updates.googleSheetUrl) } : {}),
+        ...(payload.updates?.fileFormat != null ? { file_format: String(payload.updates.fileFormat) } : {}),
         last_modified: nowIso(),
       } as any).eq("id", payload.fileId);
     case "db.deleteFile":
