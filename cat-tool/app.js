@@ -4225,30 +4225,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return updated;
     }
 
-    // #region agent log
-    const __agentDebugLog = (payload) => {
-        fetch('http://127.0.0.1:7378/ingest/552f26c1-e6b7-4327-966c-84e791e0a37c', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'c5b0e1' },
-            body: JSON.stringify({
-                sessionId: 'c5b0e1',
-                runId: 'scan1',
-                timestamp: Date.now(),
-                ...payload,
-            }),
-        }).catch(() => {});
-    };
-    // #endregion
-
     async function openTbDetail(tbId) {
-        // #region agent log
-        __agentDebugLog({
-            hypothesisId: 'H1',
-            location: 'cat-tool/app.js:openTbDetail',
-            message: 'enter openTbDetail',
-            data: { tbId },
-        });
-        // #endregion
         let tb = await DBService.getTB(tbId);
         if (!tb) return;
         tb = await migrateOnlineTbToTabs(tb);
@@ -4276,19 +4253,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function renderOnlineTabsSection(tb) {
         const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        // #region agent log
-        __agentDebugLog({
-            hypothesisId: 'H2',
-            location: 'cat-tool/app.js:renderOnlineTabsSection',
-            message: 'render tabs section',
-            data: {
-                tbId: tb && tb.id,
-                hasTabsArray: Array.isArray(tb && tb.onlineTabs),
-                tabCount: Array.isArray(tb && tb.onlineTabs) ? tb.onlineTabs.length : -1,
-                termCount: Array.isArray(tb && tb.terms) ? tb.terms.length : -1,
-            },
-        });
-        // #endregion
         const listEl = document.getElementById('tbOnlineTabsList');
         if (!listEl) return;
         const tabs = Array.isArray(tb.onlineTabs) ? tb.onlineTabs : [];
@@ -4313,28 +4277,30 @@ document.addEventListener('DOMContentLoaded', async () => {
                 statusHtml = `<span style="color:#16a34a; font-size:0.78rem;">✓ 最後更新：${escHtml(fetchedStr)}・${termCount} 筆術語</span>`;
             }
 
+            const shortUrl = (tab.url || '').trim();
             const card = document.createElement('div');
             card.dataset.tabIdx = idx;
             card.draggable = true;
             card.style.cssText = [
-                'display:flex', 'align-items:flex-start', 'justify-content:space-between',
-                'gap:0.75rem', 'background:#fff', 'border:1px solid',
+                'display:flex', 'align-items:center', 'justify-content:space-between',
+                'gap:0.65rem', 'background:#fff', 'border:1px solid',
                 hasError ? '#fca5a5' : '#e2e8f0',
-                'border-radius:8px', 'padding:0.6rem 0.8rem',
-                'cursor:grab', hasError ? 'background:#fff7f7' : '',
+                'border-radius:8px', 'padding:0.5rem 0.7rem',
+                'cursor:grab', 'flex-wrap:nowrap', hasError ? 'background:#fff7f7' : '',
             ].join(';');
 
             card.innerHTML = `
-                <div style="display:flex; align-items:flex-start; gap:0.55rem; flex:1; min-width:0;">
-                    <span style="font-size:0.9rem; font-weight:700; color:#3b82f6; min-width:1.4rem; padding-top:0.05rem;">${idx + 1}</span>
-                    <div style="min-width:0;">
-                        <div style="font-weight:600; font-size:0.9rem; color:#1e293b; margin-bottom:0.15rem;">${escHtml(tab.name || '（未命名）')}</div>
-                        <div style="font-size:0.76rem; color:#64748b; word-break:break-all; margin-bottom:0.15rem;">${escHtml((tab.url || '').substring(0, 80))}${(tab.url || '').length > 80 ? '…' : ''}</div>
-                        <div style="font-size:0.76rem; color:#94a3b8;">${_tbTabSummary(tab)}</div>
-                        ${statusHtml ? '<div style="margin-top:0.2rem;">' + statusHtml + '</div>' : ''}
-                    </div>
+                <div style="display:flex; align-items:center; gap:0.7rem; flex:1; min-width:0; flex-wrap:nowrap;">
+                    <span style="color:#94a3b8; font-size:0.86rem; user-select:none;">⋮⋮</span>
+                    <div style="font-weight:700; font-size:0.84rem; color:#1e293b; white-space:nowrap;">${escHtml(tab.name || '（未命名）')}</div>
+                    <div style="font-size:0.76rem; color:#64748b; white-space:nowrap;">${_tbTabSummary(tab)}</div>
+                    ${statusHtml ? '<div style="font-size:0.76rem; white-space:nowrap;">' + statusHtml + '</div>' : ''}
                 </div>
-                <div style="display:flex; gap:0.4rem; flex-shrink:0; margin-top:0.1rem;">
+                <div style="display:flex; gap:0.35rem; flex-shrink:0; align-items:center;">
+                    <div style="max-width:300px; min-width:180px; display:flex; align-items:center; gap:0.45rem; border:1px solid #e5e7eb; border-radius:6px; background:#f8fafc; padding:0.25rem 0.4rem;">
+                        <span style="min-width:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:0.74rem; color:#64748b;" title="${escHtml(shortUrl)}">${escHtml(shortUrl)}</span>
+                        <button class="btn-sm" data-action="copy-url" data-taburl="${escHtml(shortUrl)}" title="複製網址" style="border:none; border-left:1px solid #e2e8f0; border-radius:0; background:transparent; color:#475569; font-weight:700; padding:0 0 0 0.45rem; min-width:0;">⧉</button>
+                    </div>
                     <button class="primary-btn btn-sm" data-action="update" data-tabid="${escHtml(tab.id)}" title="更新（重新擷取）">更新</button>
                     <button class="danger-btn btn-sm" data-action="delete" data-tabid="${escHtml(tab.id)}" title="刪除此分頁">刪除</button>
                 </div>`;
@@ -4372,6 +4338,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!btn) return;
                 const action = btn.dataset.action;
                 const tabId  = btn.dataset.tabid;
+                if (action === 'copy-url') {
+                    const raw = btn.dataset.taburl || '';
+                    if (!raw) return;
+                    navigator.clipboard.writeText(raw).then(() => {
+                        const prev = btn.textContent;
+                        btn.textContent = '✓';
+                        setTimeout(() => { btn.textContent = prev; }, 800);
+                    }).catch(() => {});
+                    return;
+                }
                 if (action === 'update') openTbTabModal(currentTbId, tabId);
                 if (action === 'delete') {
                     openCatConfirmModal(
@@ -4379,6 +4355,26 @@ document.addEventListener('DOMContentLoaded', async () => {
                     ).then(confirmed => { if (confirmed) deleteTbTab(currentTbId, tabId); });
                 }
             });
+
+            // 空間不夠時回退為多行版
+            const resizeToFallback = () => {
+                if (card.clientWidth < 980) {
+                    card.style.alignItems = 'flex-start';
+                    card.style.flexWrap = 'wrap';
+                    const left = card.children[0];
+                    const right = card.children[1];
+                    if (left) {
+                        left.style.width = '100%';
+                        left.style.flexWrap = 'wrap';
+                        left.style.rowGap = '0.25rem';
+                    }
+                    if (right) {
+                        right.style.width = '100%';
+                        right.style.justifyContent = 'flex-end';
+                    }
+                }
+            };
+            resizeToFallback();
 
             listEl.appendChild(card);
         });
@@ -4498,22 +4494,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function _runTbTabFetch(tbId) {
         const vals = _readTbTabFormValues();
         const errEl = document.getElementById('tbTabFormError');
-        // #region agent log
-        __agentDebugLog({
-            hypothesisId: 'H3',
-            location: 'cat-tool/app.js:_runTbTabFetch',
-            message: 'start tab fetch',
-            data: {
-                tbId,
-                tabId: _tbTabModalTabId,
-                hasName: !!vals.name.trim(),
-                hasUrl: !!vals.url.trim(),
-                sourceCol: (vals.sourceCol || '').trim().toUpperCase(),
-                targetCol: (vals.targetCol || '').trim().toUpperCase(),
-                rowsRange: (vals.rowsRange || '2-').trim(),
-            },
-        });
-        // #endregion
 
         // 驗證
         if (!vals.name.trim()) { if (errEl) errEl.textContent = '請填寫分頁名稱。'; return; }
@@ -4536,14 +4516,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const csvText = await fetchGoogleSheetCsvViaProxy(vals.url.trim());
             csvRows = parseTbCsvText(csvText);
-            // #region agent log
-            __agentDebugLog({
-                hypothesisId: 'H4',
-                location: 'cat-tool/app.js:_runTbTabFetch',
-                message: 'csv parsed',
-                data: { rowCount: Array.isArray(csvRows) ? csvRows.length : -1 },
-            });
-            // #endregion
         } catch (e) {
             await _tbTabFetchFailed(tbId, _tbTabModalTabId, (e && e.message) ? e.message : String(e));
             return;
@@ -4581,14 +4553,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (flagErrors.length) {
-            // #region agent log
-            __agentDebugLog({
-                hypothesisId: 'H5',
-                location: 'cat-tool/app.js:_runTbTabFetch',
-                message: 'match flag parse error',
-                data: { firstError: flagErrors[0] || '', errorCount: flagErrors.length },
-            });
-            // #endregion
             await _tbTabFetchFailed(tbId, _tbTabModalTabId, '比對屬性欄位錯誤：' + flagErrors.slice(0, 5).join('；'));
             return;
         }
@@ -4645,14 +4609,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             nextTermNumber: merged.length + 1,
             changeLog,
         });
-        // #region agent log
-        __agentDebugLog({
-            hypothesisId: 'H4',
-            location: 'cat-tool/app.js:_runTbTabFetch',
-            message: 'db update completed',
-            data: { mergedTerms: merged.length, tabCount: existingTabs.length },
-        });
-        // #endregion
 
         const fresh = await DBService.getTB(tbId);
         if (fresh) renderOnlineTabsSection(fresh);
@@ -4670,14 +4626,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function _tbTabFetchFailed(tbId, tabId, errMsg) {
-        // #region agent log
-        __agentDebugLog({
-            hypothesisId: 'H4',
-            location: 'cat-tool/app.js:_tbTabFetchFailed',
-            message: 'tab fetch failed handler',
-            data: { tbId, tabId, errMsg: String(errMsg || '').slice(0, 220) },
-        });
-        // #endregion
         const tb = await DBService.getTB(tbId);
         if (tb && tabId) {
             const updatedTabs = (tb.onlineTabs || []).map(t =>
