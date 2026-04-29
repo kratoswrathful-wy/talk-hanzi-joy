@@ -19,6 +19,22 @@
 | 捷徑說明 | 根目錄 `AGENTS.md`、`.cursor/rules/cat-tool-source.mdc` |
 | 準則／專案準則／團隊版雲端 AI 變更與部署 | [CAT_AI_GUIDELINES_AND_PROJECT_RULES.md](./CAT_AI_GUIDELINES_AND_PROJECT_RULES.md) |
 
+### CAT：線上 TB 分頁（online tabs）關鍵對照
+
+| 項目 | 位置 |
+|------|------|
+| 分頁資料升級（舊單一 URL → `onlineTabs`） | `cat-tool/app.js`：`migrateOnlineTbToTabs` |
+| 分頁卡渲染與拖曳排序 | `cat-tool/app.js`：`renderOnlineTabsSection` |
+| 分頁新增/更新流程（確認並擷取） | `cat-tool/app.js`：`openTbTabModal`、`_runTbTabFetch`、`_tbTabFetchFailed` |
+| 分頁刪除與術語重編號 | `cat-tool/app.js`：`deleteTbTab` |
+| 術語列表來源欄與分頁篩選 | `cat-tool/app.js`：`loadTbTermsList`、`renderTbTabFilters` |
+| 分頁管理區與 modal DOM | `cat-tool/index.html`：`#tbOnlineTabsSection`、`#tbTabModal` |
+| 術語來源欄表頭 | `cat-tool/index.html`：`#tbTermSourceHeader` |
+| Supabase 結構（分頁欄位） | `supabase/migrations/20260429210000_cat_tbs_online_tabs.sql`：`online_tabs` |
+| 雲端 RPC 讀寫映射 | `src/lib/cat-cloud-rpc.ts`：`onlineTabs` ↔ `online_tabs` |
+
+> 維運提醒：CAT 功能只改 `cat-tool`；任何異動後都要 `npm run sync:cat` 並同步提交 `public/cat`。
+
 ## 案件
 
 | 項目 | 位置 |

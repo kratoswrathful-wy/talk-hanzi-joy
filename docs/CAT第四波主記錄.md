@@ -287,4 +287,53 @@
 
 ---
 
+## 六、後續收斂紀錄：線上 TB 分頁（2026-04-29）
+
+> 本節為第四波結案後的 CAT 術語庫延伸收斂，屬「後續維護紀錄」；不更動前文第四波 A/B 結案判定。
+
+### 六點一、背景與需求
+
+- 原線上 TB 僅支援單一 `googleSheetUrl`，無法在同一術語庫下分區掛多個來源與獨立欄位映射。
+- 本次升級目標：同一 TB 支援多分頁來源（online tabs），每個分頁可獨立設定原文/譯文/備註欄、列範圍與比對屬性欄。
+- 業務語意維持為「一個 TB」：分頁只是來源切分，術語仍整併到同一術語庫供編輯器與比對流程使用。
+
+### 六點二、關鍵決策
+
+| 決策 | 說明 |
+|------|------|
+| **資料模型** | `onlineTabs` 成為線上 TB 主要來源結構；每分頁含 `id/name/url/config/lastFetched/lastError`。 |
+| **術語來源標記** | 術語加上 `tabId`，列表可顯示「來源」欄，編輯器 metadata 可顯示 `術語庫〔分頁名〕`（同名時可省略）。 |
+| **更新流程** | 分頁「更新」改為先開設定 modal，使用者確認後才擷取（`確認並擷取`），避免一鍵覆寫。 |
+| **舊資料升級** | 既有單網址線上 TB 在開啟時自動升級為單分頁模型，減少人工 migration 成本。 |
+| **篩選與可視性** | 搜尋欄旁提供分頁勾選（`全部` + 各分頁），即時作用於術語列表。 |
+
+### 六點三、實作完成項目（收斂版）
+
+- **DB / migration**：新增 `cat_tbs.online_tabs`（JSONB），見 [`supabase/migrations/20260429210000_cat_tbs_online_tabs.sql`](../supabase/migrations/20260429210000_cat_tbs_online_tabs.sql)。
+- **RPC 映射**：[`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts) 完成 `onlineTabs` ↔ `online_tabs` 讀寫映射。
+- **本地 DB**：[`cat-tool/db.js`](../cat-tool/db.js) 建立 TB 時初始化 `onlineTabs: []`。
+- **UI 架構**：[`cat-tool/index.html`](../cat-tool/index.html) 新增 `#tbOnlineTabsSection`、`#tbTabModal`、`#tbTermSourceHeader` 與分頁篩選容器。
+- **CAT 邏輯**：[`cat-tool/app.js`](../cat-tool/app.js) 完成 `migrateOnlineTbToTabs`、`renderOnlineTabsSection`、`openTbTabModal`、`deleteTbTab`、`loadTbTermsList` 等主流程。
+- **匯入能力**：支援多區間列/欄解析、備註多欄分行與指定表頭列、備註 URL 可點擊（含 `[文字](連結)` 與裸 URL 顯示 `[連結]`）。
+- **同步規則**：所有 `cat-tool` 變更皆以 `npm run sync:cat` 同步到 `public/cat` 一併提交。
+
+### 六點四、問題與修正時間線（精簡）
+
+| 問題 | 根因 | 修正 |
+|------|------|------|
+| TB 詳細頁打不開 / modal 卡住 | `renderOnlineTabsSection` 呼叫未定義 `escHtml` | 補區域 escape helper，清除崩潰路徑。 |
+| 確認刪除流程異常 | `openCatConfirmModal` 被當 callback 用，未走 Promise | 改為 `then/await` 處理。 |
+| 進度圈不轉 | CSS 動畫名稱用 `spin`，專案實際為 `cat-loading-spin` | 對齊既有動畫名稱。 |
+| 用詞不一致 | 歷史字串混用「儲格」 | 全面統一為「儲存格」。 |
+| 已定案 UI 項目漏實作 | 實作驗收未逐條比對清單 | 補上「更名旁全部分頁更新」與分頁勾選框，並完成推送。 |
+
+### 六點五、驗收結論
+
+- 線上 TB 分頁核心流程（新增、更新、刪除、拖曳排序、來源欄顯示）可運作。
+- 編輯器與術語列表已能辨識分頁來源，備註連結可直接點擊。
+- 分頁篩選、50 筆高度上限與批次更新按鈕已補齊到正式版。
+- 本次收斂後，線上 TB 已由「單來源模式」升級為「多分頁來源模式」，可作為後續維運基準。
+
+---
+
 **上一波**：第三波見 [`docs/CAT第三波主記錄.md`](CAT第三波主記錄.md)。

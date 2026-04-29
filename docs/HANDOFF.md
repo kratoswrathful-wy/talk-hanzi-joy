@@ -29,6 +29,35 @@
 - **Slack 承接／無法承接**：譯者於個人檔案可編輯預設文案（欄位 `profiles.slack_message_defaults`，migration `20260324120000_profiles_slack_message_defaults.sql`）；部署後請 `supabase db push`。行為見 [SLACK_SETUP.md](./SLACK_SETUP.md)。
 - **Supabase 不健康／連線池滿／Auth 504**：見 [SUPABASE_HEALTH_RUNBOOK.md](./SUPABASE_HEALTH_RUNBOOK.md)；`profiles` 欄位 **`receive_translator_case_reply_slack_dms`**（**dms**）請與 [`src/lib/profile-columns.ts`](../src/lib/profile-columns.ts) 一致，勿拼成 `...slack_cms`。
 
+## CAT：線上 TB 分頁（online tabs）維運重點
+
+### 資料模型與升級規則
+
+- 線上 TB 由單一來源升級為 `onlineTabs` 陣列；每個分頁包含 `id`、`name`、`url`、`config`、`lastFetched`、`lastError`。
+- 術語列新增來源識別 `tabId`，同一 TB 可整併多來源術語，仍視為同一術語庫。
+- Supabase 對應欄位為 `cat_tbs.online_tabs`（JSONB），由 migration `20260429210000_cat_tbs_online_tabs.sql` 建立。
+- 既有舊資料（僅 `googleSheetUrl`）會在開啟 TB 詳細頁時自動升級為單一分頁模型（避免人工遷移）。
+
+### 操作流程（UI 與行為）
+
+- 新增分頁與更新分頁都走同一流程：先開設定 modal，按「確認並擷取」後才真正寫入。
+- 刪除分頁時，會同步刪除該分頁全部術語，並重新編號 `termNumber`／`nextTermNumber`。
+- 分頁卡支援拖曳排序，排序結果直接回寫 `onlineTabs`。
+- 搜尋欄旁提供分頁勾選框（`全部` + 各分頁），術語列表即時依關鍵字與分頁條件交集過濾。
+- 術語表高度採「50 筆上限」邏輯：超過時表格內捲動；少於時自然高度。
+
+### 本次踩坑與排查紀錄
+
+- `renderOnlineTabsSection` 曾呼叫未定義 `escHtml`，造成 TB 詳細頁崩潰；修正為區域 escape helper，避免全頁卡死。
+- `openCatConfirmModal` 屬 Promise 介面，需用 `.then()` 或 `await` 處理，不能當 callback 參數直接傳入。
+- 分頁擷取進度 spinner 曾誤用 `animation: spin`，實際需對齊既有 `cat-loading-spin`。
+- 文字規範已統一：錯誤訊息與提示文字中的「儲格」全面修正為「儲存格」。
+
+### 變更時的實務提醒
+
+- 線上 TB 分頁功能主要落在 [`cat-tool/app.js`](../cat-tool/app.js) 與 [`cat-tool/index.html`](../cat-tool/index.html)；修改後務必執行 `npm run sync:cat` 同步到 `public/cat` 並一併提交。
+- 雲端團隊版欄位映射在 [`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)；若新增/調整 `onlineTabs` 欄位鍵名，需同步更新讀寫映射。
+
 ## 案件資料量與詳情頁
 
 - **`case-store`** 仍會在背景執行**全表** `cases` 載入（列表／同步用）。  
