@@ -367,6 +367,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const projectFilesSelectAll = document.getElementById('projectFilesSelectAll');
     const projectFileAssignHint = document.getElementById('projectFileAssignHint');
     const btnProjectToolbarAssign = document.getElementById('btnProjectToolbarAssign');
+    const btnProjectToolbarLinkCase = document.getElementById('btnProjectToolbarLinkCase');
     const btnProjectToolbarDelete = document.getElementById('btnProjectToolbarDelete');
     const btnProjectWordCount = document.getElementById('btnProjectWordCount');
     const btnProjectSplitAssign = document.getElementById('btnProjectSplitAssign');
@@ -375,12 +376,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnCasePickerSearch = document.getElementById('btnCasePickerSearch');
     const btnCasePickerCancel = document.getElementById('btnCasePickerCancel');
     const btnCasePickerClose = document.getElementById('btnCasePickerClose');
-    const btnCasePickerClear = document.getElementById('btnCasePickerClear');
+    const btnCasePickerRemove = document.getElementById('btnCasePickerRemove');
+    const btnCasePickerConfirm = document.getElementById('btnCasePickerConfirm');
     const casePickerResultList = document.getElementById('casePickerResultList');
     const casePickerResultHint = document.getElementById('casePickerResultHint');
     const projectClientFormUrlInput = document.getElementById('projectClientFormUrlInput');
+    const projectClientFormInlineLink = document.getElementById('projectClientFormInlineLink');
     const projectClientFormStatus = document.getElementById('projectClientFormStatus');
-    const projectClientFormDisplay = document.getElementById('projectClientFormDisplay');
     const btnSaveProjectClientForm = document.getElementById('btnSaveProjectClientForm');
     const btnRemoveProjectClientForm = document.getElementById('btnRemoveProjectClientForm');
     const wordCountModal = document.getElementById('wordCountModal');
@@ -2455,7 +2457,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     let namingActionContext = null;
     let currentAssignFileId = null;
     let currentAssignFileName = '';
-    let casePickerTargetFileId = null;
+    let casePickerTargetFileIds = [];
+    let casePickerSelectedCase = null;
+    let casePickerMode = 'set'; // 'set' | 'remove'
     window._tmsAssignableUsers = [];
     window._tmsCanAssign = false;
     window._tmsTranslatorOnly = false;
@@ -2911,7 +2915,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             casePickerResultList.innerHTML = '';
             return;
         }
-        casePickerResultHint.textContent = `找到 ${rows.length} 筆，點一下即可直接選用。`;
+        casePickerResultHint.textContent = `找到 ${rows.length} 筆，點選一筆後按「確定」。`;
         casePickerResultList.innerHTML = rows.map((r) => {
             const rawTitle = String(r.title || '');
             const title = rawTitle.replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -2925,32 +2929,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function closeCasePickerDialog() {
-        casePickerTargetFileId = null;
+        casePickerTargetFileIds = [];
+        casePickerSelectedCase = null;
+        casePickerMode = 'set';
         if (casePickerDialog && casePickerDialog.open) casePickerDialog.close();
     }
 
-    function openCasePickerDialog(fileId) {
+    function openCasePickerDialog(fileIds) {
         if (!casePickerDialog || !casePickerKeywordInput || !casePickerResultList || !casePickerResultHint) return;
-        casePickerTargetFileId = fileId;
+        casePickerTargetFileIds = (Array.isArray(fileIds) ? fileIds : [fileIds]).filter(Boolean);
+        if (!casePickerTargetFileIds.length) return;
+        casePickerSelectedCase = null;
+        casePickerMode = 'set';
         casePickerKeywordInput.value = '';
-        casePickerResultHint.textContent = '請輸入關鍵字後按「搜尋」。';
+        casePickerResultHint.textContent = `請輸入關鍵字後按「搜尋」（目前 ${casePickerTargetFileIds.length} 筆）。`;
         casePickerResultList.innerHTML = '';
         casePickerDialog.showModal();
         casePickerKeywordInput.focus();
     }
 
     function renderProjectClientFormSettings(project) {
-        if (!projectClientFormUrlInput || !projectClientFormStatus || !projectClientFormDisplay) return;
+        if (!projectClientFormUrlInput || !projectClientFormStatus || !projectClientFormInlineLink) return;
         const url = String(project?.clientQuestionFormUrl || '').trim();
         const hasUrl = !!url;
         projectClientFormUrlInput.value = url;
-        projectClientFormUrlInput.disabled = false;
+        projectClientFormUrlInput.style.display = hasUrl ? 'none' : '';
+        projectClientFormInlineLink.style.display = hasUrl ? '' : 'none';
+        projectClientFormInlineLink.href = hasUrl ? url : '#';
+        projectClientFormInlineLink.textContent = hasUrl ? url : '';
         projectClientFormStatus.textContent = hasUrl ? '已設定' : '尚未設定';
         projectClientFormStatus.style.color = hasUrl ? '#059669' : '#64748b';
-        projectClientFormDisplay.style.display = hasUrl ? 'block' : 'none';
-        projectClientFormDisplay.innerHTML = hasUrl
-            ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${url.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</a>`
-            : '';
     }
 
     // --- Project Detail (Files CRUD) ---
@@ -2997,21 +3005,55 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (btnCasePickerCancel) btnCasePickerCancel.addEventListener('click', () => closeCasePickerDialog());
     if (btnCasePickerClose) btnCasePickerClose.addEventListener('click', () => closeCasePickerDialog());
-    if (btnCasePickerClear) {
-        btnCasePickerClear.addEventListener('click', async () => {
-            if (!casePickerTargetFileId) return closeCasePickerDialog();
-            await DBService.updateFile(casePickerTargetFileId, { relatedLmsCaseId: null, relatedLmsCaseTitle: '' });
-            closeCasePickerDialog();
-            await loadFilesList();
+    if (btnCasePickerRemove && casePickerResultHint) {
+        btnCasePickerRemove.addEventListener('click', () => {
+            casePickerMode = 'remove';
+            casePickerSelectedCase = null;
+            casePickerResultList && (casePickerResultList.querySelectorAll('.case-picker-result-btn').forEach((el) => {
+                el.style.borderColor = '#e2e8f0';
+                el.style.background = '#fff';
+            }));
+            casePickerResultHint.textContent = `已選擇移除目前連結（${casePickerTargetFileIds.length} 筆）；按「確定」套用。`;
         });
     }
     if (casePickerResultList) {
-        casePickerResultList.addEventListener('click', async (e) => {
+        casePickerResultList.addEventListener('click', (e) => {
             const btn = e.target.closest('.case-picker-result-btn');
-            if (!btn || !casePickerTargetFileId) return;
+            if (!btn || !casePickerTargetFileIds.length) return;
             const caseId = btn.getAttribute('data-id') || null;
             const caseTitle = decodeURIComponent(btn.getAttribute('data-title') || '');
-            await DBService.updateFile(casePickerTargetFileId, { relatedLmsCaseId: caseId, relatedLmsCaseTitle: caseTitle });
+            casePickerMode = 'set';
+            casePickerSelectedCase = { caseId, caseTitle };
+            casePickerResultList.querySelectorAll('.case-picker-result-btn').forEach((el) => {
+                el.style.borderColor = '#e2e8f0';
+                el.style.background = '#fff';
+            });
+            btn.style.borderColor = '#2563eb';
+            btn.style.background = '#eff6ff';
+            if (casePickerResultHint) casePickerResultHint.textContent = `已選擇「${caseTitle || '未命名案件'}」，按「確定」套用到 ${casePickerTargetFileIds.length} 筆。`;
+        });
+    }
+    if (btnCasePickerConfirm) {
+        btnCasePickerConfirm.addEventListener('click', async () => {
+            if (!casePickerTargetFileIds.length) return closeCasePickerDialog();
+            if (casePickerMode === 'remove') {
+                for (const fid of casePickerTargetFileIds) {
+                    await DBService.updateFile(fid, { relatedLmsCaseId: null, relatedLmsCaseTitle: '' });
+                }
+                closeCasePickerDialog();
+                await loadFilesList();
+                return;
+            }
+            if (!casePickerSelectedCase) {
+                alert('請先選擇一個案件，或按「移除」。');
+                return;
+            }
+            for (const fid of casePickerTargetFileIds) {
+                await DBService.updateFile(fid, {
+                    relatedLmsCaseId: casePickerSelectedCase.caseId,
+                    relatedLmsCaseTitle: casePickerSelectedCase.caseTitle || ''
+                });
+            }
             closeCasePickerDialog();
             await loadFilesList();
         });
@@ -3510,7 +3552,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="edit-file-btn" data-id="${f.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a>${progressCellHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${fileLangHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:80px;">${roleStr}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#334155; width:120px; vertical-align:top;" title="${assignTitle}">${assignCell}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#334155; width:120px; vertical-align:middle;" title="${assignTitle}">${assignCell}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${getFileCaseLinkHtml(f)}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;">${modStr}</td>
             `;
@@ -3542,7 +3584,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }, window.location.origin);
                     return;
                 }
-                openCasePickerDialog(fileId);
+                openCasePickerDialog([fileId]);
             });
         });
         syncProjectFilesSelectAll();
@@ -3999,6 +4041,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
             await loadFilesList();
+        });
+    }
+    if (btnProjectToolbarLinkCase) {
+        btnProjectToolbarLinkCase.addEventListener('click', () => {
+            const ids = getSelectedProjectFileIds();
+            if (!ids.length) {
+                alert('請先勾選要連結案件的檔案。');
+                return;
+            }
+            openCasePickerDialog(ids);
         });
     }
     if (btnProjectWordCount) {

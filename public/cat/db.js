@@ -11,6 +11,14 @@ function getCatDexieName() {
 
 const db = new Dexie(getCatDexieName());
 
+function toDexieLocalId(id) {
+    if (typeof id === 'string') {
+        const s = id.trim();
+        if (/^\d+$/.test(s)) return parseInt(s, 10);
+    }
+    return id;
+}
+
 // Define Schema for decoupled entities
 db.version(5).stores({
     projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
@@ -464,7 +472,8 @@ const DBService = {
         });
     },
     async patchProject(projectId, updates) {
-        return await db.projects.update(projectId, { ...updates, lastModified: new Date().toISOString() });
+        const pid = toDexieLocalId(projectId);
+        return await db.projects.update(pid, { ...updates, lastModified: new Date().toISOString() });
     },
 
     async getProjects() {
@@ -518,7 +527,8 @@ const DBService = {
     async getFiles(projectId) {
         // Dexie does not support chaining where().equals() with orderBy(). 
         // We fetch the array and sort it in memory.
-        const files = await db.files.where('projectId').equals(projectId).toArray();
+        const pid = toDexieLocalId(projectId);
+        const files = await db.files.where('projectId').equals(pid).toArray();
         return files.sort((a, b) => a.id - b.id);
     },
 
@@ -541,19 +551,21 @@ const DBService = {
     },
 
     async updateFile(fileId, updates) {
-        await db.files.update(fileId, { ...updates, lastModified: new Date().toISOString() });
-        const file = await db.files.get(fileId);
+        const fid = toDexieLocalId(fileId);
+        await db.files.update(fid, { ...updates, lastModified: new Date().toISOString() });
+        const file = await db.files.get(fid);
         if (file) await db.projects.update(file.projectId, { lastModified: new Date().toISOString() });
     },
 
     async deleteFile(fileId) {
-        const file = await db.files.get(fileId);
+        const fid = toDexieLocalId(fileId);
+        const file = await db.files.get(fid);
         if (file) {
-            await db.segments.where('fileId').equals(fileId).delete();
+            await db.segments.where('fileId').equals(fid).delete();
             try {
-                await db.workspaceNotes.where('fileId').equals(fileId).delete();
+                await db.workspaceNotes.where('fileId').equals(fid).delete();
             } catch (_) { /* v5 前無此表 */ }
-            await db.files.delete(fileId);
+            await db.files.delete(fid);
             await db.projects.update(file.projectId, { lastModified: new Date().toISOString() });
         }
     },

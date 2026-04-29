@@ -155,15 +155,16 @@
                         </div>
                         <div style="margin-top:0.6rem; display:flex; align-items:center; gap:0.45rem; flex-wrap:wrap;">
                             <input type="url" id="projectClientFormUrlInput" class="form-input" placeholder="https://..." style="max-width:680px; flex:1 1 420px; min-width:260px;">
+                            <a id="projectClientFormInlineLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none; max-width:680px; flex:1 1 420px; min-width:260px; color:var(--primary-color); text-decoration:underline; word-break:break-all;"></a>
                             <button type="button" class="primary-btn btn-sm" id="btnSaveProjectClientForm">儲存</button>
                             <button type="button" class="danger-btn btn-sm" id="btnRemoveProjectClientForm">移除</button>
                         </div>
-                        <div id="projectClientFormDisplay" style="margin-top:0.55rem; font-size:0.82rem; color:#475569; word-break:break-all; display:none;"></div>
                     </div>
                     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:0.5rem;">
                         <h2 style="font-size:1.1rem; color:#1e293b; margin:0;">檔案清單</h2>
                         <div id="projectFilesToolbar" style="display:flex; flex-wrap:wrap; gap:0.45rem; align-items:center;">
                             <button type="button" class="secondary-btn btn-sm" id="btnProjectToolbarAssign" style="display:none;" title="需選取一個檔案">指派</button>
+                            <button type="button" class="secondary-btn btn-sm" id="btnProjectToolbarLinkCase" title="為勾選檔案連結 LMS 案件">連結案件</button>
                             <button type="button" class="danger-btn btn-sm" id="btnProjectToolbarDelete" title="從專案移除所選檔案">移除</button>
                             <button type="button" class="secondary-btn btn-sm" id="btnProjectWordCount" title="字數與 TM 加權分析">分析</button>
                             <button type="button" class="secondary-btn btn-sm" id="btnProjectSplitAssign" title="依份數均分句段（僅提示，不指派）">拆分</button>
@@ -596,8 +597,8 @@
                         <button id="btnClearTarget" class="icon-btn" style="font-size:1rem;">✕</button>
                         <button id="btnTagCollapse" class="icon-btn" title="展開標籤 (Ctrl+Shift+T)" style="font-size:0.8rem; font-family:monospace;">{…}</button>
                         <button id="btnShowNonPrint" class="icon-btn" title="顯示 / 隱藏非列印字元" style="font-size:1rem;">¶</button>
-                        <button id="btnClientQuestionForm" class="secondary-btn btn-sm" style="display:none;">提問表單</button>
-                        <button id="btnInternalNote" class="secondary-btn btn-sm" style="display:none;">內部註記</button>
+                        <button id="btnClientQuestionForm" class="success-btn btn-sm" style="display:none;">提問表單</button>
+                        <button id="btnInternalNote" class="danger-btn btn-sm" style="display:none;">內部註記</button>
                         <button id="btnShortcuts" class="icon-btn" title="快捷鍵一覽（含說明）">⌨️</button>
                         <button id="btnColSettings" class="icon-btn" title="設定">⚙️</button>
                         <button id="btnPreTranslate" class="primary-btn btn-sm">預先翻譯</button>
@@ -2652,8 +2653,9 @@
                 <div id="casePickerResultList" style="margin-top:0.5rem; border:1px solid #e2e8f0; border-radius:8px; max-height:300px; overflow:auto; padding:0.35rem;"></div>
             </div>
             <div style="padding:0.75rem 1rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.45rem; background:#f8fafc;">
-                <button type="button" id="btnCasePickerClear" class="secondary-btn btn-sm">清除綁定</button>
+                <button type="button" id="btnCasePickerRemove" class="danger-btn btn-sm">移除</button>
                 <button type="button" id="btnCasePickerCancel" class="secondary-btn btn-sm">取消</button>
+                <button type="button" id="btnCasePickerConfirm" class="primary-btn btn-sm">確定</button>
             </div>
         </form>
     </dialog>
