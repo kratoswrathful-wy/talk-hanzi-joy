@@ -2068,23 +2068,18 @@
                         <span id="aiBatchProjectInstructionsHint" style="font-size:0.78rem; color:#64748b;">建議每列 20~120 字；輸入即時儲存。</span>
                     </div>
                 </div>
-                <!-- 單批特殊指示 -->
-                <div>
-                    <label class="form-label">本批特殊指示（選填，翻完後自動清除）</label>
-                    <textarea id="aiBatchNote" class="form-input" rows="2" placeholder="例如：這批句段是法律條款，請使用正式語氣…" style="resize:vertical;"></textarea>
-                </div>
-                <!-- 文風範例：依文字類型篩本批學習範例（不寫入專案） -->
-                <div>
-                    <label class="form-label">文風範例</label>
-                    <p style="font-size:0.78rem; color:#64748b; margin:0 0 0.45rem 0;">文字類型（僅此批有效、不寫入專案）</p>
-                    <div id="aiBatchStyleCategoryWrap" style="display:flex; flex-wrap:wrap; gap:0.4rem; padding:0.5rem; background:#f8fafc; border-radius:6px; border:1px solid #e2e8f0; max-height:120px; overflow-y:auto; align-content:flex-start;">
-                    </div>
-                    <p style="font-size:0.78rem; color:#94a3b8; margin:0.4rem 0 0 0;">多選採聯集。全不勾＝不篩類型（仍受語言與筆數上限影響）。</p>
+                <!-- Token 長度建議（約略） -->
+                <div id="aiBatchTokenGuidance" style="font-size:0.76rem; color:#64748b; line-height:1.45; padding:0.45rem 0.55rem; background:#fffbeb; border:1px solid #fde68a; border-radius:8px;">
+                    <strong style="color:#92400e;">Token 長度建議（約略）</strong><br>
+                    <span style="color:#334155;">提示語：</span>建議約 1,200～4,000 tokens；可接受 4,001～6,000（可能變慢）；不建議 &gt; 6,000。<br>
+                    <span style="color:#334155;">翻譯內容（本批原文）：</span>建議約 300～2,500 tokens；可接受 2,501～4,000；不建議 &gt; 4,000。<br>
+                    <span style="color:#334155;">加總：</span>提示語 + 翻譯內容 + 系統開銷；請以「預覽提示語」中的約略估算為準。
                 </div>
                 <!-- 統計提示 -->
                 <div id="aiBatchStats" class="ai-batch-stats" style="font-size:0.82rem; color:#64748b; padding:0.5rem 0.75rem; background:#f1f5f9; border-radius:6px;"></div>
             </div>
-            <div class="panel-footer" style="padding:1rem; display:flex; justify-content:flex-end; gap:0.5rem; border-top:1px solid #e2e8f0;">
+            <div class="panel-footer" style="padding:1rem; display:flex; justify-content:flex-end; gap:0.5rem; border-top:1px solid #e2e8f0; flex-wrap:wrap;">
+                <button type="button" id="btnAiBatchPreviewPrompt" class="secondary-btn btn-sm">預覽提示語</button>
                 <button type="button" id="btnCancelAiBatch" class="secondary-btn btn-sm">取消</button>
                 <button type="button" id="btnRunAiBatch" class="primary-btn btn-sm">開始翻譯</button>
             </div>
@@ -2124,6 +2119,28 @@
             <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.75rem; flex-shrink:0; border-top:1px solid #e2e8f0; padding-top:0.75rem;">
                 <button type="button" id="btnCancelAiBatchExamplePicker" class="secondary-btn btn-sm">取消</button>
                 <button type="button" id="btnApplyAiBatchExamplePicker" class="primary-btn btn-sm">套用</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====== AI 批次翻譯：提示語預覽 ====== -->
+    <div id="aiBatchPromptPreviewModal" class="modal-overlay hidden" style="align-items:flex-start; padding-top:2rem;">
+        <div class="modal-box" style="max-width:min(920px,96vw); width:94vw; max-height:90vh; display:flex; flex-direction:column;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.65rem; flex-shrink:0;">
+                <h3 style="margin:0;">提示語預覽（第一批）</h3>
+                <button type="button" id="btnCloseAiBatchPromptPreview" class="secondary-btn btn-sm">關閉</button>
+            </div>
+            <p style="font-size:0.78rem; color:#64748b; margin:0 0 0.65rem 0;">依目前範圍與分批上限，展示<strong>第一批</strong>送出的 system／user 訊息；實際翻譯仍會經 TM 分批與覆蓋規則，可能與預覽略有差異。</p>
+            <div id="aiBatchPreviewTokenEst" style="font-size:0.78rem; color:#334155; margin-bottom:0.5rem;"></div>
+            <div style="overflow:auto; flex:1; min-height:0; display:flex; flex-direction:column; gap:0.75rem;">
+                <div>
+                    <div style="font-size:0.82rem; font-weight:600; margin-bottom:0.35rem;">System</div>
+                    <pre id="aiBatchPreviewSystem" style="margin:0; white-space:pre-wrap; word-break:break-word; font-size:0.76rem; line-height:1.45; padding:0.55rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; max-height:38vh; overflow:auto;"></pre>
+                </div>
+                <div>
+                    <div style="font-size:0.82rem; font-weight:600; margin-bottom:0.35rem;">User</div>
+                    <pre id="aiBatchPreviewUser" style="margin:0; white-space:pre-wrap; word-break:break-word; font-size:0.76rem; line-height:1.45; padding:0.55rem; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; max-height:38vh; overflow:auto;"></pre>
+                </div>
             </div>
         </div>
     </div>

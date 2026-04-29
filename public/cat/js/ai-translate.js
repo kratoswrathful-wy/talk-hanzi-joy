@@ -480,6 +480,38 @@
         };
     }
 
+    /**
+     * 組出與 translate() 相同結構的 messages（不呼叫 API），供批次翻譯預覽。
+     */
+    function buildTranslatePromptMessages(segments, options = {}) {
+        const settings = options.settings || {};
+        const indexed = segments.map((seg, i) => {
+            const { clean, tagMap } = stripTags(seg.sourceText || '');
+            return {
+                idx: i,
+                segId: seg.id,
+                source: clean,
+                tagMap,
+                keys: options.includeKeys === false ? [] : (seg.keys || []),
+                extraValue: options.includeExtraValue === false ? '' : (seg.extraValue || ''),
+                contextPrev: options.includeContext === false ? '' : (seg.contextPrev || ''),
+                contextNext: options.includeContext === false ? '' : (seg.contextNext || ''),
+                tmHint: seg._tmHint || null
+            };
+        });
+        return buildPrompt(indexed, {
+            sourceLang: options.sourceLang,
+            targetLang: options.targetLang,
+            guidelines: options.guidelines || [],
+            styleGuidelines: options.styleGuidelines || [],
+            styleExamples: options.styleExamples || [],
+            tbTerms: options.tbTerms || [],
+            batchNote: options.batchNote || '',
+            projectGuidelinesNote: options.projectGuidelinesNote || '',
+            systemPrefix: options.systemPrefix || (settings.prompts && settings.prompts.translateSystemPrefix) || ''
+        });
+    }
+
     // ---- 局部重試 ----
 
     /**
@@ -615,6 +647,7 @@
         translate,
         retryMissing,
         buildPrompt,
+        buildTranslatePromptMessages,
         diffRatio,
         friendlyError,
         scanFullText,

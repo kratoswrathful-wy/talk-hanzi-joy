@@ -19706,17 +19706,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    async function _refreshAiBatchStyleCategoryList() {
-        const wrap = document.getElementById('aiBatchStyleCategoryWrap');
-        if (!wrap) return;
-        const tags = await DBService.getAiCategoryTags().catch(() => []);
-        const cats = tags.map(t => t.name).filter(Boolean).sort((a, b) => String(a).localeCompare(String(b), 'zh-Hant'));
-        const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-        wrap.innerHTML = cats.length
-            ? cats.map(c => `<label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;font-size:0.8rem;max-width:100%;"><input type="checkbox" class="ai-batch-style-cat-cb" value="${esc(c)}"> <span style="overflow:hidden;text-overflow:ellipsis;">${esc(c)}</span></label>`).join('')
-            : '<span style="font-size:0.8rem;color:#94a3b8;">（尚無標籤，請到「AI 管理」建立文字類型標籤）</span>';
-    }
-
     function _setAiBatchRangeMode(mode) {
         const btnAll = document.getElementById('aiBatchModeAll');
         const btnRange = document.getElementById('aiBatchModeRange');
@@ -19869,6 +19858,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, 180);
     }
 
+    function _updateAiBatchProjectInstructionsHintOnly() {
+        const hintEl = document.getElementById('aiBatchProjectInstructionsHint');
+        const rows = Array.isArray(__aiBatchProjectInstructions) ? __aiBatchProjectInstructions : [];
+        const sumChars = rows.reduce((sum, r) => sum + _charsOfText(r.content || ''), 0);
+        const sumTok = _estimateTokensByChars(sumChars);
+        if (hintEl && currentProjectId) {
+            hintEl.textContent = `建議每列 20~120 字；目前共 ${rows.length} 列，${sumChars} 字元（約 ${sumTok} tokens）；輸入即時儲存。`;
+        }
+    }
+
+    function _patchAiBatchProjectInstructionRowMeta(listEl, sid) {
+        const row = __aiBatchProjectInstructions.find((r) => String(r.id) === String(sid));
+        if (!row || !listEl) return;
+        const chars = _charsOfText(row.content || '');
+        const tok = _estimateTokensByChars(chars);
+        const meta = Array.from(listEl.querySelectorAll('.ai-batch-si-meta')).find((el) => String(el.getAttribute('data-si-id')) === String(sid));
+        if (meta) meta.textContent = `${chars} 字元（約 ${tok} tokens）`;
+        _updateAiBatchProjectInstructionsHintOnly();
+    }
+
     function _renderAiBatchProjectInstructions() {
         const listEl = document.getElementById('aiBatchProjectInstructionsList');
         const hintEl = document.getElementById('aiBatchProjectInstructionsHint');
@@ -19885,27 +19894,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             listEl.innerHTML = rows.map((row) => {
                 const chars = _charsOfText(row.content || '');
                 const tok = _estimateTokensByChars(chars);
-                const rid = _esc(String(row.id));
+                const rawIdAttr = String(row.id).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
                 return `<div style="border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; padding:0.45rem 0.5rem;">
                     <div style="display:flex; align-items:center; gap:0.45rem;">
-                        <input type="checkbox" class="ai-batch-si-enabled" data-si-id="${rid}" ${row.enabled !== false ? 'checked' : ''}>
-                        <input type="text" class="form-input ai-batch-si-input" data-si-id="${rid}" value="${_esc(row.content || '')}" placeholder="輸入專案 AI 指示…" style="flex:1; min-width:180px;">
-                        <button type="button" class="danger-btn btn-sm ai-batch-si-del" data-si-id="${rid}">刪除</button>
+                        <input type="checkbox" class="ai-batch-si-enabled" data-si-id="${rawIdAttr}" ${row.enabled !== false ? 'checked' : ''}>
+                        <input type="text" class="form-input ai-batch-si-input" data-si-id="${rawIdAttr}" value="${_esc(row.content || '')}" placeholder="輸入專案 AI 指示…" style="flex:1; min-width:180px;">
+                        <button type="button" class="danger-btn btn-sm ai-batch-si-del" data-si-id="${rawIdAttr}">刪除</button>
                     </div>
-                    <div style="margin-top:0.35rem; font-size:0.76rem; color:#64748b;">${chars} 字元（約 ${tok} tokens）</div>
+                    <div class="ai-batch-si-meta" data-si-id="${rawIdAttr}" style="margin-top:0.35rem; font-size:0.76rem; color:#64748b;">${chars} 字元（約 ${tok} tokens）</div>
                 </div>`;
             }).join('');
         }
-        const sumChars = rows.reduce((sum, r) => sum + _charsOfText(r.content || ''), 0);
-        const sumTok = _estimateTokensByChars(sumChars);
-        if (hintEl) hintEl.textContent = `建議每列 20~120 字；目前共 ${rows.length} 列，${sumChars} 字元（約 ${sumTok} tokens）；輸入即時儲存。`;
+        _updateAiBatchProjectInstructionsHintOnly();
         listEl.querySelectorAll('.ai-batch-si-enabled').forEach((el) => {
             el.onchange = () => {
                 const sid = String(el.getAttribute('data-si-id') || '');
                 const idx = __aiBatchProjectInstructions.findIndex((r) => String(r.id) === sid);
                 if (idx < 0) return;
                 __aiBatchProjectInstructions[idx].enabled = !!el.checked;
-                _renderAiBatchProjectInstructions();
                 _queueSaveAiBatchProjectInstructions();
             };
         });
@@ -19915,7 +19921,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const idx = __aiBatchProjectInstructions.findIndex((r) => String(r.id) === sid);
                 if (idx < 0) return;
                 __aiBatchProjectInstructions[idx].content = String(el.value || '');
-                _renderAiBatchProjectInstructions();
+                _patchAiBatchProjectInstructionRowMeta(listEl, sid);
                 _queueSaveAiBatchProjectInstructions();
             };
         });
@@ -20023,10 +20029,90 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     }
 
+    async function _openAiBatchPromptPreview() {
+        if (!currentSegmentsList || !currentSegmentsList.length) {
+            _showAiToast('無句段可預覽。', true);
+            return;
+        }
+        const range = _validateAiBatchRange();
+        if (!range.ok) {
+            _showAiToast('指定範圍有誤，請修正後再預覽。', true);
+            return;
+        }
+        const settings = await DBService.getAiSettings().catch(() => null);
+        if (!settings) {
+            _showAiToast('無法讀取 AI 設定。', true);
+            return;
+        }
+        const rowLimit = Math.max(1, parseInt(document.getElementById('aiBatchLimitRows')?.value || '20', 10) || 20);
+        const charLimit = Math.max(200, parseInt(document.getElementById('aiBatchLimitChars')?.value || '2500', 10) || 2500);
+        const i0 = range.allFile ? 0 : (range.rangeStart - 1);
+        const i1 = range.allFile ? currentSegmentsList.length - 1 : (range.rangeEnd - 1);
+        const rangeSegs = currentSegmentsList.filter((s, i) => i >= i0 && i <= i1);
+        if (!rangeSegs.length) {
+            _showAiToast('範圍內無句段可預覽。', true);
+            return;
+        }
+        const batch = _nextBatchByRowsAndChars(rangeSegs, 0, rowLimit, charLimit).map((s) => ({ ...s }));
+        const tmRefThreshold = parseInt(document.getElementById('aiBatchTmRefThreshold')?.value || '0', 10);
+        const refTm = !!document.getElementById('aiBatchRefTm')?.checked;
+        if (refTm && tmRefThreshold > 0 && batch.length) {
+            const tmCache = window.ActiveTmCache || [];
+            const calcSim = window.calculateSimilarity || (() => 0);
+            const _aiPenalties = window.ActiveTmPenalties || {};
+            for (const seg of batch) {
+                let bestMatch = null;
+                let bestScore = 0;
+                for (const tm of tmCache) {
+                    const rawScore = calcSim(seg.sourceText || '', tm.sourceText || '');
+                    const penalty = _aiPenalties[tm._tmId] ?? 0;
+                    const score = Math.max(0, rawScore - penalty);
+                    if (score > bestScore) { bestScore = score; bestMatch = tm; }
+                }
+                seg._tmHint = (bestScore >= tmRefThreshold && bestMatch)
+                    ? { score: Math.round(bestScore), targetText: bestMatch.targetText }
+                    : null;
+            }
+        }
+        const refOptions = {
+            useTm: !!document.getElementById('aiBatchRefTm')?.checked,
+            useTb: !!document.getElementById('aiBatchRefTb')?.checked,
+            useTbNote: !!document.getElementById('aiBatchRefTbNote')?.checked,
+            useKey: !!document.getElementById('aiBatchRefKey')?.checked,
+            useExtra: !!document.getElementById('aiBatchRefExtra')?.checked,
+            useExamples: !!document.getElementById('aiBatchRefExamples')?.checked,
+            useConfirmedContext: !!document.getElementById('aiBatchRefConfirmed')?.checked,
+            selectedExampleIds: Array.from(__aiBatchSelectedExampleIds)
+        };
+        const options = await _buildAiOptions(settings, '', undefined, refOptions);
+        if (!window.CatAiTranslate || typeof window.CatAiTranslate.buildTranslatePromptMessages !== 'function') {
+            _showAiToast('預覽模組未載入。', true);
+            return;
+        }
+        const messages = window.CatAiTranslate.buildTranslatePromptMessages(batch, options);
+        const sys = (messages.find((m) => m.role === 'system') || {}).content || '';
+        const usr = (messages.find((m) => m.role === 'user') || {}).content || '';
+        const overhead = 400;
+        const tokSys = _estimateTokensByChars([...sys].length);
+        const tokUsr = _estimateTokensByChars([...usr].length);
+        const tokTotal = tokSys + tokUsr + overhead;
+        const prevModal = document.getElementById('aiBatchPromptPreviewModal');
+        const preSys = document.getElementById('aiBatchPreviewSystem');
+        const preUsr = document.getElementById('aiBatchPreviewUser');
+        const tokEl = document.getElementById('aiBatchPreviewTokenEst');
+        if (preSys) preSys.textContent = sys;
+        if (preUsr) preUsr.textContent = usr;
+        if (tokEl) {
+            tokEl.innerHTML = `約略估算：提示語 <strong>${tokSys}</strong> tokens · 翻譯內容（User）<strong>${tokUsr}</strong> tokens · 假設系統開銷 ${overhead} tokens · 加總約 <strong>${tokTotal}</strong> tokens（實際依供應商計費為準）。`;
+        }
+        if (prevModal) prevModal.classList.remove('hidden');
+        const closeBtn = document.getElementById('btnCloseAiBatchPromptPreview');
+        if (closeBtn) closeBtn.onclick = () => { if (prevModal) prevModal.classList.add('hidden'); };
+    }
+
     function openAiBatchModal() {
         const modal = document.getElementById('aiBatchModal');
         if (!modal) return;
-        _refreshAiBatchStyleCategoryList().then(() => {}).catch(() => {});
         window.__catAiBatchRangeMode = 'all';
         _setAiBatchRangeMode('all');
         const rowLimitEl = document.getElementById('aiBatchLimitRows');
@@ -20060,6 +20146,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const endEl = document.getElementById('aiBatchRangeEnd');
         const pickExBtn = document.getElementById('btnAiBatchPickExamples');
         const addProjectSiBtn = document.getElementById('btnAiBatchAddProjectInstruction');
+        const previewBtn = document.getElementById('btnAiBatchPreviewPrompt');
 
         function close() { modal.classList.add('hidden'); }
         if (cancelBtn) cancelBtn.onclick = close;
@@ -20100,16 +20187,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (el) el.onchange = () => _updateBatchStats();
         });
         void _loadAiBatchProjectInstructions();
+        if (previewBtn) previewBtn.onclick = () => { void _openAiBatchPromptPreview(); };
         if (runBtn) runBtn.onclick = async () => {
             const range = _validateAiBatchRange();
             if (!range.ok) {
                 _showAiToast('指定範圍有誤，請修正後再開始翻譯。', true);
                 return;
             }
-            const customCats = [];
-            document.querySelectorAll('#aiBatchStyleCategoryWrap .ai-batch-style-cat-cb:checked').forEach(cb => {
-                if (cb.value) customCats.push(cb.value);
-            });
             const rowLimit = Math.max(1, parseInt(document.getElementById('aiBatchLimitRows')?.value || '20', 10) || 20);
             const charLimit = Math.max(200, parseInt(document.getElementById('aiBatchLimitChars')?.value || '2500', 10) || 2500);
             close();
@@ -20123,7 +20207,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tmAction: document.getElementById('aiBatchTmAction')?.value || 'direct',
                 tmRefThreshold: parseInt(document.getElementById('aiBatchTmRefThreshold')?.value || '0', 10),
                 handleRepetitions: document.getElementById('aiBatchHandleRepetitions')?.value || 'yes',
-                batchNote: document.getElementById('aiBatchNote')?.value?.trim() || '',
+                batchNote: '',
                 batchRowLimit: rowLimit,
                 batchCharLimit: charLimit,
                 refOptions: {
@@ -20136,7 +20220,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     useConfirmedContext: !!document.getElementById('aiBatchRefConfirmed')?.checked,
                     selectedExampleIds: Array.from(__aiBatchSelectedExampleIds)
                 },
-                batchStyleExampleCategories: customCats
+                batchStyleExampleCategories: []
             };
             await runAiBatchTranslate(config);
         };
