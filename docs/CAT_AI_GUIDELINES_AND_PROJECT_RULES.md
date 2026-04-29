@@ -215,6 +215,7 @@ flowchart LR
 - **新增條目工具列**：議題群組下拉補 `+ 新增群組` 入口，並在建立後即時回填與選取。
 - **空群組回收**：條目脫離／刪除後，若群組無任何引用，於本機與團隊 RPC 路徑皆自動清理空群組。
 - **429 保護**：翻譯呼叫加入 retry（exponential backoff + jitter）；`insufficient_quota` 不重試。
+- **例行維運（migration 對照）**：以 `npm run verify:supabase-migrations` 確認 **Local／Remote** 版本一致且含 **`20260502120000`**（議題群組）等；linked 專案若一致即代表環境與規格 **§1.2** 對齊，無需另改程式。
 
 ---
 
@@ -228,7 +229,8 @@ flowchart LR
    - 驗證共用資訊欄與管理介面的議題群組顯示一致（卡片聚合 vs. 套用勾選語意）。
    - 驗證新增條目之議題群組下拉可即時更新，且含 `+ 新增群組`。
    - 驗證整卡勾選後 `selected*Ids` 型別一致（number-only）：重整後仍能完整顯示整張議題卡，避免「只剩第一筆」。
-5. **429/速率過快**：現況見 **§12.2**（`Retry-After`、批次 cooldown、互斥、降載）；**可恢復重跑**仍為加值，見該節說明。
+5. **429/速率過快**：現況見 **§12.2**（`Retry-After`、批次 cooldown、互斥、降載）；**可恢復重跑**（同檔同設定接續批次）見 **§12.2**。
+6. **Migration 線上對照（例行）**：於開發機執行 `npm run verify:supabase-migrations`，確認 Local 與 Remote 一致；與 **§5.6.9**「例行維運」互補。
 
 ---
 
@@ -304,6 +306,7 @@ flowchart LR
 | 2026-04-28（議題群組缺陷修復） | 修正「管理介面勾選**議題群組整卡**後，共用資訊僅顯示首筆」：根因為 `selectedGuidelineIds` / `selectedStyleGuidelineIds` 混入 `number` 與 `string`，`Set.has` 嚴格比對導致群組成員漏命中。修復為**全路徑 id 正規化為 number**（初始化、群組勾選、確認回傳、套用預設、共用資訊渲染比對）。另修正一次回歸時引入的 `normalizeGuidelineId` 作用域遺漏（曾造成共用資訊區塊按鈕失效與內容清空）。 |
 | 2026-04-28（C 階段預覽定稿） | 新增 **§12**：AI 批次翻譯介面重製定稿（範圍切換、參照來源、修改案例庫、token 口徑）與實作入口；原分階段建議順延為 **§13**，並將 C/D 階段改為「C：已定稿待落地」「D：速率保護 MVP（`Retry-After`/cooldown/互斥/降載）」。另於 **§6** 補 429 維運策略。整合來源：[本次執行對話](b5283eac-a4e1-47c6-a2d2-7375992aad23)。 |
 | 2026-04-29（C／D 收斂） | **§12**：標示 **§12.1** 已落地；**§12.2** 改為「MVP 已涵蓋／可恢復重跑為加值」並對照 `ai-translate.js`／`app.js`；**§12.4** 驗收項勾選；**§13** 更新 **C** 為已驗收、**D** 為 MVP 已涵蓋。程式修正：`cat-tool/app.js` 補上 **`_acquireAiFlowLock`**（掃描／批次互斥）、**`_aiSleep`** 改為真正 `setTimeout` 延遲（cooldown／降載退避生效）。 |
+| 2026-04-29（加值收斂） | **範例拖曳排序**：庫內／專案準則編輯 modal 左側 ⋮⋮ 拖曳，`style.css` 三欄版面。**批次接續**：`runAiBatchTranslate` 以 `sessionStorage` 儲存進度，成功收尾或取消恢復時清除。**§5.6.9**／**§6** 補 migration 例行對照說明。**§12.2**／**§12.4**／**§13** 更新。 |
 
 ---
 
@@ -389,14 +392,14 @@ flowchart LR
    - 由數字輸入框改為「AI 學習範例庫」視窗（可檢視/搜尋/勾選）。
    - 上限 15 行，按鈕顯示 `xx/15`；套用後回填來源估算。
 
-### 12.2 速率控制策略（定稿；MVP 已涵蓋，加值另列）
+### 12.2 速率控制策略（定稿；MVP 與接續重跑已涵蓋）
 
 > 目標：降低 429（`rate_limit_exceeded`）導致的「翻譯失敗：請求速率超過上限，請稍後再試」。
 
 - **單次 API 呼叫**：[`cat-tool/js/ai-translate.js`](../cat-tool/js/ai-translate.js) `postChatCompletionsWithRetry` — retry（exponential backoff + jitter）、`insufficient_quota` 不重試、**429 時與 backoff 取較大延遲並優先解析 `Retry-After`**（`_retryAfterToMs`）。
 - **批次翻譯迴圈**：[`cat-tool/app.js`](../cat-tool/app.js) `runAiBatchTranslate` — 批次間 **cooldown + jitter**（`AI_BATCH_COOLDOWN_MS`／可選 `settings.aiBatchCooldownMs`）；遇速率錯誤時 **降載**（縮小每批句數／字元上限並有限次重試）。
 - **全域互斥**：`_acquireAiFlowLock` — **全文掃描**與**批次翻譯**同一鎖，避免並行搶配額。
-- **仍為加值（未強制）**：中斷後 **可恢復重跑**（持久化進度／從失敗批接續）— 需另開設計，避免與既有「句段已寫入即保留」行為混淆。
+- **可恢復重跑（同工作階段）**：當同一檔案、同一批次設定與同一 **AI 句段順序**（`finalAiSegs`）之翻譯未跑完（含 API 失敗提前結束），進度寫入 **`sessionStorage`**（`catAiBatchResumeV1`）；下次按下批次翻譯並通過前置流程後，若條件相符會詢問是否**從下一批繼續**。完成整輪或選「取消並清除進度」會移除快照。**限制**：不含「TM／確認句」等前置 modal 中途跳出之復原；亦未做跨裝置／永久持久化。
 
 ### 12.3 實作對照檔案與順序（不破壞既有行為）
 
@@ -420,6 +423,8 @@ flowchart LR
 - [x] 「參照來源（附估計 token 數）」顯示純數字；其他區維持「約 xx tokens」。
 - [x] 修改案例可開啟 AI 學習範例庫、勾選（<=15）並回填。
 - [x] 全文/指定範圍切換與驗證阻擋行為符合定稿。
+- [x] 準則／專案準則 **範例卡**可拖曳排序（左側 ⋮⋮），存檔後寫入 `examples` 陣列順序。
+- [x] 批次翻譯中斷後，相同檔案／相同設定下可提示 **接續進度**（見 **§12.2**）。
 
 ---
 
@@ -432,8 +437,8 @@ flowchart LR
 | **A** | 維運：既有 Supabase 專案須已套用至 **`20260429203000`**（與 §1.2 一致）；團隊版手動驗收「範例可存、重載不丟」。**已用 CLI 驗之 linked 專案**：見 [`CAT_AI_PHASE_A_BASELINE.md`](./CAT_AI_PHASE_A_BASELINE.md)（`npm run verify:supabase-migrations`） | 未套用則雲端無法讀寫 `cat_ai_guidelines.examples` |
 | **B** | **全站「議題群組」**：規格 **§5.6**；migration [`20260502120000_cat_ai_issue_groups.sql`](../supabase/migrations/20260502120000_cat_ai_issue_groups.sql)、RPC、`cat-tool` UI（雙視圖 Session、管理／參與者差異）、prompt 前綴 | **核心已完成**；目前進入收斂維運（見 **§5.6.9** 與 **§6**） |
 | **C** | **AI 批次翻譯介面重製**（規格定稿見 **§12**）：範圍切換、參照來源、修改案例庫、token 呈現口徑、**候選條目池 → prompt**、驗證文案 | **已落地並驗收**（見 **§12.1**／**§12.4**） |
-| **（加值）** | 範例卡 **拖曳排序**（陣列順序、無額外 schema 變更） | 次優；可併在 **C** 之後或與 **B** 錯峰 |
-| **D** | **速率保護**：`Retry-After`、批次 cooldown、AI 任務互斥、連續 429 降載；**可恢復重跑**見 **§12.2** 加值 | **MVP 已涵蓋**（§12.2）；加值另排 |
+| **（加值）** | 範例卡 **拖曳排序**（陣列順序、無額外 schema 變更） | **已落地**（`#agEditGuidelineModal`／`#pgEditProjectGuidelineModal`） |
+| **D** | **速率保護**：`Retry-After`、批次 cooldown、AI 任務互斥、連續 429 降載；**可恢復重跑**（sessionStorage） | **已涵蓋**（§12.2） |
 | **E** | **§7**／**§9.3** 剩餘僅 **`alert`** 之處，改非阻斷 toast 等，與全站一致 | 與 AI 規則邏輯可平行 |
 | **F** | TMS 主站 [`src/components/settings/ToolbarButtonStyleSection.tsx`](../src/components/settings/ToolbarButtonStyleSection.tsx) 之瀏覽器 **`confirm`** 改 React 對話（§7 第 2 點） | 獨立於 CAT iframe，不阻塞 **A～E** |
 

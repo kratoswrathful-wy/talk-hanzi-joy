@@ -16906,6 +16906,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const [oA, oB] = optionsOrdered;
                     return `
                         <div class="ag-edit-ex-row" data-ex-id="${_esc(ex.id)}">
+                            <span class="ag-edit-ex-drag" draggable="true" data-drag-ex-id="${_esc(ex.id)}" title="拖曳排序">⋮⋮</span>
                             <div class="ag-edit-ex-state">
                                 <button type="button" class="ag-edit-ex-state-btn" data-state="${stateClass}" data-toggle-ex-state="${_esc(ex.id)}">${stateLabel}</button>
                                 <div class="ag-edit-ex-state-menu ${menuHidden}">
@@ -16970,6 +16971,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         renderExamples();
                     };
                 });
+                _bindGuidelineExamplesDragSort(examplesListEl, () => editExamples, (n) => { editExamples = n; }, renderExamples);
             }
             renderExamples();
 
@@ -18048,6 +18050,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const [oA, oB] = optionsOrdered;
                     return `
                         <div class="ag-edit-ex-row" data-ex-id="${_esc(ex.id)}">
+                            <span class="ag-edit-ex-drag" draggable="true" data-drag-ex-id="${_esc(ex.id)}" title="拖曳排序">⋮⋮</span>
                             <div class="ag-edit-ex-state">
                                 <button type="button" class="ag-edit-ex-state-btn" data-state="${stateClass}" data-toggle-pg-ex-state="${_esc(ex.id)}">${stateLabel}</button>
                                 <div class="ag-edit-ex-state-menu ${menuHidden}">
@@ -18112,6 +18115,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         renderPgExamples();
                     };
                 });
+                _bindGuidelineExamplesDragSort(examplesListEl, () => editExamples, (n) => { editExamples = n; }, renderPgExamples);
             }
             renderPgExamples();
 
@@ -19641,6 +19645,96 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const AI_BATCH_COOLDOWN_MS = 450;
     const AI_BATCH_MIN_SIZE = 5;
+    const CAT_AI_BATCH_RESUME_KEY = 'catAiBatchResumeV1';
+
+    function _stableStringifyBatchConfigForResume(config) {
+        try {
+            return JSON.stringify({
+                allFile: !!config.allFile,
+                rangeStart: config.rangeStart,
+                rangeEnd: config.rangeEnd,
+                handleConfirmed: config.handleConfirmed,
+                handleUnconfirmed: config.handleUnconfirmed,
+                tmThreshold: config.tmThreshold,
+                tmAction: config.tmAction,
+                tmRefThreshold: config.tmRefThreshold,
+                handleRepetitions: config.handleRepetitions,
+                batchRowLimit: config.batchRowLimit,
+                batchCharLimit: config.batchCharLimit,
+                batchNote: config.batchNote || '',
+                refOptions: config.refOptions || {},
+                candidatePool: config.candidatePool || null,
+                batchStyleExampleCategories: config.batchStyleExampleCategories || []
+            });
+        } catch (_) {
+            return '';
+        }
+    }
+
+    function _saveCatAiBatchResume(payload) {
+        try {
+            sessionStorage.setItem(CAT_AI_BATCH_RESUME_KEY, JSON.stringify(payload));
+        } catch (_) {}
+    }
+
+    function _loadCatAiBatchResume() {
+        try {
+            const raw = sessionStorage.getItem(CAT_AI_BATCH_RESUME_KEY);
+            if (!raw) return null;
+            return JSON.parse(raw);
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function _clearCatAiBatchResume() {
+        try {
+            sessionStorage.removeItem(CAT_AI_BATCH_RESUME_KEY);
+        } catch (_) {}
+    }
+
+    /**
+     * @param {HTMLElement} listEl
+     * @param {() => Array} getExamples
+     * @param {(next: Array) => void} setExamples
+     * @param {() => void} renderFn
+     */
+    function _bindGuidelineExamplesDragSort(listEl, getExamples, setExamples, renderFn) {
+        listEl.querySelectorAll('[data-drag-ex-id]').forEach((handle) => {
+            handle.addEventListener('dragstart', (e) => {
+                const id = handle.getAttribute('data-drag-ex-id');
+                if (e.dataTransfer) {
+                    e.dataTransfer.setData('text/plain', id || '');
+                    e.dataTransfer.effectAllowed = 'move';
+                }
+                handle.closest('.ag-edit-ex-row')?.classList.add('ag-edit-ex-row--dragging');
+            });
+            handle.addEventListener('dragend', () => {
+                listEl.querySelectorAll('.ag-edit-ex-row--dragging').forEach((el) => el.classList.remove('ag-edit-ex-row--dragging'));
+            });
+        });
+        listEl.querySelectorAll('.ag-edit-ex-row').forEach((row) => {
+            row.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+            });
+            row.addEventListener('drop', (e) => {
+                e.preventDefault();
+                const fromId = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
+                const toId = row.getAttribute('data-ex-id');
+                if (!fromId || !toId || fromId === toId) return;
+                const arr = getExamples();
+                const fi = arr.findIndex((x) => String(x.id) === String(fromId));
+                const ti = arr.findIndex((x) => String(x.id) === String(toId));
+                if (fi < 0 || ti < 0) return;
+                const next = [...arr];
+                const [item] = next.splice(fi, 1);
+                next.splice(ti, 0, item);
+                setExamples(next);
+                renderFn();
+            });
+        });
+    }
     let __catAiFlowRunning = false;
     let __aiBatchExampleRows = [];
     let __aiBatchSelectedExampleIds = new Set();
@@ -20678,8 +20772,34 @@ document.addEventListener('DOMContentLoaded', async () => {
             const cooldownMs = Number.isFinite(Number(settings.aiBatchCooldownMs)) ? Math.max(0, Number(settings.aiBatchCooldownMs)) : AI_BATCH_COOLDOWN_MS;
             let i = 0;
             let batchNo = 1;
+            const segIdsOrdered = finalAiSegs.map((s) => s.id);
+            const cfgKey = _stableStringifyBatchConfigForResume(config);
+            const resumeSnap = _loadCatAiBatchResume();
+            if (resumeSnap && resumeSnap.v === 1
+                && resumeSnap.fileId === currentFileId
+                && String(resumeSnap.projectId || '') === String(currentProjectId || '')
+                && resumeSnap.cfgKey === cfgKey
+                && JSON.stringify(resumeSnap.segIds) === JSON.stringify(segIdsOrdered)
+                && resumeSnap.nextIndex > 0 && resumeSnap.nextIndex < finalAiSegs.length) {
+                const ok = await openCatConfirmModal(
+                    `偵測到先前未完成的批次翻譯（已處理 ${resumeSnap.nextIndex} / ${finalAiSegs.length} 句），是否從下一批繼續？\n\n選「取消」將清除進度並從頭開始。`
+                );
+                if (ok) {
+                    i = resumeSnap.nextIndex;
+                    processed = resumeSnap.nextIndex;
+                    batchNo = Number.isFinite(resumeSnap.batchNo) && resumeSnap.batchNo >= 1 ? resumeSnap.batchNo : (Math.floor(i / Math.max(dynamicBatchSize, 1)) + 1);
+                    if (Number.isFinite(resumeSnap.dynamicBatchSize) && resumeSnap.dynamicBatchSize >= AI_BATCH_MIN_SIZE) {
+                        dynamicBatchSize = resumeSnap.dynamicBatchSize;
+                    }
+                    if (Number.isFinite(resumeSnap.dynamicCharLimit) && resumeSnap.dynamicCharLimit >= 500) {
+                        dynamicCharLimit = resumeSnap.dynamicCharLimit;
+                    }
+                } else {
+                    _clearCatAiBatchResume();
+                }
+            }
 
-            _showAiToast(`正在翻譯第 1/${totalBatchesHint} 批…`);
+            _showAiToast(`正在翻譯第 ${batchNo}/${totalBatchesHint} 批…`);
 
             while (i < finalAiSegs.length) {
                 let batch = _nextBatchByRowsAndChars(finalAiSegs, i, dynamicBatchSize, dynamicCharLimit);
@@ -20689,6 +20809,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 while (result.error && result.results.length === 0) {
                     const isRateLimit = String(result.error || '').includes('請求速率超過上限');
                     if (!isRateLimit || guardRetry >= 2) {
+                        _saveCatAiBatchResume({
+                            v: 1,
+                            fileId: currentFileId,
+                            projectId: currentProjectId,
+                            segIds: segIdsOrdered,
+                            nextIndex: i,
+                            cfgKey,
+                            batchNo,
+                            dynamicBatchSize,
+                            dynamicCharLimit
+                        });
                         _showAiToast(`翻譯失敗：${result.error}`, true);
                         return;
                     }
@@ -20715,6 +20846,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                 processed += result.results.length;
                 i += batch.length;
                 batchNo += 1;
+                if (i < finalAiSegs.length) {
+                    _saveCatAiBatchResume({
+                        v: 1,
+                        fileId: currentFileId,
+                        projectId: currentProjectId,
+                        segIds: segIdsOrdered,
+                        nextIndex: i,
+                        cfgKey,
+                        batchNo,
+                        dynamicBatchSize,
+                        dynamicCharLimit
+                    });
+                } else {
+                    _clearCatAiBatchResume();
+                }
                 if (cooldownMs > 0 && i < finalAiSegs.length) {
                     await _aiSleep(cooldownMs + Math.floor(Math.random() * 120));
                 }
@@ -20735,6 +20881,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
+            _clearCatAiBatchResume();
             _showAiToast(`批次翻譯完成！共處理 ${processed} 句。`, false);
             setTimeout(_hideAiToast, 4000);
             rerenderCurrentSegments();

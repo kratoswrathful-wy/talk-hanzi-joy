@@ -112,7 +112,7 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
 .ag-edit-examples-head {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.6rem;
     margin-bottom: 0.55rem;
     font-size: 0.86rem;
@@ -128,9 +128,28 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
 }
 .ag-edit-ex-row {
     display: grid;
-    grid-template-columns: 42px 1fr;
-    gap: 0.5rem;
+    grid-template-columns: 26px 42px 1fr;
+    gap: 0.35rem;
     align-items: stretch;
+}
+.ag-edit-ex-drag {
+    cursor: grab;
+    user-select: none;
+    align-self: start;
+    padding: 0.35rem 0.1rem;
+    margin-top: 0.1rem;
+    color: #94a3b8;
+    font-size: 0.95rem;
+    line-height: 1;
+    border-radius: 6px;
+    border: 1px dashed #cbd5e1;
+    background: #f8fafc;
+}
+.ag-edit-ex-drag:active {
+    cursor: grabbing;
+}
+.ag-edit-ex-row.ag-edit-ex-row--dragging {
+    opacity: 0.72;
 }
 .ag-edit-ex-state {
     position: relative;
