@@ -2243,16 +2243,16 @@ mark.tm-search-hit {
     box-shadow: 0 0 0 2px #c4b5fd;
 }
 
-/* 提問表單按鈕 — 橙色 */
-.form-orange-btn {
-    background: #ea580c;
+/* 匯出檔案按鈕 — 水鴨藍 */
+.export-teal-btn {
+    background: #0d9488;
     color: #fff;
     border: none;
     border-radius: 6px;
     font-weight: 500;
     transition: background 0.15s;
 }
-.form-orange-btn:hover { background: #c2410c; }
+.export-teal-btn:hover { background: #0f766e; }
 
 /* AI Mode Bar（編輯器工具列下方） */
 .ai-mode-bar {
