@@ -132,8 +132,8 @@ function AuthenticatedRoutes() {
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/members" element={<MembersPage />} />
         <Route path="/permissions" element={<PermissionsPage />} />
-        <Route path="/cat/offline" element={<CatToolPage mode="offline" />} />
-        <Route path="/cat/team" element={<CatToolPage mode="team" />} />
+        <Route path="/cat/offline/*" element={<CatToolPage mode="offline" />} />
+        <Route path="/cat/team/*" element={<CatToolPage mode="team" />} />
         {/* Legacy redirect: keep old /cat URL working */}
         <Route path="/cat" element={<Navigate to="/cat/offline" replace />} />
         <Route path="*" element={<NotFound />} />

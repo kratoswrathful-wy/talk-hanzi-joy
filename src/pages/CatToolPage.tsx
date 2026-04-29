@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { handleCatCloudRpc } from "@/lib/cat-cloud-rpc";
 import { getEnvironment } from "@/lib/environment";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import { useLocation, useNavigate } from "react-router-dom";
 
 function buildInternalNoteTitleBase(caseTitle: string): string {
   const raw = String(caseTitle || "").trim();
@@ -13,6 +14,83 @@ function buildInternalNoteTitleBase(caseTitle: string): string {
     .replace(/[_\-]?\d{4}[\-\/]?\d{2}[\-\/]?\d{2}$/, "")
     .trim();
   return baseId || raw;
+}
+
+function parseCatViewParams(pathname: string, search: string, mode: "offline" | "team"): string {
+  const base = `/cat/${mode === "team" ? "team" : "offline"}`;
+  const fallback = new URLSearchParams({ catView: "viewDashboard" });
+  if (!pathname.startsWith(base)) return fallback.toString();
+  const rest = pathname.slice(base.length).replace(/^\/+/, "");
+  const parts = rest ? rest.split("/").filter(Boolean) : [];
+  const query = new URLSearchParams(search || "");
+  const params = new URLSearchParams();
+
+  if (parts.length === 0) {
+    params.set("catView", "viewDashboard");
+    return params.toString();
+  }
+
+  if (parts[0] === "projects") {
+    if (parts[1]) {
+      params.set("catView", "viewProjectDetail");
+      params.set("catProjectId", decodeURIComponent(parts[1]));
+    } else {
+      params.set("catView", "viewProjects");
+    }
+    return params.toString();
+  }
+
+  if (parts[0] === "files") {
+    params.set("catView", "viewEditor");
+    if (parts[1]) params.set("catFileId", decodeURIComponent(parts[1]));
+    const projectId = query.get("p");
+    if (projectId) params.set("catProjectId", projectId);
+    return params.toString();
+  }
+
+  if (parts[0] === "tm") {
+    if (parts[1]) {
+      params.set("catView", "viewTmDetail");
+      params.set("catTmId", decodeURIComponent(parts[1]));
+    } else {
+      params.set("catView", "viewTM");
+    }
+    return params.toString();
+  }
+
+  if (parts[0] === "tb") {
+    if (parts[1]) {
+      params.set("catView", "viewTbDetail");
+      params.set("catTbId", decodeURIComponent(parts[1]));
+    } else {
+      params.set("catView", "viewTB");
+    }
+    return params.toString();
+  }
+
+  return fallback.toString();
+}
+
+function buildCatPath(mode: "offline" | "team", payload: Record<string, any>): string {
+  const base = `/cat/${mode === "team" ? "team" : "offline"}`;
+  const view = String(payload?.view || "viewDashboard");
+  const projectId = payload?.projectId != null ? String(payload.projectId) : "";
+  const fileId = payload?.fileId != null ? String(payload.fileId) : "";
+  const tmId = payload?.tmId != null ? String(payload.tmId) : "";
+  const tbId = payload?.tbId != null ? String(payload.tbId) : "";
+
+  if (view === "viewProjects") return `${base}/projects`;
+  if (view === "viewProjectDetail") return projectId ? `${base}/projects/${encodeURIComponent(projectId)}` : `${base}/projects`;
+  if (view === "viewEditor") {
+    if (!fileId) return base;
+    const qs = projectId ? `?p=${encodeURIComponent(projectId)}` : "";
+    return `${base}/files/${encodeURIComponent(fileId)}${qs}`;
+  }
+  if (view === "viewTM") return `${base}/tm`;
+  if (view === "viewTmDetail") return tmId ? `${base}/tm/${encodeURIComponent(tmId)}` : `${base}/tm`;
+  if (view === "viewTB") return `${base}/tb`;
+  if (view === "viewTbDetail") return tbId ? `${base}/tb/${encodeURIComponent(tbId)}` : `${base}/tb`;
+  return base;
 }
 
 /**
@@ -26,8 +104,16 @@ function buildInternalNoteTitleBase(caseTitle: string): string {
  * All editor logic lives in cat-tool/ (one codebase); only this thin React wrapper differs.
  */
 export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "team" }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const catStorage = mode === "team" ? "team" : "offline";
-  const src = `${import.meta.env.BASE_URL}cat/index.html?catStorage=${encodeURIComponent(catStorage)}`;
+  const initialSrcRef = useRef<string | null>(null);
+  if (initialSrcRef.current == null) {
+    const modeValue = mode === "team" ? "team" : "offline";
+    const catParams = parseCatViewParams(location.pathname, location.search, modeValue);
+    initialSrcRef.current = `${import.meta.env.BASE_URL}cat/index.html?catStorage=${encodeURIComponent(catStorage)}&${catParams}`;
+  }
+  const src = initialSrcRef.current ?? `${import.meta.env.BASE_URL}cat/index.html?catStorage=${encodeURIComponent(catStorage)}`;
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { user, profile, primaryRole } = useAuth();
   const isPmOrAbove = primaryRole === "pm" || primaryRole === "executive";
@@ -317,6 +403,21 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
   ]);
 
   // ── Listen for messages from the CAT iframe (team mode only) ─────────────────
+
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type !== "CAT_NAVIGATE") return;
+      const modeValue = mode === "team" ? "team" : "offline";
+      const nextPath = buildCatPath(modeValue, event.data?.payload ?? {});
+      const currentPath = `${location.pathname}${location.search}`;
+      if (nextPath === currentPath) return;
+      navigate(nextPath, { replace: true });
+    };
+
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [location.pathname, location.search, mode, navigate]);
 
   useEffect(() => {
     if (mode !== "team") return;

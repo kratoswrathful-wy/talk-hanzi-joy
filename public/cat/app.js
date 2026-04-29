@@ -2661,6 +2661,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 payload = { view: activeView || 'viewDashboard' };
             }
             sessionStorage.setItem(getSessionRouteStorageKey(), JSON.stringify(payload));
+            try {
+                window.parent.postMessage({ type: 'CAT_NAVIGATE', payload }, window.location.origin);
+            } catch (_) { /* ignore */ }
         } catch (_) { /* ignore */ }
     }
 
@@ -16276,9 +16279,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function restoreCatRouteFromSession() {
         try {
-            const raw = sessionStorage.getItem(getSessionRouteStorageKey());
-            if (!raw) return;
-            const data = JSON.parse(raw);
+            let data = null;
+            const urlParams = new URLSearchParams(window.location.search);
+            const catView = urlParams.get('catView');
+            if (catView) {
+                data = {
+                    view: catView,
+                    projectId: urlParams.get('catProjectId'),
+                    fileId: urlParams.get('catFileId'),
+                    tmId: urlParams.get('catTmId'),
+                    tbId: urlParams.get('catTbId'),
+                };
+            } else {
+                const raw = sessionStorage.getItem(getSessionRouteStorageKey());
+                if (!raw) return;
+                data = JSON.parse(raw);
+            }
+            if (!data || typeof data !== 'object') return;
             const view = data.view;
             const ALLOW = new Set(['viewDashboard', 'viewProjects', 'viewProjectDetail', 'viewTM', 'viewTB', 'viewTmDetail', 'viewTbDetail', 'viewEditor']);
             if (!view || !ALLOW.has(view)) return;
