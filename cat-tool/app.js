@@ -19906,10 +19906,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    function _aiSleep(ms) {
+    function _acquireAiFlowLock() {
         if (__catAiFlowRunning) return false;
         __catAiFlowRunning = true;
         return true;
+    }
+
+    async function _aiSleep(ms) {
+        const n = Math.max(0, Number(ms) || 0);
+        await new Promise((resolve) => setTimeout(resolve, n));
     }
 
     function _releaseAiFlowLock() {
