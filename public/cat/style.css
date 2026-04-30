@@ -2916,8 +2916,8 @@ select.cat-mutex-dd-native-hidden {
     50% { opacity:0.5; }
 }
 
-/* 非列印字元標記 */
-.non-print-marker {
+/* 非列印字元標記（換行箭頭等 overlay；空格／製表等見 .np-inline-char） */
+.non-print-marker:not(.np-inline-char) {
     display: none;
     color: #475569;
     font-size: 0.88em;
@@ -2925,7 +2925,43 @@ select.cat-mutex-dd-native-hidden {
     pointer-events: none;
     user-select: none;
 }
-.show-non-print .non-print-marker { display: inline; }
+.show-non-print .non-print-marker:not(.np-inline-char) { display: inline; }
+
+/* 單一 wrapper 包住真實空白字元，符號由 ::after 繪製，避免文字節點與不可編輯 span 並排造成方向鍵須按兩次 */
+.non-print-marker.np-inline-char {
+    display: inline;
+    position: relative;
+    vertical-align: baseline;
+    pointer-events: auto;
+    user-select: text;
+    font: inherit;
+}
+.non-print-marker.np-inline-char::after {
+    display: none;
+}
+.show-non-print .non-print-marker.np-inline-char {
+    color: transparent;
+    caret-color: #0f172a;
+}
+.show-non-print .non-print-marker.np-inline-char::after {
+    display: inline;
+    pointer-events: none;
+    user-select: none;
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #475569;
+    font-size: 0.88em;
+    font-weight: 700;
+    line-height: 1;
+    white-space: pre;
+}
+.show-non-print .non-print-marker.np-inline-char[data-np="sp"]::after { content: '·'; }
+.show-non-print .non-print-marker.np-inline-char[data-np="tab"]::after { content: '→'; }
+.show-non-print .non-print-marker.np-inline-char[data-np="nbsp"]::after { content: '°'; }
+.show-non-print .non-print-marker.np-inline-char[data-np="zwsp"]::after { content: '⁰'; }
+.show-non-print .non-print-marker.np-inline-char[data-np="ideosp"]::after { content: '□'; }
 
 /* 全域 toast 通知 */
 .cat-toast {

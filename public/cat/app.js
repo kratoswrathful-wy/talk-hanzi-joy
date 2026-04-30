@@ -1070,6 +1070,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         editorGrid.querySelectorAll('.col-source .rt-editor, .col-target .rt-editor').forEach(applyNonPrintMarkers);
     }
 
+    /** 換行箭頭等 overlay span（不含空白類 np-inline-char）。 */
+    function isNpOverlayMarker(el) {
+        return !!(el && el.nodeType === 1 && el.classList && el.classList.contains('non-print-marker') && !el.classList.contains('np-inline-char'));
+    }
+
     /**
      * 在 rt-editor 元素的文字節點中插入非列印字元標記 span。
      * 僅在 show-non-print 模式下有視覺效果（CSS 控制 display）。
@@ -1107,12 +1112,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             const parts = tn.textContent.split(/([ \t\u00A0\u200B\u3000])/);
             parts.forEach(part => {
                 if (part === ' ' || part === '\t' || part === '\u00A0' || part === '\u200B' || part === '\u3000') {
-                    frag.appendChild(document.createTextNode(part));
-                    const mark = document.createElement('span');
-                    mark.className = 'non-print-marker';
-                    mark.contentEditable = 'false';
-                    mark.textContent = part === ' ' ? '·' : part === '\t' ? '→' : part === '\u00A0' ? '°' : part === '\u3000' ? '□' : '⁰';
-                    frag.appendChild(mark);
+                    const wrap = document.createElement('span');
+                    wrap.className = 'non-print-marker np-inline-char';
+                    wrap.setAttribute(
+                        'data-np',
+                        part === ' '
+                            ? 'sp'
+                            : part === '\t'
+                              ? 'tab'
+                              : part === '\u00A0'
+                                ? 'nbsp'
+                                : part === '\u3000'
+                                  ? 'ideosp'
+                                  : 'zwsp'
+                    );
+                    wrap.appendChild(document.createTextNode(part));
+                    frag.appendChild(wrap);
                 } else {
                     frag.appendChild(document.createTextNode(part));
                 }
@@ -1127,6 +1142,12 @@ document.addEventListener('DOMContentLoaded', async () => {
      */
     function stripNonPrintMarkers(el) {
         el.querySelectorAll('br.np-br').forEach(br => br.classList.remove('np-br'));
+        el.querySelectorAll('.np-inline-char').forEach(wrap => {
+            const parent = wrap.parentNode;
+            if (!parent) return;
+            while (wrap.firstChild) parent.insertBefore(wrap.firstChild, wrap);
+            wrap.remove();
+        });
         el.querySelectorAll('.non-print-marker').forEach(m => m.remove());
         el.normalize();
     }
@@ -1155,7 +1176,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         let offset = 0;
         const walker = document.createTreeWalker(el, NodeFilter.SHOW_ALL, {
             acceptNode: n => {
-                if (n.nodeType === 1 && n.classList && n.classList.contains('non-print-marker')) return NodeFilter.FILTER_REJECT;
+                if (n.nodeType === 1 && n.classList && n.classList.contains('non-print-marker') && !n.classList.contains('np-inline-char')) {
+                    return NodeFilter.FILTER_REJECT;
+                }
                 return NodeFilter.FILTER_ACCEPT;
             }
         });
@@ -1173,7 +1196,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         let remaining = targetOffset;
         const walker = document.createTreeWalker(el, NodeFilter.SHOW_ALL, {
             acceptNode: n => {
-                if (n.nodeType === 1 && n.classList && n.classList.contains('non-print-marker')) return NodeFilter.FILTER_REJECT;
+                if (n.nodeType === 1 && n.classList && n.classList.contains('non-print-marker') && !n.classList.contains('np-inline-char')) {
+                    return NodeFilter.FILTER_REJECT;
+                }
                 return NodeFilter.FILTER_ACCEPT;
             }
         });
@@ -1221,7 +1246,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         function walkNode(nd) {
             if (nd.nodeType === 3) { n += nd.nodeValue.length; return; }
             if (nd.nodeType !== 1) return;
-            if (nd.classList && (nd.classList.contains('rt-tag') || nd.classList.contains('non-print-marker'))) return;
+            if (nd.classList && nd.classList.contains('rt-tag')) return;
+            if (nd.classList && nd.classList.contains('non-print-marker')) {
+                if (nd.classList.contains('np-inline-char')) nd.childNodes.forEach(walkNode);
+                return;
+            }
             if (nd.tagName === 'BR') { n++; return; }
             nd.childNodes.forEach(walkNode);
         }
@@ -10921,30 +10950,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (entry.kind === 'confirmOp') {
-            (async () => {
-                for (const id of Object.keys(entry.beforeSnapshots)) {
-                    const seg = currentSegmentsList.find(s => String(s.id) === String(id));
-                    const snap = entry.beforeSnapshots[id];
-                    if (seg && snap) {
-                        applySegSnapshotToModel(seg, snap);
-                        await persistSegStateToDb(seg);
-                    }
-                }
-                await applyTmUndoOps(entry.tmUndo || []);
-                renderEditorSegments();
-                runSearchAndFilter();
-                const ar = document.querySelector('.grid-data-row.active-row');
-                const aid = ar ? parseId(ar.dataset.segId) : null;
-                const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
-                if (activeSeg) renderLiveTmMatches(activeSeg);
-                updateProgress();
-            })().catch(console.error);
+            const snapIds = Object.keys(entry.beforeSnapshots);
+            for (const id of snapIds) {
+                const seg = currentSegmentsList.find(s => String(s.id) === String(id));
+                const snap = entry.beforeSnapshots[id];
+                if (seg && snap) applySegSnapshotToModel(seg, snap);
+            }
             editorRedoStack.push({
                 kind: 'confirmOp',
                 beforeSnapshots: entry.afterSnapshots,
                 afterSnapshots: entry.beforeSnapshots,
                 tmUndo: entry.tmRedo || [],
                 tmRedo: entry.tmUndo || []
+            });
+            renderEditorSegments();
+            runSearchAndFilter();
+            {
+                const ar = document.querySelector('.grid-data-row.active-row');
+                const aid = ar ? parseId(ar.dataset.segId) : null;
+                const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
+                if (activeSeg) renderLiveTmMatches(activeSeg);
+            }
+            updateProgress();
+            enqueueConfirmSideEffects(async () => {
+                for (const id of snapIds) {
+                    const seg = currentSegmentsList.find(s => String(s.id) === String(id));
+                    const snap = entry.beforeSnapshots[id];
+                    if (seg && snap) await persistSegStateToDb(seg);
+                }
+                await applyTmUndoOps(entry.tmUndo || []);
+                const ar = document.querySelector('.grid-data-row.active-row');
+                const aid = ar ? parseId(ar.dataset.segId) : null;
+                const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
+                if (activeSeg) renderLiveTmMatches(activeSeg);
+                updateProgress();
             });
             return;
         }
@@ -10981,30 +11020,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (entry.kind === 'confirmOp') {
-            (async () => {
-                for (const id of Object.keys(entry.beforeSnapshots)) {
-                    const seg = currentSegmentsList.find(s => String(s.id) === String(id));
-                    const snap = entry.beforeSnapshots[id];
-                    if (seg && snap) {
-                        applySegSnapshotToModel(seg, snap);
-                        await persistSegStateToDb(seg);
-                    }
-                }
-                await applyTmRedoOps(entry.tmRedo || []);
-                renderEditorSegments();
-                runSearchAndFilter();
-                const ar = document.querySelector('.grid-data-row.active-row');
-                const aid = ar ? parseId(ar.dataset.segId) : null;
-                const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
-                if (activeSeg) renderLiveTmMatches(activeSeg);
-                updateProgress();
-            })().catch(console.error);
+            const snapIds = Object.keys(entry.beforeSnapshots);
+            for (const id of snapIds) {
+                const seg = currentSegmentsList.find(s => String(s.id) === String(id));
+                const snap = entry.beforeSnapshots[id];
+                if (seg && snap) applySegSnapshotToModel(seg, snap);
+            }
             editorUndoStack.push({
                 kind: 'confirmOp',
                 beforeSnapshots: entry.afterSnapshots,
                 afterSnapshots: entry.beforeSnapshots,
                 tmUndo: entry.tmRedo || [],
                 tmRedo: entry.tmUndo || []
+            });
+            renderEditorSegments();
+            runSearchAndFilter();
+            {
+                const ar = document.querySelector('.grid-data-row.active-row');
+                const aid = ar ? parseId(ar.dataset.segId) : null;
+                const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
+                if (activeSeg) renderLiveTmMatches(activeSeg);
+            }
+            updateProgress();
+            enqueueConfirmSideEffects(async () => {
+                for (const id of snapIds) {
+                    const seg = currentSegmentsList.find(s => String(s.id) === String(id));
+                    const snap = entry.beforeSnapshots[id];
+                    if (seg && snap) await persistSegStateToDb(seg);
+                }
+                await applyTmRedoOps(entry.tmRedo || []);
+                const ar = document.querySelector('.grid-data-row.active-row');
+                const aid = ar ? parseId(ar.dataset.segId) : null;
+                const activeSeg = aid != null ? currentSegmentsList.find(s => s.id === aid) : null;
+                if (activeSeg) renderLiveTmMatches(activeSeg);
+                updateProgress();
             });
             return;
         }
@@ -12059,8 +12108,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (node.nodeType === 3) {
                 text += node.nodeValue;
             } else if (node.nodeType === 1) {
-                // 跳過非列印字元標記（不納入實際文字內容）
-                if (node.classList && node.classList.contains('non-print-marker')) continue;
+                if (node.classList && node.classList.contains('non-print-marker')) {
+                    if (node.classList.contains('np-inline-char')) text += extractTextFromEditor(node);
+                    continue;
+                }
                 if (node.tagName === 'BR') {
                     text += '\n';
                 } else if (node.classList && node.classList.contains('rt-tag')) {
@@ -12095,7 +12146,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (t.length) segs.push({ type: 'text', node, abs: [off, off + t.length] });
                     off += t.length;
                 } else if (node.nodeType === 1) {
-                    if (node.classList && node.classList.contains('non-print-marker')) continue;
+                    if (node.classList && node.classList.contains('non-print-marker')) {
+                        if (node.classList.contains('np-inline-char')) walk(node);
+                        continue;
+                    }
                     if (node.tagName === 'BR') {
                         segs.push({ type: 'br', node, abs: [off, off + 1] });
                         off += 1;
@@ -13110,32 +13164,101 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const range = sel.getRangeAt(0);
                             const container = range.startContainer;
                             const offset = range.startOffset;
+                            // np-inline-char 內：刪除 wrapper 內字元
+                            if (container.nodeType === 3 && container.parentElement && container.parentElement.classList.contains('np-inline-char')) {
+                                const wrap = container.parentElement;
+                                const val = container.nodeValue;
+                                if (e.key === 'Backspace' && offset > 0) {
+                                    e.preventDefault();
+                                    container.nodeValue = val.slice(0, offset - 1) + val.slice(offset);
+                                    if (!container.nodeValue.length) wrap.remove();
+                                    else {
+                                        try {
+                                            const rng = document.createRange();
+                                            rng.setStart(container, offset - 1);
+                                            rng.collapse(true);
+                                            sel.removeAllRanges();
+                                            sel.addRange(rng);
+                                        } catch (_) {}
+                                    }
+                                    targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                    return;
+                                }
+                                if (e.key === 'Delete' && offset < val.length) {
+                                    e.preventDefault();
+                                    container.nodeValue = val.slice(0, offset) + val.slice(offset + 1);
+                                    if (!container.nodeValue.length) wrap.remove();
+                                    else {
+                                        try {
+                                            const rng = document.createRange();
+                                            rng.setStart(container, offset);
+                                            rng.collapse(true);
+                                            sel.removeAllRanges();
+                                            sel.addRange(rng);
+                                        } catch (_) {}
+                                    }
+                                    targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                    return;
+                                }
+                            }
                             if (e.key === 'Backspace') {
-                                // 游標在節點開頭，左邊是 non-print-marker span
+                                // 文字節點開頭，左側為 np-inline-char：刪 wrapper 最後一字
+                                if (offset === 0 && container.nodeType === 3) {
+                                    const prevSib = container.previousSibling;
+                                    if (prevSib && prevSib.nodeType === 1 && prevSib.classList.contains('np-inline-char')) {
+                                        const tn = prevSib.firstChild;
+                                        if (tn && tn.nodeType === 3 && tn.nodeValue.length) {
+                                            e.preventDefault();
+                                            tn.nodeValue = tn.nodeValue.slice(0, -1);
+                                            if (!tn.nodeValue.length) prevSib.remove();
+                                            try {
+                                                const rng = document.createRange();
+                                                rng.setStart(container, 0);
+                                                rng.collapse(true);
+                                                sel.removeAllRanges();
+                                                sel.addRange(rng);
+                                            } catch (_) {}
+                                            targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                            return;
+                                        }
+                                    }
+                                }
+                                // 文字／元素開頭左側為 overlay（↵），換行標記不連動刪前段空白
                                 if (offset === 0) {
                                     const prevSib = container.previousSibling;
-                                    if (prevSib && prevSib.nodeType === 1 && prevSib.classList.contains('non-print-marker')) {
+                                    if (prevSib && isNpOverlayMarker(prevSib)) {
                                         e.preventDefault();
-                                        const spaceSib = prevSib.previousSibling;
+                                        const beforeMark = prevSib.previousSibling;
+                                        const nlMark = prevSib.nextSibling && ((prevSib.nextSibling.classList && prevSib.nextSibling.classList.contains('np-br')) || prevSib.nextSibling.tagName === 'BR');
                                         prevSib.remove();
-                                        if (spaceSib && spaceSib.nodeType === 3) {
-                                            const v = spaceSib.nodeValue;
-                                            if (v.length <= 1) spaceSib.remove();
-                                            else spaceSib.nodeValue = v.replace(/[ \t\u00A0\u200B\u3000]$/, '');
+                                        if (!nlMark && beforeMark && beforeMark.nodeType === 3) {
+                                            const v = beforeMark.nodeValue;
+                                            if (/[ \t\u00A0\u200B\u3000]$/.test(v)) beforeMark.nodeValue = v.slice(0, -1);
                                         }
                                         targetInput.dispatchEvent(new Event('input', { bubbles: true }));
                                         return;
                                     }
                                 }
-                                // 游標在元素節點內（緊貼 non-print-marker／rt-tag）；container 為 rt-editor 時常見
                                 if (container.nodeType === 1 && offset > 0) {
                                     const prevChild = container.childNodes[offset - 1];
+                                    if (prevChild && prevChild.nodeType === 1 && prevChild.classList.contains('np-inline-char')) {
+                                        const tn = prevChild.firstChild;
+                                        e.preventDefault();
+                                        if (tn && tn.nodeType === 3 && tn.nodeValue.length) {
+                                            tn.nodeValue = tn.nodeValue.slice(0, -1);
+                                            if (!tn.nodeValue.length) prevChild.remove();
+                                        } else prevChild.remove();
+                                        targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                        return;
+                                    }
                                     if (prevChild && prevChild.nodeType === 1 &&
-                                        (prevChild.classList.contains('non-print-marker') || prevChild.classList.contains('rt-tag'))) {
+                                        (isNpOverlayMarker(prevChild) || prevChild.classList.contains('rt-tag'))) {
                                         e.preventDefault();
                                         const spaceSib = prevChild.previousSibling;
+                                        const nlOv = isNpOverlayMarker(prevChild) && prevChild.nextSibling &&
+                                            ((prevChild.nextSibling.classList && prevChild.nextSibling.classList.contains('np-br')) || prevChild.nextSibling.tagName === 'BR');
                                         prevChild.remove();
-                                        if (spaceSib && spaceSib.nodeType === 3) {
+                                        if (!nlOv && spaceSib && spaceSib.nodeType === 3) {
                                             const v = spaceSib.nodeValue;
                                             if (v.length <= 1) spaceSib.remove();
                                             else spaceSib.nodeValue = v.replace(/[ \t\u00A0\u200B\u3000]$/, '');
@@ -13144,12 +13267,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                                         return;
                                     }
                                 }
-                                // 游標在文字節點內，游標左側是空格且右側緊鄰 non-print-marker span
+                                // 相容舊 DOM：同節點尾端空白 + 鄰近 overlay
                                 if (container.nodeType === 3 && offset > 0) {
                                     const charBefore = container.nodeValue[offset - 1];
                                     const nextSib = container.nextSibling;
                                     if (/[ \t\u00A0\u200B\u3000]/.test(charBefore) &&
-                                        nextSib && nextSib.nodeType === 1 && nextSib.classList.contains('non-print-marker')) {
+                                        nextSib && isNpOverlayMarker(nextSib)) {
                                         e.preventDefault();
                                         nextSib.remove();
                                         container.nodeValue = container.nodeValue.slice(0, offset - 1) + container.nodeValue.slice(offset);
@@ -13166,10 +13289,26 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 }
                             }
                             if (e.key === 'Delete') {
-                                // 游標在文字節點末尾，右側緊鄰 non-print-marker span
                                 if (container.nodeType === 3 && offset === container.nodeValue.length) {
                                     const nextSib = container.nextSibling;
-                                    if (nextSib && nextSib.nodeType === 1 && nextSib.classList.contains('non-print-marker')) {
+                                    if (nextSib && nextSib.nodeType === 1 && nextSib.classList.contains('np-inline-char')) {
+                                        e.preventDefault();
+                                        const tn = nextSib.firstChild;
+                                        if (tn && tn.nodeType === 3) {
+                                            if (tn.nodeValue.length <= 1) nextSib.remove();
+                                            else tn.nodeValue = tn.nodeValue.slice(1);
+                                        } else nextSib.remove();
+                                        try {
+                                            const rng = document.createRange();
+                                            rng.setStart(container, offset);
+                                            rng.collapse(true);
+                                            sel.removeAllRanges();
+                                            sel.addRange(rng);
+                                        } catch (_) {}
+                                        targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                        return;
+                                    }
+                                    if (nextSib && isNpOverlayMarker(nextSib)) {
                                         e.preventDefault();
                                         nextSib.remove();
                                         const v = container.nodeValue;
@@ -13177,11 +13316,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                                         targetInput.dispatchEvent(new Event('input', { bubbles: true }));
                                         return;
                                     }
-                                    // 游標在文字節點末尾，右側是單一空格文字節點，其後緊鄰 non-print-marker span
                                     if (nextSib && nextSib.nodeType === 3 &&
                                         /^[ \t\u00A0\u200B\u3000]$/.test(nextSib.nodeValue)) {
                                         const spanAfter = nextSib.nextSibling;
-                                        if (spanAfter && spanAfter.nodeType === 1 && spanAfter.classList.contains('non-print-marker')) {
+                                        if (spanAfter && spanAfter.nodeType === 1 && isNpOverlayMarker(spanAfter)) {
                                             e.preventDefault();
                                             spanAfter.remove();
                                             nextSib.remove();
@@ -13190,11 +13328,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                                         }
                                     }
                                 }
-                                // 游標在文字節點開頭且整個節點是單一空格，右側是 non-print-marker span
                                 if (container.nodeType === 3 && offset === 0 &&
                                     /^[ \t\u00A0\u200B\u3000]$/.test(container.nodeValue)) {
                                     const nextSib = container.nextSibling;
-                                    if (nextSib && nextSib.nodeType === 1 && nextSib.classList.contains('non-print-marker')) {
+                                    if (nextSib && isNpOverlayMarker(nextSib)) {
                                         e.preventDefault();
                                         nextSib.remove();
                                         container.remove();
@@ -13213,7 +13350,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const rangeA = selArrow.getRangeAt(0);
                             const containerA = rangeA.startContainer;
                             const offsetA = rangeA.startOffset;
-                            const isNpMark = (el) => el && el.nodeType === 1 && el.classList && el.classList.contains('non-print-marker');
+                            const isNpMark = (el) => isNpOverlayMarker(el);
                             if (e.key === 'ArrowRight' && containerA.nodeType === 3 && offsetA === containerA.nodeValue.length) {
                                 const next = containerA.nextSibling;
                                 if (isNpMark(next)) {
