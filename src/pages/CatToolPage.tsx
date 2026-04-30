@@ -428,6 +428,65 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
     return () => window.removeEventListener("message", handler);
   }, [location.pathname, location.search, mode, navigate]);
 
+  // CAT iframe：列出綁定案件之既有內部註記（離線／團隊共用 iframe 皆可請求）
+  useEffect(() => {
+    const handler = async (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type !== "CAT_FETCH_NOTES") return;
+
+      const p = event.data?.payload ?? {};
+      const requestId = String(p.requestId || "");
+      const caseTitle = String(p.caseTitle || "").trim();
+      const env = getEnvironment();
+
+      if (!caseTitle) {
+        iframeRef.current?.contentWindow?.postMessage(
+          { type: "TMS_NOTES_LIST_RESULT", payload: { requestId, notes: [] } },
+          window.location.origin
+        );
+        return;
+      }
+
+      try {
+        const { data: notes, error } = await supabase
+          .from("internal_notes")
+          .select("id, title, created_at")
+          .eq("env", env)
+          .eq("related_case", caseTitle)
+          .order("created_at", { ascending: false })
+          .limit(20);
+
+        if (error) throw error;
+
+        iframeRef.current?.contentWindow?.postMessage(
+          {
+            type: "TMS_NOTES_LIST_RESULT",
+            payload: {
+              requestId,
+              notes: (notes ?? []).map((n: { id: string; title: string | null }) => ({
+                id: n.id,
+                title: n.title ?? "",
+                url: `/internal-notes/${n.id}`,
+              })),
+            },
+          },
+          window.location.origin
+        );
+      } catch (e: any) {
+        iframeRef.current?.contentWindow?.postMessage(
+          {
+            type: "TMS_NOTES_LIST_RESULT",
+            payload: { requestId, notes: [], error: e?.message || String(e) },
+          },
+          window.location.origin
+        );
+      }
+    };
+
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
+
   useEffect(() => {
     if (mode !== "team") return;
 

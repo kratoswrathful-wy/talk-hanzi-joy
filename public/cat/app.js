@@ -385,6 +385,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const projectClientFormStatus = document.getElementById('projectClientFormStatus');
     const btnSaveProjectClientForm = document.getElementById('btnSaveProjectClientForm');
     const btnRemoveProjectClientForm = document.getElementById('btnRemoveProjectClientForm');
+    const btnProjectClientFormColConfig = document.getElementById('btnProjectClientFormColConfig');
     const wordCountModal = document.getElementById('wordCountModal');
     const btnCloseWordCountModal = document.getElementById('btnCloseWordCountModal');
     const btnDismissWordCountModal = document.getElementById('btnDismissWordCountModal');
@@ -599,8 +600,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const progressFill = document.getElementById('progressFill');
     const exportBtn = document.getElementById('exportBtn');
-    const btnClientQuestionForm = document.getElementById('btnClientQuestionForm');
-    const btnInternalNote = document.getElementById('btnInternalNote');
+    const qfGroup = document.getElementById('qfGroup');
+    const btnClientQuestionFormMain = document.getElementById('btnClientQuestionFormMain');
+    const btnClientQuestionFormArrow = document.getElementById('btnClientQuestionFormArrow');
+    const inNoteGroup = document.getElementById('inNoteGroup');
+    const btnInternalNoteMain = document.getElementById('btnInternalNoteMain');
+    const btnInternalNoteArrow = document.getElementById('btnInternalNoteArrow');
+    const inNoteDropdown = document.getElementById('inNoteDropdown');
+    const inNoteListBody = document.getElementById('inNoteListBody');
+    const btnInNoteNew = document.getElementById('btnInNoteNew');
     const viewSettingsModal = document.getElementById('viewSettingsModal');
     const btnSortMenu = document.getElementById('btnSortMenu');
     const sortDropdown = document.getElementById('sortDropdown');
@@ -2391,6 +2399,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             const requestId = String(p.requestId || '');
             if (!requestId) return;
             finishPendingInternalNote(requestId, p);
+        } else if (event.data.type === 'TMS_NOTES_LIST_RESULT') {
+            const p = event.data.payload || {};
+            const reqId = String(p.requestId || '');
+            if (reqId && catQfNotesListRequestId && reqId !== catQfNotesListRequestId) return;
+            renderInNoteListFromPayload(p);
         }
     });
 
@@ -3415,6 +3428,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             renderProjectClientFormSettings(p || {});
         });
     }
+    if (btnProjectClientFormColConfig) {
+        btnProjectClientFormColConfig.addEventListener('click', async () => {
+            if (!currentProjectId) return;
+            const p = await DBService.getProject(currentProjectId);
+            await openCatQfColConfigDialog('admin', currentProjectId, p || {});
+        });
+    }
+    initCatQuestionFormColDialog();
+    document.addEventListener('click', (e) => {
+        const g = document.getElementById('inNoteGroup');
+        if (g && !g.contains(e.target)) closeInNoteDropdown();
+    });
 
     async function commitProjectTmMounts(readTms, writeTms) {
         if (!currentProjectId) return;
@@ -8326,6 +8351,440 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     }
 
+    /** 提問表單：焦點／錨點句段（與內部註記相同解析順序） */
+    function getSegmentForQuestionForm() {
+        let seg = null;
+        const activeEditor = getActiveTargetEditor();
+        if (activeEditor) {
+            const segId = getEditorSegId(activeEditor);
+            seg = getSegmentById(segId);
+        }
+        const _saved = catFakeCaret && catFakeCaret.getSaved && catFakeCaret.getSaved();
+        if (!seg && _saved && _saved.segId != null) {
+            seg = getSegmentById(_saved.segId);
+        }
+        if (!seg) {
+            const row = document.querySelector('.grid-data-row.active-row');
+            const segId = row ? row.getAttribute('data-seg-id') : null;
+            if (segId != null) seg = getSegmentById(segId);
+        }
+        return seg;
+    }
+
+    const QF_COL_LS_PREFIX = 'catQfColOverride_';
+    let catQfColDialogMode = 'admin';
+    let catQfColDialogProjectId = null;
+    let catQfNotesListRequestId = null;
+
+    function qfColOverrideLsKey(projectId) {
+        return `${QF_COL_LS_PREFIX}${projectId}`;
+    }
+
+    function defaultQfColConfig() {
+        return {
+            date: { col: 'A', plainText: false, format: 'YYYY/M/D' },
+            filename: { col: 'B' },
+            key: { col: '' },
+            source: { col: 'D' },
+            target: { col: 'E' },
+        };
+    }
+
+    function normalizeQfColConfig(raw) {
+        const d = defaultQfColConfig();
+        if (!raw || typeof raw !== 'object') return d;
+        const out = { ...d };
+        ['date', 'filename', 'key', 'source', 'target'].forEach((k) => {
+            const src = raw[k];
+            if (!src || typeof src !== 'object') return;
+            out[k] = { ...d[k], ...src };
+            if (out[k].col != null) out[k].col = String(out[k].col || '').trim().toUpperCase();
+        });
+        if (out.date && typeof out.date.format !== 'string') out.date.format = 'YYYY/M/D';
+        return out;
+    }
+
+    function loadRawProjectQfColConfig(projectRow) {
+        return normalizeQfColConfig(projectRow && projectRow.clientQuestionFormColumns);
+    }
+
+    function loadEffectiveQfColConfigForTranslator(projectId, projectRow) {
+        if (projectId == null) return defaultQfColConfig();
+        try {
+            const ls = localStorage.getItem(qfColOverrideLsKey(projectId));
+            if (ls) {
+                const p = JSON.parse(ls);
+                if (p && typeof p === 'object') return normalizeQfColConfig(p);
+            }
+        } catch (_) { /* ignore */ }
+        return loadRawProjectQfColConfig(projectRow);
+    }
+
+    function qfColLetterToIndex(letter) {
+        const L = String(letter || '').trim().toUpperCase();
+        if (!L || !/^[A-Z]{1,2}$/.test(L)) return -1;
+        let n = 0;
+        for (let i = 0; i < L.length; i++) n = n * 26 + (L.charCodeAt(i) - 64);
+        return n - 1;
+    }
+
+    function formatQfDatePlain(fmt, d) {
+        const dt = d instanceof Date ? d : new Date();
+        const YYYY = String(dt.getFullYear());
+        const YY = YYYY.slice(-2);
+        const MM = String(dt.getMonth() + 1).padStart(2, '0');
+        const M = String(dt.getMonth() + 1);
+        const DD = String(dt.getDate()).padStart(2, '0');
+        const D = String(dt.getDate());
+        return String(fmt || 'YYYY/M/D')
+            .replace(/YYYY/g, YYYY)
+            .replace(/YY/g, YY)
+            .replace(/MM/g, MM)
+            .replace(/M/g, M)
+            .replace(/DD/g, DD)
+            .replace(/D/g, D);
+    }
+
+    function buildQfClipboardRowValues(seg, fileRow) {
+        const ctx = seg ? (function noteCtxFromSeg(s) {
+            let idRowCount = '';
+            if (Array.isArray(s.keys) && s.keys.length > 0) {
+                idRowCount = String(s.keys.find((k) => String(k || '').trim()) || '').trim();
+            }
+            if (!idRowCount) {
+                const idVal = String(s.idValue || '').trim();
+                if (idVal) idRowCount = idVal.split('\n').map((x) => String(x || '').trim()).find(Boolean) || '';
+            }
+            if (!idRowCount) {
+                if (s.globalId != null) idRowCount = String(s.globalId);
+                else if (s.rowIdx != null) idRowCount = String(Number(s.rowIdx) + 1);
+            }
+            return {
+                key: idRowCount,
+                source: String(s.sourceText || ''),
+                target: String(s.targetText || ''),
+            };
+        })(seg) : { key: '', source: '', target: '' };
+        const now = new Date();
+        const isoDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        return {
+            dateIso: isoDate,
+            filename: String(fileRow?.name || ''),
+            key: ctx.key,
+            source: ctx.source,
+            target: ctx.target,
+        };
+    }
+
+    function buildQfClipboardText(projectId, projectRow, fileRow) {
+        const cfg = loadEffectiveQfColConfigForTranslator(projectId, projectRow);
+        const seg = getSegmentForQuestionForm();
+        const vals = buildQfClipboardRowValues(seg, fileRow);
+        const dateVal = (cfg.date && cfg.date.plainText)
+            ? formatQfDatePlain(cfg.date.format || 'YYYY/M/D', new Date())
+            : vals.dateIso;
+        const mapping = {
+            date: { col: cfg.date?.col, val: dateVal },
+            filename: { col: cfg.filename?.col, val: vals.filename },
+            key: { col: cfg.key?.col, val: vals.key },
+            source: { col: cfg.source?.col, val: vals.source },
+            target: { col: cfg.target?.col, val: vals.target },
+        };
+        let maxIdx = -1;
+        Object.keys(mapping).forEach((k) => {
+            const i = qfColLetterToIndex(mapping[k].col);
+            if (i > maxIdx) maxIdx = i;
+        });
+        if (maxIdx < 0) return '';
+        const cells = new Array(maxIdx + 1).fill('');
+        Object.keys(mapping).forEach((k) => {
+            const col = mapping[k].col;
+            const idx = qfColLetterToIndex(col);
+            if (idx < 0) return;
+            cells[idx] = mapping[k].val != null ? String(mapping[k].val) : '';
+        });
+        return cells.join('\t');
+    }
+
+    function readQfColConfigFromDom() {
+        const dateCol = (document.getElementById('colDate')?.value || '').trim().toUpperCase();
+        const filenameCol = (document.getElementById('colFilename')?.value || '').trim().toUpperCase();
+        const keyCol = (document.getElementById('colKey')?.value || '').trim().toUpperCase();
+        const sourceCol = (document.getElementById('colSource')?.value || '').trim().toUpperCase();
+        const targetCol = (document.getElementById('colTarget')?.value || '').trim().toUpperCase();
+        const plain = !!(document.getElementById('chkPlainDate') && document.getElementById('chkPlainDate').checked);
+        const fmt = (document.getElementById('dateFormat')?.value || '').trim() || 'YYYY/M/D';
+        return normalizeQfColConfig({
+            date: { col: dateCol, plainText: plain, format: fmt },
+            filename: { col: filenameCol },
+            key: { col: keyCol },
+            source: { col: sourceCol },
+            target: { col: targetCol },
+        });
+    }
+
+    function applyQfColConfigToDom(cfg) {
+        const c = normalizeQfColConfig(cfg);
+        const setInput = (id, v) => { const el = document.getElementById(id); if (el) el.value = v != null ? String(v) : ''; };
+        setInput('colDate', c.date.col || '');
+        setInput('colFilename', c.filename.col || '');
+        setInput('colKey', c.key.col || '');
+        setInput('colSource', c.source.col || '');
+        setInput('colTarget', c.target.col || '');
+        const chk = document.getElementById('chkPlainDate');
+        if (chk) chk.checked = !!c.date.plainText;
+        setInput('dateFormat', c.date.format || 'YYYY/M/D');
+        const wrap = document.getElementById('formatWrap');
+        const hint = document.getElementById('formatTokenHint');
+        if (wrap) wrap.classList.toggle('show', !!c.date.plainText);
+        if (hint) hint.style.display = c.date.plainText ? '' : 'none';
+    }
+
+    function updateQfColPreview() {
+        const cfg = readQfColConfigFromDom();
+        const seg = getSegmentForQuestionForm();
+        const fileRow = currentFileId ? { name: '' } : null;
+        (async () => {
+            let fname = '';
+            try {
+                if (currentFileId) {
+                    const f = await DBService.getFile(currentFileId);
+                    fname = String(f?.name || '');
+                }
+            } catch (_) { /* ignore */ }
+            const vals = buildQfClipboardRowValues(seg, { name: fname });
+            const dateVal = cfg.date.plainText
+                ? formatQfDatePlain(cfg.date.format || 'YYYY/M/D', new Date())
+                : vals.dateIso;
+            const mapping = {
+                date: { col: cfg.date?.col, val: dateVal, label: '日期' },
+                filename: { col: cfg.filename?.col, val: vals.filename, label: '檔名' },
+                key: { col: cfg.key?.col, val: vals.key, label: 'Key' },
+                source: { col: cfg.source?.col, val: vals.source, label: '原文' },
+                target: { col: cfg.target?.col, val: vals.target, label: '譯文' },
+            };
+            let maxIdx = -1;
+            Object.keys(mapping).forEach((k) => {
+                const i = qfColLetterToIndex(mapping[k].col);
+                if (i > maxIdx) maxIdx = i;
+            });
+            const wrap = document.getElementById('colPreviewWrap');
+            if (!wrap) return;
+            if (maxIdx < 0) {
+                wrap.innerHTML = '<p style="font-size:0.78rem;color:#94a3b8;margin:0;">（尚未設定任何欄位）</p>';
+                return;
+            }
+            const cols = [];
+            for (let i = 0; i <= maxIdx; i++) {
+                const letter = String.fromCharCode(65 + i);
+                let val = '';
+                let name = letter;
+                Object.keys(mapping).forEach((k) => {
+                    if (String(mapping[k].col || '').toUpperCase() === letter) {
+                        val = mapping[k].val;
+                        name = `${letter} ${mapping[k].label}`;
+                    }
+                });
+                cols.push({ name, val });
+            }
+            const thead = cols.map((c) => `<th>${qfEscapeHtml(c.name)}</th>`).join('');
+            const tbody = cols.map((c) => {
+                const display = c.val ? (c.val.length > 16 ? `${qfEscapeHtml(c.val.slice(0, 15))}…` : qfEscapeHtml(c.val)) : '';
+                const titleAttr = c.val ? ` title="${qfEscapeHtml(String(c.val).replace(/"/g, '&quot;'))}"` : '';
+                return c.val
+                    ? `<td${titleAttr}>${display}</td>`
+                    : '<td class="cat-qf-empty-col">（空）</td>';
+            }).join('');
+            wrap.innerHTML = `<table class="cat-qf-preview-table"><thead><tr>${thead}</tr></thead><tbody><tr>${tbody}</tr></tbody></table>`;
+        })();
+    }
+
+    function qfEscapeHtml(s) {
+        return String(s ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function closeCatQfColConfigDialog() {
+        const ov = document.getElementById('colConfigOverlay');
+        if (ov) {
+            ov.classList.remove('show');
+            ov.dataset.mode = '';
+        }
+    }
+
+    async function openCatQfColConfigDialog(mode, projectId, projectRow) {
+        catQfColDialogMode = mode === 'admin' ? 'admin' : 'translator';
+        catQfColDialogProjectId = projectId != null ? projectId : null;
+        const ov = document.getElementById('colConfigOverlay');
+        const banner = document.getElementById('catQfPersonalBanner');
+        if (!ov) return;
+        ov.dataset.mode = catQfColDialogMode;
+        if (banner) {
+            banner.classList.toggle('show', catQfColDialogMode === 'translator');
+        }
+        let row = projectRow;
+        if ((!row || row.clientQuestionFormColumns == null) && projectId != null) {
+            try { row = await DBService.getProject(projectId) || row; } catch (_) { /* ignore */ }
+        }
+        const cfg = catQfColDialogMode === 'admin'
+            ? loadRawProjectQfColConfig(row || {})
+            : loadEffectiveQfColConfigForTranslator(projectId, row || {});
+        applyQfColConfigToDom(cfg);
+        updateQfColPreview();
+        ov.classList.add('show');
+    }
+
+    async function saveCatQfColConfigDialog() {
+        const cfg = readQfColConfigFromDom();
+        const pid = catQfColDialogProjectId;
+        if (pid == null) {
+            closeCatQfColConfigDialog();
+            return;
+        }
+        try {
+            if (catQfColDialogMode === 'admin') {
+                await DBService.patchProject(pid, { clientQuestionFormColumns: cfg });
+                if (String(currentProjectId) === String(pid)) {
+                    const p = await DBService.getProject(pid);
+                    if (p) renderProjectClientFormSettings(p);
+                }
+            } else {
+                localStorage.setItem(qfColOverrideLsKey(pid), JSON.stringify(cfg));
+            }
+        } catch (e) {
+            console.error(e);
+            alert(e?.message || String(e));
+            return;
+        }
+        closeCatQfColConfigDialog();
+    }
+
+    function initCatQuestionFormColDialog() {
+        const ov = document.getElementById('colConfigOverlay');
+        const btnClose = document.getElementById('btnColConfigClose');
+        const btnCancel = document.getElementById('btnColConfigCancel');
+        const btnSave = document.getElementById('btnColConfigSave');
+        const chkPlain = document.getElementById('chkPlainDate');
+        ['colDate', 'colFilename', 'colKey', 'colSource', 'colTarget', 'dateFormat'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', () => updateQfColPreview());
+        });
+        if (chkPlain) {
+            chkPlain.addEventListener('change', () => {
+                const wrap = document.getElementById('formatWrap');
+                const hint = document.getElementById('formatTokenHint');
+                const on = chkPlain.checked;
+                if (wrap) wrap.classList.toggle('show', on);
+                if (hint) hint.style.display = on ? '' : 'none';
+                updateQfColPreview();
+            });
+        }
+        const stop = (e) => { if (e.target === ov) closeCatQfColConfigDialog(); };
+        if (ov) ov.addEventListener('click', stop);
+        if (btnClose) btnClose.addEventListener('click', closeCatQfColConfigDialog);
+        if (btnCancel) btnCancel.addEventListener('click', closeCatQfColConfigDialog);
+        if (btnSave) btnSave.addEventListener('click', () => { saveCatQfColConfigDialog(); });
+    }
+
+    function closeInNoteDropdown() {
+        if (inNoteDropdown) inNoteDropdown.classList.remove('show');
+        if (btnInternalNoteArrow) btnInternalNoteArrow.classList.remove('open');
+    }
+
+    function toggleInNoteDropdown() {
+        if (!inNoteDropdown || !btnInternalNoteArrow) return;
+        const open = inNoteDropdown.classList.contains('show');
+        if (open) {
+            closeInNoteDropdown();
+            return;
+        }
+        inNoteDropdown.classList.add('show');
+        btnInternalNoteArrow.classList.add('open');
+        if (inNoteListBody) {
+            inNoteListBody.innerHTML = '<div class="note-list-loading"><div class="cat-notes-spinner"></div>讀取中…</div>';
+        }
+        catQfNotesListRequestId =
+            (window.crypto && typeof window.crypto.randomUUID === 'function')
+                ? window.crypto.randomUUID()
+                : `notes_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        try {
+            window.parent.postMessage({
+                type: 'CAT_FETCH_NOTES',
+                payload: {
+                    requestId: catQfNotesListRequestId,
+                    caseTitle: String(window._qfInNoteCaseTitle || ''),
+                },
+            }, window.location.origin);
+        } catch (_) {
+            if (inNoteListBody) {
+                inNoteListBody.innerHTML = '<div class="note-list-empty">無法向 TMS 取得註記列表（請確認已嵌入 TMS 團隊模式）</div>';
+            }
+        }
+    }
+
+    function renderInNoteListFromPayload(payload) {
+        if (!inNoteListBody) return;
+        const err = String(payload?.error || '').trim();
+        if (err) {
+            inNoteListBody.innerHTML = `<div class="note-list-empty">${qfEscapeHtml(err)}</div>`;
+            return;
+        }
+        const notes = Array.isArray(payload?.notes) ? payload.notes : [];
+        if (notes.length === 0) {
+            inNoteListBody.innerHTML = '<div class="note-list-empty">尚無既有註記</div>';
+            return;
+        }
+        inNoteListBody.innerHTML = '';
+        notes.forEach((n) => {
+            const url = String(n.url || (n.id ? `/internal-notes/${n.id}` : '')).trim();
+            const title = String(n.title || n.id || '註記');
+            const a = document.createElement('a');
+            a.className = 'note-item';
+            a.href = url || '#';
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            a.innerHTML = `<span class="note-item-icon">📝</span><div class="note-item-body"><div class="note-item-title"></div></div><span class="note-item-arrow">↗</span>`;
+            const tEl = a.querySelector('.note-item-title');
+            if (tEl) tEl.textContent = title;
+            if (!url) {
+                a.addEventListener('click', (ev) => ev.preventDefault());
+            }
+            inNoteListBody.appendChild(a);
+        });
+    }
+
+    function openInternalNoteFromEditor(file, project) {
+        const context = getEditorContextForInternalNote();
+        const requestId =
+            (window.crypto && typeof window.crypto.randomUUID === 'function')
+                ? window.crypto.randomUUID()
+                : `in_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        pendingInternalNoteByRequestId.set(requestId, {
+            timerId: setTimeout(() => {
+                finishPendingInternalNote(requestId, { ok: false, error: 'timeout' });
+            }, 120000),
+            resolve: null,
+        });
+        showCatLoadingOverlay('建立內部註記…');
+        window.parent.postMessage({
+            type: 'CAT_OPEN_INTERNAL_NOTE',
+            payload: {
+                requestId,
+                caseId: String(file?.relatedLmsCaseId || '').trim() || null,
+                caseTitle: String(file?.relatedLmsCaseTitle || '').trim() || null,
+                fileId: file?.id || null,
+                fileName: file?.name || '',
+                projectId: project?.id || null,
+                idRowCount: context.idRowCount || '',
+                sourceText: context.sourceText || '',
+                translatedText: context.translatedText || '',
+            },
+        }, window.location.origin);
+    }
+
     function updateEditorQuestionButtons(file, project) {
         const btnGsSourceLink = document.getElementById('btnGsSourceLink');
         if (btnGsSourceLink) {
@@ -8338,53 +8797,57 @@ document.addEventListener('DOMContentLoaded', async () => {
                 btnGsSourceLink.onclick = null;
             }
         }
-        if (btnClientQuestionForm) {
+        if (qfGroup && btnClientQuestionFormMain && btnClientQuestionFormArrow) {
             const url = String(project?.clientQuestionFormUrl || '').trim();
+            const pid = project?.id != null ? project.id : null;
             if (url) {
-                btnClientQuestionForm.style.display = '';
-                btnClientQuestionForm.textContent = '提問表單';
-                btnClientQuestionForm.onclick = () => window.open(url, '_blank', 'noopener,noreferrer');
-            } else {
-                btnClientQuestionForm.style.display = 'none';
-                btnClientQuestionForm.onclick = null;
-            }
-        }
-        if (btnInternalNote) {
-            const caseId = String(file?.relatedLmsCaseId || '').trim();
-            const caseTitle = String(file?.relatedLmsCaseTitle || '').trim();
-            if (caseId || caseTitle) {
-                btnInternalNote.style.display = '';
-                btnInternalNote.onclick = () => {
-                    const context = getEditorContextForInternalNote();
-                    const requestId =
-                        (window.crypto && typeof window.crypto.randomUUID === 'function')
-                            ? window.crypto.randomUUID()
-                            : `in_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-                    pendingInternalNoteByRequestId.set(requestId, {
-                        timerId: setTimeout(() => {
-                            finishPendingInternalNote(requestId, { ok: false, error: 'timeout' });
-                        }, 120000),
-                        resolve: null
-                    });
-                    showCatLoadingOverlay('建立內部註記…');
-                    window.parent.postMessage({
-                        type: 'CAT_OPEN_INTERNAL_NOTE',
-                        payload: {
-                            requestId,
-                            caseId: caseId || null,
-                            caseTitle: caseTitle || null,
-                            fileId: file?.id || null,
-                            fileName: file?.name || '',
-                            projectId: project?.id || null,
-                            idRowCount: context.idRowCount || '',
-                            sourceText: context.sourceText || '',
-                            translatedText: context.translatedText || '',
+                qfGroup.style.display = '';
+                btnClientQuestionFormMain.onclick = async () => {
+                    try {
+                        const text = buildQfClipboardText(pid, project, file);
+                        if (text && navigator.clipboard && navigator.clipboard.writeText) {
+                            await navigator.clipboard.writeText(text);
+                            if (typeof showCatToast === 'function') showCatToast('已複製到剪貼簿，請在試算表 A 欄貼上', 'info');
                         }
-                    }, window.location.origin);
+                    } catch (err) {
+                        console.warn('clipboard', err);
+                        if (typeof showCatToast === 'function') showCatToast('複製失敗，請允許剪貼簿權限後再試', 'error');
+                    }
+                    window.open(url, '_blank', 'noopener,noreferrer');
+                };
+                btnClientQuestionFormArrow.onclick = (e) => {
+                    e.stopPropagation();
+                    openCatQfColConfigDialog('translator', pid, project);
                 };
             } else {
-                btnInternalNote.style.display = 'none';
-                btnInternalNote.onclick = null;
+                qfGroup.style.display = 'none';
+                btnClientQuestionFormMain.onclick = null;
+                btnClientQuestionFormArrow.onclick = null;
+            }
+        }
+        if (inNoteGroup && btnInternalNoteMain && btnInternalNoteArrow && btnInNoteNew) {
+            const caseId = String(file?.relatedLmsCaseId || '').trim();
+            const caseTitle = String(file?.relatedLmsCaseTitle || '').trim();
+            window._qfInNoteCaseTitle = caseTitle;
+            if (caseId || caseTitle) {
+                inNoteGroup.style.display = '';
+                const openNote = () => openInternalNoteFromEditor(file, project);
+                btnInternalNoteMain.onclick = openNote;
+                btnInNoteNew.onclick = (ev) => {
+                    ev.stopPropagation();
+                    closeInNoteDropdown();
+                    openNote();
+                };
+                btnInternalNoteArrow.onclick = (e) => {
+                    e.stopPropagation();
+                    toggleInNoteDropdown();
+                };
+            } else {
+                inNoteGroup.style.display = 'none';
+                btnInternalNoteMain.onclick = null;
+                btnInternalNoteArrow.onclick = null;
+                btnInNoteNew.onclick = null;
+                closeInNoteDropdown();
             }
         }
     }

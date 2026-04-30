@@ -163,6 +163,7 @@
                             <a id="projectClientFormInlineLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none; max-width:680px; flex:1 1 420px; min-width:260px; color:var(--primary-color); text-decoration:underline; word-break:break-all;"></a>
                             <button type="button" class="primary-btn btn-sm" id="btnSaveProjectClientForm">儲存</button>
                             <button type="button" class="danger-btn btn-sm" id="btnRemoveProjectClientForm">移除</button>
+                            <button type="button" class="success-btn btn-sm" id="btnProjectClientFormColConfig">欄位設定</button>
                         </div>
                     </div>
                     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:0.5rem;">
@@ -606,8 +607,18 @@
                         <button id="btnColSettings" class="icon-btn" title="設定">⚙️</button>
                         <div style="flex:1;"></div>
                         <button id="btnGsSourceLink" class="secondary-btn btn-sm" style="display:none;">原檔連結</button>
-                        <button id="btnInternalNote" class="danger-btn btn-sm" style="display:none;">內部註記</button>
-                        <button id="btnClientQuestionForm" class="success-btn btn-sm" style="display:none;">提問表單</button>
+                        <div class="split-btn-group" id="inNoteGroup" style="display:none;">
+                            <button type="button" id="btnInternalNoteMain" class="danger-btn btn-sm split-btn-main">內部註記</button>
+                            <button type="button" id="btnInternalNoteArrow" class="danger-btn btn-sm split-btn-arrow" title="既有註記">▾</button>
+                            <div class="split-dropdown" id="inNoteDropdown">
+                                <div class="note-list-new" id="btnInNoteNew"><span class="icon">＋</span>建立新註記</div>
+                                <div class="note-list-body" id="inNoteListBody"></div>
+                            </div>
+                        </div>
+                        <div class="split-btn-group" id="qfGroup" style="display:none;">
+                            <button type="button" id="btnClientQuestionFormMain" class="success-btn btn-sm split-btn-main">提問表單</button>
+                            <button type="button" id="btnClientQuestionFormArrow" class="success-btn btn-sm split-btn-arrow" title="欄位設定">▾</button>
+                        </div>
                         <button id="btnPreTranslate" class="primary-btn btn-sm">預先翻譯</button>
                         <button id="exportBtn" class="export-teal-btn btn-sm">匯出檔案</button>
                         <button id="btnAiMode" class="btn-sm ai-mode-btn" style="display:none;" title="AI 輔助翻譯模式">✨ AI 輔助</button>
@@ -2705,6 +2716,75 @@
             </div>
         </form>
     </dialog>
+
+    <!-- 提問表單：欄位對應設定（專案頁管理者／編輯器譯者共用同一 Dialog） -->
+    <div id="colConfigOverlay" class="cat-qf-dialog-overlay" data-mode="">
+        <div class="cat-qf-dialog" onclick="event.stopPropagation()">
+            <div class="cat-qf-dialog-header">
+                <h2 class="cat-qf-dialog-title">📋 提問表單欄位對應設定</h2>
+                <button type="button" class="cat-qf-dialog-close" id="btnColConfigClose" aria-label="關閉">✕</button>
+            </div>
+            <div class="cat-qf-dialog-body">
+                <div id="catQfPersonalBanner" class="cat-qf-personal-banner">
+                    <span style="flex-shrink:0;">💡</span>
+                    <span>此為您的<strong>個人設定</strong>，僅對您自己生效，不影響管理員設定的預設值。</span>
+                </div>
+                <p style="margin:0 0 1rem; font-size:0.82rem; color:var(--text-light); line-height:1.6;">
+                    請填入每項資料要貼入客戶表單的欄位字母（A–Z）。留空代表不輸出該欄。<br>
+                    設定完成後，點選「提問表單」時，系統會自動在剪貼簿產生相應訊息，可一鍵貼上。
+                </p>
+                <div class="cat-qf-field-row">
+                    <span class="cat-qf-field-name">日期</span>
+                    <span class="cat-qf-field-label">欄位</span>
+                    <input class="cat-qf-col-input" type="text" maxlength="2" placeholder="—" value="A" id="colDate" autocomplete="off">
+                    <div class="cat-qf-plain-toggle">
+                        <input type="checkbox" id="chkPlainDate">
+                        <label for="chkPlainDate">純文字</label>
+                    </div>
+                    <div class="cat-qf-format-wrap" id="formatWrap">
+                        <input class="cat-qf-format-input" type="text" id="dateFormat" placeholder="YYYY/M/D" value="YYYY/M/D" autocomplete="off">
+                    </div>
+                </div>
+                <div class="cat-qf-field-row">
+                    <span class="cat-qf-field-name">檔名</span>
+                    <span class="cat-qf-field-label">欄位</span>
+                    <input class="cat-qf-col-input" type="text" maxlength="2" placeholder="—" value="B" id="colFilename" autocomplete="off">
+                    <span class="cat-qf-col-hint">系統自動帶入當前開啟檔案名稱</span>
+                </div>
+                <div class="cat-qf-field-row">
+                    <span class="cat-qf-field-name">Key</span>
+                    <span class="cat-qf-field-label">欄位</span>
+                    <input class="cat-qf-col-input" type="text" maxlength="2" placeholder="—" value="" id="colKey" autocomplete="off">
+                    <span class="cat-qf-col-hint">句段的 String Key / ID</span>
+                </div>
+                <div class="cat-qf-field-row">
+                    <span class="cat-qf-field-name">原文</span>
+                    <span class="cat-qf-field-label">欄位</span>
+                    <input class="cat-qf-col-input" type="text" maxlength="2" placeholder="—" value="D" id="colSource" autocomplete="off">
+                    <span class="cat-qf-col-hint">焦點句段原文</span>
+                </div>
+                <div class="cat-qf-field-row">
+                    <span class="cat-qf-field-name">譯文</span>
+                    <span class="cat-qf-field-label">欄位</span>
+                    <input class="cat-qf-col-input" type="text" maxlength="2" placeholder="—" value="E" id="colTarget" autocomplete="off">
+                    <span class="cat-qf-col-hint">焦點句段目前譯文</span>
+                </div>
+                <div class="cat-qf-format-token-hint" id="formatTokenHint" style="display:none;">
+                    格式碼：<strong>YYYY</strong>=四位年　<strong>YY</strong>=兩位年　
+                    <strong>MM</strong>=補零月　<strong>M</strong>=不補零月　
+                    <strong>DD</strong>=補零日　<strong>D</strong>=不補零日
+                </div>
+                <div class="cat-qf-preview-strip">
+                    <div class="cat-qf-preview-label">貼上預覽（示意）</div>
+                    <div id="colPreviewWrap"></div>
+                </div>
+            </div>
+            <div class="cat-qf-dialog-footer">
+                <button type="button" class="secondary-btn btn-sm" id="btnColConfigCancel">取消</button>
+                <button type="button" class="success-btn btn-sm" id="btnColConfigSave">儲存設定</button>
+            </div>
+        </div>
+    </div>
 
     <script src="js/tm-utils.js"></script>
     <script src="js/data-provider.js"></script>
