@@ -258,6 +258,8 @@
 
 以下為對話中盤點、**尚未實作**之項目；實作時以 [`cat-tool/app.js`](../cat-tool/app.js) 為主，樣式見 [`cat-tool/style.css`](../cat-tool/style.css)，改後依 [`AGENTS.md`](../AGENTS.md) 執行 `npm run sync:cat` 並一併提交 `public/cat`。
 
+**假游標邏輯模組（已落地）**：暫存游標記錄、真／假游標捲動提示、`selectionchange`／`scroll`／`resize` 監聽已抽至 [`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)（`window.CatFakeCaret.create`）；`app.js` 保留 `saveCatCaretFromSelection`、`showCatFakeCaretFromSaved`、`restoreSavedCaretIntoEditor`、`restoreOrShowFakeCatCaret` 等薄封裝。與本清單相關之「無 focus 寫入暫存位置」等擴充，請優先使用模組 API（例如 `setSavedCaret`）。
+
 ### 1. tag 旁空格仍刪不掉（非列印字元模式）
 
 - **現象**：空格點緊貼 `{N}` 標籤（`.rt-tag`）時，退格有時無法刪除該空格。
@@ -274,7 +276,7 @@
 
 - **現象**：搜尋／取代列輸入後按 F4（或按「取代這個」），焦點不回到預期處、假游標位置錯亂。
 - **根因**：[`moveCaretToEndAndShowFakeInTarget`](../cat-tool/app.js) 使用 `ed.focus()` + `ed.blur()`，觸發譯文欄完整 `focus`／`blur` 鏈（lease、`maybeAutoFillEmptyTarget`、`emitCollabEdit`、`applyUpdateSegmentTarget` 等）；`catSavedCaret` 被覆寫；`blur()` 後焦點常落到 `document.body`。
-- **修法**：勿用 `focus()/blur()` 僅為設定假游標；直接 `createRange()`、`selectNodeContents` + `collapse(false)` 寫入 `catSavedCaret`，再 `requestAnimationFrame(showCatFakeCaretFromSaved)`。
+- **修法**：勿用 `focus()/blur()` 僅為設定假游標；直接 `createRange()`、`selectNodeContents` + `collapse(false)` 後呼叫 `CatFakeCaret` 的 `setSavedCaret({ segId, editor, range })`，再 `requestAnimationFrame` 內呼叫 `show()`（或沿用 `showCatFakeCaretFromSaved` 封裝）。
 
 ### 4. Ctrl+F8 清除標籤後游標跑到譯文開頭
 

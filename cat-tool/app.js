@@ -2743,16 +2743,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function clearEditorCaretArtifacts() {
         // 離開編輯器時強制清除暫存游標與捲動提示，避免殘留在其他頁面。
-        catSavedCaret = null;
-        if (catFakeCaretEl) catFakeCaretEl.classList.add('hidden');
-        if (catFakeCaretScrollTipEl) {
-            catFakeCaretScrollTipEl.classList.add('hidden');
-            catFakeCaretScrollTipEl.textContent = '';
-        }
-        if (catRealCaretScrollTipEl) {
-            catRealCaretScrollTipEl.classList.add('hidden');
-            catRealCaretScrollTipEl.textContent = '';
-        }
+        if (catFakeCaret) catFakeCaret.clear();
     }
 
     function getSessionRouteStorageKey() {
@@ -8225,8 +8216,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const segId = getEditorSegId(activeEditor);
             seg = getSegmentById(segId);
         }
-        if (!seg && catSavedCaret && catSavedCaret.segId != null) {
-            seg = getSegmentById(catSavedCaret.segId);
+        const _saved = catFakeCaret && catFakeCaret.getSaved && catFakeCaret.getSaved();
+        if (!seg && _saved && _saved.segId != null) {
+            seg = getSegmentById(_saved.segId);
         }
         if (!seg) {
             const row = document.querySelector('.grid-data-row.active-row');
@@ -10225,10 +10217,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         sel.addRange(range);
     }
 
-    let catSavedCaret = null;
-    let catFakeCaretEl = null;
-    let catFakeCaretScrollTipEl = null;
-    let catRealCaretScrollTipEl = null;
+    /** 假游標模組實例（js/cat-fake-caret.js）；於 getSegDisplayIndexForTip 定義後初始化。 */
+    let catFakeCaret = null;
 
     function getEditorFromSelection() {
         const sel = window.getSelection();
@@ -10384,187 +10374,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         return '—';
     }
 
-    function ensureCatFakeCaretScrollTipEl() {
-        if (!catFakeCaretScrollTipEl) {
-            catFakeCaretScrollTipEl = document.createElement('div');
-            catFakeCaretScrollTipEl.className = 'cat-fake-caret-scroll-tip hidden';
-            catFakeCaretScrollTipEl.setAttribute('role', 'status');
-            document.body.appendChild(catFakeCaretScrollTipEl);
-        }
-        return catFakeCaretScrollTipEl;
-    }
-
-    function hideCatFakeCaretScrollTip() {
-        if (catFakeCaretScrollTipEl) {
-            catFakeCaretScrollTipEl.classList.add('hidden');
-            catFakeCaretScrollTipEl.textContent = '';
-        }
-    }
-
-    function ensureCatRealCaretScrollTipEl() {
-        if (!catRealCaretScrollTipEl) {
-            catRealCaretScrollTipEl = document.createElement('div');
-            catRealCaretScrollTipEl.className = 'cat-fake-caret-scroll-tip hidden';
-            catRealCaretScrollTipEl.setAttribute('role', 'status');
-            document.body.appendChild(catRealCaretScrollTipEl);
-        }
-        return catRealCaretScrollTipEl;
-    }
-
-    function hideCatRealCaretScrollTip() {
-        if (catRealCaretScrollTipEl) {
-            catRealCaretScrollTipEl.classList.add('hidden');
-            catRealCaretScrollTipEl.textContent = '';
-        }
+    if (window.CatFakeCaret && typeof window.CatFakeCaret.create === 'function') {
+        catFakeCaret = window.CatFakeCaret.create({
+            getSegDisplayIndex: getSegDisplayIndexForTip,
+            getEditorFromSelection,
+            getEditorSegId
+        });
+        catFakeCaret.installGlobalListeners();
     }
 
     function showRealCaretScrollTipIfNeeded() {
-        const active = document.activeElement;
-        if (!active || !active.classList.contains('grid-textarea')) {
-            hideCatRealCaretScrollTip();
-            return;
-        }
-        const editorGrid = document.getElementById('editorGrid');
-        const gridRect = editorGrid ? editorGrid.getBoundingClientRect() : null;
-        if (!gridRect) { hideCatRealCaretScrollTip(); return; }
-        const sel = window.getSelection();
-        if (!sel || sel.rangeCount === 0) { hideCatRealCaretScrollTip(); return; }
-        let caretRect = null;
-        try {
-            const r = sel.getRangeAt(0);
-            const rects = r.getClientRects ? Array.from(r.getClientRects()) : [];
-            caretRect = rects.length ? rects[rects.length - 1] : r.getBoundingClientRect();
-        } catch (_) { hideCatRealCaretScrollTip(); return; }
-        if (!caretRect || (!caretRect.width && !caretRect.height)) {
-            const edRect = active.getBoundingClientRect();
-            const st = getComputedStyle(active);
-            caretRect = { left: edRect.left + (parseFloat(st.paddingLeft) || 8), top: edRect.top + (parseFloat(st.paddingTop) || 4), height: 16 };
-        }
-        const outAbove = (caretRect.top + (caretRect.height || 0)) < gridRect.top;
-        const outBelow = caretRect.top > gridRect.bottom;
-        if (!outAbove && !outBelow) { hideCatRealCaretScrollTip(); return; }
-        const segId = getEditorSegId(active);
-        const segNum = getSegDisplayIndexForTip(segId);
-        const tip = ensureCatRealCaretScrollTipEl();
-        tip.textContent = `游標位於第 ${segNum} 號句段`;
-        tip.classList.remove('hidden');
-        const colTarget = document.querySelector('.col-target');
-        const anchorLeft = colTarget ? colTarget.getBoundingClientRect().left : gridRect.left;
-        tip.style.left = `${anchorLeft + 4}px`;
-        tip.style.top = outAbove ? `${gridRect.top + 4}px` : `${gridRect.bottom - 36}px`;
-        tip.style.maxWidth = `${Math.max(120, gridRect.right - anchorLeft - 8)}px`;
+        if (catFakeCaret) catFakeCaret.showRealCaretTipIfNeeded();
     }
 
-    function ensureCatFakeCaretEl() {
-        if (!catFakeCaretEl) {
-            catFakeCaretEl = document.createElement('div');
-            catFakeCaretEl.className = 'cat-fake-caret hidden';
-            catFakeCaretEl.setAttribute('aria-hidden', 'true');
-            document.body.appendChild(catFakeCaretEl);
-        }
-        return catFakeCaretEl;
+    function hideCatRealCaretScrollTip() {
+        if (catFakeCaret) catFakeCaret.hideRealCaretTip();
     }
 
     function hideCatFakeCaret() {
-        if (catFakeCaretEl) catFakeCaretEl.classList.add('hidden');
-        hideCatFakeCaretScrollTip();
+        if (catFakeCaret) catFakeCaret.hide();
     }
 
     function saveCatCaretFromSelection(editorEl) {
-        const editor = editorEl || getEditorFromSelection();
-        const sel = window.getSelection();
-        if (!editor || !sel || sel.rangeCount === 0 || editor.contentEditable === 'false') return false;
-        const range = sel.getRangeAt(0);
-        if (!editor.contains(range.commonAncestorContainer)) return false;
-        catSavedCaret = {
-            segId: getEditorSegId(editor),
-            editor,
-            range: range.cloneRange()
-        };
-        return true;
-    }
-
-    function getRectForRange(range) {
-        if (!range) return null;
-        const rects = range.getClientRects ? Array.from(range.getClientRects()) : [];
-        if (rects.length) return rects[rects.length - 1];
-        const rect = range.getBoundingClientRect ? range.getBoundingClientRect() : null;
-        if (rect && (rect.width || rect.height)) return rect;
-        return null;
+        return !!(catFakeCaret && catFakeCaret.saveFromSelection(editorEl));
     }
 
     function showCatFakeCaretFromSaved() {
-        if (!catSavedCaret || !catSavedCaret.editor || !catSavedCaret.range) return;
-        const editor = catSavedCaret.editor;
-        if (!document.body.contains(editor) || editor.contentEditable === 'false') return;
-        if (document.activeElement === editor) {
-            hideCatFakeCaret();
-            return;
-        }
-        const editorGrid = document.getElementById('editorGrid');
-        const gridRect = editorGrid ? editorGrid.getBoundingClientRect() : null;
-
-        let rect = null;
-        try { rect = getRectForRange(catSavedCaret.range); } catch (_) { rect = null; }
-        if (!rect || (rect.width === 0 && rect.height === 0)) {
-            const edRect = editor.getBoundingClientRect();
-            const st = getComputedStyle(editor);
-            const pl = parseFloat(st.paddingLeft) || 8;
-            const pt = parseFloat(st.paddingTop) || 4;
-            const h0 = Math.max(14, Math.min(28, edRect.height - pt * 2));
-            rect = { left: edRect.left + pl, top: edRect.top + pt, width: 2, height: h0 };
-        }
-        const h = Math.max(14, Math.min(28, rect.height || 18));
-        const mark = ensureCatFakeCaretEl();
-        const segNum = getSegDisplayIndexForTip(catSavedCaret.segId);
-        const tip = ensureCatFakeCaretScrollTipEl();
-
-        if (gridRect) {
-            const trueTop = rect.top;
-            const trueBottom = rect.top + h;
-            const outAbove = trueBottom < gridRect.top;
-            const outBelow = trueTop > gridRect.bottom;
-            if (outAbove || outBelow) {
-                mark.classList.add('hidden');
-                tip.textContent = `暫存游標位於第 ${segNum} 號句段`;
-                tip.classList.remove('hidden');
-                const colTarget = document.querySelector('.col-target');
-                const anchorLeft = colTarget ? colTarget.getBoundingClientRect().left : gridRect.left;
-                tip.style.left = `${anchorLeft + 4}px`;
-                tip.style.top = outAbove ? `${gridRect.top + 4}px` : `${gridRect.bottom - 36}px`;
-                tip.style.maxWidth = `${Math.max(120, gridRect.right - anchorLeft - 8)}px`;
-                return;
-            }
-        }
-        tip.classList.add('hidden');
-        let left = rect.left;
-        let top = rect.top;
-        if (gridRect) {
-            left = Math.min(Math.max(left, gridRect.left + 1), gridRect.right - 3);
-            top = Math.min(Math.max(top, gridRect.top + 1), gridRect.bottom - h - 1);
-        }
-        mark.style.left = `${left}px`;
-        mark.style.top = `${top}px`;
-        mark.style.height = `${h}px`;
-        mark.classList.remove('hidden');
+        if (catFakeCaret) catFakeCaret.show();
     }
 
     function restoreSavedCaretIntoEditor() {
-        if (!catSavedCaret || !catSavedCaret.editor || !catSavedCaret.range) return null;
-        const editor = catSavedCaret.editor;
-        if (!document.body.contains(editor) || editor.contentEditable === 'false') return null;
-        editor.focus();
-        try {
-            const range = catSavedCaret.range.cloneRange();
-            const sel = window.getSelection();
-            if (!sel) return null;
-            sel.removeAllRanges();
-            sel.addRange(range);
-            hideCatFakeCaret();
-            return editor;
-        } catch (_) {
-            return null;
-        }
+        return catFakeCaret ? catFakeCaret.restore() : null;
+    }
+
+    /** 標準「還原儲存游標；失敗則顯示假游標」；供 Ctrl+Alt+上下、新增術語等呼叫。 */
+    function restoreOrShowFakeCatCaret() {
+        if (catFakeCaret) catFakeCaret.restoreOrShowFake();
     }
 
     // 全域：Ctrl+↑／↓ 上一可見句／下一可見句譯文開頭（與分頁焦點無關）
@@ -10640,16 +10485,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         return true;
     }
-
-    document.addEventListener('selectionchange', () => {
-        const editor = getEditorFromSelection();
-        if (editor && editor.contentEditable !== 'false') {
-            saveCatCaretFromSelection(editor);
-            hideCatFakeCaret();
-        }
-    });
-    window.addEventListener('scroll', showCatFakeCaretFromSaved, true);
-    window.addEventListener('resize', showCatFakeCaretFromSaved);
 
     function applyMatchCellVisual(rowEl, matchValue) {
         if (!rowEl) return;
@@ -11323,7 +11158,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    /** 篩選取代成功後：游標在譯文尾端、失焦，顯示與 `catSavedCaret` 同源的假游標。 */
+    /** 篩選取代成功後：游標在譯文尾端、失焦，顯示與暫存游標（CatFakeCaret）同源的假游標。 */
     function moveCaretToEndAndShowFakeInTarget(segIdx) {
         if (segIdx == null || segIdx < 0) return;
         const seg = currentSegmentsList[segIdx];
@@ -14101,9 +13936,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         // 次選：嘗試恢復儲存游標；失敗則顯示假游標提示
-        if (!restoreSavedCaretIntoEditor()) {
-            showCatFakeCaretFromSaved();
-        }
+        restoreOrShowFakeCatCaret();
     }, true);
 
     // Grid Level Context Menu for Batch Actions (確認 / 鎖定)
@@ -15267,11 +15100,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (catTabBtn) catTabBtn.click();
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-                if (!restoreSavedCaretIntoEditor()) {
-                    showCatFakeCaretFromSaved();
-                } else {
+                if (restoreSavedCaretIntoEditor()) {
                     const sel = window.getSelection();
                     if (sel && !sel.isCollapsed) sel.collapseToEnd();
+                } else {
+                    restoreOrShowFakeCatCaret();
                 }
             });
         });
