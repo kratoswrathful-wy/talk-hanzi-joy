@@ -11224,6 +11224,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         return confirmSideEffectChain;
     }
 
+    /**
+     * 在編輯器右下角顯示短暫的 toast 通知（3 秒自動消失）。
+     * type: 'error' | 'info'（預設 info）
+     */
+    function showCatToast(msg, type = 'info') {
+        const existing = document.querySelector('.cat-toast');
+        if (existing) existing.remove();
+        const el = document.createElement('div');
+        el.className = 'cat-toast cat-toast-' + type;
+        el.textContent = msg;
+        document.body.appendChild(el);
+        requestAnimationFrame(() => el.classList.add('cat-toast-show'));
+        setTimeout(() => {
+            el.classList.remove('cat-toast-show');
+            el.addEventListener('transitionend', () => el.remove(), { once: true });
+        }, 3000);
+    }
+
+    /** 確認句段寫庫衝突後樂觀還原並通知使用者。 */
+    function _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked) {
+        seg.status = 'unconfirmed';
+        if (statusIcon) {
+            statusIcon.classList.remove('done');
+            statusIcon.innerHTML = '';
+        }
+        if (!effectiveLocked) syncRowConfirmedStateClass(row, seg);
+        updateProgress();
+        const label = seg.globalId || (seg.rowIdx != null ? seg.rowIdx + 1 : '?');
+        showCatToast(`第 ${label} 句確認失敗：伺服器版本較新，請重新確認`, 'error');
+    }
+
     function getAfterConfirmNavMode() {
         return localStorage.getItem(AFTER_CONFIRM_NAV_KEY) || 'nextUnconfirmed';
     }
@@ -12838,6 +12869,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     refreshTagNextHighlight(row);
                 });
                 let _npRafId = null;
+                let _isComposing = false;
+                targetInput.addEventListener('compositionstart', () => { _isComposing = true; });
+                targetInput.addEventListener('compositionend', () => {
+                    _isComposing = false;
+                    // 組字結束後補一次非列印字元標記更新
+                    requestAnimationFrame(() => refreshNonPrintMarkers(targetInput));
+                });
                 targetInput.addEventListener('input', async () => {
                     if (isSegmentBeingEditedByOthers(seg.id)) {
                         targetInput.innerText = seg.targetText || '';
@@ -12868,7 +12906,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     emitCollabEdit('typing', seg, newVal);
 
                     // 非列印字元模式：即時更新標記（保存/還原游標偏移以防跳位）
-                    if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
+                    // 組字期間不操作 DOM，避免 normalize() 干擾 IME 組字狀態
+                    if (!_isComposing && document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
                         const _npOff = getNpCaretOffset(targetInput);
                         if (_npRafId) cancelAnimationFrame(_npRafId);
                         _npRafId = requestAnimationFrame(() => {
@@ -13026,6 +13065,94 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 // Ctrl+Enter logic（先從 DOM 強制寫庫，再執行確認／TM／傳播／undo）
                 targetInput.addEventListener('keydown', (e) => {
+                    // Backspace / Delete：非列印字元模式下攔截游標緊鄰標記 span 的刪除操作，
+                    // 確保標記 span 與對應空格字元能同步被刪除，避免孤立 span 殘留。
+                    if ((e.key === 'Backspace' || e.key === 'Delete') &&
+                        !e.ctrlKey && !e.metaKey && !e.altKey &&
+                        document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
+                        const sel = window.getSelection();
+                        if (sel && sel.isCollapsed && sel.rangeCount) {
+                            const range = sel.getRangeAt(0);
+                            const container = range.startContainer;
+                            const offset = range.startOffset;
+                            if (e.key === 'Backspace') {
+                                // 游標在節點開頭，左邊是 non-print-marker span
+                                if (offset === 0) {
+                                    const prevSib = container.previousSibling;
+                                    if (prevSib && prevSib.nodeType === 1 && prevSib.classList.contains('non-print-marker')) {
+                                        e.preventDefault();
+                                        const spaceSib = prevSib.previousSibling;
+                                        prevSib.remove();
+                                        if (spaceSib && spaceSib.nodeType === 3) {
+                                            const v = spaceSib.nodeValue;
+                                            if (v.length <= 1) spaceSib.remove();
+                                            else spaceSib.nodeValue = v.replace(/[ \t\u00A0\u200B\u3000]$/, '');
+                                        }
+                                        targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                        return;
+                                    }
+                                }
+                                // 游標在文字節點內，游標左側是空格且右側緊鄰 non-print-marker span
+                                if (container.nodeType === 3 && offset > 0) {
+                                    const charBefore = container.nodeValue[offset - 1];
+                                    const nextSib = container.nextSibling;
+                                    if (/[ \t\u00A0\u200B\u3000]/.test(charBefore) &&
+                                        nextSib && nextSib.nodeType === 1 && nextSib.classList.contains('non-print-marker')) {
+                                        e.preventDefault();
+                                        nextSib.remove();
+                                        container.nodeValue = container.nodeValue.slice(0, offset - 1) + container.nodeValue.slice(offset);
+                                        try {
+                                            const rng = document.createRange();
+                                            rng.setStart(container, offset - 1);
+                                            rng.collapse(true);
+                                            sel.removeAllRanges();
+                                            sel.addRange(rng);
+                                        } catch (_) {}
+                                        targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                        return;
+                                    }
+                                }
+                            }
+                            if (e.key === 'Delete') {
+                                // 游標在文字節點末尾，右側緊鄰 non-print-marker span
+                                if (container.nodeType === 3 && offset === container.nodeValue.length) {
+                                    const nextSib = container.nextSibling;
+                                    if (nextSib && nextSib.nodeType === 1 && nextSib.classList.contains('non-print-marker')) {
+                                        e.preventDefault();
+                                        nextSib.remove();
+                                        const v = container.nodeValue;
+                                        if (/[ \t\u00A0\u200B\u3000]$/.test(v)) container.nodeValue = v.slice(0, -1);
+                                        targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                        return;
+                                    }
+                                    // 游標在文字節點末尾，右側是單一空格文字節點，其後緊鄰 non-print-marker span
+                                    if (nextSib && nextSib.nodeType === 3 &&
+                                        /^[ \t\u00A0\u200B\u3000]$/.test(nextSib.nodeValue)) {
+                                        const spanAfter = nextSib.nextSibling;
+                                        if (spanAfter && spanAfter.nodeType === 1 && spanAfter.classList.contains('non-print-marker')) {
+                                            e.preventDefault();
+                                            spanAfter.remove();
+                                            nextSib.remove();
+                                            targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                            return;
+                                        }
+                                    }
+                                }
+                                // 游標在文字節點開頭且整個節點是單一空格，右側是 non-print-marker span
+                                if (container.nodeType === 3 && offset === 0 &&
+                                    /^[ \t\u00A0\u200B\u3000]$/.test(container.nodeValue)) {
+                                    const nextSib = container.nextSibling;
+                                    if (nextSib && nextSib.nodeType === 1 && nextSib.classList.contains('non-print-marker')) {
+                                        e.preventDefault();
+                                        nextSib.remove();
+                                        container.remove();
+                                        targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                    }
                     if (e.ctrlKey && e.key === 'Enter') {
                         e.preventDefault();
                         void (async () => {
@@ -13040,35 +13167,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                             const latestTarget = extractTextFromEditor(targetInput);
                             seg.targetText = latestTarget;
-                            isConfirming = true;
-                            const myGen = ++targetWriteGeneration;
-                            let resolvedByConflictFlow = false;
-                            try {
-                                await applyUpdateSegmentTarget(seg, latestTarget);
-                            } catch (err) {
-                                console.error('[Ctrl+Enter 確認前寫庫失敗]', err, seg.id);
-                                if (err && err.code === 'SEGMENT_REVISION_CONFLICT') {
-                                    const resolved = await resolveRevisionConflictForConfirm(seg, row, targetInput);
-                                    if (!resolved) {
-                                        alert('此句段在伺服器已有較新變更，且重試未成功。請重新整理檔案內容後重試。');
-                                        isConfirming = false;
-                                        return;
-                                    }
-                                    resolvedByConflictFlow = true;
-                                    emitCollabEdit('commit', seg, seg.targetText || '');
-                                } else {
-                                    alert('譯文寫入失敗，無法完成確認。請檢查連線後重試。');
-                                    isConfirming = false;
-                                    return;
-                                }
-                            }
-                            if (!resolvedByConflictFlow && myGen !== targetWriteGeneration) {
-                                try {
-                                    await applyUpdateSegmentTarget(seg, seg.targetText);
-                                } catch (e2) {
-                                    if (e2 && e2.code !== 'SEGMENT_REVISION_CONFLICT') console.error('[Ctrl+Enter 補寫失敗]', e2, seg.id);
-                                }
-                            }
+
+                            // ── 方案 B：立刻更新 UI 並跳行，DB 寫入全放後台 ──
                             const touch = collectConfirmTouchIndices(i);
                             const beforeSnapshots = {};
                             touch.forEach(idx => {
@@ -13084,8 +13184,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 if (!effectiveLocked) syncRowConfirmedStateClass(row, seg);
                                 if (currentFileFormat === 'mqxliff') {
                                     seg.confirmationRole = resolveConfirmationRole(seg);
-                                }
-                                if (currentFileFormat === 'mqxliff') {
                                     const role = seg.confirmationRole || 'T';
                                     if (role === 'R1') {
                                         statusIcon.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
@@ -13100,11 +13198,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if (seg.status === 'confirmed') {
                                 applyOptimisticRepetitionAfterPrimaryConfirm(i, { updateDom: true });
                             }
+                            isConfirming = true;
+                            ++targetWriteGeneration;
                             const nextFocus = getAfterConfirmFocusIndex(i);
                             focusTargetEditorAtSegmentIndex(nextFocus);
                             maybeSwitchRightPanelToCatAfterConfirm();
                             isConfirming = false;
-                            // 樂觀第一段：不等 TM／傳播，先更新本句 QA 列（第二段仍在 enqueue 尾端全量 touch）
                             _qaIncrementalRefreshAfterConfirm([seg.id]);
                             if (wasUnconfirmed) {
                                 await _maybeShowAiReviewModal(seg, i, {
@@ -13116,6 +13215,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                             enqueueConfirmSideEffects(async () => {
                                 try {
+                                    // 先寫譯文（含衝突偵測），失敗時樂觀還原 UI
+                                    try {
+                                        await applyUpdateSegmentTarget(seg, latestTarget);
+                                        emitCollabEdit('commit', seg, latestTarget);
+                                    } catch (err) {
+                                        if (err && err.code === 'SEGMENT_REVISION_CONFLICT') {
+                                            _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked);
+                                        } else {
+                                            console.error('[確認寫庫失敗]', err, seg.id);
+                                            _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked);
+                                        }
+                                        return;
+                                    }
                                     if (wasUnconfirmed) {
                                         await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
                                         updateProgress();
@@ -13203,61 +13315,33 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (willConfirm) {
                         void (async () => {
                             const targetTa = row.querySelector('.grid-textarea');
-                            if (targetTa) {
-                                const conflictOk = await resolvePendingRemoteConflict(seg, row, targetTa);
-                                if (!conflictOk) {
-                                    queueMicrotask(() => targetTa.focus());
-                                    return;
-                                }
-                                if (targetDebounceTimer) {
-                                    clearTimeout(targetDebounceTimer);
-                                    targetDebounceTimer = null;
-                                }
-                                const latestTarget = extractTextFromEditor(targetTa);
-                                seg.targetText = latestTarget;
-                                isConfirming = true;
-                                const myGen = ++targetWriteGeneration;
-                                let resolvedByConflictFlow = false;
-                                try {
-                                    await applyUpdateSegmentTarget(seg, latestTarget);
-                                } catch (err) {
-                                    console.error('[狀態圖示確認前寫庫失敗]', err, seg.id);
-                                    if (err && err.code === 'SEGMENT_REVISION_CONFLICT') {
-                                        const resolved = await resolveRevisionConflictForConfirm(seg, row, targetTa);
-                                        if (!resolved) {
-                                            alert('此句段在伺服器已有較新變更，且重試未成功。請重新整理檔案內容後重試。');
-                                            isConfirming = false;
-                                            return;
-                                        }
-                                        resolvedByConflictFlow = true;
-                                        emitCollabEdit('commit', seg, seg.targetText || '');
-                                    } else {
-                                        alert('譯文寫入失敗，無法完成確認。請檢查連線後重試。');
-                                        isConfirming = false;
-                                        return;
-                                    }
-                                }
-                                if (!resolvedByConflictFlow && myGen !== targetWriteGeneration) {
-                                    try {
-                                        await applyUpdateSegmentTarget(seg, seg.targetText);
-                                    } catch (e2) {
-                                        if (e2 && e2.code !== 'SEGMENT_REVISION_CONFLICT') console.error('[狀態圖示補寫失敗]', e2, seg.id);
-                                    }
-                                }
+                            const conflictOk = await resolvePendingRemoteConflict(seg, row, targetTa || targetInput);
+                            if (!conflictOk) {
+                                queueMicrotask(() => (targetTa || targetInput).focus());
+                                return;
                             }
+                            if (targetDebounceTimer) {
+                                clearTimeout(targetDebounceTimer);
+                                targetDebounceTimer = null;
+                            }
+                            const latestTarget = targetTa ? extractTextFromEditor(targetTa) : seg.targetText;
+                            seg.targetText = latestTarget;
+
+                            // ── 方案 B：立刻更新 UI 並跳行，DB 寫入全放後台 ──
                             const touch = collectConfirmTouchIndices(i);
                             const beforeSnapshots = {};
                             touch.forEach(idx => {
                                 const s = currentSegmentsList[idx];
                                 beforeSnapshots[s.id] = snapshotSegForUndo(s);
                             });
+                            const wasUnconfirmed = seg.status !== 'confirmed';
+                            const tmU = [];
+                            const tmR = [];
                             seg.status = 'confirmed';
                             statusIcon.classList.add('done');
                             if (!effectiveLocked) syncRowConfirmedStateClass(row, seg);
                             if (currentFileFormat === 'mqxliff') {
                                 seg.confirmationRole = resolveConfirmationRole(seg);
-                            }
-                            if (currentFileFormat === 'mqxliff') {
                                 const role = seg.confirmationRole || 'T';
                                 if (role === 'R1') {
                                     statusIcon.innerHTML = `<span style="display:inline-flex;align-items:center;justify-content:center;font-size:0.75rem;line-height:1;">&#10003;<sup style="font-size:0.5em;margin-left:-0.1em;">+</sup></span>`;
@@ -13269,6 +13353,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                             updateProgress();
                             applyOptimisticRepetitionAfterPrimaryConfirm(i, { updateDom: true });
+                            isConfirming = true;
+                            ++targetWriteGeneration;
                             const nextFocus = getAfterConfirmFocusIndex(i);
                             focusTargetEditorAtSegmentIndex(nextFocus);
                             maybeSwitchRightPanelToCatAfterConfirm();
@@ -13280,12 +13366,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     await applyUpdateSegmentTarget(seg, seg.targetText, { aiSuggestion: null, aiSuggestionAt: null });
                                 }
                             });
-                            const tmU = [];
-                            const tmR = [];
                             enqueueConfirmSideEffects(async () => {
                                 try {
-                                    await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
-                                    updateProgress();
+                                    try {
+                                        await applyUpdateSegmentTarget(seg, latestTarget);
+                                        emitCollabEdit('commit', seg, latestTarget);
+                                    } catch (err) {
+                                        if (err && err.code === 'SEGMENT_REVISION_CONFLICT') {
+                                            _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked);
+                                        } else {
+                                            console.error('[狀態圖示確認寫庫失敗]', err, seg.id);
+                                            _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked);
+                                        }
+                                        return;
+                                    }
+                                    if (wasUnconfirmed) {
+                                        await DBService.updateSegmentStatus(seg.id, seg.status, currentFileFormat === 'mqxliff' && seg.confirmationRole ? { confirmationRole: seg.confirmationRole } : {});
+                                        updateProgress();
+                                    }
                                     mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
                                     if (seg.repetitionType) mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
                                     const afterSnapshots = {};
