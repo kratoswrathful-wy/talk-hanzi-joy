@@ -1223,6 +1223,57 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    /** 是否含 IME／Chrome 在 contenteditable 留下的 font、有色 span（略過 .rt-tag 內）。 */
+    function targetEditorHasDecorativeInlineJunk(el) {
+        if (!el || el.nodeType !== 1) return false;
+        if (el.querySelector('font')) return true;
+        for (const s of el.querySelectorAll('span[style]')) {
+            if (s.closest('.rt-tag')) continue;
+            const st = (s.getAttribute('style') || '').toLowerCase();
+            if (/\bcolor\s*:/.test(st)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 清除有色 span／font 等裝飾節點：語意以 extractTextFromEditor 為準，畫面改為 buildTaggedHtml 重建。
+     * @param {{ restoreFocus?: boolean }} opts blur 時傳 restoreFocus:false，避免搶焦點。
+     */
+    function sanitizeTargetEditorInlineArtifacts(editor, seg, row, opts = {}) {
+        const restoreFocus = opts.restoreFocus !== false;
+        if (!editor || editor.contentEditable === 'false') return false;
+        if (!targetEditorHasDecorativeInlineJunk(editor)) return false;
+        const plain = extractTextFromEditor(editor);
+        let off = null;
+        try {
+            const sel = window.getSelection();
+            if (sel && sel.rangeCount && editor.contains(sel.anchorNode)) off = getNpCaretOffset(editor);
+        } catch (_) {}
+        setEditorHtml(editor, buildTaggedHtml(plain, effectiveTags(seg)));
+        if (row) updateTagColors(row, plain);
+        seg.targetText = plain;
+        const maxLen = plain.length;
+        const clamped = off != null ? Math.max(0, Math.min(off | 0, maxLen)) : null;
+        if (restoreFocus && clamped != null) {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    if (!document.body.contains(editor) || editor.contentEditable === 'false') return;
+                    setNpCaretOffset(editor, clamped);
+                    editor.focus();
+                    saveCatCaretFromSelection(editor);
+                    if (row) refreshTagNextHighlight(row);
+                    try { runSearchAndFilter(); } catch (_) {}
+                });
+            });
+        } else {
+            if (row) refreshTagNextHighlight(row);
+            queueMicrotask(() => {
+                try { runSearchAndFilter(); } catch (_) {}
+            });
+        }
+        return true;
+    }
+
     /**
      * 設定 rt-editor 的 innerHTML，並在非列印字元模式開啟時自動重新套用標記。
      * 凡是會覆寫 editor innerHTML 的地方都應使用此函數，以確保 data-np-applied 正確清除。
@@ -12963,6 +13014,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 function scheduleTargetDebouncedPersistAndUndo() {
                     clearTimeout(targetDebounceTimer);
                     targetDebounceTimer = setTimeout(async () => {
+                        sanitizeTargetEditorInlineArtifacts(targetInput, seg, row);
                         const myGen = ++targetWriteGeneration;
                         const latest = extractTextFromEditor(targetInput);
                         const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
@@ -13005,16 +13057,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
                 targetInput.addEventListener('compositionend', () => {
                     _isComposing = false;
-                    const gridNp = document.getElementById('editorGrid')?.classList.contains('show-non-print');
-                    if (gridNp) {
-                        const _npOffComp = getNpCaretOffset(targetInput);
-                        requestAnimationFrame(() => {
-                            refreshNonPrintMarkers(targetInput);
-                            if (_npOffComp !== null) setNpCaretOffset(targetInput, _npOffComp);
-                            saveCatCaretFromSelection(targetInput);
-                        });
-                    } else {
-                        requestAnimationFrame(() => refreshNonPrintMarkers(targetInput));
+                    const sanitized = sanitizeTargetEditorInlineArtifacts(targetInput, seg, row);
+                    if (!sanitized) {
+                        const gridNp = document.getElementById('editorGrid')?.classList.contains('show-non-print');
+                        if (gridNp) {
+                            const _npOffComp = getNpCaretOffset(targetInput);
+                            requestAnimationFrame(() => {
+                                refreshNonPrintMarkers(targetInput);
+                                if (_npOffComp !== null) setNpCaretOffset(targetInput, _npOffComp);
+                                saveCatCaretFromSelection(targetInput);
+                            });
+                        } else {
+                            requestAnimationFrame(() => refreshNonPrintMarkers(targetInput));
+                        }
                     }
                     scheduleTargetDebouncedPersistAndUndo();
                 });
@@ -13105,6 +13160,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         clearTimeout(targetDebounceTimer);
                         targetDebounceTimer = null;
                     }
+                    sanitizeTargetEditorInlineArtifacts(targetInput, seg, row, { restoreFocus: false });
                     const myGen = ++targetWriteGeneration;
                     const newVal = extractTextFromEditor(targetInput);
                     const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
