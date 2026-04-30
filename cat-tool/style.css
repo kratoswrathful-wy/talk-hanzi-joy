@@ -2921,7 +2921,16 @@ select.cat-mutex-dd-native-hidden {
     user-select: none;
 }
 .show-non-print .non-print-marker { display: inline; }
-.np-end-marker { color: #334155; }
+
+/* ¶ 段落結束符號：純 CSS 偽元素，不占 DOM，游標無法進入 */
+.show-non-print .rt-editor::after {
+    content: '¶';
+    color: #334155;
+    font-size: 0.88em;
+    font-weight: 700;
+    pointer-events: none;
+    user-select: none;
+}
 
 .pt-progress-area {
     display: inline-flex;

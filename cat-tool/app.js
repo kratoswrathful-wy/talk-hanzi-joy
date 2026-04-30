@@ -1074,6 +1074,7 @@ document.addEventListener('DOMContentLoaded', async () => {
      * 在 rt-editor 元素的文字節點中插入非列印字元標記 span。
      * 僅在 show-non-print 模式下有視覺效果（CSS 控制 display）。
      * 使用 data-np-applied 旗標防止重複插入。
+     * ¶ 段落結束標記改由 CSS ::after 負責，此函數不再插入 DOM。
      */
     function applyNonPrintMarkers(el) {
         if (el.hasAttribute('data-np-applied')) return;
@@ -1118,13 +1119,82 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             tn.parentNode.replaceChild(frag, tn);
         });
-        // 固定段落結束標記（無論文字內容為何，始終顯示 ¶）
-        if (!el.querySelector('.np-end-marker')) {
-            const endMark = document.createElement('span');
-            endMark.className = 'non-print-marker np-end-marker';
-            endMark.contentEditable = 'false';
-            endMark.textContent = '¶';
-            el.appendChild(endMark);
+    }
+
+    /**
+     * 移除 el 內所有非列印字元標記 span 並合併相鄰文字節點，還原乾淨的 DOM。
+     * 配合 refreshNonPrintMarkers 使用，確保重新套用時不會疊加舊標記。
+     */
+    function stripNonPrintMarkers(el) {
+        el.querySelectorAll('br.np-br').forEach(br => br.classList.remove('np-br'));
+        el.querySelectorAll('.non-print-marker').forEach(m => m.remove());
+        el.normalize();
+    }
+
+    /**
+     * 清除舊標記後重新套用非列印字元標記（冪等，可對已套用過的元素重複呼叫）。
+     * 非列印模式未開啟時為空操作。
+     */
+    function refreshNonPrintMarkers(el) {
+        if (!el) return;
+        if (!document.getElementById('editorGrid')?.classList.contains('show-non-print')) return;
+        stripNonPrintMarkers(el);
+        el.removeAttribute('data-np-applied');
+        applyNonPrintMarkers(el);
+    }
+
+    /**
+     * 以字元偏移量記錄游標位置（跳過非列印標記，BR 計為 1 字元）。
+     * 用於 refreshNonPrintMarkers 前後保存/還原游標，避免游標跳位。
+     */
+    function getNpCaretOffset(el) {
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return null;
+        const r = sel.getRangeAt(0);
+        if (!el.contains(r.startContainer)) return null;
+        let offset = 0;
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_ALL, {
+            acceptNode: n => {
+                if (n.nodeType === 1 && n.classList && n.classList.contains('non-print-marker')) return NodeFilter.FILTER_REJECT;
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        });
+        let nd;
+        while ((nd = walker.nextNode())) {
+            if (nd === r.startContainer) { offset += r.startOffset; break; }
+            if (nd.nodeType === 3) offset += nd.nodeValue.length;
+            else if (nd.nodeType === 1 && nd.tagName === 'BR') offset += 1;
+        }
+        return offset;
+    }
+
+    /** 依字元偏移量還原游標位置（跳過非列印標記）。 */
+    function setNpCaretOffset(el, targetOffset) {
+        let remaining = targetOffset;
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_ALL, {
+            acceptNode: n => {
+                if (n.nodeType === 1 && n.classList && n.classList.contains('non-print-marker')) return NodeFilter.FILTER_REJECT;
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        });
+        let nd;
+        while ((nd = walker.nextNode())) {
+            if (nd.nodeType === 3) {
+                if (remaining <= nd.nodeValue.length) {
+                    try {
+                        const sel = window.getSelection();
+                        const rng = document.createRange();
+                        rng.setStart(nd, remaining);
+                        rng.collapse(true);
+                        sel.removeAllRanges();
+                        sel.addRange(rng);
+                    } catch (_) {}
+                    return;
+                }
+                remaining -= nd.nodeValue.length;
+            } else if (nd.nodeType === 1 && nd.tagName === 'BR') {
+                remaining -= 1;
+            }
         }
     }
 
@@ -12767,6 +12837,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     editorUndoMatchStart[seg.id] = seg.matchValue;
                     refreshTagNextHighlight(row);
                 });
+                let _npRafId = null;
                 targetInput.addEventListener('input', async () => {
                     if (isSegmentBeingEditedByOthers(seg.id)) {
                         targetInput.innerText = seg.targetText || '';
@@ -12795,6 +12866,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                     seg.targetText = newVal;
                     refreshSegCharCount(targetInput);
                     emitCollabEdit('typing', seg, newVal);
+
+                    // 非列印字元模式：即時更新標記（保存/還原游標偏移以防跳位）
+                    if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
+                        const _npOff = getNpCaretOffset(targetInput);
+                        if (_npRafId) cancelAnimationFrame(_npRafId);
+                        _npRafId = requestAnimationFrame(() => {
+                            _npRafId = null;
+                            refreshNonPrintMarkers(targetInput);
+                            if (_npOff !== null) setNpCaretOffset(targetInput, _npOff);
+                        });
+                    }
 
                     // Update source tag colours (blue=present, red=missing)
                     updateTagColors(row, newVal);
@@ -12870,10 +12952,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     if (wasConfirming) {
                         emitCollabEdit('end', seg, null);
-                        if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
-                            targetInput.removeAttribute('data-np-applied');
-                            requestAnimationFrame(() => applyNonPrintMarkers(targetInput));
-                        }
+                        requestAnimationFrame(() => refreshNonPrintMarkers(targetInput));
                         return;
                     }
                     if (targetDebounceTimer) {
@@ -12902,18 +12981,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     } catch (err) {
                         if (err && err.code === 'SEGMENT_REVISION_CONFLICT') {
                             emitCollabEdit('end', seg, null);
-                            if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
-                                targetInput.removeAttribute('data-np-applied');
-                                requestAnimationFrame(() => applyNonPrintMarkers(targetInput));
-                            }
+                            requestAnimationFrame(() => refreshNonPrintMarkers(targetInput));
                             return;
                         }
                         console.error('[譯文欄失焦寫庫失敗]', err, seg.id);
                         emitCollabEdit('end', seg, null);
-                        if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
-                            targetInput.removeAttribute('data-np-applied');
-                            requestAnimationFrame(() => applyNonPrintMarkers(targetInput));
-                        }
+                        requestAnimationFrame(() => refreshNonPrintMarkers(targetInput));
                         return;
                     }
                     if (myGen !== targetWriteGeneration) {
@@ -12925,10 +12998,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     emitCollabEdit('commit', seg, seg.targetText);
                     emitCollabEdit('end', seg, null);
-                    if (document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
-                        targetInput.removeAttribute('data-np-applied');
-                        requestAnimationFrame(() => applyNonPrintMarkers(targetInput));
-                    }
+                    requestAnimationFrame(() => refreshNonPrintMarkers(targetInput));
                 });
 
                 // Intercept paste：
