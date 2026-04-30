@@ -104,7 +104,7 @@ supabase
 // Polling fallback for client invoices
 const clientInvoicePoll = createPollFallback("client_invoices", () => {
   if (loaded) clientInvoiceStore.loadInvoices();
-}, 3000);
+}, 15000);
 
 export const clientInvoiceStore = {
   getInvoices: () => invoices,

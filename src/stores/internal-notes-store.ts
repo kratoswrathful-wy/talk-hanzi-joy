@@ -109,7 +109,7 @@ supabase
 // Polling fallback
 const notePoll = createPollFallback("internal_notes", () => {
   if (loaded) internalNotesStore.load();
-}, 3000);
+}, 15000);
 
 export const internalNotesStore = {
   getAll: (): InternalNote[] => notes,

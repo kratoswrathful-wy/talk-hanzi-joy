@@ -67,6 +67,7 @@ supabase.auth.onAuthStateChange((event, session) => {
 });
 
 let settingsReloadTimer: ReturnType<typeof setTimeout> | null = null;
+let assigneesReloadTimer: ReturnType<typeof setTimeout> | null = null;
 supabase
   .channel("settings-realtime")
   .on(
@@ -83,14 +84,20 @@ supabase
     "postgres_changes",
     { event: "*", schema: "public", table: "profiles" },
     () => {
-      if (loaded) void selectOptionsStore.loadAssignees();
+      if (assigneesReloadTimer) clearTimeout(assigneesReloadTimer);
+      assigneesReloadTimer = setTimeout(() => {
+        if (loaded) void selectOptionsStore.loadAssignees();
+      }, 300);
     }
   )
   .on(
     "postgres_changes",
     { event: "*", schema: "public", table: "member_translator_settings" },
     () => {
-      if (loaded) void selectOptionsStore.loadAssignees();
+      if (assigneesReloadTimer) clearTimeout(assigneesReloadTimer);
+      assigneesReloadTimer = setTimeout(() => {
+        if (loaded) void selectOptionsStore.loadAssignees();
+      }, 300);
     }
   )
   .subscribe();

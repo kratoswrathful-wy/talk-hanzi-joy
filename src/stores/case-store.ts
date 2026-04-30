@@ -700,7 +700,7 @@ const casePoll = createPollFallback("cases", () => {
     loadPromise = null;
     load();
   }
-}, 3000);
+}, 15000);
 
 // Start polling when first listener subscribes
 const _origSubscribe = subscribe;

@@ -153,7 +153,7 @@ supabase
 // Polling fallback for fees
 const feePoll = createPollFallback("fees", () => {
   if (loaded) feeStore.loadFees();
-}, 3000);
+}, 15000);
 
 export const feeStore = {
   getFees: () => fees,
