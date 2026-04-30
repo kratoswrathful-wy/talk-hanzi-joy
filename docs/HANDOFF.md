@@ -274,9 +274,10 @@
 
 ### 3. F4 全部取代／「取代這個」：焦點與假游標異常
 
-- **現象**：搜尋／取代列輸入後按 F4（或按「取代這個」），焦點不回到預期處、假游標位置錯亂。
-- **根因**：[`moveCaretToEndAndShowFakeInTarget`](../cat-tool/app.js) 使用 `ed.focus()` + `ed.blur()`，觸發譯文欄完整 `focus`／`blur` 鏈（lease、`maybeAutoFillEmptyTarget`、`emitCollabEdit`、`applyUpdateSegmentTarget` 等）；`catSavedCaret` 被覆寫；`blur()` 後焦點常落到 `document.body`。
-- **修法**：勿用 `focus()/blur()` 僅為設定假游標；直接 `createRange()`、`selectNodeContents` + `collapse(false)` 後呼叫 `CatFakeCaret` 的 `setSavedCaret({ segId, editor, range })`，再 `requestAnimationFrame` 內呼叫 `show()`（或沿用 `showCatFakeCaretFromSaved` 封裝）。
+- **F4（全部取代）— 已調整**：取代僅在**目前篩選可見範圍**內執行（與先前一致），且**不再**清除搜尋字串、進階篩選群組或頂層篩選 UI。選項「全部取代後回到暫存游標位置」開啟時，完成後以雙 `requestAnimationFrame` 呼叫 `restoreOrShowFakeCatCaret()`，不再走 `moveCaretToEndAndShowFakeInTarget`。
+- **「取代這個」— 仍待修**：搜尋／取代列操作後按「取代這個」，焦點不回到預期處、假游標位置錯亂。
+- **根因**（仍適用於 `moveCaretToEndAndShowFakeInTarget`）：[`moveCaretToEndAndShowFakeInTarget`](../cat-tool/app.js) 使用 `ed.focus()` + `ed.blur()`，觸發譯文欄完整 `focus`／`blur` 鏈（lease、`maybeAutoFillEmptyTarget`、`emitCollabEdit`、`applyUpdateSegmentTarget` 等）；`catSavedCaret` 被覆寫；`blur()` 後焦點常落到 `document.body`。
+- **修法**（取代這個與其他仍呼叫該函式之路徑）：勿用 `focus()/blur()` 僅為設定假游標；直接 `createRange()`、`selectNodeContents` + `collapse(false)` 後呼叫 `CatFakeCaret` 的 `setSavedCaret({ segId, editor, range })`，再 `requestAnimationFrame` 內呼叫 `show()`（或沿用 `showCatFakeCaretFromSaved` 封裝），或改與 F4 相同改走 `restoreOrShowFakeCatCaret()`。
 
 ### 4. Ctrl+F8 清除標籤後游標跑到譯文開頭
 
@@ -308,7 +309,7 @@
 
 - **問題**：同類需求混用 `setCaretAtEditorStart`、`setCaretAtEditorEnd`、`restoreSavedCaretIntoEditor`、`moveCaretToEndAndShowFakeInTarget`、直接 `focus/blur` 等，副作用與使用者預期不一。
 - **標準 pattern**（與「新增術語」完成後一致）：`restoreSavedCaretIntoEditor()` 失敗則 `showCatFakeCaretFromSaved()`，包在 `requestAnimationFrame`（必要時雙 RAF）內。
-- **優先統一入口**：Ctrl+K、F4／取代這個、`moveCaretToEndAndShowFakeInTarget`、Ctrl+F8，以及未來新增之「離開譯文欄後要回到上次編輯點」操作。
+- **優先統一入口**：Ctrl+K、F4（已用 `restoreOrShowFakeCatCaret`）、「取代這個」與 `moveCaretToEndAndShowFakeInTarget`、Ctrl+F8，以及未來新增之「離開譯文欄後要回到上次編輯點」操作。
 
 ### 補充：已確認無需改動之行為（盤點結論）
 

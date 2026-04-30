@@ -8859,7 +8859,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ==========================================
     let sfMode = 'search'; // 'search' or 'filter'
     let sfUseRegexChecked = false;
-    const REPLACE_ALL_CLEAR_AND_JUMP_KEY = 'catReplaceAllClearAndJump';
+    const REPLACE_ALL_RESTORE_FAKE_CARET_KEY = 'catReplaceAllRestoreFakeCaret';
+    const REPLACE_ALL_LEGACY_CLEAR_JUMP_KEY = 'catReplaceAllClearAndJump';
     let sfSearchMatches = [];
     let sfActiveMatchIdx = -1;
     let sfLastFocusedMatchSegIdx = null;
@@ -8896,7 +8897,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnSfInvert = document.getElementById('btnSfInvert');
     const btnSfOptionsPopover = document.getElementById('btnSfOptionsPopover');
     const sfOptionsPopover = document.getElementById('sfOptionsPopover');
-    const sfReplaceAllClearAndJump = document.getElementById('sfReplaceAllClearAndJump');
+    const sfReplaceAllRestoreFakeCaret = document.getElementById('sfReplaceAllRestoreFakeCaret');
     const sfReplaceInput = document.getElementById('sfReplaceInput');
     const btnSfReplaceThis = document.getElementById('btnSfReplaceThis');
     const btnSfReplaceAll = document.getElementById('btnSfReplaceAll');
@@ -8908,17 +8909,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     const qaScopeLockHint = '已選擇以目前篩選結果為 QA 範圍，暫時不得變動篩選條件；如欲變更或清除篩選條件，請取消該 QA 範圍設定';
     let qaScopeLocksFilterUi = false;
     let qaRunInProgress = false;
-    function isReplaceAllClearAndJumpEnabled() {
-        return localStorage.getItem(REPLACE_ALL_CLEAR_AND_JUMP_KEY) !== '0';
+    function readReplaceAllRestoreFakeCaretStored() {
+        const v = localStorage.getItem(REPLACE_ALL_RESTORE_FAKE_CARET_KEY);
+        if (v !== null) return v;
+        const legacy = localStorage.getItem(REPLACE_ALL_LEGACY_CLEAR_JUMP_KEY);
+        if (legacy !== null) {
+            const mapped = legacy === '0' ? '0' : '1';
+            localStorage.setItem(REPLACE_ALL_RESTORE_FAKE_CARET_KEY, mapped);
+            localStorage.removeItem(REPLACE_ALL_LEGACY_CLEAR_JUMP_KEY);
+            return mapped;
+        }
+        return '1';
     }
-    function initReplaceAllClearAndJumpOption() {
-        if (!sfReplaceAllClearAndJump) return;
-        sfReplaceAllClearAndJump.checked = isReplaceAllClearAndJumpEnabled();
-        sfReplaceAllClearAndJump.addEventListener('change', (e) => {
-            localStorage.setItem(REPLACE_ALL_CLEAR_AND_JUMP_KEY, e.target && e.target.checked ? '1' : '0');
+    function isReplaceAllRestoreFakeCaretEnabled() {
+        return readReplaceAllRestoreFakeCaretStored() !== '0';
+    }
+    function initReplaceAllRestoreFakeCaretOption() {
+        if (!sfReplaceAllRestoreFakeCaret) return;
+        sfReplaceAllRestoreFakeCaret.checked = isReplaceAllRestoreFakeCaretEnabled();
+        sfReplaceAllRestoreFakeCaret.addEventListener('change', (e) => {
+            localStorage.setItem(
+                REPLACE_ALL_RESTORE_FAKE_CARET_KEY,
+                e.target && e.target.checked ? '1' : '0'
+            );
         });
     }
-    initReplaceAllClearAndJumpOption();
+    initReplaceAllRestoreFakeCaretOption();
     function updateSfModeToggleLockState() {
         const locked = isSfAdvancedFilterInUse();
         if (locked && sfMode === 'search') {
@@ -11229,13 +11245,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         runSearchAndFilter();
         if (replacedCount > 0) {
             updateProgress();
-            if (isReplaceAllClearAndJumpEnabled()) {
-                sfFilterGroups = [];
-                renderFilterGroups();
-                clearUIFilters();
-                runSearchAndFilter();
-                const firstIdx = pending.length ? pending[0].segIdx : null;
-                if (firstIdx != null) moveCaretToEndAndShowFakeInTarget(firstIdx);
+            if (isReplaceAllRestoreFakeCaretEnabled()) {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        restoreOrShowFakeCatCaret();
+                    });
+                });
             }
         }
     }
