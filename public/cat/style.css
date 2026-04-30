@@ -1396,6 +1396,11 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     background: color-mix(in srgb, #d97706 12%, white);
 }
 
+/* 譯文欄：標籤右側略留空，避免插入游標緊貼邊線時被遮住 */
+.col-target .grid-textarea .rt-tag {
+    margin-right: 0.18em;
+}
+
 /* 搜尋高亮 */
 mark.search-match {
     background: #fef08a;

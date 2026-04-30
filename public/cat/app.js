@@ -9314,6 +9314,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const oldTarget = seg.targetText;
                     const oldMv = seg.matchValue;
                     const stripped = seg.targetText.replace(/\{\/?\d+\}/g, '');
+                    const npOff = document.getElementById('editorGrid')?.classList.contains('show-non-print')
+                        ? getNpCaretOffset(activeEditor)
+                        : null;
                     seg.targetText = stripped;
                     seg.matchValue = undefined;
                     setEditorHtml(activeEditor, buildTaggedHtml(stripped, effectiveTags(seg)));
@@ -9324,7 +9327,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                     editorUndoEditStart[seg.id] = stripped;
                     editorUndoMatchStart[seg.id] = undefined;
                     applyUpdateSegmentTarget(seg, stripped, { matchValue: '' }).catch(console.error);
+                    if (npOff != null) {
+                        requestAnimationFrame(() => {
+                            requestAnimationFrame(() => {
+                                if (!document.body.contains(activeEditor)) return;
+                                setNpCaretOffset(activeEditor, npOff);
+                                activeEditor.focus();
+                                saveCatCaretFromSelection(activeEditor);
+                            });
+                        });
+                    }
                 }
+            }
+        }
+        // F3／Shift+F3：搜尋命中下一個／上一個（與工具列按鈕相同邏輯）
+        if (!e.ctrlKey && !e.altKey && e.key === 'F3' && currentFileId) {
+            const ve = document.getElementById('viewEditor');
+            if (ve && !ve.classList.contains('hidden')) {
+                e.preventDefault();
+                goToSearchMatchStep(e.shiftKey ? -1 : 1);
             }
         }
         // F4：全部取代
@@ -9359,7 +9380,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (e.ctrlKey && e.key.toLowerCase() === 'k' && currentFileId) {
             e.preventDefault();
-            const editorBeforeTmSearch = getActiveTargetEditor();
             const sel = window.getSelection();
             const selText = sel ? sel.toString().trim() : '';
             const anchorNode = sel && sel.anchorNode;
@@ -9374,20 +9394,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 (ae && ae.closest && ae.closest('.col-source'))
             );
             const triggeredFromKeyCol = !!(anchorEl && anchorEl.closest && anchorEl.closest('[class^="col-key-"]'));
-            let savedRange = null;
-            let savedRangeEditor = null;
-            if (sel && sel.rangeCount > 0 && triggeredFromTargetCol && selText) {
-                const r0 = sel.getRangeAt(0);
-                const tEd = (ae && ae.classList && ae.classList.contains('grid-textarea') && ae.closest && ae.closest('.col-target'))
-                    ? ae
-                    : (anchorEl && anchorEl.closest ? anchorEl.closest('.grid-textarea') : null);
-                if (tEd && tEd.contains(r0.commonAncestorContainer)) {
-                    try {
-                        savedRange = r0.cloneRange();
-                        savedRangeEditor = tEd;
-                    } catch (_) { savedRange = null; }
-                }
-            }
             const tmSearchInput = document.getElementById('tmSearchInput');
             if (selText && tmSearchInput) tmSearchInput.value = selText;
             const tabBtn = document.querySelector('.tab-btn[data-tab="tabTmSearch"]');
@@ -9407,29 +9413,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     runTmConcordanceSearch();
                 }
                 requestAnimationFrame(() => {
-                    if (triggeredFromKeyCol) {
-                        setCaretAtEditorStart(editorBeforeTmSearch || getActiveTargetEditor());
-                        return;
-                    }
-                    if (savedRange && savedRangeEditor && document.body.contains(savedRangeEditor) && savedRange) {
-                        try {
-                            savedRangeEditor.focus();
-                            const s = window.getSelection();
-                            if (s) {
-                                s.removeAllRanges();
-                                const rEnd = savedRange.cloneRange();
-                                rEnd.collapse(false);
-                                s.addRange(rEnd);
-                                hideCatFakeCaret();
-                                saveCatCaretFromSelection(savedRangeEditor);
-                            }
-                        } catch (_) {
-                            const ed = editorBeforeTmSearch || getActiveTargetEditor();
-                            setCaretAtEditorStart(ed);
-                        }
-                    } else if (selText && !triggeredFromTargetCol) {
-                        setCaretAtEditorStart(editorBeforeTmSearch || getActiveTargetEditor());
-                    }
+                    requestAnimationFrame(() => {
+                        restoreOrShowFakeCatCaret();
+                    });
                 });
             }
         }
@@ -9525,16 +9511,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.applyNumpadMatchForActiveTab(parseInt(e.key, 10) - 1);
     }, true);
 
-    btnSfNext.addEventListener('click', () => {
-        if(sfSearchMatches.length === 0) return;
-        sfActiveMatchIdx = (sfActiveMatchIdx + 1) % sfSearchMatches.length;
-        updateMatchHighlightFocus();
-    });
-    btnSfPrev.addEventListener('click', () => {
-        if(sfSearchMatches.length === 0) return;
-        sfActiveMatchIdx = (sfActiveMatchIdx - 1 + sfSearchMatches.length) % sfSearchMatches.length;
-        updateMatchHighlightFocus();
-    });
+    btnSfNext.addEventListener('click', () => { goToSearchMatchStep(1); });
+    btnSfPrev.addEventListener('click', () => { goToSearchMatchStep(-1); });
 
     /**
      * 進階篩選（#sfAdvancedPanel：TM%、狀態、列範圍）單一讀寫來源。
@@ -10145,14 +10123,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             syncSelectedRowIdsWithVisibleGrid();
         }
 
-        sfMatchCount.textContent = sfSearchMatches.length > 0 ? `1 / ${sfSearchMatches.length}` : `0 / 0`;
-        if(sfSearchMatches.length > 0) {
-            sfActiveMatchIdx = 0;
-            updateMatchHighlightFocus();
-        } else {
-            sfMatchCount.textContent = `0 / 0`;
-            sfLastFocusedMatchSegIdx = null;
-        }
+        document.querySelectorAll('mark.search-match-active').forEach((m) => m.classList.remove('search-match-active'));
+        sfActiveMatchIdx = -1;
+        sfMatchCount.textContent = sfSearchMatches.length > 0 ? `— / ${sfSearchMatches.length}` : `0 / 0`;
+        sfLastFocusedMatchSegIdx = null;
 
         if (didRebuildFilterSnapshot && sfMode === 'filter' && lastEditedRowIdx !== null && !isSfSearchControlActive()) {
             const rowsAfter = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
@@ -10168,31 +10142,142 @@ document.addEventListener('DOMContentLoaded', async () => {
         syncSelectedRowAbutmentTopClass();
     }
 
-    function updateMatchHighlightFocus() {
-        document.querySelectorAll('mark.search-match-active').forEach(m => m.classList.remove('search-match-active'));
-        if(sfSearchMatches.length === 0 || sfActiveMatchIdx === -1) return;
-        
-        sfMatchCount.textContent = `${sfActiveMatchIdx + 1} / ${sfSearchMatches.length}`;
-        const match = sfSearchMatches[sfActiveMatchIdx];
-        
-        match.markEl.classList.add('search-match-active');
-        
-        if (match.isTextarea && match.textareaEl) {
-            if (!isSfSearchControlActive()) match.textareaEl.focus();
-        }
-        
-        if (!isSfSearchControlActive()) {
-            const prevSegIdx = Number.isFinite(sfLastFocusedMatchSegIdx) ? sfLastFocusedMatchSegIdx : null;
-            const nextSegIdx = Number.isFinite(match.segIdx) ? match.segIdx : null;
-            let behavior = 'smooth';
-            if (prevSegIdx != null && nextSegIdx != null) {
-                const distance = Math.abs(nextSegIdx - prevSegIdx);
-                // 跨大距離跳轉改用 auto，避免長時間 smooth 動畫拖慢操作。
-                if (distance > 80) behavior = 'auto';
+    /** 搜尋導覽錨點：next 用選取結尾／prev 用選取開頭；無選取則假游標；若在搜尋列則沿用上次導覽命中。 */
+    function getSearchNavAnchorCollapsed(direction) {
+        const collapseToEnd = direction === 'next';
+        const fromRange = (r) => {
+            if (!r) return null;
+            try {
+                const c = r.cloneRange();
+                c.collapse(!collapseToEnd);
+                return c;
+            } catch (_) {
+                return null;
             }
+        };
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+            const node = sel.anchorNode;
+            const startEl = node ? (node.nodeType === 3 ? node.parentElement : node) : null;
+            const row = startEl && startEl.closest ? startEl.closest('.grid-data-row') : null;
+            if (row && document.body.contains(row)) return fromRange(sel.getRangeAt(0));
+        }
+        if (catFakeCaret && catFakeCaret.getSaved) {
+            const s = catFakeCaret.getSaved();
+            if (s && s.range && s.editor && document.body.contains(s.editor)) return fromRange(s.range);
+        }
+        if (isSfSearchControlActive() && sfActiveMatchIdx >= 0 && sfSearchMatches[sfActiveMatchIdx]) {
+            const m = sfSearchMatches[sfActiveMatchIdx];
+            const r = document.createRange();
+            if (collapseToEnd) {
+                r.setStartAfter(m.markEl);
+                r.collapse(true);
+            } else {
+                r.setStartBefore(m.markEl);
+                r.collapse(true);
+            }
+            return r;
+        }
+        return null;
+    }
+
+    function findNextGlobalMatchIndexAfterAnchor(anchorRange) {
+        const n = sfSearchMatches.length;
+        if (!n) return -1;
+        if (!anchorRange) return 0;
+        for (let i = 0; i < n; i++) {
+            const mk = sfSearchMatches[i].markEl;
+            const startR = document.createRange();
+            startR.setStartBefore(mk);
+            startR.collapse(true);
+            if (startR.compareBoundaryPoints(Range.START_TO_START, anchorRange) > 0) return i;
+        }
+        return 0;
+    }
+
+    function findPrevGlobalMatchIndexBeforeAnchor(anchorRange) {
+        const n = sfSearchMatches.length;
+        if (!n) return -1;
+        if (!anchorRange) return n - 1;
+        for (let i = n - 1; i >= 0; i--) {
+            const mk = sfSearchMatches[i].markEl;
+            const endR = document.createRange();
+            endR.setStartAfter(mk);
+            endR.collapse(true);
+            if (endR.compareBoundaryPoints(Range.START_TO_START, anchorRange) < 0) return i;
+        }
+        return n - 1;
+    }
+
+    function findNextTargetMatchIndexFromAnchor(anchorRange) {
+        const n = sfSearchMatches.length;
+        if (!n) return -1;
+        const j = findNextGlobalMatchIndexAfterAnchor(anchorRange);
+        for (let k = 0; k < n; k++) {
+            const i = (j + k) % n;
+            if (sfSearchMatches[i].fieldKey === 'target') return i;
+        }
+        return -1;
+    }
+
+    function goToSearchMatchStep(delta) {
+        if (!sfSearchMatches.length || !currentFileId) return;
+        const dir = delta > 0 ? 'next' : 'prev';
+        const anchor = getSearchNavAnchorCollapsed(dir);
+        const idx = dir === 'next'
+            ? findNextGlobalMatchIndexAfterAnchor(anchor)
+            : findPrevGlobalMatchIndexBeforeAnchor(anchor);
+        applySearchMatchNavigationFocus(idx);
+    }
+
+    function getHostEditorForSearchMatch(match) {
+        const row = match.rowEl;
+        if (!row) return null;
+        if (match.fieldKey === 'target') return match.textareaEl || row.querySelector('.grid-textarea');
+        if (match.fieldKey === 'source') return row.querySelector('.col-source .rt-editor');
+        if (match.fieldKey === 'extra') return row.querySelector('.col-extra');
+        const fk = String(match.fieldKey || '');
+        if (fk.startsWith('key-')) return row.querySelector('.col-key-' + fk.replace('key-', ''));
+        return null;
+    }
+
+    function applySearchMatchNavigationFocus(idx) {
+        document.querySelectorAll('mark.search-match-active').forEach((m) => m.classList.remove('search-match-active'));
+        if (!sfSearchMatches.length || idx < 0 || idx >= sfSearchMatches.length) return;
+        sfActiveMatchIdx = idx;
+        sfMatchCount.textContent = `${idx + 1} / ${sfSearchMatches.length}`;
+        const match = sfSearchMatches[idx];
+        match.markEl.classList.add('search-match-active');
+        const host = getHostEditorForSearchMatch(match);
+        const canEdit = host && host.isContentEditable;
+        const prevSegIdx = Number.isFinite(sfLastFocusedMatchSegIdx) ? sfLastFocusedMatchSegIdx : null;
+        const nextSegIdx = Number.isFinite(match.segIdx) ? match.segIdx : null;
+        let behavior = 'smooth';
+        if (prevSegIdx != null && nextSegIdx != null && Math.abs(nextSegIdx - prevSegIdx) > 80) behavior = 'auto';
+
+        if (canEdit) {
+            try {
+                host.focus();
+                const inner = document.createRange();
+                inner.selectNodeContents(match.markEl);
+                const sel = window.getSelection();
+                if (sel) {
+                    sel.removeAllRanges();
+                    sel.addRange(inner);
+                }
+                saveCatCaretFromSelection(host);
+                hideCatFakeCaret();
+            } catch (_) {}
+            if (!isSfSearchControlActive()) match.rowEl.scrollIntoView({ behavior, block: 'center' });
+        } else if (!isSfSearchControlActive()) {
             match.rowEl.scrollIntoView({ behavior, block: 'center' });
         }
         sfLastFocusedMatchSegIdx = Number.isFinite(match.segIdx) ? match.segIdx : null;
+    }
+
+    function updateMatchHighlightFocus() {
+        if (sfSearchMatches.length === 0 || sfActiveMatchIdx === -1) return;
+        applySearchMatchNavigationFocus(sfActiveMatchIdx);
     }
 
     function getSegmentFieldText(seg, segIdx, fieldKey) {
@@ -10648,6 +10733,38 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     }
 
+    /** 單次編輯後，游標應落在「變更區段結尾」於 nextShown 中的字元偏移（plain）。 */
+    function plainCaretEndAfterSingleEdit(prevShown, nextShown) {
+        if (prevShown == null || nextShown == null) return nextShown.length;
+        let lo = 0;
+        const a = prevShown;
+        const b = nextShown;
+        while (lo < a.length && lo < b.length && a[lo] === b[lo]) lo++;
+        let ea = a.length;
+        let eb = b.length;
+        while (ea > lo && eb > lo && a[ea - 1] === b[eb - 1]) {
+            ea--;
+            eb--;
+        }
+        return eb;
+    }
+
+    function scheduleNpCaretAfterTargetUndo(segIdx, plainOffset) {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+                const row = rows[segIdx];
+                const ta = row && row.querySelector('.grid-textarea');
+                if (!ta || ta.contentEditable === 'false') return;
+                const maxLen = (extractTextFromEditor(ta) || '').length;
+                const clamped = Math.max(0, Math.min(plainOffset | 0, maxLen));
+                setNpCaretOffset(ta, clamped);
+                ta.focus();
+                saveCatCaretFromSelection(ta);
+            });
+        });
+    }
+
     function applyOneTargetUndo(te, direction) {
         const isUndo = direction === 'undo';
         const segIdx = currentSegmentsList.findIndex(s => s.id === te.segmentId);
@@ -10657,6 +10774,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const mv = isUndo ? te.oldMatchValue : te.newMatchValue;
         const st = isUndo ? te.oldStatus : te.newStatus;
         const tags = isUndo ? te.oldTargetTags : te.newTargetTags;
+
+        const prevShown = isUndo ? te.newTarget : te.oldTarget;
+        const caretPlain = plainCaretEndAfterSingleEdit(prevShown, tgt);
 
         seg.targetText = tgt;
         if (mv !== undefined) seg.matchValue = mv;
@@ -10670,6 +10790,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (ta) {
                 setEditorHtml(ta, buildTaggedHtml(tgt, effectiveTags(seg)));
                 updateTagColors(row, tgt);
+                scheduleNpCaretAfterTargetUndo(segIdx, caretPlain);
             }
             applyMatchCellVisual(row, seg.matchValue);
             const isConfirmed = seg.status === 'confirmed';
@@ -10925,6 +11046,51 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    /** 取代 plain 文字中第 occIdx（0-based）次命中（與該譯文格內 mark 順序對齊）。 */
+    function replaceOccurrenceInPlain(text, searchTerm, replaceTerm, isRegex, occIdx0) {
+        if (!text || searchTerm === '' || occIdx0 < 0) return text;
+        if (isRegex) {
+            try {
+                const re = new RegExp(searchTerm, 'g');
+                let i = 0;
+                return text.replace(re, (m) => (i++ === occIdx0 ? replaceTerm : m));
+            } catch (_) {
+                return text;
+            }
+        }
+        const lower = text.toLowerCase();
+        const sl = searchTerm.toLowerCase();
+        let pos = 0;
+        for (let o = 0; ; o++) {
+            const idx = lower.indexOf(sl, pos);
+            if (idx === -1) return text;
+            if (o === occIdx0) return text.slice(0, idx) + replaceTerm + text.slice(idx + searchTerm.length);
+            pos = idx + searchTerm.length;
+        }
+    }
+
+    function occurrenceIndexOfMarkInEditor(editorEl, markEl) {
+        if (!editorEl || !markEl) return 0;
+        const marks = editorEl.querySelectorAll('mark.search-match');
+        for (let i = 0; i < marks.length; i++) {
+            if (marks[i] === markEl) return i;
+        }
+        return 0;
+    }
+
+    function findTargetSearchMatchUnderSelection() {
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return null;
+        const node = sel.anchorNode;
+        const startEl = node ? (node.nodeType === 3 ? node.parentElement : node) : null;
+        const ta = startEl && startEl.closest ? startEl.closest('.grid-textarea') : null;
+        if (!ta) return null;
+        const mark = startEl.closest ? startEl.closest('mark.search-match') : null;
+        if (!mark || !ta.contains(mark)) return null;
+        const mi = sfSearchMatches.findIndex((m) => m.markEl === mark && m.fieldKey === 'target');
+        return mi >= 0 ? mi : null;
+    }
+
     function doReplaceInText(text, searchTerm, replaceTerm, isRegex, firstOnly) {
         if (!text || searchTerm === '') return text;
         if (isRegex) {
@@ -11000,12 +11166,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const replaceTerm = sfReplaceInput ? sfReplaceInput.value : '';
         if (!term || !currentSegmentsList.length) return;
         if (sfSearchMatches.length === 0) return;
-        let idx = sfActiveMatchIdx < 0 ? 0 : sfActiveMatchIdx;
 
-        // 先對齊到目前或之後「譯文欄」的符合項目（不管鎖定與否）
+        let idx = findTargetSearchMatchUnderSelection();
+        if (idx == null) idx = findNextTargetMatchIndexFromAnchor(getSearchNavAnchorCollapsed('next'));
+        if (idx < 0) return;
+
         let match = sfSearchMatches[idx];
         if (match.fieldKey !== 'target') {
-            idx = findNextTargetMatchIndex(idx + 1);
+            idx = findNextTargetMatchIndex(idx);
             if (idx < 0) return;
             match = sfSearchMatches[idx];
         }
@@ -11013,17 +11181,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         const seg = currentSegmentsList[match.segIdx];
         if (!seg) return;
 
-        // 若目前句段禁止寫入：不做取代，只把焦點移到下一個譯文命中
         if (isTargetWriteProtected(seg)) {
             const nextIdx = findNextTargetMatchIndex(idx + 1);
-            sfActiveMatchIdx = nextIdx >= 0 ? nextIdx : idx; // 若沒有下一個，就留在原處
-            updateMatchHighlightFocus();
+            if (nextIdx >= 0) applySearchMatchNavigationFocus(nextIdx);
             return;
         }
 
-        let text = getSegmentFieldText(seg, match.segIdx, 'target');
-        const newText = doReplaceInText(text, term, replaceTerm, sfUseRegexChecked, true);
+        const rowsPre = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+        const rowPre = rowsPre[match.segIdx];
+        const taPre = rowPre ? rowPre.querySelector('.grid-textarea') : null;
+        const occIdx = taPre ? occurrenceIndexOfMarkInEditor(taPre, match.markEl) : 0;
+
+        const text = getSegmentFieldText(seg, match.segIdx, 'target');
+        const newText = replaceOccurrenceInPlain(text, term, replaceTerm, sfUseRegexChecked, occIdx);
         if (newText === text) return;
+
         if (segmentNeedsHighMatchGuard(seg)) {
             const ok = await showHighMatchEditConfirmModal(seg);
             if (!ok) return;
@@ -11032,13 +11204,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         pushEditorUndo(seg.id, text, newText, { oldMatchValue: seg.matchValue, newMatchValue: seg.matchValue });
         setSegmentFieldText(seg, match.segIdx, 'target', newText);
         runSearchAndFilter();
-        if (sfSearchMatches.length > 0) {
-            // 重新從第一個譯文命中開始走，確保不會跳過同一句段中的其他相符項目
-            const firstTargetIdx = findNextTargetMatchIndex(0);
-            sfActiveMatchIdx = firstTargetIdx >= 0 ? firstTargetIdx : 0;
-            updateMatchHighlightFocus();
+
+        const rowsAfter = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+        const ed = rowsAfter[match.segIdx] ? rowsAfter[match.segIdx].querySelector('.grid-textarea') : null;
+        if (ed && document.body.contains(ed)) {
+            try {
+                const ar = document.createRange();
+                ar.selectNodeContents(ed);
+                ar.collapse(false);
+                const nextT = findNextTargetMatchIndexFromAnchor(ar);
+                if (nextT >= 0) applySearchMatchNavigationFocus(nextT);
+            } catch (_) {}
         }
-        moveCaretToEndAndShowFakeInTarget(match.segIdx);
     }
 
     function updateSfReplaceAllButtonLabel() {
@@ -11174,7 +11351,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    /** 篩選取代成功後：游標在譯文尾端、失焦，顯示與暫存游標（CatFakeCaret）同源的假游標。 */
+    /** 譯文尾端暫存假游標（避免 focus/blur 連鎖）。 */
     function moveCaretToEndAndShowFakeInTarget(segIdx) {
         if (segIdx == null || segIdx < 0) return;
         const seg = currentSegmentsList[segIdx];
@@ -11184,18 +11361,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!row || !isGridDataRowFilterVisible(row)) return;
         const ed = row.querySelector('.col-target .grid-textarea');
         if (!ed || ed.contentEditable === 'false') return;
-        ed.focus();
-        if (typeof setCaretAtEditorEnd === 'function') setCaretAtEditorEnd(ed);
-        else {
-            const r = document.createRange();
-            r.selectNodeContents(ed);
-            r.collapse(false);
-            const sel = window.getSelection();
-            if (sel) { sel.removeAllRanges(); sel.addRange(r); }
-            if (typeof saveCatCaretFromSelection === 'function') saveCatCaretFromSelection(ed);
+        const r = document.createRange();
+        r.selectNodeContents(ed);
+        r.collapse(false);
+        if (catFakeCaret && typeof catFakeCaret.setSavedCaret === 'function') {
+            catFakeCaret.setSavedCaret({ segId: seg.id, editor: ed, range: r });
+            catFakeCaret.show();
         }
-        ed.blur();
-        requestAnimationFrame(() => { if (typeof showCatFakeCaretFromSaved === 'function') showCatFakeCaretFromSaved(); });
     }
 
     async function performReplaceAll() {
@@ -11737,6 +11909,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 樂觀第一段：僅本次直接確認的句段（傳播後第二段於 enqueue 尾端以 touchAll 收斂）
             _qaIncrementalRefreshAfterConfirm(indices.map((idx) => currentSegmentsList[idx]?.id).filter((id) => id != null));
 
+            let toolbarBatchConfirmUndoEntry = null;
+            if (indices.length > 0) {
+                const afterSnap = {};
+                touchAll.forEach((idx) => {
+                    const s = currentSegmentsList[idx];
+                    afterSnap[s.id] = snapshotSegForUndo(s);
+                });
+                toolbarBatchConfirmUndoEntry = {
+                    kind: 'confirmOp',
+                    beforeSnapshots,
+                    afterSnapshots: afterSnap,
+                    tmUndo: [],
+                    tmRedo: []
+                };
+                pushUndoEntry(toolbarBatchConfirmUndoEntry);
+            }
+
             enqueueConfirmSideEffects(async () => {
                 try {
                     const tmU = [];
@@ -11746,17 +11935,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
                         if (seg.repetitionType) mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
                     }
-                    const afterSnapshots = {};
-                    touchAll.forEach(idx => {
-                        const s = currentSegmentsList[idx];
-                        afterSnapshots[s.id] = snapshotSegForUndo(s);
-                    });
-                    let changed = tmU.length > 0 || tmR.length > 0;
-                    for (const id of Object.keys(beforeSnapshots)) {
-                        if (JSON.stringify(beforeSnapshots[id]) !== JSON.stringify(afterSnapshots[id])) changed = true;
-                    }
-                    if (changed) {
-                        pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
+                    if (toolbarBatchConfirmUndoEntry) {
+                        toolbarBatchConfirmUndoEntry.tmUndo = tmU;
+                        toolbarBatchConfirmUndoEntry.tmRedo = tmR;
+                        touchAll.forEach((idx) => {
+                            const s = currentSegmentsList[idx];
+                            toolbarBatchConfirmUndoEntry.afterSnapshots[s.id] = snapshotSegForUndo(s);
+                        });
                     }
                     updateProgress();
                     const keepId = focusIdx != null && currentSegmentsList[focusIdx] ? currentSegmentsList[focusIdx].id : null;
@@ -12942,6 +13127,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                                         return;
                                     }
                                 }
+                                // 游標在元素節點內（緊貼 non-print-marker／rt-tag）；container 為 rt-editor 時常見
+                                if (container.nodeType === 1 && offset > 0) {
+                                    const prevChild = container.childNodes[offset - 1];
+                                    if (prevChild && prevChild.nodeType === 1 &&
+                                        (prevChild.classList.contains('non-print-marker') || prevChild.classList.contains('rt-tag'))) {
+                                        e.preventDefault();
+                                        const spaceSib = prevChild.previousSibling;
+                                        prevChild.remove();
+                                        if (spaceSib && spaceSib.nodeType === 3) {
+                                            const v = spaceSib.nodeValue;
+                                            if (v.length <= 1) spaceSib.remove();
+                                            else spaceSib.nodeValue = v.replace(/[ \t\u00A0\u200B\u3000]$/, '');
+                                        }
+                                        targetInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                        return;
+                                    }
+                                }
                                 // 游標在文字節點內，游標左側是空格且右側緊鄰 non-print-marker span
                                 if (container.nodeType === 3 && offset > 0) {
                                     const charBefore = container.nodeValue[offset - 1];
@@ -12999,6 +13201,45 @@ document.addEventListener('DOMContentLoaded', async () => {
                                         targetInput.dispatchEvent(new Event('input', { bubbles: true }));
                                         return;
                                     }
+                                }
+                            }
+                        }
+                    }
+                    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') &&
+                        !e.ctrlKey && !e.metaKey && !e.altKey &&
+                        document.getElementById('editorGrid')?.classList.contains('show-non-print')) {
+                        const selArrow = window.getSelection();
+                        if (selArrow && selArrow.isCollapsed && selArrow.rangeCount) {
+                            const rangeA = selArrow.getRangeAt(0);
+                            const containerA = rangeA.startContainer;
+                            const offsetA = rangeA.startOffset;
+                            const isNpMark = (el) => el && el.nodeType === 1 && el.classList && el.classList.contains('non-print-marker');
+                            if (e.key === 'ArrowRight' && containerA.nodeType === 3 && offsetA === containerA.nodeValue.length) {
+                                const next = containerA.nextSibling;
+                                if (isNpMark(next)) {
+                                    e.preventDefault();
+                                    const after = next.nextSibling;
+                                    const rng = document.createRange();
+                                    if (after && after.nodeType === 3) rng.setStart(after, 0);
+                                    else rng.setStartAfter(next);
+                                    rng.collapse(true);
+                                    selArrow.removeAllRanges();
+                                    selArrow.addRange(rng);
+                                    return;
+                                }
+                            }
+                            if (e.key === 'ArrowLeft' && containerA.nodeType === 3 && offsetA === 0) {
+                                const prev = containerA.previousSibling;
+                                if (isNpMark(prev)) {
+                                    e.preventDefault();
+                                    const before = prev.previousSibling;
+                                    const rng = document.createRange();
+                                    if (before && before.nodeType === 3) rng.setStart(before, before.nodeValue.length);
+                                    else rng.setStartBefore(prev);
+                                    rng.collapse(true);
+                                    selArrow.removeAllRanges();
+                                    selArrow.addRange(rng);
+                                    return;
                                 }
                             }
                         }
@@ -13063,6 +13304,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     }
                                 });
                             }
+                            let ctrlEnterConfirmUndoEntry = null;
+                            {
+                                const afterSnap = {};
+                                touch.forEach((idx) => {
+                                    const s = currentSegmentsList[idx];
+                                    afterSnap[s.id] = snapshotSegForUndo(s);
+                                });
+                                let changedSync = false;
+                                for (const id of Object.keys(beforeSnapshots)) {
+                                    if (JSON.stringify(beforeSnapshots[id]) !== JSON.stringify(afterSnap[id])) changedSync = true;
+                                }
+                                if (changedSync) {
+                                    ctrlEnterConfirmUndoEntry = {
+                                        kind: 'confirmOp',
+                                        beforeSnapshots,
+                                        afterSnapshots: afterSnap,
+                                        tmUndo: [],
+                                        tmRedo: []
+                                    };
+                                    pushUndoEntry(ctrlEnterConfirmUndoEntry);
+                                }
+                            }
                             enqueueConfirmSideEffects(async () => {
                                 try {
                                     // 先寫譯文（含衝突偵測），失敗時樂觀還原 UI
@@ -13088,17 +13351,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     if (seg.repetitionType) {
                                         mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
                                     }
-                                    const afterSnapshots = {};
-                                    touch.forEach(idx => {
-                                        const s = currentSegmentsList[idx];
-                                        afterSnapshots[s.id] = snapshotSegForUndo(s);
-                                    });
-                                    let changed = tmU.length > 0 || tmR.length > 0;
-                                    for (const id of Object.keys(beforeSnapshots)) {
-                                        if (JSON.stringify(beforeSnapshots[id]) !== JSON.stringify(afterSnapshots[id])) changed = true;
-                                    }
-                                    if (changed) {
-                                        pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
+                                    if (ctrlEnterConfirmUndoEntry) {
+                                        ctrlEnterConfirmUndoEntry.tmUndo = tmU;
+                                        ctrlEnterConfirmUndoEntry.tmRedo = tmR;
+                                        touch.forEach((idx) => {
+                                            const s = currentSegmentsList[idx];
+                                            ctrlEnterConfirmUndoEntry.afterSnapshots[s.id] = snapshotSegForUndo(s);
+                                        });
                                     }
                                     const qaTouchIds = [];
                                     touch.forEach((idx) => {
@@ -13216,6 +13475,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     await applyUpdateSegmentTarget(seg, seg.targetText, { aiSuggestion: null, aiSuggestionAt: null });
                                 }
                             });
+                            let iconConfirmUndoEntry = null;
+                            {
+                                const afterSnap = {};
+                                touch.forEach((idx) => {
+                                    const s = currentSegmentsList[idx];
+                                    afterSnap[s.id] = snapshotSegForUndo(s);
+                                });
+                                let changedSync = false;
+                                for (const id of Object.keys(beforeSnapshots)) {
+                                    if (JSON.stringify(beforeSnapshots[id]) !== JSON.stringify(afterSnap[id])) changedSync = true;
+                                }
+                                if (changedSync) {
+                                    iconConfirmUndoEntry = {
+                                        kind: 'confirmOp',
+                                        beforeSnapshots,
+                                        afterSnapshots: afterSnap,
+                                        tmUndo: [],
+                                        tmRedo: []
+                                    };
+                                    pushUndoEntry(iconConfirmUndoEntry);
+                                }
+                            }
                             enqueueConfirmSideEffects(async () => {
                                 try {
                                     try {
@@ -13236,17 +13517,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     }
                                     mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
                                     if (seg.repetitionType) mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
-                                    const afterSnapshots = {};
-                                    touch.forEach(idx => {
-                                        const s = currentSegmentsList[idx];
-                                        afterSnapshots[s.id] = snapshotSegForUndo(s);
-                                    });
-                                    let changed = tmU.length > 0 || tmR.length > 0;
-                                    for (const id of Object.keys(beforeSnapshots)) {
-                                        if (JSON.stringify(beforeSnapshots[id]) !== JSON.stringify(afterSnapshots[id])) changed = true;
-                                    }
-                                    if (changed) {
-                                        pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
+                                    if (iconConfirmUndoEntry) {
+                                        iconConfirmUndoEntry.tmUndo = tmU;
+                                        iconConfirmUndoEntry.tmRedo = tmR;
+                                        touch.forEach((idx) => {
+                                            const s = currentSegmentsList[idx];
+                                            iconConfirmUndoEntry.afterSnapshots[s.id] = snapshotSegForUndo(s);
+                                        });
                                     }
                                     const qaTouchIdsIcon = [];
                                     touch.forEach((idx) => {
@@ -14047,6 +14324,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             runSearchAndFilter();
             void Promise.all(dbWaits).catch((e) => console.error(e));
 
+            let ctxBatchConfirmUndoEntry = null;
+            if (indices.length > 0) {
+                const afterSnap = {};
+                touchAll.forEach((idx) => {
+                    const s = currentSegmentsList[idx];
+                    afterSnap[s.id] = snapshotSegForUndo(s);
+                });
+                ctxBatchConfirmUndoEntry = {
+                    kind: 'confirmOp',
+                    beforeSnapshots,
+                    afterSnapshots: afterSnap,
+                    tmUndo: [],
+                    tmRedo: []
+                };
+                pushUndoEntry(ctxBatchConfirmUndoEntry);
+            }
+
             enqueueConfirmSideEffects(async () => {
                     try {
                         const tmU = [];
@@ -14056,17 +14350,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                             mergeTmPair({ undo: tmU, redo: tmR }, await syncSegmentToWriteTmsOnConfirm(seg, i));
                             if (seg.repetitionType) mergeTmPair({ undo: tmU, redo: tmR }, await propagateRepetition(seg, i));
                         }
-                        const afterSnapshots = {};
-                        touchAll.forEach(idx => {
-                            const s = currentSegmentsList[idx];
-                            afterSnapshots[s.id] = snapshotSegForUndo(s);
-                        });
-                        let changed = tmU.length > 0 || tmR.length > 0;
-                        for (const id of Object.keys(beforeSnapshots)) {
-                            if (JSON.stringify(beforeSnapshots[id]) !== JSON.stringify(afterSnapshots[id])) changed = true;
-                        }
-                        if (changed) {
-                            pushUndoEntry({ kind: 'confirmOp', beforeSnapshots, afterSnapshots, tmUndo: tmU, tmRedo: tmR });
+                        if (ctxBatchConfirmUndoEntry) {
+                            ctxBatchConfirmUndoEntry.tmUndo = tmU;
+                            ctxBatchConfirmUndoEntry.tmRedo = tmR;
+                            touchAll.forEach((idx) => {
+                                const s = currentSegmentsList[idx];
+                                ctxBatchConfirmUndoEntry.afterSnapshots[s.id] = snapshotSegForUndo(s);
+                            });
                         }
                         updateProgress();
                         const keepId = focusIdx != null && currentSegmentsList[focusIdx] ? currentSegmentsList[focusIdx].id : null;

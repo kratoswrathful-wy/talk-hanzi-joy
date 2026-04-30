@@ -254,62 +254,36 @@
 - 衝突 toast 顯示後，使用者需回到該句段重新確認；衝突路徑已移除原本的 `alert()` 阻斷彈窗。
 - `isConfirming = true` 必須在 `focusTargetEditorAtSegmentIndex`（觸發 blur）之前設好，以確保 blur handler 的 `wasConfirming` 能正確取到 `true`，防止 blur 重複寫庫。
 
-## CAT：編輯器待修清單（2026-04-30 盤點）
+## CAT：編輯器待修清單（2026-05-01 更新）
 
-以下為對話中盤點、**尚未實作**之項目；實作時以 [`cat-tool/app.js`](../cat-tool/app.js) 為主，樣式見 [`cat-tool/style.css`](../cat-tool/style.css)，改後依 [`AGENTS.md`](../AGENTS.md) 執行 `npm run sync:cat` 並一併提交 `public/cat`。
+維護時以 [`cat-tool/app.js`](../cat-tool/app.js) 為主，樣式見 [`cat-tool/style.css`](../cat-tool/style.css)，改後依 [`AGENTS.md`](../AGENTS.md) 執行 `npm run sync:cat` 並一併提交 `public/cat`。
 
-**假游標邏輯模組（已落地）**：暫存游標記錄、真／假游標捲動提示、`selectionchange`／`scroll`／`resize` 監聽已抽至 [`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)（`window.CatFakeCaret.create`）；`app.js` 保留 `saveCatCaretFromSelection`、`showCatFakeCaretFromSaved`、`restoreSavedCaretIntoEditor`、`restoreOrShowFakeCatCaret` 等薄封裝。與本清單相關之「無 focus 寫入暫存位置」等擴充，請優先使用模組 API（例如 `setSavedCaret`）。
+**假游標模組**：[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)；`app.js` 薄封裝含 `restoreOrShowFakeCatCaret`、`setSavedCaret`（經 `moveCaretToEndAndShowFakeInTarget` 等呼叫）。
 
-### 1. tag 旁空格仍刪不掉（非列印字元模式）
+### 已落地（近期）
 
-- **現象**：空格點緊貼 `{N}` 標籤（`.rt-tag`）時，退格有時無法刪除該空格。
-- **根因**：Backspace/Delete 攔截只處理 `container.nodeType === 3`（文字節點）。游標落在 `.non-print-marker` span 與 `.rt-tag` span **之間**時，`container` 常為父層 `rt-editor`（元素節點），現有分支皆不命中，瀏覽器對 `contentEditable="false"` span 的退格被靜默忽略。
-- **修法**：在 `keydown` 攔截補 `container.nodeType === 1` 分支，依 `offset` 讀 `childNodes[offset-1]` / `childNodes[offset]` 判斷是否為 `.non-print-marker`，手動移除 span 與對應空格。
+| 項目 | 摘要 |
+|------|------|
+| **搜尋導覽** | `runSearchAndFilter` 結尾不再自動搶焦點；計數為 `— / n`。上一個／下一個（及 **F3**／**Shift+F3**）依真選取或假游標錨點在文件中找下一／上一命中，`applySearchMatchNavigationFocus` 於可編輯欄 **選取反白**該 `mark`。 |
+| **取代這個** | 譯文格內正在命中 mark 上則取代該次 occurrence；否則自錨點找下一譯文命中。取代後跳到下一譯文命中；已移除句尾 `focus/blur` 假游標路徑。 |
+| **F4 全部取代** | （先前）不清篩選、可選回到暫存游標。 |
+| **§1 退格／§2 方向鍵** | 非列印模式下：`container.nodeType === 1` 時可刪緊鄰之 `.non-print-marker`／`.rt-tag`；**ArrowLeft/Right** 緊鄰 `.non-print-marker` 時一次跳過。 |
+| **§4 Ctrl+F8** | 非列印模式下 `getNpCaretOffset` → `setEditorHtml` 後雙 RAF `setNpCaretOffset` 還原。 |
+| **§5 批次確認 undo** | 多選批次確認（工具列快捷與右鍵 `ctxBatchConfirm`）在 `enqueueConfirmSideEffects` **之前**即 `pushUndoEntry(confirmOp)`，async 尾端只更新同一物件之 `tmUndo`／`tmRedo`／`afterSnapshots`。單句 Ctrl+Enter／狀態圖示確認仍僅在快照有差異時同步入堆疊。 |
+| **§6 Ctrl+K** | 有選取文字觸發 TM 後，雙 RAF 改呼叫 `restoreOrShowFakeCatCaret()`。 |
+| **§7 `.rt-tag` 視覺** | `.col-target .grid-textarea .rt-tag { margin-right: 0.18em; }`。 |
+| **§8 `moveCaretToEndAndShowFakeInTarget`** | 改為 `catFakeCaret.setSavedCaret` + `show()`，無 `focus/blur`。 |
+| **Ctrl+Z／Y（target undo）** | `applyOneTargetUndo` 於 `setEditorHtml` 後以字串前後綴 diff 計算結尾偏移，`scheduleNpCaretAfterTargetUndo` + `setNpCaretOffset`；`compound` 逐筆套用時以最後一次排程為準。 |
 
-### 2. 方向鍵需按兩下才能穿過 · 標記
+### 搜尋／取代語意（文件備忘）
 
-- **現象**：顯示非列印字元時，按左右鍵穿越「空格＋點」要按兩次。
-- **根因**：`contentEditable="false"` 的 `.non-print-marker` span 在瀏覽器游標模型中仍是獨立停靠點。
-- **修法**：在 `keydown` 攔截 ArrowLeft / ArrowRight，偵測游標緊鄰 span 時一次跳過 span（與其配對之空格邊界）。
+- **輸入搜尋字重繪**：只更新高亮與 `— / 總數`，不變更使用中命中索引與焦點。
+- **取代這個**：與「下一個譯文命中」共用錨點；命中選取時取代該 DOM mark 對應之第 k 次字面 occurrence（`replaceOccurrenceInPlain`）。
 
-### 3. F4 全部取代／「取代這個」：焦點與假游標異常
+### 仍待擴充／第二階段
 
-- **F4（全部取代）— 已調整**：取代僅在**目前篩選可見範圍**內執行（與先前一致），且**不再**清除搜尋字串、進階篩選群組或頂層篩選 UI。選項「全部取代後回到暫存游標位置」開啟時，完成後以雙 `requestAnimationFrame` 呼叫 `restoreOrShowFakeCatCaret()`，不再走 `moveCaretToEndAndShowFakeInTarget`。
-- **「取代這個」— 仍待修**：搜尋／取代列操作後按「取代這個」，焦點不回到預期處、假游標位置錯亂。
-- **根因**（仍適用於 `moveCaretToEndAndShowFakeInTarget`）：[`moveCaretToEndAndShowFakeInTarget`](../cat-tool/app.js) 使用 `ed.focus()` + `ed.blur()`，觸發譯文欄完整 `focus`／`blur` 鏈（lease、`maybeAutoFillEmptyTarget`、`emitCollabEdit`、`applyUpdateSegmentTarget` 等）；`catSavedCaret` 被覆寫；`blur()` 後焦點常落到 `document.body`。
-- **修法**（取代這個與其他仍呼叫該函式之路徑）：勿用 `focus()/blur()` 僅為設定假游標；直接 `createRange()`、`selectNodeContents` + `collapse(false)` 後呼叫 `CatFakeCaret` 的 `setSavedCaret({ segId, editor, range })`，再 `requestAnimationFrame` 內呼叫 `show()`（或沿用 `showCatFakeCaretFromSaved` 封裝），或改與 F4 相同改走 `restoreOrShowFakeCatCaret()`。
-
-### 4. Ctrl+F8 清除標籤後游標跑到譯文開頭
-
-- **根因**：`setEditorHtml` 替換 innerHTML 後游標預設在 offset 0，未還原原位置。
-- **修法**：`setEditorHtml` 前後儲存／還原游標（例如沿用 `getNpCaretOffset`／`setNpCaretOffset` 或 `saveCatCaretFromSelection` + `restoreSavedCaretIntoEditor`）。
-
-### 5. 批次確認（右鍵多句確認）與 Ctrl+Z 競態
-
-- **現象**：一次確認多句後立刻復原，似乎只復原「其中一行」或行為不符預期。
-- **根因**：`ctxBatchConfirm` 的 `pushUndoEntry({ kind: 'confirmOp', ... })` 在 `enqueueConfirmSideEffects` 的 **async** 尾端才入堆疊；若使用者在該 async 完成前按 Ctrl+Z，堆疊頂端仍是更早的單行紀錄。
-- **修法**：將 `confirmOp` 的 `pushUndoEntry` 改為**同步**入堆疊（可先推入 `beforeSnapshots`，TM 結果回來後再補 `afterSnapshots` 與 `tmUndo`／`tmRedo`），或等價保證「批次確認」與「一次 undo」原子對應。
-
-### 6. Ctrl+K（TM 搜尋）結束後回焦應統一至假游標
-
-- **現象**：依有無選取、來自譯文／原文／Key 欄，結束後焦點落在搜尋欄、譯文開頭、選取結尾等，不一致。
-- **修法**：TM 分頁切換與（若有）搜尋執行完成後，統一：
-  ```javascript
-  requestAnimationFrame(() => {
-      if (!restoreSavedCaretIntoEditor()) showCatFakeCaretFromSaved();
-  });
-  ```
-
-### 7. tag 右側邊線吃掉文字游標（視覺）
-
-- **現象**：游標緊貼在標籤右側時，插入游標幾乎被 `.rt-tag` 邊框遮住。
-- **修法**：調整 [`cat-tool/style.css`](../cat-tool/style.css) 中 `.rt-tag`（例如右側 `margin`／`padding` 或邊框繪製方式），讓 caret 可見。
-
-### 8. 「回到假游標／儲存游標」行為全面一致化
-
-- **問題**：同類需求混用 `setCaretAtEditorStart`、`setCaretAtEditorEnd`、`restoreSavedCaretIntoEditor`、`moveCaretToEndAndShowFakeInTarget`、直接 `focus/blur` 等，副作用與使用者預期不一。
-- **標準 pattern**（與「新增術語」完成後一致）：`restoreSavedCaretIntoEditor()` 失敗則 `showCatFakeCaretFromSaved()`，包在 `requestAnimationFrame`（必要時雙 RAF）內。
-- **優先統一入口**：Ctrl+K、F4（已用 `restoreOrShowFakeCatCaret`）、「取代這個」與 `moveCaretToEndAndShowFakeInTarget`、Ctrl+F8，以及未來新增之「離開譯文欄後要回到上次編輯點」操作。
+- **`confirmOp`／`segmentState` undo 後游標**：尚未統一為「變更區段之後」（目前僅 **kind: target**／compound 內 target 路徑）。
+- **其他仍混用 `focusTargetEditorAtSegmentIndex`／`setCaretAtEditorStart` 之路徑**：可依需求逐步改為 `restoreOrShowFakeCatCaret` 或 `setSavedCaret`。
 
 ### 補充：已確認無需改動之行為（盤點結論）
 
