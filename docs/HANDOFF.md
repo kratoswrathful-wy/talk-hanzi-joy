@@ -116,7 +116,7 @@
 
 - **編輯器工具列**：`提問表單` 改為分割按鈕——**主按鈕**依專案設定的 Google Sheets（或其他）URL：將目前焦點／錨點句段與檔名等資料組成 **Tab 分隔**列寫入剪貼簿後開新分頁；**▾** 直接開啟與專案頁相同的 **欄位對應設定** Dialog（譯者模式下會顯示「個人設定」說明）。
 - **欄位對應資料**：管理者預設存在 IndexedDB／團隊版 **`cat_projects.client_question_form_columns`**（camelCase：`project.clientQuestionFormColumns`，見 migration `20260501140000_cat_projects_question_form_columns.sql`）；[`cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts) 的 `db.patchProject` 須能讀寫此欄。
-- **譯者個人覆寫**：僅存 **`localStorage`**，鍵名 `catQfColOverride_{projectId}`；**不覆寫**管理者預設。有效設定優先序：個人覆寫 → 專案預設 → 內建預設（日期 A、檔名 B、原文 D、譯文 E，Key 預設空白欄）。
+- **譯者個人覆寫**：僅存 **`localStorage`**，鍵名 `catQfColOverride_{projectId}`；**不覆寫**管理者存進專案的預設。首次開啟欄位設定（尚無有效 LS 內容）時會先向 DB 取最新專案列，以**管理者當下預設**填入並寫入 LS 快照，故不需按「儲存」也會沿用該組對應；之後譯者若另存則以 LS 為準。開啟對話框與「提問表單」複製前皆會 **`getProject` 刷新**，避免編輯器閉包內的舊 `project` 造成畫面與剪貼簿不一致。
 - **專案頁**：「外部提問表單連結」列新增綠色 **欄位設定** 按鈕，開啟同一 Dialog 並寫入專案預設。
 - **內部註記**：改為分割按鈕：主按鈕與「建立新註記」維持既有 `CAT_OPEN_INTERNAL_NOTE`；**▾** 向父頁請求 **`CAT_FETCH_NOTES`**（payload：`requestId`、`caseTitle`），父頁 [`CatToolPage.tsx`](../src/pages/CatToolPage.tsx) 查詢 `internal_notes`（`env` + `related_case` 等於案件標題）後回 **`TMS_NOTES_LIST_RESULT`**（離線／團隊嵌入共用同一 listener）。
 - **實作位置**：[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/index.html`](../cat-tool/index.html)、[`cat-tool/style.css`](../cat-tool/style.css)；改後 **`npm run sync:cat`**。

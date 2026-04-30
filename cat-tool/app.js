@@ -8408,14 +8408,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         return normalizeQfColConfig(projectRow && projectRow.clientQuestionFormColumns);
     }
 
+    /** 解析譯者 localStorage；空物件／無效 JSON 視為「尚未有個人設定」 */
+    function parseTranslatorQfColLs(rawLs) {
+        if (rawLs == null || rawLs === '') return null;
+        try {
+            const p = JSON.parse(rawLs);
+            if (!p || typeof p !== 'object') return null;
+            if (Object.keys(p).length === 0) return null;
+            return p;
+        } catch (_) {
+            return null;
+        }
+    }
+
     function loadEffectiveQfColConfigForTranslator(projectId, projectRow) {
         if (projectId == null) return defaultQfColConfig();
         try {
             const ls = localStorage.getItem(qfColOverrideLsKey(projectId));
-            if (ls) {
-                const p = JSON.parse(ls);
-                if (p && typeof p === 'object') return normalizeQfColConfig(p);
-            }
+            const parsed = parseTranslatorQfColLs(ls);
+            if (parsed) return normalizeQfColConfig(parsed);
         } catch (_) { /* ignore */ }
         return loadRawProjectQfColConfig(projectRow);
     }
@@ -8626,12 +8637,30 @@ document.addEventListener('DOMContentLoaded', async () => {
             banner.classList.toggle('show', catQfColDialogMode === 'translator');
         }
         let row = projectRow;
-        if ((!row || row.clientQuestionFormColumns == null) && projectId != null) {
-            try { row = await DBService.getProject(projectId) || row; } catch (_) { /* ignore */ }
+        if (projectId != null) {
+            try {
+                const fresh = await DBService.getProject(projectId);
+                if (fresh) row = fresh;
+            } catch (_) { /* ignore */ }
         }
-        const cfg = catQfColDialogMode === 'admin'
-            ? loadRawProjectQfColConfig(row || {})
-            : loadEffectiveQfColConfigForTranslator(projectId, row || {});
+        let cfg;
+        if (catQfColDialogMode === 'admin') {
+            cfg = loadRawProjectQfColConfig(row || {});
+        } else {
+            const lsKey = qfColOverrideLsKey(projectId);
+            let parsedLs = null;
+            try {
+                parsedLs = parseTranslatorQfColLs(localStorage.getItem(lsKey));
+            } catch (_) { /* ignore */ }
+            if (parsedLs) {
+                cfg = normalizeQfColConfig(parsedLs);
+            } else {
+                cfg = loadRawProjectQfColConfig(row || {});
+                try {
+                    localStorage.setItem(lsKey, JSON.stringify(cfg));
+                } catch (_) { /* ignore */ }
+            }
+        }
         applyQfColConfigToDom(cfg);
         updateQfColPreview();
         ov.classList.add('show');
@@ -8803,8 +8832,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (url) {
                 qfGroup.style.display = '';
                 btnClientQuestionFormMain.onclick = async () => {
+                    let projRow = project;
                     try {
-                        const text = buildQfClipboardText(pid, project, file);
+                        if (pid != null) {
+                            const fresh = await DBService.getProject(pid);
+                            if (fresh) projRow = fresh;
+                        }
+                    } catch (_) { /* ignore */ }
+                    try {
+                        const text = buildQfClipboardText(pid, projRow, file);
                         if (text && navigator.clipboard && navigator.clipboard.writeText) {
                             await navigator.clipboard.writeText(text);
                             if (typeof showCatToast === 'function') showCatToast('已複製到剪貼簿，請在試算表 A 欄貼上', 'info');
