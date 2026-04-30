@@ -6776,8 +6776,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             if (exportAttrOptions) {
                 const attrs = type === 'TM'
-                    ? [{ id: 'src', label: '原文', locked: true }, { id: 'tgt', label: '譯文', locked: true }, { id: 'createdAt', label: '建立時間' }, { id: 'createdBy', label: '作者' }]
-                    : [{ id: 'src', label: '原文', locked: true }, { id: 'tgt', label: '譯文', locked: true }, { id: 'note', label: '備註' }, { id: 'matchFlags', label: '比對屬性' }];
+                    ? [{ id: 'src', label: '原文', locked: true }, { id: 'tgt', label: '譯文', locked: true }, { id: 'createdAt', label: '建立時間' }, { id: 'createdBy', label: '建立者' }]
+                    : [{ id: 'src', label: '原文', locked: true }, { id: 'tgt', label: '譯文', locked: true }, { id: 'note', label: '備註' }, { id: 'matchFlags', label: '比對屬性' }, { id: 'createdAt', label: '建立時間' }, { id: 'createdBy', label: '建立者' }];
                 exportAttrOptions.innerHTML = attrs.map(a =>
                     `<label style="display:flex; align-items:center; gap:0.3rem; cursor:${a.locked ? 'default' : 'pointer'};">
                         <input type="checkbox" name="exportAttr" value="${a.id}" ${a.locked ? 'checked disabled' : 'checked'}> ${a.label}
@@ -6833,7 +6833,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } else {
                     const header = ['原文', '譯文'];
                     if (attrs.has('createdAt')) header.push('建立時間');
-                    if (attrs.has('createdBy')) header.push('作者');
+                    if (attrs.has('createdBy')) header.push('建立者');
                     const rows = [header, ...segs.map(s => {
                         const row = [s.sourceText || '', s.targetText || ''];
                         if (attrs.has('createdAt')) row.push(s.createdAt ? new Date(s.createdAt).toLocaleString('zh-TW', { hour12: false }) : '');
@@ -6857,6 +6857,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const concepts = terms.map((t, i) => {
                         let c = `  <conceptEntry id="c${i + 1}">\n    <langSec xml:lang="${_escXml(srcLang)}"><termSec><term>${_escXml(t.source)}</term></termSec></langSec>\n    <langSec xml:lang="${_escXml(tgtLang)}"><termSec><term>${_escXml(t.target)}</term></termSec></langSec>`;
                         if (attrs.has('note') && t.note) c += `\n    <note>${_escXml(t.note)}</note>`;
+                        if (attrs.has('createdBy') && t.createdBy) c += `\n    <note type="createdBy">${_escXml(t.createdBy)}</note>`;
+                        if (attrs.has('createdAt') && t.createdAt) c += `\n    <note type="createdAt">${_escXml(t.createdAt)}</note>`;
                         c += '\n  </conceptEntry>';
                         return c;
                     }).join('\n');
@@ -6866,11 +6868,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const header = ['原文', '譯文'];
                     if (attrs.has('note')) header.push('備註');
                     if (attrs.has('matchFlags')) { header.push('區分大小寫'); header.push('精確比對'); }
+                    if (attrs.has('createdAt')) header.push('建立時間');
+                    if (attrs.has('createdBy')) header.push('建立者');
                     const rows = [header, ...terms.map(t => {
                         const mf = t.matchFlags || { caseInsensitive: true, wholeWord: false };
                         const row = [t.source || '', t.target || ''];
                         if (attrs.has('note')) row.push(t.note || '');
                         if (attrs.has('matchFlags')) { row.push(mf.caseInsensitive === false ? '是' : '否'); row.push(mf.wholeWord ? '是' : '否'); }
+                        if (attrs.has('createdAt')) row.push(t.createdAt ? new Date(t.createdAt).toLocaleString('zh-TW', { hour12: false }) : '');
+                        if (attrs.has('createdBy')) row.push(t.createdBy || '');
                         return row;
                     })];
                     const ws = XLSX.utils.aoa_to_sheet(rows);
