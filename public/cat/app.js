@@ -12959,11 +12959,64 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
                 let _npRafId = null;
                 let _isComposing = false;
-                targetInput.addEventListener('compositionstart', () => { _isComposing = true; });
+                /** 譯文 debounce：pushUndo + 寫庫（組字結束須再呼叫以補排程）。 */
+                function scheduleTargetDebouncedPersistAndUndo() {
+                    clearTimeout(targetDebounceTimer);
+                    targetDebounceTimer = setTimeout(async () => {
+                        const myGen = ++targetWriteGeneration;
+                        const latest = extractTextFromEditor(targetInput);
+                        const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
+                        const statusDirty = editorUndoStatusStart[seg.id] !== seg.status;
+                        const matchDirty = (editorUndoMatchStart[seg.id] ?? null) !== (seg.matchValue ?? null);
+                        if (oldVal !== latest || statusDirty || matchDirty) {
+                            pushEditorUndo(seg.id, oldVal, latest, {
+                                oldMatchValue: editorUndoMatchStart[seg.id],
+                                newMatchValue: seg.matchValue,
+                                oldStatus: editorUndoStatusStart[seg.id],
+                                newStatus: seg.status
+                            });
+                            editorUndoEditStart[seg.id] = latest;
+                            editorUndoStatusStart[seg.id] = seg.status;
+                            editorUndoMatchStart[seg.id] = seg.matchValue;
+                        }
+                        seg.targetText = latest;
+                        try {
+                            await applyUpdateSegmentTarget(seg, latest);
+                        } catch (err) {
+                            if (err && err.code === 'SEGMENT_REVISION_CONFLICT') return;
+                            console.error('[譯文 debounce 寫庫失敗]', err, seg.id);
+                            return;
+                        }
+                        if (myGen !== targetWriteGeneration) {
+                            try {
+                                await applyUpdateSegmentTarget(seg, seg.targetText);
+                            } catch (err2) {
+                                if (err2 && err2.code === 'SEGMENT_REVISION_CONFLICT') return;
+                                console.error('[譯文 debounce 補寫失敗]', err2, seg.id);
+                            }
+                        }
+                        emitCollabEdit('commit', seg, seg.targetText);
+                    }, 500);
+                }
+                targetInput.addEventListener('compositionstart', () => {
+                    _isComposing = true;
+                    clearTimeout(targetDebounceTimer);
+                    targetDebounceTimer = null;
+                });
                 targetInput.addEventListener('compositionend', () => {
                     _isComposing = false;
-                    // 組字結束後補一次非列印字元標記更新
-                    requestAnimationFrame(() => refreshNonPrintMarkers(targetInput));
+                    const gridNp = document.getElementById('editorGrid')?.classList.contains('show-non-print');
+                    if (gridNp) {
+                        const _npOffComp = getNpCaretOffset(targetInput);
+                        requestAnimationFrame(() => {
+                            refreshNonPrintMarkers(targetInput);
+                            if (_npOffComp !== null) setNpCaretOffset(targetInput, _npOffComp);
+                            saveCatCaretFromSelection(targetInput);
+                        });
+                    } else {
+                        requestAnimationFrame(() => refreshNonPrintMarkers(targetInput));
+                    }
+                    scheduleTargetDebouncedPersistAndUndo();
                 });
                 targetInput.addEventListener('input', async () => {
                     if (isSegmentBeingEditedByOthers(seg.id)) {
@@ -13019,42 +13072,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
 
                     updateProgress();
-                    clearTimeout(targetDebounceTimer);
-                    targetDebounceTimer = setTimeout(async () => {
-                        const myGen = ++targetWriteGeneration;
-                        const latest = extractTextFromEditor(targetInput);
-                        const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
-                        const statusDirty = editorUndoStatusStart[seg.id] !== seg.status;
-                        const matchDirty = (editorUndoMatchStart[seg.id] ?? null) !== (seg.matchValue ?? null);
-                        if (oldVal !== latest || statusDirty || matchDirty) {
-                            pushEditorUndo(seg.id, oldVal, latest, {
-                                oldMatchValue: editorUndoMatchStart[seg.id],
-                                newMatchValue: seg.matchValue,
-                                oldStatus: editorUndoStatusStart[seg.id],
-                                newStatus: seg.status
-                            });
-                            editorUndoEditStart[seg.id] = latest;
-                            editorUndoStatusStart[seg.id] = seg.status;
-                            editorUndoMatchStart[seg.id] = seg.matchValue;
-                        }
-                        seg.targetText = latest;
-                        try {
-                            await applyUpdateSegmentTarget(seg, latest);
-                        } catch (err) {
-                            if (err && err.code === 'SEGMENT_REVISION_CONFLICT') return;
-                            console.error('[譯文 debounce 寫庫失敗]', err, seg.id);
-                            return;
-                        }
-                        if (myGen !== targetWriteGeneration) {
-                            try {
-                                await applyUpdateSegmentTarget(seg, seg.targetText);
-                            } catch (err2) {
-                                if (err2 && err2.code === 'SEGMENT_REVISION_CONFLICT') return;
-                                console.error('[譯文 debounce 補寫失敗]', err2, seg.id);
-                            }
-                        }
-                        emitCollabEdit('commit', seg, seg.targetText);
-                    }, 500);
+                    if (!_isComposing) scheduleTargetDebouncedPersistAndUndo();
                 });
 
                 // 游標位置/選取改變時，更新「F8 下一步」的深藍高亮與假游標記錄
