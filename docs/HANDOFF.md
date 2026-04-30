@@ -258,7 +258,21 @@
 
 維護時以 [`cat-tool/app.js`](../cat-tool/app.js) 為主，樣式見 [`cat-tool/style.css`](../cat-tool/style.css)，改後依 [`AGENTS.md`](../AGENTS.md) 執行 `npm run sync:cat` 並一併提交 `public/cat`。
 
+文中 **待定案（游標／焦點）** 將於優先處理其他議題後再接；已定稿之落地變更見下「近期已落地變更紀錄」與「已落地」表格。
+
 **假游標模組**：[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)；`app.js` 薄封裝含 `restoreOrShowFakeCatCaret`、`setSavedCaret`（經 `moveCaretToEndAndShowFakeInTarget` 等呼叫）。
+
+### 近期已落地變更紀錄（摘要）
+
+以下為可與 git 核對之摘要（使用者驗收通過之批次）。
+
+| 主題 | 使用者可感知效果 | 實作位置（維運） |
+|------|------------------|------------------|
+| 非列印「空格點」結構 | 空格類字元改為單一可編輯 wrapper（`.np-inline-char`），符號以 CSS `::after` 顯示，較不易出現方向鍵須連按兩次 | [`cat-tool/app.js`](../cat-tool/app.js) `applyNonPrintMarkers`、`stripNonPrintMarkers`、`getNpCaretOffset`／`setNpCaretOffset` walker；[`cat-tool/style.css`](../cat-tool/style.css) |
+| 非列印鍵盤與 overlay | 區分「空白 wrapper」與換行箭頭等 overlay（`isNpOverlayMarker`）；Backspace／Delete／Arrow 行為對應調整 | 同上 `app.js` 譯文欄 `keydown` |
+| `confirmOp` 還原／重做與後台 | **Ctrl+Z／Ctrl+Y** 觸發批次確認類還原／重做時：**畫面先更新**，寫庫與 TM 操作排入 `enqueueConfirmSideEffects`（與確認句段「先有感再跟上」一致） | [`cat-tool/app.js`](../cat-tool/app.js) `applyEditorUndo`／`applyEditorRedo` 之 `confirmOp` 分支 |
+
+**Commit 參考**：`03cadc7`（含上述 np-inline-char、`confirmOp` 樂觀重繪等；實際範圍請以 `git show` 為準）。
 
 ### 已落地（近期）
 
@@ -267,9 +281,11 @@
 | **搜尋導覽** | `runSearchAndFilter` 結尾不再自動搶焦點；計數為 `— / n`。上一個／下一個（及 **F3**／**Shift+F3**）依真選取或假游標錨點在文件中找下一／上一命中，`applySearchMatchNavigationFocus` 於可編輯欄 **選取反白**該 `mark`。 |
 | **取代這個** | 譯文格內正在命中 mark 上則取代該次 occurrence；否則自錨點找下一譯文命中。取代後跳到下一譯文命中；已移除句尾 `focus/blur` 假游標路徑。 |
 | **F4 全部取代** | （先前）不清篩選、可選回到暫存游標。 |
-| **§1 退格／§2 方向鍵** | 非列印模式下：`container.nodeType === 1` 時可刪緊鄰之 `.non-print-marker`／`.rt-tag`；**ArrowLeft/Right** 緊鄰 `.non-print-marker` 時一次跳過。 |
+| **非列印空格（np-inline-char）** | 見「近期已落地變更紀錄」表；`extractTextFromEditor`、搜尋高亮對應、`countEditorChars` 等已將 wrapper 內文字納入線性順序。 |
+| **§1 退格／§2 方向鍵** | 非列印模式下：**空白類**已改 **`.np-inline-char`**（單一節點 + `::after`）；**換行箭頭**等仍為 overlay `.non-print-marker`。退格／刪除／箭頭分支區分 overlay（`isNpOverlayMarker`）與 inline-char；`container.nodeType === 1` 時可刪緊鄰 overlay／`.rt-tag`／inline-char；**ArrowLeft/Right**「一次跳過」**僅針對 overlay**（不再誤解為舊版「文字 + dot 雙節點」）。 |
 | **§4 Ctrl+F8** | 非列印模式下 `getNpCaretOffset` → `setEditorHtml` 後雙 RAF `setNpCaretOffset` 還原。 |
 | **§5 批次確認 undo** | 多選批次確認（工具列快捷與右鍵 `ctxBatchConfirm`）在 `enqueueConfirmSideEffects` **之前**即 `pushUndoEntry(confirmOp)`，async 尾端只更新同一物件之 `tmUndo`／`tmRedo`／`afterSnapshots`。單句 Ctrl+Enter／狀態圖示確認仍僅在快照有差異時同步入堆疊。 |
+| **confirmOp 還原／重做樂觀重繪** | **Ctrl+Z／Ctrl+Y** 執行 `confirmOp`：**先** `renderEditorSegments`、`runSearchAndFilter`、TM 區更新與 `updateProgress`，**再**於 `enqueueConfirmSideEffects` 內 `persistSegStateToDb` 與 TM undo/redo。與 §5 分工：§5 為 **undo 堆疊 push 時機**；本列為 **按下 Z／Y 當下**畫面與寫庫順序。 |
 | **§6 Ctrl+K** | 有選取文字觸發 TM 後，雙 RAF 改呼叫 `restoreOrShowFakeCatCaret()`。 |
 | **§7 `.rt-tag` 視覺** | `.col-target .grid-textarea .rt-tag { margin-right: 0.18em; }`。 |
 | **§8 `moveCaretToEndAndShowFakeInTarget`** | 改為 `catFakeCaret.setSavedCaret` + `show()`，無 `focus/blur`。 |
@@ -280,10 +296,22 @@
 - **輸入搜尋字重繪**：只更新高亮與 `— / 總數`，不變更使用中命中索引與焦點。
 - **取代這個**：與「下一個譯文命中」共用錨點；命中選取時取代該 DOM mark 對應之第 k 次字面 occurrence（`replaceOccurrenceInPlain`）。
 
-### 仍待擴充／第二階段
+### 待定案事項（游標／焦點；尚未實作）
 
-- **`confirmOp`／`segmentState` undo 後游標**：尚未統一為「變更區段之後」（目前僅 **kind: target**／compound 內 target 路徑）。
-- **其他仍混用 `focusTargetEditorAtSegmentIndex`／`setCaretAtEditorStart` 之路徑**：可依需求逐步改為 `restoreOrShowFakeCatCaret` 或 `setSavedCaret`。
+以下項目尚未實作；**還原（Ctrl+Z）與重做（Ctrl+Y）須採同一套規則**，避免「退一步順、進一步又亂」。
+
+1. **`confirmOp`／`segmentState` 還原與重做後的輸入位置**  
+   - **現象**：整表重繪或整列重設譯文後，游標／閱讀位置未必留在使用者預期那句、那句的字後；反覆 Z／Y 試錯時特別打斷。  
+   - **技術錨點**：目前僅 **kind: target**（與 **compound** 內逐筆 target）有「變更後偏移」排程；`confirmOp`、`segmentState` 尚未套用。  
+   - **待定**：批次／多列時 **以哪一句為「主句」**（例如作用列若仍在變更集合內則優先）待拍板。
+
+2. **`compound`（多句譯文同一步還原／重做）**  
+   - **現象**：若維持「只排程一次」游標補位，結果等同 **只跟最後一句**，與使用者心里「我正在改這句」可能不符。  
+   - **待定**：列為**已知限制**或另訂規則（例如僅主句、或接受最後一句）。
+
+3. **`focusTargetEditorAtSegmentIndex` 與假游標 API**  
+   - **現象**：「跳到下一句立刻能打」需要真焦點；「只標位置、避免 blur 連鎖」適合假游標。情境不同。  
+   - **待定**：**不宜一律**把真焦點路徑換成假游標；逐一路徑收斂時應註明使用者情境（須能打字 vs 僅視覺錨點）。原先「仍混用 `setCaretAtEditorStart`」之路徑亦同，併入此項評估。
 
 ### 補充：已確認無需改動之行為（盤點結論）
 
