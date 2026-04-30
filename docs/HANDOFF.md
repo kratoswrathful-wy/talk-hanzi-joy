@@ -227,6 +227,33 @@
 2. 非 TWD 客戶：依利潤排序／篩選與畫面 TWD 利潤合理對齊。
 3. 無須開立稿費譯者：總表「費率無誤」顯示勾選；篩選「已勾選費率無誤」包含該列。
 
+## CAT：編輯器非列印字元、IME、確認跳行修復（2026-04-30）
+
+### 問題緣由
+
+開啟「顯示非列印字元」後，連續點選含空格的句段會累積重複空格點（·），且注音輸入法在特定句段會不斷自動提交未完成的組字內容；同時確認句段（Ctrl+Enter）偶有延遲。
+
+### 解決方案（`cat-tool/app.js`、`cat-tool/style.css`）
+
+| 項目 | 原因 | 作法 |
+|------|------|------|
+| **空格點重複疊加（Bug 1）** | `applyNonPrintMarkers` 被重複呼叫時未先清除舊 span，造成多個 span 殘留。 | 新增 `stripNonPrintMarkers`（清除舊 span + normalize）與 `refreshNonPrintMarkers`（先 strip 再 apply），所有重新套用處改用 `refreshNonPrintMarkers`。 |
+| **空格無法退格刪除（Bug 1 衍生）** | `non-print-marker` span 設為 `contentEditable="false"`，瀏覽器退格遇到 span 時無法同步刪除相鄰空格字元。 | `keydown` 事件攔截 Backspace / Delete；偵測游標與 span 的相鄰關係，手動同步移除 span 與空格字元，再 dispatch `input` 觸發正常後續流程。 |
+| **注音不斷自動輸入（Bug 2）** | `refreshNonPrintMarkers` 內的 `normalize()` 在 IME 組字期間被 RAF 觸發，干擾組字狀態造成循環提交。 | 加 `_isComposing` flag；`compositionstart` 設為 true、`compositionend` 設為 false 並補一次 refresh。`input` handler 的 RAF 以 `!_isComposing` 為門檻，組字期間不觸發 DOM 操作。 |
+| **段落符號 ¶ 行為異常** | 曾用 DOM span 插入，後改 CSS `::after`，最終決定完全移除。 | 刪除 `.show-non-print .rt-editor::after` CSS 規則及對應 JS 插入邏輯。 |
+| **確認跳行延遲** | Ctrl+Enter / 狀態圖示確認時，`await applyUpdateSegmentTarget()` 阻塞了 UI 更新與跳行。 | **方案 B（fire-and-forget）**：立刻更新 UI 狀態並跳行，目標寫入（`applyUpdateSegmentTarget`）與狀態／TM 寫入一起排入 `enqueueConfirmSideEffects`。衝突時以新增的 `showCatToast` 通知並透過 `_revertConfirmAndToast` 還原樂觀 UI。 |
+
+### 新增輔助
+
+- `showCatToast(msg, type)` — 固定右下角 3 秒 toast（`cat-toast` / `cat-toast-error`）。
+- `_revertConfirmAndToast(seg, row, statusIcon, effectiveLocked)` — 確認失敗時統一還原 `seg.status`、statusIcon 與進度，並顯示 toast。
+
+### 維運注意
+
+- 手動刪空格的 `keydown` 攔截只在 `show-non-print` 模式下生效，一般模式不受影響。
+- 衝突 toast 顯示後，使用者需回到該句段重新確認；衝突路徑已移除原本的 `alert()` 阻斷彈窗。
+- `isConfirming = true` 必須在 `focusTargetEditorAtSegmentIndex`（觸發 blur）之前設好，以確保 blur handler 的 `wasConfirming` 能正確取到 `true`，防止 blur 重複寫庫。
+
 ## 延伸閱讀
 
 - [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md) — 本機／遠端 Supabase 部署步驟、case-files 與 Slack、驗收與 `db push` 失敗排除
