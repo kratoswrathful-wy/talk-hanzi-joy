@@ -671,6 +671,7 @@
                                                     <label class="sf-options-row"><input type="checkbox" value="keys" class="sf-scope-cb"> Key</label>
                                                     <label class="sf-options-row"><input type="checkbox" value="extra" class="sf-scope-cb"> 額外資訊</label>
                                                     <label class="sf-options-row"><input type="checkbox" id="sfUseRegex"> 使用正則表達式</label>
+                                                    <label class="sf-options-row"><input type="checkbox" id="sfReplaceAllClearAndJump" checked> 全部取代後清除篩選並跳到第一筆</label>
                                                 </div>
                                             </div>
                                         </div>
@@ -858,10 +859,14 @@
                         </div>
                         
                         <div class="panel-content active" id="tabCAT">
-                            <div class="cat-dblclick-insert-bar" title="關閉時，雙擊比對列與 Ctrl+1～9 不會套用譯文。">
+                            <div class="cat-dblclick-insert-bar" title="關閉時，僅停用雙擊套用譯文；Ctrl+1～9 仍可套用。">
                                 <label class="cat-dblclick-insert-label">
                                     <input type="checkbox" class="cat-dblclick-insert-cb" id="catDblclickInsertEnabled" checked>
                                     <span>雙擊套用譯文</span>
+                                </label>
+                                <label class="cat-dblclick-insert-label">
+                                    <input type="checkbox" class="cat-confirm-return-tab-cb" id="catConfirmReturnTabEnabled">
+                                    <span>確認句段跳行後回到 CAT 分頁</span>
                                 </label>
                             </div>
                             <div class="concordance-search concordance-search-cat">
@@ -880,10 +885,14 @@
                         </div>
 
                         <div class="panel-content" id="tabTmSearch">
-                            <div class="cat-dblclick-insert-bar" title="關閉時，雙擊比對列與 Ctrl+1～9 不會套用譯文。">
+                            <div class="cat-dblclick-insert-bar" title="關閉時，僅停用雙擊套用譯文；Ctrl+1～9 仍可套用。">
                                 <label class="cat-dblclick-insert-label">
                                     <input type="checkbox" class="cat-dblclick-insert-cb" id="catDblclickInsertEnabledTm" checked>
                                     <span>雙擊套用譯文</span>
+                                </label>
+                                <label class="cat-dblclick-insert-label">
+                                    <input type="checkbox" class="cat-confirm-return-tab-cb" id="catConfirmReturnTabEnabledTm">
+                                    <span>確認句段跳行後回到 CAT 分頁</span>
                                 </label>
                             </div>
                             <div class="tm-tmsearch-body">
@@ -1903,6 +1912,11 @@
                         <label style="display:block; margin-bottom:0.25rem;"><input type="checkbox" id="ptOverwrite"> 覆蓋既有譯文（非空白譯文）</label>
                         <label style="display:block;"><input type="checkbox" id="ptAutoConfirm" checked> 將 100% 以上相符的句段自動標示為「已確認」</label>
                     </div>
+                    <div id="ptProgressArea" class="pt-progress-area hidden">
+                        <span class="pt-spinner" aria-hidden="true"></span>
+                        <span id="ptProgressText">目前處理：0/0 句段</span>
+                    </div>
+                    <div id="ptProgressStatus" class="pt-progress-status hidden"></div>
                 </div>
                 <div class="panel-footer" style="padding:1rem 2rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem; background:#f8fafc;">
                     <button class="secondary-btn" id="btnCancelPreTranslate">取消</button>

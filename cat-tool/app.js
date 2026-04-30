@@ -1007,6 +1007,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const afterSnap = snapshotSegForUndo(seg);
             if (JSON.stringify(beforeSnap) !== JSON.stringify(afterSnap)) {
                 pushUndoEntry({ kind: 'segmentState', items: [{ id: seg.id, beforeSnap, afterSnap }] });
+                editorUndoEditStart[seg.id] = afterSnap.targetText;
+                editorUndoStatusStart[seg.id] = afterSnap.status;
+                editorUndoMatchStart[seg.id] = afterSnap.matchValue;
             }
             updateProgress();
         } finally {
@@ -2778,6 +2781,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         switchView('viewEditor');
     }
 
+    function clearEditorScopedPanels() {
+        window.currentTmMatches = [];
+        window.currentTmConcordanceMatches = [];
+        window.catPanelSelectedIndex = 0;
+        window.tmConcordanceSelectedIndex = 0;
+        const tmSearchResults = document.getElementById('tmSearchResults');
+        if (tmSearchResults) {
+            tmSearchResults.innerHTML = '<div style="padding: 0.75rem; color: #64748b; font-size: 0.9rem; text-align: left;">點擊句段以顯示 TM / 片段 / 術語比對結果。</div>';
+        }
+        const tmConcordanceResults = document.getElementById('tmSearchConcordanceResults');
+        if (tmConcordanceResults) tmConcordanceResults.innerHTML = '';
+        const liveTrackChangeContent = document.getElementById('liveTrackChangeContent');
+        if (liveTrackChangeContent) liveTrackChangeContent.textContent = '選取句段與 TM / 片段列以顯示原文對照。';
+        if (typeof _qaResults !== 'undefined') {
+            _qaResults = [];
+            if (typeof _qaIgnoredSet !== 'undefined' && _qaIgnoredSet && typeof _qaIgnoredSet.clear === 'function') {
+                _qaIgnoredSet.clear();
+            }
+            if (typeof renderQaResults === 'function') renderQaResults();
+        }
+    }
+
     navItems.forEach(item => {
         item.addEventListener('click', async (e) => {
             e.preventDefault();
@@ -2795,6 +2820,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (gridBody) gridBody.innerHTML = '';
                 window.ActiveTmCache = [];
                 window.ActiveTbTerms = [];
+                clearEditorScopedPanels();
                 sidebar.classList.remove('collapsed');
             }
             switchView(targetView);
@@ -8577,6 +8603,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         gridBody.innerHTML = '';
         window.ActiveTmCache = [];
         window.ActiveTbTerms = [];
+        clearEditorScopedPanels();
         sidebar.classList.remove('collapsed');
         await openProjectDetail(currentProjectId);
         persistCatRoute();
@@ -8592,11 +8619,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     const ptThreshold = document.getElementById('ptThreshold');
     const ptOverwrite = document.getElementById('ptOverwrite');
     const ptAutoConfirm = document.getElementById('ptAutoConfirm');
+    const ptProgressArea = document.getElementById('ptProgressArea');
+    const ptProgressText = document.getElementById('ptProgressText');
+    const ptProgressStatus = document.getElementById('ptProgressStatus');
     const btnPreTranslate = document.getElementById('btnPreTranslate');
+
+    function setPreTranslateProgress(done, total) {
+        if (ptProgressText) ptProgressText.textContent = `目前處理：${done}/${total} 句段`;
+    }
+
+    function showPreTranslateProgress() {
+        if (ptProgressArea) ptProgressArea.classList.remove('hidden');
+        if (ptProgressStatus) {
+            ptProgressStatus.classList.add('hidden');
+            ptProgressStatus.textContent = '';
+        }
+    }
+
+    function hidePreTranslateProgress() {
+        if (ptProgressArea) ptProgressArea.classList.add('hidden');
+    }
+
+    function setPreTranslateStatus(msg, isError) {
+        if (!ptProgressStatus) return;
+        ptProgressStatus.textContent = msg || '';
+        ptProgressStatus.classList.toggle('pt-progress-status-error', !!isError);
+        ptProgressStatus.classList.remove('hidden');
+    }
 
     if (btnPreTranslate) {
         btnPreTranslate.addEventListener('click', () => {
             if (activeView !== 'viewEditor') return;
+            hidePreTranslateProgress();
+            if (ptProgressStatus) {
+                ptProgressStatus.classList.add('hidden');
+                ptProgressStatus.textContent = '';
+            }
             
             if (selectedRowIds.size > 0) {
                 ptScopeSelected.disabled = false;
@@ -8613,8 +8671,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    if (btnClosePreTranslate) btnClosePreTranslate.addEventListener('click', () => preTranslateModal.classList.add('hidden'));
-    if (btnCancelPreTranslate) btnCancelPreTranslate.addEventListener('click', () => preTranslateModal.classList.add('hidden'));
+    if (btnClosePreTranslate) btnClosePreTranslate.addEventListener('click', () => {
+        hidePreTranslateProgress();
+        if (ptProgressStatus) ptProgressStatus.classList.add('hidden');
+        preTranslateModal.classList.add('hidden');
+    });
+    if (btnCancelPreTranslate) btnCancelPreTranslate.addEventListener('click', () => {
+        hidePreTranslateProgress();
+        if (ptProgressStatus) ptProgressStatus.classList.add('hidden');
+        preTranslateModal.classList.add('hidden');
+    });
     
     if (btnRunPreTranslate) {
         btnRunPreTranslate.addEventListener('click', async () => {
@@ -8625,16 +8691,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             btnRunPreTranslate.disabled = true;
             btnRunPreTranslate.textContent = '處理中...';
+            showPreTranslateProgress();
 
             try {
                 const affectedSegments = scope === 'selected' 
                     ? currentSegmentsList.filter(s => selectedRowIds.has(s.id))
                     : currentSegmentsList;
-                
+                const total = affectedSegments.length;
+                setPreTranslateProgress(0, total);
                 let applyCount = 0;
-                for (const seg of affectedSegments) {
-                    if (isTargetWriteProtected(seg)) continue;
-                    if (!overwrite && seg.targetText.trim() !== '') continue;
+                const undoItems = [];
+                for (let idx = 0; idx < affectedSegments.length; idx++) {
+                    const seg = affectedSegments[idx];
+                    const beforeSnap = snapshotSegForUndo(seg);
+                    if (isTargetWriteProtected(seg) || (!overwrite && seg.targetText.trim() !== '')) {
+                        setPreTranslateProgress(idx + 1, total);
+                        if ((idx + 1) % 20 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+                        continue;
+                    }
 
                     let bestMatch = null;
                     let bestScore = 0;
@@ -8661,19 +8735,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                             await DBService.updateSegmentStatus(seg.id, 'confirmed');
                         }
                         await applyUpdateSegmentTarget(seg, seg.targetText, { matchValue: seg.matchValue });
+                        const afterSnap = snapshotSegForUndo(seg);
+                        if (JSON.stringify(beforeSnap) !== JSON.stringify(afterSnap)) {
+                            undoItems.push({ id: seg.id, beforeSnap, afterSnap });
+                        }
                         applyCount++;
                     }
+                    setPreTranslateProgress(idx + 1, total);
+                    if ((idx + 1) % 20 === 0) {
+                        await new Promise((resolve) => setTimeout(resolve, 0));
+                    }
                 }
-                
-                alert(`預先翻譯完成！共更新 ${applyCount} 個句段。`);
+                if (undoItems.length) pushUndoEntry({ kind: 'segmentState', items: undoItems });
+                setPreTranslateStatus(`預先翻譯完成！共更新 ${applyCount} 個句段。`, false);
                 preTranslateModal.classList.add('hidden');
                 renderEditorSegments();
                 runSearchAndFilter();
                 updateProgress();
             } catch (e) {
                 console.error(e);
-                alert('預先翻譯過程中發生錯誤');
+                setPreTranslateStatus('預先翻譯過程中發生錯誤', true);
             } finally {
+                hidePreTranslateProgress();
                 btnRunPreTranslate.disabled = false;
                 btnRunPreTranslate.textContent = '開始套用';
             }
@@ -8714,6 +8797,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ==========================================
     let sfMode = 'search'; // 'search' or 'filter'
     let sfUseRegexChecked = false;
+    const REPLACE_ALL_CLEAR_AND_JUMP_KEY = 'catReplaceAllClearAndJump';
     let sfSearchMatches = [];
     let sfActiveMatchIdx = -1;
     let sfLastFocusedMatchSegIdx = null;
@@ -8750,6 +8834,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnSfInvert = document.getElementById('btnSfInvert');
     const btnSfOptionsPopover = document.getElementById('btnSfOptionsPopover');
     const sfOptionsPopover = document.getElementById('sfOptionsPopover');
+    const sfReplaceAllClearAndJump = document.getElementById('sfReplaceAllClearAndJump');
     const sfReplaceInput = document.getElementById('sfReplaceInput');
     const btnSfReplaceThis = document.getElementById('btnSfReplaceThis');
     const btnSfReplaceAll = document.getElementById('btnSfReplaceAll');
@@ -8761,6 +8846,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     const qaScopeLockHint = '已選擇以目前篩選結果為 QA 範圍，暫時不得變動篩選條件；如欲變更或清除篩選條件，請取消該 QA 範圍設定';
     let qaScopeLocksFilterUi = false;
     let qaRunInProgress = false;
+    function isReplaceAllClearAndJumpEnabled() {
+        return localStorage.getItem(REPLACE_ALL_CLEAR_AND_JUMP_KEY) !== '0';
+    }
+    function initReplaceAllClearAndJumpOption() {
+        if (!sfReplaceAllClearAndJump) return;
+        sfReplaceAllClearAndJump.checked = isReplaceAllClearAndJumpEnabled();
+        sfReplaceAllClearAndJump.addEventListener('change', (e) => {
+            localStorage.setItem(REPLACE_ALL_CLEAR_AND_JUMP_KEY, e.target && e.target.checked ? '1' : '0');
+        });
+    }
+    initReplaceAllClearAndJumpOption();
     function updateSfModeToggleLockState() {
         const locked = isSfAdvancedFilterInUse();
         if (locked && sfMode === 'search') {
@@ -9147,8 +9243,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                     refreshTagNextHighlight(activeRow);
                     applyMatchCellVisual(activeRow, '');
                     pushEditorUndo(seg.id, oldTarget, stripped, { oldMatchValue: oldMv, newMatchValue: undefined });
+                    editorUndoEditStart[seg.id] = stripped;
+                    editorUndoMatchStart[seg.id] = undefined;
                     applyUpdateSegmentTarget(seg, stripped, { matchValue: '' }).catch(console.error);
                 }
+            }
+        }
+        // F4：全部取代
+        if (!e.ctrlKey && !e.altKey && !e.shiftKey && e.key === 'F4' && currentFileId) {
+            const ve = document.getElementById('viewEditor');
+            if (ve && !ve.classList.contains('hidden')) {
+                e.preventDefault();
+                performReplaceAll().catch(console.error);
             }
         }
         // Ctrl+Insert：將原文複製到譯文
@@ -11019,8 +11125,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const multi = selectedRowIds && selectedRowIds.size > 1;
         btnSfReplaceAll.textContent = multi ? '取代此範圍' : '全部取代';
         btnSfReplaceAll.title = multi
-            ? '將取代目前已選取句段中的所有相符內容。'
-            : '將取代目前可見範圍中的所有相符內容。';
+            ? '將取代目前已選取句段中的所有相符內容。(F4)'
+            : '將取代目前可見範圍中的所有相符內容。(F4)';
     }
 
     function unconfirmSegmentVisualAfterReplace(seg, segIdx) {
@@ -11040,6 +11146,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const AFTER_CONFIRM_NAV_KEY = 'catToolAfterConfirmNav';
+    const CONFIRM_RETURN_CAT_TAB_KEY = 'catConfirmReturnCatTab';
     let confirmSideEffectChain = Promise.resolve();
 
     function enqueueConfirmSideEffects(fn) {
@@ -11049,6 +11156,32 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function getAfterConfirmNavMode() {
         return localStorage.getItem(AFTER_CONFIRM_NAV_KEY) || 'nextUnconfirmed';
+    }
+
+    function isConfirmReturnCatTabEnabled() {
+        return localStorage.getItem(CONFIRM_RETURN_CAT_TAB_KEY) === '1';
+    }
+
+    function setConfirmReturnCatTabCheckboxes(checked) {
+        document.querySelectorAll('.cat-confirm-return-tab-cb').forEach((cb) => { cb.checked = checked; });
+    }
+
+    (function initConfirmReturnCatTab() {
+        const cbs = document.querySelectorAll('.cat-confirm-return-tab-cb');
+        if (!cbs.length) return;
+        setConfirmReturnCatTabCheckboxes(isConfirmReturnCatTabEnabled());
+        cbs.forEach((cb) => {
+            cb.addEventListener('change', (ev) => {
+                const on = !!(ev.target && ev.target.checked);
+                localStorage.setItem(CONFIRM_RETURN_CAT_TAB_KEY, on ? '1' : '0');
+                setConfirmReturnCatTabCheckboxes(on);
+            });
+        });
+    })();
+
+    function maybeSwitchRightPanelToCatAfterConfirm() {
+        if (!isConfirmReturnCatTabEnabled()) return;
+        document.querySelector('.tab-btn[data-tab="tabCAT"]')?.click();
     }
 
     function rowIndexHasEditableTarget(segIdx) {
@@ -11160,8 +11293,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         runSearchAndFilter();
         if (replacedCount > 0) {
             updateProgress();
-            const lastIdx = pending.length ? pending[pending.length - 1].segIdx : null;
-            if (lastIdx != null) moveCaretToEndAndShowFakeInTarget(lastIdx);
+            if (isReplaceAllClearAndJumpEnabled()) {
+                sfFilterGroups = [];
+                renderFilterGroups();
+                clearUIFilters();
+                runSearchAndFilter();
+                const firstIdx = pending.length ? pending[0].segIdx : null;
+                if (firstIdx != null) moveCaretToEndAndShowFakeInTarget(firstIdx);
+            }
         }
     }
 
@@ -12893,6 +13032,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                             const nextFocus = getAfterConfirmFocusIndex(i);
                             focusTargetEditorAtSegmentIndex(nextFocus);
+                            maybeSwitchRightPanelToCatAfterConfirm();
                             isConfirming = false;
                             // 樂觀第一段：不等 TM／傳播，先更新本句 QA 列（第二段仍在 enqueue 尾端全量 touch）
                             _qaIncrementalRefreshAfterConfirm([seg.id]);
@@ -13061,6 +13201,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             applyOptimisticRepetitionAfterPrimaryConfirm(i, { updateDom: true });
                             const nextFocus = getAfterConfirmFocusIndex(i);
                             focusTargetEditorAtSegmentIndex(nextFocus);
+                            maybeSwitchRightPanelToCatAfterConfirm();
                             isConfirming = false;
                             _qaIncrementalRefreshAfterConfirm([seg.id]);
                             await _maybeShowAiReviewModal(seg, i, {
@@ -13131,7 +13272,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (_pendingFocusSegIdxAfterRender != null) {
             const pi = _pendingFocusSegIdxAfterRender;
             _pendingFocusSegIdxAfterRender = null;
-            queueMicrotask(() => focusTargetEditorAtSegmentIndex(pi));
+            queueMicrotask(() => {
+                focusTargetEditorAtSegmentIndex(pi);
+                maybeSwitchRightPanelToCatAfterConfirm();
+            });
         }
     }
 
@@ -13610,8 +13754,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     // 雙擊：套用該列的譯文至目前句段
-    window.handleCatResultApply = async function(el, type, text, score, matchIndex) {
-        if (!isCatDblclickInsertEnabled()) return;
+    window.handleCatResultApply = async function(el, type, text, score, matchIndex, fromKeyboard = false) {
+        if (!fromKeyboard && !isCatDblclickInsertEnabled()) return;
         const activeRow = document.querySelector('.grid-data-row.active-row');
         if (!activeRow) return;
         const textarea = activeRow.querySelector('.grid-textarea');
@@ -13676,7 +13820,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const m = matches[abs];
         const el = document.querySelector(`#tmSearchResults .result-item[data-index="${relativeIndex}"]`);
         const scoreArg = m.type === 'TM' ? m.score : undefined;
-        window.handleCatResultApply(el || document.body, m.type, m.targetText, scoreArg, relativeIndex);
+        window.handleCatResultApply(el || document.body, m.type, m.targetText, scoreArg, relativeIndex, true);
     };
     
     // Alt+上/下：CAT 分頁比對表或 TM 搜尋 concordance 列表中移動選取（不套用譯文）
@@ -14955,7 +15099,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (catTabBtn) catTabBtn.click();
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-                if (!restoreSavedCaretIntoEditor()) showCatFakeCaretFromSaved();
+                if (!restoreSavedCaretIntoEditor()) {
+                    showCatFakeCaretFromSaved();
+                } else {
+                    const sel = window.getSelection();
+                    if (sel && !sel.isCollapsed) sel.collapseToEnd();
+                }
             });
         });
     }
@@ -22263,6 +22412,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             _showAiToast('已有 AI 任務執行中，請稍候目前任務完成。', true);
             return;
         }
+        const undoBeforeBySegId = new Map();
+        const rememberUndoBefore = (seg) => {
+            if (!seg || undoBeforeBySegId.has(seg.id)) return;
+            undoBeforeBySegId.set(seg.id, snapshotSegForUndo(seg));
+        };
         const rangeLabel = config.allFile ? '全文' : `句段 ${config.rangeStart}-${config.rangeEnd}`;
         const ctx = await _resolveAiTaskContext();
         let taskLogId = _startAiTaskLog({
@@ -22333,6 +22487,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         segsToBatchAsk.push({ seg, tmText: bestMatch.targetText, score: bestScore });
                     } else {
                         // Direct apply TM
+                        rememberUndoBefore(seg);
                         seg.targetText = bestMatch.targetText;
                         await applyUpdateSegmentTarget(seg, seg.targetText, {}).catch(console.error);
                         tmSegs.push(seg);
@@ -22353,6 +22508,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             for (const item of segsToBatchAsk) {
                 const choice = chosen?.find(c => c.segId === item.seg.id);
                 if (choice?.useAi) {
+                    rememberUndoBefore(item.seg);
                     item.seg.targetText = item.tmText;
                     await applyUpdateSegmentTarget(item.seg, item.seg.targetText, {}).catch(console.error);
                 } else {
@@ -22401,6 +22557,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             for (const item of askItems) {
                 const choice = chosen?.find(c => c.segId === item.seg.id);
                 if (choice?.useAi && item.aiText) {
+                    rememberUndoBefore(item.seg);
                     item.seg.targetText = item.aiText;
                     item.seg.aiSuggestion = item.aiText;
                     item.seg.aiSuggestionAt = new Date().toISOString();
@@ -22533,6 +22690,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 for (const r of result.results) {
                     const seg = batch.find(s => s.id === r.segId);
                     if (seg && r.translation) {
+                        rememberUndoBefore(seg);
                         seg.targetText = r.translation;
                         seg.aiSuggestion = r.translation;
                         seg.aiSuggestionAt = new Date().toISOString();
@@ -22582,6 +22740,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             for (const r of retryResult.results) {
                 const seg = finalAiSegs.find(s => s.id === r.segId);
                 if (seg && r.translation) {
+                    rememberUndoBefore(seg);
                     seg.targetText = r.translation;
                     seg.aiSuggestion = r.translation;
                     seg.aiSuggestionAt = new Date().toISOString();
@@ -22589,6 +22748,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         }
+
+            const undoItems = [];
+            undoBeforeBySegId.forEach((beforeSnap, segId) => {
+                const seg = currentSegmentsList.find((s) => s.id === segId);
+                if (!seg || !beforeSnap) return;
+                const afterSnap = snapshotSegForUndo(seg);
+                if (JSON.stringify(beforeSnap) !== JSON.stringify(afterSnap)) {
+                    undoItems.push({ id: segId, beforeSnap, afterSnap });
+                }
+            });
+            if (undoItems.length) pushUndoEntry({ kind: 'segmentState', items: undoItems });
 
             _clearCatAiBatchResume();
             _showAiToast(`批次翻譯完成！共處理 ${processed} 句。`, false);

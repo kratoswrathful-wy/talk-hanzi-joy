@@ -947,7 +947,7 @@ mark.search-match-active { background-color: #f97316; color: white; display: inl
     width: 0.95rem;
     height: 0.95rem;
     accent-color: var(--primary-color, #6366f1);
-    cursor: not-allowed;
+    cursor: pointer;
 }
 .cat-dblclick-insert-hint {
     font-size: 0.72rem;
@@ -2914,13 +2914,45 @@ select.cat-mutex-dd-native-hidden {
 /* 非列印字元標記 */
 .non-print-marker {
     display: none;
-    color: #94a3b8;
-    font-size: 0.72em;
+    color: #475569;
+    font-size: 0.88em;
+    font-weight: 700;
     pointer-events: none;
     user-select: none;
 }
 .show-non-print .non-print-marker { display: inline; }
-.np-end-marker { color: #b0bec5; }
+.np-end-marker { color: #334155; }
+
+.pt-progress-area {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.85rem;
+    color: #1e293b;
+}
+
+.pt-spinner {
+    width: 0.95rem;
+    height: 0.95rem;
+    border: 2px solid #cbd5e1;
+    border-top-color: #2563eb;
+    border-radius: 999px;
+    animation: pt-spin 0.75s linear infinite;
+}
+
+@keyframes pt-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.pt-progress-status {
+    font-size: 0.84rem;
+    color: #0f766e;
+}
+
+.pt-progress-status.pt-progress-status-error {
+    color: #b91c1c;
+}
 
 /* 第四波 A：離開譯文欄後顯示最後插入位置（靜態假游標） */
 .cat-fake-caret {
