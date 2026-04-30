@@ -4594,8 +4594,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     if (btnBackToTbs) {
-        btnBackToTbs.addEventListener('click', () => {
+        btnBackToTbs.addEventListener('click', async () => {
             switchView('viewTB');
+            await loadTBList();
         });
     }
 
@@ -6452,7 +6453,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         alert('找不到對應檔案（依寫入時的專案名稱與檔名比對）。若專案或檔名已更名，請從專案檔案清單手動開啟。');
     }
 
-    if(btnBackToTms) btnBackToTms.addEventListener('click', () => switchView('viewTM'));
+    if(btnBackToTms) btnBackToTms.addEventListener('click', async () => { switchView('viewTM'); await loadTMList(); });
 
     // 詳細頁更名按鈕
     document.getElementById('btnRenameTmDetail')?.addEventListener('click', () => {
