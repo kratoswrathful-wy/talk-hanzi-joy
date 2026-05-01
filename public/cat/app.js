@@ -8437,7 +8437,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function defaultQfColConfig() {
         return {
             date: { col: 'A', plainText: false, format: 'YYYY/M/D' },
-            filename: { col: 'B' },
+            filename: { col: 'B', manualOverride: false, manualText: '' },
             key: { col: '' },
             source: { col: 'D' },
             target: { col: 'E' },
@@ -8455,7 +8455,57 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (out[k].col != null) out[k].col = String(out[k].col || '').trim().toUpperCase();
         });
         if (out.date && typeof out.date.format !== 'string') out.date.format = 'YYYY/M/D';
+        if (out.filename) {
+            if (out.filename.manualOverride == null) out.filename.manualOverride = false;
+            if (out.filename.manualText == null) out.filename.manualText = '';
+            else out.filename.manualText = String(out.filename.manualText);
+        }
         return out;
+    }
+
+    /** 寫入專案／雲端時僅保留欄位對應，不含譯者專用檔名手動輸入 */
+    function sanitizeAdminQfColColumnsForDb(cfg) {
+        const n = normalizeQfColConfig(cfg);
+        return {
+            date: { col: n.date.col, plainText: !!n.date.plainText, format: n.date.format || 'YYYY/M/D' },
+            filename: { col: n.filename.col },
+            key: { col: n.key.col },
+            source: { col: n.source.col },
+            target: { col: n.target.col },
+        };
+    }
+
+    /** 檔名字串：手動輸入（譯者）優先，否則用開啟檔名 */
+    function resolveQfFilenameVal(cfg, baseFileName) {
+        const n = normalizeQfColConfig(cfg);
+        const mo = !!(n.filename && n.filename.manualOverride);
+        const mt = n.filename && n.filename.manualText != null ? String(n.filename.manualText) : '';
+        if (mo) return mt;
+        return String(baseFileName || '');
+    }
+
+    function syncFilenameManualWrapVisibility() {
+        const chk = document.getElementById('chkFilenameManual');
+        const wrap = document.getElementById('filenameManualWrap');
+        if (wrap) wrap.style.display = chk && chk.checked ? '' : 'none';
+    }
+
+    function updateCatQfFilenameTranslatorUi(mode) {
+        const block = document.getElementById('catQfFilenameManualBlock');
+        const isTr = mode === 'translator';
+        if (block) block.style.display = isTr ? '' : 'none';
+        if (!isTr) return;
+        syncFilenameManualWrapVisibility();
+    }
+
+    function updateCatQfDialogIntro(mode) {
+        const el = document.getElementById('catQfDialogIntro');
+        if (!el) return;
+        if (mode === 'admin') {
+            el.innerHTML = '請填入每項資料要貼入客戶表單的欄位字母（A–Z）。留空代表不輸出該欄。<br>此為專案預設；譯者可在編輯器內另行覆寫個人設定。';
+        } else {
+            el.innerHTML = '請填入每項資料要貼入客戶表單的欄位字母（A–Z）。留空代表不輸出該欄。<br>設定完成後，使用「提問表單」或「產生提問」時，系統會在剪貼簿產生相應訊息，可貼上試算表。';
+        }
     }
 
     function loadRawProjectQfColConfig(projectRow) {
@@ -8548,9 +8598,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const dateVal = (cfg.date && cfg.date.plainText)
             ? formatQfDatePlain(cfg.date.format || 'YYYY/M/D', new Date())
             : vals.dateIso;
+        const fnameResolved = resolveQfFilenameVal(cfg, vals.filename);
         const mapping = {
             date: { col: cfg.date?.col, val: dateVal },
-            filename: { col: cfg.filename?.col, val: vals.filename },
+            filename: { col: cfg.filename?.col, val: fnameResolved },
             key: { col: cfg.key?.col, val: vals.key },
             source: { col: cfg.source?.col, val: vals.source },
             target: { col: cfg.target?.col, val: vals.target },
@@ -8579,16 +8630,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         const targetCol = (document.getElementById('colTarget')?.value || '').trim().toUpperCase();
         const plain = !!(document.getElementById('chkPlainDate') && document.getElementById('chkPlainDate').checked);
         const fmt = (document.getElementById('dateFormat')?.value || '').trim() || 'YYYY/M/D';
+        const filenameExtra = {};
+        if (catQfColDialogMode === 'translator') {
+            const chkFm = document.getElementById('chkFilenameManual');
+            const inpFm = document.getElementById('filenameManualInput');
+            filenameExtra.manualOverride = !!(chkFm && chkFm.checked);
+            filenameExtra.manualText = inpFm && inpFm.value != null ? String(inpFm.value) : '';
+        }
         return normalizeQfColConfig({
             date: { col: dateCol, plainText: plain, format: fmt },
-            filename: { col: filenameCol },
+            filename: { col: filenameCol, ...filenameExtra },
             key: { col: keyCol },
             source: { col: sourceCol },
             target: { col: targetCol },
         });
     }
 
-    function applyQfColConfigToDom(cfg) {
+    function applyQfColConfigToDom(cfg, mode) {
         const c = normalizeQfColConfig(cfg);
         const setInput = (id, v) => { const el = document.getElementById(id); if (el) el.value = v != null ? String(v) : ''; };
         setInput('colDate', c.date.col || '');
@@ -8603,6 +8661,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         const hint = document.getElementById('formatTokenHint');
         if (wrap) wrap.classList.toggle('show', !!c.date.plainText);
         if (hint) hint.style.display = c.date.plainText ? '' : 'none';
+        const chkFm = document.getElementById('chkFilenameManual');
+        const inpFm = document.getElementById('filenameManualInput');
+        if (mode === 'translator') {
+            if (chkFm) chkFm.checked = !!c.filename.manualOverride;
+            if (inpFm) inpFm.value = c.filename.manualText != null ? String(c.filename.manualText) : '';
+        } else {
+            if (chkFm) chkFm.checked = false;
+            if (inpFm) inpFm.value = '';
+        }
+        syncFilenameManualWrapVisibility();
     }
 
     function updateQfColPreview() {
@@ -8618,12 +8686,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             } catch (_) { /* ignore */ }
             const vals = buildQfClipboardRowValues(seg, { name: fname });
+            const fnameResolved = resolveQfFilenameVal(cfg, vals.filename);
             const dateVal = cfg.date.plainText
                 ? formatQfDatePlain(cfg.date.format || 'YYYY/M/D', new Date())
                 : vals.dateIso;
             const mapping = {
                 date: { col: cfg.date?.col, val: dateVal, label: '日期' },
-                filename: { col: cfg.filename?.col, val: vals.filename, label: '檔名' },
+                filename: { col: cfg.filename?.col, val: fnameResolved, label: '檔名' },
                 key: { col: cfg.key?.col, val: vals.key, label: 'Key' },
                 source: { col: cfg.source?.col, val: vals.source, label: '原文' },
                 target: { col: cfg.target?.col, val: vals.target, label: '譯文' },
@@ -8715,7 +8784,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } catch (_) { /* ignore */ }
             }
         }
-        applyQfColConfigToDom(cfg);
+        applyQfColConfigToDom(cfg, catQfColDialogMode);
+        updateCatQfFilenameTranslatorUi(catQfColDialogMode);
+        updateCatQfDialogIntro(catQfColDialogMode);
         updateQfColPreview();
         ov.classList.add('show');
     }
@@ -8729,7 +8800,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         try {
             if (catQfColDialogMode === 'admin') {
-                await DBService.patchProject(pid, { clientQuestionFormColumns: cfg });
+                await DBService.patchProject(pid, { clientQuestionFormColumns: sanitizeAdminQfColColumnsForDb(cfg) });
                 if (String(currentProjectId) === String(pid)) {
                     const p = await DBService.getProject(pid);
                     if (p) renderProjectClientFormSettings(p);
@@ -8765,6 +8836,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 updateQfColPreview();
             });
         }
+        const chkFn = document.getElementById('chkFilenameManual');
+        const inpFn = document.getElementById('filenameManualInput');
+        if (chkFn) {
+            chkFn.addEventListener('change', () => {
+                syncFilenameManualWrapVisibility();
+                updateQfColPreview();
+            });
+        }
+        if (inpFn) inpFn.addEventListener('input', () => updateQfColPreview());
         const stop = (e) => { if (e.target === ov) closeCatQfColConfigDialog(); };
         if (ov) ov.addEventListener('click', stop);
         if (btnClose) btnClose.addEventListener('click', closeCatQfColConfigDialog);
@@ -8883,37 +8963,48 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (qfGroup && btnClientQuestionFormMain && btnClientQuestionFormArrow) {
             const url = String(project?.clientQuestionFormUrl || '').trim();
             const pid = project?.id != null ? project.id : null;
-            if (url) {
-                qfGroup.style.display = '';
-                btnClientQuestionFormMain.onclick = async () => {
-                    let projRow = project;
-                    try {
-                        if (pid != null) {
-                            const fresh = await DBService.getProject(pid);
-                            if (fresh) projRow = fresh;
-                        }
-                    } catch (_) { /* ignore */ }
-                    try {
-                        const text = buildQfClipboardText(pid, projRow, file);
-                        if (text && navigator.clipboard && navigator.clipboard.writeText) {
-                            await navigator.clipboard.writeText(text);
-                            if (typeof showCatToast === 'function') showCatToast('已複製到剪貼簿，請在試算表 A 欄貼上', 'info');
-                        }
-                    } catch (err) {
-                        console.warn('clipboard', err);
-                        if (typeof showCatToast === 'function') showCatToast('複製失敗，請允許剪貼簿權限後再試', 'error');
+            qfGroup.style.display = '';
+            btnClientQuestionFormMain.textContent = url ? '提問表單' : '產生提問';
+            const runCopy = async () => {
+                let projRow = project;
+                try {
+                    if (pid != null) {
+                        const fresh = await DBService.getProject(pid);
+                        if (fresh) projRow = fresh;
                     }
+                } catch (_) { /* ignore */ }
+                const text = buildQfClipboardText(pid, projRow, file);
+                if (!String(text || '').trim()) {
+                    if (typeof showCatToast === 'function') showCatToast('請先設定欄位對應', 'error');
+                    return false;
+                }
+                try {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(text);
+                    } else {
+                        throw new Error('no clipboard');
+                    }
+                } catch (err) {
+                    console.warn('clipboard', err);
+                    if (typeof showCatToast === 'function') showCatToast('複製失敗，請允許剪貼簿權限後再試', 'error');
+                    return false;
+                }
+                return true;
+            };
+            btnClientQuestionFormMain.onclick = async () => {
+                const ok = await runCopy();
+                if (!ok) return;
+                if (url) {
+                    if (typeof showCatToast === 'function') showCatToast('已複製到剪貼簿，請在試算表 A 欄貼上', 'info');
                     window.open(url, '_blank', 'noopener,noreferrer');
-                };
-                btnClientQuestionFormArrow.onclick = (e) => {
-                    e.stopPropagation();
-                    openCatQfColConfigDialog('translator', pid, project);
-                };
-            } else {
-                qfGroup.style.display = 'none';
-                btnClientQuestionFormMain.onclick = null;
-                btnClientQuestionFormArrow.onclick = null;
-            }
+                } else if (typeof showCatToast === 'function') {
+                    showCatToast('已將預填訊息複製到剪貼簿', 'info');
+                }
+            };
+            btnClientQuestionFormArrow.onclick = (e) => {
+                e.stopPropagation();
+                openCatQfColConfigDialog('translator', pid, project);
+            };
         }
         if (inNoteGroup && btnInternalNoteMain && btnInternalNoteArrow && btnInNoteNew) {
             const caseId = String(file?.relatedLmsCaseId || '').trim();

@@ -2743,9 +2743,9 @@
                     <span style="flex-shrink:0;">💡</span>
                     <span>此為您的<strong>個人設定</strong>，僅對您自己生效，不影響管理員設定的預設值。</span>
                 </div>
-                <p style="margin:0 0 1rem; font-size:0.82rem; color:var(--text-light); line-height:1.6;">
+                <p id="catQfDialogIntro" style="margin:0 0 1rem; font-size:0.82rem; color:var(--text-light); line-height:1.6;">
                     請填入每項資料要貼入客戶表單的欄位字母（A–Z）。留空代表不輸出該欄。<br>
-                    設定完成後，點選「提問表單」時，系統會自動在剪貼簿產生相應訊息，可一鍵貼上。
+                    設定完成後，使用編輯器「提問表單」或「產生提問」時，系統會在剪貼簿產生相應訊息，可貼上試算表。
                 </p>
                 <div class="cat-qf-field-row">
                     <span class="cat-qf-field-name">日期</span>
@@ -2764,6 +2764,19 @@
                     <span class="cat-qf-field-label">欄位</span>
                     <input class="cat-qf-col-input" type="text" maxlength="2" placeholder="—" value="B" id="colFilename" autocomplete="off">
                     <span class="cat-qf-col-hint">系統自動帶入當前開啟檔案名稱</span>
+                </div>
+                <div id="catQfFilenameManualBlock" class="cat-qf-filename-manual-block" style="display:none;">
+                    <div class="cat-qf-field-row cat-qf-filename-manual-inner">
+                        <span class="cat-qf-field-name" style="visibility:hidden;">檔名</span>
+                        <span class="cat-qf-field-label" style="visibility:hidden;">欄位</span>
+                        <div class="cat-qf-plain-toggle">
+                            <input type="checkbox" id="chkFilenameManual">
+                            <label for="chkFilenameManual">手動輸入</label>
+                        </div>
+                        <div id="filenameManualWrap" class="cat-qf-filename-manual-wrap" style="display:none;">
+                            <input type="text" id="filenameManualInput" class="cat-qf-filename-manual-text" placeholder="自訂檔名（取代目前開啟檔案名稱）" autocomplete="off">
+                        </div>
+                    </div>
                 </div>
                 <div class="cat-qf-field-row">
                     <span class="cat-qf-field-name">Key</span>

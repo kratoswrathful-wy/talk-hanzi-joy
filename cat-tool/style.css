@@ -614,6 +614,23 @@ button { font-family: inherit; cursor: pointer; }
 .cat-qf-preview-table td:last-child { border-right: none; }
 .cat-qf-preview-table td.cat-qf-empty-col { color: #d1d5db; font-style: italic; }
 
+.cat-qf-filename-manual-block { width: 100%; margin-bottom: 0.35rem; }
+.cat-qf-filename-manual-inner { flex-wrap: wrap; align-items: center; }
+.cat-qf-filename-manual-wrap {
+    flex: 1 1 200px;
+    min-width: 0;
+    max-width: 100%;
+}
+.cat-qf-filename-manual-text {
+    width: 100%;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    font-size: 0.85rem;
+    color: var(--text-main);
+    font-family: inherit;
+}
+
 /* Views - Dashboard & Lists */
 .view-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
 .view-header h1 { margin: 0; font-size: 1.8rem; color: var(--text-main); }
