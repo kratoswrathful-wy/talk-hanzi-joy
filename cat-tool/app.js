@@ -544,7 +544,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const configExtraCol = document.getElementById('configExtraCol');
     const configDirection = document.getElementById('configDirection');
     const configRows = document.getElementById('configRows');
-    
+    const wizardStep2SheetColumn = document.getElementById('wizardStep2SheetColumn');
+    const batchProgressMessage = document.getElementById('batchProgressMessage');
+    const btnBatchProgressClose = document.getElementById('btnBatchProgressClose');
+
     // Pro Editor Elements
     const btnExitEditor = document.getElementById('btnExitEditor');
     const editorFileName = document.getElementById('editorFileName');
@@ -2798,6 +2801,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     let excelRawBuffer = null;
     let originalFileName = '';
     let excelDataBySheet = {};
+
+    /** 批次匯入 CAT 作業檔 */
+    let _batchExcelConfigMode = false;
+    let _batchExcelConfigTarget = null;
+    let _batchExcelGlobalSheetMode = false;
+    let _batchExcelDataStore = new Map();
+    let _batchExcelConfigs = new Map();
+    let _batchMqRoles = new Map();
+    let _batchExcelGlobalCfg = null;
+    let _batchExcelModalExcelFiles = [];
 
     // --- Sort State ---
     const sortColSelect = document.getElementById('sortColSelect');
@@ -7684,39 +7697,376 @@ document.addEventListener('DOMContentLoaded', async () => {
         wizardOverlay.classList.add('hidden');
         _gsCsvData = null; _gsSourceUrl = '';
         _gsImportCaseId = ''; _gsImportCaseTitle = '';
+        _resetBatchImportState();
+        if (batchProgressMessage) batchProgressMessage.textContent = '';
+        if (btnBatchProgressClose) btnBatchProgressClose.classList.add('hidden');
         showWizardStep('wizardStep1');
     });
 
     function showWizardStep(stepId) {
-        ['wizardStep1', 'wizardStep2', 'wizardStep3'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.classList.add('hidden');
-        });
+        document.querySelectorAll('.wizard-step').forEach(el => el.classList.add('hidden'));
         const target = document.getElementById(stepId);
         if (target) target.classList.remove('hidden');
     }
 
-    sourceFileInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
+    function _resetBatchImportState() {
+        _batchExcelConfigMode = false;
+        _batchExcelConfigTarget = null;
+        _batchExcelGlobalSheetMode = false;
+        _batchExcelDataStore = new Map();
+        _batchExcelConfigs = new Map();
+        _batchMqRoles = new Map();
+        _batchExcelGlobalCfg = null;
+        _batchExcelModalExcelFiles = [];
+        if (btnWizFinish) btnWizFinish.textContent = '匯入檔案';
+        if (wizardStep2SheetColumn) wizardStep2SheetColumn.style.display = '';
+    }
+
+    function _fileKind(lowerName) {
+        if (lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')) return 'excel';
+        if (lowerName.endsWith('.xlf') || lowerName.endsWith('.xliff') || lowerName.endsWith('.mxliff') || lowerName.endsWith('.mqxliff') || lowerName.endsWith('.sdlxliff')) return 'xliff';
+        if (lowerName.endsWith('.po') || lowerName.endsWith('.pot')) return 'po';
+        return '';
+    }
+
+    function _escapeAttr(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
+
+    function showBatchMqRoleModal(mqxliffFiles) {
+        return new Promise((resolve) => {
+            const root = document.getElementById('wizardStepBatchMq');
+            if (!root || !mqxliffFiles.length) { resolve(new Map()); return; }
+            const roleOptions = [
+                { v: 'T_ALLOW_R1', t: 'T/可編 R1' },
+                { v: 'T_DENY_R1', t: 'T/不可編 R1' },
+                { v: 'R1', t: 'R1' },
+                { v: 'R2', t: 'R2' }
+            ];
+            const globalSelectId = 'batchMqGlobalSelect';
+            let html = `<div style="padding:0 0.25rem;">
+                <p style="margin:0 0 1rem 0; font-size:0.85rem; color:#ef4444; font-weight:600;">請務必選擇與客戶指派相同的身分。</p>
+                <label style="display:flex; align-items:center; gap:0.5rem; margin-bottom:1rem; cursor:pointer; flex-wrap:wrap;">
+                    <input type="checkbox" id="batchMqSameRole" checked />
+                    <span>全部使用同一預設角色</span>
+                    <select id="${globalSelectId}" style="padding:0.35rem 0.5rem;">`;
+            roleOptions.forEach(o => { html += `<option value="${o.v}">${o.t}</option>`; });
+            html += `</select></label>
+                <div id="batchMqPerFile" style="display:flex; flex-direction:column; gap:0.6rem; max-height:min(50vh,320px); overflow-y:auto;">`;
+            mqxliffFiles.forEach((f, i) => {
+                html += `<div class="batch-mq-row" style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+                    <span style="flex:1; min-width:120px; font-size:0.88rem; word-break:break-all;" title="${_escapeAttr(f.name)}">${_escapeAttr(f.name)}</span>
+                    <select class="batch-mq-file-select" data-idx="${i}" style="padding:0.35rem 0.5rem;">`;
+                roleOptions.forEach(o => { html += `<option value="${o.v}">${o.t}</option>`; });
+                html += `</select></div>`;
+            });
+            html += `</div>
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.25rem;">
+                    <button type="button" id="btnBatchMqCancel" class="secondary-btn">取消</button>
+                    <button type="button" id="btnBatchMqOk" class="primary-btn">確認</button>
+                </div></div>`;
+            root.innerHTML = html;
+            const chk = root.querySelector('#batchMqSameRole');
+            const gSel = root.querySelector('#' + globalSelectId);
+            const syncGlobalToRows = () => {
+                if (!chk.checked) return;
+                const v = gSel.value;
+                root.querySelectorAll('.batch-mq-file-select').forEach(s => { s.value = v; });
+            };
+            gSel.addEventListener('change', syncGlobalToRows);
+            chk.addEventListener('change', () => {
+                const useGlobal = chk.checked;
+                root.querySelectorAll('.batch-mq-file-select').forEach(s => {
+                    s.disabled = useGlobal;
+                    s.style.opacity = useGlobal ? '0.5' : '';
+                });
+                if (useGlobal) syncGlobalToRows();
+            });
+            chk.dispatchEvent(new Event('change'));
+            const finish = (val) => { resolve(val); };
+            root.querySelector('#btnBatchMqCancel').onclick = () => finish(null);
+            root.querySelector('#btnBatchMqOk').onclick = () => {
+                const map = new Map();
+                mqxliffFiles.forEach((f, i) => {
+                    const sel = root.querySelector(`.batch-mq-file-select[data-idx="${i}"]`);
+                    map.set(f, sel ? sel.value : 'T_ALLOW_R1');
+                });
+                finish(map);
+            };
+            showWizardStep('wizardStepBatchMq');
+        });
+    }
+
+    function _refreshBatchExcelStep() {
+        const root = document.getElementById('wizardStepBatchExcel');
+        if (!root) return;
+        const chk = root.querySelector('#batchExcelSameCfg');
+        const useGlobal = chk && chk.checked;
+        const gBtn = root.querySelector('#btnBatchExcelGlobalCfg');
+        const gSpan = root.querySelector('#spanBatchExcelGlobalStatus');
+        const startBtn = root.querySelector('#btnBatchExcelStart');
+        if (gBtn) {
+            gBtn.disabled = !useGlobal;
+            gBtn.style.opacity = useGlobal ? '' : '0.5';
+        }
+        root.querySelectorAll('.batch-excel-row').forEach(row => {
+            const btn = row.querySelector('.batch-excel-cfg-btn');
+            const idx = row.dataset.idx;
+            const st = root.querySelector('#batchExcelStatus-' + idx);
+            if (btn) {
+                btn.disabled = useGlobal;
+                btn.style.opacity = useGlobal ? '0.5' : '';
+            }
+            if (useGlobal && st) {
+                st.textContent = '';
+                st.classList.add('hidden');
+            }
+        });
+        let ok = false;
+        if (useGlobal) {
+            ok = !!_batchExcelGlobalCfg;
+            if (gSpan) {
+                if (ok) {
+                    gSpan.textContent = '✓ 設定完畢';
+                    gSpan.classList.remove('hidden');
+                } else {
+                    gSpan.textContent = '';
+                    gSpan.classList.add('hidden');
+                }
+            }
+        } else {
+            if (gSpan) { gSpan.textContent = ''; gSpan.classList.add('hidden'); }
+            ok = _batchExcelModalExcelFiles.length > 0 &&
+                _batchExcelModalExcelFiles.every(f => _batchExcelConfigs.has(f));
+            _batchExcelModalExcelFiles.forEach((f, i) => {
+                const st = root.querySelector('#batchExcelStatus-' + i);
+                if (st && _batchExcelConfigs.has(f)) {
+                    st.textContent = '✓ 設定完畢';
+                    st.classList.remove('hidden');
+                } else if (st) {
+                    st.textContent = '';
+                    st.classList.add('hidden');
+                }
+            });
+        }
+        if (startBtn) startBtn.disabled = !ok;
+    }
+
+    async function _openBatchExcelColumnEditor(isGlobal, targetFile) {
+        const files = _batchExcelModalExcelFiles;
+        const file = isGlobal ? files[0] : targetFile;
         if (!file) return;
-        originalFileName = file.name;
-        const lowerName = file.name.toLowerCase();
+        const root = document.getElementById('wizardStepBatchExcel');
+        const triggerBtn = isGlobal ? root.querySelector('#btnBatchExcelGlobalCfg') : root.querySelector(`.batch-excel-cfg-btn[data-idx="${files.indexOf(targetFile)}"]`);
+        const prevText = triggerBtn ? triggerBtn.textContent : '';
+        if (triggerBtn) { triggerBtn.disabled = true; triggerBtn.textContent = label; }
+        try {
+            const buf = await file.arrayBuffer();
+            const data = new Uint8Array(buf);
+            const wb = XLSX.read(data, { type: 'array' });
+            const dataBySheet = {};
+            wb.SheetNames.forEach(name => {
+                dataBySheet[name] = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' });
+            });
+            _batchExcelDataStore.set(file, { workbook: wb, rawBuffer: buf, dataBySheet });
 
-        const isExcel = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls');
-        const isXliffLike = lowerName.endsWith('.xlf') || lowerName.endsWith('.xliff') || lowerName.endsWith('.mxliff') || lowerName.endsWith('.mqxliff') || lowerName.endsWith('.sdlxliff');
-        const isPo = lowerName.endsWith('.po') || lowerName.endsWith('.pot');
+            excelRawBuffer = buf;
+            excelWorkbook = wb;
+            excelDataBySheet = dataBySheet;
+            originalFileName = file.name;
+            sheetList.innerHTML = '';
+            wb.SheetNames.forEach(name => {
+                const lbl = document.createElement('label');
+                lbl.innerHTML = `<input type="checkbox" class="sheet-checkbox" value="${_escapeAttr(name)}" checked> <span>${_escapeAttr(name)}</span>`;
+                sheetList.appendChild(lbl);
+                lbl.style.display = 'block'; lbl.style.marginBottom = '0.5rem';
+            });
+            const checkboxes = document.querySelectorAll('#sheetList .sheet-checkbox');
+            selectAllSheets.checked = true;
+            selectAllSheets.onchange = (evt) => checkboxes.forEach(cb => { cb.checked = evt.target.checked; });
+            checkboxes.forEach(cb => cb.addEventListener('change', () => {
+                selectAllSheets.checked = Array.from(document.querySelectorAll('#sheetList .sheet-checkbox')).every(c => c.checked);
+            }));
 
-        // ---- 語言對選擇（匯入前必選）----
-        // 先取得目前專案的語言設定
+            _batchExcelGlobalSheetMode = isGlobal;
+            _batchExcelConfigMode = true;
+            _batchExcelConfigTarget = isGlobal ? null : file;
+            if (wizardStep2SheetColumn) {
+                wizardStep2SheetColumn.style.display = isGlobal ? 'none' : '';
+            }
+            btnWizFinish.textContent = '儲存設定';
+            showWizardStep('wizardStep2');
+        } finally {
+            if (triggerBtn) {
+                triggerBtn.disabled = false;
+                triggerBtn.textContent = prevText && prevText !== '讀取中…' ? prevText : '欄位設定';
+            }
+        }
+    }
+
+    function showBatchExcelConfigModal(excelFiles) {
+        return new Promise((resolve) => {
+            const root = document.getElementById('wizardStepBatchExcel');
+            if (!root || !excelFiles.length) { resolve(new Map()); return; }
+            _batchExcelModalExcelFiles = excelFiles.slice();
+            _batchExcelGlobalCfg = null;
+            _batchExcelConfigs = new Map();
+
+            let html = `<div style="padding:0 0.25rem;">
+                <p style="margin:0 0 1rem 0; font-size:0.85rem; color:#64748b;">請設定 Excel 欄位對應；勾選「全部使用相同欄位設定」時，將以<strong>第一個檔案</strong>預覽（匯入時每個檔案仍會匯入<strong>全部工作表</strong>）。</p>
+                <label style="display:flex; align-items:center; gap:0.5rem; margin-bottom:1rem; cursor:pointer; flex-wrap:wrap;">
+                    <input type="checkbox" id="batchExcelSameCfg" checked />
+                    <span>全部使用相同欄位設定</span>
+                    <button type="button" id="btnBatchExcelGlobalCfg" class="secondary-btn btn-sm">欄位設定</button>
+                    <span id="spanBatchExcelGlobalStatus" class="hidden" style="color:#15803d; font-size:0.88rem;"></span>
+                </label>
+                <div id="batchExcelPerFile" style="display:flex; flex-direction:column; gap:0.65rem; max-height:min(45vh,280px); overflow-y:auto;">`;
+            excelFiles.forEach((f, i) => {
+                html += `<div class="batch-excel-row" data-idx="${i}" style="display:flex; align-items:center; gap:0.65rem; flex-wrap:wrap;">
+                    <span style="flex:1; min-width:140px; font-size:0.88rem; word-break:break-all;" title="${_escapeAttr(f.name)}">${_escapeAttr(f.name)}</span>
+                    <button type="button" class="secondary-btn btn-sm batch-excel-cfg-btn" data-idx="${i}">欄位設定</button>
+                    <span id="batchExcelStatus-${i}" class="hidden" style="color:#15803d; font-size:0.88rem;">✓ 設定完畢</span>
+                </div>`;
+            });
+            html += `</div>
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.25rem;">
+                    <button type="button" id="btnBatchExcelCancel" class="secondary-btn">取消</button>
+                    <button type="button" id="btnBatchExcelStart" class="primary-btn" disabled>開始匯入</button>
+                </div></div>`;
+            root.innerHTML = html;
+
+            root.querySelector('#batchExcelSameCfg').addEventListener('change', () => {
+                const same = root.querySelector('#batchExcelSameCfg').checked;
+                if (same) {
+                    _batchExcelConfigs.clear();
+                    excelFiles.forEach((_, i) => {
+                        const st = root.querySelector('#batchExcelStatus-' + i);
+                        if (st) { st.textContent = ''; st.classList.add('hidden'); }
+                    });
+                } else {
+                    _batchExcelGlobalCfg = null;
+                    const gs = root.querySelector('#spanBatchExcelGlobalStatus');
+                    if (gs) { gs.textContent = ''; gs.classList.add('hidden'); }
+                }
+                _refreshBatchExcelStep();
+            });
+
+            root.querySelector('#btnBatchExcelGlobalCfg').addEventListener('click', () => {
+                _openBatchExcelColumnEditor(true, null);
+            });
+            excelFiles.forEach((f, i) => {
+                root.querySelector(`.batch-excel-cfg-btn[data-idx="${i}"]`).addEventListener('click', () => {
+                    _openBatchExcelColumnEditor(false, f);
+                });
+            });
+
+            root.querySelector('#btnBatchExcelCancel').onclick = () => resolve(null);
+            root.querySelector('#btnBatchExcelStart').onclick = () => {
+                const same = root.querySelector('#batchExcelSameCfg').checked;
+                const map = new Map();
+                if (same) {
+                    excelFiles.forEach(f => map.set(f, { ..._batchExcelGlobalCfg }));
+                } else {
+                    excelFiles.forEach(f => map.set(f, _batchExcelConfigs.get(f)));
+                }
+                resolve(map);
+            };
+
+            _refreshBatchExcelStep();
+            showWizardStep('wizardStepBatchExcel');
+        });
+    }
+
+    async function runBatchImport(files, langChoice, roleMap, excelConfigMap) {
+        const XliffImport = window.CatToolXliffImport;
+        const PoImport = window.CatToolPoImport;
+        const errors = [];
+        const okNames = [];
+        const n = files.length;
+        for (let i = 0; i < n; i++) {
+            const file = files[i];
+            const name = file.name || '';
+            const lower = name.toLowerCase();
+            if (batchProgressMessage) {
+                batchProgressMessage.textContent = `正在匯入 ${i + 1} / ${n}：${name}`;
+            }
+            try {
+                const kind = _fileKind(lower);
+                if (kind === 'excel') {
+                    const cfg = excelConfigMap && excelConfigMap.get(file);
+                    if (!cfg) throw new Error('缺少欄位設定');
+                    await _ensureExcelFileInStore(file);
+                    await _importSingleExcelFile(file, cfg, langChoice);
+                } else if (kind === 'xliff') {
+                    const role = lower.endsWith('.mqxliff') ? (roleMap.get(file) || 'T_ALLOW_R1') : undefined;
+                    if (!XliffImport || typeof XliffImport.handleXliffLikeImport !== 'function') {
+                        throw new Error('XLIFF 匯入模組未載入（js/xliff-import.js）');
+                    }
+                    const result = await XliffImport.handleXliffLikeImport(xliffImportCtx({ suppressWizardHide: true }), file, role);
+                    _checkXliffLangMismatch(result, langChoice);
+                } else if (kind === 'po') {
+                    if (!PoImport || typeof PoImport.handlePoImport !== 'function') {
+                        throw new Error('PO 匯入模組未載入（js/po-import.js）');
+                    }
+                    await PoImport.handlePoImport(xliffImportCtx({ suppressWizardHide: true }), file);
+                }
+                okNames.push(name);
+            } catch (err) {
+                console.error(err);
+                errors.push({ name, message: (err && err.message) ? err.message : String(err) });
+            }
+        }
+
+        await loadFilesList();
+
+        if (errors.length === 0) {
+            if (wizardOverlay) wizardOverlay.classList.add('hidden');
+            showWizardStep('wizardStep1');
+            if (batchProgressMessage) batchProgressMessage.textContent = '';
+            if (btnBatchProgressClose) btnBatchProgressClose.classList.add('hidden');
+            return;
+        }
+
+        const lines = [];
+        if (okNames.length) lines.push(`已成功匯入 ${okNames.length} 個檔案：${okNames.join('、')}。`);
+        lines.push(`有 ${errors.length} 個檔案匯入失敗：`);
+        errors.forEach(e => lines.push(`「${e.name}」：${e.message}`));
+        if (batchProgressMessage) batchProgressMessage.textContent = lines.join('\n');
+        if (btnBatchProgressClose) btnBatchProgressClose.classList.remove('hidden');
+    }
+
+    async function _ensureExcelFileInStore(file) {
+        if (_batchExcelDataStore.has(file)) return;
+        const buf = await file.arrayBuffer();
+        const data = new Uint8Array(buf);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const dataBySheet = {};
+        workbook.SheetNames.forEach(name => {
+            dataBySheet[name] = XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: '' });
+        });
+        _batchExcelDataStore.set(file, { workbook, rawBuffer: buf, dataBySheet });
+    }
+
+    sourceFileInput.addEventListener('change', async (e) => {
+        const files = Array.from(e.target.files || []);
+        if (!files.length) return;
+
+        for (const f of files) {
+            const k = _fileKind((f.name || '').toLowerCase());
+            if (!k) {
+                alert('目前僅支援 Excel (.xlsx/.xls)、XLIFF (.xlf/.xliff/.mxliff/.mqxliff/.sdlxliff) 以及 GNU PO (.po/.pot) 檔案。\n\n選取的檔案中包含不支援的格式，已取消本次選取。');
+                sourceFileInput.value = '';
+                return;
+            }
+        }
+
         const project = currentProjectId ? await DBService.getProject(currentProjectId) : null;
         const projectSrcLangs = (project && project.sourceLangs) ? project.sourceLangs : [];
         const projectTgtLangs = (project && project.targetLangs) ? project.targetLangs : [];
 
-        // 隱藏 wizard，顯示語言對選擇 Modal
         if (wizardOverlay) wizardOverlay.classList.add('hidden');
         const langChoice = await showFileLangModal(projectSrcLangs, projectTgtLangs);
         if (langChoice === null) {
-            // 使用者取消 → 恢復 wizard step 1
             if (wizardOverlay) wizardOverlay.classList.remove('hidden');
             sourceFileInput.value = '';
             return;
@@ -7724,77 +8074,45 @@ document.addEventListener('DOMContentLoaded', async () => {
         _importSelectedSrcLang = langChoice.sourceLang;
         _importSelectedTgtLang = langChoice.targetLang;
 
-        if (isExcel) {
+        _resetBatchImportState();
+
+        const mqxliffFiles = files.filter(f => (f.name || '').toLowerCase().endsWith('.mqxliff'));
+        if (mqxliffFiles.length) {
             if (wizardOverlay) wizardOverlay.classList.remove('hidden');
-        const reader = new FileReader();
-            reader.onload = (ev) => {
-                excelRawBuffer = ev.target.result;
-            const data = new Uint8Array(excelRawBuffer);
-            excelWorkbook = XLSX.read(data, { type: 'array' });
-            
-            sheetList.innerHTML = '';
-            excelWorkbook.SheetNames.forEach(name => {
-                excelDataBySheet[name] = XLSX.utils.sheet_to_json(excelWorkbook.Sheets[name], { header: 1, defval: '' });
-                const lbl = document.createElement('label');
-                lbl.innerHTML = `<input type="checkbox" class="sheet-checkbox" value="${name}" checked> <span>${name}</span>`;
-                sheetList.appendChild(lbl);
-                lbl.style.display = 'block'; lbl.style.marginBottom = '0.5rem';
-            });
-
-            const checkboxes = document.querySelectorAll('.sheet-checkbox');
-                selectAllSheets.addEventListener('change', (evt) => checkboxes.forEach(cb => cb.checked = evt.target.checked));
-            checkboxes.forEach(cb => cb.addEventListener('change', () => selectAllSheets.checked = Array.from(checkboxes).every(c => c.checked)));
-
-            showWizardStep('wizardStep2');
-        };
-        reader.readAsArrayBuffer(file);
-        } else if (isXliffLike) {
-            const isMqxliff = lowerName.endsWith('.mqxliff');
-            if (isMqxliff) {
-                const role = await showMqRoleModal({ hideWizardFirst: false });
-                if (role === null) { sourceFileInput.value = ''; return; }
-                try {
-                    if (!XliffImport || typeof XliffImport.handleXliffLikeImport !== 'function') {
-                        throw new Error('XLIFF 匯入模組未載入（js/xliff-import.js）');
-                    }
-                    const result = await XliffImport.handleXliffLikeImport(xliffImportCtx(), file, role);
-                    _checkXliffLangMismatch(result, langChoice);
-                } catch (err) {
-                    console.error(err);
-                    alert('匯入 XLIFF 檔案時發生錯誤：' + (err.message || err));
-                } finally {
-                    sourceFileInput.value = '';
-                }
-            } else {
-                try {
-                    if (!XliffImport || typeof XliffImport.handleXliffLikeImport !== 'function') {
-                        throw new Error('XLIFF 匯入模組未載入（js/xliff-import.js）');
-                    }
-                    const result = await XliffImport.handleXliffLikeImport(xliffImportCtx(), file);
-                    _checkXliffLangMismatch(result, langChoice);
-                } catch (err) {
-                    console.error(err);
-                    alert('匯入 XLIFF 檔案時發生錯誤：' + (err.message || err));
-                } finally {
-                    sourceFileInput.value = '';
-                }
-            }
-        } else if (isPo) {
-            try {
-                if (!PoImport || typeof PoImport.handlePoImport !== 'function') {
-                    throw new Error('PO 匯入模組未載入（js/po-import.js）');
-                }
-                await PoImport.handlePoImport(xliffImportCtx(), file);
-            } catch (err) {
-                console.error(err);
-                alert('匯入 PO 檔案時發生錯誤：' + (err.message || err));
-            } finally {
+            showWizardStep('wizardStep1');
+            const mqMap = await showBatchMqRoleModal(mqxliffFiles);
+            if (mqMap === null) {
+                _resetBatchImportState();
                 sourceFileInput.value = '';
+                if (wizardOverlay) wizardOverlay.classList.add('hidden');
+                return;
             }
-        } else {
-            alert('目前僅支援 Excel (.xlsx/.xls)、XLIFF (.xlf/.xliff/.mxliff/.mqxliff/.sdlxliff) 以及 GNU PO (.po/.pot) 檔案。');
-            sourceFileInput.value = '';
+            mqMap.forEach((role, file) => _batchMqRoles.set(file, role));
         }
+
+        const excelFiles = files.filter(f => _fileKind((f.name || '').toLowerCase()) === 'excel');
+        let excelConfigMap = null;
+        if (excelFiles.length) {
+            if (wizardOverlay) wizardOverlay.classList.remove('hidden');
+            showWizardStep('wizardStep1');
+            excelConfigMap = await showBatchExcelConfigModal(excelFiles);
+            if (excelConfigMap === null) {
+                _resetBatchImportState();
+                sourceFileInput.value = '';
+                if (wizardOverlay) wizardOverlay.classList.add('hidden');
+                return;
+            }
+        }
+
+        if (wizardOverlay) wizardOverlay.classList.remove('hidden');
+        showWizardStep('wizardStepBatchProgress');
+        if (batchProgressMessage) batchProgressMessage.textContent = '';
+        if (btnBatchProgressClose) btnBatchProgressClose.classList.add('hidden');
+
+        await runBatchImport(files, langChoice, _batchMqRoles, excelConfigMap || new Map());
+
+        sourceFileInput.value = '';
+        _resetBatchImportState();
     });
 
     /** 比對 XLIFF 原始語言對與使用者選擇，若不符則跳出警告（但不阻止匯入） */
@@ -7818,9 +8136,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     btnWizBack1.addEventListener('click', () => {
+        if (_batchExcelConfigMode) {
+            _batchExcelConfigMode = false;
+            _batchExcelGlobalSheetMode = false;
+            if (wizardStep2SheetColumn) wizardStep2SheetColumn.style.display = '';
+            btnWizFinish.textContent = '匯入檔案';
+            showWizardStep('wizardStepBatchExcel');
+            _refreshBatchExcelStep();
+            return;
+        }
         sourceFileInput.value = '';
         showWizardStep('wizardStep1');
     });
+
+    if (btnBatchProgressClose) {
+        btnBatchProgressClose.addEventListener('click', () => {
+            wizardOverlay.classList.add('hidden');
+            _resetBatchImportState();
+            if (batchProgressMessage) batchProgressMessage.textContent = '';
+            btnBatchProgressClose.classList.add('hidden');
+            showWizardStep('wizardStep1');
+        });
+    }
 
     // ==========================================
     // GOOGLE SHEET 作業檔匯入
@@ -8015,15 +8352,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     let _importSelectedSrcLang = '';
     let _importSelectedTgtLang = '';
 
-    function xliffImportCtx() {
+    function xliffImportCtx(opts = {}) {
+        const suppress = !!opts.suppressWizardHide;
         return {
             Xliff,
             DBService,
             currentProjectId,
-            wizardOverlay,
+            wizardOverlay: suppress ? null : wizardOverlay,
             makeBaseLogEntry,
             appendProjectChangeLog,
-            loadFilesList,
+            loadFilesList: suppress ? () => {} : loadFilesList,
             selectedSourceLang: _importSelectedSrcLang,
             selectedTargetLang: _importSelectedTgtLang
         };
@@ -8141,7 +8479,43 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let extractedSegmentsBackup = [];
 
+    function _readExcelConfigFromStep2() {
+        const sCols = parseColumnString(configSourceCol.value);
+        const tCols = parseColumnString(configTargetCol.value);
+        const idCols = parseColumnString(configIdCol.value);
+        const extCols = parseColumnString(configExtraCol.value);
+        const rowRanges = parseTbRowRanges(configRows.value, 1);
+        const dir = configDirection.value;
+        const selSheets = Array.from(document.querySelectorAll('#sheetList .sheet-checkbox:checked')).map(c => c.value);
+        if (!sCols.length || !tCols.length) throw new Error('必填欄位未填寫');
+        if (sCols.length !== tCols.length) throw new Error('原文與譯文欄位數量不一致');
+        if (idCols.length > 1) throw new Error('String Key 欄位僅允許輸入單一欄位，不支援多個欄');
+        const useAllSheets = !!_batchExcelGlobalSheetMode;
+        if (!useAllSheets && !selSheets.length) throw new Error('請勾選至少一個工作表');
+        return { sCols, tCols, idCols, extCols, rowRanges, dir, selSheets, useAllSheets };
+    }
+
     btnWizFinish.addEventListener('click', async () => {
+        if (_batchExcelConfigMode) {
+            try {
+                const cfg = _readExcelConfigFromStep2();
+                if (_batchExcelConfigTarget === null) {
+                    _batchExcelGlobalCfg = cfg;
+                } else {
+                    _batchExcelConfigs.set(_batchExcelConfigTarget, cfg);
+                }
+            } catch (err) {
+                alert('儲存設定失敗：' + (err.message || err));
+                return;
+            }
+            _batchExcelConfigMode = false;
+            _batchExcelGlobalSheetMode = false;
+            if (wizardStep2SheetColumn) wizardStep2SheetColumn.style.display = '';
+            btnWizFinish.textContent = '匯入檔案';
+            showWizardStep('wizardStepBatchExcel');
+            _refreshBatchExcelStep();
+            return;
+        }
         try {
             const sCols = parseColumnString(configSourceCol.value);
             const tCols = parseColumnString(configTargetCol.value);
@@ -8154,7 +8528,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if(!sCols.length || !tCols.length) throw new Error('必填欄位未填寫');
             if(sCols.length !== tCols.length) throw new Error('原文與譯文欄位數量不一致');
             if(idCols.length > 1) throw new Error('String Key 欄位僅允許輸入單一欄位，不支援多個欄');
-            const selSheets = Array.from(document.querySelectorAll('.sheet-checkbox')).filter(c=>c.checked).map(c=>c.value);
+            const selSheets = Array.from(document.querySelectorAll('#sheetList .sheet-checkbox')).filter(c=>c.checked).map(c=>c.value);
             if(!selSheets.length) throw new Error('請勾選至少一個工作表');
 
             extractedSegmentsBackup = [];
@@ -8270,6 +8644,55 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             extractedSegmentsBackup.push(seg);
         }
+    }
+
+    async function _importSingleExcelFile(file, config, langChoice) {
+        const store = _batchExcelDataStore.get(file);
+        if (!store) throw new Error('找不到 Excel 資料：請先完成「欄位設定」');
+        const { workbook, rawBuffer, dataBySheet } = store;
+        const { sCols, tCols, idCols, extCols, rowRanges, dir } = config;
+        let sheetsToUse;
+        if (config.useAllSheets) {
+            sheetsToUse = workbook.SheetNames.slice();
+        } else {
+            sheetsToUse = config.selSheets || [];
+            if (!sheetsToUse.length) throw new Error('請勾選至少一個工作表');
+        }
+        const extraDelimiter = '\n';
+        extractedSegmentsBackup = [];
+        sheetsToUse.forEach(sheetName => {
+            const data = dataBySheet[sheetName];
+            if (!data) return;
+            const rawSheet = workbook.Sheets[sheetName];
+            if (dir === 'top-down') {
+                for (let c = 0; c < sCols.length; c++) for (let r = 0; r < data.length; r++) {
+                    if (isTbRowInRanges(r + 1, rowRanges)) extractSegmentIntoBackup(data, sheetName, r, sCols[c], tCols[c], idCols, extCols, extraDelimiter, rawSheet);
+                }
+            } else {
+                for (let r = 0; r < data.length; r++) {
+                    if (!isTbRowInRanges(r + 1, rowRanges)) continue;
+                    for (let c = 0; c < sCols.length; c++) extractSegmentIntoBackup(data, sheetName, r, sCols[c], tCols[c], idCols, extCols, extraDelimiter, rawSheet);
+                }
+            }
+        });
+        const fId = await DBService.createFile(
+            currentProjectId, file.name, rawBuffer,
+            langChoice.sourceLang, langChoice.targetLang
+        );
+        const entry = makeBaseLogEntry('create', 'project-file', {
+            entityId: fId,
+            entityName: file.name
+        });
+        if (currentProjectId) {
+            await appendProjectChangeLog(currentProjectId, entry);
+            await DBService.addModuleLog('projects', entry);
+        }
+        const mappedSegments = extractedSegmentsBackup.map((s, idx) => ({ ...s, fileId: fId, globalId: idx + 1 }));
+        const savedCount = await DBService.addSegments(mappedSegments);
+        if (isTeamMode() && mappedSegments.length > 0 && !savedCount) {
+            console.warn('[CAT] addSegments returned 0 — segments may not have been saved to cloud.');
+        }
+        extractedSegmentsBackup = [];
     }
 
     // ==========================================

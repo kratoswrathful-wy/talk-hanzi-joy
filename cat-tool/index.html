@@ -1680,9 +1680,9 @@
                 <div class="wizard-body">
                     <div class="wizard-step active" id="wizardStep1">
                         <div class="upload-section" style="text-align:center; border:2px dashed #cbd5e1; padding:2rem; border-radius:8px;">
-                            <input type="file" id="sourceFileInput" accept=".xlsx,.xls,.xlf,.xliff,.mqxliff,.sdlxliff,.po,.pot" style="display:none;" />
+                            <input type="file" id="sourceFileInput" accept=".xlsx,.xls,.xlf,.xliff,.mqxliff,.sdlxliff,.po,.pot" multiple style="display:none;" />
                             <label for="sourceFileInput" style="cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:0.5rem; font-weight:600; color:#64748b;">
-                                <span style="font-size:2.5rem;">📁</span><span>點擊或拖曳上傳 Excel / XLIFF / PO (.xlsx/.xls/.xlf/.xliff/.mqxliff/.sdlxliff/.po/.pot)</span>
+                                <span style="font-size:2.5rem;">📁</span><span>點擊或拖曳上傳 Excel / XLIFF / PO（可多選；.xlsx/.xls/.xlf/.xliff/.mqxliff/.sdlxliff/.po/.pot）</span>
                             </label>
                         </div>
                         <div style="text-align:center; margin:0.9rem 0 0.5rem; color:#94a3b8; font-size:0.85rem;">— 或 —</div>
@@ -1696,7 +1696,7 @@
                     </div>
                     <div class="wizard-step hidden" id="wizardStep2">
                         <div style="display:flex; gap:2rem;">
-                            <div style="width:200px; border-right:1px solid #e2e8f0; padding-right:1rem;">
+                            <div id="wizardStep2SheetColumn" style="width:200px; border-right:1px solid #e2e8f0; padding-right:1rem;">
                                 <h4>選擇工作表</h4>
                                 <label><input type="checkbox" id="selectAllSheets" checked> <span>全選</span></label>
                                 <div id="sheetList" style="margin-top:0.5rem; max-height:200px; overflow-y:auto; font-size:0.9rem;"></div>
@@ -1742,6 +1742,14 @@
                         <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.5rem;">
                             <button id="btnGsWizBack" class="secondary-btn">取消</button>
                             <button id="btnGsWizFinish" class="success-btn">匯入檔案</button>
+                        </div>
+                    </div>
+                    <div class="wizard-step hidden" id="wizardStepBatchMq"></div>
+                    <div class="wizard-step hidden" id="wizardStepBatchExcel"></div>
+                    <div class="wizard-step hidden" id="wizardStepBatchProgress">
+                        <div id="batchProgressMessage" style="font-size:0.95rem; color:#334155; white-space:pre-wrap; line-height:1.5;"></div>
+                        <div style="display:flex; justify-content:flex-end; margin-top:1.25rem;">
+                            <button type="button" id="btnBatchProgressClose" class="secondary-btn hidden">關閉</button>
                         </div>
                     </div>
                 </div>
