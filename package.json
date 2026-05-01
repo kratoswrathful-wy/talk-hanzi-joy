@@ -16,6 +16,7 @@
     "test:cat-sf": "node scripts/test-cat-sf-row-range.mjs",
     "test:watch": "vitest",
     "download-storage": "node scripts/download-storage.mjs",
+    "backfill:cat-original-files": "node scripts/backfill-cat-original-files.mjs",
     "verify:supabase-migrations": "supabase migration list"
   },
   "dependencies": {

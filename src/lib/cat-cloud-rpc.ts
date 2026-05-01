@@ -67,6 +67,65 @@ function tryParseJson<T>(v: unknown, fallback: T): T {
   return fallback;
 }
 
+/** CAT 原始檔 private bucket（與 migration 20260503120000 一致） */
+const CAT_ORIGINAL_FILES_BUCKET = "cat-original-files";
+
+/** 列表／recent：不 SELECT original_file_base64，僅路徑 + metadata */
+const CAT_FILE_LIST_COLUMNS =
+  "id, project_id, name, source_lang, target_lang, original_source_lang, original_target_lang, workspace_note_draft, applicable_special_instruction_ids, related_lms_case_id, related_lms_case_title, google_sheet_url, file_format, created_at, last_modified, original_file_path";
+
+function guessMimeFromCatFileName(name: string): string {
+  const lower = String(name || "").toLowerCase();
+  if (lower.endsWith(".xlsx")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  if (lower.endsWith(".xls")) return "application/vnd.ms-excel";
+  if (lower.endsWith(".mqxliff") || lower.endsWith(".xliff") || lower.endsWith(".xlf"))
+    return "application/xml";
+  if (lower.endsWith(".csv")) return "text/csv";
+  return "application/octet-stream";
+}
+
+function buildCatOriginalStoragePath(projectId: string, fileId: string): string {
+  return `${projectId}/${fileId}/original`;
+}
+
+/** 與 cat-tool db.js chunk btoa 對齊，避免大檔單次 String.fromCharCode 爆堆疊 */
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)) as unknown as number[]);
+  }
+  return btoa(binary);
+}
+
+function base64ToUint8Array(b64: string): Uint8Array {
+  const bin = atob(String(b64));
+  const len = bin.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+async function downloadCatOriginalAsBase64(storagePath: string): Promise<string> {
+  const { data: blob, error } = await supabase.storage.from(CAT_ORIGINAL_FILES_BUCKET).download(storagePath);
+  if (error) throw error;
+  const ab = await blob.arrayBuffer();
+  return uint8ArrayToBase64(new Uint8Array(ab));
+}
+
+async function uploadCatOriginalFromBase64(
+  storagePath: string,
+  base64: string,
+  displayName: string
+): Promise<void> {
+  const bytes = base64ToUint8Array(base64);
+  const { error } = await supabase.storage.from(CAT_ORIGINAL_FILES_BUCKET).upload(storagePath, bytes, {
+    contentType: guessMimeFromCatFileName(displayName),
+    upsert: true,
+  });
+  if (error) throw error;
+}
+
 const mapProjectRow = (r: any) => ({
   id: r.id,
   name: r.name,
@@ -89,26 +148,48 @@ const mapProjectRow = (r: any) => ({
   lastModified: r.last_modified,
 });
 
-const mapFileRow = (r: any) => ({
-  id: r.id,
-  projectId: r.project_id,
-  name: r.name,
-  originalFileBase64: r.original_file_base64 ?? "",
-  sourceLang: r.source_lang ?? "",
-  targetLang: r.target_lang ?? "",
-  originalSourceLang: r.original_source_lang ?? "",
-  originalTargetLang: r.original_target_lang ?? "",
-  workspaceNoteDraft: r.workspace_note_draft ?? "",
-  applicableSpecialInstructionIds: Array.isArray(r.applicable_special_instruction_ids)
-    ? r.applicable_special_instruction_ids.map((x: unknown) => Number(x)).filter((n) => !Number.isNaN(n))
-    : [],
-  relatedLmsCaseId: r.related_lms_case_id ?? null,
-  relatedLmsCaseTitle: r.related_lms_case_title ?? "",
-  googleSheetUrl: r.google_sheet_url ?? "",
-  fileFormat: r.file_format ?? "",
-  createdAt: r.created_at,
-  lastModified: r.last_modified,
-});
+function mapFileRow(r: any, opts?: { listMode?: boolean }) {
+  const path = r.original_file_path != null && String(r.original_file_path).trim() !== "" ? String(r.original_file_path).trim() : "";
+  const legacyB64 = r.original_file_base64 ?? "";
+  const listMode = !!opts?.listMode;
+  return {
+    id: r.id,
+    projectId: r.project_id,
+    name: r.name,
+    originalFilePath: path,
+    originalFileBase64: listMode ? "" : legacyB64,
+    sourceLang: r.source_lang ?? "",
+    targetLang: r.target_lang ?? "",
+    originalSourceLang: r.original_source_lang ?? "",
+    originalTargetLang: r.original_target_lang ?? "",
+    workspaceNoteDraft: r.workspace_note_draft ?? "",
+    applicableSpecialInstructionIds: Array.isArray(r.applicable_special_instruction_ids)
+      ? r.applicable_special_instruction_ids.map((x: unknown) => Number(x)).filter((n) => !Number.isNaN(n))
+      : [],
+    relatedLmsCaseId: r.related_lms_case_id ?? null,
+    relatedLmsCaseTitle: r.related_lms_case_title ?? "",
+    googleSheetUrl: r.google_sheet_url ?? "",
+    fileFormat: r.file_format ?? "",
+    createdAt: r.created_at,
+    lastModified: r.last_modified,
+  };
+}
+
+/** getFile：完整列；若有 Storage 路徑則下載並填入 originalFileBase64（供 hydrateFile） */
+async function mapFileRowWithOriginalHydrated(r: any) {
+  const path = r.original_file_path != null && String(r.original_file_path).trim() !== "" ? String(r.original_file_path).trim() : "";
+  const base = mapFileRow(r, { listMode: false });
+  if (path) {
+    try {
+      base.originalFileBase64 = await downloadCatOriginalAsBase64(path);
+    } catch (e) {
+      const legacy = r.original_file_base64 ?? "";
+      if (legacy) base.originalFileBase64 = legacy;
+      else throw e;
+    }
+  }
+  return base;
+}
 
 const mapSegmentRow = (r: any) => {
   const isLockedUser = !!r.is_locked_user;
@@ -448,16 +529,38 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       const { data } = await supabase.from("cat_projects").select("*").eq("id", payload.projectId).maybeSingle();
       return data ? mapProjectRow(data) : null;
     }
-    case "db.deleteProject":
-      return await supabase.from("cat_projects").delete().eq("id", payload.projectId);
+    case "db.deleteProject": {
+      const projectId = payload.projectId;
+      const { data: files } = await supabase.from("cat_files").select("original_file_path").eq("project_id", projectId);
+      const paths = (files ?? [])
+        .map((f: any) => String(f.original_file_path ?? "").trim())
+        .filter(Boolean);
+      if (paths.length > 0) {
+        const { error: rmErr } = await supabase.storage.from(CAT_ORIGINAL_FILES_BUCKET).remove(paths);
+        if (rmErr) console.warn("[cat-cloud-rpc] deleteProject storage remove:", rmErr);
+      }
+      return await supabase.from("cat_projects").delete().eq("id", projectId);
+    }
 
     case "db.createFile": {
+      const fileId = crypto.randomUUID();
+      const projectId = payload.projectId;
+      const b64 = payload.originalFileBase64 ?? "";
+      let originalPath: string | null = null;
+      let inlineB64 = b64;
+      if (b64.length > 0) {
+        originalPath = buildCatOriginalStoragePath(projectId, fileId);
+        await uploadCatOriginalFromBase64(originalPath, b64, payload.name || "");
+        inlineB64 = "";
+      }
       const { data, error } = await supabase
         .from("cat_files")
         .insert({
-          project_id: payload.projectId,
+          id: fileId,
+          project_id: projectId,
           name: payload.name,
-          original_file_base64: payload.originalFileBase64 ?? "",
+          original_file_base64: inlineB64,
+          original_file_path: originalPath,
           source_lang: payload.sourceLang ?? "",
           target_lang: payload.targetLang ?? "",
           original_source_lang: payload.originalSourceLang ?? "",
@@ -468,20 +571,28 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .select("id")
         .single();
       if (error) throw error;
-      await supabase.from("cat_projects").update({ last_modified: nowIso() } as any).eq("id", payload.projectId);
+      await supabase.from("cat_projects").update({ last_modified: nowIso() } as any).eq("id", projectId);
       return data.id;
     }
     case "db.getFiles": {
-      const { data } = await supabase.from("cat_files").select("*").eq("project_id", payload.projectId).order("created_at", { ascending: true, nullsFirst: true });
-      return (data ?? []).map(mapFileRow);
+      const { data } = await supabase
+        .from("cat_files")
+        .select(CAT_FILE_LIST_COLUMNS)
+        .eq("project_id", payload.projectId)
+        .order("created_at", { ascending: true, nullsFirst: true });
+      return (data ?? []).map((r: any) => mapFileRow(r, { listMode: true }));
     }
     case "db.getRecentFiles": {
-      const { data } = await supabase.from("cat_files").select("*").order("last_modified", { ascending: false }).limit(payload.limit || 10);
-      return (data ?? []).map(mapFileRow);
+      const { data } = await supabase
+        .from("cat_files")
+        .select(CAT_FILE_LIST_COLUMNS)
+        .order("last_modified", { ascending: false })
+        .limit(payload.limit || 10);
+      return (data ?? []).map((r: any) => mapFileRow(r, { listMode: true }));
     }
     case "db.getFile": {
       const { data } = await supabase.from("cat_files").select("*").eq("id", payload.fileId).maybeSingle();
-      return data ? mapFileRow(data) : null;
+      return data ? await mapFileRowWithOriginalHydrated(data) : null;
     }
     case "db.searchLmsCases": {
       const keyword = String(payload.keyword || "").trim();
@@ -510,30 +621,65 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         status: r.status ?? "",
       }));
     }
-    case "db.updateFile":
-      return await supabase.from("cat_files").update({
-        ...(payload.updates?.name != null ? { name: payload.updates.name } : {}),
-        ...(payload.updates?.originalFileBase64 != null ? { original_file_base64: payload.updates.originalFileBase64 } : {}),
-        ...(payload.updates?.sourceLang != null ? { source_lang: payload.updates.sourceLang } : {}),
-        ...(payload.updates?.targetLang != null ? { target_lang: payload.updates.targetLang } : {}),
-        ...(payload.updates?.originalSourceLang != null ? { original_source_lang: payload.updates.originalSourceLang } : {}),
-        ...(payload.updates?.originalTargetLang != null ? { original_target_lang: payload.updates.originalTargetLang } : {}),
-        ...(payload.updates?.workspaceNoteDraft != null ? { workspace_note_draft: payload.updates.workspaceNoteDraft } : {}),
-        ...(payload.updates?.applicableSpecialInstructionIds != null
+    case "db.updateFile": {
+      const fileId = payload.fileId;
+      const u = payload.updates ?? {};
+      const rowPatch: Record<string, unknown> = {
+        ...(u.name != null ? { name: u.name } : {}),
+        ...(u.sourceLang != null ? { source_lang: u.sourceLang } : {}),
+        ...(u.targetLang != null ? { target_lang: u.targetLang } : {}),
+        ...(u.originalSourceLang != null ? { original_source_lang: u.originalSourceLang } : {}),
+        ...(u.originalTargetLang != null ? { original_target_lang: u.originalTargetLang } : {}),
+        ...(u.workspaceNoteDraft != null ? { workspace_note_draft: u.workspaceNoteDraft } : {}),
+        ...(u.applicableSpecialInstructionIds != null
           ? {
-              applicable_special_instruction_ids: Array.isArray(payload.updates.applicableSpecialInstructionIds)
-                ? payload.updates.applicableSpecialInstructionIds
+              applicable_special_instruction_ids: Array.isArray(u.applicableSpecialInstructionIds)
+                ? u.applicableSpecialInstructionIds
                 : [],
             }
           : {}),
-        ...(payload.updates?.relatedLmsCaseId !== undefined ? { related_lms_case_id: payload.updates.relatedLmsCaseId } : {}),
-        ...(payload.updates?.relatedLmsCaseTitle !== undefined ? { related_lms_case_title: payload.updates.relatedLmsCaseTitle ?? "" } : {}),
-        ...(payload.updates?.googleSheetUrl != null ? { google_sheet_url: String(payload.updates.googleSheetUrl) } : {}),
-        ...(payload.updates?.fileFormat != null ? { file_format: String(payload.updates.fileFormat) } : {}),
+        ...(u.relatedLmsCaseId !== undefined ? { related_lms_case_id: u.relatedLmsCaseId } : {}),
+        ...(u.relatedLmsCaseTitle !== undefined ? { related_lms_case_title: u.relatedLmsCaseTitle ?? "" } : {}),
+        ...(u.googleSheetUrl != null ? { google_sheet_url: String(u.googleSheetUrl) } : {}),
+        ...(u.fileFormat != null ? { file_format: String(u.fileFormat) } : {}),
         last_modified: nowIso(),
-      } as any).eq("id", payload.fileId);
-    case "db.deleteFile":
+      };
+      if (u.originalFileBase64 != null) {
+        const b64 = String(u.originalFileBase64);
+        const { data: existing } = await supabase
+          .from("cat_files")
+          .select("project_id, original_file_path, name")
+          .eq("id", fileId)
+          .maybeSingle();
+        if (!existing) throw new Error("db.updateFile: file not found");
+        const pid = (existing as any).project_id;
+        const prevPath = String((existing as any).original_file_path ?? "").trim();
+        const path = prevPath || buildCatOriginalStoragePath(pid, fileId);
+        const displayName = u.name != null ? String(u.name) : String((existing as any).name ?? "");
+        if (b64.length > 0) {
+          await uploadCatOriginalFromBase64(path, b64, displayName);
+          rowPatch.original_file_path = path;
+          rowPatch.original_file_base64 = "";
+        } else {
+          if (prevPath) {
+            const { error: rmErr } = await supabase.storage.from(CAT_ORIGINAL_FILES_BUCKET).remove([prevPath]);
+            if (rmErr) console.warn("[cat-cloud-rpc] updateFile storage remove:", rmErr);
+          }
+          rowPatch.original_file_path = null;
+          rowPatch.original_file_base64 = "";
+        }
+      }
+      return await supabase.from("cat_files").update(rowPatch as any).eq("id", fileId);
+    }
+    case "db.deleteFile": {
+      const { data: row } = await supabase.from("cat_files").select("original_file_path").eq("id", payload.fileId).maybeSingle();
+      const p = row?.original_file_path != null ? String(row.original_file_path).trim() : "";
+      if (p) {
+        const { error: rmErr } = await supabase.storage.from(CAT_ORIGINAL_FILES_BUCKET).remove([p]);
+        if (rmErr) console.warn("[cat-cloud-rpc] deleteFile storage remove:", rmErr);
+      }
       return await supabase.from("cat_files").delete().eq("id", payload.fileId);
+    }
 
     case "db.addSegments": {
       if (!Array.isArray(payload.segmentsArray) || payload.segmentsArray.length === 0) return 0;

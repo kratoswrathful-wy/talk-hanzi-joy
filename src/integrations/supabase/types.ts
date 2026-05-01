@@ -375,6 +375,7 @@ export type Database = {
           last_modified: string
           name: string
           original_file_base64: string | null
+          original_file_path: string | null
           original_source_lang: string
           original_target_lang: string
           project_id: string
@@ -389,6 +390,7 @@ export type Database = {
           last_modified?: string
           name: string
           original_file_base64?: string | null
+          original_file_path?: string | null
           original_source_lang?: string
           original_target_lang?: string
           project_id: string
@@ -403,6 +405,7 @@ export type Database = {
           last_modified?: string
           name?: string
           original_file_base64?: string | null
+          original_file_path?: string | null
           original_source_lang?: string
           original_target_lang?: string
           project_id?: string
