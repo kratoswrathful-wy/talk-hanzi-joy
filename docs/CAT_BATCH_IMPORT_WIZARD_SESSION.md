@@ -166,7 +166,7 @@ flowchart TD
 
 - **現象**：`_refreshBatchExcelStep` 已設 `startBtn.disabled = !ok`，但 `.primary-btn` 未定義 `:disabled`，畫面上仍與啟用態同色，使用者誤以為未鎖定。  
 - **修正**：於 `style.css` 為 `.primary-btn`／`.secondary-btn`／`.danger-btn`／`.success-btn` 補 `:disabled`（並將 `:hover` 改為 `:hover:not(:disabled)`）；`button` 預設游標改為僅 `:not(:disabled)` 使用 `pointer`。  
-- **Commit**：`d49b89e`。
+- **Commit**：`9d739b4`。
 
 ---
 
@@ -207,4 +207,4 @@ flowchart TD
 | 2026-05-01 | 初稿：構想、錨點、`label` 錯誤、「開始匯入」勾選同步、驗收項、「原文全空白阻擋」不實作。 |
 | 2026-05-01 | 程式：`3348922` 批次匯入主線；`e11bbe0` `label` → `'讀取中…'`；`1d82a97` `onBatchExcelSameCfgToggle`（`change` + `input`、`e.target.checked`）。 |
 | 2026-05-01 | 擴寫：流程圖、`index.html`／狀態變數錨點、todo→commit 對照表、開發時序（含未採納項目與 Ask／Agent 插曲）、測試與 commit 對應欄、已知限制與非目標（提交 `a594f90`；[`HANDOFF.md`](./HANDOFF.md)「其他近期落地」已列 `a594f90`）。 |
-| 2026-05-01 | `style.css`：主色等按鈕 `:disabled` 反灰與游標；第五節 5.6、驗收步驟 3 補視覺說明（`d49b89e`）。 |
+| 2026-05-01 | `style.css`：主色等按鈕 `:disabled` 反灰與游標；第五節 5.6、驗收步驟 3 補視覺說明（`9d739b4`）。 |
