@@ -1030,7 +1030,7 @@
                         <span style="font-size:0.78rem; color:#64748b;">使用者</span>
                         <div id="collabPresenceBar" style="display:none; gap:0.35rem; align-items:center; flex-wrap:wrap;"></div>
                     </div>
-                    <div style="flex:1; text-align:right;">快捷鍵: <kbd style="background:#e2e8f0; padding:2px 6px; border-radius:4px; color:#334155;">Ctrl+Enter</kbd> 確認句段並跳至下一行</div>
+                    <div style="flex:1; text-align:right; font-size:0.78rem; color:#64748b;">完整清單請點工具列 <span title="快捷鍵一覽">⌨️</span>。常用：<kbd style="background:#e2e8f0; padding:2px 6px; border-radius:4px; color:#334155;">Ctrl+Enter</kbd> 確認、<kbd style="background:#e2e8f0; padding:2px 6px; border-radius:4px; color:#334155;">F3</kbd>／<kbd style="background:#e2e8f0; padding:2px 6px; border-radius:4px; color:#334155;">Shift+F3</kbd> 搜尋下／上一命中、<kbd style="background:#e2e8f0; padding:2px 6px; border-radius:4px; color:#334155;">F4</kbd> 全部取代譯文</div>
                 </footer>
             </section>
 
@@ -1230,7 +1230,7 @@
                 <div class="wizard-body" style="display:flex; flex-direction:column; gap:0.75rem; max-height:70vh; overflow-y:auto;">
                     <!-- 固定快捷鍵（不可改）-->
                     <div style="font-size:0.8rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.05em;">固定快捷鍵</div>
-                    <p style="margin:0; font-size:0.78rem; color:#64748b; line-height:1.45;">下列為編輯器中預設可用的快捷鍵。組合鍵依常見寫法標示（Mac 上多用 ⌘ 對應 Ctrl）。</p>
+                    <p style="margin:0; font-size:0.78rem; color:#64748b; line-height:1.45;">下列為編輯檢視（已開啟檔案）內預設可用的快捷鍵。標示為 <strong>Ctrl</strong> 者請按鍵盤上的 <strong>Control</strong>（Mac 上通常為「control」，不是 ⌘ Command）；標示為 <strong>Alt</strong> 者在 Mac 上多為 Option。</p>
                     <div class="cat-shortcuts-list">
                         <div class="cat-shortcuts-item">
                             <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">確認／取消確認句段</span><input type="text" value="Ctrl + Enter" disabled class="sc-key-input"></div>
@@ -1274,7 +1274,7 @@
                         </div>
                         <div class="cat-shortcuts-item">
                             <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">復原／重做</span><input type="text" value="Ctrl + Z / Y" disabled class="sc-key-input"></div>
-                            <p class="cat-shortcuts-item-desc">在編輯器內復原或重做譯文變更、確認狀態等可追蹤的步驟。焦點在尋找與取代欄位時不觸發，避免和瀏覽器衝突。</p>
+                            <p class="cat-shortcuts-item-desc">在編輯器內復原或重做譯文變更、確認狀態等可追蹤的步驟。焦點在<strong>尋找／取代</strong>欄或 <strong>TM 搜尋關鍵字</strong>輸入框時不觸發，避免與瀏覽器或輸入框預設行為衝突。</p>
                         </div>
                         <div class="cat-shortcuts-item">
                             <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">在比對列表內移動選取（CAT／TM 搜尋）</span><input type="text" id="scFixedKeyCatList" value="Alt + ↑ / ↓" disabled class="sc-key-input"></div>
@@ -1289,8 +1289,8 @@
                             <p class="cat-shortcuts-item-desc">在 CAT、TM 搜尋、新增術語、QA 等分頁間循環切換，不佔用僅帶 Ctrl 的左右鍵（格內逐字）。</p>
                         </div>
                         <div class="cat-shortcuts-item">
-                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">焦點到譯文假游標</span><input type="text" id="scFixedKeyFakeCaret" value="Ctrl + Alt + ↓" disabled class="sc-key-input"></div>
-                            <p class="cat-shortcuts-item-desc">將鍵盤焦點帶到先前記下的譯文游標位置（與靜止時顯示的垂直條假游標同源）。</p>
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">譯文游標／假游標（捲動與還原）</span><input type="text" id="scFixedKeyFakeCaret" value="Ctrl + Alt + ↑ / ↓" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">上下鍵效果相同：若焦點已在譯文格，捲動使該格進入可視區；否則嘗試還原先前記住的譯文游標，失敗則顯示假游標（垂直條提示）。</p>
                         </div>
                         <div class="cat-shortcuts-item">
                             <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">譯文格：上／下鍵越句</span><input type="text" value="↑ / ↓" disabled class="sc-key-input"></div>
@@ -1298,11 +1298,23 @@
                         </div>
                         <div class="cat-shortcuts-item">
                             <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">尋找／篩選列</span><input type="text" value="Ctrl + F" disabled class="sc-key-input"></div>
-                            <p class="cat-shortcuts-item-desc">第一次：將焦點移到左上「尋找」欄以便輸入或取代。焦點已在尋找欄時再按：在「搜尋」與「篩選」模式間切換（進階篩選鎖定時可能無法切換）。</p>
+                            <p class="cat-shortcuts-item-desc">第一次：將焦點移到左上「尋找」欄以便輸入或取代；若有反白文字會帶入尋找框。焦點已在尋找欄時再按：在「搜尋」與「篩選」模式間切換（進階篩選鎖定時可能無法切換）。部分情境下 QA 範圍鎖定篩選時會無法使用。</p>
+                        </div>
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">搜尋下一個／上一個命中</span><input type="text" value="F3 / Shift + F3" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">與工具列「下一個／上一個」相同：依目前搜尋條件與勾選範圍（原文／譯文／Key／額外等）在全表中循環導覽命中。須已開啟檔案且編輯檢視未隱藏；不加 Ctrl／Alt。</p>
+                        </div>
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">全部取代（譯文）</span><input type="text" value="F4" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">等同按下「全部取代」：僅替換各句<strong>譯文</strong>欄中符合尋找字串（含 regex 選項）的文字；僅處理篩選下<strong>可見</strong>句段；若已多選句段則僅限選取範圍。須已開啟檔案且編輯檢視未隱藏；不加修飾鍵。</p>
                         </div>
                         <div class="cat-shortcuts-item">
                             <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">TM 一致性搜尋</span><input type="text" value="Ctrl + K" disabled class="sc-key-input"></div>
                             <p class="cat-shortcuts-item-desc">切到「TM 搜尋」分頁。有反白字時帶入關鍵字並搜尋專案掛載的 TM 快取；可選「Key」以 key 欄內文比對；在 Key 格內觸發時會搜尋 Key 且焦點到譯文句首。譯文欄內有反白時，搜尋後不保留反白、僅留游標。無反白時不搜尋，僅關注鍵字欄。</p>
+                        </div>
+                        <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">關閉最上層蓋版</span><input type="text" value="Esc" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">關閉目前最上層的對話／蓋版（等同取消或關閉鈕）。錄製自訂快捷鍵過程中按下 Esc 為中止錄製、不關閉快捷鍵視窗。</p>
                         </div>
                     </div>
                     <hr style="border:none; border-top:1px solid #e2e8f0; margin:0.25rem 0;">

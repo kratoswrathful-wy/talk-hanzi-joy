@@ -658,7 +658,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         catListNav: 'Alt + ↑ / ↓',
         catResultPage: 'Alt + ← / →',
         rightPanelTab: 'Ctrl + Alt + ← / →',
-        fakeCaretFocus: 'Ctrl + Alt + ↓'
+        fakeCaretFocus: 'Ctrl + Alt + ↑ / ↓'
     };
 
     function refreshFixedShortcutTitles() {
