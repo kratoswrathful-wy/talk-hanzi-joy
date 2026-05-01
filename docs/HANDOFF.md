@@ -303,6 +303,7 @@
 
 | Commit | 摘要 |
 |--------|------|
+| `665ea76` | [CAT_BATCH_IMPORT_WIZARD_SESSION.md](./CAT_BATCH_IMPORT_WIZARD_SESSION.md)：驗收完成收尾（§五～§六 狀態、§七 條列、§九 提交對照表、§十 修訂；第一節第 8 點改「未採納」） |
 | `9d739b4` | CAT [`style.css`](../cat-tool/style.css)：`.primary-btn` 等 `:disabled` 反灰與 `cursor: not-allowed`；批次「開始匯入」等鎖定態可辨識；說明見 [CAT_BATCH_IMPORT_WIZARD_SESSION.md](./CAT_BATCH_IMPORT_WIZARD_SESSION.md) 5.6 |
 | `a594f90` | 擴寫 [CAT_BATCH_IMPORT_WIZARD_SESSION.md](./CAT_BATCH_IMPORT_WIZARD_SESSION.md)：流程圖、todo→commit 對照、開發時序（含未採納項目與 Ask／Agent 插曲）、驗收與 commit 對應、已知限制 |
 | `1d82a97` | 批次 Excel「全部使用相同欄位設定」：`change`+`input` 與 `e.target.checked` 刷新「開始匯入」狀態；說明見 [CAT_BATCH_IMPORT_WIZARD_SESSION.md](./CAT_BATCH_IMPORT_WIZARD_SESSION.md) |
