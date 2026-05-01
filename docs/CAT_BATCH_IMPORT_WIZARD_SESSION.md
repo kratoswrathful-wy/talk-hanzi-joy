@@ -1,6 +1,6 @@
 # CAT 批次匯入作業檔精靈：構想、實作與驗收備忘
 
-本文件整理 **2026-05 前後** 關於「專案詳情 → 匯入」**多檔批次流程**的產品構想、實作對照、開發時序、已修問題與手動測試方式，供維運與後續接手對照程式（[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/index.html`](../cat-tool/index.html)）。改動 CAT 資產後請依 [`AGENTS.md`](../AGENTS.md) 於專案根目錄執行 `npm run sync:cat`，並一併提交 `cat-tool/` 與 `public/cat/`。
+本文件整理 **2026-05 前後** 關於「專案詳情 → 匯入」**多檔批次流程**的產品構想、實作對照、開發時序、已修問題與手動測試方式，供維運與後續接手對照程式（[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/index.html`](../cat-tool/index.html)、[`cat-tool/style.css`](../cat-tool/style.css)）。改動 CAT 資產後請依 [`AGENTS.md`](../AGENTS.md) 於專案根目錄執行 `npm run sync:cat`，並一併提交 `cat-tool/` 與 `public/cat/`。
 
 ---
 
@@ -28,7 +28,8 @@
    （與 `_refreshBatchExcelStep` 的啟用條件一致。）
 
 6. **開始匯入按鈕**  
-   `#btnBatchExcelStart` 是否可按由 `_refreshBatchExcelStep()` 統一計算：全域模式須 `_batchExcelGlobalCfg`；個別模式須**每一個** Excel 檔都在 `_batchExcelConfigs` 内。
+   `#btnBatchExcelStart` 是否可按由 `_refreshBatchExcelStep()` 統一計算：全域模式須 `_batchExcelGlobalCfg`；個別模式須**每一個** Excel 檔都在 `_batchExcelConfigs` 内。  
+   **視覺**：`disabled` 時須呈現反灰（見 [`cat-tool/style.css`](../cat-tool/style.css) `.primary-btn:disabled`），避免與可點主色按鈕混淆。
 
 7. **實際匯入**  
    `runBatchImport` 逐檔呼叫既有單檔路徑（例如 `_importSingleExcelFile`、`xliffImportCtx({ suppressWizardHide: true })` 等），更新進度文案與錯誤／成功摘要。
@@ -72,6 +73,7 @@
 | 開啟欄位編輯（讀取緩衝、塞入精靈第二步） | `app.js` → `_openBatchExcelColumnEditor` |
 | 批次匯入主迴圈 | `app.js` → `runBatchImport` |
 | XLIFF 匯入不強制關閉精靈 overlay | `app.js` → `xliffImportCtx` 選項 `suppressWizardHide` |
+| 主色／次要／危險／成功按鈕的 `disabled` 反灰與游標 | `style.css` → `.primary-btn` 等之 `:disabled`、`:hover:not(:disabled)`；全域 `button:not(:disabled)`／`button:disabled` 游標 |
 
 更短的路徑索引見 [`CODEMAP.md`](./CODEMAP.md)「CAT：批次匯入作業檔精靈」。
 
@@ -160,6 +162,12 @@ flowchart TD
   - 保留資料清理：勾選→清 `_batchExcelConfigs` 與各列狀態；取消→清 `_batchExcelGlobalCfg` 與全域狀態列；結尾一律 **`_refreshBatchExcelStep()`**。  
 - **Commit**：`1d82a97`（並同步 `public/cat/app.js` 經 `npm run sync:cat`）。
 
+### 5.6 「開始匯入」已 `disabled` 卻仍像可點（樣式）
+
+- **現象**：`_refreshBatchExcelStep` 已設 `startBtn.disabled = !ok`，但 `.primary-btn` 未定義 `:disabled`，畫面上仍與啟用態同色，使用者誤以為未鎖定。  
+- **修正**：於 `style.css` 為 `.primary-btn`／`.secondary-btn`／`.danger-btn`／`.success-btn` 補 `:disabled`（並將 `:hover` 改為 `:hover:not(:disabled)`）；`button` 預設游標改為僅 `:not(:disabled)` 使用 `pointer`。  
+- **Commit**：`d49b89e`。
+
 ---
 
 ## 六、手動測試建議（驗收）
@@ -168,7 +176,7 @@ flowchart TD
 |------|-----------|-----------------|
 | 1 | **批次多檔**：選 2+ 作業檔（含至少一個 Excel），走完語言對 → mqxliff（若有）→ Excel 設定 → 進度／摘要 | `3348922` |
 | 2 | **全域欄位**：勾「全部使用相同欄位設定」，只開全域「欄位設定」一次 →「開始匯入」啟用；匯入後各 Excel 皆有資料（非僅第一檔） | `3348922` |
-| 3 | **切換模式**：全域設定完成後 **取消**「全部相同」→「開始匯入」**disabled**；逐檔「欄位設定」並儲存至最後一檔 →「開始匯入」**enabled** | `1d82a97` |
+| 3 | **切換模式**：全域設定完成後 **取消**「全部相同」→「開始匯入」**disabled**（且按鈕應**視覺反灰**）；逐檔「欄位設定」並儲存至最後一檔 →「開始匯入」**enabled** | `1d82a97` + `style.css` `:disabled` |
 | 4 | **切回全域**：再次勾選「全部相同」→ 個別「✓ 設定完畢」清除；須重新完成全域設定才可匯入 | `3348922` + `1d82a97`（清理＋刷新） |
 | 5 | **取消**：批次流程「取消」終止並回到合理畫面（與既有精靈一致） | `3348922` |
 | — | **回歸**：開批次 Excel「欄位設定」時按鈕顯示「讀取中…」不拋 `ReferenceError` | `e11bbe0` |
@@ -199,3 +207,4 @@ flowchart TD
 | 2026-05-01 | 初稿：構想、錨點、`label` 錯誤、「開始匯入」勾選同步、驗收項、「原文全空白阻擋」不實作。 |
 | 2026-05-01 | 程式：`3348922` 批次匯入主線；`e11bbe0` `label` → `'讀取中…'`；`1d82a97` `onBatchExcelSameCfgToggle`（`change` + `input`、`e.target.checked`）。 |
 | 2026-05-01 | 擴寫：流程圖、`index.html`／狀態變數錨點、todo→commit 對照表、開發時序（含未採納項目與 Ask／Agent 插曲）、測試與 commit 對應欄、已知限制與非目標（提交 `a594f90`；[`HANDOFF.md`](./HANDOFF.md)「其他近期落地」已列 `a594f90`）。 |
+| 2026-05-01 | `style.css`：主色等按鈕 `:disabled` 反灰與游標；第五節 5.6、驗收步驟 3 補視覺說明（`d49b89e`）。 |

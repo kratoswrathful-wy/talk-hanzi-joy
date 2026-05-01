@@ -353,18 +353,45 @@ body { margin: 0; font-family: 'Inter', sans-serif; background-color: var(--bg-c
 }
 
 /* Buttons & Common */
-button { font-family: inherit; cursor: pointer; }
+button { font-family: inherit; }
+button:not(:disabled) { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
 .primary-btn, .secondary-btn, .danger-btn, .success-btn {
     padding: 0.6rem 1.2rem; border-radius: 6px; font-weight: 500; font-size: 0.9rem; border: none; transition: 0.2s;
 }
 .primary-btn { background: var(--primary-color); color: white; }
-.primary-btn:hover { background: var(--primary-hover); }
+.primary-btn:hover:not(:disabled) { background: var(--primary-hover); }
+.primary-btn:disabled,
+.primary-btn:disabled:hover {
+    background: #94a3b8;
+    color: #f1f5f9;
+    opacity: 0.92;
+}
 .secondary-btn { background: white; color: var(--text-main); border: 1px solid var(--border-color); }
-.secondary-btn:hover { background: var(--secondary-color); }
+.secondary-btn:hover:not(:disabled) { background: var(--secondary-color); }
+.secondary-btn:disabled,
+.secondary-btn:disabled:hover {
+    background: var(--grid-stripe);
+    color: var(--text-light);
+    border-color: #e2e8f0;
+    opacity: 0.85;
+}
 .danger-btn { background: #ef4444; color: white; }
-.danger-btn:hover { background: #dc2626; }
+.danger-btn:hover:not(:disabled) { background: #dc2626; }
+.danger-btn:disabled,
+.danger-btn:disabled:hover {
+    background: #fca5a5;
+    color: #fef2f2;
+    opacity: 0.85;
+}
 .success-btn { background: var(--success-color); color: white; }
-.success-btn:hover { background: #15803d; }
+.success-btn:hover:not(:disabled) { background: #15803d; }
+.success-btn:disabled,
+.success-btn:disabled:hover {
+    background: #86efac;
+    color: #f0fdf4;
+    opacity: 0.85;
+}
 .btn-sm { padding: 0.4rem 0.8rem; font-size: 0.85rem; }
 
 /* Split buttons（提問表單／內部註記） */
