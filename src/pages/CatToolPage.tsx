@@ -329,14 +329,28 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
       .neq("status", "cancelled")
       .order("assigned_at", { ascending: false });
 
+    const assignments = data ?? [];
+    const translatorVisibleProjectIds = isTranslatorOnly
+      ? [
+          ...new Set(
+            assignments
+              .map((row: { file?: { project_id?: string } | null }) => row?.file?.project_id)
+              .filter((id): id is string => !!id)
+              .map((id) => String(id)),
+          ),
+        ]
+      : undefined;
+
     const liveWindow = iframeRef.current?.contentWindow;
     if (!liveWindow) return;
     liveWindow.postMessage(
       {
         type: "TMS_ASSIGNMENTS",
         payload: {
-          assignments: data ?? [],
+          assignments,
           translatorOnly: isTranslatorOnly,
+          /** 譯者專案清單僅顯示至少一筆有效檔案指派所屬專案（CAT_VIEW_SPEC §3.1）；句段集指派併入待 `cat_view_assignments` 上線後擴充。 */
+          translatorVisibleProjectIds,
         },
       },
       window.location.origin

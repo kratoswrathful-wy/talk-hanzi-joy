@@ -2198,10 +2198,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    function _refreshTranslatorProjectsTableChrome() {
+        const translatorColMode = isTeamMode() && !!window._tmsTranslatorOnly;
+        const projTable = document.querySelector('#viewProjects .resource-table');
+        if (!projTable) return;
+        const ths = projTable.querySelectorAll('thead tr th');
+        if (ths[0]) ths[0].style.display = translatorColMode ? 'none' : '';
+        if (ths[5]) ths[5].style.display = translatorColMode ? 'none' : '';
+    }
+
+    function _applyTranslatorProjectsListChrome() {
+        const translatorColMode = isTeamMode() && !!window._tmsTranslatorOnly;
+        const btnCreate = document.getElementById('btnCreateProjectModal');
+        const btnDelSel = document.getElementById('btnProjectsDeleteSelected');
+        const changelog = document.getElementById('projectsChangeLogBlock');
+        if (btnCreate) btnCreate.style.display = translatorColMode ? 'none' : '';
+        if (btnDelSel) btnDelSel.style.display = translatorColMode ? 'none' : '';
+        if (changelog) changelog.style.display = translatorColMode ? 'none' : '';
+        _refreshTranslatorProjectsTableChrome();
+    }
+
     function enforceTeamRoleLayout() {
         if (!isTeamMode()) {
             if (btnProjectToolbarAssign) btnProjectToolbarAssign.style.display = 'none';
             if (btnProjectSplitAssign) btnProjectSplitAssign.style.display = '';
+            window._tmsTranslatorVisibleProjectIds = null;
+            const navOff = document.querySelector('.sidebar-nav');
+            if (navOff) {
+                navOff.style.display = '';
+                navOff.querySelectorAll('.nav-item').forEach((a) => { a.style.display = ''; });
+            }
+            _applyTranslatorProjectsListChrome();
             _applyAiPmOnlyVisibility();
             return;
         }
@@ -2219,7 +2246,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (btnProjectSplitAssign) {
             btnProjectSplitAssign.style.display = '';
         }
-        if (nav) nav.style.display = translatorOnly ? 'none' : '';
+        if (nav) {
+            nav.style.display = '';
+            nav.querySelectorAll('.nav-item').forEach((a) => {
+                const view = a.getAttribute('data-view') || '';
+                if (translatorOnly) {
+                    const show = view === 'viewDashboard' || view === 'viewProjects';
+                    a.style.display = show ? '' : 'none';
+                } else {
+                    a.style.display = '';
+                }
+            });
+        }
         if (translatorOnly) {
             const ab = document.getElementById('dashboardAssignedBlock');
             if (ab) ab.style.display = '';
@@ -2233,6 +2271,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         }
+        _applyTranslatorProjectsListChrome();
         _applyAiPmOnlyVisibility();
     }
 
@@ -2419,10 +2458,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             const assignments = payload.assignments || [];
             window._tmsAssignments = assignments;
             window._tmsTranslatorOnly = !!payload.translatorOnly;
+            const tvp = payload.translatorVisibleProjectIds;
+            window._tmsTranslatorVisibleProjectIds = Array.isArray(tvp) ? tvp.map((id) => String(id)) : null;
             renderAssignedFilesView(assignments);
             const ab = document.getElementById('dashboardAssignedBlock');
             if (ab && window._tmsTranslatorOnly) ab.style.display = '';
             enforceTeamRoleLayout();
+            try {
+                const active = document.querySelector('.view-section:not(.hidden)');
+                if (active && active.id === 'viewProjects') void loadProjectsList();
+            } catch (_) {}
         } else if (event.data.type === 'TMS_ASSIGNABLE_USERS') {
             const payload = event.data.payload || {};
             window._tmsAssignableUsers = payload.members || [];
@@ -3157,12 +3202,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function loadProjectsList() {
         if (!projectsTableBody) return;
-        const projects = await DBService.getProjects();
+        let projects = await DBService.getProjects();
+        const translatorColMode = isTeamMode() && !!window._tmsTranslatorOnly;
+        if (translatorColMode && Array.isArray(window._tmsTranslatorVisibleProjectIds)) {
+            const allowed = new Set(window._tmsTranslatorVisibleProjectIds.map((id) => String(id)));
+            projects = projects.filter((p) => allowed.has(String(p.id)));
+        } else if (translatorColMode && !Array.isArray(window._tmsTranslatorVisibleProjectIds)) {
+            projects = [];
+        }
         lastProjectsList = projects;
         projectsTableBody.innerHTML = '';
         if (projects.length === 0) {
             const tr = document.createElement('tr');
-            tr.innerHTML = '<td colspan="6" style="padding:0.75rem; color:#64748b; font-size:0.9rem;">目前沒有專案，請點擊「新增專案」建立。</td>';
+            const emptyColspan = translatorColMode ? 4 : 6;
+            let emptyMsg;
+            if (translatorColMode && !Array.isArray(window._tmsTranslatorVisibleProjectIds)) {
+                emptyMsg = '載入專案清單中…';
+            } else if (translatorColMode) {
+                emptyMsg = '目前沒有你可進入的專案。若有檔案或句段集指派，對應專案會出現在此清單。';
+            } else {
+                emptyMsg = '目前沒有專案，請點擊「新增專案」建立。';
+            }
+            tr.innerHTML = `<td colspan="${emptyColspan}" style="padding:0.75rem; color:#64748b; font-size:0.9rem;">${emptyMsg}</td>`;
             projectsTableBody.appendChild(tr);
             syncProjectsSelectAllLabel();
         } else {
@@ -3174,18 +3235,30 @@ document.addEventListener('DOMContentLoaded', async () => {
             const projLangHtml = (projSrcLangs.length || projTgtLangs.length)
                 ? `${langBadgeHtml(projSrcLangs)} <span style="color:#94a3b8;">→</span> ${langBadgeHtml(projTgtLangs)}`
                 : '<span style="color:#94a3b8; font-size:0.8rem;">—</span>';
-            tr.innerHTML = `
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="project-row-cb" data-id="${p.id}"></td>
+            const idAttr = String(p.id).replace(/"/g, '&quot;');
+            if (translatorColMode) {
+                tr.innerHTML = `
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;">${idx + 1}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;">
-                    <button class="link-btn resource-name" data-id="${p.id}" style="background:none;border:none;padding:0;color:var(--primary-color);cursor:pointer;text-decoration:underline;">${nameEsc}</button>
+                    <button class="link-btn resource-name" data-id="${idAttr}" style="background:none;border:none;padding:0;color:var(--primary-color);cursor:pointer;text-decoration:underline;">${nameEsc}</button>
+                </td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${projLangHtml}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.85rem; color:#64748b;">${new Date(p.lastModified || p.createdAt).toLocaleString()}</td>
+            `;
+            } else {
+                tr.innerHTML = `
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="project-row-cb" data-id="${idAttr}"></td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;">${idx + 1}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0;">
+                    <button class="link-btn resource-name" data-id="${idAttr}" style="background:none;border:none;padding:0;color:var(--primary-color);cursor:pointer;text-decoration:underline;">${nameEsc}</button>
                 </td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${projLangHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.85rem; color:#64748b;">${new Date(p.lastModified || p.createdAt).toLocaleString()}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; white-space:nowrap;">
-                    <button class="secondary-btn btn-sm rename-btn" data-id="${p.id}" data-name="${(p.name || '').replace(/"/g, '&quot;')}">更名</button>
+                    <button class="secondary-btn btn-sm rename-btn" data-id="${idAttr}" data-name="${(p.name || '').replace(/"/g, '&quot;')}">更名</button>
                 </td>
             `;
+            }
             projectsTableBody.appendChild(tr);
             });
             syncProjectsSelectAllLabel();
@@ -3197,13 +3270,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 openProjectDetail(id);
             });
         });
-            projectsTableBody.querySelectorAll('.rename-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const id = parseId(btn.getAttribute('data-id'));
-                    const name = (btn.getAttribute('data-name') || '').replace(/&quot;/g, '"');
-                    openNamingModal('renameProject', '專案更名', '新專案名稱', id, name);
-            });
-        });
+            if (!translatorColMode) {
+                projectsTableBody.querySelectorAll('.rename-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const id = parseId(btn.getAttribute('data-id'));
+                        const name = (btn.getAttribute('data-name') || '').replace(/&quot;/g, '"');
+                        openNamingModal('renameProject', '專案更名', '新專案名稱', id, name);
+                    });
+                });
+            }
         }
 
         if (projectsChangeLog) {
@@ -3226,6 +3301,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
+        _refreshTranslatorProjectsTableChrome();
     }
 
     if (projectsTableBody) {
