@@ -29,6 +29,13 @@
 - **Slack 承接／無法承接**：譯者於個人檔案可編輯預設文案（欄位 `profiles.slack_message_defaults`，migration `20260324120000_profiles_slack_message_defaults.sql`）；部署後請 `supabase db push`。行為見 [SLACK_SETUP.md](./SLACK_SETUP.md)。
 - **Supabase 不健康／連線池滿／Auth 504**：見 [SUPABASE_HEALTH_RUNBOOK.md](./SUPABASE_HEALTH_RUNBOOK.md)；`profiles` 欄位 **`receive_translator_case_reply_slack_dms`**（**dms**）請與 [`src/lib/profile-columns.ts`](../src/lib/profile-columns.ts) 一致，勿拼成 `...slack_cms`。
 
+## CAT：團隊模式原始檔（Storage）
+
+- **存放位置**：Supabase Storage bucket **`cat-original-files`**（private），物件路徑 **`{project_id}/{file_id}/original`**。
+- **行為摘要**：列表 RPC **不**再帶出巨大 **`original_file_base64`**；開單檔時由父頁 RPC 自 Storage 取檔後再餵給 iframe 內既有 hydrate（詳見 [`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)）。
+- **完整過程、migration、`db push` 曲折、驗收數字與後續可選步驟**：見 [incident-report_2026-05-01_rls-and-db-load.md](./incident-report_2026-05-01_rls-and-db-load.md)。
+- **回填既有資料**（僅需做一次／新環境類比）：本機 PowerShell 設定 **`SUPABASE_URL`** 與 **`SUPABASE_SERVICE_ROLE_KEY`**（Dashboard → API → Legacy **`service_role`**），於專案根執行 **`npm run backfill:cat-original-files`**。**金鑰切勿進 Git。**
+
 ## CAT：線上 TB 分頁（online tabs）維運重點
 
 ### 資料模型與升級規則

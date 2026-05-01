@@ -1,6 +1,6 @@
-# 今日診斷與修復報告（2026-05-01）
+# 今日診斷與修復報告（2026-05-01 起）
 
-本文記錄當日對 Supabase／CAT 團隊模式異常的診斷、根本原因、已施加修復與後續建議。
+本文記錄 **Supabase／CAT 團隊模式** 連線與負載問題的診斷、根因、**已落地修復**、**完整處理時間線**，以及**可選的後續步驟**。實作橫跨數日（含 RLS、Storage 搬遷、部署與回填），以本文件為單一匯總。
 
 ---
 
@@ -26,74 +26,102 @@
 
 **修正方向**：將 `auth.uid()` 改為 **`(SELECT auth.uid())`**，讓該值在 statement 層級以 **initplan** 方式評估（每個 statement 通常只算一次），大幅降低每列重複呼叫的成本。
 
-### B. `cat_files.original_file_base64` 大欄位（次要；尚未搬遷）
+### B. `cat_files.original_file_base64` 大欄位（次要；**已於 2026-05 搬遷至 Storage**）
 
-- `public.cat_files` 以 **`original_file_base64 text`** 直接存放原始檔案的 base64 字串（見 migration [`supabase/migrations/20260415133000_cat_cloud_core.sql`](../supabase/migrations/20260415133000_cat_cloud_core.sql)）
-- 當時資料量約 **46 筆**，合計約 **19 MB** 級別的大文字留在 Postgres 內
-- 列表類 RPC（例如 `getFiles`、`getRecentFiles`）若 SELECT 帶出該欄，會造成 **網路傳輸與序列化負擔** 明顯放大
-- 前端團隊模式在 [`cat-tool/db.js`](../cat-tool/db.js) 透過 **`hydrateFile`** 將 `originalFileBase64` 還原為 **`originalFileBuffer`**（`base64ToAb`），再供匯出等功能使用
+- `public.cat_files` 曾以 **`original_file_base64 text`** 直接存放原始檔案的 base64 字串（見 migration [`supabase/migrations/20260415133000_cat_cloud_core.sql`](../supabase/migrations/20260415133000_cat_cloud_core.sql)）
+- 當時資料量約 **40～46 筆** 級別，合計約 **十餘 MB** 的大文字留在 Postgres 內
+- 列表類 RPC（例如 `getFiles`、`getRecentFiles`）若 `SELECT *` 帶出該欄，會造成 **網路傳輸與序列化負擔** 明顯放大
+- 團隊模式資料流：iframe 內 CAT 透過 `postMessage` 呼叫父頁 [`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)（`handleCatCloudRpc`），再以使用者的 Supabase 工作階段存取 PostgREST／Storage
+- 前端 [`cat-tool/db.js`](../cat-tool/db.js) 的 **`hydrateFile`** 仍依 **`originalFileBase64`** 還原 **`originalFileBuffer`**；**單檔開啟**時由 RPC 自 Storage 下載後填回 base64，列表則不再下載大 payload
 
 ```mermaid
 flowchart LR
-    subgraph now [現況]
-        A[前端 getFiles] -->|RPC| B[Supabase DB]
-        B -->|傳回含 base64 的整筆資料| A
-        B -->|每 row 呼叫 auth.uid| C[RLS 評估 N 次]
+    subgraph before [修復前]
+        A1[getFiles] -->|RPC| B1[Postgres]
+        B1 -->|每列含巨大 base64| A1
+        B1 -->|每列重算 auth.uid| C1[RLS 高成本]
     end
     subgraph after [修復後]
-        D[前端 getFiles] -->|RPC| E[Supabase DB]
-        E -->|整個 statement 只呼叫一次 auth.uid| F[initplan RLS]
-        E -->|只傳 path 檔案從 Storage 取| D
+        A2[getFiles] -->|RPC| B2[Postgres]
+        B2 -->|僅 metadata 加 path| A2
+        B2 -->|initplan RLS| C2[單次評估 auth.uid]
+        A3[getFile] -->|RPC| D3[Storage 下載]
+        D3 -->|再組 base64 供 hydrate| A3
     end
 ```
 
-說明：圖中「修復後」同時包含 **RLS 已修復** 與 **Storage 搬遷完成後** 的理想狀態；目前 **Storage 搬遷尚未執行**。
+**圖示說明**：**RLS** 與 **列表不帶 base64** 兩者皆已落地；**`getFile`** 路徑改為依 **`original_file_path`** 從 **bucket `cat-original-files`** 取檔後再餵給既有 hydrate 邏輯。
 
 ---
 
-## 3. 今日已完成的修復
+## 3. 完整處理時間線（對話／實作摘要）
+
+以下為依序發生之重點（非逐句聊天紀錄）：
+
+1. **診斷**：將 **`PGRST003`／504** 與 **連線池／DB 過載** 連結；區分 **RLS 每列成本** 與 **`cat_files` 大欄位** 兩類根因。
+2. **RLS migration**：[`supabase/migrations/20260502140000_rls_initplan_fix.sql`](../supabase/migrations/20260502140000_rls_initplan_fix.sql) 納入版控，後續與其他 migration 一併 **`supabase db push`** 套至正式庫。
+3. **初版文件**：建立本 incident 報告（僅含症狀、根因、RLS 與「Storage 建議」草稿）。
+4. **CAT 原始檔 → Storage（程式與 schema）**  
+   - Migration [`supabase/migrations/20260503120000_cat_original_files_storage.sql`](../supabase/migrations/20260503120000_cat_original_files_storage.sql)：bucket **`cat-original-files`**（private）、`cat_files.original_file_path`、**`storage.objects`** 之 authenticated 讀寫刪政策。  
+   - [`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)：`db.createFile` 預先產生 `fileId` 並上傳 Storage；`db.getFiles`／`db.getRecentFiles` 改為**精簡欄位**（不 SELECT `original_file_base64`）；`db.getFile` 若有 path 則 **download** 後組 **base64**（含舊資料 fallback）；`db.updateFile`／`db.deleteFile`／`db.deleteProject` 連動 **刪除／覆寫 Storage 物件**。  
+   - 回填腳本 [`scripts/backfill-cat-original-files.mjs`](../scripts/backfill-cat-original-files.mjs) 與 **`npm run backfill:cat-original-files`**（需 **`SUPABASE_SERVICE_ROLE_KEY`**，見下文）。
+5. **`supabase db push` 曲折**  
+   - 正式庫 **`schema_migrations`** 中有本地缺少檔名的版本 → 補占位檔 [`20260429234626_remote_history_placeholder.sql`](../supabase/migrations/20260429234626_remote_history_placeholder.sql)、[`20260430205338_remote_history_placeholder.sql`](../supabase/migrations/20260430205338_remote_history_placeholder.sql)（僅對齊歷史，不重複語意 DDL）。  
+   - 另有「本地有、遠端尚未套用」之版本時間序早於遠端最後一筆 → 使用 **`supabase db push --include-all`**。  
+   - [`supabase/migrations/20260502130000_perf_indexes.sql`](../supabase/migrations/20260502130000_perf_indexes.sql)：**由 `CREATE INDEX CONCURRENTLY` 改為一般 `CREATE INDEX IF NOT EXISTS`**，以便在 **單一 transaction** 內套用；若索引已存在，Postgres 可能出現 **`already exists, skipping`** 之 NOTICE，屬預期。
+6. **前端部署**：Vercel **Production**（專案 **`talk-hanzi-joy`**）。本機 **`vercel deploy`** 產生 **`.vercel/`** 連結目錄 → 已加入根目錄 [`.gitignore`](../.gitignore)，避免誤提交。
+7. **回填與驗收**  
+   - 於本機 **PowerShell** 設定 **`SUPABASE_URL`** 與 **`SUPABASE_SERVICE_ROLE_KEY`**（Dashboard → **Project Settings → API** → **Legacy** 分頁之 **`service_role`** JWT；勿與 publishable／`sb_secret_` 混淆）。  
+   - 執行 **`npm run backfill:cat-original-files`**。  
+   - 驗證摘要（正式庫一次抽樣）：**`storage.objects`** 於 **`cat-original-files`** 約 **45** 筆；**`cat_files`** 具 **`original_file_path`** 約 **45** 筆；**非空 `original_file_base64`** **0** 筆。  
+   - 使用者端回報：**CAT 團隊模式列表與開檔正常，且明顯較快**。
+8. **Repo 收尾**：刪除暫存 **`migration_sql.tmp`**；**`.gitignore`** 納入 **`.vercel`** 並推送。
+
+---
+
+## 4. 已完成修復總表
+
+| 軌道 | 內容 | 狀態 |
+|------|------|------|
+| **RLS initplan** | [`20260502140000_rls_initplan_fix.sql`](../supabase/migrations/20260502140000_rls_initplan_fix.sql)：`auth.uid()` → **`(SELECT auth.uid())`** 等 | 已上正式庫、已進版控 |
+| **效能索引** | [`20260502130000_perf_indexes.sql`](../supabase/migrations/20260502130000_perf_indexes.sql)（非 CONCURRENTLY，利於 `db push`） | 已上正式庫 |
+| **其他延宕 migration** | 例如 [`20260430074500_cat_file_assignments_self_insert.sql`](../supabase/migrations/20260430074500_cat_file_assignments_self_insert.sql)、[`20260501140000_cat_projects_question_form_columns.sql`](../supabase/migrations/20260501140000_cat_projects_question_form_columns.sql) 等，經 **`db push --include-all`** 補齊 | 已上正式庫 |
+| **CAT 原始檔 Storage** | [`20260503120000_cat_original_files_storage.sql`](../supabase/migrations/20260503120000_cat_original_files_storage.sql) + [`cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts) + 回填腳本 + 正式站部署 | 已上線並驗收 |
+
+**RLS** 修復可在 DB 端生效；**Storage** 軌道需 **migration + 前端部署 + 回填** 三者完成後，列表才能真正「變輕」。
+
+---
+
+## 5. 影響評估（使用者視角）
+
+| 項目 | 影響 |
+|------|------|
+| RLS initplan | 通常無需停機；降低 DB CPU 與 policy 成本，緩解連線池壓力 |
+| CAT 原始檔改 Storage | 列表 RPC **payload 大減**；開單檔時多一次 Storage 讀取（實測仍較原「每列帶 base64」流暢） |
+| `db push --include-all` 與占位 migration | 修正 **本地／遠端 migration 歷史不一致**；新環境請勿隨意刪除占位檔名 |
+
+---
+
+## 6. 潛在後續步驟（可選、待時機）
+
+以下 **非必須立即執行**；請在業務低風險窗口與備份習慣下進行。
 
 | 項目 | 說明 |
 |------|------|
-| Migration | [`supabase/migrations/20260502140000_rls_initplan_fix.sql`](../supabase/migrations/20260502140000_rls_initplan_fix.sql) |
-| 內容 | 將既有多張表的 RLS policy 中 **`auth.uid()`**（及相關巢狀呼叫）改為 **`(SELECT auth.uid())`** 等形式，涵蓋 **`cat_files`、`cat_segments`、`cat_projects`、`cat_ai_*`** 等 CAT 表及業務表 |
-| 狀態 | 已套用至正式資料庫；變更已納入版控 |
-
-修復效果預期：**降低 DB CPU 與 RLS 開銷**，有助緩解 **連線池逾時** 與 **504** 連鎖現象；**不需**依賴前端部署即可在資料庫端生效。
+| **`DROP COLUMN original_file_base64`** | 正式庫已無非空 base64、且線上穩定一段時間後，可新增 migration **刪除欄位** 以回收空間。屆時應再檢視 [`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts) 是否仍寫入／讀取該欄，並更新 [`src/integrations/supabase/types.ts`](../src/integrations/supabase/types.ts) 等型別；可一併簡化 fallback 分支。 |
+| **Storage 孤兒物件** | 若曾使用 **舊版** 刪檔／刪專案路徑而未清 Storage，理論上可能有殘留物件；屬 **低優先** 清理，可定期比對 **`cat_files.original_file_path`** 與 **`storage.objects`**。 |
+| **監控與容量** | 持續依 [`SUPABASE_HEALTH_RUNBOOK.md`](SUPABASE_HEALTH_RUNBOOK.md) 觀察連線池、慢查詢、**Storage 與 DB 磁碟**用量。 |
 
 ---
 
-## 4. 後續建議（尚未執行）
+## 7. 相關檔案索引
 
-### `original_file_base64` → Supabase Storage 搬遷（三階段）
-
-1. **階段一 — 雙寫／回填**  
-   - 建立 Storage bucket 與存取策略（依專案慣例與 RLS／signed URL 設計）  
-   - 將既有 `original_file_base64` 解碼後上傳，並寫入新欄位（例如 **`original_file_path`** 或等價設計）
-
-2. **階段二 — 應用程式切換讀寫**  
-   - 更新雲端 RPC 與 [`cat-tool/db.js`](../cat-tool/db.js)：`createFile`、`updateFile`、`getFile(s)`／`hydrateFile` 等路徑改為 **以 path／URL 取得檔案內容**，避免列表查詢一律帶出巨大 payload  
-   - 依 [`AGENTS.md`](../AGENTS.md)／[`cat-tool/README.md`](../cat-tool/README.md)：僅改 **`cat-tool/`**，完成後執行 **`npm run sync:cat`** 並一併提交 `public/cat`
-
-3. **階段三 — 收斂 schema**  
-   - 確認無客戶端／無 RPC 再讀取 `original_file_base64` 後，再以 migration **`DROP COLUMN`** 移除該欄，回收空間與簡化 SELECT
-
-**執行時機**：建議 **離峰**；46 筆規模下搬移本體通常可在 **數分鐘** 量級完成，但仍應備份與演練回滾。
-
----
-
-## 5. 影響評估
-
-| 修復項目 | 對使用者的影響 |
-|----------|----------------|
-| RLS initplan 修復（已完成） | 通常 **無需停機**； policy 更新後 **立即** 降低資料庫端負載 |
-| Storage 搬遷（待執行） | 需 **程式＋schema 協調部署**；切換瞬間可能有極短窗口的相容風險，建議低峰與驗收清單 |
-
----
-
-## 6. 相關檔案索引
-
-- [`supabase/migrations/20260502140000_rls_initplan_fix.sql`](../supabase/migrations/20260502140000_rls_initplan_fix.sql) — RLS initplan 修正
-- [`supabase/migrations/20260415133000_cat_cloud_core.sql`](../supabase/migrations/20260415133000_cat_cloud_core.sql) — `cat_files.original_file_base64` 欄位定義
-- [`cat-tool/db.js`](../cat-tool/db.js) — 團隊模式 `hydrateFile`、`abToBase64`、`base64ToAb`、檔案 RPC 包裝（約 L1366–1438）
-- [`docs/SUPABASE_HEALTH_RUNBOOK.md`](SUPABASE_HEALTH_RUNBOOK.md) — 連線池、`PGRST003`、504 排查
+- [`supabase/migrations/20260502140000_rls_initplan_fix.sql`](../supabase/migrations/20260502140000_rls_initplan_fix.sql) — RLS initplan  
+- [`supabase/migrations/20260502130000_perf_indexes.sql`](../supabase/migrations/20260502130000_perf_indexes.sql) — 索引（可於 transaction 內套用）  
+- [`supabase/migrations/20260503120000_cat_original_files_storage.sql`](../supabase/migrations/20260503120000_cat_original_files_storage.sql) — bucket、`original_file_path`、Storage policies  
+- [`supabase/migrations/20260429234626_remote_history_placeholder.sql`](../supabase/migrations/20260429234626_remote_history_placeholder.sql)、[`20260430205338_remote_history_placeholder.sql`](../supabase/migrations/20260430205338_remote_history_placeholder.sql) — 與正式庫 migration 歷史對齊  
+- [`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts) — 團隊模式 RPC／Storage 連動  
+- [`scripts/backfill-cat-original-files.mjs`](../scripts/backfill-cat-original-files.mjs) — 一次性回填（service role）  
+- [`cat-tool/db.js`](../cat-tool/db.js) — `hydrateFile`、團隊模式 RPC 包裝（無須因 Storage 改路徑而必改，除非欲支援「僅 path、前端再拉檔」）  
+- [`supabase/migrations/20260415133000_cat_cloud_core.sql`](../supabase/migrations/20260415133000_cat_cloud_core.sql) — 原始 `original_file_base64` 欄位定義  
+- [`docs/SUPABASE_HEALTH_RUNBOOK.md`](SUPABASE_HEALTH_RUNBOOK.md) — 連線池、`PGRST003`、504  
