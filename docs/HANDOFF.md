@@ -287,7 +287,7 @@
 
 | 項目 | 摘要 |
 |------|------|
-| **搜尋導覽** | `runSearchAndFilter` 結尾不再自動搶焦點；計數為 `— / n`。上一個／下一個（及 **F3**／**Shift+F3**）依真選取或假游標錨點在文件中找下一／上一命中，`applySearchMatchNavigationFocus` 於可編輯欄 **選取反白**該 `mark`。 |
+| **搜尋導覽** | `runSearchAndFilter` 結尾不再自動搶焦點；計數為 `— / n`。上一個／下一個（及 **F3**／**Shift+F3**）依真選取、假游標、或（焦點在搜尋列／導覽按鈕時）**目前高亮 `mark`** 為錨找下一／上一命中。**原文／額外／Key** 命中時亦對該 `mark` **選取並 `focus` 宿主格**（`tabIndex=-1`），避免選取留在譯文導致再按「下一個」卡住；`isSfNavAnchorUiActive` 涵蓋 `#btnSfPrev`／`#btnSfNext`／`#btnSfClearNav`，與 `isSfSearchControlActive` 分開以免抑制 `scrollIntoView`。 |
 | **取代這個** | 譯文格內正在命中 mark 上則取代該次 occurrence；否則自錨點找下一譯文命中。取代後跳到下一譯文命中；已移除句尾 `focus/blur` 假游標路徑。 |
 | **F4 全部取代** | （先前）不清篩選、可選回到暫存游標。 |
 | **非列印空格（np-inline-char）** | 見「近期已落地變更紀錄」表；`extractTextFromEditor`、搜尋高亮對應、`countEditorChars` 等已將 wrapper 內文字納入線性順序。 |
@@ -303,6 +303,7 @@
 ### 搜尋／取代語意（文件備忘）
 
 - **輸入搜尋字重繪**：只更新高亮與 `— / 總數`，不變更使用中命中索引與焦點。
+- **全域命中順序（`sfSearchMatches`）**：同一列內為 **原文 → 額外資訊 → 譯文 → Key0 → Key1 → …**；`collectSearchMatchesFromExistingRowMarks` 與完整重畫路徑一致。
 - **取代這個**：與「下一個譯文命中」共用錨點；命中選取時取代該 DOM mark 對應之第 k 次字面 occurrence（`replaceOccurrenceInPlain`）。
 
 ### 待定案事項（游標／焦點；尚未實作）

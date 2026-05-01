@@ -10434,6 +10434,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         return false;
     }
 
+    /** 導覽錨點用：含上一個／下一個按鈕（焦點在按鈕時須沿用 sfActiveMatchIdx，勿用過期選取）。不併入 isSfSearchControlActive，以免抑制 scrollIntoView。 */
+    function isSfNavAnchorUiActive() {
+        if (isSfSearchControlActive()) return true;
+        const ae = document.activeElement;
+        if (!ae) return false;
+        const id = ae.id;
+        return id === 'btnSfPrev' || id === 'btnSfNext' || id === 'btnSfClearNav';
+    }
+
     function buildHighlightSignature(highlightRequests) {
         if (!highlightRequests || highlightRequests.length === 0) return '';
         return highlightRequests.map((req) => {
@@ -10456,19 +10465,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             });
         }
-        const tgtEd = row.querySelector('.grid-textarea');
-        if (tgtEd) {
-            tgtEd.querySelectorAll('mark.search-match').forEach((m) => {
-                sfSearchMatches.push({
-                    markEl: m,
-                    rowEl: row,
-                    isTextarea: true,
-                    textareaEl: tgtEd,
-                    segIdx: segIdx,
-                    fieldKey: 'target'
-                });
-            });
-        }
         const extra = row.querySelector('.col-extra');
         if (extra) {
             extra.querySelectorAll('mark.search-match').forEach((m) => {
@@ -10479,6 +10475,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                     textareaEl: null,
                     segIdx: segIdx,
                     fieldKey: 'extra'
+                });
+            });
+        }
+        const tgtEd = row.querySelector('.grid-textarea');
+        if (tgtEd) {
+            tgtEd.querySelectorAll('mark.search-match').forEach((m) => {
+                sfSearchMatches.push({
+                    markEl: m,
+                    rowEl: row,
+                    isTextarea: true,
+                    textareaEl: tgtEd,
+                    segIdx: segIdx,
+                    fieldKey: 'target'
                 });
             });
         }
@@ -10745,7 +10754,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const s = catFakeCaret.getSaved();
             if (s && s.range && s.editor && document.body.contains(s.editor)) return fromRange(s.range);
         }
-        if (isSfSearchControlActive() && sfActiveMatchIdx >= 0 && sfSearchMatches[sfActiveMatchIdx]) {
+        if (isSfNavAnchorUiActive() && sfActiveMatchIdx >= 0 && sfSearchMatches[sfActiveMatchIdx]) {
             const m = sfSearchMatches[sfActiveMatchIdx];
             const r = document.createRange();
             if (collapseToEnd) {
@@ -10848,8 +10857,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                 hideCatFakeCaret();
             } catch (_) {}
             if (!isSfSearchControlActive()) match.rowEl.scrollIntoView({ behavior, block: 'center' });
-        } else if (!isSfSearchControlActive()) {
-            match.rowEl.scrollIntoView({ behavior, block: 'center' });
+        } else {
+            try {
+                const inner = document.createRange();
+                inner.selectNodeContents(match.markEl);
+                const sel = window.getSelection();
+                if (sel) {
+                    sel.removeAllRanges();
+                    sel.addRange(inner);
+                }
+                if (host) {
+                    host.tabIndex = -1;
+                    host.focus({ preventScroll: true });
+                }
+                hideCatFakeCaret();
+            } catch (_) {}
+            if (!isSfSearchControlActive()) match.rowEl.scrollIntoView({ behavior, block: 'center' });
         }
         sfLastFocusedMatchSegIdx = Number.isFinite(match.segIdx) ? match.segIdx : null;
     }
