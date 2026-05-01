@@ -269,12 +269,19 @@
 - 手動刪空格的 `keydown` 攔截只在 `show-non-print` 模式下生效，一般模式不受影響。
 - 衝突 toast 顯示後，使用者需回到該句段重新確認；衝突路徑已移除原本的 `alert()` 阻斷彈窗。
 - `isConfirming = true` 必須在 `focusTargetEditorAtSegmentIndex`（觸發 blur）之前設好，以確保 blur handler 的 `wasConfirming` 能正確取到 `true`，防止 blur 重複寫庫。
+- `clearTimeout(targetDebounceTimer)` 無法取消已開始執行的 debounce async 寫庫；與確認鏈並行時可能造成句段 revision 競態（單人亦可能發生）。規劃與修正 phase 見 [CAT_SEGMENT_REVISION_CONFLICT_PLAN.md](./CAT_SEGMENT_REVISION_CONFLICT_PLAN.md)。
 
 ## CAT：編輯器待修清單（2026-05-01 更新）
 
 維護時以 [`cat-tool/app.js`](../cat-tool/app.js) 為主，樣式見 [`cat-tool/style.css`](../cat-tool/style.css)，改後依 [`AGENTS.md`](../AGENTS.md) 執行 `npm run sync:cat` 並一併提交 `public/cat`。
 
 文中 **待定案（游標／焦點）** 將於優先處理其他議題後再接；已定稿之落地變更見下「近期已落地變更紀錄」與「已落地」表格。
+
+### 規劃中（句段 revision／確認衝突）
+
+| 項目 | 說明 |
+|------|------|
+| **句段 revision 並行寫庫衝突** | 方案 B 下，譯文 debounce 與 Ctrl+Enter 確認鏈可能對同一句並行呼叫 `applyUpdateSegmentTarget`，帶相同預期 revision，後到請求被樂觀鎖拒絕而出現「伺服器版本較新」toast。與方案 B 並存時建議依 [CAT_SEGMENT_REVISION_CONFLICT_PLAN.md](./CAT_SEGMENT_REVISION_CONFLICT_PLAN.md) 分 Phase 落地（優先 Phase A+B）。 |
 
 **假游標模組**：[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)；`app.js` 薄封裝含 `restoreOrShowFakeCatCaret`、`setSavedCaret`（經 `moveCaretToEndAndShowFakeInTarget` 等呼叫）。
 
