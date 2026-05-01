@@ -890,37 +890,91 @@ document.addEventListener('DOMContentLoaded', async () => {
      * - clear：清除 targetText 及 targetTags
      */
     /**
+     * 同一句 `applyUpdateSegmentTarget` 串行化（Phase A），避免 debounce 與確認等路徑並行帶同一預期 revision。
+     * Map 值為「尾端 Promise」，成功或失敗皆須前進鏈結，故以 `.then(()=>{},()=>{})` 吞錯接續。
+     */
+    const segmentTargetWriteTails = new Map();
+
+    /** 確認寫庫前 await：與 debounce 已啟動、無法被 clearTimeout 取消的寫庫銜接（Phase B）。 */
+    function awaitPendingSegmentTargetWritesForSeg(segId) {
+        if (segId == null) return Promise.resolve();
+        const t = segmentTargetWriteTails.get(String(segId));
+        return t || Promise.resolve();
+    }
+
+    /** 團隊模式 revision 衝突後自 DB 回填 `seg.segmentRevision`（Phase C 重試前）。 */
+    async function hydrateSegmentRevisionFromDb(seg) {
+        if (!currentFileId || !seg || seg.id == null) return false;
+        try {
+            const all = await DBService.getSegmentsByFile(currentFileId);
+            const fresh = Array.isArray(all) ? all.find(s => String(s.id) === String(seg.id)) : null;
+            if (!fresh) return false;
+            if (typeof fresh.segmentRevision === 'number' && !Number.isNaN(fresh.segmentRevision)) {
+                seg.segmentRevision = fresh.segmentRevision;
+            }
+            return true;
+        } catch (e) {
+            console.error('[cat-revision] hydrate revision failed', e, seg.id);
+            return false;
+        }
+    }
+
+    /**
      * Team 雲端寫庫帶 `segmentRevision` 樂觀鎖；成功回寫 `seg.segmentRevision`。
      * 衝突時擲出 `code === 'SEGMENT_REVISION_CONFLICT'`（debounce 可靜默丟棄）。
+     * 團隊模式 revision 衝突時會自 DB 刷新 revision 後重試一次（Phase C）。
      */
     async function applyUpdateSegmentTarget(seg, newText, extra = {}) {
         const ex = extra == null || typeof extra !== 'object' ? {} : extra;
-        const r = await DBService.updateSegmentTarget(
-            seg.id,
-            newText,
-            ex,
-            seg.segmentRevision != null && seg.segmentRevision !== undefined ? Number(seg.segmentRevision) : 0
-        );
-        if (r && r.conflict) {
-            if (isCatCollabDebug()) {
-                console.info('[cat-revision] SEGMENT_REVISION_CONFLICT', {
-                    segId: seg.id,
-                    expectedRevision: seg.segmentRevision != null && seg.segmentRevision !== undefined ? Number(seg.segmentRevision) : 0
-                });
+        const key = String(seg.id);
+        const prev = segmentTargetWriteTails.get(key) || Promise.resolve();
+
+        const run = async () => {
+            const doRpc = async () => {
+                const r = await DBService.updateSegmentTarget(
+                    seg.id,
+                    newText,
+                    ex,
+                    seg.segmentRevision != null && seg.segmentRevision !== undefined ? Number(seg.segmentRevision) : 0
+                );
+                if (r && r.conflict) {
+                    if (isCatCollabDebug()) {
+                        console.info('[cat-revision] SEGMENT_REVISION_CONFLICT', {
+                            segId: seg.id,
+                            expectedRevision: seg.segmentRevision != null && seg.segmentRevision !== undefined ? Number(seg.segmentRevision) : 0
+                        });
+                    }
+                    const err = new Error('segment revision conflict');
+                    err.code = 'SEGMENT_REVISION_CONFLICT';
+                    throw err;
+                }
+                if (r && typeof r.newSegmentRevision === 'number' && !Number.isNaN(r.newSegmentRevision)) {
+                    seg.segmentRevision = r.newSegmentRevision;
+                } else if (isCatCollabDebug() && r && r.conflict !== true) {
+                    console.warn('[cat-revision] update ok but missing newSegmentRevision', { segId: seg.id, r });
+                }
+                if (isCatCollabDebug() && r && r.conflict !== true) {
+                    console.info('[cat-revision] ok', { segId: seg.id, segmentRevision: seg.segmentRevision });
+                }
+                return r;
+            };
+
+            try {
+                return await doRpc();
+            } catch (err) {
+                if (err && err.code === 'SEGMENT_REVISION_CONFLICT' && isTeamMode()) {
+                    const ok = await hydrateSegmentRevisionFromDb(seg);
+                    if (ok) {
+                        return await doRpc();
+                    }
+                }
+                throw err;
             }
-            const err = new Error('segment revision conflict');
-            err.code = 'SEGMENT_REVISION_CONFLICT';
-            throw err;
-        }
-        if (r && typeof r.newSegmentRevision === 'number' && !Number.isNaN(r.newSegmentRevision)) {
-            seg.segmentRevision = r.newSegmentRevision;
-        } else if (isCatCollabDebug() && r && r.conflict !== true) {
-            console.warn('[cat-revision] update ok but missing newSegmentRevision', { segId: seg.id, r });
-        }
-        if (isCatCollabDebug() && r && r.conflict !== true) {
-            console.info('[cat-revision] ok', { segId: seg.id, segmentRevision: seg.segmentRevision });
-        }
-        return r;
+        };
+
+        const p = prev.then(() => run());
+        segmentTargetWriteTails.set(key, p.then(() => {}, () => {}));
+        return p;
     }
     async function applySegmentTextOp(seg, rowEl, op) {
         if (!seg || isTargetWriteProtected(seg)) return;
@@ -11892,8 +11946,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, 3000);
     }
 
-    /** 確認句段寫庫衝突後樂觀還原並通知使用者。 */
-    function _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked) {
+    /**
+     * 確認句段寫庫失敗後樂觀還原並通知使用者。
+     * @param {'revision'|'other'} failureKind — revision：樂觀鎖衝突；other：連線／伺服器等其他錯誤（Phase D）
+     */
+    function _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked, failureKind = 'revision') {
         seg.status = 'unconfirmed';
         if (statusIcon) {
             statusIcon.classList.remove('done');
@@ -11902,7 +11959,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!effectiveLocked) syncRowConfirmedStateClass(row, seg);
         updateProgress();
         const label = seg.globalId || (seg.rowIdx != null ? seg.rowIdx + 1 : '?');
-        showCatToast(`第 ${label} 句確認失敗：伺服器版本較新，請重新確認`, 'error');
+        const msg = failureKind === 'other'
+            ? `第 ${label} 句確認失敗：連線或伺服器異常，請稍後再試`
+            : `第 ${label} 句確認失敗：伺服器版本較新，請重新確認`;
+        showCatToast(msg, 'error');
     }
 
     function getAfterConfirmNavMode() {
@@ -14061,16 +14121,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                             enqueueConfirmSideEffects(async () => {
                                 try {
+                                    await awaitPendingSegmentTargetWritesForSeg(seg.id);
                                     // 先寫譯文（含衝突偵測），失敗時樂觀還原 UI
                                     try {
                                         await applyUpdateSegmentTarget(seg, latestTarget);
                                         emitCollabEdit('commit', seg, latestTarget);
                                     } catch (err) {
                                         if (err && err.code === 'SEGMENT_REVISION_CONFLICT') {
-                                            _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked);
+                                            _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked, 'revision');
                                         } else {
                                             console.error('[確認寫庫失敗]', err, seg.id);
-                                            _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked);
+                                            _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked, 'other');
                                         }
                                         return;
                                     }
@@ -14232,15 +14293,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                             enqueueConfirmSideEffects(async () => {
                                 try {
+                                    await awaitPendingSegmentTargetWritesForSeg(seg.id);
                                     try {
                                         await applyUpdateSegmentTarget(seg, latestTarget);
                                         emitCollabEdit('commit', seg, latestTarget);
                                     } catch (err) {
                                         if (err && err.code === 'SEGMENT_REVISION_CONFLICT') {
-                                            _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked);
+                                            _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked, 'revision');
                                         } else {
                                             console.error('[狀態圖示確認寫庫失敗]', err, seg.id);
-                                            _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked);
+                                            _revertConfirmAndToast(seg, row, statusIcon, effectiveLocked, 'other');
                                         }
                                         return;
                                     }

@@ -1,8 +1,15 @@
 # CAT 句段 revision 衝突：規劃與修正方向
 
-**狀態**：規劃中（尚未實作程式變更）。
+**狀態**：Phase A–D 已於 [`cat-tool/app.js`](../cat-tool/app.js) 落地（改後請 `npm run sync:cat`）；行為說明見下「實作摘要」。
 
 **相關既有設計**：編輯器「確認跳行」採 **方案 B**（先更新 UI、後台再寫庫），見 [HANDOFF.md](./HANDOFF.md)「CAT：編輯器非列印字元、IME、確認跳行修復（2026-04-30）」。本文件說明與方案 B 並存時，為何仍會出現「伺服器版本較新」類 toast，以及建議的修正 phase（**不**要求放棄立即回饋）。
+
+### 實作摘要（2026-05-01）
+
+- **A**：`segmentTargetWriteTails` 對每句 `applyUpdateSegmentTarget` 串行化（鏈結尾 promise 吞錯以維持順序）。
+- **B**：`enqueueConfirmSideEffects` 內先 `await awaitPendingSegmentTargetWritesForSeg(seg.id)`，與已啟動之 debounce 寫庫銜接。
+- **C**：團隊模式下首次 `SEGMENT_REVISION_CONFLICT` 後 `hydrateSegmentRevisionFromDb` 再重送 RPC 一次（同次呼叫內）。
+- **D**：`_revertConfirmAndToast(..., 'revision'|'other')` 區分樂觀鎖與其他錯誤文案。
 
 ---
 
@@ -105,3 +112,4 @@ sequenceDiagram
 | 日期 | 說明 |
 |------|------|
 | 2026-05-01 | 初稿：規劃文件與 HANDOFF／CODEMAP 索引 |
+| 2026-05-01 | 落地 Phase A–D 於 `cat-tool/app.js`，並補本節實作摘要 |

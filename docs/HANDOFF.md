@@ -277,11 +277,11 @@
 
 文中 **待定案（游標／焦點）** 將於優先處理其他議題後再接；已定稿之落地變更見下「近期已落地變更紀錄」與「已落地」表格。
 
-### 規劃中（句段 revision／確認衝突）
+### 句段 revision／確認衝突（已落地 Phase A–D）
 
 | 項目 | 說明 |
 |------|------|
-| **句段 revision 並行寫庫衝突** | 方案 B 下，譯文 debounce 與 Ctrl+Enter 確認鏈可能對同一句並行呼叫 `applyUpdateSegmentTarget`，帶相同預期 revision，後到請求被樂觀鎖拒絕而出現「伺服器版本較新」toast。與方案 B 並存時建議依 [CAT_SEGMENT_REVISION_CONFLICT_PLAN.md](./CAT_SEGMENT_REVISION_CONFLICT_PLAN.md) 分 Phase 落地（優先 Phase A+B）。 |
+| **句段 revision 並行寫庫衝突** | 方案 B 下曾發生 debounce 與確認鏈並行寫同句。已於 [`cat-tool/app.js`](../cat-tool/app.js) 串行化寫庫、確認前 flush、團隊模式衝突後重試一次、確認失敗 toast 分 revision／其他錯誤。細節見 [CAT_SEGMENT_REVISION_CONFLICT_PLAN.md](./CAT_SEGMENT_REVISION_CONFLICT_PLAN.md)。 |
 
 **假游標模組**：[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)；`app.js` 薄封裝含 `restoreOrShowFakeCatCaret`、`setSavedCaret`（經 `moveCaretToEndAndShowFakeInTarget` 等呼叫）。
 
