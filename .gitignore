@@ -40,3 +40,5 @@ scripts/profiles-migrate-users.csv
 
 # 本機預覽／臨時 HTML（勿進 Git）
 downloads/
+
+.vercel
