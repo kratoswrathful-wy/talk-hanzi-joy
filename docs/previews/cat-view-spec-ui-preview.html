@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>句段集（View）介面預覽 — CAT_VIEW_SPEC（2026-05-02）</title>
+  <style>
+    :root {
+      --bg: #f1f5f9;
+      --card: #fff;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --muted: #64748b;
+      --sidebar: #1e293b;
+      --sidebar-text: #f1f5f9;
+      --accent: #4f46e5;
+      --accent-soft: #e0e7ff;
+      --success: #16a34a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Microsoft JhengHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+      font-size: 15px;
+    }
+    header.top {
+      background: var(--sidebar);
+      color: var(--sidebar-text);
+      padding: 0.75rem 1.25rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    header.top h1 { margin: 0; font-size: 1.05rem; font-weight: 600; }
+    header.top .sub { font-size: 0.78rem; opacity: 0.85; font-weight: 400; }
+    nav.toc {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem 0.75rem;
+      font-size: 0.82rem;
+    }
+    nav.toc a { color: #a5b4fc; }
+    nav.toc a:hover { color: #fff; }
+    main { max-width: 1180px; margin: 0 auto; padding: 1rem 1rem 2.5rem; }
+    section.mock {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 1.25rem;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    }
+    section.mock > .head {
+      padding: 0.65rem 1rem;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 0.92rem;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    section.mock > .head span.ref { font-weight: 400; font-size: 0.78rem; color: var(--muted); }
+    section.mock > .body { padding: 1rem; }
+
+    /* §3 專案詳細：分頁 */
+    .tabs {
+      display: inline-flex;
+      gap: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 0.75rem;
+    }
+    .tabs button {
+      padding: 0.45rem 1rem;
+      border: none;
+      background: #fff;
+      cursor: pointer;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+    .tabs button.active {
+      background: var(--accent-soft);
+      color: #3730a3;
+      font-weight: 600;
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* 檔案清單簡表 */
+    table.data {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+    }
+    table.data th, table.data td {
+      border: 1px solid var(--border);
+      padding: 0.45rem 0.55rem;
+      text-align: left;
+    }
+    table.data th { background: #f1f5f9; color: #475569; font-weight: 600; }
+    .filter-summary {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.35;
+      white-space: pre-line;
+    }
+    .file-lines {
+      font-size: 0.82rem;
+      line-height: 1.4;
+      max-width: 280px;
+    }
+    .btn-row { margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 0.4rem 0.85rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    button.secondary {
+      background: #fff;
+      border: 1px solid var(--border);
+      padding: 0.4rem 0.85rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .linkish { color: var(--accent); cursor: pointer; font-size: 0.82rem; margin-right: 0.5rem; }
+
+    /* §5 建立精靈 */
+    .wizard-steps { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; font-size: 0.82rem; color: var(--muted); }
+    .wizard-steps b { color: var(--text); }
+    .preview-grid {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.78rem;
+      overflow: hidden;
+    }
+    .preview-grid .row {
+      display: grid;
+      grid-template-columns: 36px 1fr 1fr 80px;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      align-items: stretch;
+    }
+    .preview-grid .row:last-child { border-bottom: none; }
+    .preview-grid .row.hdr { background: #f1f5f9; font-weight: 600; color: #475569; }
+    .preview-grid .cell { padding: 0.35rem 0.45rem; border-right: 1px solid var(--border); }
+    .preview-grid .cell:last-child { border-right: none; }
+    .badge { font-size: 0.7rem; background: #e2e8f0; padding: 0.1rem 0.35rem; border-radius: 4px; color: #475569; }
+
+    /* §5.2 完整篩選列 mock */
+    .sf-toolbar-mock {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.45rem 0.55rem;
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+      font-size: 0.72rem;
+      color: #475569;
+    }
+    .sf-toolbar-mock .chip {
+      background: #fff;
+      border: 1px solid #cbd5e1;
+      padding: 0.2rem 0.45rem;
+      border-radius: 4px;
+    }
+    .sf-toolbar-mock input.mock-input {
+      width: 120px;
+      padding: 0.15rem 0.35rem;
+      font-size: 0.72rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+    }
+    .preview-grid.preview-grid-ext > .row {
+      display: grid;
+      grid-template-columns: 32px 88px 72px 56px 1fr 1fr 52px 48px;
+      font-size: 0.72rem;
+    }
+    .preview-grid.preview-grid-ext > .row.hdr { background: #f1f5f9; font-weight: 600; color: #475569; }
+
+    /* §6 §12 編輯器 */
+    .editor-shell {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .editor-toolbar-rows {
+      border-bottom: 1px solid var(--border);
+      background: #fff;
+    }
+    .editor-row-title {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.45rem 0.65rem;
+      background: #f8fafc;
+      font-size: 0.88rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .editor-row-title .back {
+      border: none;
+      background: transparent;
+      font-size: 1.1rem;
+      cursor: default;
+      color: #64748b;
+      padding: 0 0.15rem;
+    }
+    .editor-row-title .editor-single-title {
+      font-weight: 600;
+      color: #0f172a;
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .editor-row-actions {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      padding: 0.4rem 0.65rem;
+      font-size: 0.78rem;
+      background: #fff;
+    }
+    .editor-row-actions .ico-strip {
+      color: #64748b;
+      letter-spacing: 0.05em;
+      flex: 1;
+      min-width: 120px;
+    }
+    .editor-row-actions .actions-right {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem;
+      justify-content: flex-end;
+    }
+    .editor-row-actions label.chk {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.78rem;
+      color: #334155;
+      cursor: pointer;
+      user-select: none;
+      margin-right: 0.25rem;
+    }
+    .btn-mock {
+      border: none;
+      border-radius: 5px;
+      padding: 0.28rem 0.55rem;
+      font-size: 0.72rem;
+      cursor: default;
+      color: #fff;
+    }
+    .btn-mock.red { background: #dc2626; }
+    .btn-mock.green { background: #16a34a; }
+    .btn-mock.blue { background: #2563eb; }
+    .btn-mock.teal { background: #0f766e; opacity: 0.35; }
+    .btn-mock.purple { background: #7c3aed; }
+    .toolbar-hint { font-size: 0.68rem; color: var(--muted); }
+    .grid-wrap { display: flex; flex-direction: column; min-height: 180px; max-height: 320px; overflow: auto; }
+    .grid-header {
+      display: grid;
+      grid-template-columns: 40px 72px 1fr 1fr 100px;
+      background: #f1f5f9;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #475569;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      border-bottom: 1px solid var(--border);
+    }
+    .grid-header.has-src-file {
+      grid-template-columns: 40px 72px 100px 1fr 1fr 100px;
+    }
+    .grid-header:not(.has-src-file) {
+      grid-template-columns: 40px 72px 1fr 1fr 100px;
+    }
+    .grid-header span, .grid-row span {
+      padding: 0.35rem 0.45rem;
+      border-right: 1px solid var(--border);
+    }
+    .grid-header span:last-child, .grid-row span:last-child { border-right: none; }
+    .grid-row {
+      display: grid;
+      grid-template-columns: 40px 72px 1fr 1fr 100px;
+      font-size: 0.78rem;
+      border-bottom: 1px solid #e2e8f0;
+      align-items: center;
+    }
+    .grid-row.has-src-file {
+      grid-template-columns: 40px 72px 100px 1fr 1fr 100px;
+    }
+    .grid-row.has-src-file:not(.show-file-col) {
+      grid-template-columns: 40px 72px 1fr 1fr 100px;
+    }
+    .grid-row.sep {
+      background: #e0e7ff;
+      font-weight: 600;
+      color: #3730a3;
+      grid-column: 1 / -1;
+      display: block;
+      padding: 0.35rem 0.5rem;
+      font-size: 0.78rem;
+    }
+    .grid-row.focus { outline: 2px solid #818cf8; outline-offset: -2px; }
+    .col-src-file { display: none; }
+    .editor-shell.show-src-file .col-src-file { display: block; }
+
+    .info-card {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.35rem 0.5rem;
+      font-size: 0.72rem;
+      color: #334155;
+      min-width: 0;
+      max-width: 220px;
+    }
+    .info-card .k { color: var(--muted); font-size: 0.68rem; margin-bottom: 0.12rem; }
+
+    /* §12.1 雙卡與筆記分頁同行 */
+    .notes-panel-mock {
+      border-top: 1px solid var(--border);
+      background: #f8fafc;
+    }
+    .notes-header-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem 0.75rem;
+      padding: 0.45rem 0.6rem;
+      border-bottom: 1px solid var(--border);
+      background: #fff;
+    }
+    .notes-tabs-mock {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.15rem;
+      font-size: 0.78rem;
+    }
+    .notes-tabs-mock span {
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px 4px 0 0;
+      background: #e2e8f0;
+      color: #475569;
+    }
+    .notes-tabs-mock span.active {
+      background: #f8fafc;
+      font-weight: 600;
+      color: #1e293b;
+    }
+    .dual-cards-inline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      align-items: stretch;
+    }
+    .notes-body-mock {
+      padding: 0.5rem 0.65rem;
+      min-height: 72px;
+      font-size: 0.76rem;
+      color: var(--muted);
+    }
+
+    /* §13 儀表板 */
+    .dash-block h3 { margin: 0 0 0.35rem; font-size: 0.95rem; }
+    .dash-block p { margin: 0 0 0.5rem; font-size: 0.82rem; color: var(--muted); }
+    .dash-block { margin-bottom: 1.25rem; }
+    .dash-block:last-child { margin-bottom: 0; }
+
+    /* §14 底欄 */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.25rem;
+      padding: 0.35rem 0.75rem;
+      background: #f8fafc;
+      border-top: 1px solid var(--border);
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.12rem 0.4rem;
+      border-radius: 999px;
+      border: 1px solid #818cf8;
+      background: rgba(255,255,255,0.85);
+      font-size: 0.72rem;
+      color: #334155;
+    }
+    .room-tag { font-size: 0.68rem; color: #7c3aed; font-weight: 600; margin-right: 0.35rem; }
+
+    footer.note {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      border-top: 1px dashed var(--border);
+    }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>句段集（View）介面預覽 <span class="sub">靜態 mock · 依 docs/CAT_VIEW_SPEC.md</span></h1>
+    </div>
+    <nav class="toc">
+      <a href="#sec-project">專案分頁</a>
+      <a href="#sec-create">建立流程</a>
+      <a href="#sec-editor">句段集編輯器</a>
+      <a href="#sec-dashboard">譯者儀表板</a>
+      <a href="#sec-collab">協作底欄</a>
+    </nav>
+  </header>
+
+  <main>
+    <p style="font-size:0.86rem;color:var(--muted);margin:0 0 1rem;">
+      此檔僅供視覺對照規格（已對齊 2026-05-02 <code>docs/CAT_VIEW_SPEC.md</code>：§1.3 用語、§5.2、§12.1／§12.3 版面）。倉庫路徑：<code>docs/previews/cat-view-spec-ui-preview.html</code>（可另複製到 <code>Downloads\</code> 離線瀏覽）。
+    </p>
+
+    <!-- §3 §4 -->
+    <section class="mock" id="sec-project">
+      <div class="head">
+        專案詳細 · 檔案清單 ↔ 句段集
+        <span class="ref">CAT_VIEW_SPEC §3、§4</span>
+      </div>
+      <div class="body">
+        <div style="font-weight:600;margin-bottom:0.35rem;">示範專案 Alpha</div>
+        <div class="tabs" role="tablist">
+          <button type="button" id="tabFiles" class="active" data-tab="files">檔案清單</button>
+          <button type="button" id="tabViews" data-tab="views">句段集</button>
+        </div>
+        <div id="panelFiles" class="tab-panel active">
+          <table class="data">
+            <thead>
+              <tr><th style="width:36px">#</th><th>檔名</th><th>語言對</th><th>進度</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>1</td><td>Manual_en-US_zh-TW.mqxliff</td><td>en-US → zh-TW</td><td>42%</td></tr>
+              <tr><td>2</td><td>ReleaseNotes.docx.xlf</td><td>en → zh-TW</td><td>—</td></tr>
+            </tbody>
+          </table>
+          <div class="btn-row">
+            <button type="button" class="primary">快速結合建立句段集</button>
+            <span class="badge">§5.1</span>
+            <button type="button" class="secondary">自訂篩選建立句段集…</button>
+            <span class="badge">§5.2</span>
+          </div>
+        </div>
+        <div id="panelViews" class="tab-panel">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>名稱</th>
+                <th>涉及檔案</th>
+                <th>篩選條件</th>
+                <th>建立者</th>
+                <th>建立時間</th>
+                <th>整體進度</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>MQ 待確認句段</td>
+                <td class="file-lines" title="#1 Manual_en-US_zh-TW.mqxliff（完整檔名於 tooltip）">#1 Manual_en-US_zh-TW.mq…<br>#2 ReleaseNotes.docx.xlf</td>
+                <td class="filter-summary">句段狀態：未確認
+翻譯記憶相符度：模糊／無相符</td>
+                <td>wei@example.com</td>
+                <td>2026/5/1 14:20</td>
+                <td>120 / 400（30%）</td>
+                <td><span class="linkish">開啟</span><span class="linkish">更名</span><span class="linkish">編輯</span><span class="linkish">刪除</span></td>
+              </tr>
+              <tr>
+                <td>兩檔快速結合</td>
+                <td class="file-lines">#1 Manual_en-US_zh-TW.mqxliff<br>#2 ReleaseNotes.docx.xlf</td>
+                <td class="filter-summary">全部句段（快速結合）</td>
+                <td>PM 王小明</td>
+                <td>2026/4/28 09:00</td>
+                <td>800 / 800（100%）</td>
+                <td><span class="linkish">開啟</span><span class="linkish">更名</span><span class="linkish">編輯</span><span class="linkish">刪除</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- §5 -->
+    <section class="mock" id="sec-create">
+      <div class="head">
+        建立句段集 · 自訂篩選（步驟示意）
+        <span class="ref">§5.2 步驟一／二</span>
+      </div>
+      <div class="body">
+        <div class="wizard-steps">
+          <span><b>步驟一</b> 設定（名稱、檔案、篩選、mqxliff file_roles）</span>
+          <span>→</span>
+          <span><b>步驟二</b> 完整篩選列＋唯讀格線（含額外欄）</span>
+        </div>
+        <div class="sf-toolbar-mock" title="與編輯器相同之搜尋／篩選工具列（mock）">
+          <span class="chip">搜尋</span><span class="chip">篩選</span>
+          <input class="mock-input" type="text" readonly value="篩選關鍵字…" />
+          <span class="chip">翻譯記憶相符度 %</span>
+          <input class="mock-input" type="text" readonly value="-90" />
+          <span class="chip">句段狀態</span>
+          <span class="chip">句段編號</span>
+          <span class="chip">…</span>
+        </div>
+        <div class="preview-grid preview-grid-ext">
+          <div class="row hdr">
+            <span class="cell">#</span><span class="cell">所屬檔案</span><span class="cell">狀態</span><span class="cell">Key</span><span class="cell">原文</span><span class="cell">譯文</span><span class="cell">TM%</span><span class="cell">備註</span>
+          </div>
+          <div class="row">
+            <span class="cell">1</span><span class="cell">#1 Manual…</span><span class="cell">草稿</span><span class="cell">—</span><span class="cell">Save the document.</span><span class="cell">（唯讀）</span><span class="cell">78</span><span class="cell"></span>
+          </div>
+          <div class="row">
+            <span class="cell">2</span><span class="cell">#1 Manual…</span><span class="cell">已確認</span><span class="cell">id_ok</span><span class="cell">Click OK.</span><span class="cell">按一下確定。</span><span class="cell">100</span><span class="cell"></span>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button type="button" class="primary">確認建立句段集</button>
+          <button type="button" class="secondary">上一步</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- §6 §12 §14 -->
+    <section class="mock" id="sec-editor">
+      <div class="head">
+        句段集模式 · 編輯器（標題單行、動作列勾選、分隔列、所屬檔案欄、筆記列雙卡、底欄）
+        <span class="ref">§6、§12、§14</span>
+      </div>
+      <div class="body" style="padding:0;">
+        <div class="editor-shell" id="editorShell">
+          <div class="editor-toolbar-rows">
+            <div class="editor-row-title">
+              <button type="button" class="back" aria-hidden="true">←</button>
+              <span class="editor-single-title" title="單一行：專案＋句段集名，不重複第二行">句段集：示範專案 Alpha — MQ 待確認句段</span>
+            </div>
+            <div class="editor-row-actions">
+              <span class="ico-strip">📊 ▼ ✕ {} ¶ ⌨ ⚙</span>
+              <div class="actions-right">
+                <label class="chk">
+                  <input type="checkbox" id="toggleSrcFile" checked />
+                  檢視句段所屬檔案
+                </label>
+                <button type="button" class="btn-mock red">內部註記 ▼</button>
+                <button type="button" class="btn-mock green">提問表單 ▼</button>
+                <button type="button" class="btn-mock blue">預先翻譯</button>
+                <button type="button" class="btn-mock teal" disabled title="§6 句段集模式隱藏">匯出檔案</button>
+                <button type="button" class="btn-mock purple">✨ AI 輔助</button>
+              </div>
+            </div>
+            <div style="padding:0 0.65rem 0.35rem;font-size:0.68rem;color:#64748b;">§12.3：勾選與主要按鈕同一動作列；左槽僅單行標題（無第二行「句段集：…」）。</div>
+          </div>
+          <div class="grid-wrap">
+            <div class="grid-header has-src-file" id="gridHdr">
+              <span>#</span><span>狀態</span><span class="col-src-file">所屬檔案</span><span>原文</span><span>譯文</span><span>備註</span>
+            </div>
+            <div class="grid-row sep">── #1 Manual_en-US_zh-TW.mqxliff ──</div>
+            <div class="grid-row has-src-file show-file-col focus">
+              <span>1</span><span>草稿</span><span class="col-src-file">#1 Manual…</span><span>Save the document.</span><span>儲存文件。</span><span></span>
+            </div>
+            <div class="grid-row has-src-file show-file-col">
+              <span>2</span><span>未確認</span><span class="col-src-file">#1 Manual…</span><span>Revision 2.</span><span>修訂版 2。</span><span></span>
+            </div>
+            <div class="grid-row sep">── #2 ReleaseNotes.docx.xlf ──</div>
+            <div class="grid-row has-src-file show-file-col">
+              <span>1</span><span>草稿</span><span class="col-src-file">#2 Release…</span><span>What is new</span><span>新功能</span><span></span>
+            </div>
+          </div>
+          <div class="notes-panel-mock">
+            <div class="notes-header-row">
+              <div class="notes-tabs-mock">
+                <span class="active">私人筆記</span>
+                <span>共用資訊</span>
+                <span>AI 報告</span>
+              </div>
+              <div class="dual-cards-inline">
+                <div class="info-card">
+                  <div class="k">句段所屬檔案（§12.1）</div>
+                  <div><strong>#1</strong> Manual_en-US_zh-TW.mqxliff</div>
+                </div>
+                <div class="info-card">
+                  <div class="k">句段綁定案件</div>
+                  <div>LMS-2026-0042 產品手冊翻譯</div>
+                </div>
+              </div>
+            </div>
+            <div class="notes-body-mock">筆記本文區（雙卡已與上方分頁標籤同一列，§12.1）。</div>
+          </div>
+          <div class="status-bar">
+            <span>0% · 句段：2 / 5 · 字數 0 / 0</span>
+            <span class="room-tag">view 房</span>
+            <span style="font-size:0.72rem;color:#64748b;">使用者</span>
+            <span class="pill" title="Alice">👤 Alice</span>
+            <span class="pill" title="Bob" style="border-color:#f97316;">👤 Bob</span>
+            <span style="flex:1"></span>
+            <span>§14 底欄標籤＝入口房間（此為 viewId）；格線外框＝句段</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- §13 -->
+    <section class="mock" id="sec-dashboard">
+      <div class="head">
+        譯者儀表板 · 我的受派（檔案 ＋ 句段集）
+        <span class="ref">§13.3</span>
+      </div>
+      <div class="body">
+        <div class="dash-block">
+          <h3>我的受派檔案</h3>
+          <p>資料來源：<code>cat_file_assignments</code>（既有）</p>
+          <table class="data">
+            <thead>
+              <tr><th>狀態</th><th>檔案</th><th>語言對</th><th>更新時間</th><th>操作</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>進行中</td><td>FAQ.xlf</td><td>en → zh-TW</td><td>2026/5/1</td><td><span class="linkish">開啟</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="dash-block">
+          <h3>我的受派句段集</h3>
+          <p>資料來源：<code>cat_view_assignments</code>（規劃中）；可不指派檔案，僅由此入口進編輯器。</p>
+          <table class="data">
+            <thead>
+              <tr><th>狀態</th><th>句段集</th><th>專案</th><th>更新時間</th><th>操作</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>已指派</td><td>MQ 待確認句段</td><td>示範專案 Alpha</td><td>2026/5/1</td><td><span class="linkish">開啟</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- §14 對照 -->
+    <section class="mock" id="sec-collab">
+      <div class="head">
+        協作語意對照（單檔 vs 句段集）
+        <span class="ref">§14</span>
+      </div>
+      <div class="body">
+        <table class="data">
+          <thead>
+            <tr><th>項目</th><th>單位</th><th>單檔編輯</th><th>句段集編輯</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>底欄使用者標籤</td>
+              <td>入口房間</td>
+              <td><code>fileId</code></td>
+              <td><code>viewId</code></td>
+            </tr>
+            <tr>
+              <td>格線焦點／外框</td>
+              <td>句段列</td>
+              <td colspan="2"><code>segmentId</code>（建議併傳 <code>fileId</code>）</td>
+            </tr>
+            <tr>
+              <td>Realtime topic（示意）</td>
+              <td>—</td>
+              <td><code>cat-collab:${fileId}</code></td>
+              <td><code>cat-collab:view:${viewId}</code>（規格建議）</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="note">
+      產生方式：依 1UP TMS <code>docs/CAT_VIEW_SPEC.md</code>（2026-05-02 起含 §1.3 用語、§5.2、§12 版面）靜態排版；與實作後像素級畫面可能略有差異。
+    </footer>
+  </main>
+
+  <script>
+    (function () {
+      var tabFiles = document.getElementById("tabFiles");
+      var tabViews = document.getElementById("tabViews");
+      var panelFiles = document.getElementById("panelFiles");
+      var panelViews = document.getElementById("panelViews");
+      function activate(which) {
+        var isFiles = which === "files";
+        tabFiles.classList.toggle("active", isFiles);
+        tabViews.classList.toggle("active", !isFiles);
+        panelFiles.classList.toggle("active", isFiles);
+        panelViews.classList.toggle("active", !isFiles);
+      }
+      tabFiles.addEventListener("click", function () { activate("files"); });
+      tabViews.addEventListener("click", function () { activate("views"); });
+
+      var shell = document.getElementById("editorShell");
+      var chk = document.getElementById("toggleSrcFile");
+      var gridHdr = document.getElementById("gridHdr");
+      if (chk && shell) {
+        function sync() {
+          var on = chk.checked;
+          shell.classList.toggle("show-src-file", on);
+          if (gridHdr) gridHdr.classList.toggle("has-src-file", on);
+          document.querySelectorAll(".grid-row.has-src-file").forEach(function (row) {
+            row.classList.toggle("show-file-col", on);
+          });
+        }
+        chk.addEventListener("change", sync);
+        sync();
+      }
+    })();
+  </script>
+</body>
+</html>
