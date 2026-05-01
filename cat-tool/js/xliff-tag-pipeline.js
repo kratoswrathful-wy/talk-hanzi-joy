@@ -43,9 +43,18 @@
                 if (ln === 'ph' || ln === 'it' || ln === 'x') {
                     counter++;
                     const ph = `{${counter}}`;
-                    const rawDisplay = child.getAttribute('displaytext') || child.textContent || '';
+                    const dtAttr = child.getAttribute('displaytext');
+                    const eqAttr = child.getAttribute('equiv-text');
                     const ctypeDisplay = child.getAttribute('ctype') || child.getAttribute('type') || '';
-                    const meaningfulRaw = (rawDisplay && rawDisplay !== '{}') ? rawDisplay : ctypeDisplay;
+                    let meaningfulRaw;
+                    if (dtAttr != null && dtAttr !== '') {
+                        meaningfulRaw = (dtAttr !== '{}') ? dtAttr : ctypeDisplay;
+                    } else if (eqAttr != null && eqAttr !== '') {
+                        meaningfulRaw = eqAttr;
+                    } else {
+                        const tc = child.textContent || '';
+                        meaningfulRaw = (tc && tc !== '{}' && tc !== '{0}') ? tc : ctypeDisplay;
+                    }
                     const display = meaningfulRaw.length > 25 ? meaningfulRaw.substring(0, 25) + '…' : meaningfulRaw || ph;
                     const xml = new XMLSerializer().serializeToString(child);
                     tags.push({ ph, xml, display, type: 'standalone', pairNum: counter, num: counter });
@@ -55,9 +64,18 @@
                     const id = child.getAttribute('id') || child.getAttribute('i') || String(counter);
                     bptMap[id] = counter;
                     const ph = `{${counter}}`;
-                    const rawDisplay = child.textContent || '';
+                    const dtBpt = child.getAttribute('displaytext');
+                    const eqBpt = child.getAttribute('equiv-text');
                     const ctypeBpt = child.getAttribute('ctype') || child.getAttribute('type') || '';
-                    const meaningfulBpt = (rawDisplay && rawDisplay !== '{}') ? rawDisplay : ctypeBpt;
+                    let meaningfulBpt;
+                    if (dtBpt != null && dtBpt !== '') {
+                        meaningfulBpt = (dtBpt !== '{}') ? dtBpt : ctypeBpt;
+                    } else if (eqBpt != null && eqBpt !== '') {
+                        meaningfulBpt = eqBpt;
+                    } else {
+                        const tc = child.textContent || '';
+                        meaningfulBpt = (tc && tc !== '{}' && tc !== '{0}') ? tc : ctypeBpt;
+                    }
                     const display = meaningfulBpt.length > 25 ? meaningfulBpt.substring(0, 25) + '…' : meaningfulBpt || `<${counter}>`;
                     const xml = new XMLSerializer().serializeToString(child);
                     tags.push({ ph, xml, display, type: 'open', pairNum: counter, num: counter });
@@ -66,9 +84,18 @@
                     const id = child.getAttribute('id') || child.getAttribute('i') || '';
                     const num = bptMap[id] !== undefined ? bptMap[id] : ++counter;
                     const ph = `{/${num}}`;
-                    const rawDisplay = child.textContent || '';
+                    const dtEpt = child.getAttribute('displaytext');
+                    const eqEpt = child.getAttribute('equiv-text');
                     const ctypeEpt = child.getAttribute('ctype') || child.getAttribute('type') || '';
-                    const meaningfulEpt = (rawDisplay && rawDisplay !== '{}') ? rawDisplay : ctypeEpt;
+                    let meaningfulEpt;
+                    if (dtEpt != null && dtEpt !== '') {
+                        meaningfulEpt = (dtEpt !== '{}') ? dtEpt : ctypeEpt;
+                    } else if (eqEpt != null && eqEpt !== '') {
+                        meaningfulEpt = eqEpt;
+                    } else {
+                        const tc = child.textContent || '';
+                        meaningfulEpt = (tc && tc !== '{}' && tc !== '{0}') ? tc : ctypeEpt;
+                    }
                     const display = meaningfulEpt.length > 25 ? meaningfulEpt.substring(0, 25) + '…' : meaningfulEpt || `</${num}>`;
                     const xml = new XMLSerializer().serializeToString(child);
                     tags.push({ ph, xml, display, type: 'close', pairNum: num, num });

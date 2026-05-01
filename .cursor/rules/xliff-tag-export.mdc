@@ -71,6 +71,17 @@ setXmlTargetContent(xmlDoc, targetNode, restoredXml, { tuId });
 `bptMap` 必須在每次 `extractTaggedText` 呼叫時重新建立（函式內部局部變數），
 不可改為全域或跨句段共用。
 
+### extractTaggedText：`display`（pill 文字）解析順序
+
+僅影響 UI，**不影響** `xml` 與匯出。`ph` / `it` / `x` / `bpt` / `ept` 必須遵守：
+
+1. 有 `displaytext`（memoQ）→ 使用；值為 `{}` 時改走 ctype/type。
+2. 否則有 `equiv-text`（XLIFF / Trados，如 Picture）→ 使用。
+3. 否則 `textContent`；若為 `{}` 或 `{0}`（memoQ 內部佔位）→ 改走 ctype/type。
+4. 仍無則 fallback 編號字串（如 `{N}` 或 `<N>`）。
+
+**禁止**在未確認 memoQ `displaytext="{0}"` 語意前，全域略過字面 `{0}`（會破壞 §4.1 行為）。
+
 ## sdlxliff 匯出必須透過 mrk
 
 sdlxliff 匯出**不可**直接替換整個 `<target>` 內容，必須：
