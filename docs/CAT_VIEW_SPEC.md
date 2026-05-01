@@ -49,6 +49,12 @@
 
 專案檔案清單的「序號」來自列表渲染順序（見 [`cat-tool/app.js`](../cat-tool/app.js) `loadFilesList`），非 DB 固定欄位；若僅用檔案 `created_at` 排序，與使用者畫面上 1、2、3 的認知可能不一致。建立句段集時應**明確儲存**當時的檔案 UUID 順序。
 
+### 2.1.1 清單可見性與 `owner_user_id`
+
+- **專案級、全團隊可見**：同一專案內，凡對該專案具備與「檔案清單」相同語意之已授權成員，皆可於句段集分頁看到該專案之所有 `cat_views` 列（`listViews` 不應依 `owner_user_id` 篩成「僅本人」）。
+- **`owner_user_id`**：僅供清單「建立者」欄位顯示與稽核，**不作**「僅建立者可讀／可改」的篩選條件。
+- **`listViews`／RLS**：`SELECT` 須允許上述成員讀取該 `project_id` 下之列；`INSERT`／`UPDATE`／`DELETE` 與專案內建立／管理句段集之權限對齊——建議與既有 `cat_files` 或專案角色矩陣一致（實作時沿用現有 migration／policy 慣例，於 PR 註明）。
+
 ### 2.2 離線模式：`cat-tool/db.js`（Dexie）
 
 新增 `views` 表（版本號遞增），建議欄位與雲端語意對齊，至少：
@@ -68,6 +74,7 @@
 
 - 新表 policy **必須**使用 `(SELECT auth.uid())` initplan 寫法，避免 [`docs/incident-report_2026-05-01_rls-and-db-load.md`](incident-report_2026-05-01_rls-and-db-load.md) 所述之每列重算 `auth.uid()` 問題。
 - 範例模式（與現有 `cat_segments_rw_authenticated` 一致）：`USING ((SELECT auth.uid()) IS NOT NULL)`，若需限專案成員再擴充為 EXISTS 子查詢（同樣對 `auth.uid()` 包 `(SELECT …)`）。
+- `cat_views` 之讀寫範圍另須符合 **§2.1.1**（專案成員可讀清單；寫入／刪除依專案角色）。`cat_view_assignments`（§13）之 RLS 建議比照 [`supabase/migrations/20260415150000_cat_file_assignments.sql`](../supabase/migrations/20260415150000_cat_file_assignments.sql) 與後續 initplan 修正 migration 之模式（受派者可讀自己的列、管理員／指派權限由既有角色函式延伸）。
 
 ### 2.4 團隊模式 RPC
 
@@ -176,12 +183,15 @@ flowchart TD
 ## 10. 實作檢查清單（後續）
 
 - [ ] Migration：`cat_views` 表 + RLS + 必要索引（例如 `(project_id, created_at)`）
-- [ ] `cat-cloud-rpc.ts`：CRUD + 批次載入句段
+- [ ] Migration：`cat_view_assignments` 表 + RLS + 索引（§13）；與 `cat_file_assignments` policy 模式對齊
+- [ ] `cat-cloud-rpc.ts`：CRUD + 批次載入句段；句段集指派之讀寫（若不走直連表則於 RPC 註明）
 - [ ] `cat-tool/db.js`：Dexie `views` + `DBService` 方法
-- [ ] `cat-tool/index.html` / `app.js`：分頁、清單、建立精靈、開啟句段集之 `openEditor` 變體或平行路徑
+- [ ] `cat-tool/index.html` / `app.js`：分頁、清單、建立精靈、開啟句段集之 `openEditor` 變體或平行路徑（§13.4 `viewId` 入口）
+- [ ] `CatToolPage.tsx`：`sendAssignments`／`TMS_ASSIGNMENTS` 併送句段集指派；儀表板／iframe 渲染受派句段集
+- [ ] 協作：`CAT_COLLAB_*` 與 `CatToolPage` 即時頻道支援 **view 房**（§14）；`joinCollab`／`renderCollabPresence` 改為 roomType + roomId
 - [ ] 句段集編輯器 UI：§12（兩張卡片、所屬檔案欄、工具列標題與勾選）
 - [ ] `npm run sync:cat` 並提交 `cat-tool` 與 `public/cat`
-- [ ] 手動驗收：快速結合、自訂篩選、跨裝置讀取、內部註記案件對應、mqxliff 確認規則
+- [ ] 手動驗收：快速結合、自訂篩選、跨裝置讀取、內部註記案件對應、mqxliff 確認規則、**僅句段集指派**之開啟與編輯、**view 房**底欄成員與格線框線
 
 ---
 
@@ -198,6 +208,10 @@ flowchart TD
 | 格線欄位與渲染 | [`cat-tool/app.js`](../cat-tool/app.js) `colSettings`、`defaultCols`、格線列更新／焦點 |
 | 團隊 RPC | [`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts) |
 | DB 核心表 | [`supabase/migrations/20260415133000_cat_cloud_core.sql`](../supabase/migrations/20260415133000_cat_cloud_core.sql) |
+| 檔案層指派（對照 §13） | [`supabase/migrations/20260415150000_cat_file_assignments.sql`](../supabase/migrations/20260415150000_cat_file_assignments.sql) |
+| TMS iframe：身分與受派橋接、協作 postMessage | [`src/pages/CatToolPage.tsx`](../src/pages/CatToolPage.tsx)（`sendAssignments`、`CAT_COLLAB_*`、Realtime `cat-collab:*`） |
+| CAT：協作 join／底欄 presence | [`cat-tool/app.js`](../cat-tool/app.js) `joinCollabForFile`、`renderCollabPresence`、`applyCollabFocusOutlines` |
+| 句段集指派表（實作後補 migration 檔名） | `supabase/migrations/…_cat_view_assignments.sql`（新建） |
 
 ---
 
@@ -233,4 +247,70 @@ flowchart TD
 
 ---
 
-*文件版本：依 2026-05-01 對話與計畫彙整，並含編輯器 UI 補充（§12）；實作時若與程式分歧，以 PR 說明為準。*
+## 13. 句段集指派（`cat_view_assignments`）
+
+### 13.1 目的
+
+- 可將**句段集**指派給譯者，作為與**整檔**不同的**工作入口**；**不要求**同時存在 `cat_file_assignments`。
+- 譯者可僅受派句段集、從句段集進入編輯器，完成與底層 `cat_segments` 之讀寫（仍須滿足 §2.3／§13 之 RLS 與專案成員資格）。
+
+### 13.2 建議表：`public.cat_view_assignments`
+
+欄位語意對齊 [`supabase/migrations/20260415150000_cat_file_assignments.sql`](../supabase/migrations/20260415150000_cat_file_assignments.sql) 之 `cat_file_assignments`，僅將主體由檔案改為句段集：
+
+| 欄位 | 說明 |
+|------|------|
+| `id` | `uuid` PK |
+| `view_id` | `uuid` NOT NULL，FK → `cat_views(id)`，`ON DELETE CASCADE` |
+| `assignee_user_id` | `uuid` NOT NULL，FK → `profiles(id)`，`ON DELETE CASCADE` |
+| `status` | `text`，與檔案指派相同枚舉：`assigned` \| `in_progress` \| `completed` \| `cancelled` |
+| `assigned_by` | `uuid` NULLABLE → `profiles(id)` |
+| `assigned_at` / `updated_at` | `timestamptz` |
+
+- **唯一性**：`UNIQUE(view_id, assignee_user_id)`。
+- **索引**：至少 `(view_id)`、`(assignee_user_id)`、`(status)`，與檔案指派表對稱。
+
+### 13.3 譯者體驗與父頁橋接
+
+- 儀表板「我的受派」須同時呈現：**受派檔案**（既有 `cat_file_assignments`）與**受派句段集**（本表）。
+- [`src/pages/CatToolPage.tsx`](../src/pages/CatToolPage.tsx) 之 `sendAssignments`／`TMS_ASSIGNMENTS`（及 iframe 內對應處理）應擴充 payload，例如併送 `viewAssignments` 或等效結構；`cat-tool` 內 `renderAssignedFilesView` 或新區塊負責渲染句段集列與「開啟」動作。
+
+### 13.4 開啟編輯器
+
+- 明訂 **`viewId` 入口**（例如 `openEditorFromView(viewId)` 或與 `openEditor` 並行之參數化路徑）：依 `getView` 取得 `segment_ids` 與 `file_ids`，載入格線；**不依賴**該使用者必在 `cat_file_assignments` 有一列。
+
+### 13.5 與檔案指派之關係
+
+- **可獨立或並存**：同一人可僅有檔案指派、僅有句段集指派，或兩者皆有；產品上不強制互斥。
+- 若未來需禁止「同一句段同時經兩種入口的衝突編輯」等規則，另開議題；本規格不預設業務層互斥。
+
+---
+
+## 14. 協作房間與底欄使用者標籤
+
+### 14.1 原則（已定案）
+
+| 層級 | 單位 | 行為摘要 |
+|------|------|----------|
+| **底欄使用者標籤** | **入口房間** | 單檔編輯：房間＝`fileId`。句段集編輯：房間＝`viewId`。同一使用者**同一時間只應 join 一個房**（進句段集編輯器時 join view 房並 leave 檔案房，離開或改入口時反之），避免底欄重複顯示。 |
+| **格線焦點／協作框線** | **句段（列）** | 維持既有 `collabFocusBySession`、`applyCollabFocusOutlines` 等語意；事件 payload 須含 `segmentId`，**建議同時帶 `fileId`** 以利句段集多檔格線對列還原。 |
+
+### 14.2 現況與實作方向
+
+- **CAT iframe**（[`cat-tool/app.js`](../cat-tool/app.js)）：`renderCollabPresence` 依 `collabCurrentFileId` 與 `collabMembers`；`joinCollabForFile` 以 `CAT_COLLAB_JOIN` 傳 `fileId`。句段集實作時應擴充為 **roomType**（`file` \| `view`）與 **roomId**（對應 `fileId` 或 `viewId`），底欄僅渲染**當前房**成員。
+- **父頁**（[`src/pages/CatToolPage.tsx`](../src/pages/CatToolPage.tsx)）：即時頻道目前為 `supabase.channel(\`cat-collab:${fileId}\`)`。實作時須支援 **view 房**（例如 `cat-collab:view:${viewId}` 或全專案內唯一之 topic 字串），並使 `CAT_COLLAB_JOIN`／`CAT_COLLAB_LEAVE`／`CAT_COLLAB_FOCUS`／`CAT_COLLAB_EDIT` 與回傳 iframe 之 `TMS_COLLAB_STATE` 在 **roomType + roomId** 上對齊；細節由實作 PR 載明。
+
+```mermaid
+flowchart LR
+  subgraph presenceBar [PresenceBar]
+    FileRoom["fileId room"]
+    ViewRoom["viewId room"]
+  end
+  subgraph gridLayer [Grid]
+    SegFocus["segment focus outlines"]
+  end
+```
+
+---
+
+*文件版本：2026-05-01 起稿；含 §12 編輯器 UI、§2.1.1 清單可見性、§13 句段集指派、§14 協作房間；實作時若與程式分歧，以 PR 說明為準。*
