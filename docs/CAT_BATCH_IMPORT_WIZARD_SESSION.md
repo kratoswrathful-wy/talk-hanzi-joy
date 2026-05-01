@@ -198,4 +198,4 @@ flowchart TD
 |------------|------|
 | 2026-05-01 | 初稿：構想、錨點、`label` 錯誤、「開始匯入」勾選同步、驗收項、「原文全空白阻擋」不實作。 |
 | 2026-05-01 | 程式：`3348922` 批次匯入主線；`e11bbe0` `label` → `'讀取中…'`；`1d82a97` `onBatchExcelSameCfgToggle`（`change` + `input`、`e.target.checked`）。 |
-| 2026-05-01 | 擴寫：流程圖、`index.html`／狀態變數錨點、todo→commit 對照表、開發時序（含未採納項目與 Ask／Agent 插曲）、測試與 commit 對應欄、已知限制與非目標。 |
+| 2026-05-01 | 擴寫：流程圖、`index.html`／狀態變數錨點、todo→commit 對照表、開發時序（含未採納項目與 Ask／Agent 插曲）、測試與 commit 對應欄、已知限制與非目標（提交 `a594f90`；[`HANDOFF.md`](./HANDOFF.md)「其他近期落地」已列 `a594f90`）。 |

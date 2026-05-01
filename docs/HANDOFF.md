@@ -303,6 +303,7 @@
 
 | Commit | 摘要 |
 |--------|------|
+| `a594f90` | 擴寫 [CAT_BATCH_IMPORT_WIZARD_SESSION.md](./CAT_BATCH_IMPORT_WIZARD_SESSION.md)：流程圖、todo→commit 對照、開發時序（含未採納項目與 Ask／Agent 插曲）、驗收與 commit 對應、已知限制 |
 | `1d82a97` | 批次 Excel「全部使用相同欄位設定」：`change`+`input` 與 `e.target.checked` 刷新「開始匯入」狀態；說明見 [CAT_BATCH_IMPORT_WIZARD_SESSION.md](./CAT_BATCH_IMPORT_WIZARD_SESSION.md) |
 | `e11bbe0` | 批次 Excel 欄位設定按鈕修正未定義 `label`（`ReferenceError`） |
 | `3a887b9` | CAT tag pill：`equiv-text`、`bpt`／`ept` displaytext、`{0}` textContent fallback |
