@@ -303,6 +303,7 @@
 
 | Commit | 摘要 |
 |--------|------|
+| `1d82a97` | 批次 Excel「全部使用相同欄位設定」：`change`+`input` 與 `e.target.checked` 刷新「開始匯入」狀態；說明見 [CAT_BATCH_IMPORT_WIZARD_SESSION.md](./CAT_BATCH_IMPORT_WIZARD_SESSION.md) |
 | `e11bbe0` | 批次 Excel 欄位設定按鈕修正未定義 `label`（`ReferenceError`） |
 | `3a887b9` | CAT tag pill：`equiv-text`、`bpt`／`ept` displaytext、`{0}` textContent fallback |
 | `3348922` | 批次匯入 CAT 作業檔（多選、mqxliff 角色、Excel 欄位、進度摘要）；細節與驗收見 [CAT_BATCH_IMPORT_WIZARD_SESSION.md](./CAT_BATCH_IMPORT_WIZARD_SESSION.md) |
