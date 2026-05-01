@@ -317,15 +317,6 @@
     .grid-row.has-src-file:not(.show-file-col) {
       grid-template-columns: 40px 72px 1fr 1fr 100px;
     }
-    .grid-row.sep {
-      background: #e0e7ff;
-      font-weight: 600;
-      color: #3730a3;
-      grid-column: 1 / -1;
-      display: block;
-      padding: 0.35rem 0.5rem;
-      font-size: 0.78rem;
-    }
     .grid-row.focus { outline: 2px solid #818cf8; outline-offset: -2px; }
     .col-src-file { display: none; }
     .editor-shell.show-src-file .col-src-file { display: block; }
@@ -556,7 +547,7 @@
     <!-- §6 §12 §14 -->
     <section class="mock" id="sec-editor">
       <div class="head">
-        句段集模式 · 編輯器（標題單行、動作列勾選、分隔列、所屬檔案欄、筆記列雙卡、底欄）
+        句段集模式 · 編輯器（標題單行、動作列勾選、所屬檔案欄、筆記列雙卡、底欄）
         <span class="ref">§6、§12、§14</span>
       </div>
       <div class="body" style="padding:0;">
@@ -586,14 +577,12 @@
             <div class="grid-header has-src-file" id="gridHdr">
               <span>#</span><span>狀態</span><span class="col-src-file">所屬檔案</span><span>原文</span><span>譯文</span><span>備註</span>
             </div>
-            <div class="grid-row sep">── #1 Manual_en-US_zh-TW.mqxliff ──</div>
             <div class="grid-row has-src-file show-file-col focus">
               <span>1</span><span>草稿</span><span class="col-src-file">#1 Manual…</span><span>Save the document.</span><span>儲存文件。</span><span></span>
             </div>
             <div class="grid-row has-src-file show-file-col">
               <span>2</span><span>未確認</span><span class="col-src-file">#1 Manual…</span><span>Revision 2.</span><span>修訂版 2。</span><span></span>
             </div>
-            <div class="grid-row sep">── #2 ReleaseNotes.docx.xlf ──</div>
             <div class="grid-row has-src-file show-file-col">
               <span>1</span><span>草稿</span><span class="col-src-file">#2 Release…</span><span>What is new</span><span>新功能</span><span></span>
             </div>
@@ -700,7 +689,7 @@
     </section>
 
     <footer class="note">
-      產生方式：依 1UP TMS <code>docs/CAT_VIEW_SPEC.md</code>（2026-05-02 起含 §1.3 用語、§5.2、§12 版面）靜態排版；與實作後像素級畫面可能略有差異。
+      產生方式：依 1UP TMS <code>docs/CAT_VIEW_SPEC.md</code>（§6 無整檔分隔列；§12「所屬檔案」欄）靜態排版；與實作後像素級畫面可能略有差異。
     </footer>
   </main>
 
