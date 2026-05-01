@@ -7859,7 +7859,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const root = document.getElementById('wizardStepBatchExcel');
         const triggerBtn = isGlobal ? root.querySelector('#btnBatchExcelGlobalCfg') : root.querySelector(`.batch-excel-cfg-btn[data-idx="${files.indexOf(targetFile)}"]`);
         const prevText = triggerBtn ? triggerBtn.textContent : '';
-        if (triggerBtn) { triggerBtn.disabled = true; triggerBtn.textContent = label; }
+        if (triggerBtn) { triggerBtn.disabled = true; triggerBtn.textContent = '讀取中…'; }
         try {
             const buf = await file.arrayBuffer();
             const data = new Uint8Array(buf);
