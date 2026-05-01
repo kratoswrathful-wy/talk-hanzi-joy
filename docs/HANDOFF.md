@@ -305,7 +305,7 @@
 |--------|------|
 | `e11bbe0` | 批次 Excel 欄位設定按鈕修正未定義 `label`（`ReferenceError`） |
 | `3a887b9` | CAT tag pill：`equiv-text`、`bpt`／`ept` displaytext、`{0}` textContent fallback |
-| `3348922` | 批次匯入 CAT 作業檔（多選、mqxliff 角色、Excel 欄位、進度摘要） |
+| `3348922` | 批次匯入 CAT 作業檔（多選、mqxliff 角色、Excel 欄位、進度摘要）；細節與驗收見 [CAT_BATCH_IMPORT_WIZARD_SESSION.md](./CAT_BATCH_IMPORT_WIZARD_SESSION.md) |
 | `7eb8062` | TM 相符度：大小寫不同、內容相同時給 99% 相似度 |
 | `9f7b2bc` | [`CAT_VIEW_SPEC.md`](./CAT_VIEW_SPEC.md) 版面／用語；[`previews/cat-view-spec-ui-preview.html`](./previews/cat-view-spec-ui-preview.html) HTML 預覽 |
 
@@ -357,6 +357,7 @@
 ## 延伸閱讀
 
 - [DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md) — 本機／遠端 Supabase 部署步驟、case-files 與 Slack、驗收與 `db push` 失敗排除
+- [CAT_BATCH_IMPORT_WIZARD_SESSION.md](./CAT_BATCH_IMPORT_WIZARD_SESSION.md) — 批次匯入 CAT 作業檔精靈（構想、程式錨點、`label` 修正、「全部相同」勾選與「開始匯入」啟用條件、手動驗收）
 - [CODEMAP.md](./CODEMAP.md) — 模組對照
 - `data-migration/README.md` — 資料遷移（若存在）
 - `.cursor/plans/` — 歷史計畫檔（若使用 Cursor 計畫功能）

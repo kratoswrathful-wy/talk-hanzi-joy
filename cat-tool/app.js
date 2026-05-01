@@ -7935,8 +7935,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div></div>`;
             root.innerHTML = html;
 
-            root.querySelector('#batchExcelSameCfg').addEventListener('change', () => {
-                const same = root.querySelector('#batchExcelSameCfg').checked;
+            const sameCfgEl = root.querySelector('#batchExcelSameCfg');
+            function onBatchExcelSameCfgToggle(e) {
+                const same = !!e.target.checked;
                 if (same) {
                     _batchExcelConfigs.clear();
                     excelFiles.forEach((_, i) => {
@@ -7949,7 +7950,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (gs) { gs.textContent = ''; gs.classList.add('hidden'); }
                 }
                 _refreshBatchExcelStep();
-            });
+            }
+            sameCfgEl.addEventListener('change', onBatchExcelSameCfgToggle);
+            sameCfgEl.addEventListener('input', onBatchExcelSameCfgToggle);
 
             root.querySelector('#btnBatchExcelGlobalCfg').addEventListener('click', () => {
                 _openBatchExcelColumnEditor(true, null);

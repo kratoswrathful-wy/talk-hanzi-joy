@@ -4,6 +4,7 @@
 
 ## 與 TMS 的銜接
 
+- **批次匯入作業檔精靈**（多選、mqxliff 角色、Excel 欄位、進度）：構想與驗收備忘見 [`docs/CAT_BATCH_IMPORT_WIZARD_SESSION.md`](../docs/CAT_BATCH_IMPORT_WIZARD_SESSION.md)。
 - 開發／建置前執行：`npm run sync:cat`，會將本目錄複製到 `public/cat/`。
 - 使用者由 TMS 側欄進入路由 **`/cat`**，主畫面以 iframe 載入 **`/cat/index.html`**。
 - 整合決策與後續 API 方向見專案根目錄 [`docs/CAT 轉移.md`](../docs/CAT%20%E8%BD%89%E7%A7%BB.md)。
