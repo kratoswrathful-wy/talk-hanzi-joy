@@ -2,7 +2,7 @@
 
 本文件整理 **2026-05 前後** 關於「專案詳情 → 匯入」**多檔批次流程**的產品構想、實作對照、開發時序、已修問題與手動測試方式，供維運與後續接手對照程式（[`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/index.html`](../cat-tool/index.html)、[`cat-tool/style.css`](../cat-tool/style.css)）。改動 CAT 資產後請依 [`AGENTS.md`](../AGENTS.md) 於專案根目錄執行 `npm run sync:cat`，並一併提交 `cat-tool/` 與 `public/cat/`。
 
-**驗收尾款（2026-05-01）**：實機驗收已完成；第五節各項、第六節手動測試表已標註狀態；第九節為本主題相關 **commit 總表**；第十節為本文件修訂紀錄。
+**驗收尾款（2026-05-01）**：實機驗收已完成；第五節各項、第六節手動測試表已標註狀態；第九節為本主題相關 **commit 總表**；第十節為本文件修訂紀錄；[`HANDOFF.md`](./HANDOFF.md)「其他近期落地」頂列另以「（文件）」列登記本批僅文件變更（避免 amend 後 SHA 內文不一致）。
 
 ---
 
@@ -204,7 +204,7 @@ flowchart TD
 ## 八、文件與規範交叉引用
 
 - 單一來源與 sync：`AGENTS.md`、`cat-tool/README.md`。  
-- 交接摘要表：`HANDOFF.md`「其他近期落地」（含 `3348922`、`e11bbe0`、`1d82a97`、`9d739b4`、`a594f90` 等；文件勘誤見 `b0b54af`）。  
+- 交接摘要表：`HANDOFF.md`「其他近期落地」（含 `3348922`、`e11bbe0`、`1d82a97`、`9d739b4`、`a594f90` 等；驗收尾款見頂列「（文件）」；SHA 勘誤見 `b0b54af`）。  
 - 功能路徑：`CODEMAP.md`。  
 - 介面用語（避免簡中「匹配」等）：`CAT_VIEW_SPEC.md`（該文件內對 TM 否定表述之約定）。
 
