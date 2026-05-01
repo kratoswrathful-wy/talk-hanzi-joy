@@ -262,16 +262,16 @@
 ### 新增輔助
 
 - `showCatToast(msg, type)` — 固定右下角 3 秒 toast（`cat-toast` / `cat-toast-error`）。
-- `_revertConfirmAndToast(seg, row, statusIcon, effectiveLocked)` — 確認失敗時統一還原 `seg.status`、statusIcon 與進度，並顯示 toast。
+- `_revertConfirmAndToast(seg, row, statusIcon, effectiveLocked, failureKind?)` — 確認失敗時統一還原 `seg.status`、statusIcon 與進度，並顯示 toast。第五參數 `'revision' \| 'other'`（Phase D）：樂觀鎖衝突與連線／伺服器等其他錯誤分別提示。
 
 ### 維運注意
 
 - 手動刪空格的 `keydown` 攔截只在 `show-non-print` 模式下生效，一般模式不受影響。
 - 衝突 toast 顯示後，使用者需回到該句段重新確認；衝突路徑已移除原本的 `alert()` 阻斷彈窗。
 - `isConfirming = true` 必須在 `focusTargetEditorAtSegmentIndex`（觸發 blur）之前設好，以確保 blur handler 的 `wasConfirming` 能正確取到 `true`，防止 blur 重複寫庫。
-- `clearTimeout(targetDebounceTimer)` 無法取消已開始執行的 debounce async 寫庫；與確認鏈並行時可能造成句段 revision 競態（單人亦可能發生）。規劃與修正 phase 見 [CAT_SEGMENT_REVISION_CONFLICT_PLAN.md](./CAT_SEGMENT_REVISION_CONFLICT_PLAN.md)。
+- `clearTimeout(targetDebounceTimer)` 無法取消已開始執行的 debounce async 寫庫；與確認鏈並行時**曾**造成句段 revision 競態（單人亦可能）。已於 [`cat-tool/app.js`](../cat-tool/app.js) 以串行化／確認前 flush／衝突後重試／toast 分類緩解；緣起與細節見 [CAT_SEGMENT_REVISION_CONFLICT_PLAN.md](./CAT_SEGMENT_REVISION_CONFLICT_PLAN.md)。
 
-## CAT：編輯器待修清單（2026-05-01 更新）
+## CAT：編輯器待修清單（2026-05 更新）
 
 維護時以 [`cat-tool/app.js`](../cat-tool/app.js) 為主，樣式見 [`cat-tool/style.css`](../cat-tool/style.css)，改後依 [`AGENTS.md`](../AGENTS.md) 執行 `npm run sync:cat` 並一併提交 `public/cat`。
 
@@ -294,8 +294,20 @@
 | 非列印「空格點」結構 | 空格類字元改為單一可編輯 wrapper（`.np-inline-char`），符號以 CSS `::after` 顯示，較不易出現方向鍵須連按兩次 | [`cat-tool/app.js`](../cat-tool/app.js) `applyNonPrintMarkers`、`stripNonPrintMarkers`、`getNpCaretOffset`／`setNpCaretOffset` walker；[`cat-tool/style.css`](../cat-tool/style.css) |
 | 非列印鍵盤與 overlay | 區分「空白 wrapper」與換行箭頭等 overlay（`isNpOverlayMarker`）；Backspace／Delete／Arrow 行為對應調整 | 同上 `app.js` 譯文欄 `keydown` |
 | `confirmOp` 還原／重做與後台 | **Ctrl+Z／Ctrl+Y** 觸發批次確認類還原／重做時：**畫面先更新**，寫庫與 TM 操作排入 `enqueueConfirmSideEffects`（與確認句段「先有感再跟上」一致） | [`cat-tool/app.js`](../cat-tool/app.js) `applyEditorUndo`／`applyEditorRedo` 之 `confirmOp` 分支 |
+| 句段 revision 寫庫競態（團隊模式） | 較少出現「伺服器版本較新」類確認失敗 toast；方案 B 仍為先更新 UI 再寫庫 | [`cat-tool/app.js`](../cat-tool/app.js) `segmentTargetWriteTails`、`awaitPendingSegmentTargetWritesForSeg`、`hydrateSegmentRevisionFromDb`、`applyUpdateSegmentTarget`（內含重試）、`_revertConfirmAndToast(..., failureKind)`、`enqueueConfirmSideEffects`；commit `77a1fcc` |
+| 編輯器底欄進度與「調整統計範圍」 | 「調整統計範圍」為獨立白底黑字按鈕，綠色進度填色僅在軌道內 | [`cat-tool/index.html`](../cat-tool/index.html) `#progressFill`、`#btnProgressRange`、`.editor-status-bar-progress-wrap`、`.btn-progress-range-adjust`；[`cat-tool/style.css`](../cat-tool/style.css)；commit `153069d` |
 
-**Commit 參考**：`03cadc7`（含上述 np-inline-char、`confirmOp` 樂觀重繪等；實際範圍請以 `git show` 為準）。
+**Commit 參考**：`03cadc7`（np-inline-char、`confirmOp` 樂觀重繪等較早批次）；**另見上表最後兩列**與下「其他近期落地（維運備查）」。實際範圍請以 `git show` 為準。
+
+### 其他近期落地（維運備查）
+
+| Commit | 摘要 |
+|--------|------|
+| `e11bbe0` | 批次 Excel 欄位設定按鈕修正未定義 `label`（`ReferenceError`） |
+| `3a887b9` | CAT tag pill：`equiv-text`、`bpt`／`ept` displaytext、`{0}` textContent fallback |
+| `3348922` | 批次匯入 CAT 作業檔（多選、mqxliff 角色、Excel 欄位、進度摘要） |
+| `7eb8062` | TM 相符度：大小寫不同、內容相同時給 99% 相似度 |
+| `9f7b2bc` | [`CAT_VIEW_SPEC.md`](./CAT_VIEW_SPEC.md) 版面／用語；[`previews/cat-view-spec-ui-preview.html`](./previews/cat-view-spec-ui-preview.html) HTML 預覽 |
 
 ### 已落地（近期）
 

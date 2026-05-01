@@ -36,7 +36,7 @@
 - **單人、單分頁仍可能發生**：譯文欄有 **debounce 寫庫**（約 500ms）。`clearTimeout(targetDebounceTimer)` 只能取消「尚未執行的計時」，**無法取消已開始執行的 async callback**（其中含 `await applyUpdateSegmentTarget`）。若 debounce 回呼已送出 RPC、尚未返回，使用者立刻 **Ctrl+Enter**，確認鏈會再送一次 `applyUpdateSegmentTarget`，兩次請求可能都帶 **同一個舊的預期 revision**，先完成者將伺服器版本加一，後到者即失敗——與「房間裡有沒有第二個人」無必然關係。
 - **多分頁／多裝置**：同一檔案在不同分頁載入時，各自記憶體中的 `seg.segmentRevision` 可能落後於伺服器。
 - **其他寫入路徑**：任何會先成功更新該句 target 並推進 revision 的操作（例如重複句傳播、批次操作、協作事件等），若本機仍握舊 revision 再確認，也可能觸發。
-- **Toast 文案可能過寬**：確認路徑在捕獲錯誤時，**非** `SEGMENT_REVISION_CONFLICT` 的失敗目前也可能呼叫同一個 `_revertConfirmAndToast`，使用者會一律看到「伺服器版本較新」。改善方式見下方 Phase D（可選）。
+- **確認失敗 toast 文案（Phase D）**：Ctrl+Enter／狀態圖示確認寫庫失敗時，已依 `_revertConfirmAndToast(..., 'revision'|'other')` 區分樂觀鎖與連線／伺服器等其他錯誤，不再一律顯示「伺服器版本較新」。其他程式路徑若仍共用較概括之錯誤提示，可另行收斂。
 
 ---
 
@@ -80,9 +80,9 @@ sequenceDiagram
 
 - **對體驗**：多數誤觸 race 的使用者可能完全無感；需注意「兩邊真實內容分歧」時的合併策略，避免靜默覆蓋錯誤內容。
 
-### Phase D（可選）：錯誤分類與文案
+### Phase D：錯誤分類與文案（已落地）
 
-僅在確認為 revision 衝突時使用「伺服器版本較新」；網路錯誤、權限、RPC 其他錯誤改用不同提示或僅 console + 較中性 toast，避免誤導。
+僅在確認為 revision 衝突時使用「伺服器版本較新」；網路錯誤、權限、RPC 其他錯誤改用不同 toast（見 `_revertConfirmAndToast` 之 `failureKind === 'other'`）。
 
 ---
 
@@ -105,6 +105,10 @@ sequenceDiagram
 3. **兩分頁**：同一團隊檔、兩個瀏覽器分頁交替修改並確認同一句；行為符合預期（至少不無故覆蓋；衝突時有清楚後備）。
 4. **迴歸**：確認仍為「按下確認後立刻跳行／進度更新」，無回到「整句 await 寫庫才動 UI」的延遲體驗（除非產品改需求）。
 
+### 驗收（紀錄）
+
+- **2026-05-01**：依上列驗收清單手動驗收通過（含團隊模式 revision／toast 與方案 B 迴歸）；紀錄於 [`HANDOFF.md`](./HANDOFF.md)「近期已落地變更紀錄」與本文件修訂紀錄。
+
 ---
 
 ## 修訂紀錄
@@ -113,3 +117,4 @@ sequenceDiagram
 |------|------|
 | 2026-05-01 | 初稿：規劃文件與 HANDOFF／CODEMAP 索引 |
 | 2026-05-01 | 落地 Phase A–D 於 `cat-tool/app.js`，並補本節實作摘要 |
+| 2026-05-01 | 根因段更新 Phase D 現況；補「驗收（紀錄）」；HANDOFF／CODEMAP 同步 |
