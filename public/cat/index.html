@@ -1016,14 +1016,16 @@
                         <button class="primary-btn btn-sm" id="btnApplyProgressRange">套用</button>
                         <button class="secondary-btn btn-sm" id="btnResetProgressRange">重置</button>
                     </div>
-                    <div style="position:relative; background:#e2e8f0; border-radius:4px; overflow:visible; display:flex; align-items:center; padding:0 0.5rem; min-height:24px; min-width:250px;">
-                        <div id="progressFill" style="position:absolute; top:0; left:0; bottom:0; width:0%; background:var(--success-color); transition:width 0.3s ease; z-index:0; border-radius:4px; overflow:hidden;"></div>
-                        <div style="position:relative; z-index:1; display:flex; gap:1.5rem; align-items:center;">
-                            <div><span id="statusBarPercent" style="font-weight:600; color:#111;">0%</span></div>
-                            <div>句段：<span id="statusBarSegments" style="font-weight:600; color:#111;">0 / 0</span></div>
-                            <div>字數 (Words)：<span id="statusBarWords" style="font-weight:600; color:#111;">0 / 0</span></div>
+                    <div class="editor-status-bar-progress-wrap">
+                        <div class="editor-status-bar-progress-track">
+                            <div id="progressFill" style="position:absolute; top:0; left:0; bottom:0; width:0%; background:var(--success-color); transition:width 0.3s ease; z-index:0; border-radius:4px; overflow:hidden;"></div>
+                            <div style="position:relative; z-index:1; display:flex; gap:1.5rem; align-items:center;">
+                                <div><span id="statusBarPercent" style="font-weight:600; color:#111;">0%</span></div>
+                                <div>句段：<span id="statusBarSegments" style="font-weight:600; color:#111;">0 / 0</span></div>
+                                <div>字數 (Words)：<span id="statusBarWords" style="font-weight:600; color:#111;">0 / 0</span></div>
+                            </div>
                         </div>
-                        <button id="btnProgressRange" title="設定統計範圍" style="margin-left:0.5rem; background:none; border:1px solid #cbd5e1; border-radius:4px; cursor:pointer; font-size:0.78rem; color:#64748b; padding:2px 8px; line-height:1.5; position:relative; z-index:1; white-space:nowrap;">調整統計範圍</button>
+                        <button type="button" id="btnProgressRange" class="btn-progress-range-adjust" title="設定統計範圍">調整統計範圍</button>
                     </div>
                     <div id="progressRangeLabel" style="font-size:0.78rem; color:#7c3aed; display:none; font-weight:500;"></div>
                     <div style="display:flex; align-items:center; gap:0.45rem; min-width:220px;">

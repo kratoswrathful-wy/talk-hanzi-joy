@@ -651,6 +651,42 @@ button { font-family: inherit; cursor: pointer; }
 .editor-progress-fill { height: 100%; background: var(--success-color); width: 0%; transition: width 0.3s; }
 .editor-progress-text { font-size: 0.85rem; color: var(--text-light); min-width: 60px; text-align: right;}
 
+/* 編輯器底欄：進度填色僅在軌道內；「調整統計範圍」為獨立按鈕（黑字、白底） */
+.editor-status-bar-progress-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.editor-status-bar-progress-track {
+    position: relative;
+    background: #e2e8f0;
+    border-radius: 4px;
+    overflow: visible;
+    display: flex;
+    align-items: center;
+    padding: 0 0.5rem;
+    min-height: 24px;
+    min-width: 250px;
+}
+.btn-progress-range-adjust {
+    flex-shrink: 0;
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: #111;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.btn-progress-range-adjust:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #111;
+}
+
 .editor-layout-wrapper { display: flex; flex: 1; overflow: hidden; }
 
 /* Left Panel: Dense Data Grid */
