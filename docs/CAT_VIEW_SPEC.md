@@ -29,7 +29,7 @@
 ### 1.3 介面用語（繁體正體）
 
 - **禁用「匹配」**：此詞為簡中慣用語；**使用者可見**之 CAT／TMS 文案、錯誤訊息、篩選摘要、說明文件均不得出現「匹配」。與 TM 語意相當之否定表述用「**無相符**」等正體慣用語（與既有「翻譯記憶**相符**度」一致）。
-- **技術註解／變數名**：若需描述演算法「pairing、比對規則」，優先使用「比對」「相符」「成對」等詞；仍無把握時請先與產品確認再下字。
+- **技術註解／變數名**：若需描述演算法「pairing、比對規則」，優先使用「比對」「相符」「成對」等詞；仍無把握時請先與產品確認再下字。**新撰寫之程式註解**亦不得使用「匹配」；既有註解不強制回溯修改。
 - 本條為全專案長期約束；亦見根目錄 [AGENTS.md](../AGENTS.md)。
 
 ---
@@ -60,6 +60,7 @@
 - **專案級、全團隊可見**：同一專案內，凡對該專案具備與「檔案清單」相同語意之已授權成員，皆可於句段集分頁看到該專案之所有 `cat_views` 列（`listViews` 不應依 `owner_user_id` 篩成「僅本人」）。
 - **`owner_user_id`**：僅供清單「建立者」欄位顯示與稽核，**不作**「僅建立者可讀／可改」的篩選條件。
 - **`listViews`／RLS**：`SELECT` 須允許上述成員讀取該 `project_id` 下之列；`INSERT`／`UPDATE`／`DELETE` 與專案內建立／管理句段集之權限對齊——建議與既有 `cat_files` 或專案角色矩陣一致（實作時沿用現有 migration／policy 慣例，於 PR 註明）。
+- **與 §3.1 之銜接**：§2.1.1 指「**已進入該專案**」後，專案內句段集分頁對已授權成員之可見性。譯者於**專案清單**僅能看見 §3.1 篩選後之專案；若無法進入某專案，即無法自 UI 開啟該專案之句段集分頁—與「進入專案後可瀏覽全部句段集列」並存。
 
 ### 2.2 離線模式：`cat-tool/db.js`（Dexie）
 
@@ -76,11 +77,14 @@
 
 （實作時可依現有 `files` / `segments` 的命名慣例微調 camelCase。）
 
+**離線個人版與句段集**：第一版即納入句段集—`views` 表與建立／開啟／列表流程須與本機 `files`、`segments` 一併設計（同步、匯出／備份策略若與現有離線 CAT 一致則於實作 PR 註明）；**不**將句段集延後為「僅團隊線上」專屬功能。
+
 ### 2.3 RLS 與安全
 
 - 新表 policy **必須**使用 `(SELECT auth.uid())` initplan 寫法，避免 [`docs/incident-report_2026-05-01_rls-and-db-load.md`](incident-report_2026-05-01_rls-and-db-load.md) 所述之每列重算 `auth.uid()` 問題。
 - 範例模式（與現有 `cat_segments_rw_authenticated` 一致）：`USING ((SELECT auth.uid()) IS NOT NULL)`，若需限專案成員再擴充為 EXISTS 子查詢（同樣對 `auth.uid()` 包 `(SELECT …)`）。
 - `cat_views` 之讀寫範圍另須符合 **§2.1.1**（專案成員可讀清單；寫入／刪除依專案角色）。`cat_view_assignments`（§13）之 RLS 建議比照 [`supabase/migrations/20260415150000_cat_file_assignments.sql`](../supabase/migrations/20260415150000_cat_file_assignments.sql) 與後續 initplan 修正 migration 之模式（受派者可讀自己的列、管理員／指派權限由既有角色函式延伸）。
+- **管理操作（產品決策）**：建立／刪除／更名句段集、管理 `cat_view_assignments`（指派／取消）及專案內相關 UI 之寫入操作—**限 PM 以上**（`pm`、`executive` 等，與 `public.user_roles` 慣例對齊；實作 PR 明列 policy 與前端按鈕隱藏條件）。細節與譯者體驗見 **§3.1**、**§13.6**。
 
 ### 2.4 團隊模式 RPC
 
@@ -93,6 +97,19 @@
 - 區塊：[`cat-tool/index.html`](../cat-tool/index.html) 內 `#viewProjectDetail`（專案詳細頁）。
 - 在「檔案清單」標題列（約與 `h2`「檔案清單」同一列）旁，新增**並排分頁**：「檔案清單」↔「句段集」。
 - 切換時顯示對應表格區塊；目前 URL 路由若以專案為錨點，可另存 `projectTab=files|views`（實作細節與 `persistCatRoute` 一併評估）。
+
+### 3.1 譯者（團隊模式）專案與導覽
+
+以下適用角色語意為 **`translatorOnly`／`member`（譯者）** 與既有團隊模式導覽；實作時對照 [`cat-tool/app.js`](../cat-tool/app.js) 之 `enforceTeamRoleLayout` 等。
+
+| 議題 | 規格 |
+|------|------|
+| **專案清單** | 譯者於**專案清單**僅顯示「至少有一筆 **`cat_file_assignments` 或 `cat_view_assignments`**，且 `status` **非** `cancelled`」之專案。TMS／CAT iframe 橋接若需 `projectIds` 一併評估，於實作 PR 註明。 |
+| **左欄導覽** | 譯者可見並切換：**儀表板**、**專案**。其餘 TM／TB／準則／AI 等維持隱藏；**非**將整個側欄清空，而是**兩項**入口（與過往「全隱 nav」方向區隔）。 |
+| **專案內** | 進入專案後，譯者可瀏覽該專案內**全部**檔案與句段集清單並可點開（與 §2.1.1 專案內可讀語意一致）。 |
+| **未受指派而開啟** | 若開啟之檔案或句段集**非**本人受派：當下顯示系統訊息，編輯器為**唯讀**；**mqxliff 不跳出**身分選擇（`showMqRoleModal` 等）。 |
+| **管理操作按鈕** | 譯者**不顯示**專案／檔案／句段集清單上之管理類操作（例如：儲存、移除、欄位設定、指派、連結案件、分析、拆分、建立／刪除句段集、句段集「編輯」設定等—以產品截圖與實作 PR 對照清單為準）；**PM 以上**維持可見。 |
+| **筆記** | 譯者得依既有權限**檢視並在權限內操作**筆記面板（RLS／前端邏輯與單檔模式對齊，細節於實作 PR 註明）。 |
 
 ---
 
@@ -129,7 +146,7 @@
 1. **步驟一（設定）**：名稱、涵蓋檔案（可由目前勾選帶入）、篩選條件（與編輯器進階篩選語意對齊）、mqxliff 各檔 `file_roles`。
 2. **步驟二（預覽）**：
    - **預覽區上方**須為與編輯器相同的**完整搜尋／進階篩選工具列**（含模式切換、`#sfInput`、翻譯記憶相符度條件、句段狀態、句段編號範圍等；與 [`cat-tool/index.html`](../cat-tool/index.html) 編輯器內既有結構對齊），**不得**以精簡版代替。
-   - 其下為**唯讀**格線：顯示來源／譯文與狀態等欄位，**不提供可編輯譯文區**；並須顯示**額外資料欄**（至少含：所屬檔案／`#` 序號對照、TM 相符度或專案慣用之輔助欄—實作前列清單與欄寬策略於 PR 註明）。篩選條件變更時**即時**更新預覽列。
+   - 其下為**唯讀**格線：**欄位集合與編輯器主格線一致**（含譯文欄，**唯讀展示**；**不另發明**預覽專用之新欄型）。並須顯示**額外資料欄**（至少含：所屬檔案／`#` 序號對照、TM 相符度或專案慣用之輔助欄—實作前列清單與欄寬策略於 PR 註明）。若產品後續決定「預覽完全不顯示譯文欄」可再修訂本句；目前定案為**顯示唯讀譯文**。篩選條件變更時**即時**更新預覽列。
 3. 確認後寫入 `segment_ids`、`file_ids`、`filter_summary`、`file_roles`。
 
 建立完成後，**句段成員不可**於清單或編輯器內手動增刪；需刪除句段集後重建。
@@ -141,7 +158,7 @@
 | 項目 | 行為 |
 |------|------|
 | 版面 | 與單檔編輯器相同主格線；來源檔案由「所屬檔案」欄（§12.2）顯示，**不插入**整行式檔案分隔標頭列。 |
-| 排序 | 預設：`file_ids` 順序 → 同檔 `rowIdx` 升冪；**支援使用者調整排序**（排序後仍以 §12.2 欄辨識句段所屬檔）。 |
+| 排序 | 預設：`file_ids` 順序 → 同檔 `rowIdx` 升冪；**支援使用者於當次工作階段調整排序**（排序後仍以 §12.2 欄辨識句段所屬檔）。**不寫回** `cat_views`（僅記憶體／session 狀態）。 |
 | 儲存 | 沿用既有 `updateSegmentTarget` / `updateSegmentStatus` 等，以句段 `id` 寫回 `cat_segments` |
 | **匯出檔案** | **不顯示**匯出按鈕（跨多檔、多格式，避免誤導單檔匯出）；其餘工具列動作（內部註記、提問表單、預先翻譯、AI 等）維持與單檔同一**工具列動作列**排版習慣。 |
 | **內部註記** | 依**目前焦點／上下文句段**的 `fileId` 載入對應 `cat_files` 列，使用其 `relatedLmsCaseId`／`relatedLmsCaseTitle` 呼叫既有 `openInternalNoteFromEditor`（見 [`cat-tool/app.js`](../cat-tool/app.js) 約 L8922） |
@@ -149,13 +166,17 @@
 
 開啟句段集時須在記憶體保留「本句段集涉及之 `files`」映射，供內部註記與所屬檔案欄顯示。
 
+### 6.1 每次進入句段集編輯器之說明
+
+- **每次**進入句段集編輯器時，須顯示需使用者按「確定」方可關閉之系統說明（modal 或等效），內容至少包含：目前為**句段集模式**；「所屬檔案」欄（§12.2，`col-source-file`）**預設顯示**，可於工具列「檢視句段所屬檔案」關閉。
+
 ---
 
 ## 7. mqxliff 身分（`file_roles`）
 
 - 現行單檔編輯使用全域 `currentMqConfirmationRole`（約 L8287）與 `computeForbiddenForRole(seg, role)`。
 - 句段集模式：對 mqxliff 句段，優先使用 `file_roles[seg.fileId]`；缺省時再 fallback 至既有 session 變數（實作時明確註解語意）。
-- **開啟句段集時不再跳出**身分選擇視窗（`showMqRoleModal`）；身分必須已於建立時或清單「編輯」中設定完畢。
+- **開啟句段集時不再跳出**身分選擇視窗（`showMqRoleModal`）；身分必須已於建立時或清單「編輯」中設定完畢。譯者以 **§3.1** 所述**唯讀**路徑開啟檔案或句段集時，**同樣不跳出** `showMqRoleModal`。
 - 清單「編輯」：僅調整 `name`、`file_roles`（不變更 `segment_ids`）。
 
 ---
@@ -170,7 +191,7 @@ flowchart TD
   openFlow["開啟句段集"]
   openFlow --> getView["SELECT cat_views by id"]
   getView --> loadSegs["SELECT cat_segments WHERE id = ANY(segment_ids)"]
-  loadSegs --> sortUi["前端依 file_ids 與 rowIdx 排序"]
+  loadSegs --> sortUi["預設依 file_ids 與 rowIdx；當次工作階段可調排序（不持久化）"]
   sortUi --> edit["使用者編輯句段"]
   edit --> rpcUpdate["RPC updateSegmentTarget 等"]
 ```
@@ -200,9 +221,15 @@ flowchart TD
 - [ ] 協作：`CAT_COLLAB_*` 與 `CatToolPage` 即時頻道支援 **view 房**（§14）；`joinCollab`／`renderCollabPresence` 改為 roomType + roomId
 - [ ] 全產品 UI 用語符合 **§1.3**（禁用「匹配」、TM 否定用「無相符」等）；相關選項值／篩選摘要掃描
 - [ ] 句段集編輯器 UI：§12（筆記 header 同行雙卡、所屬檔案欄、§12.3 標題單行＋勾選於動作列）
-- [ ] 建立句段集步驟二：§5.2 完整篩選列＋唯讀格線含額外欄
+- [ ] 建立句段集步驟二：§5.2 完整篩選列＋唯讀格線（欄與編輯器一致、譯文唯讀）＋額外欄
+- [ ] 譯者專案清單篩選（至少一筆檔案或句段集指派且非 `cancelled`）；TMS／CAT 橋接若需 `projectIds` 一併評估
+- [ ] 譯者左欄：儀表板＋專案兩入口；`enforceTeamRoleLayout`（或等效）調整
+- [ ] 未受派唯讀開啟＋系統訊息；mqxliff 唯讀時不跳 `showMqRoleModal`
+- [ ] 管理按鈕依角色隱藏（專案／檔案／句段集清單；§3.1）
+- [ ] 句段集編輯器**每次**進入之說明 modal（§6.1）
+- [ ] 離線：`views` Dexie 表與本機建立／開啟／同步流程（§2.2）
 - [ ] `npm run sync:cat` 並提交 `cat-tool` 與 `public/cat`
-- [ ] 手動驗收：快速結合、自訂篩選、跨裝置讀取、內部註記案件對應、mqxliff 確認規則、**僅句段集指派**之開啟與編輯、**view 房**底欄成員與格線框線
+- [ ] 手動驗收：快速結合、自訂篩選、跨裝置讀取、內部註記案件對應、mqxliff 確認規則、**僅句段集指派**之開啟與編輯、**view 房**底欄成員與格線框線、譯者專案清單／唯讀／左欄兩入口
 
 ---
 
@@ -221,6 +248,7 @@ flowchart TD
 | DB 核心表 | [`supabase/migrations/20260415133000_cat_cloud_core.sql`](../supabase/migrations/20260415133000_cat_cloud_core.sql) |
 | 檔案層指派（對照 §13） | [`supabase/migrations/20260415150000_cat_file_assignments.sql`](../supabase/migrations/20260415150000_cat_file_assignments.sql) |
 | TMS iframe：身分與受派橋接、協作 postMessage | [`src/pages/CatToolPage.tsx`](../src/pages/CatToolPage.tsx)（`sendAssignments`、`CAT_COLLAB_*`、Realtime `cat-collab:*`） |
+| 譯者專案清單／左欄兩入口、`enforceTeamRoleLayout` | [`cat-tool/app.js`](../cat-tool/app.js)；父頁橋接見 [`src/pages/CatToolPage.tsx`](../src/pages/CatToolPage.tsx)（實作 PR 對照 §3.1） |
 | CAT：協作 join／底欄 presence | [`cat-tool/app.js`](../cat-tool/app.js) `joinCollabForFile`、`renderCollabPresence`、`applyCollabFocusOutlines` |
 | 句段集指派表（實作後補 migration 檔名） | `supabase/migrations/…_cat_view_assignments.sql`（新建） |
 | 介面靜態預覽（HTML mock） | [`docs/previews/cat-view-spec-ui-preview.html`](../docs/previews/cat-view-spec-ui-preview.html) |
@@ -296,6 +324,10 @@ flowchart TD
 - **可獨立或並存**：同一人可僅有檔案指派、僅有句段集指派，或兩者皆有；產品上不強制互斥。
 - 若未來需禁止「同一句段同時經兩種入口的衝突編輯」等規則，另開議題；本規格不預設業務層互斥。
 
+### 13.6 管理權限（PM 以上）
+
+- **建立／刪除句段集**、**管理 `cat_view_assignments`**（新增／更新／取消指派等）及專案內隱藏之管理按鈕（與 §2.3、§3.1 表格一致）—**PM 以上**；譯者僅能於受派範圍內編輯內容、唯讀瀏覽其餘，不得變更指派或句段集結構。
+
 ---
 
 ## 14. 協作房間與底欄使用者標籤
@@ -325,4 +357,4 @@ flowchart LR
 
 ---
 
-*文件版本：2026-05-01 起稿；2026-05-02 增修 §1.3、§5.2、§12；2026-05-02 晚：**§6 移除檔案分隔標頭列**（改賴所屬檔案欄＋可調排序）；含 §13、§14；實作時若與程式分歧，以 PR 說明為準。*
+*文件版本：2026-05-01 起稿；2026-05-02 增修 §1.3、§5.2、§12；2026-05-02 晚：**§6 移除檔案分隔標頭列**（改賴所屬檔案欄＋可調排序）；含 §13、§14；**2026-05-01（本輯）**：§3.1 譯者專案清單／左欄／唯讀開啟／管理按鈕隱藏；§2.2 離線句段集第一版納入；§5.2 預覽欄與編輯器一致（譯文唯讀）；§6 排序不持久化、§6.1 每次進入說明；§7 唯讀不跳 mqxliff modal；§8 mermaid 與 §6 一致；§2.1.1／§2.3／§13.6 PM+ 管理；§10 檢查清單增量。實作時若與程式分歧，以 PR 說明為準。*
