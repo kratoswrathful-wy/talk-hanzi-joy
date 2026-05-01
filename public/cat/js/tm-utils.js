@@ -36,6 +36,7 @@ function calculateSimilarity(source1, source2) {
     const s1 = source1.trim();
     const s2 = source2.trim();
     if (s1 === s2) return 100;
+    if (s1.toLowerCase() === s2.toLowerCase()) return 99;
 
     const distance = levenshtein(s1, s2);
     const maxLength = Math.max(s1.length, s2.length);
