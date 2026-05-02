@@ -166,40 +166,74 @@
                             <button type="button" class="success-btn btn-sm" id="btnProjectClientFormColConfig">欄位設定</button>
                         </div>
                     </div>
-                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:0.5rem;">
-                        <h2 style="font-size:1.1rem; color:#1e293b; margin:0;">檔案清單</h2>
-                        <div id="projectFilesToolbar" style="display:flex; flex-wrap:wrap; gap:0.45rem; align-items:center;">
-                            <button type="button" class="secondary-btn btn-sm" id="btnProjectToolbarAssign" style="display:none;" title="需選取一個檔案">指派</button>
-                            <button type="button" class="secondary-btn btn-sm" id="btnProjectToolbarLinkCase" title="為勾選檔案連結 LMS 案件">連結案件</button>
-                            <button type="button" class="danger-btn btn-sm" id="btnProjectToolbarDelete" title="從專案移除所選檔案">移除</button>
-                            <button type="button" class="secondary-btn btn-sm" id="btnProjectWordCount" title="字數與 TM 加權分析">分析</button>
-                            <button type="button" class="secondary-btn btn-sm" id="btnProjectSplitAssign" title="依份數均分句段（僅提示，不指派）">拆分</button>
+
+                    <!-- 檔案清單 ↔ 句段集 分頁 -->
+                    <div style="display:flex; align-items:center; gap:0; margin-bottom:0.75rem; border-bottom:2px solid #e2e8f0;">
+                        <button type="button" id="btnProjectTabFiles" class="project-detail-tab active" data-project-tab="files" style="padding:0.45rem 1rem; border:none; background:none; font-weight:600; cursor:pointer; color:var(--primary-color); border-bottom:2px solid var(--primary-color); margin-bottom:-2px;">檔案清單</button>
+                        <button type="button" id="btnProjectTabViews" class="project-detail-tab" data-project-tab="views" style="padding:0.45rem 1rem; border:none; background:none; font-weight:400; cursor:pointer; color:#64748b; border-bottom:2px solid transparent; margin-bottom:-2px;">句段集</button>
+                    </div>
+
+                    <!-- 面板：檔案清單 -->
+                    <div id="panelProjectFiles" class="project-detail-panel">
+                        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:0.5rem;">
+                            <div id="projectFilesToolbar" style="display:flex; flex-wrap:wrap; gap:0.45rem; align-items:center;">
+                                <button type="button" class="secondary-btn btn-sm" id="btnProjectToolbarAssign" style="display:none;" title="需選取一個檔案">指派</button>
+                                <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnProjectToolbarLinkCase" title="為勾選檔案連結 LMS 案件">連結案件</button>
+                                <button type="button" class="danger-btn btn-sm pm-only-ui" id="btnProjectToolbarDelete" title="從專案移除所選檔案">移除</button>
+                                <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnProjectWordCount" title="字數與 TM 加權分析">分析</button>
+                                <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnProjectSplitAssign" title="依份數均分句段（僅提示，不指派）">拆分</button>
+                                <button type="button" class="primary-btn btn-sm pm-only-ui" id="btnCreateViewQuick" title="以勾選檔案快速結合建立句段集">快速結合建立句段集</button>
+                            </div>
+                        </div>
+                        <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
+                            <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                                <thead>
+                                    <tr style="background:#f1f5f9;">
+                                        <th style="text-align:center; padding:0.5rem; border:1px solid #e2e8f0; width:52px;">
+                                            <label style="display:flex; align-items:center; justify-content:center; cursor:pointer;" title="全選／取消全選">
+                                                <input type="checkbox" id="projectFilesSelectAll" aria-label="全選">
+                                            </label>
+                                        </th>
+                                        <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">序號</th>
+                                        <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
+                                        <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:100px;">語言對</th>
+                                        <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:80px;">預設身分</th>
+                                        <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">指派</th>
+                                        <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:160px;">LMS 案件</th>
+                                        <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">最後修改</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="filesListBody"></tbody>
+                            </table>
+                        </div>
+                        <div id="projectFileAssignHint" style="font-size:0.82rem; color:#64748b; margin-top:0.4rem; display:none;">
+                            團隊線上版可使用上方「指派」將檔案交給未凍結人員；「拆分」僅供均分工作量參考，不會送出指派。
                         </div>
                     </div>
-                    <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
-                        <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
-                            <thead>
-                                <tr style="background:#f1f5f9;">
-                                    <th style="text-align:center; padding:0.5rem; border:1px solid #e2e8f0; width:52px;">
-                                        <label style="display:flex; align-items:center; justify-content:center; cursor:pointer;" title="全選／取消全選">
-                                            <input type="checkbox" id="projectFilesSelectAll" aria-label="全選">
-                                        </label>
-                                    </th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:60px;">序號</th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:100px;">語言對</th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:80px;">預設身分</th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">指派</th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:160px;">LMS 案件</th>
-                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">最後修改</th>
-                                </tr>
-                            </thead>
-                            <tbody id="filesListBody"></tbody>
-                        </table>
+
+                    <!-- 面板：句段集清單 -->
+                    <div id="panelProjectViews" class="project-detail-panel" style="display:none;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:0.5rem;">
+                            <div style="display:flex; gap:0.45rem; flex-wrap:wrap; align-items:center;">
+                                <button type="button" class="primary-btn btn-sm pm-only-ui" id="btnCreateViewCustom">＋ 自訂篩選建立句段集…</button>
+                            </div>
+                        </div>
+                        <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
+                            <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                                <thead>
+                                    <tr style="background:#f1f5f9;">
+                                        <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
+                                        <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">涉及檔案</th>
+                                        <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:160px; font-size:0.82rem; color:#64748b;">篩選條件</th>
+                                        <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">建立者</th>
+                                        <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:130px;">建立時間</th>
+                                        <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:140px;">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="viewsListBody"></tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
-                <div id="projectFileAssignHint" style="font-size:0.82rem; color:#64748b; margin-top:-0.8rem; margin-bottom:1rem; display:none;">
-                    團隊線上版可使用上方「指派」將檔案交給未凍結人員；「拆分」僅供均分工作量參考，不會送出指派。
                 </div>
                 <div id="projectDetailNotesPanel" class="notes-panel" style="margin-bottom:1.5rem; max-height:min(70vh, 720px); display:flex; flex-direction:column;">
                     <div class="notes-panel-header" id="projectDetailNotesHeader" style="flex-shrink:0;">
@@ -2820,6 +2854,64 @@
             </div>
         </div>
     </div>
+
+    <!-- 建立句段集 Modal（快速結合 + 命名；自訂篩選共用相同命名欄位） -->
+    <dialog id="createViewModal" style="border:1px solid #cbd5e1; border-radius:10px; padding:0; width:min(480px, calc(100vw - 32px));">
+        <form method="dialog" style="margin:0;">
+            <div style="padding:1rem 1.25rem 0; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #e2e8f0; padding-bottom:0.75rem;">
+                <h2 id="createViewModalTitle" style="margin:0; font-size:1.1rem; font-weight:700;">建立句段集</h2>
+                <button type="button" id="btnCreateViewModalClose" style="border:none; background:none; font-size:1.3rem; cursor:pointer; color:#64748b;" aria-label="關閉">✕</button>
+            </div>
+            <div style="padding:1rem 1.25rem; display:flex; flex-direction:column; gap:0.75rem;">
+                <label style="font-size:0.88rem; font-weight:600; color:#334155;">句段集名稱
+                    <input type="text" id="createViewNameInput" class="form-input" placeholder="例：MQ 待確認句段" maxlength="80" style="display:block; width:100%; margin-top:0.3rem;">
+                </label>
+                <div id="createViewFilesHint" style="font-size:0.82rem; color:#64748b; display:none;"></div>
+                <div id="createViewTypeRow" style="font-size:0.82rem; color:#64748b;"></div>
+            </div>
+            <div style="padding:0 1.25rem 1rem; display:flex; justify-content:flex-end; gap:0.5rem; border-top:1px solid #e2e8f0; padding-top:0.75rem;">
+                <button type="button" id="btnCreateViewModalCancel" class="secondary-btn btn-sm">取消</button>
+                <button type="button" id="btnCreateViewModalConfirm" class="primary-btn btn-sm">建立</button>
+            </div>
+        </form>
+    </dialog>
+
+    <!-- 編輯句段集 Modal（更名 / file_roles） -->
+    <dialog id="editViewModal" style="border:1px solid #cbd5e1; border-radius:10px; padding:0; width:min(420px, calc(100vw - 32px));">
+        <form method="dialog" style="margin:0;">
+            <div style="padding:1rem 1.25rem 0; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #e2e8f0; padding-bottom:0.75rem;">
+                <h2 style="margin:0; font-size:1.1rem; font-weight:700;">編輯句段集</h2>
+                <button type="button" id="btnEditViewModalClose" style="border:none; background:none; font-size:1.3rem; cursor:pointer; color:#64748b;" aria-label="關閉">✕</button>
+            </div>
+            <div style="padding:1rem 1.25rem; display:flex; flex-direction:column; gap:0.75rem;">
+                <label style="font-size:0.88rem; font-weight:600; color:#334155;">句段集名稱
+                    <input type="text" id="editViewNameInput" class="form-input" placeholder="句段集名稱" maxlength="80" style="display:block; width:100%; margin-top:0.3rem;">
+                </label>
+                <div id="editViewId" data-id="" style="display:none;"></div>
+            </div>
+            <div style="padding:0 1.25rem 1rem; display:flex; justify-content:flex-end; gap:0.5rem; border-top:1px solid #e2e8f0; padding-top:0.75rem;">
+                <button type="button" id="btnEditViewModalCancel" class="secondary-btn btn-sm">取消</button>
+                <button type="button" id="btnEditViewModalConfirm" class="primary-btn btn-sm">儲存</button>
+            </div>
+        </form>
+    </dialog>
+
+    <!-- 句段集編輯器：每次進入之說明 Modal（§6.1） -->
+    <dialog id="viewEditorIntroModal" style="border:1px solid #cbd5e1; border-radius:10px; padding:0; width:min(420px, calc(100vw - 32px));">
+        <form method="dialog" style="margin:0;">
+            <div style="padding:1rem 1.25rem; display:flex; flex-direction:column; gap:0.75rem;">
+                <h2 style="margin:0 0 0.25rem; font-size:1.05rem; font-weight:700; color:#1e293b;">📂 句段集模式說明</h2>
+                <p style="margin:0; font-size:0.88rem; color:#334155; line-height:1.6;">
+                    目前已進入<strong>句段集模式</strong>：格線中的句段來自多個檔案，匯整成單一工作清單。<br><br>
+                    欄位說明列（<strong>所屬檔案</strong>）預設顯示，可在工具列「☰ 欄位」中關閉。
+                </p>
+                <p style="margin:0; font-size:0.82rem; color:#64748b;">句段已鎖定為建立時的成員，不可於編輯器內手動增刪。</p>
+            </div>
+            <div style="padding:0 1.25rem 1rem; display:flex; justify-content:flex-end; border-top:1px solid #e2e8f0; padding-top:0.75rem;">
+                <button type="submit" class="primary-btn btn-sm">確定</button>
+            </div>
+        </form>
+    </dialog>
 
     <script src="js/tm-utils.js"></script>
     <script src="js/data-provider.js"></script>

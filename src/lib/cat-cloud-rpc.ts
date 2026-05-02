@@ -1618,6 +1618,218 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
       // 已停用：以本機快照整批覆寫雲端曾導致誤清空，不再支援此 RPC。
       throw new Error("db.replaceAiDataset is disabled");
 
+    // ── 句段集（cat_views） ─────────────────────────────────────────────────
+    case "db.listViews": {
+      const { data, error } = await supabase
+        .from("cat_views" as any)
+        .select(`
+          id, project_id, owner_user_id, name, file_ids, segment_ids,
+          filter_summary, file_roles, created_at, last_modified,
+          owner:profiles!cat_views_owner_user_id_fkey(id, display_name, email)
+        `)
+        .eq("project_id", payload.projectId)
+        .order("created_at", { ascending: true, nullsFirst: true });
+      if (error) throw error;
+      return (data ?? []).map((r: any) => ({
+        id: r.id,
+        projectId: r.project_id,
+        ownerUserId: r.owner_user_id,
+        ownerName: r.owner?.display_name || r.owner?.email || null,
+        name: r.name ?? "未命名句段集",
+        fileIds: Array.isArray(r.file_ids) ? r.file_ids : [],
+        segmentIds: Array.isArray(r.segment_ids) ? r.segment_ids : [],
+        filterSummary: r.filter_summary ?? {},
+        fileRoles: r.file_roles ?? {},
+        createdAt: r.created_at,
+        lastModified: r.last_modified,
+      }));
+    }
+    case "db.getView": {
+      const { data, error } = await supabase
+        .from("cat_views" as any)
+        .select(`
+          id, project_id, owner_user_id, name, file_ids, segment_ids,
+          filter_summary, file_roles, created_at, last_modified,
+          owner:profiles!cat_views_owner_user_id_fkey(id, display_name, email)
+        `)
+        .eq("id", payload.viewId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      return {
+        id: (data as any).id,
+        projectId: (data as any).project_id,
+        ownerUserId: (data as any).owner_user_id,
+        ownerName: (data as any).owner?.display_name || (data as any).owner?.email || null,
+        name: (data as any).name ?? "未命名句段集",
+        fileIds: Array.isArray((data as any).file_ids) ? (data as any).file_ids : [],
+        segmentIds: Array.isArray((data as any).segment_ids) ? (data as any).segment_ids : [],
+        filterSummary: (data as any).filter_summary ?? {},
+        fileRoles: (data as any).file_roles ?? {},
+        createdAt: (data as any).created_at,
+        lastModified: (data as any).last_modified,
+      };
+    }
+    case "db.createView": {
+      const { projectId, name, fileIds, segmentIds, filterSummary, fileRoles } = payload;
+      const { data, error } = await supabase
+        .from("cat_views" as any)
+        .insert({
+          project_id: projectId,
+          owner_user_id: userId,
+          name: name || "未命名句段集",
+          file_ids: Array.isArray(fileIds) ? fileIds : [],
+          segment_ids: Array.isArray(segmentIds) ? segmentIds : [],
+          filter_summary: filterSummary ?? {},
+          file_roles: fileRoles ?? {},
+          created_at: nowIso(),
+          last_modified: nowIso(),
+        } as any)
+        .select("id")
+        .single();
+      if (error) throw error;
+      return (data as any).id;
+    }
+    case "db.updateView": {
+      const { viewId, name, fileRoles } = payload;
+      const patch: Record<string, unknown> = { last_modified: nowIso() };
+      if (name != null) patch.name = name;
+      if (fileRoles != null) patch.file_roles = fileRoles;
+      const { error } = await supabase
+        .from("cat_views" as any)
+        .update(patch as any)
+        .eq("id", viewId);
+      if (error) throw error;
+      return true;
+    }
+    case "db.deleteView": {
+      const { error } = await supabase
+        .from("cat_views" as any)
+        .delete()
+        .eq("id", payload.viewId);
+      if (error) throw error;
+      return true;
+    }
+    case "db.getSegmentsByIds": {
+      const ids: string[] = Array.isArray(payload.segmentIds) ? payload.segmentIds : [];
+      if (ids.length === 0) return [];
+      const CHUNK = 200;
+      const results: unknown[] = [];
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const chunk = ids.slice(i, i + CHUNK);
+        const { data, error } = await supabase
+          .from("cat_segments")
+          .select("*")
+          .in("id", chunk);
+        if (error) throw error;
+        results.push(...(data ?? []).map(mapSegmentRow));
+      }
+      return results;
+    }
+    case "db.getSegmentsByFileForPreview": {
+      const fileIds: string[] = Array.isArray(payload.fileIds) ? payload.fileIds : [];
+      if (fileIds.length === 0) return [];
+      const CHUNK = 20;
+      const results: unknown[] = [];
+      for (let i = 0; i < fileIds.length; i += CHUNK) {
+        const chunk = fileIds.slice(i, i + CHUNK);
+        const { data, error } = await supabase
+          .from("cat_segments")
+          .select("*")
+          .in("file_id", chunk)
+          .order("file_id", { ascending: true })
+          .order("row_idx", { ascending: true });
+        if (error) throw error;
+        results.push(...(data ?? []).map(mapSegmentRow));
+      }
+      return results;
+    }
+    case "db.listViewAssignments": {
+      const { data, error } = await supabase
+        .from("cat_view_assignments" as any)
+        .select(`
+          id, view_id, assignee_user_id, status, assigned_by, assigned_at, updated_at,
+          assignee:profiles!cat_view_assignments_assignee_user_id_fkey(id, display_name, email)
+        `)
+        .eq("view_id", payload.viewId);
+      if (error) throw error;
+      return (data ?? []).map((r: any) => ({
+        id: r.id,
+        viewId: r.view_id,
+        assigneeUserId: r.assignee_user_id,
+        assigneeName: r.assignee?.display_name || r.assignee?.email || null,
+        status: r.status,
+        assignedBy: r.assigned_by,
+        assignedAt: r.assigned_at,
+        updatedAt: r.updated_at,
+      }));
+    }
+    case "db.assignView": {
+      const { viewId, assigneeUserIds } = payload;
+      if (!Array.isArray(assigneeUserIds) || assigneeUserIds.length === 0) return [];
+      const rows = assigneeUserIds.map((uid: string) => ({
+        view_id: viewId,
+        assignee_user_id: uid,
+        status: "assigned",
+        assigned_by: userId,
+        assigned_at: nowIso(),
+        updated_at: nowIso(),
+      }));
+      const { data, error } = await supabase
+        .from("cat_view_assignments" as any)
+        .upsert(rows as any, { onConflict: "view_id,assignee_user_id" })
+        .select("id");
+      if (error) throw error;
+      return (data ?? []).map((r: any) => r.id);
+    }
+    case "db.unassignView": {
+      const { viewId, assigneeUserId } = payload;
+      const { error } = await supabase
+        .from("cat_view_assignments" as any)
+        .update({ status: "cancelled", updated_at: nowIso() } as any)
+        .eq("view_id", viewId)
+        .eq("assignee_user_id", assigneeUserId);
+      if (error) throw error;
+      return true;
+    }
+    case "db.listMyViewAssignments": {
+      const { data, error } = await supabase
+        .from("cat_view_assignments" as any)
+        .select(`
+          id, view_id, status, assigned_at, updated_at,
+          view:cat_views!cat_view_assignments_view_id_fkey(id, project_id, name, file_ids, segment_ids, file_roles)
+        `)
+        .eq("assignee_user_id", userId)
+        .neq("status", "cancelled")
+        .order("assigned_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map((r: any) => ({
+        id: r.id,
+        viewId: r.view_id,
+        status: r.status,
+        assignedAt: r.assigned_at,
+        updatedAt: r.updated_at,
+        view: r.view ? {
+          id: r.view.id,
+          projectId: r.view.project_id,
+          name: r.view.name,
+          fileIds: Array.isArray(r.view.file_ids) ? r.view.file_ids : [],
+          segmentIds: Array.isArray(r.view.segment_ids) ? r.view.segment_ids : [],
+          fileRoles: r.view.file_roles ?? {},
+        } : null,
+      }));
+    }
+    case "db.updateViewAssignmentStatus": {
+      const { assignmentId, status } = payload;
+      const { error } = await supabase
+        .from("cat_view_assignments" as any)
+        .update({ status, updated_at: nowIso() } as any)
+        .eq("id", assignmentId)
+        .eq("assignee_user_id", userId);
+      if (error) throw error;
+      return true;
+    }
+
     default:
       throw new Error(`Unknown CAT cloud RPC action: ${action}`);
   }

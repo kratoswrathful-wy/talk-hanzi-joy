@@ -351,6 +351,32 @@ db.version(19).stores({
     });
 });
 
+// v20：句段集（views）—本機離線版與團隊線上版共用同一 IndexedDB 表
+// fileIds / segmentIds 為陣列（離線版為 number[]、團隊版為 uuid string[]）
+// filterSummary / fileRoles 為普通 JSON 欄位（不索引）
+db.version(20).stores({
+    projects: '++id, name, createdAt, lastModified, *readTms, *writeTms',
+    files: '++id, projectId, name, createdAt, lastModified, sourceLang, targetLang',
+    segments: '++id, fileId, sheetName, rowIdx, colSrc, colTgt, isLocked',
+    tms: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    tmSegments: '++id, tmId, sourceText, targetText, createdAt, lastModified, key, prevSegment, nextSegment, writtenFile, writtenProject, createdBy, *changeLog, sourceLang, targetLang',
+    tbs: '++id, name, *sourceLangs, *targetLangs, createdAt, lastModified',
+    moduleLogs: '++id, module, at',
+    workspaceNotes: '++id, projectId, fileId, savedAt, createdBy, displayTitle',
+    privateNotes: '++id, projectId, updatedAt',
+    guidelines: '++id, projectId, type, updatedAt',
+    guidelineReplies: '++id, guidelineId, parentReplyId',
+    wordCountReports: '++id, projectId, createdAt, label',
+    aiGuidelines: '++id, category, createdAt, scope, isDefault',
+    aiStyleExamples: '++id, sourceLang, targetLang, segId, createdAt',
+    aiSettings: '++id',
+    aiProjectSettings: '++id, projectId',
+    aiCategoryTags: '++id, name, createdAt, listHidden',
+    fileAiReports: 'fileId, updatedAt',
+    aiIssueGroups: 'id, scope, projectId, name, sortOrder, createdAt',
+    views: '++id, projectId, name, createdAt'
+});
+
 /** 比對／空白判定：取 HTML 可見文字並壓縮空白，與 cat-cloud-rpc / app.js 邏輯一致 */
 function normalizeCatGuidelineContent(html) {
     if (html == null) return '';
@@ -499,7 +525,63 @@ const DBService = {
         try {
             await db.workspaceNotes.where('projectId').equals(projectId).delete();
         } catch (_) {}
+        try {
+            await db.views.where('projectId').equals(projectId).delete();
+        } catch (_) {}
         await db.projects.delete(projectId);
+    },
+
+    // ---- Views ----
+    async listViews(projectId) {
+        const pid = toDexieLocalId(projectId);
+        const rows = await db.views.where('projectId').equals(pid).sortBy('id');
+        return rows;
+    },
+    async getView(viewId) {
+        const id = toDexieLocalId(viewId);
+        let result = await db.views.get(id);
+        if (result == null && typeof viewId === 'string') {
+            const n = parseInt(viewId, 10);
+            if (!isNaN(n)) result = await db.views.get(n);
+        }
+        return result ?? null;
+    },
+    async createView(projectId, name, fileIds, segmentIds, filterSummary, fileRoles) {
+        const pid = toDexieLocalId(projectId);
+        const id = await db.views.add({
+            projectId: pid,
+            name: name || '未命名句段集',
+            fileIds: Array.isArray(fileIds) ? fileIds : [],
+            segmentIds: Array.isArray(segmentIds) ? segmentIds : [],
+            filterSummary: filterSummary ?? {},
+            fileRoles: fileRoles ?? {},
+            createdAt: new Date().toISOString(),
+            lastModified: new Date().toISOString(),
+        });
+        return id;
+    },
+    async updateView(viewId, updates) {
+        const id = toDexieLocalId(viewId);
+        return await db.views.update(id, { ...updates, lastModified: new Date().toISOString() });
+    },
+    async deleteView(viewId) {
+        const id = toDexieLocalId(viewId);
+        await db.views.delete(id);
+    },
+    async getSegmentsByIds(segmentIds) {
+        if (!Array.isArray(segmentIds) || segmentIds.length === 0) return [];
+        const results = await db.segments.where('id').anyOf(segmentIds.map(toDexieLocalId)).toArray();
+        return results;
+    },
+    async getSegmentsByFileForPreview(fileIds) {
+        if (!Array.isArray(fileIds) || fileIds.length === 0) return [];
+        const normIds = fileIds.map(toDexieLocalId);
+        const all = [];
+        for (const fid of normIds) {
+            const rows = await db.segments.where('fileId').equals(fid).sortBy('rowIdx');
+            all.push(...rows);
+        }
+        return all;
     },
 
     // ---- Files ----
@@ -1546,6 +1628,22 @@ const DBService = {
     DBService.addAiIssueGroup = async (payload) => rpc('db.addAiIssueGroup', payload);
     DBService.updateAiIssueGroup = async (id, patch) => rpc('db.updateAiIssueGroup', { id, ...patch });
     DBService.deleteAiIssueGroup = async (id) => rpc('db.deleteAiIssueGroup', { id });
+
+    // views (句段集)
+    DBService.listViews = async (projectId) => rpc('db.listViews', { projectId });
+    DBService.getView = async (viewId) => rpc('db.getView', { viewId });
+    DBService.createView = async (projectId, name, fileIds, segmentIds, filterSummary, fileRoles) =>
+        rpc('db.createView', { projectId, name, fileIds, segmentIds, filterSummary, fileRoles });
+    DBService.updateView = async (viewId, updates) => rpc('db.updateView', { viewId, ...updates });
+    DBService.deleteView = async (viewId) => rpc('db.deleteView', { viewId });
+    DBService.getSegmentsByIds = async (segmentIds) => rpc('db.getSegmentsByIds', { segmentIds });
+    DBService.getSegmentsByFileForPreview = async (fileIds) => rpc('db.getSegmentsByFileForPreview', { fileIds });
+    DBService.listViewAssignments = async (viewId) => rpc('db.listViewAssignments', { viewId });
+    DBService.assignView = async (viewId, assigneeUserIds) => rpc('db.assignView', { viewId, assigneeUserIds });
+    DBService.unassignView = async (viewId, assigneeUserId) => rpc('db.unassignView', { viewId, assigneeUserId });
+    DBService.listMyViewAssignments = async () => rpc('db.listMyViewAssignments', {});
+    DBService.updateViewAssignmentStatus = async (assignmentId, status) =>
+        rpc('db.updateViewAssignmentStatus', { assignmentId, status });
 
     // table handles are local-only; prevent accidental direct Dexie usage in team mode.
     DBService.db = null;

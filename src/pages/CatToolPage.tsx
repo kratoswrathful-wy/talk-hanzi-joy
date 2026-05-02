@@ -330,16 +330,36 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
       .order("assigned_at", { ascending: false });
 
     const assignments = data ?? [];
-    const translatorVisibleProjectIds = isTranslatorOnly
-      ? [
-          ...new Set(
-            assignments
-              .map((row: { file?: { project_id?: string } | null }) => row?.file?.project_id)
-              .filter((id): id is string => !!id)
-              .map((id) => String(id)),
-          ),
-        ]
-      : undefined;
+
+    let translatorVisibleProjectIds: string[] | undefined;
+    if (isTranslatorOnly) {
+      // 從 cat_file_assignments 取得專案 ids
+      const fileAssignProjectIds = assignments
+        .map((row: { file?: { project_id?: string } | null }) => row?.file?.project_id)
+        .filter((id): id is string => !!id)
+        .map((id) => String(id));
+
+      // 從 cat_view_assignments 取得句段集所屬專案 ids（§3.1）
+      const { data: viewAssignData } = await supabase
+        .from("cat_view_assignments" as any)
+        .select(`
+          id,
+          view_id,
+          status,
+          view:cat_views!cat_view_assignments_view_id_fkey (
+            id,
+            project_id
+          )
+        `)
+        .eq("assignee_user_id", user.id)
+        .neq("status", "cancelled");
+      const viewAssignProjectIds = ((viewAssignData ?? []) as any[])
+        .map((row: any) => row?.view?.project_id)
+        .filter((id: unknown): id is string => !!id)
+        .map((id: string) => String(id));
+
+      translatorVisibleProjectIds = [...new Set([...fileAssignProjectIds, ...viewAssignProjectIds])];
+    }
 
     const liveWindow = iframeRef.current?.contentWindow;
     if (!liveWindow) return;
@@ -349,7 +369,7 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         payload: {
           assignments,
           translatorOnly: isTranslatorOnly,
-          /** 譯者專案清單僅顯示至少一筆有效檔案指派所屬專案（CAT_VIEW_SPEC §3.1）；句段集指派併入待 `cat_view_assignments` 上線後擴充。 */
+          /** 譯者專案清單：cat_file_assignments ∪ cat_view_assignments（非 cancelled）所屬專案（CAT_VIEW_SPEC §3.1） */
           translatorVisibleProjectIds,
         },
       },
