@@ -104,8 +104,9 @@
 
 - [`cat-tool/js/word-count-worker.js`](../cat-tool/js/word-count-worker.js)：Dedicated Worker，`analyzeAsync` 與句段進度 `postMessage`。  
 - [`cat-tool/word-count-engine.js`](../cat-tool/word-count-engine.js)：Worker 安全之純邏輯與 `analyzeAsync`（含分批讓出）。  
-- [`cat-tool/app.js`](../cat-tool/app.js)：進度載入、佇列、中止、per-id 模式、點擊事件；**字數分析 Modal**（`runWordCountAnalysis`、`openWordCountModalWithSelection`、句段集工具列分析等，見 §9）。  
-- [`cat-tool/index.html`](../cat-tool/index.html)：`#wordCountModal`、`#btnRunWordCount`、`#wordCountAnalysisProgress`、`#wordCountResultDisclaimer` 等 DOM；「切換字數」按鈕文案與 `title`。  
+- [`cat-tool/app.js`](../cat-tool/app.js)：進度載入、佇列、中止、per-id 模式、點擊事件；**字數分析 Modal**（`runWordCountAnalysis`、`openWordCountModalWithSelection`、`openWordCountModalFromEditor`、`applyWordCountModalUiMode`、`syncWordCountEditorScopeRadios`、`syncEditorWordCountToolbarBtn`、句段集工具列分析等，見 §9）。  
+- [`cat-tool/index.html`](../cat-tool/index.html)：`#wordCountModal`、`#btnRunWordCount`、`#btnEditorWordCount`、`#wordCountAnalysisProgress`、`#wordCountResultDisclaimer`、`#wordCountIntroProject`／`#wordCountIntroEditor`、`#wordCountEditorScopeWrap`（`#wordCountEditorScopeFull`、`#wordCountEditorScopeFiltered`）、`#wordCountReportSection` 等 DOM；「切換字數」按鈕文案與 `title`。  
+- [`cat-tool/style.css`](../cat-tool/style.css)：`.btn-editor-word-count`（編輯器「字數」白底黑字按鈕）。  
 - 變更後依專案慣例執行 `npm run sync:cat` 並提交 `public/cat/`（見根目錄 [`AGENTS.md`](../AGENTS.md)）。
 
 ---
@@ -126,13 +127,15 @@
 |------|------------------|
 | **檔案清單** | 勾選一個或多個檔案後開啟：`openWordCountModalWithSelection`（[`cat-tool/app.js`](../cat-tool/app.js)）。 |
 | **句段集工具列** | 勾選一個或多個句段集後按「分析」：`btnViewsToolbarWordCount`。 |
+| **編輯器工具列** | 在專案內、已載入句段時顯示「**字數**」`#btnEditorWordCount`（內部註記按鈕左側）；點擊：`openWordCountModalFromEditor`。 |
 
 ### 9.2 分析範圍狀態
 
 - **檔案模式**：`wordCountSelectedFileIds`（開啟自檔案清單時寫入）。  
 - **句段集模式**：`window._wordCountAnalysisViews` 為 `{ id, name, segmentIds }[]`（每個句段集一筆）；開啟時 **`wordCountSelectedFileIds` 清空**，且**不再**使用舊版整包 `_wordCountSegmentOverride` 扁平合併。  
-- 自檔案清單開啟時：**`_wordCountAnalysisViews` 清空**。  
-- **`closeWordCountModal`**：清除 `_wordCountAnalysisViews` 與 `_wordCountSegmentOverride`，避免殘留狀態。
+- **編輯器模式**：`window._wordCountOpenedFrom === 'editor'`；`wordCountSelectedFileIds` 與 `_wordCountAnalysisViews` 清空；句段取自 **`currentSegmentsList`**（見 §9.6）。  
+- 自檔案清單開啟時：**`_wordCountAnalysisViews` 清空**、`_wordCountOpenedFrom` 清空。自句段集開啟時：同上。  
+- **`closeWordCountModal`**：清除 `_wordCountAnalysisViews`、`_wordCountSegmentOverride`、`_wordCountOpenedFrom`，並呼叫 **`applyWordCountModalUiMode(false)`** 還原 Modal 文案與區塊顯示。
 
 ### 9.3 合併範圍與分項分析
 
@@ -145,7 +148,8 @@
 
 - **`#btnRunWordCount`**：分析進行中 **`disabled`**，完成後於 `finally` 解除（避免重複觸發）。  
 - **`#wordCountAnalysisProgress`**：`role="status"`、`aria-live="polite"`；階段文案包含讀取勾選之 TM、載入句段、合併／分項分析；分析階段並顯示 Worker 回報之**百分比與句段數**（`done/total`）。  
-- 完成後短暫顯示「完成」，約 **1.2 秒**後清空進度文字。
+- 完成後短暫顯示「完成」，約 **1.2 秒**後清空進度文字。  
+- **編輯器模式**：與上列相同（同一 Modal、同一執行按鈕與進度區）；專案多檔／多集時進度含「合併／分項」階段，編輯器單次統計則為「統計分析中」文案（見 §9.6）。
 
 ### 9.5 本機報告 payload
 
@@ -156,9 +160,15 @@
 
 ### 9.6 編輯器入口（`#btnEditorWordCount`）
 
-- 編輯器工具列「**字數**」在 `currentProjectId` 且有 `currentSegmentsList` 時顯示；開啟時設 `window._wordCountOpenedFrom === 'editor'`，句段取自編輯器記憶體（不經檔案清單／句段集陣列）。  
-- **統計範圍**（`#wordCountEditorScopeWrap`，置於「納入鎖定句段」右側）：**統計全文**／**統計現在篩選結果**互斥；僅在 **`sfMode === 'filter'`（篩選模式）** 時可選第二項，否則第二項反灰並強制「全文」。篩選結果句段集合為 `sfFilterSnapshotSegIds` 與 `currentSegmentsList` 之交集。  
-- 編輯器開啟時**隱藏**「儲存本次報告」與「報告紀錄（本機）」區塊（不寫入本機報告）。關閉 Modal 時 `applyWordCountModalUiMode(false)` 還原專案模式 UI。
+- **顯示**：`syncEditorWordCountToolbarBtn()` 在 **`activeView === 'viewEditor'`**、有 **`currentProjectId`**、且 **`currentSegmentsList.length > 0`** 時顯示按鈕；於 `updateEditorQuestionButtons`（單檔開檔）、`openEditor`／`openEditorWithSegments` 載入完成後呼叫；離開編輯器（`btnExitEditor`）時隱藏。  
+- **開啟**：`openWordCountModalFromEditor` 設 `window._wordCountOpenedFrom === 'editor'`，清空 `wordCountSelectedFileIds` 與 `_wordCountAnalysisViews`；TM 勾選區與專案開啟 Modal 相同邏輯（專案 `readTms`）。呼叫 **`applyWordCountModalUiMode(true)`**：切換為 `#wordCountIntroEditor`、顯示 `#wordCountEditorScopeWrap`、隱藏 `#btnSaveWordCountReport` 與 `#wordCountReportSection`。  
+- **納入鎖定句段**：與專案模式相同，仍使用 `#wordCountIncludeLocked`（checkbox 位置不變；統計範圍 radio 在其**右側**）。  
+- **統計範圍**（`#wordCountEditorScopeWrap`）：**統計全文**（`#wordCountEditorScopeFull`）／**統計現在篩選結果**（`#wordCountEditorScopeFiltered`）互斥。僅在 **`sfMode === 'filter'`** 時第二項可選；否則 **`disabled`**、強制勾選全文，並於 `#wordCountEditorScopeFilteredLabel` 以 `title` 提示需先切換為篩選模式。  
+- **同步時機**：`syncWordCountEditorScopeRadios()` 於篩選／搜尋模式切換（`#sfModeSearch`、`#sfModeFilter`）、`updateSfModeToggleLockState`、進階篩選面板展開鎖定為篩選時、以及編輯器開啟 Modal 時呼叫，避免 Modal 開著時切換模式後仍誤選「篩選結果」。  
+- **執行分析**：`runWordCountAnalysis` 在編輯器分支依選項取 `currentSegmentsList` 全量，或 **`sfFilterSnapshotSegIds`** 與列表之交集；若選篩選結果但快照為空，提示「目前篩選下沒有可統計的句段。」編輯器路徑**不做**多檔／多集分項（不顯示 §9.3 合併／分項表與標註）。進度文案使用「統計分析中…」。  
+- **本機報告**：編輯器模式不顯示儲存與報告列表，不呼叫 `addWordCountReport`。  
+- **樣式**：[`cat-tool/style.css`](../cat-tool/style.css) 之 **`.btn-editor-word-count`**（白底、深色字、邊框、`box-sizing: border-box`）。  
+- **程式追溯**：`5706329`（含 `npm run sync:cat` 與 `public/cat`）。
 
 ---
 
@@ -169,4 +179,5 @@
 | 2026-05-02 | 初稿：納入 Worker、分批限流、載入 UI、切頁即停、單一佇列、切換字數與單列點擊規格。 |
 | 2026-05-02 | 增「決策摘要」：正式採用方案 A、單一佇列；註明程式尚未開工、CODEMAP 已連結。 |
 | 2026-05-02 | 實作補充：進專案／編輯器重置為原始字數；單列重算、全表原始並行；混合時工具列只收斂加權→原始；進度條自訂無延遲提示與游標。 |
-| 2026-05-03 | §3／§7 已落地；**§9** 字數 Modal（合併／分項、進度、報告 payload，`3850264`）；**§9.6** 編輯器「字數」、篩選模式二選一、不儲存報告。 |
+| 2026-05-03 | §3／§7 已落地；**§9** 字數 Modal（合併／分項、進度、報告 payload，`3850264`）。 |
+| 2026-05-03 | **§9.6** 編輯器「字數」、篩選模式二選一、不儲存報告；§9.1／§9.2／§7 補編輯器與 DOM；驗收後文件補登（`5706329`）。 |

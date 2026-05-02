@@ -420,6 +420,7 @@
 | 初版 | `~` → `16d5cd5` 前後 | Migration（`cat_views`、`cat_view_assignments` + RLS）、[`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts) CRUD／批次載入句段、[`cat-tool/db.js`](../cat-tool/db.js) Dexie／`DBService`、專案詳情分頁／清單／建立精靈／`viewId` 進入編輯器、[`src/pages/CatToolPage.tsx`](../src/pages/CatToolPage.tsx) `TMS_ASSIGNMENTS`／`viewAssignments`／`CAT_VIEW_ASSIGNMENT_STATUS`。**Phase A**（譯者專案可見性、儀表板受派句段集、未受派唯讀、左欄／管理按鈕隱藏等）。**Phase B**（句段集清單進度、Key／所屬檔案欄、否定式 `!currentFileId` 守衛放寬為句段集模式等）。 |
 | 六項驗收修正 | `16d5cd5` | 進度欄改至名稱下方（字數）；`openEditorWithSegments` 補 `idValue`→`keys`；`renderEditorSegments` 補 `col-source-file` 儲存格；排序改 `filesMap.seqNo`；`ActiveWriteTms`；多處 `!currentFileId`→`!currentFileId && !_currentViewId`。 |
 | 三項根本修正 | **`3eb024a`** | 見 **§八點三**。 |
+| 編輯器字數分析 | **`5706329`** | 編輯器工具列「字數」`#btnEditorWordCount`（內部註記左側）；與專案共用 `#wordCountModal`，`window._wordCountOpenedFrom === 'editor'` 時顯示統計範圍 radio（全文／篩選快照，僅篩選模式可選後者）、隱藏本機報告區；`syncEditorWordCountToolbarBtn`、`syncWordCountEditorScopeRadios`。規格見 [`CAT_WORD_COUNT_WORKER_AND_UI.md`](CAT_WORD_COUNT_WORKER_AND_UI.md) **§9.6**。 |
 
 ### 八點三、本輪三項根本修正（`3eb024a`）
 
