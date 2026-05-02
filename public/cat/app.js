@@ -2285,7 +2285,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         assignedFilesBody.innerHTML = list.map(a => {
             const file = a.file || {};
             const status = STATUS_LABELS_TMS[a.status] || a.status || '—';
-            const at = (a.updated_at || a.assigned_at) ? new Date(a.updated_at || a.assigned_at).toLocaleString('zh-TW') : '—';
+            const at = (a.updated_at || a.assigned_at) ? new Date(a.updated_at || a.assigned_at).toLocaleString('zh-TW', { hour12: false }) : '—';
             return `
                 <tr>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0;">${status}</td>
@@ -2560,7 +2560,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function formatDateForLog(iso) {
         try {
             const d = new Date(iso);
-            return isNaN(d.getTime()) ? iso : d.toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+            return isNaN(d.getTime()) ? iso : d.toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
         } catch (_) { return iso; }
     }
 
@@ -3168,7 +3168,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     row.innerHTML = `
                         <div class="list-item-info" data-file-id="${f.id}">
                             <div class="project-title">${f.name}</div>
-                            <div class="project-meta">最後使用時間：${new Date(f.lastModified).toLocaleString()}</div>
+                            <div class="project-meta">最後使用時間：${new Date(f.lastModified).toLocaleString('zh-TW', { hour12: false })}</div>
                         </div>
                     `;
                     recentFilesList.appendChild(row);
@@ -3263,7 +3263,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <button class="link-btn resource-name" data-id="${idAttr}" style="background:none;border:none;padding:0;color:var(--primary-color);cursor:pointer;text-decoration:underline;">${nameEsc}</button>
                 </td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${projLangHtml}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.85rem; color:#64748b;">${new Date(p.lastModified || p.createdAt).toLocaleString()}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.85rem; color:#64748b;">${new Date(p.lastModified || p.createdAt).toLocaleString('zh-TW', { hour12: false })}</td>
             `;
             } else {
                 tr.innerHTML = `
@@ -3273,7 +3273,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <button class="link-btn resource-name" data-id="${idAttr}" style="background:none;border:none;padding:0;color:var(--primary-color);cursor:pointer;text-decoration:underline;">${nameEsc}</button>
                 </td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${projLangHtml}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.85rem; color:#64748b;">${new Date(p.lastModified || p.createdAt).toLocaleString()}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.85rem; color:#64748b;">${new Date(p.lastModified || p.createdAt).toLocaleString('zh-TW', { hour12: false })}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; white-space:nowrap;">
                     <button class="secondary-btn btn-sm rename-btn" data-id="${idAttr}" data-name="${(p.name || '').replace(/"/g, '&quot;')}">更名</button>
                 </td>
@@ -3541,28 +3541,33 @@ document.addEventListener('DOMContentLoaded', async () => {
             const lastFilesList = window._lastFilesListForProject || [];
             const fileMap = {};
             lastFilesList.forEach((f, idx) => { fileMap[String(f.id)] = { name: f.name, idx: idx + 1 }; });
+            const isPm = _isCatPmOrExecutive();
             body.innerHTML = _currentViewsList.map((v, rowIdx) => {
                 const viewId = String(v.id || '');
                 const nameEsc = (v.name || '未命名').replace(/</g, '&lt;');
+                // 涉及檔案：每個檔名單行，以 title 顯示全名，超出欄寬以 ellipsis 截斷（不換行）
                 const fileLines = (Array.isArray(v.fileIds) ? v.fileIds : []).map((fid) => {
                     const info = fileMap[String(fid)];
                     if (info) {
-                        const nameShort = info.name.length > 28 ? info.name.slice(0, 28) + '…' : info.name;
-                        return `<span title="${info.name.replace(/"/g, '&quot;')}">#${info.idx} ${nameShort.replace(/</g, '&lt;')}</span>`;
+                        const nameEscFile = info.name.replace(/</g, '&lt;').replace(/"/g, '&quot;');
+                        return `<div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="#${info.idx} ${nameEscFile}">#${info.idx} ${nameEscFile}</div>`;
                     }
-                    return `<span style="color:#94a3b8;">${String(fid).slice(0, 8)}…</span>`;
-                }).join('<br>') || '—';
+                    return `<div style="color:#94a3b8;">${String(fid).slice(0, 8)}…</div>`;
+                }).join('') || '—';
                 const filterText = _renderFilterSummaryText(v.filterSummary).replace(/</g, '&lt;').replace(/\n/g, '<br>');
                 const ownerName = (v.ownerName || v.ownerUserId || '—').replace(/</g, '&lt;');
-                const createdAt = v.createdAt ? new Date(v.createdAt).toLocaleString('zh-TW') : '—';
+                const createdAt = v.createdAt ? new Date(v.createdAt).toLocaleString('zh-TW', { hour12: false }) : '—';
+                const renameBtn = isPm
+                    ? `<div style="margin-top:0.25rem;"><button type="button" class="secondary-btn btn-sm view-rename-btn" data-view-id="${viewId}" data-view-name="${nameEsc}" style="padding:1px 8px; font-size:0.76rem;">更名</button></div>`
+                    : '';
                 return `<tr data-view-id="${viewId}">
-                    <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center;"><input type="checkbox" class="view-row-cb" data-id="${viewId}"></td>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0; text-align:center; width:44px;"><input type="checkbox" class="view-row-cb" data-id="${viewId}"></td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; width:52px; color:#64748b;">${rowIdx + 1}</td>
-                    <td style="padding:0.5rem; border:1px solid #e2e8f0; font-weight:600;">
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0; white-space:nowrap;">
                         <button type="button" class="view-open-btn" data-view-id="${viewId}" style="background:none;border:none;padding:0;color:var(--primary-color);cursor:pointer;text-decoration:underline;font-weight:600;">${nameEsc}</button>
-                        ${_isCatPmOrExecutive() ? `<span style="margin-left:0.4rem;"><button type="button" class="secondary-btn btn-sm view-rename-btn" data-view-id="${viewId}" data-view-name="${nameEsc}" style="padding:1px 6px; font-size:0.76rem;">更名</button></span>` : ''}
+                        ${renameBtn}
                     </td>
-                    <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; line-height:1.5;">${fileLines}</td>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; max-width:260px; overflow:hidden;">${fileLines}</td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.78rem; color:#64748b; white-space:pre-line;">${filterText}</td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#475569;">${ownerName}</td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#64748b;">${createdAt}</td>
@@ -3745,11 +3750,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const lastFiles = window._lastFilesListForProject || [];
                 const ids = _pendingCreateViewFileIds;
                 if (ids.length) {
-                    const nameList = ids.map((fid) => {
+                    const nameLines = ids.map((fid) => {
                         const f = lastFiles.find((fl) => String(fl.id) === String(fid));
                         return f ? f.name : String(fid).slice(0, 8) + '…';
-                    }).join('、');
-                    hintEl.textContent = `將結合 ${ids.length} 個檔案的全部句段：${nameList}`;
+                    }).join('\n');
+                    hintEl.textContent = `將結合 ${ids.length} 個檔案的全部句段：\n${nameLines}`;
                     hintEl.style.display = '';
                 } else {
                     hintEl.style.display = 'none';
@@ -4720,7 +4725,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         files.forEach((f, idx) => {
             const tr = document.createElement('tr');
             const nameEsc = (f.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            const modStr = f.lastModified ? new Date(f.lastModified).toLocaleString('zh-TW') : '—';
+            const modStr = f.lastModified ? new Date(f.lastModified).toLocaleString('zh-TW', { hour12: false }) : '—';
             const isMqxliff = (f.name || '').toLowerCase().endsWith('.mqxliff');
             const roleLabels = { 'T_ALLOW_R1': 'T (R1 - ✓ )', 'T_DENY_R1': 'T (R1 - ✖)', 'T': 'T (R1 - ✓ )', R1: 'Reviewer 1', R2: 'Reviewer 2' };
             const roleStr = isMqxliff && f.defaultMqRole ? (roleLabels[f.defaultMqRole] || f.defaultMqRole) : (isMqxliff ? '—' : '');
@@ -4845,7 +4850,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         wordCountReportHistory.innerHTML = list.map((r) => {
-            const at = r.createdAt ? new Date(r.createdAt).toLocaleString('zh-TW') : '';
+            const at = r.createdAt ? new Date(r.createdAt).toLocaleString('zh-TW', { hour12: false }) : '';
             const lab = (r.label || '').replace(/</g, '&lt;');
             return `<li style="margin-bottom:0.25rem;"><span style="color:#64748b;">${at}</span> — ${lab}</li>`;
         }).join('');
@@ -4931,7 +4936,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert('請先執行分析。');
             return;
         }
-        const label = new Date().toLocaleString('zh-TW');
+        const label = new Date().toLocaleString('zh-TW', { hour12: false });
         await DBService.addWordCountReport({
             projectId: currentProjectId,
             label,
@@ -7537,7 +7542,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const src = _tmSegEscHtml(seg.sourceText || '');
             const tgt = _tmSegEscHtml(seg.targetText || '');
             const sid = String(seg.id || '').replace(/"/g, '');
-            const createdAt = seg.createdAt ? new Date(seg.createdAt).toLocaleString('zh-TW') : '—';
+            const createdAt = seg.createdAt ? new Date(seg.createdAt).toLocaleString('zh-TW', { hour12: false }) : '—';
             const createdBy = _tmSegEscHtml(seg.createdBy || '');
             const prevS = _tmSegEscHtml(seg.prevSegment || '');
             const nextS = _tmSegEscHtml(seg.nextSegment || '');
@@ -8221,7 +8226,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const { sourceSeg, targetSeg } = _tmxPickSourceTargetSegs(tu, tmSourceLang, tmTargetLang);
                         if (sourceSeg && targetSeg) {
                             const creator = localStorage.getItem('localCatUserProfile') || 'Unknown User';
-                            const ts = new Date().toLocaleString();
+                            const ts = new Date().toLocaleString('zh-TW', { hour12: false });
                             const changeMsg = `${ts} - ${creator} (以檔案匯入) 建立`;
                             const sourceText = _tmxExtractSegText(sourceSeg);
                             const targetText = _tmxExtractSegText(targetSeg);
@@ -8255,7 +8260,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const row = jsonData[i];
                         if(row && row.length >= 2 && row[0] && String(row[0]).trim() !== '') {
                             const creator = localStorage.getItem('localCatUserProfile') || 'Unknown User';
-                            const ts = new Date().toLocaleString();
+                            const ts = new Date().toLocaleString('zh-TW', { hour12: false });
                             const changeMsg = `${ts} - ${creator} (以檔案匯入) 建立`;
 
                             parsedSegments.push({

@@ -19,8 +19,12 @@ const severityVariant = (s: string): "default" | "secondary" | "destructive" | "
 function formatLocal(iso: string) {
   try {
     return new Date(iso).toLocaleString("zh-TW", {
-      dateStyle: "medium",
-      timeStyle: "short",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
     });
   } catch {
     return iso;

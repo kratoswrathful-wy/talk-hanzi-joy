@@ -48,3 +48,8 @@
 - 新增「互斥單選」優先用 `DD-C`。
 - 僅在非常簡單的固定篩選器使用 `DD-A`。
 - 若舊畫面改版，優先對齊到上述代號之一，避免混搭。
+
+## 編輯器：內聯標籤（維運備忘）
+
+- **點擊原文欄 tag**：將該佔位符插入**同列譯文**。若暫存游標（假游標模組 `CatFakeCaret`）記錄的是本句段，先還原游標再插入；否則插在譯文**末尾**。譯文已含相同 `{N}`／`{/N}` 時不重複插入（以佔位符 token 集合比對，避免 `{1}` 誤判為已存在於 `{10}`）。句段鎖定、禁止寫入，或 Team 模式下他人正在編輯該句時不插入。實作：`app.js` 於 `#gridBody` 委派 `click` → `onSourceTagInsertClick`；插入節點用既有 `buildTagSpan`，後續與 F8 插入路徑一致（`extractTextFromEditor`、`pushEditorUndo`、`updateTagColors`、`applyUpdateSegmentTarget` 等）。
+- **Alt + S（標籤展開／收起）**：鍵盤偵測使用 **`e.code === 'KeyS'`**（實體 S 鍵），而非依賴 `e.key === 's'`，以便**注音等鍵盤配置**下仍可用；介面文案仍寫「Alt + S」。

@@ -230,7 +230,7 @@
                                         </th>
                                         <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:52px;">序號</th>
                                         <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
-                                        <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">涉及檔案</th>
+                                        <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:200px; max-width:260px;">涉及檔案</th>
                                         <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:160px; font-size:0.82rem; color:#64748b;">篩選條件</th>
                                         <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">建立者</th>
                                         <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:130px;">建立時間</th>
@@ -1291,8 +1291,12 @@
                             <p class="cat-shortcuts-item-desc">在譯文中依標籤順序插入下一組缺的占位標籤（有成對規則時可一次補齊）。</p>
                         </div>
                         <div class="cat-shortcuts-item">
+                            <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">點擊原文標籤插入譯文</span><input type="text" value="（滑鼠）" disabled class="sc-key-input"></div>
+                            <p class="cat-shortcuts-item-desc">在「原文」欄點擊某顆標籤，將該佔位符插入<strong>同一句</strong>譯文：若本句曾留下暫存游標則插在該處，否則插在譯文末尾。譯文已含該佔位符則不重複插入。句段鎖定或他人協作編輯中時不會插入。</p>
+                        </div>
+                        <div class="cat-shortcuts-item">
                             <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">標籤展開／收起顯示</span><input type="text" value="Alt + S" disabled class="sc-key-input"></div>
-                            <p class="cat-shortcuts-item-desc">切換標籤在編輯區是完整展開或收成較短樣式；僅影響畫面呈現，不刪除標籤內容。</p>
+                            <p class="cat-shortcuts-item-desc">切換標籤在編輯區是完整展開或收成較短樣式；僅影響畫面呈現，不刪除標籤內容。實作以鍵盤實體 S 鍵偵測，注音等鍵盤配置下仍可用。</p>
                         </div>
                         <div class="cat-shortcuts-item">
                             <div class="cat-shortcuts-item-row"><span class="cat-shortcuts-item-title">清除譯文中所有標籤占位</span><input type="text" value="Ctrl + F8" disabled class="sc-key-input"></div>
@@ -2880,10 +2884,10 @@
                         自訂篩選
                     </label>
                 </div>
-                <div id="createViewFilesHint" style="font-size:0.82rem; color:#64748b; display:none;"></div>
+                <div id="createViewFilesHint" style="font-size:0.82rem; color:#64748b; display:none; max-height:140px; overflow-y:auto; white-space:pre-line; line-height:1.6; border:1px solid #e2e8f0; border-radius:6px; padding:0.4rem 0.6rem; background:#f8fafc;"></div>
                 <div id="createViewCustomHint" style="font-size:0.82rem; color:#64748b; display:none;">自訂篩選：目前將收錄所有檔案的句段。進階篩選設定（狀態、標籤…）於後續版本推出。</div>
                 <label style="font-size:0.88rem; font-weight:600; color:#334155;">句段集名稱
-                    <input type="text" id="createViewNameInput" class="form-input" placeholder="例：MQ 待確認句段" maxlength="80" style="display:block; width:100%; margin-top:0.3rem;">
+                    <input type="text" id="createViewNameInput" class="form-input" placeholder="例：MQ 待確認句段" maxlength="80" style="display:block; margin-top:0.3rem;">
                 </label>
             </div>
             <div style="padding:0 1.25rem 1rem; display:flex; justify-content:flex-end; gap:0.5rem; border-top:1px solid #e2e8f0; padding-top:0.75rem;">

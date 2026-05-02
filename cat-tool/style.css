@@ -3160,6 +3160,11 @@ select.cat-mutex-dd-native-hidden {
 /* form helpers（if not already defined） */
 .form-group { display: flex; flex-direction: column; gap: 0.35rem; }
 .form-label { font-size: 0.85rem; font-weight: 500; color: #374151; }
+/* ── 全專案表單輸入框準則 ──────────────────────────────────────────────────────
+   所有 .form-input（input / textarea）必須設 box-sizing:border-box，
+   使 width:100% 不因 padding / border 溢出容器右側。
+   Modal 內所有欄位外層 <div> 需有對稱的左右 padding（預設 1.25rem）。
+   ───────────────────────────────────────────────────────────────────────────── */
 .form-input {
     padding: 0.45rem 0.65rem;
     border: 1px solid #cbd5e1;
@@ -3170,6 +3175,8 @@ select.cat-mutex-dd-native-hidden {
     background: #fff;
     outline: none;
     transition: border-color 0.1s;
+    box-sizing: border-box;
+    width: 100%;
 }
 .form-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }
 

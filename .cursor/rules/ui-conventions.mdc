@@ -1,0 +1,53 @@
+---
+description: 全專案 UI 編碼準則（輸入框對齊、時間格式）
+alwaysApply: true
+---
+
+# UI 編碼準則
+
+## 1. 表單輸入框（input / textarea）
+
+Modal 或任何表單中的所有輸入框**必須**加 `box-sizing: border-box`，使 `width: 100%` 不因 padding / border 溢出容器。
+
+- CSS class `.form-input` 已內建此規則（`cat-tool/style.css`）。
+- 行內 `style` 不得覆寫 `box-sizing`。
+- Modal 外層 `<div>` 左右 padding 必須對稱（預設 `1.25rem`）。
+
+```html
+<!-- ✅ 正確：使用 .form-input，不在 style 裡設 width -->
+<input type="text" class="form-input" placeholder="...">
+
+<!-- ❌ 錯誤：inline width:100% 但沒有 box-sizing，會溢出 -->
+<input type="text" style="width:100%; padding:0.5rem;">
+```
+
+## 2. 時間格式（24 小時制）
+
+本專案所有對使用者可見的日期時間**必須**使用 24 小時制。
+
+**JavaScript / cat-tool**
+
+```js
+// ✅ 正確
+new Date(ts).toLocaleString('zh-TW', { hour12: false })
+
+// ✅ 含明確欄位時也要加 hour12:false
+new Date(ts).toLocaleString('zh-TW', {
+  year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', hour12: false
+})
+
+// ❌ 錯誤：缺少 hour12:false，zh-TW 可能顯示「上午/下午」
+new Date(ts).toLocaleString('zh-TW')
+new Date(ts).toLocaleString()
+```
+
+**TypeScript / React（src/）**
+
+優先使用 `src/lib/format-timestamp.ts` 中已定義的工具函式，它們都已設定 `hour12: false`：
+
+```ts
+import { formatTimestamp24h, formatDateTimeTz } from "@/lib/format-timestamp";
+```
+
+若需自行呼叫 `toLocaleString`，同樣必須加 `hour12: false`。
