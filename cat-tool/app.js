@@ -25708,6 +25708,36 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>`;
             }).join('');
         }
+        // ---- 準則與指示合計 ----
+        let _poolSumChars = 0;
+        (['trans', 'style']).forEach((kind) => {
+            Object.keys(pool[kind]).forEach((gidStr) => {
+                const st = pool[kind][gidStr];
+                if (!st || !st.item) return;
+                const g = __aiBatchPoolGuidelines.find((x) => String(x.id) === gidStr);
+                if (!g) return;
+                const exNorm = _poolNormalizeExamples(g.examples);
+                const pickedEx = exNorm.filter((ex) => st.ex[ex.id]);
+                _poolSumChars += _charsOfText(g.content) + pickedEx.reduce((s, ex) => s + _charsOfText(ex.src) + _charsOfText(ex.tgt) + _charsOfText(ex.note), 0);
+            });
+        });
+        Object.keys(pool.pg).forEach((gidStr) => {
+            const st = pool.pg[gidStr];
+            if (!st || !st.item) return;
+            const row = __aiBatchPoolPgList.find((r) => String(r.id) === gidStr);
+            if (!row) return;
+            const exNorm = _poolNormalizeExamples(row.examples);
+            const pickedEx = exNorm.filter((ex) => st.ex[ex.id]);
+            _poolSumChars += _charsOfText(row.content) + pickedEx.reduce((s, ex) => s + _charsOfText(ex.src) + _charsOfText(ex.tgt) + _charsOfText(ex.note), 0);
+        });
+        Object.keys(pool.si).forEach((sid) => {
+            if (!pool.si[sid]) return;
+            const row = (__aiBatchProjectInstructions || []).find((r) => String(r.id) === sid);
+            if (!row || row.enabled === false) return;
+            _poolSumChars += _charsOfText(row.content);
+        });
+        const _poolTotalEl = document.getElementById('aiBatchCandidatePoolTotal');
+        if (_poolTotalEl) _poolTotalEl.textContent = _estimateTokensByChars(_poolSumChars);
         const bindItem = (el) => {
             el.querySelectorAll('.ai-batch-pool-item').forEach((cb) => {
                 cb.onchange = () => {
@@ -25956,7 +25986,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         return [...String(s || '')].length;
     }
 
-    function _computeAiBatchRefTokens(rangeSegs) {
+    function _computeAiBatchRefTokens(rangeSegs, firstBatch) {
+        const segs = (firstBatch && firstBatch.length > 0) ? firstBatch : rangeSegs;
         const refs = {
             tm: !!document.getElementById('aiBatchRefTm')?.checked,
             tb: !!document.getElementById('aiBatchRefTb')?.checked,
@@ -25966,15 +25997,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             examples: !!document.getElementById('aiBatchRefExamples')?.checked,
             confirmed: !!document.getElementById('aiBatchRefConfirmed')?.checked
         };
-        const tmChars = refs.tm ? Math.min(1200, rangeSegs.length * 48) : 0;
-        const tbTerms = refs.tb ? (window.ActiveTbTerms || []) : [];
-        const tbChars = tbTerms.reduce((sum, t) => {
-            const base = _charsOfText(t.source) + _charsOfText(t.target) + 4;
-            const note = refs.tbNote ? (_charsOfText(t.note) + 2) : 0;
-            return sum + base + note;
-        }, 0);
-        const keyChars = refs.key ? rangeSegs.reduce((sum, s) => sum + _charsOfText((s.keys || []).join(' / ')), 0) : 0;
-        const extraChars = refs.extra ? rangeSegs.reduce((sum, s) => sum + _charsOfText(s.extraValue || ''), 0) : 0;
+        const tmChars = refs.tm ? Math.min(1200, segs.length * 48) : 0;
+        let tbChars = 0;
+        if (refs.tb) {
+            const allTerms = window.ActiveTbTerms || [];
+            const matchedTerms = segs.length > 0
+                ? allTerms.filter((t) => segs.some((s) => termMatches((s.sourceText || '').trim(), t.source || '', t.matchFlags)))
+                : allTerms;
+            tbChars = matchedTerms.reduce((sum, t) => {
+                const base = _charsOfText(t.source) + _charsOfText(t.target) + 4;
+                const note = refs.tbNote ? (_charsOfText(t.note) + 2) : 0;
+                return sum + base + note;
+            }, 0);
+        }
+        const keyChars = refs.key ? segs.reduce((sum, s) => sum + _charsOfText((s.keys || []).join(' / ')), 0) : 0;
+        const extraChars = refs.extra ? segs.reduce((sum, s) => sum + _charsOfText(s.extraValue || ''), 0) : 0;
         const exRows = refs.examples
             ? __aiBatchExampleRows.filter((r) => __aiBatchSelectedExampleIds.has(Number(r.id)))
             : [];
@@ -25990,8 +26027,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     }
 
-    function _renderAiBatchRefTokens(rangeSegs) {
-        const t = _computeAiBatchRefTokens(rangeSegs || []);
+    function _renderAiBatchRefTokens(rangeSegs, firstBatch) {
+        const t = _computeAiBatchRefTokens(rangeSegs || [], firstBatch);
         const setNum = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v || 0); };
         setNum('aiBatchRefTokTm', t.tm);
         setNum('aiBatchRefTokTb', t.tb);
@@ -26376,6 +26413,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             await _initAiBatchCandidatePool();
         })();
         if (previewBtn) previewBtn.onclick = () => { void _openAiBatchPromptPreview(); };
+        const breakdownBtn = document.getElementById('btnAiBatchBreakdown');
+        if (breakdownBtn) breakdownBtn.onclick = () => { void _runAiBatchBreakdown(); };
         if (runBtn) runBtn.onclick = async () => {
             const range = _validateAiBatchRange();
             if (!range.ok) {
@@ -26430,7 +26469,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const charLimit = Math.max(200, parseInt(document.getElementById('aiBatchLimitChars')?.value || '2500', 10) || 2500);
         const estBatches = rangeSegs.length > 0 ? Math.max(Math.ceil(rangeSegs.length / rowLimit), Math.ceil(chars / charLimit)) : 0;
         statsEl.textContent = `範圍內共 ${rangeSegs.length} 句（約 ${chars} 字元），已確認 ${confirmed} 句、已輸入未確認 ${withText} 句、空白 ${empty} 句；依目前上限預估約 ${estBatches} 批。`;
-        _renderAiBatchRefTokens(rangeSegs);
+        const firstBatch = rangeSegs.length > 0 ? _nextBatchByRowsAndChars(rangeSegs, 0, rowLimit, charLimit) : [];
+        _renderAiBatchRefTokens(rangeSegs, firstBatch);
+        _debouncedUpdateBatchPerBatchEst();
         void _validateAiBatchRange();
     }
 
@@ -26440,6 +26481,211 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('aiBatchLimitRows')?.addEventListener('input', _updateBatchStats);
         document.getElementById('aiBatchLimitChars')?.addEventListener('input', _updateBatchStats);
     })();
+
+    // ---- 每批 token 概算（debounced async）----
+    let _batchPerBatchEstTimer = null;
+    function _debouncedUpdateBatchPerBatchEst() {
+        if (_batchPerBatchEstTimer) clearTimeout(_batchPerBatchEstTimer);
+        _batchPerBatchEstTimer = setTimeout(() => {
+            _batchPerBatchEstTimer = null;
+            void _updateBatchPerBatchEst();
+        }, 400);
+    }
+
+    async function _updateBatchPerBatchEst() {
+        const estEl = document.getElementById('aiBatchPerBatchEst');
+        if (!estEl || !currentSegmentsList) return;
+        const allFile = (window.__catAiBatchRangeMode || 'all') === 'all';
+        const start = allFile ? 1 : (parseInt(document.getElementById('aiBatchRangeStart')?.value || '1', 10) || 1);
+        const end = allFile ? currentSegmentsList.length : (parseInt(document.getElementById('aiBatchRangeEnd')?.value || String(currentSegmentsList.length), 10) || currentSegmentsList.length);
+        const rangeSegs = currentSegmentsList.filter((s, i) => (i + 1) >= start && (i + 1) <= end);
+        const rowLimit = Math.max(1, parseInt(document.getElementById('aiBatchLimitRows')?.value || '20', 10) || 20);
+        const charLimit = Math.max(200, parseInt(document.getElementById('aiBatchLimitChars')?.value || '2500', 10) || 2500);
+        if (!rangeSegs.length) { estEl.innerHTML = ''; return; }
+        const firstBatch = _nextBatchByRowsAndChars(rangeSegs, 0, rowLimit, charLimit);
+        if (!firstBatch.length) { estEl.innerHTML = ''; return; }
+        // Attach TM hints to first batch copy
+        const batchCopy = firstBatch.map((s) => ({ ...s }));
+        const tmRefThreshold = parseInt(document.getElementById('aiBatchTmRefThreshold')?.value || '0', 10);
+        const refTm = !!document.getElementById('aiBatchRefTm')?.checked;
+        if (refTm && tmRefThreshold > 0) {
+            const tmCache = window.ActiveTmCache || [];
+            const calcSim = window.calculateSimilarity || (() => 0);
+            const _aiPenalties = window.ActiveTmPenalties || {};
+            for (const seg of batchCopy) {
+                let bestMatch = null, bestScore = 0;
+                for (const tm of tmCache) {
+                    const rawScore = calcSim(seg.sourceText || '', tm.sourceText || '');
+                    const penalty = _aiPenalties[tm._tmId] ?? 0;
+                    const score = Math.max(0, rawScore - penalty);
+                    if (score > bestScore) { bestScore = score; bestMatch = tm; }
+                }
+                seg._tmHint = (bestScore >= tmRefThreshold && bestMatch) ? { score: Math.round(bestScore), targetText: bestMatch.targetText } : null;
+            }
+        }
+        try {
+            const settings = await DBService.getAiSettings();
+            const refOptions = {
+                useTm: refTm,
+                useTb: !!document.getElementById('aiBatchRefTb')?.checked,
+                useTbNote: !!document.getElementById('aiBatchRefTbNote')?.checked,
+                useKey: !!document.getElementById('aiBatchRefKey')?.checked,
+                useExtra: !!document.getElementById('aiBatchRefExtra')?.checked,
+                useExamples: !!document.getElementById('aiBatchRefExamples')?.checked,
+                useConfirmedContext: !!document.getElementById('aiBatchRefConfirmed')?.checked,
+                selectedExampleIds: Array.from(__aiBatchSelectedExampleIds)
+            };
+            const options = await _buildAiOptions(settings, '', undefined, refOptions, _snapshotAiBatchPool());
+            // Filter TB to only terms that hit first batch
+            if (options.tbTerms && options.tbTerms.length > 0) {
+                options.tbTerms = options.tbTerms.filter((t) =>
+                    batchCopy.some((s) => termMatches((s.sourceText || '').trim(), t.source || '', t._matchFlags))
+                );
+            }
+            if (!window.CatAiTranslate || typeof window.CatAiTranslate.buildTranslatePromptMessages !== 'function') return;
+            const messages = window.CatAiTranslate.buildTranslatePromptMessages(batchCopy, options);
+            const sys = (messages.find((m) => m.role === 'system') || {}).content || '';
+            const usr = (messages.find((m) => m.role === 'user') || {}).content || '';
+            const overhead = 400;
+            const tokSys = _estimateTokensByChars([...sys].length);
+            const tokUsr = _estimateTokensByChars([...usr].length);
+            const tokTotal = tokSys + tokUsr + overhead;
+            estEl.innerHTML = `每批約 <strong>${tokTotal.toLocaleString()}</strong> tokens（提示語 ${tokSys.toLocaleString()} + 翻譯內容 ${tokUsr.toLocaleString()} + 系統開銷 ${overhead}）`;
+        } catch (_) { estEl.innerHTML = ''; }
+    }
+
+    // ---- 概算各批用量 ----
+    let _batchBreakdownToken = 0;
+
+    function _batchTokColorSys(tok) {
+        if (tok > 6000) return '#dc2626';
+        if (tok > 4000) return '#d97706';
+        return '#16a34a';
+    }
+    function _batchTokColorUsr(tok) {
+        if (tok > 4000) return '#dc2626';
+        if (tok > 2500) return '#d97706';
+        return '#16a34a';
+    }
+
+    async function _runAiBatchBreakdown() {
+        const btn = document.getElementById('btnAiBatchBreakdown');
+        const panel = document.getElementById('aiBatchBreakdownPanel');
+        const content = document.getElementById('aiBatchBreakdownContent');
+        const modalBox = document.getElementById('aiBatchModalBox');
+        if (!panel || !content) return;
+        // Show panel
+        panel.style.display = 'flex';
+        if (modalBox) modalBox.style.maxWidth = '960px';
+        if (btn) btn.disabled = true;
+        content.innerHTML = '<div style="display:flex;align-items:center;gap:0.5rem;font-size:0.84rem;color:#64748b;"><span style="width:16px;height:16px;border:2px solid #e2e8f0;border-top-color:#3b82f6;border-radius:50%;animation:cat-loading-spin 0.7s linear infinite;flex-shrink:0;display:inline-block;"></span>計算中…</div>';
+
+        const myToken = ++_batchBreakdownToken;
+
+        try {
+            const allFile = (window.__catAiBatchRangeMode || 'all') === 'all';
+            if (!currentSegmentsList) { content.textContent = '無句段資料'; return; }
+            const start = allFile ? 1 : (parseInt(document.getElementById('aiBatchRangeStart')?.value || '1', 10) || 1);
+            const end = allFile ? currentSegmentsList.length : (parseInt(document.getElementById('aiBatchRangeEnd')?.value || String(currentSegmentsList.length), 10) || currentSegmentsList.length);
+            const rangeSegs = currentSegmentsList.filter((s, i) => (i + 1) >= start && (i + 1) <= end);
+            const rowLimit = Math.max(1, parseInt(document.getElementById('aiBatchLimitRows')?.value || '20', 10) || 20);
+            const charLimit = Math.max(200, parseInt(document.getElementById('aiBatchLimitChars')?.value || '2500', 10) || 2500);
+            const tmRefThreshold = parseInt(document.getElementById('aiBatchTmRefThreshold')?.value || '0', 10);
+            const refTm = !!document.getElementById('aiBatchRefTm')?.checked;
+            if (!rangeSegs.length) { content.textContent = '範圍內無句段'; return; }
+
+            const settings = await DBService.getAiSettings();
+            if (myToken !== _batchBreakdownToken) return;
+
+            const refOptions = {
+                useTm: refTm,
+                useTb: !!document.getElementById('aiBatchRefTb')?.checked,
+                useTbNote: !!document.getElementById('aiBatchRefTbNote')?.checked,
+                useKey: !!document.getElementById('aiBatchRefKey')?.checked,
+                useExtra: !!document.getElementById('aiBatchRefExtra')?.checked,
+                useExamples: !!document.getElementById('aiBatchRefExamples')?.checked,
+                useConfirmedContext: !!document.getElementById('aiBatchRefConfirmed')?.checked,
+                selectedExampleIds: Array.from(__aiBatchSelectedExampleIds)
+            };
+            const baseOptions = await _buildAiOptions(settings, '', undefined, refOptions, _snapshotAiBatchPool());
+            if (myToken !== _batchBreakdownToken) return;
+
+            const tmCache = window.ActiveTmCache || [];
+            const calcSim = window.calculateSimilarity || (() => 0);
+            const _aiPenalties = window.ActiveTmPenalties || {};
+            const overhead = 400;
+            const results = [];
+            let i = 0;
+            let batchNo = 1;
+
+            while (i < rangeSegs.length) {
+                const batch = _nextBatchByRowsAndChars(rangeSegs, i, rowLimit, charLimit);
+                if (!batch.length) break;
+                const batchCopy = batch.map((s) => ({ ...s }));
+                // TM hints
+                if (refTm && tmRefThreshold > 0) {
+                    for (const seg of batchCopy) {
+                        let bestMatch = null, bestScore = 0;
+                        for (const tm of tmCache) {
+                            const rawScore = calcSim(seg.sourceText || '', tm.sourceText || '');
+                            const penalty = _aiPenalties[tm._tmId] ?? 0;
+                            const score = Math.max(0, rawScore - penalty);
+                            if (score > bestScore) { bestScore = score; bestMatch = tm; }
+                        }
+                        seg._tmHint = (bestScore >= tmRefThreshold && bestMatch) ? { score: Math.round(bestScore), targetText: bestMatch.targetText } : null;
+                    }
+                }
+                // Per-batch TB filter
+                const batchOptions = (baseOptions.tbTerms && baseOptions.tbTerms.length > 0) ? {
+                    ...baseOptions,
+                    tbTerms: baseOptions.tbTerms.filter((t) => batchCopy.some((s) => termMatches((s.sourceText || '').trim(), t.source || '', t._matchFlags)))
+                } : baseOptions;
+                const messages = window.CatAiTranslate.buildTranslatePromptMessages(batchCopy, batchOptions);
+                const sys = (messages.find((m) => m.role === 'system') || {}).content || '';
+                const usr = (messages.find((m) => m.role === 'user') || {}).content || '';
+                const tokSys = _estimateTokensByChars([...sys].length);
+                const tokUsr = _estimateTokensByChars([...usr].length);
+                const segStart = start + i;
+                const segEnd = start + i + batchCopy.length - 1;
+                results.push({ batchNo, segStart, segEnd, tokSys, tokUsr, tokTotal: tokSys + tokUsr + overhead });
+                i += batchCopy.length;
+                batchNo++;
+                if (myToken !== _batchBreakdownToken) return;
+            }
+
+            if (myToken !== _batchBreakdownToken) return;
+
+            // Render table
+            const rows = results.map((r) => {
+                const cSys = _batchTokColorSys(r.tokSys);
+                const cUsr = _batchTokColorUsr(r.tokUsr);
+                return `<tr>
+                    <td style="padding:0.28rem 0.45rem; text-align:right; color:#64748b;">${r.batchNo}</td>
+                    <td style="padding:0.28rem 0.45rem; color:#64748b; white-space:nowrap;">${r.segStart}–${r.segEnd}</td>
+                    <td style="padding:0.28rem 0.45rem; text-align:right; font-weight:600; color:${cSys};">${r.tokSys.toLocaleString()}</td>
+                    <td style="padding:0.28rem 0.45rem; text-align:right; font-weight:600; color:${cUsr};">${r.tokUsr.toLocaleString()}</td>
+                </tr>`;
+            }).join('');
+            content.innerHTML = `<table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+                <thead>
+                    <tr style="border-bottom:1px solid #e2e8f0;">
+                        <th style="padding:0.3rem 0.45rem; text-align:right; color:#94a3b8; font-weight:500;">#</th>
+                        <th style="padding:0.3rem 0.45rem; text-align:left; color:#94a3b8; font-weight:500;">句段</th>
+                        <th style="padding:0.3rem 0.45rem; text-align:right; color:#94a3b8; font-weight:500;">提示語</th>
+                        <th style="padding:0.3rem 0.45rem; text-align:right; color:#94a3b8; font-weight:500;">翻譯內容</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+            <div style="margin-top:0.55rem; font-size:0.72rem; color:#94a3b8; line-height:1.4;">
+                <span style="color:#16a34a;">■</span> 建議&ensp;<span style="color:#d97706;">■</span> 可接受&ensp;<span style="color:#dc2626;">■</span> 不建議
+            </div>`;
+        } catch (e) {
+            if (myToken === _batchBreakdownToken) content.textContent = `計算失敗：${e.message || e}`;
+        } finally {
+            if (myToken === _batchBreakdownToken && btn) btn.disabled = false;
+        }
+    }
 
     // ---- runAiBatchTranslate Orchestrator ----
     async function runAiBatchTranslate(config) {
@@ -26684,7 +26930,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     batchTotalHint: Math.max(batchNo, Math.ceil(finalAiSegs.length / Math.max(dynamicBatchSize, 1))),
                     progressLabel: `第 ${batchNo} 批（${i + 1}-${Math.min(i + batch.length, finalAiSegs.length)}）`
                 });
-                let result = await window.CatAiTranslate.translate(batch, options);
+                // Per-batch TB filter: only send terms that hit this batch
+                const batchOptions = options.tbTerms && options.tbTerms.length > 0 ? {
+                    ...options,
+                    tbTerms: options.tbTerms.filter((t) => batch.some((s) => termMatches((s.sourceText || '').trim(), t.source || '', t._matchFlags)))
+                } : options;
+                let result = await window.CatAiTranslate.translate(batch, batchOptions);
                 let guardRetry = 0;
                 while (result.error && result.results.length === 0) {
                     const isRateLimit = String(result.error || '').includes('請求速率超過上限');
@@ -26720,7 +26971,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     _showAiToast(`偵測到速率限制，降載為每批 ${dynamicBatchSize} 句 / ${dynamicCharLimit} 字元，${Math.ceil(backoffMs / 1000)} 秒後重試…`);
                     await _aiSleep(backoffMs);
                     batch = _nextBatchByRowsAndChars(finalAiSegs, i, dynamicBatchSize, dynamicCharLimit);
-                    result = await window.CatAiTranslate.translate(batch, options);
+                    const retryBatchOptions = options.tbTerms && options.tbTerms.length > 0 ? {
+                        ...options,
+                        tbTerms: options.tbTerms.filter((t) => batch.some((s) => termMatches((s.sourceText || '').trim(), t.source || '', t._matchFlags)))
+                    } : options;
+                    result = await window.CatAiTranslate.translate(batch, retryBatchOptions);
                 }
 
                 for (const r of result.results) {
@@ -26929,7 +27184,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const useTb = refOptions.useTb !== false;
         const useTbNote = refOptions.useTbNote !== false;
         const tbTerms = useTb
-            ? (window.ActiveTbTerms || []).map(t => ({ source: t.source, target: t.target, note: useTbNote ? t.note : '' }))
+            ? (window.ActiveTbTerms || []).map(t => ({ source: t.source, target: t.target, note: useTbNote ? t.note : '', _matchFlags: t.matchFlags }))
             : [];
         const pr = (settings && settings.prompts) ? settings.prompts : {};
         return {

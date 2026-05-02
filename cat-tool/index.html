@@ -2242,7 +2242,8 @@
 
     <!-- ====== AI 批次翻譯範圍選擇 Modal ====== -->
     <div id="aiBatchModal" class="wizard-overlay hidden">
-        <div class="wizard-modal" style="max-width:600px;">
+        <div id="aiBatchModalBox" class="wizard-modal" style="max-width:600px; flex-direction:row; padding:0; overflow:hidden;">
+        <div style="width:600px; max-width:600px; display:flex; flex-direction:column; overflow:hidden; flex:1 1 auto; min-width:0;">
             <div class="wizard-header">
                 <h3 style="margin:0;">AI 批次翻譯</h3>
                 <button type="button" class="close-btn" id="btnCloseAiBatchModal">×</button>
@@ -2323,6 +2324,7 @@
                     <div id="aiBatchCandidatePoolStyle" style="margin-bottom:0.65rem;"></div>
                     <div id="aiBatchCandidatePoolPg" style="margin-bottom:0.65rem;"></div>
                     <div id="aiBatchCandidatePoolSi" style="margin-bottom:0.65rem;"></div>
+                    <div style="margin-top:0.1rem; font-size:0.78rem; color:#64748b;">準則與指示合計：<span id="aiBatchCandidatePoolTotal">0</span> tokens</div>
                 </div>
                 <!-- 專案 AI 指示 -->
                 <div>
@@ -2370,6 +2372,10 @@
                     </div>
                     <div style="margin-top:0.35rem; font-size:0.78rem; color:#64748b;">參照來源合計：<span id="aiBatchRefTokTotal">0</span></div>
                 </div>
+                <!-- 統計提示 -->
+                <div id="aiBatchStats" class="ai-batch-stats" style="font-size:0.82rem; color:#64748b; padding:0.5rem 0.75rem; background:#f1f5f9; border-radius:6px;"></div>
+                <!-- 每批 token 概算 -->
+                <div id="aiBatchPerBatchEst" style="font-size:0.78rem; color:#475569; padding:0.35rem 0.75rem; background:#f1f5f9; border-radius:6px; margin-top:-0.5rem;"></div>
                 <!-- Token 長度建議（約略） -->
                 <div id="aiBatchTokenGuidance" style="font-size:0.76rem; color:#64748b; line-height:1.45; padding:0.45rem 0.55rem; background:#fffbeb; border:1px solid #fde68a; border-radius:8px;">
                     <strong style="color:#92400e;">Token 長度建議（約略）</strong><br>
@@ -2377,18 +2383,21 @@
                     <span style="color:#334155;">翻譯內容（本批原文）：</span>建議約 300～2,500 tokens；可接受 2,501～4,000；不建議 &gt; 4,000。<br>
                     <span style="color:#334155;">加總：</span>提示語 + 翻譯內容 + 系統開銷；請以「預覽提示語」中的約略估算為準。
                 </div>
-                <!-- 統計提示 -->
-                <div id="aiBatchStats" class="ai-batch-stats" style="font-size:0.82rem; color:#64748b; padding:0.5rem 0.75rem; background:#f1f5f9; border-radius:6px;"></div>
             </div>
             <div class="panel-footer" style="padding:1rem; display:flex; justify-content:flex-end; gap:0.5rem; border-top:1px solid #e2e8f0; flex-wrap:wrap;">
+                <button type="button" id="btnAiBatchBreakdown" class="secondary-btn btn-sm">概算各批用量</button>
                 <button type="button" id="btnAiBatchPreviewPrompt" class="secondary-btn btn-sm">預覽提示語</button>
                 <button type="button" id="btnCancelAiBatch" class="secondary-btn btn-sm">取消</button>
                 <button type="button" id="btnRunAiBatch" class="primary-btn btn-sm">開始翻譯</button>
             </div>
         </div>
+        <!-- 右側：各批用量面板 -->
+        <div id="aiBatchBreakdownPanel" style="display:none; width:360px; flex:0 0 360px; flex-direction:column; overflow:hidden; border-left:1px solid #e2e8f0; background:#fafafa;">
+            <div style="padding:0.75rem 1rem; font-weight:700; font-size:0.88rem; border-bottom:1px solid #e2e8f0; background:#f1f5f9; flex-shrink:0;">各批用量概算</div>
+            <div id="aiBatchBreakdownContent" style="flex:1; overflow-y:auto; padding:0.75rem 1rem;"></div>
+        </div>
+        </div>
     </div>
-
-    <!-- ====== AI 批次詢問 Modal（已確認/TM 覆蓋確認）====== -->
     <div id="aiBatchAskModal" class="modal-overlay hidden" style="align-items:flex-start; padding-top:2rem;">
         <div class="modal-box" style="max-width:min(1200px,96vw); width:96vw; max-height:90vh; display:flex; flex-direction:column;">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem; flex-shrink:0;">
