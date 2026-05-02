@@ -1315,7 +1315,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         while ((nd = walker.nextNode())) {
             if (nd === r.startContainer) { offset += r.startOffset; break; }
             if (nd.nodeType === 3) offset += nd.nodeValue.length;
-            else if (nd.nodeType === 1 && nd.tagName === 'BR') offset += 1;
+            else if (nd.nodeType === 1 && nd.tagName === 'BR') {
+                if (!isGhostBr(nd, el)) offset += 1;
+            }
         }
         return offset;
     }
@@ -1347,7 +1349,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 remaining -= nd.nodeValue.length;
             } else if (nd.nodeType === 1 && nd.tagName === 'BR') {
-                remaining -= 1;
+                if (!isGhostBr(nd, el)) remaining -= 1;
             }
         }
     }
@@ -1422,20 +1424,7 @@ document.addEventListener('DOMContentLoaded', async () => {
      */
     function countEditorChars(editorEl) {
         if (!editorEl) return 0;
-        let n = 0;
-        function walkNode(nd) {
-            if (nd.nodeType === 3) { n += nd.nodeValue.length; return; }
-            if (nd.nodeType !== 1) return;
-            if (nd.classList && nd.classList.contains('rt-tag')) return;
-            if (nd.classList && nd.classList.contains('non-print-marker')) {
-                if (nd.classList.contains('np-inline-char')) nd.childNodes.forEach(walkNode);
-                return;
-            }
-            if (nd.tagName === 'BR') { n++; return; }
-            nd.childNodes.forEach(walkNode);
-        }
-        editorEl.childNodes.forEach(walkNode);
-        return n;
+        return extractTextFromEditor(editorEl).length;
     }
 
     function refreshSegCharCount(editorEl) {
@@ -15114,7 +15103,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function buildTaggedHtml(text, tags, isSource) {
         if (!text) return '';
         if (!tags || !tags.length) {
-            return escapeHtml(text).replace(/\n/g, '<br>');
+            return escapeHtml(text).replace(/\n/g, '<br data-cat-nl="1">');
         }
         const tagMap = {};
         tags.forEach(t => { tagMap[t.ph] = t; });
@@ -15138,7 +15127,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 html += `</span>`;
             } else {
-                html += escapeHtml(part).replace(/\n/g, '<br>');
+                html += escapeHtml(part).replace(/\n/g, '<br data-cat-nl="1">');
             }
         }
         return html;
@@ -15158,33 +15147,84 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const n = part.slice(2, -1);
                 html += `<span class="rt-tag rt-tag-e" contenteditable="false"><span class="tag-e-pad" aria-hidden="true">\u00A0\u00A0</span><span class="tag-content" style="min-width:1rem;">${escapeHtml(part)}</span><span class="tag-num">${escapeHtml(n)}</span></span>`;
             } else {
-                html += escapeHtml(part).replace(/\n/g, '<br>');
+                html += escapeHtml(part).replace(/\n/g, '<br data-cat-nl="1">');
             }
         }
         return html;
     }
 
     /**
+     * 瀏覽器在 contenteditable 常插入「占位」裸 &lt;br&gt;（例如根節點僅一個 br），不應對應到儲存的換行字元。
+     * 使用者以 Shift+Enter 插入的換行一律帶 data-cat-nl="1"。
+     */
+    function isGhostBr(br, root) {
+        if (!br || br.tagName !== 'BR' || !root) return false;
+        if (br.getAttribute && br.getAttribute('data-cat-nl') === '1') return false;
+        const p = br.parentNode;
+        if (!p) return false;
+        if (p === root && p.childNodes.length === 1 && p.firstChild === br) return true;
+        if (p.tagName === 'DIV' && p.parentNode === root && p.childNodes.length === 1 && p.firstChild === br) return true;
+        return false;
+    }
+
+    function extractSubtree(node, root) {
+        if (node.nodeType === 3) return node.nodeValue || '';
+        if (node.nodeType !== 1) return '';
+        if (node.classList && node.classList.contains('non-print-marker')) {
+            if (node.classList.contains('np-inline-char')) {
+                let s = '';
+                for (const c of node.childNodes) s += extractSubtree(c, root);
+                return s;
+            }
+            return '';
+        }
+        if (node.tagName === 'BR') return isGhostBr(node, root) ? '' : '\n';
+        if (node.classList && node.classList.contains('rt-tag')) return node.getAttribute('data-ph') || '';
+        let s = '';
+        for (const c of node.childNodes) s += extractSubtree(c, root);
+        return s;
+    }
+
+    /**
+     * 依 extract 結果用 buildTaggedHtml 重建 DOM，使線性文字與 tag pill 一致（blur／確認前自癒 Chrome 區塊殘留）。
+     */
+    function rebuildTargetEditorFromExtractedPlain(editor, seg, row) {
+        const plain = extractTextFromEditor(editor);
+        setEditorHtml(editor, buildTaggedHtml(plain, effectiveTags(seg)));
+        if (row) updateTagColors(row, plain);
+        return plain;
+    }
+
+    /** Shift+Enter：插入受控換行，避免瀏覽器預設產生幽靈 &lt;br&gt;／多餘 div。 */
+    function insertCatControlledNewline(editorEl) {
+        const br = document.createElement('br');
+        br.setAttribute('data-cat-nl', '1');
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return;
+        const range = sel.getRangeAt(0);
+        if (!editorEl.contains(range.commonAncestorContainer)) return;
+        range.deleteContents();
+        range.insertNode(br);
+        range.setStartAfter(br);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        editorEl.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    /**
      * 從 contenteditable div 提取純文字（含 {N} 佔位符），忽略 <mark> 等裝飾元素。
      */
     function extractTextFromEditor(editorDiv) {
+        if (!editorDiv) return '';
         let text = '';
+        let idx = 0;
         for (const node of editorDiv.childNodes) {
-            if (node.nodeType === 3) {
-                text += node.nodeValue;
-            } else if (node.nodeType === 1) {
-                if (node.classList && node.classList.contains('non-print-marker')) {
-                    if (node.classList.contains('np-inline-char')) text += extractTextFromEditor(node);
-                    continue;
-                }
-                if (node.tagName === 'BR') {
-                    text += '\n';
-                } else if (node.classList && node.classList.contains('rt-tag')) {
-                    text += node.getAttribute('data-ph') || '';
-                } else {
-                    text += extractTextFromEditor(node);
-                }
+            if (idx > 0 && node.nodeType === 1 && node.tagName === 'DIV') {
+                text += '\n';
             }
+            text += extractSubtree(node, editorDiv);
+            idx++;
         }
         return text;
     }
@@ -15204,30 +15244,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     function getRtEditorTextSegmentsForHighlightMap(editor) {
         const segs = [];
         let off = 0;
-        (function walk(el) {
-            for (const node of el.childNodes) {
-                if (node.nodeType === 3) {
-                    const t = node.nodeValue || '';
-                    if (t.length) segs.push({ type: 'text', node, abs: [off, off + t.length] });
-                    off += t.length;
-                } else if (node.nodeType === 1) {
-                    if (node.classList && node.classList.contains('non-print-marker')) {
-                        if (node.classList.contains('np-inline-char')) walk(node);
-                        continue;
-                    }
-                    if (node.tagName === 'BR') {
-                        segs.push({ type: 'br', node, abs: [off, off + 1] });
-                        off += 1;
-                    } else if (node.classList && node.classList.contains('rt-tag')) {
-                        const ph = node.getAttribute('data-ph') || '';
-                        segs.push({ type: 'ph', el: node, abs: [off, off + ph.length], ph });
-                        off += ph.length;
-                    } else {
-                        walk(node);
-                    }
-                }
+        function walkInner(node) {
+            if (node.nodeType === 3) {
+                const t = node.nodeValue || '';
+                if (t.length) segs.push({ type: 'text', node, abs: [off, off + t.length] });
+                off += t.length;
+                return;
             }
-        }(editor));
+            if (node.nodeType !== 1) return;
+            if (node.classList && node.classList.contains('non-print-marker')) {
+                if (node.classList.contains('np-inline-char')) {
+                    for (const c of node.childNodes) walkInner(c);
+                }
+                return;
+            }
+            if (node.tagName === 'BR') {
+                if (!isGhostBr(node, editor)) {
+                    segs.push({ type: 'br', node, abs: [off, off + 1] });
+                    off += 1;
+                }
+                return;
+            }
+            if (node.classList && node.classList.contains('rt-tag')) {
+                const ph = node.getAttribute('data-ph') || '';
+                segs.push({ type: 'ph', el: node, abs: [off, off + ph.length], ph });
+                off += ph.length;
+                return;
+            }
+            for (const c of node.childNodes) walkInner(c);
+        }
+        let idx = 0;
+        for (const node of editor.childNodes) {
+            if (idx > 0 && node.nodeType === 1 && node.tagName === 'DIV') {
+                segs.push({ type: 'nl', abs: [off, off + 1], synthetic: true });
+                off += 1;
+            }
+            walkInner(node);
+            idx++;
+        }
         return { segs, totalLen: off };
     }
 
@@ -16184,7 +16238,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     sanitizeTargetEditorInlineArtifacts(targetInput, seg, row, { restoreFocus: false });
                     const myGen = ++targetWriteGeneration;
-                    const newVal = extractTextFromEditor(targetInput);
+                    const newVal = rebuildTargetEditorFromExtractedPlain(targetInput, seg, row);
                     const oldVal = editorUndoEditStart[seg.id] ?? seg.targetText;
                     const statusDirty = editorUndoStatusStart[seg.id] !== seg.status;
                     const matchDirty = (editorUndoMatchStart[seg.id] ?? null) !== (seg.matchValue ?? null);
@@ -16243,7 +16297,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     const plain = cd.getData('text/plain');
                     if (plain) {
-                        document.execCommand('insertText', false, plain);
+                        const collapsed = plain.replace(/\r\n|\n|\r/g, ' ');
+                        document.execCommand('insertText', false, collapsed);
                     }
                     markEmptySegUserEdited(seg.id);
                 });
@@ -16528,6 +16583,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                         }
                     }
+                    if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+                        if (e.isComposing) return;
+                        e.preventDefault();
+                        if (e.shiftKey) insertCatControlledNewline(targetInput);
+                        return;
+                    }
                     if (e.ctrlKey && e.key === 'Enter') {
                         e.preventDefault();
                         void (async () => {
@@ -16540,7 +16601,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 clearTimeout(targetDebounceTimer);
                                 targetDebounceTimer = null;
                             }
-                            const latestTarget = extractTextFromEditor(targetInput);
+                            const latestTarget = rebuildTargetEditorFromExtractedPlain(targetInput, seg, row);
                             seg.targetText = latestTarget;
 
                             // ── 方案 B：立刻更新 UI 並跳行，DB 寫入全放後台 ──
@@ -16718,7 +16779,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 clearTimeout(targetDebounceTimer);
                                 targetDebounceTimer = null;
                             }
-                            const latestTarget = targetTa ? extractTextFromEditor(targetTa) : seg.targetText;
+                            const latestTarget = targetTa ? rebuildTargetEditorFromExtractedPlain(targetTa, seg, row) : seg.targetText;
                             seg.targetText = latestTarget;
 
                             // ── 方案 B：立刻更新 UI 並跳行，DB 寫入全放後台 ──
