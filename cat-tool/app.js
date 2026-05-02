@@ -5043,10 +5043,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             const t = lastWordCountResult.totals || {};
             const head = `<tr style="background:#f8fafc;"><td style="padding:0.45rem; border:1px solid #e2e8f0; font-weight:600;">分析範圍總計（略過鎖定後）</td>
                 <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${t.segmentsAnalyzed != null ? t.segmentsAnalyzed : '—'}</td>
+                <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${t.rawExcludingSkipped != null ? t.rawExcludingSkipped : '—'}</td>
                 <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${t.weightedExcludingSkipped != null ? t.weightedExcludingSkipped : '—'}</td></tr>`;
             const body = (lastWordCountResult.rows || []).map((r) =>
                 `<tr><td style="padding:0.45rem; border:1px solid #e2e8f0;">${r.label}</td>
                 <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${r.segments}</td>
+                <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${r.raw}</td>
                 <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${r.weighted}</td></tr>`
             ).join('');
             wordCountResultBody.innerHTML = head + body;

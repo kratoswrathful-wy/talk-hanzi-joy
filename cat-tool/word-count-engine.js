@@ -32,6 +32,14 @@
         return parts.length || 1;
     }
 
+    /** 原始單位：一律以空白斷詞，不對中日韓特殊處理 */
+    function rawUnits(text) {
+        const t = stripTags(text);
+        if (!t) return 0;
+        const parts = t.trim().split(/\s+/).filter(Boolean);
+        return parts.length || 1;
+    }
+
     function isEmptyTarget(t) {
         return !stripTags(t);
     }
@@ -100,13 +108,13 @@
         const tmExact = new Set(tmList.filter(Boolean));
 
         const buckets = {
-            lockedSkipped: { label: '鎖定（略過）', segments: 0, weighted: 0 },
-            repetition: { label: '檔內重複', segments: 0, weighted: 0 },
-            tm100: { label: 'TM 100%', segments: 0, weighted: 0 },
-            tm8599: { label: 'TM 高相似 (85–99%)', segments: 0, weighted: 0 },
-            tm7584: { label: 'TM 中相似 (75–84%)', segments: 0, weighted: 0 },
-            tmLow: { label: 'TM 低相似 (<75%)', segments: 0, weighted: 0 },
-            newWords: { label: '新字／無 TM（含空白譯文）', segments: 0, weighted: 0 }
+            lockedSkipped: { label: '鎖定（略過）', segments: 0, raw: 0, weighted: 0 },
+            repetition: { label: '檔內重複', segments: 0, raw: 0, weighted: 0 },
+            tm100: { label: 'TM 100%', segments: 0, raw: 0, weighted: 0 },
+            tm8599: { label: 'TM 高相似 (85–99%)', segments: 0, raw: 0, weighted: 0 },
+            tm7584: { label: 'TM 中相似 (75–84%)', segments: 0, raw: 0, weighted: 0 },
+            tmLow: { label: 'TM 低相似 (<75%)', segments: 0, raw: 0, weighted: 0 },
+            newWords: { label: '新字／無 TM（含空白譯文）', segments: 0, raw: 0, weighted: 0 }
         };
 
         const seenTranslatedSrc = new Map();
@@ -117,16 +125,19 @@
             const src = seg.sourceText;
             const tgt = seg.targetText;
             const w = weightedUnits(src);
+            const r = rawUnits(src);
             const srcN = normKey(src);
 
             if (lockInfo.skip) {
                 buckets.lockedSkipped.segments += 1;
+                buckets.lockedSkipped.raw += r;
                 buckets.lockedSkipped.weighted += w;
                 continue;
             }
 
             if (isEmptyTarget(tgt)) {
                 buckets.newWords.segments += 1;
+                buckets.newWords.raw += r;
                 buckets.newWords.weighted += w;
                 continue;
             }
@@ -147,6 +158,7 @@
             }
 
             buckets[bucketKey].segments += 1;
+            buckets[bucketKey].raw += r;
             buckets[bucketKey].weighted += w;
         }
 
@@ -155,6 +167,7 @@
             key: k,
             label: buckets[k].label,
             segments: buckets[k].segments,
+            raw: buckets[k].raw,
             weighted: Math.round(buckets[k].weighted * 100) / 100
         }));
 
@@ -167,10 +180,15 @@
             .filter((r) => r.key !== 'lockedSkipped')
             .reduce((a, r) => a + r.weighted, 0);
 
+        const totalR = rows
+            .filter((r) => r.key !== 'lockedSkipped')
+            .reduce((a, r) => a + r.raw, 0);
+
         return {
             rows,
             totals: {
                 segmentsAnalyzed: totalSeg,
+                rawExcludingSkipped: totalR,
                 weightedExcludingSkipped: Math.round(totalW * 100) / 100
             },
             buckets
@@ -180,6 +198,7 @@
     global.WordCountEngine = {
         stripTags,
         normKey,
+        rawUnits,
         weightedUnits,
         analyze,
         _bestTmSimilarity: bestTmSimilarity
