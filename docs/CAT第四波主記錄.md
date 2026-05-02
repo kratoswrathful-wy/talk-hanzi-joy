@@ -447,6 +447,58 @@
 | **協作房間** | `view` 房、`roomType` + `roomId`、`CAT_COLLAB_*` payload 擴充、底欄成員（§14）。 |
 | **建立精靈步驟二** | §5.2 完整篩選列 + 唯讀格線預覽（與編輯器一致）。 |
 | **§10 其餘** | 規格與程式對齊後逐項勾選；實作分歧以 PR 說明為準。 |
+| **句段集指派（清單欄位／持久化）** | 清單需與檔案清單一致顯示**指派對象**；指派寫入／取消／存檔後刷新等問題之**根因已確認**（Bug A/B/C），詳 **§九點四**，**待程式修正**。 |
+
+---
+
+## 九、搜尋取代增強、Ctrl+1～9 實作與雜項修正（2026-05）
+
+> 本節記錄第四波結案後之 CAT 編輯器增強與本輪診斷事項，**不更動**上文第四波 A/B 結案判定。
+
+### 九點一、`c4ef6fe`：Ctrl+1～9 細部行為（§5-i）+ F4 篩選快照初版修正
+
+- **規格依據**：[`CAT_CTRL_DIGIT_SHORTCUT_SPEC.md`](CAT_CTRL_DIGIT_SHORTCUT_SPEC.md)（與主記錄 **§5-i** 摘要一致）。
+- **關鍵程式**（[`cat-tool/app.js`](../cat-tool/app.js)）：`applyNumpadMatchForActiveTab`、`handleCatResultApply`、`catNumpadShortcutCanApply`、`tryApplyCatNumpadShortcut` 等；依右欄**作用中分頁**（CAT vs TM 搜尋）決定列表來源；**TM** 整段取代譯文格、**TB／Frg** 於游標處插入；焦點在 `#sfInput`／`#sfReplaceInput` 時 TM 不套用並提示、TB／Frg 插入純文字；以真／假游標定位，優先於 `active-row`。
+- **F4／全部取代與篩選快照（初版）**：`runSearchAndFilter(opts)` 新增 **`keepFilterSnapshot`**；`performReplaceAll`／`performReplaceThis` 呼叫時傳入 `{ keepFilterSnapshot: true }`，避免取代後內容變動即時重算篩選快照（規格：使用者未主動變更篩選條件時，可見集不應因取代而跑掉）。**後續**：使用者仍回報 F4 後篩選結果消失，根因見 **§九點四**。
+
+| 焦點情境 | TM | TB／Frg |
+|----------|-----|---------|
+| 譯文編輯區 | 整段取代；游標在插入後 | 於真游標處插入；游標在片段後 |
+| 搜尋／取代輸入框 | 不套用，短提示 | 純文字插入該框游標處 |
+| 其他（假游標） | 對齊譯文格整段取代邏輯 | 對齊插入邏輯；完成後還原真游標 |
+
+**同步**：`cat-tool` 變更經 `npm run sync:cat` 一併提交 [`public/cat/`](../public/cat/)。
+
+### 九點二、`68170cd`：CAT 工具列與進入模式整理
+
+| 項目 | 說明 |
+|------|------|
+| **single-row progress reload** | 句段集／檔案清單進度欄可點擊重載**單列**進度，無需整表刷新。 |
+| **mixed toolbar unify** | 句段集與單檔共用工具列之混合情境收斂（版位／按鈕一致）。 |
+| **instant tooltips** | 工具提示延遲縮短，滑過即顯。 |
+| **reset modes on entry** | 進入編輯器時重設搜尋／篩選相關 UI 狀態，避免帶入上一檔殘留。 |
+
+### 九點三、`4437467`：搜尋取代第二批增強與 Backspace 修正
+
+- **非列印字元模式 Backspace／Delete**：刪除 `np-inline-char` 等 DOM 後若未還原選取，`input` 事件之游標還原會失敗致**游標跳到句末**；於相關 `keydown` 分支在 `wrap.remove()`／鄰節點移除後**明確 `Range` 還原**。
+- **查詢語法**：`parseTmConcordanceQuery` 重用於 **`evaluateSegment`**（篩選／搜尋列比對）與 **`doReplaceInText`**（一般取代）：空白分隔 **AND**、雙引號**整段**、**正則**模式沿用既有勾選；取代時對每個詞／引號段分別替換。
+- **Ctrl+F 與模式切換**：`onSwitchToFilterMode()`（切至篩選後聚焦 `#sfReplaceInput`，並將尋找列複製到剪貼簿＋提示）、`onSwitchToSearchMode()`（切至搜尋後聚焦 `#sfInput`）；由模式按鈕於切換後呼叫。
+- **F4 全部取代後游標**：`performReplaceAll` 內於取代前以 `getNpCaretOffset` 記錄假游標所在編輯器偏移，取代完成並 `runSearchAndFilter({ keepFilterSnapshot: true })` 後以雙 `requestAnimationFrame` 呼叫 `setNpCaretOffset` 還原（選項開啟時）。
+- **佔位符**：[`cat-tool/index.html`](../cat-tool/index.html) 更新 `#sfInput`／`#sfReplaceInput` 等 `placeholder`，說明 AND／引號與切換行為。
+
+### 九點四、本輪診斷記錄（待修正，尚未提交）
+
+以下為對話與程式對照之**根因摘要**；修正落地後應於本節或 §九點三補 commit、並更新驗收。
+
+| 項目 | 根因摘要 | 狀態 |
+|------|----------|------|
+| **Ctrl+F 三段切換** | 僅以 `document.activeElement === sfInput` 判斷「可切模式」，未涵蓋「`#sfReplaceInput` 有焦點」之中間態，導致多一次「只聚焦尋找列、不切模式」的步驟。 | 待修 |
+| **F4 仍清除篩選結果** | 使用者在尋找列輸入觸發之 `scheduleRunSearchAndFilter(300)` 等 **debounce** 可能在 F4 完成後才執行；該次呼叫 `runSearchAndFilter()` **未帶** `keepFilterSnapshot`，若與鎖定之 `specHash` 不一致會**重建快照**，可見集改變。 | 待修 |
+| **清除篩選未清除取代框** | 函式 `clearUIFilters`（[`cat-tool/app.js`](../cat-tool/app.js)）清空尋找列與進階條件，但**未**清空 `#sfReplaceInput`。 | 待修 |
+| **句段集清單無指派欄** | `loadViewsList` 表格僅 7 欄，無「指派」；[`db.listViews`](../src/lib/cat-cloud-rpc.ts) 查詢亦未帶入 `cat_view_assignments`。 | 待修 |
+| **Bug A：指派靜默失敗** | [`btnSaveFileAssign`](../cat-tool/app.js) 句段集分支呼叫 `DBService.assignView(viewId, uid)` 傳**單一字串**；RPC [`db.assignView`](../src/lib/cat-cloud-rpc.ts) 要求 **`assigneeUserIds` 為陣列**，開頭 `!Array.isArray` 即 `return []`，**未寫入 DB**。 | 待修 |
+| **Bug B：取消指派無效** | 同分支 `DBService.unassignView(a.id \|\| viewId, uid)` 第一參數誤傳**指派列 `id`（UUID）**，而 RPC 以 `.eq("view_id", …)` 更新，**對不到列**。 | 待修 |
+| **Bug C：存完未刷新清單** | 句段集模式下成功後僅 `closeFileAssignModal()`，**未** `loadViewsList(currentProjectId)`，畫面不更新。 | 待修 |
 
 ---
 
