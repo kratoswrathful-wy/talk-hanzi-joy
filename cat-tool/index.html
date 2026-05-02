@@ -433,8 +433,8 @@
                     <h1 id="detailTmName" class="page-title" style="margin:0.5rem 0 0 0; font-size:1.5rem; font-weight:700;">TM 名稱</h1>
                     <div class="table-page-actions" style="display:flex; gap:0.5rem; flex-wrap:wrap;">
                         <button class="secondary-btn btn-sm" id="btnRenameTmDetail">更名</button>
-                        <input type="file" id="tmImportInput" accept=".xlsx,.xls,.csv,.tmx" style="display:none;">
-                        <button class="primary-btn btn-sm" id="btnImportTmFile">匯入檔案 (Excel/CSV/TMX)</button>
+                        <input type="file" id="tmImportInput" accept=".xlsx,.xls,.csv,.tmx,.xliff,.xlf,.mqxliff,.sdlxliff" style="display:none;">
+                        <button class="primary-btn btn-sm" id="btnImportTmFile">匯入檔案 (Excel/CSV/TMX/XLIFF)</button>
                         <button class="secondary-btn btn-sm" id="btnExportTm">匯出</button>
                         <button class="danger-btn btn-sm" id="btnDeleteTmSegmentsSelected">刪除所選</button>
                         <button type="button" class="secondary-btn btn-sm" id="btnTmDupFilter" title="僅顯示原文與譯文皆與其他列完全相同的句段">重複內容篩選</button>
@@ -3022,6 +3022,7 @@
     <script src="js/xliff-tag-pipeline.js"></script>
     <script src="js/ai-translate.js"></script>
     <script src="js/xliff-import.js"></script>
+    <script src="js/xliff-to-tm.js"></script>
     <script src="js/po-import.js"></script>
     <script src="js/xlsx-rich-tags.js"></script>
     <script src="js/select-add-new.js"></script>

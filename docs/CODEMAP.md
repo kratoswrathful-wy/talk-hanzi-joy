@@ -15,6 +15,7 @@
 | 項目 | 位置 |
 |------|------|
 | **唯一原始碼目錄** | `cat-tool/`（`app.js`、`db.js`、`index.html`、`js/`、`style.css` 等） |
+| **XLIFF → TM 匯入**（`.xliff`、`.xlf`、`.mqxliff`、`.sdlxliff` 直接匯入記憶庫；篩選條件、tag 純文字化、sdlxliff `mrk` 展開） | [`cat-tool/js/xliff-to-tm.js`](../cat-tool/js/xliff-to-tm.js)；[`cat-tool/app.js`](../cat-tool/app.js) `tmImportInput` change 分支；設計決策與驗收見 [CAT_XLIFF_TO_TM_IMPORT_PLAN.md](./CAT_XLIFF_TO_TM_IMPORT_PLAN.md) |
 | 字數／TM 加權：Worker、列表／編輯器「切換字數」與**字數分析 Modal**（合併／分項、進度）規格 | [CAT_WORD_COUNT_WORKER_AND_UI.md](./CAT_WORD_COUNT_WORKER_AND_UI.md) |
 | 字數分析 Modal（`runWordCountAnalysis`、`openWordCountModalWithSelection`；`#wordCountModal`、`#wordCountAnalysisProgress`） | [`cat-tool/app.js`](../cat-tool/app.js)、[`cat-tool/index.html`](../cat-tool/index.html) |
 | 靜態輸出（勿單獨當真相長改） | `public/cat/`（由 `npm run sync:cat`、腳本 `scripts/sync-cat.mjs` 覆寫；`prebuild` 會跑） |

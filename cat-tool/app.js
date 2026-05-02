@@ -1,4 +1,4 @@
-// TM：js/tm-utils.js ｜ XLIFF 標籤：js/xliff-tag-pipeline.js ｜ XLIFF 匯入：js/xliff-import.js
+// TM：js/tm-utils.js ｜ XLIFF 標籤：js/xliff-tag-pipeline.js ｜ XLIFF 匯入：js/xliff-import.js ｜ XLIFF→TM：js/xliff-to-tm.js
 
 // =====================================================
 // LANG_OPTIONS：遵循 XLIFF / BCP 47 語言代碼規範
@@ -9034,6 +9034,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 lastModified: new Date().toISOString()
                             });
                         }
+                    }
+                } else if (['xliff', 'xlf', 'mqxliff', 'sdlxliff'].includes(ext)) {
+                    if (!window.CatToolXliffToTm || typeof window.CatToolXliffToTm.parseXliffForTm !== 'function') {
+                        throw new Error('XLIFF → TM 模組未載入（請確認 index.html 已引入 js/xliff-to-tm.js）');
+                    }
+                    const tm = await DBService.getTM(currentTmId);
+                    const tmSourceLang = (tm && tm.sourceLangs && tm.sourceLangs[0]) || '';
+                    const tmTargetLang = (tm && tm.targetLangs && tm.targetLangs[0]) || '';
+                    parsedSegments = await window.CatToolXliffToTm.parseXliffForTm(file, {
+                        tmId: currentTmId,
+                        tmSourceLang,
+                        tmTargetLang
+                    });
+                    if (!parsedSegments.length) {
+                        alert('找不到可匯入句段（無符合條件之譯文，或皆為未確認／已鎖定句段）。');
+                        tmImportInput.value = '';
+                        return;
                     }
                 } else if (['xlsx', 'xls', 'csv'].includes(ext)) {
                     // Reuse SheetJS from window.XLSX if available
