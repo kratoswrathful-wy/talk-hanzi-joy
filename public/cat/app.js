@@ -4055,6 +4055,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 window.ActiveReadTmIds = project.readTms || [];
                 window.ActiveReadTbIds = project.readTbs || [];
                 window.ActiveWriteTms = project.writeTms || []; // 確認時寫入 TM（§5 fix）
+                window.ActiveFileLangs = {
+                    sourceLang: (project.sourceLangs || [])[0] || '',
+                    targetLang: (project.targetLangs || [])[0] || '',
+                };
                 for (const tmId of (project.readTms || [])) {
                     const segs = await DBService.getTMSegments(tmId);
                     const tm = await DBService.getTM(tmId);
@@ -4166,6 +4170,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                         opt.textContent = c.name;
                         sortColSelect.appendChild(opt);
                     }
+                });
+                // 確保 globalId 依已排序位置賦值，使 applySorting 以 col-id 排序時保持正確跨檔順序
+                currentSegmentsList.forEach((seg, i) => {
+                    if (!seg.globalId) seg.globalId = i + 1;
                 });
                 sortColSelect.value = 'col-id';
                 sortColSelect.dispatchEvent(new Event('change'));
@@ -5043,10 +5051,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             const t = lastWordCountResult.totals || {};
             const head = `<tr style="background:#f8fafc;"><td style="padding:0.45rem; border:1px solid #e2e8f0; font-weight:600;">分析範圍總計（略過鎖定後）</td>
                 <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${t.segmentsAnalyzed != null ? t.segmentsAnalyzed : '—'}</td>
+                <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${t.rawExcludingSkipped != null ? t.rawExcludingSkipped : '—'}</td>
                 <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${t.weightedExcludingSkipped != null ? t.weightedExcludingSkipped : '—'}</td></tr>`;
             const body = (lastWordCountResult.rows || []).map((r) =>
                 `<tr><td style="padding:0.45rem; border:1px solid #e2e8f0;">${r.label}</td>
                 <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${r.segments}</td>
+                <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${r.raw}</td>
                 <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${r.weighted}</td></tr>`
             ).join('');
             wordCountResultBody.innerHTML = head + body;
@@ -11452,7 +11462,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             syncSelectedRowAbutmentTopClass();
         }
         // F8: 插入下一個缺漏標籤（只插單一 tag；有選取且下一個可成對才包一對）
-        if (e.key === 'F8' && currentFileId && !e.ctrlKey) {
+        if (e.key === 'F8' && (currentFileId || _currentViewId) && !e.ctrlKey) {
             e.preventDefault();
 
             const sel = window.getSelection();
@@ -11471,7 +11481,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
         // Ctrl+F8：清除譯文中的所有標籤
-        if (e.ctrlKey && e.key === 'F8' && currentFileId) {
+        if (e.ctrlKey && e.key === 'F8' && (currentFileId || _currentViewId)) {
             e.preventDefault();
 
             const sel = window.getSelection();
@@ -11517,7 +11527,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
         // F3／Shift+F3：搜尋命中下一個／上一個（與工具列按鈕相同邏輯）
-        if (!e.ctrlKey && !e.altKey && e.key === 'F3' && currentFileId) {
+        if (!e.ctrlKey && !e.altKey && e.key === 'F3' && (currentFileId || _currentViewId)) {
             const ve = document.getElementById('viewEditor');
             if (ve && !ve.classList.contains('hidden')) {
                 e.preventDefault();
@@ -11525,7 +11535,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
         // F4：全部取代
-        if (!e.ctrlKey && !e.altKey && !e.shiftKey && e.key === 'F4' && currentFileId) {
+        if (!e.ctrlKey && !e.altKey && !e.shiftKey && e.key === 'F4' && (currentFileId || _currentViewId)) {
             const ve = document.getElementById('viewEditor');
             if (ve && !ve.classList.contains('hidden')) {
                 e.preventDefault();
@@ -11533,12 +11543,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
         // Ctrl+Insert：將原文複製到譯文
-        if (e.ctrlKey && e.key === 'Insert' && currentFileId) {
+        if (e.ctrlKey && e.key === 'Insert' && (currentFileId || _currentViewId)) {
             e.preventDefault();
             runTextOpOnSelection('copy-source');
         }
         // Ctrl+Shift+Insert：清除譯文
-        if (e.ctrlKey && e.shiftKey && e.key === 'Insert' && currentFileId) {
+        if (e.ctrlKey && e.shiftKey && e.key === 'Insert' && (currentFileId || _currentViewId)) {
             e.preventDefault();
             runTextOpOnSelection('clear');
         }
@@ -11554,7 +11564,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tagToggleBtn = document.getElementById('btnTagCollapse');
             if (tagToggleBtn) tagToggleBtn.title = tagsExpanded ? '收起標籤 (Alt+S)' : '展開標籤 (Alt+S)';
         }
-        if (e.ctrlKey && e.key.toLowerCase() === 'k' && currentFileId) {
+        if (e.ctrlKey && e.key.toLowerCase() === 'k' && (currentFileId || _currentViewId)) {
             e.preventDefault();
             const sel = window.getSelection();
             const selText = sel ? sel.toString().trim() : '';
@@ -11595,7 +11605,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
         }
-        if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key === '0' && currentFileId) {
+        if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key === '0' && (currentFileId || _currentViewId)) {
             const ve = document.getElementById('viewEditor');
             if (ve && !ve.classList.contains('hidden') && insertSelectedTextAtSavedCaret()) {
                 e.preventDefault();
@@ -11605,7 +11615,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 可自訂快捷鍵：清除篩選（clearFilter）
         {
             const _sc = getCustomShortcut('clearFilter');
-            if (_sc && currentFileId &&
+            if (_sc && (currentFileId || _currentViewId) &&
                 !!e.ctrlKey === !!_sc.ctrl && !!e.altKey === !!_sc.alt && !!e.shiftKey === !!_sc.shift &&
                 (e.key.length === 1 ? e.key.toLowerCase() : e.key) === _sc.key) {
                 e.preventDefault();
@@ -11616,7 +11626,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 可自訂快捷鍵：快速填入新增術語（quickNewTerm）
         {
             const _sc = getCustomShortcut('quickNewTerm');
-            if (_sc && currentFileId &&
+            if (_sc && (currentFileId || _currentViewId) &&
                 !!e.ctrlKey === !!_sc.ctrl && !!e.altKey === !!_sc.alt && !!e.shiftKey === !!_sc.shift &&
                 (e.key.length === 1 ? e.key.toLowerCase() : e.key) === _sc.key) {
                 e.preventDefault();
