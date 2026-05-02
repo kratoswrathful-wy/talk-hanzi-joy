@@ -3410,7 +3410,7 @@ select.cat-mutex-dd-native-hidden {
     font-variant-numeric: tabular-nums;
 }
 
-/* 字數進度條可點擊；自訂無延遲提示 #wcProgressModeTooltip */
+/* 字數進度條可點擊；全域無延遲提示 [data-tip] 共用 #wcProgressModeTooltip */
 .file-progress-cell,
 .view-progress-cell,
 .editor-status-bar-progress-track {

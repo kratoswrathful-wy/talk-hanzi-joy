@@ -1168,7 +1168,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 editorGrid.classList.toggle('tags-expanded', tagsExpanded);
                 editorGrid.classList.toggle('tags-collapsed', !tagsExpanded);
             }
-            btnTagCollapse.title = tagsExpanded ? '收起標籤 (Alt+S)' : '展開標籤 (Alt+S)';
+            btnTagCollapse.dataset.tip = tagsExpanded ? '收起標籤 (Alt+S)' : '展開標籤 (Alt+S)';
         });
     }
 
@@ -3063,7 +3063,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let lab = '原始字數';
         if (s.allWeighted) lab = '加權字數';
         else if (s.mixed) lab = '列上不一';
-        btn.title = `一次切換所有檔案顯示的字數，目前全列表：${lab}（列上進度條可單獨切換）`;
+        btn.dataset.tip = `一次切換所有檔案顯示的字數，目前全列表：${lab}（列上進度條可單獨切換）`;
     }
     function _wcRefreshViewToolbarTitle() {
         const btn = document.getElementById('btnToggleViewProgressMode');
@@ -3073,13 +3073,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         let lab = '原始字數';
         if (s.allWeighted) lab = '加權字數';
         else if (s.mixed) lab = '列上不一';
-        btn.title = `一次切換所有句段集顯示的字數，目前全列表：${lab}（列上進度條可單獨切換）`;
+        btn.dataset.tip = `一次切換所有句段集顯示的字數，目前全列表：${lab}（列上進度條可單獨切換）`;
     }
     function _wcRefreshEditorToolbarTitle() {
         const btn = document.getElementById('btnToggleEditorWordMode');
         if (!btn || currentFileId == null) return;
         const m = _wcGetEditorModeForFile(currentFileId);
-        btn.title = `一次切換所有檔案顯示的字數，目前顯示：${m === 'weighted' ? '加權字數' : '原始字數'}（此為目前編輯檔）`;
+        btn.dataset.tip = `一次切換所有檔案顯示的字數，目前顯示：${m === 'weighted' ? '加權字數' : '原始字數'}（此為目前編輯檔）`;
     }
 
     function _wcCellLoadingBar(done, total, compact) {
@@ -12263,7 +12263,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 editorGrid.classList.toggle('tags-collapsed', !tagsExpanded);
             }
             const tagToggleBtn = document.getElementById('btnTagCollapse');
-            if (tagToggleBtn) tagToggleBtn.title = tagsExpanded ? '收起標籤 (Alt+S)' : '展開標籤 (Alt+S)';
+            if (tagToggleBtn) tagToggleBtn.dataset.tip = tagsExpanded ? '收起標籤 (Alt+S)' : '展開標籤 (Alt+S)';
         }
         if (e.ctrlKey && e.key.toLowerCase() === 'k' && (currentFileId || _currentViewId)) {
             e.preventDefault();
@@ -13916,9 +13916,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (effectiveLockedSystem) lockedClass = 'locked-system';
                 else if (seg.isLockedUser) lockedClass = 'locked-user';
                 row.className = `grid-data-row ${lockedClass}`.trim();
-                if (effectiveLockedSystem) row.title = getForbiddenTooltip(seg);
-                else if (seg.isLockedUser) row.title = '句段鎖定中，請解除鎖定後再編輯';
-                else row.title = '';
+                if (effectiveLockedSystem) row.dataset.tip = getForbiddenTooltip(seg);
+                else if (seg.isLockedUser) row.dataset.tip = '句段鎖定中，請解除鎖定後再編輯';
+                else row.dataset.tip = '';
                 const isConfirmed = seg.status === 'confirmed';
                 syncRowConfirmedStateClass(row, seg);
                 const si = row.querySelector('.status-icon');
@@ -14309,7 +14309,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!btnSfReplaceAll) return;
         const multi = selectedRowIds && selectedRowIds.size > 1;
         btnSfReplaceAll.textContent = multi ? '取代此範圍' : '全部取代';
-        btnSfReplaceAll.title = multi
+        btnSfReplaceAll.dataset.tip = multi
             ? '將取代目前已選取句段中的所有相符內容。(F4)'
             : '將取代目前可見範圍中的所有相符內容。(F4)';
     }
@@ -15800,8 +15800,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             else if (seg.isLockedUser) lockedClass = 'locked-user';
             row.className = `grid-data-row ${lockedClass}`;
             row.dataset.segId = seg.id;
-            if (effectiveLockedSystem) row.title = getForbiddenTooltip(seg);
-            else if (seg.isLockedUser) row.title = '句段鎖定中，請解除鎖定後再編輯';
+            if (effectiveLockedSystem) row.dataset.tip = getForbiddenTooltip(seg);
+            else if (seg.isLockedUser) row.dataset.tip = '句段鎖定中，請解除鎖定後再編輯';
             row.addEventListener('mousedown', (e) => {
                 if (!isBatchOpInProgress) blockSelectionIfEditedByOthers(seg, e);
             });
@@ -15908,9 +15908,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         symbolHtml = '&#10003;';
                     }
                 }
-                statusCellHtml = `<span class="status-icon status-icon-mq ${isConfirmed ? 'done' : ''}" data-role="${seg.confirmationRole || ''}" style="cursor:pointer;" title="Ctrl+Enter/點擊 確認狀態">${symbolHtml}</span>`;
+                statusCellHtml = `<span class="status-icon status-icon-mq ${isConfirmed ? 'done' : ''}" data-role="${seg.confirmationRole || ''}" style="cursor:pointer;" data-tip="Ctrl+Enter/點擊 確認狀態">${symbolHtml}</span>`;
             } else {
-                statusCellHtml = `<span class="status-icon ${isConfirmed ? 'done' : ''}" style="cursor:pointer;" title="Ctrl+Enter/點擊 確認狀態"></span>`;
+                statusCellHtml = `<span class="status-icon ${isConfirmed ? 'done' : ''}" style="cursor:pointer;" data-tip="Ctrl+Enter/點擊 確認狀態"></span>`;
             }
             rowInnerContent += `<div class="col-status">${statusCellHtml}</div>`;
             row.innerHTML = rowInnerContent;
@@ -18066,7 +18066,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     /** 進度條上無延遲自訂提示（原生 title 有延遲）；role="tooltip" + aria-describedby */
-    (function initWcProgressModeTooltip() {
+    (function initGlobalTooltip() {
         const TIP_ID = 'wcProgressModeTooltip';
         let activeTrigger = null;
         function ensureTipEl() {
@@ -18082,6 +18082,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             return tip;
         }
         function tipTextFor(el) {
+            // 優先讀 data-tip（靜態或動態設定的文字）
+            const dataTip = el.getAttribute('data-tip');
+            if (dataTip) return dataTip;
+            // 進度條：需即時讀取目前模式狀態
             if (el.classList.contains('file-progress-cell')) {
                 const id = el.getAttribute('data-file-id');
                 const m = _wcGetFileMode(id);
@@ -18135,7 +18139,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
         document.addEventListener('mouseover', (e) => {
-            const el = e.target.closest('.file-progress-cell, .view-progress-cell, .editor-status-bar-progress-track');
+            const el = e.target.closest('[data-tip], .file-progress-cell, .view-progress-cell, .editor-status-bar-progress-track');
             if (!el) return;
             if (activeTrigger === el) return;
             showTip(el);

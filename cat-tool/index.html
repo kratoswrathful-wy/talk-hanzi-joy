@@ -194,13 +194,13 @@
                     <div id="panelProjectFiles" class="project-detail-panel">
                         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:0.5rem;">
                             <div id="projectFilesToolbar" style="display:flex; flex-wrap:wrap; gap:0.45rem; align-items:center;">
-                                <button type="button" class="secondary-btn btn-sm" id="btnProjectToolbarAssign" style="display:none;" title="需選取一個檔案">指派</button>
-                                <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnProjectToolbarLinkCase" title="為勾選檔案連結 LMS 案件">連結案件</button>
-                                <button type="button" class="danger-btn btn-sm pm-only-ui" id="btnProjectToolbarDelete" title="從專案移除所選檔案">移除</button>
-                                <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnProjectWordCount" title="字數與 TM 加權分析">分析</button>
-                                <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnProjectSplitAssign" title="依份數均分句段（僅提示，不指派）">拆分</button>
-                                <button type="button" class="primary-btn btn-sm pm-only-ui" id="btnCreateViewQuick" title="建立句段集">建立句段集</button>
-                                <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnToggleFileProgressMode" title="一次切換所有檔案顯示的字數，目前全列表：原始字數（列上進度條可單獨切換）">切換字數</button>
+                                <button type="button" class="secondary-btn btn-sm" id="btnProjectToolbarAssign" style="display:none;" data-tip="需選取一個檔案">指派</button>
+                                <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnProjectToolbarLinkCase" data-tip="為勾選檔案連結 LMS 案件">連結案件</button>
+                                <button type="button" class="danger-btn btn-sm pm-only-ui" id="btnProjectToolbarDelete" data-tip="從專案移除所選檔案">移除</button>
+                                <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnProjectWordCount" data-tip="字數與 TM 加權分析">分析</button>
+                                <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnProjectSplitAssign" data-tip="依份數均分句段（僅提示，不指派）">拆分</button>
+                                <button type="button" class="primary-btn btn-sm pm-only-ui" id="btnCreateViewQuick" data-tip="建立句段集">建立句段集</button>
+                                <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnToggleFileProgressMode" data-tip="一次切換所有檔案顯示的字數，目前全列表：原始字數（列上進度條可單獨切換）">切換字數</button>
                             </div>
                         </div>
                         <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
@@ -232,11 +232,11 @@
                     <!-- 面板：句段集清單 -->
                     <div id="panelProjectViews" class="project-detail-panel" style="display:none;">
                         <div id="viewsToolbar" style="display:flex; align-items:center; flex-wrap:wrap; gap:0.45rem; margin-bottom:0.5rem;">
-                            <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnViewsToolbarAssign" disabled title="需先勾選句段集">指派</button>
-                            <button type="button" class="danger-btn btn-sm pm-only-ui" id="btnViewsToolbarDelete" disabled title="從專案移除所選句段集">移除</button>
-                            <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnViewsToolbarWordCount" disabled title="統計所選句段集字數">分析</button>
-                            <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnViewsToolbarSplit" disabled title="以所選句段集均分工作量">拆分</button>
-                            <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnToggleViewProgressMode" title="一次切換所有句段集顯示的字數，目前全列表：原始字數（列上進度條可單獨切換）">切換字數</button>
+                            <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnViewsToolbarAssign" disabled data-tip="需先勾選句段集">指派</button>
+                            <button type="button" class="danger-btn btn-sm pm-only-ui" id="btnViewsToolbarDelete" disabled data-tip="從專案移除所選句段集">移除</button>
+                            <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnViewsToolbarWordCount" disabled data-tip="統計所選句段集字數">分析</button>
+                            <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnViewsToolbarSplit" disabled data-tip="以所選句段集均分工作量">拆分</button>
+                            <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnToggleViewProgressMode" data-tip="一次切換所有句段集顯示的字數，目前全列表：原始字數（列上進度條可單獨切換）">切換字數</button>
                         </div>
                         <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
                             <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
@@ -637,12 +637,12 @@
                 <!-- Editor Toolbar -->
                 <header class="editor-toolbar">
                     <div class="toolbar-left">
-                        <button class="icon-btn" id="btnExitEditor" title="返回檔案清單">←</button>
+                        <button class="icon-btn" id="btnExitEditor" data-tip="返回檔案清單">←</button>
                         <span class="editor-file-title" id="editorFileName">檔案名稱</span>
                     </div>
                     <div class="toolbar-right" style="display:flex; align-items:center; gap:0.5rem;">
                         <div class="dropdown-container">
-                            <button class="icon-btn" id="btnSortMenu" title="句段排序">📶</button>
+                            <button class="icon-btn" id="btnSortMenu" data-tip="句段排序">📶</button>
                             <div class="dropdown-menu" id="sortDropdown">
                                 <div>
                                     <label>排序欄位</label>
@@ -661,10 +661,10 @@
                         </div>
                         <button id="btnCopySourceToTarget" class="icon-btn" style="font-size:1rem;">⬇</button>
                         <button id="btnClearTarget" class="icon-btn" style="font-size:1rem;">✕</button>
-                        <button id="btnTagCollapse" class="icon-btn" title="展開標籤 (Alt+S)" style="font-size:0.8rem; font-family:monospace;">{…}</button>
-                        <button id="btnShowNonPrint" class="icon-btn" title="顯示 / 隱藏非列印字元" style="font-size:1rem;">¶</button>
-                        <button id="btnShortcuts" class="icon-btn" title="快捷鍵一覽（含說明）">⌨️</button>
-                        <button id="btnColSettings" class="icon-btn" title="設定">⚙️</button>
+                        <button id="btnTagCollapse" class="icon-btn" data-tip="展開標籤 (Alt+S)" style="font-size:0.8rem; font-family:monospace;">{…}</button>
+                        <button id="btnShowNonPrint" class="icon-btn" data-tip="顯示 / 隱藏非列印字元" style="font-size:1rem;">¶</button>
+                        <button id="btnShortcuts" class="icon-btn" data-tip="快捷鍵一覽（含說明）">⌨️</button>
+                        <button id="btnColSettings" class="icon-btn" data-tip="設定">⚙️</button>
                         <!-- 句段集模式：顯示所屬檔案欄 toggle（§12.3） -->
                         <label id="labelToggleSourceFileCol" style="display:none; align-items:center; gap:0.3rem; font-size:0.82rem; color:#475569; cursor:pointer; white-space:nowrap;">
                             <input type="checkbox" id="chkShowSourceFileCol" checked> 顯示所屬檔案
@@ -673,7 +673,7 @@
                         <button id="btnGsSourceLink" class="secondary-btn btn-sm" style="display:none;">原檔連結</button>
                         <div class="split-btn-group" id="inNoteGroup" style="display:none;">
                             <button type="button" id="btnInternalNoteMain" class="danger-btn btn-sm split-btn-main">內部註記</button>
-                            <button type="button" id="btnInternalNoteArrow" class="danger-btn btn-sm split-btn-arrow" title="既有註記">▾</button>
+                            <button type="button" id="btnInternalNoteArrow" class="danger-btn btn-sm split-btn-arrow" data-tip="既有註記">▾</button>
                             <div class="split-dropdown" id="inNoteDropdown">
                                 <div class="note-list-new" id="btnInNoteNew"><span class="icon">＋</span>建立新註記</div>
                                 <div class="note-list-body" id="inNoteListBody"></div>
@@ -681,11 +681,11 @@
                         </div>
                         <div class="split-btn-group" id="qfGroup" style="display:none;">
                             <button type="button" id="btnClientQuestionFormMain" class="success-btn btn-sm split-btn-main">提問表單</button>
-                            <button type="button" id="btnClientQuestionFormArrow" class="success-btn btn-sm split-btn-arrow" title="欄位設定">▾</button>
+                            <button type="button" id="btnClientQuestionFormArrow" class="success-btn btn-sm split-btn-arrow" data-tip="欄位設定">▾</button>
                         </div>
                         <button id="btnPreTranslate" class="primary-btn btn-sm">預先翻譯</button>
                         <button id="exportBtn" class="export-teal-btn btn-sm">匯出檔案</button>
-                        <button id="btnAiMode" class="btn-sm ai-mode-btn" style="display:none;" title="AI 輔助翻譯模式">✨ AI 輔助</button>
+                        <button id="btnAiMode" class="btn-sm ai-mode-btn" style="display:none;" data-tip="AI 輔助翻譯模式">✨ AI 輔助</button>
                     </div>
                 </header>
 
@@ -717,8 +717,8 @@
                                     <div class="sf-cell sf-cell-mode">
                                         <div class="sf-mode-toggle-wrap" id="sfModeToggleWrap">
                                             <div class="sf-mode-toggle" id="sfModeToggleBtnsWrap">
-                                                <button id="sfModeSearch" class="sf-mode-btn active" title="搜尋" tabindex="1"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
-                                                <button id="sfModeFilter" class="sf-mode-btn" title="篩選" tabindex="2"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></button>
+                                                <button id="sfModeSearch" class="sf-mode-btn active" data-tip="搜尋" tabindex="1"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></button>
+                                                <button id="sfModeFilter" class="sf-mode-btn" data-tip="篩選" tabindex="2"><svg class="sf-mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></button>
                                             </div>
                                             <div id="sfAdvancedInUseBadge" class="sf-advanced-in-use-badge" aria-hidden="true">
                                                 <span class="sf-advanced-in-use-line1">進階篩選</span>
@@ -727,23 +727,23 @@
                                         </div>
                                     </div>
                                     <div class="sf-cell sf-cell-invert">
-                                        <button class="icon-btn btn-sm sf-invert-btn sf-invert-disabled" id="btnSfInvert" title="不包含" style="font-weight:bold; font-size:1rem;" tabindex="3">¬</button>
+                                        <button class="icon-btn btn-sm sf-invert-btn sf-invert-disabled" id="btnSfInvert" data-tip="不包含" style="font-weight:bold; font-size:1rem;" tabindex="3">¬</button>
                                     </div>
                                     <span class="sf-cell sf-cell-label">尋找：</span>
                                     <div class="sf-cell sf-cell-input">
                                         <input type="text" id="sfInput" class="sf-input" placeholder='搜尋（空白=多詞 AND；"…"=整段引號）' autocomplete="off" tabindex="6">
                                     </div>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfPrev" title="上一個符合項目（Shift+F3）" tabindex="7">上一個</button>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfNext" title="下一個符合項目（F3）" tabindex="8">下一個</button>
-                                    <button class="sf-cell icon-btn btn-sm sf-clear-nav-btn" id="btnSfClearNav" title="清除所有條件並回到最後編輯位置 (Alt+F)" tabindex="12">✖</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfPrev" data-tip="上一個符合項目（Shift+F3）" tabindex="7">上一個</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfNext" data-tip="下一個符合項目（F3）" tabindex="8">下一個</button>
+                                    <button class="sf-cell icon-btn btn-sm sf-clear-nav-btn" id="btnSfClearNav" data-tip="清除所有條件並回到最後編輯位置 (Alt+F)" tabindex="12">✖</button>
                                     <!-- Row 2 -->
                                     <div class="sf-cell sf-cell-mode mq-role-hidden" id="sfCellModeRow2">
-                                        <button class="icon-btn btn-sm" id="btnToggleAdvancedSF" title="進階篩選" tabindex="4">▼</button>
-                                        <span id="mqRoleIcon" class="mq-role-icon" style="display:none;" title="作業中身分：T">✓</span>
+                                        <button class="icon-btn btn-sm" id="btnToggleAdvancedSF" data-tip="進階篩選" tabindex="4">▼</button>
+                                        <span id="mqRoleIcon" class="mq-role-icon" style="display:none;" data-tip="作業中身分：T">✓</span>
                                     </div>
                                     <div class="sf-cell sf-cell-invert">
                                         <div class="sf-options-popover-wrap" style="position:relative;">
-                                            <button class="icon-btn btn-sm" id="btnSfOptionsPopover" title="搜尋範圍與選項" tabindex="5">⋯</button>
+                                            <button class="icon-btn btn-sm" id="btnSfOptionsPopover" data-tip="搜尋範圍與選項" tabindex="5">⋯</button>
                                             <div class="sf-options-popover hidden" id="sfOptionsPopover">
                                                 <div class="sf-options-popover-inner">
                                                     <label class="sf-options-row"><input type="checkbox" value="source" class="sf-scope-cb" checked> 原文</label>
@@ -760,8 +760,8 @@
                                     <div class="sf-cell sf-cell-input">
                                         <input type="text" id="sfReplaceInput" class="sf-input sf-replace-input" placeholder="取代為…（切至篩選時自動複製尋找列）" autocomplete="off" tabindex="9">
                                     </div>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceThis" title="取代目前選取的搜尋目標；若無選取則跳到最近的下一個目標再取代。完成後會跳到下一個選取目標。" tabindex="10">取代這個</button>
-                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceAll" title="取代目前顯示的有效句段中所有相符內容。僅選取一句時視同未選取（全部取代）；同時選取兩句以上時只處理選取範圍。" tabindex="11">全部取代</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceThis" data-tip="取代目前選取的搜尋目標；若無選取則跳到最近的下一個目標再取代。完成後會跳到下一個選取目標。" tabindex="10">取代這個</button>
+                                    <button class="sf-cell secondary-btn btn-sm sf-btn-nav" id="btnSfReplaceAll" data-tip="取代目前顯示的有效句段中所有相符內容。僅選取一句時視同未選取（全部取代）；同時選取兩句以上時只處理選取範圍。" tabindex="11">全部取代</button>
                                     <span id="sfMatchCount" class="sf-cell sf-match-count">0/0</span>
                                 </div>
                             </div>
@@ -832,7 +832,7 @@
                                     <button type="button" class="notes-tab-btn ai-translator-ui ai-file-only-notes-tab" data-notes-tab="tabAiReport" style="display:none;" hidden aria-hidden="true">AI 報告</button>
                                 </div>
                                 <div style="display:flex; align-items:center; gap:0.4rem;">
-                                    <button type="button" id="btnCollapseNotesPanel" class="notes-panel-collapse-btn" title="收合筆記面板">▼</button>
+                                    <button type="button" id="btnCollapseNotesPanel" class="notes-panel-collapse-btn" data-tip="收合筆記面板">▼</button>
                                 </div>
                             </div>
                             <div class="notes-panel-body" id="notesPanelBody">
@@ -1094,8 +1094,8 @@
                                 <div>字數 (Words)：<span id="statusBarWords" style="font-weight:600; color:#111;">0 / 0</span></div>
                             </div>
                         </div>
-                        <button type="button" id="btnProgressRange" class="btn-progress-range-adjust" title="設定統計範圍">調整統計範圍</button>
-                        <button type="button" id="btnToggleEditorWordMode" class="btn-progress-range-adjust" title="一次切換所有檔案顯示的字數，目前顯示：原始字數（此為目前編輯檔）">切換字數</button>
+                        <button type="button" id="btnProgressRange" class="btn-progress-range-adjust" data-tip="設定統計範圍">調整統計範圍</button>
+                        <button type="button" id="btnToggleEditorWordMode" class="btn-progress-range-adjust" data-tip="一次切換所有檔案顯示的字數，目前顯示：原始字數（此為目前編輯檔）">切換字數</button>
                     </div>
                     <div id="progressRangeLabel" style="font-size:0.78rem; color:#7c3aed; display:none; font-weight:500;"></div>
                     <div style="display:flex; align-items:center; gap:0.45rem; min-width:220px;">
