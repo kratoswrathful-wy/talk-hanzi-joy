@@ -5056,6 +5056,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         const files = await DBService.getFiles(currentProjectId);
         window._lastFilesListForProject = files;
         filesListBody.innerHTML = '';
+        /** 專案檔案清單「預設身分」欄：僅此表格使用兩行（T + 第二行說明）；非 mqxliff 不顯示。 */
+        function projectFilesListMqRoleCellHtml(defaultMqRole) {
+            const esc = (s) => String(s).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const norm = defaultMqRole === 'T' ? 'T_ALLOW_R1' : String(defaultMqRole || '').trim();
+            const sub = (t) => '<div style="font-size:0.76rem;color:#64748b;">' + esc(t) + '</div>';
+            if (norm === 'T_ALLOW_R1') {
+                return '<div style="line-height:1.25;text-align:center;"><div>T</div>' + sub('可編 R1') + '</div>';
+            }
+            if (norm === 'T_DENY_R1') {
+                return '<div style="line-height:1.25;text-align:center;"><div>T</div>' + sub('不可編 R1') + '</div>';
+            }
+            if (norm === 'R1') return '<div style="text-align:center;">R1</div>';
+            if (norm === 'R2') return '<div style="text-align:center;">R2</div>';
+            if (norm) return '<div style="text-align:center;">' + esc(norm) + '</div>';
+            return '—';
+        }
         if(files.length === 0) {
             const tr = document.createElement('tr');
             tr.innerHTML = '<td colspan="8" style="padding:0.75rem; color:#64748b;">此專案內尚無檔案。請點擊上方按鈕匯入檔案。</td>';
@@ -5069,8 +5085,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const nameEsc = (f.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const modStr = f.lastModified ? new Date(f.lastModified).toLocaleString('zh-TW', { hour12: false }) : '—';
             const isMqxliff = (f.name || '').toLowerCase().endsWith('.mqxliff');
-            const roleLabels = { 'T_ALLOW_R1': 'T (R1 - ✓ )', 'T_DENY_R1': 'T (R1 - ✖)', 'T': 'T (R1 - ✓ )', R1: 'Reviewer 1', R2: 'Reviewer 2' };
-            const roleStr = isMqxliff && f.defaultMqRole ? (roleLabels[f.defaultMqRole] || f.defaultMqRole) : (isMqxliff ? '—' : '');
+            const roleTdHtml = isMqxliff ? projectFilesListMqRoleCellHtml(f.defaultMqRole) : '';
 
             // 語言對顯示（若原始檔語言對不同則附加提示）
             const fileSrc = f.sourceLang || '';
@@ -5108,7 +5123,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${idx + 1}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="edit-file-btn" data-id="${f.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a>${progressCellHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${fileLangHtml}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:80px;">${roleStr}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:80px;">${roleTdHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#334155; width:120px; vertical-align:middle;" title="${assignTitle}">${assignCell}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${getFileCaseLinkHtml(f)}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;">${modStr}</td>

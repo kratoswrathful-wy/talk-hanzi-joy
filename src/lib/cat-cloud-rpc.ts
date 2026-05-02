@@ -72,7 +72,7 @@ const CAT_ORIGINAL_FILES_BUCKET = "cat-original-files";
 
 /** 列表／recent：不 SELECT original_file_base64，僅路徑 + metadata */
 const CAT_FILE_LIST_COLUMNS =
-  "id, project_id, name, source_lang, target_lang, original_source_lang, original_target_lang, workspace_note_draft, applicable_special_instruction_ids, related_lms_case_id, related_lms_case_title, google_sheet_url, file_format, created_at, last_modified, original_file_path";
+  "id, project_id, name, source_lang, target_lang, original_source_lang, original_target_lang, workspace_note_draft, applicable_special_instruction_ids, related_lms_case_id, related_lms_case_title, google_sheet_url, file_format, default_mq_role, created_at, last_modified, original_file_path";
 
 function guessMimeFromCatFileName(name: string): string {
   const lower = String(name || "").toLowerCase();
@@ -170,6 +170,7 @@ function mapFileRow(r: any, opts?: { listMode?: boolean }) {
     relatedLmsCaseTitle: r.related_lms_case_title ?? "",
     googleSheetUrl: r.google_sheet_url ?? "",
     fileFormat: r.file_format ?? "",
+    defaultMqRole: r.default_mq_role ?? "",
     createdAt: r.created_at,
     lastModified: r.last_modified,
   };
@@ -642,6 +643,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         ...(u.relatedLmsCaseTitle !== undefined ? { related_lms_case_title: u.relatedLmsCaseTitle ?? "" } : {}),
         ...(u.googleSheetUrl != null ? { google_sheet_url: String(u.googleSheetUrl) } : {}),
         ...(u.fileFormat != null ? { file_format: String(u.fileFormat) } : {}),
+        ...(u.defaultMqRole !== undefined ? { default_mq_role: String(u.defaultMqRole ?? "") } : {}),
         last_modified: nowIso(),
       };
       if (u.originalFileBase64 != null) {
