@@ -26567,7 +26567,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tokSys = _estimateTokensByChars([...sys].length);
             const tokUsr = _estimateTokensByChars([...usr].length);
             const tokTotal = tokSys + tokUsr + overhead;
-            estEl.innerHTML = `每批約 <strong>${tokTotal.toLocaleString()}</strong> tokens（提示語 ${tokSys.toLocaleString()} + 翻譯內容 ${tokUsr.toLocaleString()} + 系統開銷 ${overhead}）`;
+            estEl.innerHTML = `每批約 <strong>${tokTotal.toLocaleString()}</strong> tokens（提示語 ${tokSys.toLocaleString()} + 翻譯內容 ${tokUsr.toLocaleString()} + 系統開銷 ${overhead}）<br><span style="font-size:0.74rem; color:#94a3b8;">加總 = 提示語 + 翻譯內容 + 系統開銷；請以「預覽提示語」中的約略估算為準。</span>`;
         } catch (_) { estEl.innerHTML = ''; }
     }
 
@@ -26693,10 +26693,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </tr>
                 </thead>
                 <tbody>${rows}</tbody>
-            </table>
-            <div style="margin-top:0.55rem; font-size:0.72rem; color:#94a3b8; line-height:1.4;">
-                <span style="color:#16a34a;">■</span> 建議&ensp;<span style="color:#d97706;">■</span> 可接受&ensp;<span style="color:#dc2626;">■</span> 不建議
-            </div>`;
+                <tfoot>
+                    <tr style="border-top:2px solid #e2e8f0;">
+                        <td style="padding:0.3rem 0.45rem;"></td>
+                        <td style="padding:0.3rem 0.45rem; font-size:0.75rem; color:#64748b; white-space:nowrap;"><span style="color:#16a34a;">■</span> 建議</td>
+                        <td style="padding:0.3rem 0.45rem; text-align:right; font-size:0.75rem; color:#64748b;">≦ 4,000</td>
+                        <td style="padding:0.3rem 0.45rem; text-align:right; font-size:0.75rem; color:#64748b;">≦ 2,500</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:0.3rem 0.45rem;"></td>
+                        <td style="padding:0.3rem 0.45rem; font-size:0.75rem; color:#64748b; white-space:nowrap;"><span style="color:#d97706;">■</span> 可接受（可能變慢）</td>
+                        <td style="padding:0.3rem 0.45rem; text-align:right; font-size:0.75rem; color:#64748b;">≦ 6,000</td>
+                        <td style="padding:0.3rem 0.45rem; text-align:right; font-size:0.75rem; color:#64748b;">≦ 4,000</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:0.3rem 0.45rem;"></td>
+                        <td style="padding:0.3rem 0.45rem; font-size:0.75rem; color:#64748b; white-space:nowrap;"><span style="color:#dc2626;">■</span> 不建議</td>
+                        <td style="padding:0.3rem 0.45rem; text-align:right; font-size:0.75rem; color:#64748b;">&gt; 6,000</td>
+                        <td style="padding:0.3rem 0.45rem; text-align:right; font-size:0.75rem; color:#64748b;">&gt; 4,000</td>
+                    </tr>
+                </tfoot>
+            </table>`;
         } catch (e) {
             if (myToken === _batchBreakdownToken) content.textContent = `計算失敗：${e.message || e}`;
         } finally {
