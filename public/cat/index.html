@@ -2011,7 +2011,8 @@
                     <div>
                         <strong style="display:block; margin-bottom:0.5rem;">套用範圍</strong>
                         <label style="display:block; margin-bottom:0.25rem;"><input type="radio" name="ptScope" value="all" checked> 全文</label>
-                        <label style="display:block;"><input type="radio" name="ptScope" value="selected" id="ptScopeSelected"> <span id="ptScopeSelectedText" style="color:#64748b;">選取的句段</span></label>
+                        <label style="display:block; margin-bottom:0.25rem;"><input type="radio" name="ptScope" value="selected" id="ptScopeSelected"> <span id="ptScopeSelectedText" style="color:#64748b;">選取的句段</span></label>
+                        <label style="display:block;"><input type="radio" name="ptScope" value="filtered" id="ptScopeFiltered"> <span id="ptScopeFilteredText" style="color:#64748b;">目前篩選句段</span></label>
                     </div>
                     <div>
                         <strong style="display:block; margin-bottom:0.5rem;">TM 相符度門檻 (%)</strong>
@@ -2272,6 +2273,7 @@
                     <div id="aiBatchRangeModeSwitch" role="group" aria-label="翻譯範圍切換" style="display:inline-flex; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden; margin-bottom:0.45rem;">
                         <button type="button" id="aiBatchModeAll" class="secondary-btn btn-sm" style="border:0; border-radius:0; min-width:88px; padding:0.32rem 0.6rem;">全文</button>
                         <button type="button" id="aiBatchModeRange" class="secondary-btn btn-sm" style="border:0; border-left:1px solid #cbd5e1; border-radius:0; min-width:88px; padding:0.32rem 0.6rem;">指定範圍</button>
+                        <button type="button" id="aiBatchModeFiltered" class="secondary-btn btn-sm" style="border:0; border-left:1px solid #cbd5e1; border-radius:0; min-width:88px; padding:0.32rem 0.6rem;">目前篩選</button>
                     </div>
                     <div style="display:flex; align-items:center; gap:0.55rem; flex-wrap:wrap;">
                         <input type="number" id="aiBatchRangeStart" class="form-input" placeholder="起始句段編號" min="1" style="width:130px;">

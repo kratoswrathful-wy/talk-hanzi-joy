@@ -11901,6 +11901,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnRunPreTranslate = document.getElementById('btnRunPreTranslate');
     const ptScopeSelectedText = document.getElementById('ptScopeSelectedText');
     const ptScopeSelected = document.getElementById('ptScopeSelected');
+    const ptScopeFiltered = document.getElementById('ptScopeFiltered');
+    const ptScopeFilteredText = document.getElementById('ptScopeFilteredText');
     const ptThreshold = document.getElementById('ptThreshold');
     const ptOverwrite = document.getElementById('ptOverwrite');
     const ptAutoConfirm = document.getElementById('ptAutoConfirm');
@@ -11952,10 +11954,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                 document.querySelector('input[name="ptScope"][value="all"]').checked = true;
             }
 
+            const filteredCount = (sfMode === 'filter' && sfFilterSnapshotSegIds) ? sfFilterSnapshotSegIds.size : 0;
+            if (filteredCount > 0) {
+                ptScopeFiltered.disabled = false;
+                ptScopeFilteredText.style.color = 'inherit';
+                ptScopeFilteredText.textContent = `目前篩選句段 (${filteredCount} 句)`;
+            } else {
+                ptScopeFiltered.disabled = true;
+                ptScopeFilteredText.style.color = '#64748b';
+                ptScopeFilteredText.textContent = `目前篩選句段 (未篩選)`;
+                if (document.querySelector('input[name="ptScope"]:checked')?.value === 'filtered') {
+                    document.querySelector('input[name="ptScope"][value="all"]').checked = true;
+                }
+            }
+
             preTranslateModal.classList.remove('hidden');
         });
     }
-
     if (btnClosePreTranslate) btnClosePreTranslate.addEventListener('click', () => {
         hidePreTranslateProgress();
         if (ptProgressStatus) ptProgressStatus.classList.add('hidden');
@@ -11981,6 +11996,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             try {
                 const affectedSegments = scope === 'selected' 
                     ? currentSegmentsList.filter(s => selectedRowIds.has(s.id))
+                    : scope === 'filtered'
+                    ? currentSegmentsList.filter(s => sfFilterSnapshotSegIds && sfFilterSnapshotSegIds.has(s.id))
                     : currentSegmentsList;
                 const total = affectedSegments.length;
                 setPreTranslateProgress(0, total);
@@ -26313,16 +26330,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     function _setAiBatchRangeMode(mode) {
         const btnAll = document.getElementById('aiBatchModeAll');
         const btnRange = document.getElementById('aiBatchModeRange');
+        const btnFiltered = document.getElementById('aiBatchModeFiltered');
         const isAll = mode === 'all';
+        const isFiltered = mode === 'filtered';
+        const isRange = !isAll && !isFiltered;
         if (btnAll) {
             btnAll.classList.toggle('primary-btn', isAll);
             btnAll.classList.toggle('secondary-btn', !isAll);
         }
         if (btnRange) {
-            btnRange.classList.toggle('primary-btn', !isAll);
-            btnRange.classList.toggle('secondary-btn', isAll);
+            btnRange.classList.toggle('primary-btn', isRange);
+            btnRange.classList.toggle('secondary-btn', !isRange);
         }
-        window.__catAiBatchRangeMode = isAll ? 'all' : 'range';
+        if (btnFiltered) {
+            btnFiltered.classList.toggle('primary-btn', isFiltered);
+            btnFiltered.classList.toggle('secondary-btn', !isFiltered);
+        }
+        window.__catAiBatchRangeMode = mode;
+    }
+
+    function _getAiBatchRangeSegs() {
+        if (!currentSegmentsList) return [];
+        const mode = window.__catAiBatchRangeMode || 'all';
+        if (mode === 'filtered') {
+            return currentSegmentsList.filter(s => sfFilterSnapshotSegIds && sfFilterSnapshotSegIds.has(s.id));
+        }
+        const allFile = mode === 'all';
+        const start = allFile ? 1 : (parseInt(document.getElementById('aiBatchRangeStart')?.value || '1', 10) || 1);
+        const end = allFile ? currentSegmentsList.length : (parseInt(document.getElementById('aiBatchRangeEnd')?.value || String(currentSegmentsList.length), 10) || currentSegmentsList.length);
+        return currentSegmentsList.filter((s, i) => (i + 1) >= start && (i + 1) <= end);
     }
 
     function _validateAiBatchRange() {
@@ -26334,7 +26370,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         const setErr = (msg) => { if (errEl) errEl.textContent = msg; };
         if (mode === 'all') {
             clearErr();
-            return { ok: true, allFile: true, rangeStart: 1, rangeEnd: currentSegmentsList.length };
+            return { ok: true, allFile: true, rangeStart: 1, rangeEnd: currentSegmentsList.length, filteredIds: null };
+        }
+        if (mode === 'filtered') {
+            const ids = sfFilterSnapshotSegIds;
+            if (!ids || ids.size === 0) {
+                setErr('目前無篩選句段，請先使用篩選功能再選此選項。');
+                return { ok: false };
+            }
+            clearErr();
+            return { ok: true, allFile: false, rangeStart: null, rangeEnd: null, filteredIds: ids };
         }
         if (!startRaw || !endRaw) {
             setErr('指定範圍需同時填寫起始與結束句段。');
@@ -26355,7 +26400,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return { ok: false };
         }
         clearErr();
-        return { ok: true, allFile: false, rangeStart: s, rangeEnd: e };
+        return { ok: true, allFile: false, rangeStart: s, rangeEnd: e, filteredIds: null };
     }
 
     function _segmentSourceCharCount(seg) {
@@ -26640,10 +26685,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (searchEl) searchEl.oninput = () => _renderAiBatchExamplePickerList();
         if (applyBtn) applyBtn.onclick = () => {
             __aiBatchSelectedExampleIds = new Set(__aiBatchPendingExampleIds);
-            const allFile = (window.__catAiBatchRangeMode || 'all') === 'all';
-            const start = allFile ? 1 : (parseInt(document.getElementById('aiBatchRangeStart')?.value || '1', 10) || 1);
-            const end = allFile ? currentSegmentsList.length : (parseInt(document.getElementById('aiBatchRangeEnd')?.value || String(currentSegmentsList.length), 10) || currentSegmentsList.length);
-            const rangeSegs = currentSegmentsList.filter((s, i) => (i + 1) >= start && (i + 1) <= end);
+            const rangeSegs = _getAiBatchRangeSegs();
             _renderAiBatchRefTokens(rangeSegs);
             close();
         };
@@ -26666,9 +26708,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const rowLimit = Math.max(1, parseInt(document.getElementById('aiBatchLimitRows')?.value || '20', 10) || 20);
         const charLimit = Math.max(200, parseInt(document.getElementById('aiBatchLimitChars')?.value || '2500', 10) || 2500);
-        const i0 = range.allFile ? 0 : (range.rangeStart - 1);
-        const i1 = range.allFile ? currentSegmentsList.length - 1 : (range.rangeEnd - 1);
-        const rangeSegs = currentSegmentsList.filter((s, i) => i >= i0 && i <= i1);
+        const rangeSegs = _getAiBatchRangeSegs();
         if (!rangeSegs.length) {
             _showAiToast('範圍內無句段可預覽。', true);
             return;
@@ -26733,8 +26773,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     function openAiBatchModal() {
         const modal = document.getElementById('aiBatchModal');
         if (!modal) return;
-        window.__catAiBatchRangeMode = 'all';
-        _setAiBatchRangeMode('all');
+        // 如果目前已在篩選模式且有篩選結果，預設切到「目前篩選」
+        const hasFilteredSegs = sfMode === 'filter' && sfFilterSnapshotSegIds && sfFilterSnapshotSegIds.size > 0;
+        window.__catAiBatchRangeMode = hasFilteredSegs ? 'filtered' : 'all';
+        _setAiBatchRangeMode(window.__catAiBatchRangeMode);
         const rowLimitEl = document.getElementById('aiBatchLimitRows');
         const charLimitEl = document.getElementById('aiBatchLimitChars');
         DBService.getAiSettings().then((s) => {
@@ -26762,6 +26804,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const closeBtn = document.getElementById('btnCloseAiBatchModal');
         const btnAll = document.getElementById('aiBatchModeAll');
         const btnRange = document.getElementById('aiBatchModeRange');
+        const btnFiltered = document.getElementById('aiBatchModeFiltered');
         const startEl = document.getElementById('aiBatchRangeStart');
         const endEl = document.getElementById('aiBatchRangeEnd');
         const pickExBtn = document.getElementById('btnAiBatchPickExamples');
@@ -26781,6 +26824,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             _setAiBatchRangeMode('range');
             _updateBatchStats();
         };
+        if (btnFiltered) btnFiltered.onclick = () => {
+            _setAiBatchRangeMode('filtered');
+            _updateBatchStats();
+        };
+        // 若篩選按鈕不可用則 disable
+        if (btnFiltered) {
+            const ok = sfMode === 'filter' && sfFilterSnapshotSegIds && sfFilterSnapshotSegIds.size > 0;
+            btnFiltered.disabled = !ok;
+            btnFiltered.title = ok ? '' : '請先切換至篩選模式並有篩選結果';
+        }
         if (startEl) startEl.oninput = () => {
             if (String(startEl.value || '').trim()) _setAiBatchRangeMode('range');
             _updateBatchStats();
@@ -26827,6 +26880,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 allFile: range.allFile,
                 rangeStart: range.rangeStart,
                 rangeEnd: range.rangeEnd,
+                filteredIds: range.filteredIds || null,
                 handleConfirmed: document.getElementById('aiBatchHandleConfirmed')?.value || 'skip',
                 handleUnconfirmed: document.getElementById('aiBatchHandleUnconfirmed')?.value || 'skip',
                 tmThreshold: parseInt(document.getElementById('aiBatchTmThreshold')?.value || '102', 10),
@@ -26856,10 +26910,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function _updateBatchStats() {
         const statsEl = document.getElementById('aiBatchStats');
         if (!statsEl || !currentSegmentsList) return;
-        const allFile = (window.__catAiBatchRangeMode || 'all') === 'all';
-        const start = allFile ? 1 : (parseInt(document.getElementById('aiBatchRangeStart')?.value || '1', 10) || 1);
-        const end = allFile ? currentSegmentsList.length : (parseInt(document.getElementById('aiBatchRangeEnd')?.value || String(currentSegmentsList.length), 10) || currentSegmentsList.length);
-        const rangeSegs = currentSegmentsList.filter((s, i) => (i + 1) >= start && (i + 1) <= end);
+        const rangeSegs = _getAiBatchRangeSegs();
         const confirmed = rangeSegs.filter(s => s.status === 'confirmed').length;
         const withText = rangeSegs.filter(s => s.status !== 'confirmed' && (s.targetText || '').trim()).length;
         const empty = rangeSegs.length - confirmed - withText;
@@ -26894,10 +26945,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function _updateBatchPerBatchEst() {
         const estEl = document.getElementById('aiBatchPerBatchEst');
         if (!estEl || !currentSegmentsList) return;
-        const allFile = (window.__catAiBatchRangeMode || 'all') === 'all';
-        const start = allFile ? 1 : (parseInt(document.getElementById('aiBatchRangeStart')?.value || '1', 10) || 1);
-        const end = allFile ? currentSegmentsList.length : (parseInt(document.getElementById('aiBatchRangeEnd')?.value || String(currentSegmentsList.length), 10) || currentSegmentsList.length);
-        const rangeSegs = currentSegmentsList.filter((s, i) => (i + 1) >= start && (i + 1) <= end);
+        const rangeSegs = _getAiBatchRangeSegs();
         const rowLimit = Math.max(1, parseInt(document.getElementById('aiBatchLimitRows')?.value || '20', 10) || 20);
         const charLimit = Math.max(200, parseInt(document.getElementById('aiBatchLimitChars')?.value || '2500', 10) || 2500);
         if (!rangeSegs.length) { estEl.innerHTML = ''; return; }
@@ -26982,11 +27030,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const myToken = ++_batchBreakdownToken;
 
         try {
-            const allFile = (window.__catAiBatchRangeMode || 'all') === 'all';
             if (!currentSegmentsList) { content.textContent = '無句段資料'; return; }
-            const start = allFile ? 1 : (parseInt(document.getElementById('aiBatchRangeStart')?.value || '1', 10) || 1);
-            const end = allFile ? currentSegmentsList.length : (parseInt(document.getElementById('aiBatchRangeEnd')?.value || String(currentSegmentsList.length), 10) || currentSegmentsList.length);
-            const rangeSegs = currentSegmentsList.filter((s, i) => (i + 1) >= start && (i + 1) <= end);
+            const rangeSegs = _getAiBatchRangeSegs();
             const rowLimit = Math.max(1, parseInt(document.getElementById('aiBatchLimitRows')?.value || '20', 10) || 20);
             const charLimit = Math.max(200, parseInt(document.getElementById('aiBatchLimitChars')?.value || '2500', 10) || 2500);
             const tmRefThreshold = parseInt(document.getElementById('aiBatchTmRefThreshold')?.value || '0', 10);
@@ -27115,7 +27160,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!seg || undoBeforeBySegId.has(seg.id)) return;
             undoBeforeBySegId.set(seg.id, snapshotSegForUndo(seg));
         };
-        const rangeLabel = config.allFile ? '全文' : `句段 ${config.rangeStart}-${config.rangeEnd}`;
+        const rangeLabel = config.filteredIds ? `篩選句段 (${config.filteredIds.size} 句)` : config.allFile ? '全文' : `句段 ${config.rangeStart}-${config.rangeEnd}`;
         const ctx = await _resolveAiTaskContext();
         let taskLogId = _startAiTaskLog({
             kind: 'batch_translate',
@@ -27138,9 +27183,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
         // Collect segments in range
-        const start = config.allFile ? 0 : (config.rangeStart - 1);
-        const end = config.allFile ? currentSegmentsList.length - 1 : (config.rangeEnd - 1);
-        let candidates = currentSegmentsList.filter((s, i) => i >= start && i <= end);
+        let candidates;
+        if (config.filteredIds) {
+            candidates = currentSegmentsList.filter(s => config.filteredIds.has(s.id));
+        } else {
+            const start = config.allFile ? 0 : (config.rangeStart - 1);
+            const end = config.allFile ? currentSegmentsList.length - 1 : (config.rangeEnd - 1);
+            candidates = currentSegmentsList.filter((s, i) => i >= start && i <= end);
+        }
 
         // Filter based on confirmed/unconfirmed settings
         const toProcess = [];
