@@ -5,6 +5,16 @@
 (function (global) {
     'use strict';
 
+    /** 預設折扣（0–1）；可由 analyze(opts.discounts) 覆寫 tm9599、repetition */
+    const DEFAULT_DISCOUNTS = {
+        tm9599: 0.10,
+        tm8594: 0.25,
+        tm7584: 0.50,
+        tm5074: 0.75,
+        newWords: 1.00,
+        repetition: 0.00
+    };
+
     function stripTags(html) {
         if (html == null) return '';
         const s = String(html);
@@ -21,7 +31,7 @@
         return stripTags(text).toLowerCase().replace(/\s+/g, ' ').trim();
     }
 
-    /** 加權單位：中日韓為字元數，其餘以空白斷詞 */
+    /** 加權單位：中日韓為字元數，其餘以空白斷詞（分析表「原始字數」亦用此值） */
     function weightedUnits(text) {
         const t = stripTags(text);
         if (!t) return 0;
@@ -32,8 +42,12 @@
         return parts.length || 1;
     }
 
-    function isEmptyTarget(t) {
-        return !stripTags(t);
+    /** 原始單位：一律以空白斷詞（保留供舊程式或除錯） */
+    function rawUnits(text) {
+        const t = stripTags(text);
+        if (!t) return 0;
+        const parts = t.trim().split(/\s+/).filter(Boolean);
+        return parts.length || 1;
     }
 
     function segLocked(seg, includeLocked) {
@@ -87,74 +101,94 @@
         return best;
     }
 
+    function mergeDiscounts(overrides) {
+        const out = { ...DEFAULT_DISCOUNTS };
+        if (overrides && typeof overrides === 'object') {
+            Object.keys(overrides).forEach((k) => {
+                const v = overrides[k];
+                if (typeof v === 'number' && !Number.isNaN(v)) out[k] = v;
+            });
+        }
+        return out;
+    }
+
     /**
      * @param {object} opts
      * @param {Array<{sourceText?:string,targetText?:string,isLocked?:boolean,isLockedUser?:boolean,isLockedSystem?:boolean}>} opts.segments
      * @param {string[]} opts.tmSourcesNormalized — 已正規化之 TM 原文列表
      * @param {boolean} opts.includeLocked
+     * @param {object} [opts.discounts] — 可覆寫 tm9599、repetition 等（0–1）
      */
     function analyze(opts) {
         const segments = opts.segments || [];
         const tmList = opts.tmSourcesNormalized || [];
         const includeLocked = opts.includeLocked !== false;
+        const discounts = mergeDiscounts(opts.discounts);
         const tmExact = new Set(tmList.filter(Boolean));
 
         const buckets = {
-            lockedSkipped: { label: '鎖定（略過）', segments: 0, weighted: 0 },
-            repetition: { label: '檔內重複', segments: 0, weighted: 0 },
-            tm100: { label: 'TM 100%', segments: 0, weighted: 0 },
-            tm8599: { label: 'TM 高相似 (85–99%)', segments: 0, weighted: 0 },
-            tm7584: { label: 'TM 中相似 (75–84%)', segments: 0, weighted: 0 },
-            tmLow: { label: 'TM 低相似 (<75%)', segments: 0, weighted: 0 },
-            newWords: { label: '新字／無 TM（含空白譯文）', segments: 0, weighted: 0 }
+            lockedSkipped: { label: '鎖定（略過）', segments: 0, raw: 0, weighted: 0 },
+            repetition: { label: '檔內重複', segments: 0, raw: 0, weighted: 0 },
+            tm9599: { label: 'TM 95–100%', segments: 0, raw: 0, weighted: 0 },
+            tm8594: { label: 'TM 85–94%', segments: 0, raw: 0, weighted: 0 },
+            tm7584: { label: 'TM 75–84%', segments: 0, raw: 0, weighted: 0 },
+            tm5074: { label: 'TM 50–74%', segments: 0, raw: 0, weighted: 0 },
+            newWords: { label: '新字／無 TM（含空白譯文）', segments: 0, raw: 0, weighted: 0 }
         };
 
-        const seenTranslatedSrc = new Map();
+        const seenSrc = new Set();
+        /** @type {Array<{ skip: boolean, rawW: number, weightedW: number, bucketKey: string }>} */
+        const perSegment = [];
 
         for (let i = 0; i < segments.length; i++) {
             const seg = segments[i];
             const lockInfo = segLocked(seg, includeLocked);
             const src = seg.sourceText;
-            const tgt = seg.targetText;
-            const w = weightedUnits(src);
             const srcN = normKey(src);
+            const rawW = weightedUnits(src);
 
             if (lockInfo.skip) {
                 buckets.lockedSkipped.segments += 1;
-                buckets.lockedSkipped.weighted += w;
-                continue;
-            }
-
-            if (isEmptyTarget(tgt)) {
-                buckets.newWords.segments += 1;
-                buckets.newWords.weighted += w;
+                buckets.lockedSkipped.raw += rawW;
+                buckets.lockedSkipped.weighted += rawW;
+                perSegment.push({ skip: true, rawW, weightedW: rawW, bucketKey: 'lockedSkipped' });
                 continue;
             }
 
             let bucketKey = 'newWords';
-            if (tmExact.has(srcN)) {
-                bucketKey = 'tm100';
-            } else if (seenTranslatedSrc.has(srcN)) {
+
+            if (seenSrc.has(srcN)) {
                 bucketKey = 'repetition';
             } else {
-                seenTranslatedSrc.set(srcN, true);
-                const sim = tmList.length ? bestTmSimilarity(srcN, tmList) : 0;
-                if (sim >= 0.995) bucketKey = 'tm100';
-                else if (sim >= 0.85) bucketKey = 'tm8599';
-                else if (sim >= 0.75) bucketKey = 'tm7584';
-                else if (sim > 0.01) bucketKey = 'tmLow';
-                else bucketKey = 'newWords';
+                seenSrc.add(srcN);
+                if (tmExact.has(srcN)) {
+                    bucketKey = 'tm9599';
+                } else if (tmList.length) {
+                    const sim = bestTmSimilarity(srcN, tmList);
+                    if (sim >= 0.95) bucketKey = 'tm9599';
+                    else if (sim >= 0.85) bucketKey = 'tm8594';
+                    else if (sim >= 0.75) bucketKey = 'tm7584';
+                    else if (sim >= 0.50) bucketKey = 'tm5074';
+                    else bucketKey = 'newWords';
+                } else {
+                    bucketKey = 'newWords';
+                }
             }
 
+            const disc = discounts[bucketKey] != null ? discounts[bucketKey] : 1.0;
+            const weightedW = rawW * disc;
             buckets[bucketKey].segments += 1;
-            buckets[bucketKey].weighted += w;
+            buckets[bucketKey].raw += rawW;
+            buckets[bucketKey].weighted += weightedW;
+            perSegment.push({ skip: false, rawW, weightedW, bucketKey });
         }
 
-        const order = ['lockedSkipped', 'repetition', 'tm100', 'tm8599', 'tm7584', 'tmLow', 'newWords'];
+        const order = ['lockedSkipped', 'repetition', 'tm9599', 'tm8594', 'tm7584', 'tm5074', 'newWords'];
         const rows = order.map((k) => ({
             key: k,
             label: buckets[k].label,
             segments: buckets[k].segments,
+            raw: Math.round(buckets[k].raw * 100) / 100,
             weighted: Math.round(buckets[k].weighted * 100) / 100
         }));
 
@@ -167,19 +201,28 @@
             .filter((r) => r.key !== 'lockedSkipped')
             .reduce((a, r) => a + r.weighted, 0);
 
+        const totalR = rows
+            .filter((r) => r.key !== 'lockedSkipped')
+            .reduce((a, r) => a + r.raw, 0);
+
         return {
             rows,
             totals: {
                 segmentsAnalyzed: totalSeg,
+                rawExcludingSkipped: Math.round(totalR * 100) / 100,
                 weightedExcludingSkipped: Math.round(totalW * 100) / 100
             },
-            buckets
+            buckets,
+            discounts,
+            perSegment
         };
     }
 
     global.WordCountEngine = {
+        DEFAULT_DISCOUNTS,
         stripTags,
         normKey,
+        rawUnits,
         weightedUnits,
         analyze,
         _bestTmSimilarity: bestTmSimilarity

@@ -2868,6 +2868,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     window._fileAssigneesByFileId = {};
     let lastWordCountResult = null;
     let wordCountSelectedFileIds = [];
+    /** 與 WordCountEngine.DEFAULT_DISCOUNTS 一致；TM 95–100%／檔內重複可由分析 Modal 覆寫 */
+    let _wcDiscounts = { tm9599: 0.10, tm8594: 0.25, tm7584: 0.50, tm5074: 0.75, newWords: 1.00, repetition: 0.00 };
+    let _fileProgressMode = 'raw';
+    let _viewProgressMode = 'raw';
+    let _projectTmNormListCache = null;
+    let _editorProgressMode = 'raw';
+    let _editorTmNormListCache = null;
+    let _updateProgressToken = 0;
     const collabSelfSessionId = `sess-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     let collabCurrentFileId = null;
     let collabMembers = [];
@@ -3069,6 +3077,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** 同一 view 內換 id 時，await 前先清空／顯示載入，避免上一筆 DOM 殘留 */
     function beginOpenProjectDetailLoading(projectId) {
         currentProjectId = projectId;
+        _projectTmNormListCache = null;
         if (detailProjectName) detailProjectName.textContent = '載入中…';
         const langEl = document.getElementById('detailProjectLangs');
         if (langEl) langEl.innerHTML = '';
@@ -4862,7 +4871,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const assignTitle = assignPlain.replace(/"/g, '&quot;');
             const progressCellHtml = `
                 <div class="file-progress-cell" data-file-id="${f.id}" style="margin-top:0.35rem; width:100%;">
-                    <span style="color:#94a3b8; font-size:0.76rem;">…</span>
+                    <span style="color:#94a3b8; font-size:0.76rem;">載入中…</span>
                 </div>
             `;
             tr.innerHTML = `
@@ -4912,20 +4921,115 @@ document.addEventListener('DOMContentLoaded', async () => {
         _loadFilesProgressAsync(files);
     }
 
+    function _fmtProgressNum(x) {
+        const n = Number(x);
+        if (!Number.isFinite(n)) return '0';
+        return String(Math.round(n * 100) / 100);
+    }
+
+    function readWcDiscountsFromInputs() {
+        const fallback = { tm9599: 0.10, tm8594: 0.25, tm7584: 0.50, tm5074: 0.75, newWords: 1.00, repetition: 0.00 };
+        const base = (window.WordCountEngine && WordCountEngine.DEFAULT_DISCOUNTS)
+            ? { ...WordCountEngine.DEFAULT_DISCOUNTS }
+            : { ...fallback };
+        const el9599 = document.getElementById('wordCountDiscount9599');
+        const elRep = document.getElementById('wordCountDiscountRep');
+        if (el9599 && el9599.value !== '') {
+            const n = parseFloat(el9599.value, 10);
+            if (Number.isFinite(n)) base.tm9599 = Math.max(0, Math.min(100, n)) / 100;
+        }
+        if (elRep && elRep.value !== '') {
+            const n = parseFloat(elRep.value, 10);
+            if (Number.isFinite(n)) base.repetition = Math.max(0, Math.min(100, n)) / 100;
+        }
+        return base;
+    }
+
+    function applyWcDiscountsFromInputs() {
+        _wcDiscounts = readWcDiscountsFromInputs();
+        _projectTmNormListCache = null;
+        _editorTmNormListCache = null;
+    }
+
+    async function getProjectTmNormListCached(projectId) {
+        if (!projectId || !window.WordCountEngine) return [];
+        if (_projectTmNormListCache && String(_projectTmNormListCache.projectId) === String(projectId)) {
+            return _projectTmNormListCache.normList;
+        }
+        const p = await DBService.getProject(projectId);
+        const readTms = (p && p.readTms) ? p.readTms : [];
+        const tmNormList = [];
+        for (const tid of readTms) {
+            const segs = await DBService.getTMSegments(tid);
+            segs.forEach((s) => {
+                const n = WordCountEngine.normKey(s.sourceText);
+                if (n) tmNormList.push(n);
+            });
+        }
+        _projectTmNormListCache = { projectId, normList: tmNormList };
+        return tmNormList;
+    }
+
     async function _loadFilesProgressAsync(files) {
+        if (!files || !files.length) return;
+        for (const f of files) {
+            const cell = filesListBody?.querySelector(`.file-progress-cell[data-file-id="${f.id}"]`);
+            if (cell) cell.innerHTML = '<span style="color:#94a3b8; font-size:0.76rem;">載入中…</span>';
+        }
+        const mode = _fileProgressMode;
+        const pgId = currentProjectId;
+        let tmNormList = [];
+        if (mode === 'weighted' && pgId) {
+            try { tmNormList = await getProjectTmNormListCached(pgId); } catch (_) { /* ignore */ }
+        }
+        const discounts = readWcDiscountsFromInputs();
+        const WCE = window.WordCountEngine;
+        const useWeighted = mode === 'weighted' && WCE;
+        const barColor = useWeighted ? '#ef4444' : 'var(--success-color)';
+
         await Promise.all(files.map(async (f) => {
             try {
-                const segs = await DBService.getSegmentsByFile(f.id);
-                const total = segs.reduce((a, s) => a + countWords(s.sourceText || ''), 0);
-                const confirmed = segs.filter(s => s.status === 'confirmed')
-                                      .reduce((a, s) => a + countWords(s.sourceText || ''), 0);
-                const pct = total === 0 ? 0 : Math.round(confirmed / total * 100);
                 const cell = filesListBody?.querySelector(`.file-progress-cell[data-file-id="${f.id}"]`);
                 if (!cell) return;
+                const segs = await DBService.getSegmentsByFile(f.id);
+                if (!segs || !segs.length) {
+                    cell.innerHTML = '<span style="color:#94a3b8; font-size:0.76rem;">0 字</span>';
+                    return;
+                }
+                let total;
+                let confirmed;
+                if (!useWeighted) {
+                    if (WCE) {
+                        total = segs.reduce((a, s) => a + WCE.weightedUnits(s.sourceText || ''), 0);
+                        confirmed = segs.filter((s) => s.status === 'confirmed')
+                            .reduce((a, s) => a + WCE.weightedUnits(s.sourceText || ''), 0);
+                    } else {
+                        total = segs.reduce((a, s) => a + countWords(s.sourceText || ''), 0);
+                        confirmed = segs.filter((s) => s.status === 'confirmed')
+                            .reduce((a, s) => a + countWords(s.sourceText || ''), 0);
+                    }
+                } else {
+                    const res = WCE.analyze({
+                        segments: segs,
+                        tmSourcesNormalized: tmNormList,
+                        includeLocked: true,
+                        discounts
+                    });
+                    const per = res.perSegment || [];
+                    total = 0;
+                    confirmed = 0;
+                    for (let i = 0; i < segs.length; i++) {
+                        const ps = per[i];
+                        if (!ps) continue;
+                        total += ps.weightedW;
+                        if (segs[i].status === 'confirmed') confirmed += ps.weightedW;
+                    }
+                }
+                const pct = total === 0 ? 0 : Math.round(confirmed / total * 100);
                 cell.innerHTML = `
                     <div style="position:relative; background:#e2e8f0; border-radius:4px; height:18px; min-width:80px;">
-                        <div style="position:absolute; top:0; left:0; bottom:0; width:${pct}%; background:var(--success-color); border-radius:4px; transition:width 0.3s;"></div>
-                        <span style="position:relative; z-index:1; font-size:0.77rem; padding:0 6px; line-height:18px; white-space:nowrap; color:#1e293b;">${pct}% (${confirmed}/${total} 字)</span>
+                        <div style="position:absolute; top:0; left:0; bottom:0; width:${pct}%; background:${barColor}; border-radius:4px; transition:width 0.3s;"></div>
+                        <span style="position:relative; z-index:1; font-size:0.77rem; padding:0 6px; line-height:18px; white-space:nowrap; color:#1e293b;">${pct}% (${_fmtProgressNum(confirmed)}/${_fmtProgressNum(total)} 字)</span>
                     </div>`;
             } catch (_) { /* team mode 或空檔案時靜默失敗 */ }
         }));
@@ -4934,6 +5038,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** 非同步計算各句段集整體進度並填入名稱欄下方（§4，同檔案清單樣式） */
     async function _loadViewsProgressAsync(views) {
         if (!Array.isArray(views) || !views.length) return;
+        for (const v of views) {
+            const cell = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
+            if (cell) cell.innerHTML = '<span style="color:#94a3b8; font-size:0.75rem;">載入中…</span>';
+        }
+        const mode = _viewProgressMode;
+        const pgId = currentProjectId;
+        let tmNormList = [];
+        if (mode === 'weighted' && pgId) {
+            try { tmNormList = await getProjectTmNormListCached(pgId); } catch (_) { /* ignore */ }
+        }
+        const discounts = readWcDiscountsFromInputs();
+        const WCE = window.WordCountEngine;
+        const useWeighted = mode === 'weighted' && WCE;
+        const barColor = useWeighted ? '#ef4444' : 'var(--success-color)';
+
         await Promise.all(views.map(async (v) => {
             try {
                 const segIds = Array.isArray(v.segmentIds) ? v.segmentIds : [];
@@ -4943,15 +5062,43 @@ document.addEventListener('DOMContentLoaded', async () => {
                     cell.innerHTML = '<span style="color:#94a3b8;">0 字</span>';
                     return;
                 }
-                const segs = await DBService.getSegmentsByIds(segIds);
-                const total = segs.reduce((a, s) => a + countWords(s.sourceText || ''), 0);
-                const confirmed = segs.filter(s => s.status === 'confirmed')
-                                      .reduce((a, s) => a + countWords(s.sourceText || ''), 0);
+                let segs = await DBService.getSegmentsByIds(segIds);
+                const orderMap = new Map(segIds.map((id, i) => [String(id), i]));
+                segs = (segs || []).slice().sort((a, b) => (orderMap.get(String(a.id)) ?? 0) - (orderMap.get(String(b.id)) ?? 0));
+                let total;
+                let confirmed;
+                if (!useWeighted) {
+                    if (WCE) {
+                        total = segs.reduce((a, s) => a + WCE.weightedUnits(s.sourceText || ''), 0);
+                        confirmed = segs.filter((s) => s.status === 'confirmed')
+                            .reduce((a, s) => a + WCE.weightedUnits(s.sourceText || ''), 0);
+                    } else {
+                        total = segs.reduce((a, s) => a + countWords(s.sourceText || ''), 0);
+                        confirmed = segs.filter((s) => s.status === 'confirmed')
+                            .reduce((a, s) => a + countWords(s.sourceText || ''), 0);
+                    }
+                } else {
+                    const res = WCE.analyze({
+                        segments: segs,
+                        tmSourcesNormalized: tmNormList,
+                        includeLocked: true,
+                        discounts
+                    });
+                    const per = res.perSegment || [];
+                    total = 0;
+                    confirmed = 0;
+                    for (let i = 0; i < segs.length; i++) {
+                        const ps = per[i];
+                        if (!ps) continue;
+                        total += ps.weightedW;
+                        if (segs[i].status === 'confirmed') confirmed += ps.weightedW;
+                    }
+                }
                 const pct = total === 0 ? 0 : Math.round(confirmed / total * 100);
                 cell.innerHTML = `
                     <div style="position:relative; background:#e2e8f0; border-radius:4px; height:16px; min-width:80px; max-width:160px;">
-                        <div style="position:absolute; top:0; left:0; bottom:0; width:${pct}%; background:var(--success-color); border-radius:4px; transition:width 0.3s;"></div>
-                        <span style="position:relative; z-index:1; font-size:0.75rem; padding:0 6px; line-height:16px; white-space:nowrap; color:#1e293b;">${pct}% (${confirmed}/${total} 字)</span>
+                        <div style="position:absolute; top:0; left:0; bottom:0; width:${pct}%; background:${barColor}; border-radius:4px; transition:width 0.3s;"></div>
+                        <span style="position:relative; z-index:1; font-size:0.75rem; padding:0 6px; line-height:16px; white-space:nowrap; color:#1e293b;">${pct}% (${_fmtProgressNum(confirmed)}/${_fmtProgressNum(total)} 字)</span>
                     </div>`;
             } catch (_) { /* 靜默失敗 */ }
         }));
@@ -5042,10 +5189,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 allSegments = allSegments.concat(segs);
             }
         }
+        applyWcDiscountsFromInputs();
         lastWordCountResult = WordCountEngine.analyze({
             segments: allSegments,
             tmSourcesNormalized: tmNormList,
-            includeLocked
+            includeLocked,
+            discounts: _wcDiscounts
         });
         if (wordCountResultBody) {
             const t = lastWordCountResult.totals || {};
@@ -5229,8 +5378,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const includeLocked = !!(splitHintIncludeLocked && splitHintIncludeLocked.checked);
 
+        applyWcDiscountsFromInputs();
+        const TM_DISCOUNT = _wcDiscounts;
+
         // Build TM norm list from checked TMs
-        const TM_DISCOUNT = { tm100: 0.1, repetition: 0.1, tm8599: 0.6, tm7584: 0.75, tmLow: 1.0, newWords: 1.0 };
         let tmNormList = [];
         const useTm = !!(splitHintTmCheckboxes && splitHintTmCheckboxes.querySelector('.split-hint-tm-cb:checked'));
         if (useTm && window.WordCountEngine) {
@@ -5258,7 +5409,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const flat = [];
         let totalW = 0;
-        const seenSrc = new Map();
+        const seenSrc = new Set();
         fileRows.forEach((fr) => {
             fr.segs.forEach((s, i) => {
                 const isLocked = !!(s.isLocked || s.isLockedUser || s.isLockedSystem);
@@ -5269,23 +5420,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (useTm && WCE && tmNormList.length) {
                     const srcN = WCE.normKey(s.sourceText || '');
                     let bucketKey = 'newWords';
-                    if (tmExact.has(srcN)) {
-                        bucketKey = 'tm100';
-                    } else if (seenSrc.has(srcN)) {
+                    if (seenSrc.has(srcN)) {
                         bucketKey = 'repetition';
                     } else {
-                        seenSrc.set(srcN, true);
-                        const sim = WCE._bestTmSimilarity(srcN, tmNormList);
-                        if (sim >= 0.995) bucketKey = 'tm100';
-                        else if (sim >= 0.85) bucketKey = 'tm8599';
-                        else if (sim >= 0.75) bucketKey = 'tm7584';
-                        else if (sim > 0.01) bucketKey = 'tmLow';
-                        else bucketKey = 'newWords';
+                        seenSrc.add(srcN);
+                        if (tmExact.has(srcN)) {
+                            bucketKey = 'tm9599';
+                        } else {
+                            const sim = WCE._bestTmSimilarity(srcN, tmNormList);
+                            if (sim >= 0.95) bucketKey = 'tm9599';
+                            else if (sim >= 0.85) bucketKey = 'tm8594';
+                            else if (sim >= 0.75) bucketKey = 'tm7584';
+                            else if (sim >= 0.50) bucketKey = 'tm5074';
+                            else bucketKey = 'newWords';
+                        }
                     }
                     w = rawW * (TM_DISCOUNT[bucketKey] ?? 1.0);
                 } else {
                     const srcN = WCE ? WCE.normKey(s.sourceText || '') : (s.sourceText || '');
-                    seenSrc.set(srcN, true);
+                    if (!seenSrc.has(srcN)) seenSrc.add(srcN);
                 }
                 totalW += w;
                 flat.push({ fileName: fr.name, rowInFile: i + 1, weight: w });
@@ -5336,7 +5489,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const n = Math.max(2, Math.min(99, parseInt(parts, 10) || 2));
         wrap.innerHTML = '<div style="padding:0.75rem;color:#64748b;">計算中…</div>';
         const includeLocked = !!(splitHintIncludeLocked && splitHintIncludeLocked.checked);
-        const TM_DISCOUNT = { tm100: 0.1, repetition: 0.1, tm8599: 0.6, tm7584: 0.75, tmLow: 1.0, newWords: 1.0 };
+        applyWcDiscountsFromInputs();
+        const TM_DISCOUNT = _wcDiscounts;
         let tmNormList = [];
         const useTm = !!(splitHintTmCheckboxes && splitHintTmCheckboxes.querySelector('.split-hint-tm-cb:checked'));
         if (useTm && window.WordCountEngine) {
@@ -5349,10 +5503,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
         const tmExact = new Set(tmNormList.filter(Boolean));
-        const allSegs = await DBService.getSegmentsByIds(segIds);
+        let allSegs = await DBService.getSegmentsByIds(segIds);
+        const orderMap = new Map(segIds.map((id, i) => [String(id), i]));
+        allSegs = (allSegs || []).slice().sort((a, b) => (orderMap.get(String(a.id)) ?? 0) - (orderMap.get(String(b.id)) ?? 0));
         const flat = [];
         let totalW = 0;
-        const seenSrc = new Map();
+        const seenSrc = new Set();
         allSegs.forEach((s, i) => {
             const isLocked = !!(s.isLocked || s.isLockedUser || s.isLockedSystem);
             if (!includeLocked && isLocked) return;
@@ -5362,20 +5518,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (useTm && WCE && tmNormList.length) {
                 const srcN = WCE.normKey(s.sourceText || '');
                 let bucketKey = 'newWords';
-                if (tmExact.has(srcN)) bucketKey = 'tm100';
-                else if (seenSrc.has(srcN)) bucketKey = 'repetition';
-                else {
-                    seenSrc.set(srcN, true);
-                    const sim = WCE._bestTmSimilarity(srcN, tmNormList);
-                    if (sim >= 0.995) bucketKey = 'tm100';
-                    else if (sim >= 0.85) bucketKey = 'tm8599';
-                    else if (sim >= 0.75) bucketKey = 'tm7584';
-                    else if (sim > 0.01) bucketKey = 'tmLow';
+                if (seenSrc.has(srcN)) {
+                    bucketKey = 'repetition';
+                } else {
+                    seenSrc.add(srcN);
+                    if (tmExact.has(srcN)) {
+                        bucketKey = 'tm9599';
+                    } else {
+                        const sim = WCE._bestTmSimilarity(srcN, tmNormList);
+                        if (sim >= 0.95) bucketKey = 'tm9599';
+                        else if (sim >= 0.85) bucketKey = 'tm8594';
+                        else if (sim >= 0.75) bucketKey = 'tm7584';
+                        else if (sim >= 0.50) bucketKey = 'tm5074';
+                        else bucketKey = 'newWords';
+                    }
                 }
                 w = rawW * (TM_DISCOUNT[bucketKey] ?? 1.0);
             } else {
                 const srcN = WCE ? WCE.normKey(s.sourceText || '') : (s.sourceText || '');
-                seenSrc.set(srcN, true);
+                if (!seenSrc.has(srcN)) seenSrc.add(srcN);
             }
             totalW += w;
             flat.push({ fileName: '句段集', rowInFile: i + 1, weight: w });
@@ -10494,6 +10655,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const labelToggleSrcFile = document.getElementById('labelToggleSourceFileCol');
         if (labelToggleSrcFile) labelToggleSrcFile.style.display = 'none';
         currentFileId = fileId;
+        _editorTmNormListCache = null;
         editorUndoStack = [];
         editorRedoStack = [];
         editorUndoEditStart = {};
@@ -16882,7 +17044,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 選取狀態只會在使用者主動切換選取目標時清除（ID 欄點擊或點入不在選取範圍中的編輯欄），
     // 點擊按鈕、快速鍵或其他操作不會清除選取狀態。
 
-    function updateProgress() {
+    async function updateProgress() {
+        const token = ++_updateProgressToken;
         // 依 rowIdx 排序，取得「原始排序索引」（不受當前篩選或排序影響）
         const originalOrdered = [...currentSegmentsList].sort((a, b) => (a.rowIdx ?? 0) - (b.rowIdx ?? 0));
         const inProgressRange = (s) => {
@@ -16897,20 +17060,76 @@ document.addEventListener('DOMContentLoaded', async () => {
         const total = baseline.length;
         const sessionValid = currentSegmentsList.filter(s => !(isDynamicForbidden(s) || s.isLockedUser) && inProgressRange(s));
         const translated = sessionValid.filter(s => s.status === 'confirmed').length;
-        
+
+        const pctEl = document.getElementById('statusBarPercent');
+        const sbWords = document.getElementById('statusBarWords');
+        const WCE = window.WordCountEngine;
+
+        if (_editorProgressMode === 'weighted' && WCE) {
+            if (sbWords) sbWords.textContent = '載入中…';
+            if (pctEl) pctEl.textContent = '…';
+            let norm = _editorTmNormListCache;
+            if (norm == null && currentProjectId) {
+                try {
+                    norm = await getProjectTmNormListCached(currentProjectId);
+                    _editorTmNormListCache = norm;
+                } catch (_) {
+                    norm = [];
+                }
+            }
+            if (token !== _updateProgressToken) return;
+            const segsOrdered = [...currentSegmentsList].sort((a, b) => (a.rowIdx ?? 0) - (b.rowIdx ?? 0));
+            const discounts = readWcDiscountsFromInputs();
+            const result = WCE.analyze({
+                segments: segsOrdered,
+                tmSourcesNormalized: norm || [],
+                includeLocked: true,
+                discounts
+            });
+            const per = result.perSegment || [];
+            const baselineIds = new Set(baseline.map((s) => String(s.id)));
+            const sessionValidIds = new Set(sessionValid.map((s) => String(s.id)));
+            let totalWords = 0;
+            let confirmedWords = 0;
+            for (let i = 0; i < segsOrdered.length; i++) {
+                const s = segsOrdered[i];
+                const ps = per[i];
+                if (!ps || ps.skip) continue;
+                if (baselineIds.has(String(s.id))) totalWords += ps.weightedW;
+                if (s.status === 'confirmed' && sessionValidIds.has(String(s.id))) confirmedWords += ps.weightedW;
+            }
+            const wordPct = totalWords === 0 ? 0 : (confirmedWords / totalWords) * 100;
+            document.getElementById('statusBarSegments').textContent = `${translated} / ${total}`;
+            if (sbWords) sbWords.textContent = `${_fmtProgressNum(confirmedWords)} / ${_fmtProgressNum(totalWords)}`;
+            if (pctEl) pctEl.textContent = `${wordPct.toFixed(0)}%`;
+            if (progressFill) {
+                progressFill.style.width = `${wordPct}%`;
+                progressFill.style.background = '#ef4444';
+            }
+            return;
+        }
+
         let totalWords = 0;
         let confirmedWords = 0;
-        baseline.forEach(s => { totalWords += countWords(s.sourceText); });
-        sessionValid.forEach(s => {
-            if (s.status === 'confirmed') confirmedWords += countWords(s.sourceText);
-        });
+        if (WCE) {
+            baseline.forEach((s) => { totalWords += WCE.weightedUnits(s.sourceText || ''); });
+            sessionValid.forEach((s) => {
+                if (s.status === 'confirmed') confirmedWords += WCE.weightedUnits(s.sourceText || '');
+            });
+        } else {
+            baseline.forEach((s) => { totalWords += countWords(s.sourceText); });
+            sessionValid.forEach((s) => {
+                if (s.status === 'confirmed') confirmedWords += countWords(s.sourceText);
+            });
+        }
+
+        if (progressFill) progressFill.style.background = 'var(--success-color)';
 
         document.getElementById('statusBarSegments').textContent = `${translated} / ${total}`;
-        document.getElementById('statusBarWords').textContent = `${confirmedWords} / ${totalWords}`;
+        document.getElementById('statusBarWords').textContent = `${_fmtProgressNum(confirmedWords)} / ${_fmtProgressNum(totalWords)}`;
 
         const wordPct = totalWords === 0 ? 0 : (confirmedWords / totalWords) * 100;
         if (progressFill) progressFill.style.width = `${wordPct}%`;
-        const pctEl = document.getElementById('statusBarPercent');
         if (pctEl) pctEl.textContent = `${wordPct.toFixed(0)}%`;
     }
 
@@ -16949,7 +17168,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             progressRangeStart = (lo != null && lo > 0) ? lo : null;
             progressRangeEnd   = (hi != null && hi > 0) ? hi : null;
             popup.classList.add('hidden');
-            updateProgress();
+            void updateProgress();
             if (rangeLabel) {
                 if (progressRangeStart != null || progressRangeEnd != null) {
                     rangeLabel.textContent = `[範圍 ${progressRangeStart ?? '1'}–${progressRangeEnd ?? '末'}]`;
@@ -16967,9 +17186,42 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (toInput) toInput.value = '';
             popup.classList.add('hidden');
             if (rangeLabel) rangeLabel.style.display = 'none';
-            updateProgress();
+            void updateProgress();
         });
     })();
+
+    const btnToggleFileProgressMode = document.getElementById('btnToggleFileProgressMode');
+    if (btnToggleFileProgressMode) {
+        btnToggleFileProgressMode.addEventListener('click', async () => {
+            btnToggleFileProgressMode.disabled = true;
+            _fileProgressMode = _fileProgressMode === 'raw' ? 'weighted' : 'raw';
+            btnToggleFileProgressMode.textContent = _fileProgressMode === 'raw' ? '原始字數' : '加權字數';
+            const fl = window._lastFilesListForProject;
+            if (fl && fl.length) await _loadFilesProgressAsync(fl);
+            btnToggleFileProgressMode.disabled = false;
+        });
+    }
+    const btnToggleViewProgressMode = document.getElementById('btnToggleViewProgressMode');
+    if (btnToggleViewProgressMode) {
+        btnToggleViewProgressMode.addEventListener('click', async () => {
+            btnToggleViewProgressMode.disabled = true;
+            _viewProgressMode = _viewProgressMode === 'raw' ? 'weighted' : 'raw';
+            btnToggleViewProgressMode.textContent = _viewProgressMode === 'raw' ? '原始字數' : '加權字數';
+            if (_currentViewsList && _currentViewsList.length) {
+                await _loadViewsProgressAsync(_currentViewsList);
+            }
+            btnToggleViewProgressMode.disabled = false;
+        });
+    }
+    const btnToggleEditorWordMode = document.getElementById('btnToggleEditorWordMode');
+    if (btnToggleEditorWordMode) {
+        btnToggleEditorWordMode.addEventListener('click', async () => {
+            _editorProgressMode = _editorProgressMode === 'raw' ? 'weighted' : 'raw';
+            btnToggleEditorWordMode.textContent = _editorProgressMode === 'raw' ? '原始字數' : '加權字數';
+            _editorTmNormListCache = null;
+            await updateProgress();
+        });
+    }
 
     // ── QA ──────────────────────────────────────────────────────────────────
 
