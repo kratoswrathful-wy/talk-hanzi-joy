@@ -5123,7 +5123,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${idx + 1}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="edit-file-btn" data-id="${f.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a>${progressCellHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${fileLangHtml}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; width:80px;">${roleTdHtml}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; min-width:5.25rem; width:5.5rem; vertical-align:middle;">${roleTdHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#334155; width:120px; vertical-align:middle;" title="${assignTitle}">${assignCell}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${getFileCaseLinkHtml(f)}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;">${modStr}</td>
