@@ -44,10 +44,18 @@ export type DeclineFieldsForSlack = {
   message?: string | undefined;
 };
 
-function buildAcceptMrkdwn(caseId: string, caseTitle: string, slackDefaults: unknown): string {
+function buildAcceptMrkdwn(
+  caseId: string,
+  caseTitle: string,
+  slackDefaults: unknown,
+  segmentTitle?: string,
+): string {
   const url = buildCaseUrl(caseId);
   const label = sanitizeSlackLinkLabel(caseTitle.trim() || "案件");
   const link = `<${url}|${label}>`;
+  if (segmentTitle?.trim()) {
+    return `${link} 中的分段（${segmentTitle.trim()}）我可以做，已經承接！`;
+  }
   const suffix = effectiveAcceptSuffix(slackDefaults);
   return `${link}${suffix}`;
 }
@@ -100,8 +108,10 @@ export async function maybeSendTranslatorCaseReplySlack(params: {
   caseTitle: string;
   kind: "accept" | "decline";
   decline?: DeclineFieldsForSlack;
+  /** For multi-collab partial accept: the segment label (collabRow.segment). */
+  segmentTitle?: string;
 }): Promise<void> {
-  const { userId, slackMessageDefaults, caseId, caseTitle, kind, decline } = params;
+  const { userId, slackMessageDefaults, caseId, caseTitle, kind, decline, segmentTitle } = params;
 
   const { data: meta } = await supabase
     .from("user_slack_meta")
@@ -116,7 +126,7 @@ export async function maybeSendTranslatorCaseReplySlack(params: {
 
   const message =
     kind === "accept"
-      ? buildAcceptMrkdwn(caseId, caseTitle, slackMessageDefaults)
+      ? buildAcceptMrkdwn(caseId, caseTitle, slackMessageDefaults, segmentTitle)
       : buildDeclineMrkdwn(caseId, caseTitle, slackMessageDefaults, decline || {});
 
   const notification_fallback = plainFallbackFromMrkdwn(message);

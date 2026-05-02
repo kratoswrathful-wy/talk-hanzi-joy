@@ -726,7 +726,16 @@ export default function CasesPage() {
       : [...currentTranslators, displayName];
     caseStore.update(selectedSingleCase.id, { status: "dispatched" as CaseStatus, translator: updatedTranslators });
     toast({ title: "已承接本案" });
-  }, [selectedSingleCase, profile]);
+    if (user?.id) {
+      void maybeSendTranslatorCaseReplySlack({
+        userId: user.id,
+        slackMessageDefaults: profile?.slack_message_defaults,
+        caseId: selectedSingleCase.id,
+        caseTitle: selectedSingleCase.title || "",
+        kind: "accept",
+      });
+    }
+  }, [selectedSingleCase, profile, user]);
 
   const handleFlowFinalizeAssign = useCallback(() => {
     if (!selectedSingleCase) return;

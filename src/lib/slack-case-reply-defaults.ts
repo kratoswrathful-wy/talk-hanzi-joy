@@ -12,7 +12,7 @@ export type SlackMessageDefaults = {
 };
 
 /** App defaults when profile key is missing or empty. */
-export const DEFAULT_ACCEPT_SUFFIX = " 這件我接了，謝謝！";
+export const DEFAULT_ACCEPT_SUFFIX = " 這件我可以做，已經承接！";
 export const DEFAULT_DECLINE_LINE1_SUFFIX = " 這件我沒辦法接，感謝詢問！";
 /** After `<建議期限>` (formatted); leading space separates from deadline text. */
 export const DEFAULT_DECLINE_LINE2_SUFFIX = " 按照本案的內容，延到這個時間我可以接案。";

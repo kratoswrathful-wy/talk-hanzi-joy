@@ -1677,6 +1677,15 @@ export default function CaseDetailPage() {
       : [...currentTranslators, displayName];
     save({ status: "dispatched" as CaseStatus, translator: updatedTranslators });
     toast({ title: "已承接本案" });
+    if (user?.id) {
+      void maybeSendTranslatorCaseReplySlack({
+        userId: user.id,
+        slackMessageDefaults: profile?.slack_message_defaults,
+        caseId: caseData.id,
+        caseTitle: caseData.title || "",
+        kind: "accept",
+      });
+    }
   };
 
   const handleFinalize = () => {
@@ -2303,16 +2312,22 @@ export default function CaseDetailPage() {
                 updates.status = "dispatched" as CaseStatus;
                 save(updates);
                 toast({ title: "所有譯者已確認承接，狀態已更新為「已派出」" });
-                if (user?.id) {
-                  void maybeSendTranslatorCaseReplySlack({
-                    userId: user.id,
-                    slackMessageDefaults: profile?.slack_message_defaults,
-                    caseId: caseData.id,
-                    caseTitle: caseData.title || "",
-                    kind: "accept",
-                  });
-                }
                 return;
+              }
+              if (isInquiry) {
+                const prevRows = caseData.collabRows || [];
+                newRows.forEach((r, i) => {
+                  if (r.accepted && !prevRows[i]?.accepted && user?.id) {
+                    void maybeSendTranslatorCaseReplySlack({
+                      userId: user.id,
+                      slackMessageDefaults: profile?.slack_message_defaults,
+                      caseId: caseData.id,
+                      caseTitle: caseData.title || "",
+                      kind: "accept",
+                      segmentTitle: r.segment || undefined,
+                    });
+                  }
+                });
               }
               if (isDispatched && allTaskCompleted) {
                 updates.status = "task_completed" as CaseStatus;
