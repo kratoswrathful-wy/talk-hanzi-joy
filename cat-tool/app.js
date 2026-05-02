@@ -27061,6 +27061,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const results = [];
             let i = 0;
             let batchNo = 1;
+            const segIndexMap = new Map(currentSegmentsList.map((s, idx) => [s.id, idx + 1]));
 
             while (i < rangeSegs.length) {
                 const batch = _nextBatchByRowsAndChars(rangeSegs, i, rowLimit, charLimit);
@@ -27089,8 +27090,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const usr = (messages.find((m) => m.role === 'user') || {}).content || '';
                 const tokSys = _estimateTokensByChars([...sys].length);
                 const tokUsr = _estimateTokensByChars([...usr].length);
-                const segStart = start + i;
-                const segEnd = start + i + batchCopy.length - 1;
+                const segStart = segIndexMap.get(batchCopy[0].id) ?? '?';
+                const segEnd = segIndexMap.get(batchCopy[batchCopy.length - 1].id) ?? '?';
                 results.push({ batchNo, segStart, segEnd, tokSys, tokUsr, tokTotal: tokSys + tokUsr + overhead });
                 i += batchCopy.length;
                 batchNo++;
