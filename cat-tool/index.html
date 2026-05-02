@@ -182,7 +182,7 @@
                                 <button type="button" class="danger-btn btn-sm pm-only-ui" id="btnProjectToolbarDelete" title="從專案移除所選檔案">移除</button>
                                 <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnProjectWordCount" title="字數與 TM 加權分析">分析</button>
                                 <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnProjectSplitAssign" title="依份數均分句段（僅提示，不指派）">拆分</button>
-                                <button type="button" class="primary-btn btn-sm pm-only-ui" id="btnCreateViewQuick" title="以勾選檔案快速結合建立句段集">快速結合建立句段集</button>
+                                <button type="button" class="primary-btn btn-sm pm-only-ui" id="btnCreateViewQuick" title="建立句段集">建立句段集</button>
                             </div>
                         </div>
                         <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
@@ -213,21 +213,27 @@
 
                     <!-- 面板：句段集清單 -->
                     <div id="panelProjectViews" class="project-detail-panel" style="display:none;">
-                        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.75rem; margin-bottom:0.5rem;">
-                            <div style="display:flex; gap:0.45rem; flex-wrap:wrap; align-items:center;">
-                                <button type="button" class="primary-btn btn-sm pm-only-ui" id="btnCreateViewCustom">＋ 自訂篩選建立句段集…</button>
-                            </div>
+                        <div id="viewsToolbar" style="display:flex; align-items:center; flex-wrap:wrap; gap:0.45rem; margin-bottom:0.5rem;">
+                            <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnViewsToolbarAssign" disabled title="需先勾選句段集">指派</button>
+                            <button type="button" class="danger-btn btn-sm pm-only-ui" id="btnViewsToolbarDelete" disabled title="從專案移除所選句段集">移除</button>
+                            <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnViewsToolbarWordCount" disabled title="統計所選句段集字數">分析</button>
+                            <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnViewsToolbarSplit" disabled title="以所選句段集均分工作量">拆分</button>
                         </div>
                         <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
                             <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                                 <thead>
                                     <tr style="background:#f1f5f9;">
+                                        <th style="text-align:center; padding:0.5rem; border:1px solid #e2e8f0; width:44px;">
+                                            <label style="display:flex; align-items:center; justify-content:center; cursor:pointer;" title="全選／取消全選">
+                                                <input type="checkbox" id="viewsSelectAll" aria-label="全選">
+                                            </label>
+                                        </th>
+                                        <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:52px;">序號</th>
                                         <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">名稱</th>
                                         <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">涉及檔案</th>
                                         <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:160px; font-size:0.82rem; color:#64748b;">篩選條件</th>
                                         <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">建立者</th>
                                         <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:130px;">建立時間</th>
-                                        <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:140px;">操作</th>
                                     </tr>
                                 </thead>
                                 <tbody id="viewsListBody"></tbody>
@@ -2859,15 +2865,26 @@
     <dialog id="createViewModal" style="border:1px solid #cbd5e1; border-radius:10px; padding:0; width:min(480px, calc(100vw - 32px));">
         <form method="dialog" style="margin:0;">
             <div style="padding:1rem 1.25rem 0; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #e2e8f0; padding-bottom:0.75rem;">
-                <h2 id="createViewModalTitle" style="margin:0; font-size:1.1rem; font-weight:700;">建立句段集</h2>
+                <h2 style="margin:0; font-size:1.1rem; font-weight:700;">建立句段集</h2>
                 <button type="button" id="btnCreateViewModalClose" style="border:none; background:none; font-size:1.3rem; cursor:pointer; color:#64748b;" aria-label="關閉">✕</button>
             </div>
-            <div style="padding:1rem 1.25rem; display:flex; flex-direction:column; gap:0.75rem;">
+            <div style="padding:1rem 1.25rem; display:flex; flex-direction:column; gap:0.85rem;">
+                <!-- 模式選擇 -->
+                <div style="display:flex; gap:1rem; flex-wrap:wrap;">
+                    <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.88rem; font-weight:600; cursor:pointer;">
+                        <input type="radio" name="createViewMode" id="createViewModeQuick" value="quick" checked>
+                        快速結合
+                    </label>
+                    <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.88rem; font-weight:600; cursor:pointer;">
+                        <input type="radio" name="createViewMode" id="createViewModeCustom" value="custom">
+                        自訂篩選
+                    </label>
+                </div>
+                <div id="createViewFilesHint" style="font-size:0.82rem; color:#64748b; display:none;"></div>
+                <div id="createViewCustomHint" style="font-size:0.82rem; color:#64748b; display:none;">自訂篩選：目前將收錄所有檔案的句段。進階篩選設定（狀態、標籤…）於後續版本推出。</div>
                 <label style="font-size:0.88rem; font-weight:600; color:#334155;">句段集名稱
                     <input type="text" id="createViewNameInput" class="form-input" placeholder="例：MQ 待確認句段" maxlength="80" style="display:block; width:100%; margin-top:0.3rem;">
                 </label>
-                <div id="createViewFilesHint" style="font-size:0.82rem; color:#64748b; display:none;"></div>
-                <div id="createViewTypeRow" style="font-size:0.82rem; color:#64748b;"></div>
             </div>
             <div style="padding:0 1.25rem 1rem; display:flex; justify-content:flex-end; gap:0.5rem; border-top:1px solid #e2e8f0; padding-top:0.75rem;">
                 <button type="button" id="btnCreateViewModalCancel" class="secondary-btn btn-sm">取消</button>

@@ -1729,18 +1729,28 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
     case "db.getSegmentsByFileForPreview": {
       const fileIds: string[] = Array.isArray(payload.fileIds) ? payload.fileIds : [];
       if (fileIds.length === 0) return [];
-      const CHUNK = 20;
+      // 每次以 20 個 file_id 為一批，並於批內用 .range() 分頁，
+      // 避免 Supabase 預設 1000 筆上限截斷跨多檔句段集的資料。
+      const FILE_CHUNK = 20;
+      const PAGE = 1000;
       const results: unknown[] = [];
-      for (let i = 0; i < fileIds.length; i += CHUNK) {
-        const chunk = fileIds.slice(i, i + CHUNK);
-        const { data, error } = await supabase
-          .from("cat_segments")
-          .select("*")
-          .in("file_id", chunk)
-          .order("file_id", { ascending: true })
-          .order("row_idx", { ascending: true });
-        if (error) throw error;
-        results.push(...(data ?? []).map(mapSegmentRow));
+      for (let i = 0; i < fileIds.length; i += FILE_CHUNK) {
+        const chunk = fileIds.slice(i, i + FILE_CHUNK);
+        let from = 0;
+        while (true) {
+          const { data, error } = await supabase
+            .from("cat_segments")
+            .select("*")
+            .in("file_id", chunk)
+            .order("file_id", { ascending: true })
+            .order("row_idx", { ascending: true })
+            .range(from, from + PAGE - 1);
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          results.push(...data.map(mapSegmentRow));
+          if (data.length < PAGE) break;
+          from += PAGE;
+        }
       }
       return results;
     }
