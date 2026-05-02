@@ -3550,9 +3550,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const info = fileMap[String(fid)];
                     if (info) {
                         const nameEscFile = info.name.replace(/</g, '&lt;').replace(/"/g, '&quot;');
-                        return `<div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="#${info.idx} ${nameEscFile}">#${info.idx} ${nameEscFile}</div>`;
+                        return `<div style="white-space:nowrap;">#${info.idx} ${nameEscFile}</div>`;
                     }
-                    return `<div style="color:#94a3b8;">${String(fid).slice(0, 8)}…</div>`;
+                    return `<div style="color:#94a3b8; white-space:nowrap;">${String(fid).slice(0, 8)}…</div>`;
                 }).join('') || '—';
                 const filterText = _renderFilterSummaryText(v.filterSummary).replace(/</g, '&lt;').replace(/\n/g, '<br>');
                 const ownerName = (v.ownerName || v.ownerUserId || '—').replace(/</g, '&lt;');
@@ -3567,8 +3567,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <button type="button" class="view-open-btn" data-view-id="${viewId}" style="background:none;border:none;padding:0;color:var(--primary-color);cursor:pointer;text-decoration:underline;font-weight:600;">${nameEsc}</button>
                         ${renameBtn}
                     </td>
-                    <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; max-width:260px; overflow:hidden;">${fileLines}</td>
-                    <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.78rem; color:#64748b; white-space:pre-line;">${filterText}</td>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${fileLines}</td>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#475569; white-space:nowrap;">${filterText}</td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#475569;">${ownerName}</td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#64748b;">${createdAt}</td>
                 </tr>`;
