@@ -172,6 +172,63 @@ function openCatConfirmModal(message, options = {}) {
 }
 
 /**
+ * 批次／單檔 XLIFF 匯入完成後：原始檔語言對與任務語言對不符之統一提示（原生 dialog；清單過長可捲動）。
+ * @param {{ fileName: string, originalSourceLang: string, originalTargetLang: string }[]} rows
+ * @param {{ sourceLang: string, targetLang: string }} langChoice
+ * @returns {Promise<void>}
+ */
+function openBatchImportLangMismatchDialog(rows, langChoice) {
+    return new Promise((resolve) => {
+        const dlg = document.getElementById('batchImportLangMismatchDialog');
+        const list = document.getElementById('batchImportLangMismatchList');
+        const pairEl = document.getElementById('batchImportLangMismatchTaskPair');
+        if (!rows || !rows.length) {
+            resolve();
+            return;
+        }
+        const taskSrc = (langChoice && langChoice.sourceLang) || '—';
+        const taskTgt = (langChoice && langChoice.targetLang) || '—';
+        const fallbackMsg = [
+            `以下 ${rows.length} 個檔案之原始語言對與任務設定不符（檔案已成功匯入）。`,
+            '',
+            `本次任務語言對：${taskSrc} → ${taskTgt}`,
+            '',
+            ...rows.map((r) => `• ${r.fileName}：原始 ${r.originalSourceLang || '—'} → ${r.originalTargetLang || '—'}`),
+            '',
+            '系統將以任務設定為準進行 TM／TB 比對與寫入；匯出時原始語言對會從原始檔案還原，不受影響。'
+        ].join('\n');
+        if (!dlg || !list || !pairEl) {
+            void openCatConfirmModal(fallbackMsg, { title: '語言對不符' }).then(() => resolve());
+            return;
+        }
+        pairEl.textContent = `${taskSrc} → ${taskTgt}`;
+        list.innerHTML = '';
+        rows.forEach((r) => {
+            const li = document.createElement('li');
+            li.style.marginBottom = '0.55rem';
+            li.textContent = `${r.fileName}：原始 ${r.originalSourceLang || '—'} → ${r.originalTargetLang || '—'}`;
+            list.appendChild(li);
+        });
+        let settled = false;
+        function finish() {
+            if (settled) return;
+            settled = true;
+            dlg.removeEventListener('close', onClose);
+            resolve();
+        }
+        function onClose() { finish(); }
+        dlg.addEventListener('close', onClose);
+        try {
+            if (typeof dlg.showModal === 'function') dlg.showModal();
+            else throw new Error('no showModal');
+        } catch (_) {
+            dlg.removeEventListener('close', onClose);
+            void openCatConfirmModal(fallbackMsg, { title: '語言對不符' }).then(() => resolve());
+        }
+    });
+}
+
+/**
  * 頁內通用單行輸入（取代 window.prompt）。
  * @param {{ title?: string, label?: string, defaultValue?: string }} [options]
  * @returns {Promise<string|null>} 確定時為 trim 後字串；取消為 null
@@ -9397,6 +9454,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const PoImport = window.CatToolPoImport;
         const errors = [];
         const okNames = [];
+        const langMismatchRows = [];
         const n = files.length;
         for (let i = 0; i < n; i++) {
             const file = files[i];
@@ -9418,7 +9476,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         throw new Error('XLIFF 匯入模組未載入（js/xliff-import.js）');
                     }
                     const result = await XliffImport.handleXliffLikeImport(xliffImportCtx({ suppressWizardHide: true }), file, role);
-                    _checkXliffLangMismatch(result, langChoice);
+                    _collectXliffLangMismatchIfAny(result, langChoice, name, langMismatchRows);
                 } else if (kind === 'po') {
                     if (!PoImport || typeof PoImport.handlePoImport !== 'function') {
                         throw new Error('PO 匯入模組未載入（js/po-import.js）');
@@ -9433,6 +9491,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         await loadFilesList();
+
+        if (langMismatchRows.length) {
+            await openBatchImportLangMismatchDialog(langMismatchRows, langChoice);
+        }
 
         if (errors.length === 0) {
             if (wizardOverlay) wizardOverlay.classList.add('hidden');
@@ -9530,23 +9592,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         _resetBatchImportState();
     });
 
-    /** 比對 XLIFF 原始語言對與使用者選擇，若不符則跳出警告（但不阻止匯入） */
-    function _checkXliffLangMismatch(result, langChoice) {
-        if (!result || !langChoice) return;
+    /** 比對 XLIFF 原始語言對與使用者選擇；不符則列入 outList（匯入完成後統一以 dialog 提示，不阻止匯入）。 */
+    function _collectXliffLangMismatchIfAny(result, langChoice, fileName, outList) {
+        if (!result || !langChoice || !outList) return;
         const { originalSourceLang, originalTargetLang } = result;
         if (!originalSourceLang && !originalTargetLang) return;
         const srcMatch = !originalSourceLang || originalSourceLang.toLowerCase() === (langChoice.sourceLang || '').toLowerCase();
         const tgtMatch = !originalTargetLang || originalTargetLang.toLowerCase() === (langChoice.targetLang || '').toLowerCase();
         if (!srcMatch || !tgtMatch) {
-            const msg = [
-                '⚠ 語言對不符提示（檔案已成功匯入）',
-                '',
-                `原始檔內建語言對：${originalSourceLang || '—'} → ${originalTargetLang || '—'}`,
-                `本次任務語言對：${langChoice.sourceLang || '—'} → ${langChoice.targetLang || '—'}`,
-                '',
-                '系統將以任務設定為準進行 TM／TB 比對與寫入；匯出時原始語言對會從原始檔案還原，不受影響。'
-            ].join('\n');
-            alert(msg);
+            outList.push({
+                fileName: fileName || '（未命名）',
+                originalSourceLang: originalSourceLang || '',
+                originalTargetLang: originalTargetLang || ''
+            });
         }
     }
 

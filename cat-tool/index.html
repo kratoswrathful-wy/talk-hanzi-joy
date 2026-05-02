@@ -2973,6 +2973,26 @@
         </form>
     </dialog>
 
+    <!-- 批次／單檔 XLIFF 匯入：語言對不符（全部完成後統一顯示；原生 dialog） -->
+    <dialog id="batchImportLangMismatchDialog" aria-labelledby="batchImportLangMismatchTitle" style="border:1px solid #cbd5e1; border-radius:10px; padding:0; width:min(520px, calc(100vw - 32px)); max-height:min(88vh, 640px); box-sizing:border-box;">
+        <form method="dialog" style="margin:0; display:flex; flex-direction:column; max-height:min(88vh, 640px); box-sizing:border-box;">
+            <div style="flex-shrink:0; padding:1rem 1.25rem; border-bottom:1px solid #e2e8f0;">
+                <h2 id="batchImportLangMismatchTitle" style="margin:0; font-size:1.05rem; font-weight:700; color:#1e293b;">語言對不符</h2>
+                <p style="margin:0.6rem 0 0; font-size:0.88rem; color:#475569; line-height:1.55;">以下檔案已成功匯入，但原始檔內建語言對與本次任務語言對不一致。系統將以任務設定為準進行 TM／TB 比對與寫入；匯出時原始語言對會從原始檔案還原，不受影響。</p>
+                <p style="margin:0.5rem 0 0; font-size:0.82rem; color:#64748b;">本次任務語言對：<strong id="batchImportLangMismatchTaskPair" style="color:#334155;"></strong></p>
+            </div>
+            <div style="flex:1; min-height:0; padding:0 1.25rem;">
+                <p style="margin:0 0 0.35rem; font-size:0.8rem; color:#64748b;">不符檔案清單</p>
+                <div style="max-height:min(42vh, 280px); overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; padding:0.55rem 0.75rem; background:#f8fafc; box-sizing:border-box;">
+                    <ul id="batchImportLangMismatchList" style="margin:0; padding-left:1.2rem; font-size:0.9rem; color:#1e293b;"></ul>
+                </div>
+            </div>
+            <div style="flex-shrink:0; padding:0.75rem 1.25rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end;">
+                <button type="submit" value="ok" class="primary-btn">確定</button>
+            </div>
+        </form>
+    </dialog>
+
     <script src="js/tm-utils.js"></script>
     <script src="js/data-provider.js"></script>
     <script src="db.js"></script>
