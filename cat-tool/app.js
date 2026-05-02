@@ -2471,21 +2471,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             const selectedIds = new Set(selectedUserIds.map(x => String(x)));
 
             if (_fileAssignModeIsView) {
-                // 句段集指派模式
+                // 句段集指派模式（assigneeUserIds 須為陣列；unassign 第一參數為 view_id）
                 for (const viewId of currentAssignFileIds) {
                     try {
                         const existing = await DBService.listViewAssignments(viewId);
                         const existingUids = new Set((existing || []).map(a => String(a.assigneeUserId || a.assignee_user_id)));
                         for (const uid of selectedUserIds) {
-                            if (!existingUids.has(uid)) await DBService.assignView(viewId, uid);
+                            if (!existingUids.has(uid)) await DBService.assignView(viewId, [uid]);
                         }
                         for (const a of (existing || [])) {
                             const uid = String(a.assigneeUserId || a.assignee_user_id);
-                            if (!selectedIds.has(uid)) await DBService.unassignView(a.id || viewId, uid);
+                            if (!selectedIds.has(uid)) await DBService.unassignView(viewId, uid);
                         }
                     } catch (err) { console.error('[views] assign error', err); }
                 }
                 closeFileAssignModal();
+                if (currentProjectId) await loadViewsList(currentProjectId);
                 return;
             }
 
@@ -3752,12 +3753,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function loadViewsList(projectId) {
         const body = document.getElementById('viewsListBody');
         if (!body) return;
-        body.innerHTML = '<tr><td colspan="7" style="padding:0.75rem; color:#64748b;">載入中…</td></tr>';
+        body.innerHTML = '<tr><td colspan="8" style="padding:0.75rem; color:#64748b;">載入中…</td></tr>';
         try {
             const views = await DBService.listViews(projectId);
             _currentViewsList = views || [];
             if (!_currentViewsList.length) {
-                body.innerHTML = '<tr><td colspan="7" style="padding:0.75rem; color:#64748b; font-size:0.9rem;">目前沒有句段集。在「檔案清單」分頁勾選檔案後點擊「建立句段集」。</td></tr>';
+                body.innerHTML = '<tr><td colspan="8" style="padding:0.75rem; color:#64748b; font-size:0.9rem;">目前沒有句段集。在「檔案清單」分頁勾選檔案後點擊「建立句段集」。</td></tr>';
                 syncViewsSelectAll();
                 return;
             }
@@ -3778,6 +3779,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return `<div style="color:#94a3b8; white-space:nowrap;">${String(fid).slice(0, 8)}…</div>`;
                 }).join('') || '—';
                 const filterText = _renderFilterSummaryText(v.filterSummary).replace(/</g, '&lt;').replace(/\n/g, '<br>');
+                const assignees = Array.isArray(v.assigneeNames) ? v.assigneeNames : [];
+                const assignCell = assignees.length
+                    ? assignees.map((n) => `<div style="line-height:1.4;">${String(n).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>`).join('')
+                    : '—';
                 const ownerName = (v.ownerName || v.ownerUserId || '—').replace(/</g, '&lt;');
                 const createdAt = v.createdAt ? new Date(v.createdAt).toLocaleString('zh-TW', { hour12: false }) : '—';
                 const renameBtn = isPm
@@ -3793,6 +3798,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${fileLines}</td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#475569; white-space:nowrap;">${filterText}</td>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#475569; vertical-align:middle;">${assignCell}</td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#475569;">${ownerName}</td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#64748b;">${createdAt}</td>
                 </tr>`;
@@ -3824,7 +3830,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             _loadViewsProgressAsync(_currentViewsList).catch(() => {});
         } catch (err) {
             console.error('[views] loadViewsList error:', err);
-            if (body) body.innerHTML = '<tr><td colspan="7" style="padding:0.75rem; color:#dc2626;">載入失敗，請重試。</td></tr>';
+            if (body) body.innerHTML = '<tr><td colspan="8" style="padding:0.75rem; color:#dc2626;">載入失敗，請重試。</td></tr>';
         }
     }
 
@@ -11837,18 +11843,28 @@ document.addEventListener('DOMContentLoaded', async () => {
             e.preventDefault();
             if (!sfInput) return;
             const isSfInputFocused = document.activeElement === sfInput;
-            if (!isSfInputFocused) {
+            // 僅在「搜尋模式且焦點在尋找列」時才與按鈕一致切換搜尋／篩選；否則單次動作＝貼選字（若有）＋必要時切到搜尋模式＋聚焦尋找列（避免取代框有焦點時多一個中間態）
+            if (isSfInputFocused && sfMode === 'search' && !isSfAdvancedFilterInUse()) {
+                sfModeFilter.click();
+            } else if (isSfInputFocused && sfMode === 'filter' && !isSfAdvancedFilterInUse()) {
+                sfModeSearch.click();
+            } else {
                 const tsel = window.getSelection();
                 const t = tsel ? tsel.toString().trim() : '';
                 if (t) sfInput.value = t;
-                sfInput.focus();
-            } else {
                 if (isSfAdvancedFilterInUse()) {
+                    sfInput.focus();
+                    emitCollabFocus('control', 'sfInput');
                     return;
                 }
-                // 與按鈕一致：在尋找框再按一次 Ctrl+F 會切換模式；進階篩選使用中時強制維持 filter。
-                if (sfMode === 'search') sfModeFilter.click();
-                else sfModeSearch.click();
+                if (sfMode !== 'search') {
+                    sfMode = 'search';
+                    if (sfModeSearch) sfModeSearch.classList.add('active');
+                    if (sfModeFilter) sfModeFilter.classList.remove('active');
+                    scheduleRunSearchAndFilter();
+                }
+                sfInput.focus();
+                emitCollabFocus('control', 'sfInput');
             }
         }
         // Ctrl+Shift+A for Select All Segments
@@ -13995,6 +14011,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         pushEditorUndo(seg.id, text, newText, { oldMatchValue: seg.matchValue, newMatchValue: seg.matchValue });
         setSegmentFieldText(seg, match.segIdx, 'target', newText);
         runSearchAndFilter({ keepFilterSnapshot: true });
+        clearTimeout(sfRunUiTimer);
+        sfRunUiTimer = null;
 
         const rowsAfter = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
         const ed = rowsAfter[match.segIdx] ? rowsAfter[match.segIdx].querySelector('.grid-textarea') : null;
@@ -14326,6 +14344,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         sfFilterSnapshotSegIds = null;
         sfFilterLockedSpecHash = '';
         if (!preserveSfInput && sfInput) sfInput.value = '';
+        if (sfReplaceInput) sfReplaceInput.value = '';
         clearSfAdvancedSpecOnDom();
         btnSfInvert.classList.remove('active');
         updateSfModeToggleLockState();

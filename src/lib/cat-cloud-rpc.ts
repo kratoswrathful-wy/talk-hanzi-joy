@@ -1630,7 +1630,33 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         .eq("project_id", payload.projectId)
         .order("created_at", { ascending: true, nullsFirst: true });
       if (error) throw error;
-      return (data ?? []).map((r: any) => ({
+      const viewRows = data ?? [];
+      const viewIds = viewRows.map((r: any) => r.id).filter(Boolean);
+      const namesByView = new Map<string, string[]>();
+      if (viewIds.length) {
+        const { data: asg, error: asgErr } = await supabase
+          .from("cat_view_assignments" as any)
+          .select(
+            `
+            view_id, assignee_user_id, status,
+            assignee:profiles!cat_view_assignments_assignee_user_id_fkey(id, display_name, email)
+          `
+          )
+          .in("view_id", viewIds);
+        if (asgErr) throw asgErr;
+        for (const row of asg ?? []) {
+          const r = row as any;
+          if (!r || r.status === "cancelled" || !r.view_id) continue;
+          const label =
+            r.assignee?.display_name || r.assignee?.email || String(r.assignee_user_id || "");
+          if (!label) continue;
+          const vid = String(r.view_id);
+          const cur = namesByView.get(vid) || [];
+          if (!cur.includes(label)) cur.push(label);
+          namesByView.set(vid, cur);
+        }
+      }
+      return viewRows.map((r: any) => ({
         id: r.id,
         projectId: r.project_id,
         ownerUserId: r.owner_user_id,
@@ -1642,6 +1668,7 @@ export async function handleCatCloudRpc(action: string, payload: RpcPayload, use
         fileRoles: r.file_roles ?? {},
         createdAt: r.created_at,
         lastModified: r.last_modified,
+        assigneeNames: namesByView.get(String(r.id)) ?? [],
       }));
     }
     case "db.getView": {
