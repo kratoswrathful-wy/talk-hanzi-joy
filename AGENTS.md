@@ -19,6 +19,7 @@
 - [`docs/CAT_CTRL_DIGIT_SHORTCUT_SPEC.md`](docs/CAT_CTRL_DIGIT_SHORTCUT_SPEC.md) — Ctrl+1～9 右欄套用細部規格（與 [`docs/CAT第四波主記錄.md`](docs/CAT第四波主記錄.md) §5-i 對照）
 - [`docs/XLIFF_TAG_PIPELINE.md`](docs/XLIFF_TAG_PIPELINE.md) — XLIFF／tag 管線（與 [`xliff-tag-export.mdc`](.cursor/rules/xliff-tag-export.mdc) 呼應）
 - [`docs/DEPLOYMENT_CHECKLIST.md`](docs/DEPLOYMENT_CHECKLIST.md) — 部署檢核
+- [`docs/SLACK_SETUP.md`](docs/SLACK_SETUP.md) — Slack 詢案與譯者通知設定；擴充決策與待落地項目見 [`docs/SLACK_NOTIFY_EXPANSION_2026-05.md`](docs/SLACK_NOTIFY_EXPANSION_2026-05.md)
 - [`docs/CAT_AI_GUIDELINES_AND_PROJECT_RULES.md`](docs/CAT_AI_GUIDELINES_AND_PROJECT_RULES.md) — **產品**內 CAT 團隊版「AI 準則」資料與 Supabase 流程；**不是**教編輯器如何改程式的通用規範
 
 ## 回覆與推送慣例

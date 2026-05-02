@@ -1,5 +1,6 @@
 -- CAT 句段集（cat_views）與句段集指派（cat_view_assignments）
 -- 對應 docs/CAT_VIEW_SPEC.md §2、§13
+-- （此版本號與遠端 migration 歷史對齊；內容與舊檔 20260503150000 相同。）
 
 -- ── cat_views ─────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.cat_views (

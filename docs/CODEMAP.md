@@ -70,7 +70,7 @@
 | 內部註記 `relatedCase` 映射 | `src/stores/internal-notes-store.ts`：`relatedCase` ↔ `related_case` |
 | 案件狀態驅動 CAT 指派同步（`詢案中 -> 已派出`） | `src/stores/case-store.ts`（狀態轉換偵測與同步） |
 | CAT 資料表（提問/綁案/指派） | `cat_projects`、`cat_files`、`cat_file_assignments` |
-| 內部註記資料表 | `internal_notes` |
+| 內部註記資料表 | `internal_notes`（**規劃**欄位 `consultation_slack_records`，見 [`SLACK_NOTIFY_EXPANSION_2026-05.md`](SLACK_NOTIFY_EXPANSION_2026-05.md) §4） |
 
 > 實作注意：僅「客戶表單」「內部註記」屬條件式按鈕；`AI 輔助` 必須維持原顯示規則，不可連帶隱藏。
 
@@ -113,7 +113,10 @@
 | 內容性質 | `src/components/settings/CaseCategorySection.tsx` |
 | 貨幣設定 | `src/components/settings/CurrencySettingsSection.tsx` |
 | 工具列按鈕樣式 | `src/components/settings/ToolbarButtonStyleSection.tsx` |
-| Slack（連結／說明／承接預設文案） | `src/components/profile/ProfileSlackCard.tsx`（個人檔案）；承接／無法承接通知 `src/lib/slack-case-reply-notify.ts`、`src/lib/slack-case-reply-defaults.ts` |
+| Slack（連結／說明／承接預設文案） | `src/components/profile/ProfileSlackCard.tsx`（個人檔案）；承接／無法承接／任務完成通知 `src/lib/slack-case-reply-notify.ts`（`kind`: `accept` \| `decline` \| `task_complete`，`segmentTitle` 可選）、`src/lib/slack-case-reply-defaults.ts`（`DEFAULT_ACCEPT_SUFFIX` 等） |
+| Slack 詢案對話框 | `src/components/InquirySlackDialog.tsx`；詢案訊息複製 `src/lib/copy-case-inquiry-message.ts`；mrkdwn 組字 `src/lib/inquiry-slack-message.ts` |
+| Slack 擴充紀錄（決策／待落地項目） | [`docs/SLACK_NOTIFY_EXPANSION_2026-05.md`](SLACK_NOTIFY_EXPANSION_2026-05.md) |
+| 內部註記頁／store | `src/pages/InternalNotesPage.tsx`、`src/stores/internal-notes-store.ts`、`src/hooks/use-internal-notes-table-views.ts`（**規劃**：`consultation_slack_records` ↔ DB `consultation_slack_records`；**規劃**元件：`NoteReminderSlackDialog` 或同等命名） |
 | 重大故障／維運紀錄（DB `ops_incidents`，管理員） | `src/components/settings/OpsIncidentsSection.tsx` |
 | ColorPicker 使用顏色聚合 | `src/lib/settings-color-usage.ts` |
 | `case-files` 上傳路徑／檔名 | `src/lib/storage-case-files.ts`（`buildCaseFileObjectPath`） |
