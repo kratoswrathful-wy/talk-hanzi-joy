@@ -387,4 +387,50 @@
 
 ---
 
+## 八、句段集（第五波起始，2026-05）
+
+> 本節記錄 **CAT 句段集（`cat_views`）** 團隊線上版之實作與錯誤修正，**不更動**上文第四波 A/B 結案判定。
+
+### 八點一、功能背景與規格
+
+- **規格來源**：[`docs/CAT_VIEW_SPEC.md`](CAT_VIEW_SPEC.md)（句段集、譯者 UX、PM+ 權限、協作房間等）。
+- **邊界決策（本階段）**：**優先交付團隊線上版**（Supabase `cat_views`／`cat_view_assignments`、RPC、`CatToolPage` 橋接）；**離線句段集**（Dexie `views`）與 **協作房間（view 房）** 列為後續迭代。
+
+### 八點二、實作完成項目（依時序）
+
+| 批次 | Commit（參考） | 內容摘要 |
+|------|----------------|----------|
+| 初版 | `~` → `16d5cd5` 前後 | Migration（`cat_views`、`cat_view_assignments` + RLS）、[`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts) CRUD／批次載入句段、[`cat-tool/db.js`](../cat-tool/db.js) Dexie／`DBService`、專案詳情分頁／清單／建立精靈／`viewId` 進入編輯器、[`src/pages/CatToolPage.tsx`](../src/pages/CatToolPage.tsx) `TMS_ASSIGNMENTS`／`viewAssignments`／`CAT_VIEW_ASSIGNMENT_STATUS`。**Phase A**（譯者專案可見性、儀表板受派句段集、未受派唯讀、左欄／管理按鈕隱藏等）。**Phase B**（句段集清單進度、Key／所屬檔案欄、否定式 `!currentFileId` 守衛放寬為句段集模式等）。 |
+| 六項驗收修正 | `16d5cd5` | 進度欄改至名稱下方（字數）；`openEditorWithSegments` 補 `idValue`→`keys`；`renderEditorSegments` 補 `col-source-file` 儲存格；排序改 `filesMap.seqNo`；`ActiveWriteTms`；多處 `!currentFileId`→`!currentFileId && !_currentViewId`。 |
+| 三項根本修正 | **`3eb024a`** | 見 **§八點三**。 |
+
+### 八點三、本輪三項根本修正（`3eb024a`）
+
+**根因**：`currentFileId` 在既有架構中身兼二職——**實際檔案 ID** 與 **「是否在編輯器中」的布林旗標**。句段集模式設 `currentFileId = null`、`_currentViewId` 有值；先前僅修正**否定式**守衛（`!currentFileId`），漏掉**肯定式**守衛（`&& currentFileId`），導致多數快捷鍵靜默跳過。
+
+| 代號 | 問題 | 修正 |
+|------|------|------|
+| **Fix A** | `openEditorWithSegments` 在 `sortColSelect.dispatchEvent('change')` 觸發 `applySorting()` 時，句段無 `globalId`，排序降回 `globalId \|\| rowIdx` 中的 **純 `rowIdx`**，跨檔句段交錯。 | 在 `dispatchEvent` **之前**對 `currentSegmentsList` 依目前順序賦 `globalId`（`i+1`）。 |
+| **Fix B** | 10 處 `&& currentFileId`：F8、Ctrl+F8、F3、F4、Ctrl+Insert、Ctrl+Shift+Insert、Ctrl+K、Ctrl+0、自訂 clearFilter、自訂 quickNewTerm。 | 改為 `&& (currentFileId \|\| _currentViewId)`。 |
+| **Fix C** | `window.ActiveFileLangs` 在句段集入口被清空，`syncSegmentToWriteTmsOnConfirm` 語言比對在雙空語言時過度寬鬆，TM 新增被誤判為「已存在」而跳過。 | 在 `if (project)` 內補設 `sourceLang`／`targetLang` 自 `project.sourceLangs`／`targetLangs` 首項。 |
+
+**同步**：`cat-tool` 變更經 `npm run sync:cat` 一併提交 [`public/cat/`](../public/cat/)。
+
+### 八點四、驗收（本輪）
+
+- **初步驗收通過**（2026-05-02）：句段集內句段順序正確；Ctrl+Insert、Ctrl+0 等快捷鍵與單檔一致；確認句段可正確寫入 TM（語言對與比對邏輯正常）。
+
+### 八點五、尚未實作（待後續迭代）
+
+依 [`CAT_VIEW_SPEC.md`](CAT_VIEW_SPEC.md) **§10**（目前多為 `- [ ]` 未勾選）與 §2.2／§5.2／§14，精簡列舉：
+
+| 項目 | 說明 |
+|------|------|
+| **離線句段集** | Dexie `views` 表、本機建立／開啟／與雲端同步流程（§2.2）。 |
+| **協作房間** | `view` 房、`roomType` + `roomId`、`CAT_COLLAB_*` payload 擴充、底欄成員（§14）。 |
+| **建立精靈步驟二** | §5.2 完整篩選列 + 唯讀格線預覽（與編輯器一致）。 |
+| **§10 其餘** | 規格與程式對齊後逐項勾選；實作分歧以 PR 說明為準。 |
+
+---
+
 **上一波**：第三波見 [`docs/CAT第三波主記錄.md`](CAT第三波主記錄.md)。
