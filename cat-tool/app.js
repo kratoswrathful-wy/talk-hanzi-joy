@@ -11586,6 +11586,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             scheduleRunSearchAndFilter();
         }
     });
+    /** 切到篩選模式時：複製尋找列內容到剪貼簿，並短暫提示；切到搜尋模式時：聚焦尋找列。 */
+    function onSwitchToFilterMode() {
+        if (sfReplaceInput) sfReplaceInput.focus();
+        const val = sfInput ? sfInput.value : '';
+        if (val) {
+            navigator.clipboard.writeText(val).then(() => {
+                showCatToast('已複製尋找列內容到剪貼簿');
+            }).catch(() => {
+                showCatToast('複製到剪貼簿失敗，請手動複製尋找列');
+            });
+        }
+    }
+    function onSwitchToSearchMode() {
+        if (sfInput) sfInput.focus();
+    }
+
     sfModeSearch.addEventListener('click', () => {
         // 進階篩選條件使用中時，強制維持在「篩選」模式
         if (isSfAdvancedFilterInUse()) {
@@ -11597,6 +11613,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (sfMode === 'search') { sfModeFilter.click(); return; } // Toggle behavior
         sfMode = 'search'; sfModeSearch.classList.add('active'); sfModeFilter.classList.remove('active');
         scheduleRunSearchAndFilter();
+        onSwitchToSearchMode();
         emitCollabFocus('control', 'sfModeSearch');
     });
     sfModeFilter.addEventListener('click', () => {
@@ -11609,8 +11626,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         if (sfMode === 'filter') { sfModeSearch.click(); return; } // Toggle behavior
+        const wasSearch = (sfMode === 'search');
         sfMode = 'filter'; sfModeFilter.classList.add('active'); sfModeSearch.classList.remove('active');
         scheduleRunSearchAndFilter();
+        if (wasSearch) onSwitchToFilterMode();
         emitCollabFocus('control', 'sfModeFilter');
     });
     updateSfModeToggleLockState();
@@ -12308,15 +12327,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         if (!term) textMatch = true;
         else {
-             let regex;
-             try {
-                 regex = isRegex ? new RegExp(term, 'gi') : null;
-             } catch(e) { return false; } // Invalid regex
-             
-             const checkMatch = (str) => {
-                 if(!str) return false;
-                 return isRegex ? regex.test(str) : str.toLowerCase().includes(term.toLowerCase());
-             };
+            // 查詢語法：正則模式→整行為表達式；一般模式→空白=AND、"…"=整段引號
+            let regex = null;
+            let sfPhrases = [];
+            let sfTokens = [];
+            if (isRegex) {
+                try { regex = new RegExp(term.trim(), 'i'); } catch(e) { return false; }
+            } else {
+                const parsed = parseTmConcordanceQuery(term.trim());
+                sfPhrases = parsed.phrases;
+                sfTokens = parsed.tokens;
+            }
+
+            const checkMatch = (str) => {
+                if (!str) return false;
+                if (isRegex) return regex.test(str);
+                const lower = str.toLowerCase();
+                for (const p of sfPhrases) { if (p && !lower.includes(p.toLowerCase())) return false; }
+                for (const t of sfTokens) { if (t && !lower.includes(t.toLowerCase())) return false; }
+                return true;
+            };
 
              // 搜尋時同時比對展開版（{N} 還原為實際標籤內容）
              const expandTags = (text, tags) => {
@@ -13845,23 +13875,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!text || searchTerm === '') return text;
         if (isRegex) {
             try {
-                const regex = new RegExp(searchTerm, firstOnly ? 'i' : 'g');
+                const regex = new RegExp(searchTerm.trim(), firstOnly ? 'i' : 'g');
                 return text.replace(regex, replaceTerm);
             } catch(e) { return text; }
         }
-        const lower = searchTerm.toLowerCase();
-        if (firstOnly) {
-            const idx = text.toLowerCase().indexOf(lower);
-            if (idx === -1) return text;
-            return text.substring(0, idx) + replaceTerm + text.substring(idx + searchTerm.length);
-        }
+        // 一般模式：用 AND 解析；每個詞/引號整段分別取代
+        const { phrases, tokens } = parseTmConcordanceQuery(searchTerm.trim());
+        const parts = [
+            ...phrases.map(p => p),
+            ...tokens.map(t => t),
+        ].filter(Boolean);
+        if (!parts.length) return text;
         let result = text;
-        let pos = 0;
-        for (;;) {
-            const idx = result.toLowerCase().indexOf(lower, pos);
-            if (idx === -1) break;
-            result = result.substring(0, idx) + replaceTerm + result.substring(idx + searchTerm.length);
-            pos = idx + replaceTerm.length;
+        for (const part of parts) {
+            const partLower = part.toLowerCase();
+            if (firstOnly) {
+                const idx = result.toLowerCase().indexOf(partLower);
+                if (idx !== -1) {
+                    result = result.substring(0, idx) + replaceTerm + result.substring(idx + part.length);
+                }
+            } else {
+                let pos = 0;
+                for (;;) {
+                    const idx = result.toLowerCase().indexOf(partLower, pos);
+                    if (idx === -1) break;
+                    result = result.substring(0, idx) + replaceTerm + result.substring(idx + part.length);
+                    pos = idx + replaceTerm.length;
+                }
+            }
         }
         return result;
     }
@@ -14130,6 +14171,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         const term = sfInput.value;
         const replaceTerm = sfReplaceInput ? sfReplaceInput.value : '';
         if (!term || !currentSegmentsList.length) return;
+
+        // 取代前：儲存假游標所在句段的字元偏移，供取代後精確還原
+        let _savedReplaceAllCaretInfo = null;
+        if (isReplaceAllRestoreFakeCaretEnabled() && catFakeCaret && catFakeCaret.getSaved) {
+            const fc = catFakeCaret.getSaved();
+            if (fc && fc.editor && document.body.contains(fc.editor)) {
+                const npOff = getNpCaretOffset(fc.editor);
+                if (npOff !== null) _savedReplaceAllCaretInfo = { editor: fc.editor, offset: npOff };
+            }
+        }
+
         const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
         const multiSelection = selectedRowIds && selectedRowIds.size > 1;
         const pending = [];
@@ -14176,6 +14228,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (isReplaceAllRestoreFakeCaretEnabled()) {
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
+                        // 優先：用字元偏移精確還原（setEditorHtml 已重建 DOM，舊 Range 失效）
+                        if (_savedReplaceAllCaretInfo && document.body.contains(_savedReplaceAllCaretInfo.editor)) {
+                            try {
+                                _savedReplaceAllCaretInfo.editor.focus();
+                                setNpCaretOffset(_savedReplaceAllCaretInfo.editor, _savedReplaceAllCaretInfo.offset);
+                                saveCatCaretFromSelection(_savedReplaceAllCaretInfo.editor);
+                                return;
+                            } catch (_) {}
+                        }
                         restoreOrShowFakeCatCaret();
                     });
                 });
@@ -15909,8 +15970,30 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 if (e.key === 'Backspace' && offset > 0) {
                                     e.preventDefault();
                                     container.nodeValue = val.slice(0, offset - 1) + val.slice(offset);
-                                    if (!container.nodeValue.length) wrap.remove();
-                                    else {
+                                    if (!container.nodeValue.length) {
+                                        // 字元清空→移除 span；先記鄰節點再移除，避免游標指向已移除節點
+                                        const prevSib = wrap.previousSibling;
+                                        const nextSib = wrap.nextSibling;
+                                        const parentEl = wrap.parentNode;
+                                        wrap.remove();
+                                        try {
+                                            const rng = document.createRange();
+                                            if (prevSib && prevSib.nodeType === 3) {
+                                                rng.setStart(prevSib, prevSib.nodeValue.length);
+                                            } else if (nextSib) {
+                                                if (nextSib.nodeType === 3) rng.setStart(nextSib, 0);
+                                                else {
+                                                    const idx = parentEl ? Array.from(parentEl.childNodes).indexOf(nextSib) : 0;
+                                                    rng.setStart(parentEl, idx >= 0 ? idx : 0);
+                                                }
+                                            } else if (parentEl) {
+                                                rng.setStart(parentEl, parentEl.childNodes.length);
+                                            }
+                                            rng.collapse(true);
+                                            sel.removeAllRanges();
+                                            sel.addRange(rng);
+                                        } catch (_) {}
+                                    } else {
                                         try {
                                             const rng = document.createRange();
                                             rng.setStart(container, offset - 1);
@@ -15925,8 +16008,29 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 if (e.key === 'Delete' && offset < val.length) {
                                     e.preventDefault();
                                     container.nodeValue = val.slice(0, offset) + val.slice(offset + 1);
-                                    if (!container.nodeValue.length) wrap.remove();
-                                    else {
+                                    if (!container.nodeValue.length) {
+                                        const prevSib = wrap.previousSibling;
+                                        const nextSib = wrap.nextSibling;
+                                        const parentEl = wrap.parentNode;
+                                        wrap.remove();
+                                        try {
+                                            const rng = document.createRange();
+                                            if (prevSib && prevSib.nodeType === 3) {
+                                                rng.setStart(prevSib, prevSib.nodeValue.length);
+                                            } else if (nextSib) {
+                                                if (nextSib.nodeType === 3) rng.setStart(nextSib, 0);
+                                                else {
+                                                    const idx = parentEl ? Array.from(parentEl.childNodes).indexOf(nextSib) : 0;
+                                                    rng.setStart(parentEl, idx >= 0 ? idx : 0);
+                                                }
+                                            } else if (parentEl) {
+                                                rng.setStart(parentEl, parentEl.childNodes.length);
+                                            }
+                                            rng.collapse(true);
+                                            sel.removeAllRanges();
+                                            sel.addRange(rng);
+                                        } catch (_) {}
+                                    } else {
                                         try {
                                             const rng = document.createRange();
                                             rng.setStart(container, offset);
@@ -15986,6 +16090,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                                             tn.nodeValue = tn.nodeValue.slice(0, -1);
                                             if (!tn.nodeValue.length) prevChild.remove();
                                         } else prevChild.remove();
+                                        // 還原游標到刪除後的正確位置（offset-1，因子節點少一個）
+                                        try {
+                                            const rng = document.createRange();
+                                            rng.setStart(container, offset - 1);
+                                            rng.collapse(true);
+                                            sel.removeAllRanges();
+                                            sel.addRange(rng);
+                                        } catch (_) {}
                                         targetInput.dispatchEvent(new Event('input', { bubbles: true }));
                                         return;
                                     }
