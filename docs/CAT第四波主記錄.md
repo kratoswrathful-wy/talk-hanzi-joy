@@ -449,6 +449,13 @@
 | **§10 其餘** | 規格與程式對齊後逐項勾選；實作分歧以 PR 說明為準。 |
 | **句段集指派（清單欄位／持久化）** | **已修正**（與 **§九點四** 同一批次）：清單新增「指派」欄、`db.listViews` 附 `assigneeNames`；`assignView([uid])`、`unassignView(viewId, …)`、存檔後 `loadViewsList`。離線本機句段集仍無雲端指派列（顯示「—」）。 |
 
+### 八點六、句段集清單「涉及檔案」欄：超過 5 筆可展開（`7895783`）
+
+- **Commit `7895783`**：專案詳情 → 句段集清單「**涉及檔案**」欄，當 `file_ids` **超過 5** 時，先顯示前 **5** 行（每行仍為 `#<序號> <檔名>`）；**第 6 行**為 **`…等共 x 個檔案`**（`x` 為總檔數）與**展開／收合**按鈕，**預設收合**（第 6 筆起之檔名隱藏）。展開後列出其餘檔名；再點則收合。箭頭字元 **`▶`** 以 **`transform: rotate(0deg)`**（收合、視覺朝右）與 **`rotate(90deg)`**（展開、朝下）切換。
+- **程式錨點**（[`cat-tool/app.js`](../cat-tool/app.js)）：`loadViewsList` 內呼叫 **`_renderViewFileLinesHtml`**；**`_ensureViewsFilesToggleDelegation`** 於 **`#panelProjectViews`** 委派點擊（僅綁一次）。按鈕具 **`aria-expanded`**、**`aria-label`**（展開／收合其餘檔案）、**`aria-controls`** 對應可見性區塊 id。
+- **規格對齊**：[`docs/CAT_VIEW_SPEC.md`](CAT_VIEW_SPEC.md) **§4**「涉及檔案」列已改與上列行為一致。
+- **驗收**：使用者已驗收通過（對話確認）。
+
 ---
 
 ## 九、搜尋取代增強、Ctrl+1～9 實作與雜項修正（2026-05）
