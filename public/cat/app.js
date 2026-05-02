@@ -12200,6 +12200,97 @@ document.addEventListener('DOMContentLoaded', async () => {
         catFakeCaret.installGlobalListeners();
     }
 
+    // 點擊原文欄 tag → 插入同列譯文（假游標位置或末尾）
+    if (gridBody) {
+        gridBody.addEventListener('click', function onSourceTagInsertClick(e) {
+            if (!currentFileId) return;
+            const tagSpan = e.target.closest('.rt-tag');
+            if (!tagSpan || !tagSpan.closest('.col-source')) return;
+            e.preventDefault();
+            e.stopPropagation();
+
+            const row = tagSpan.closest('.grid-data-row');
+            const targetEditor = row && row.querySelector('.col-target .grid-textarea');
+            if (!targetEditor || targetEditor.contentEditable === 'false') return;
+
+            const segId = parseId(row.dataset.segId);
+            const seg = currentSegmentsList.find(s => String(s.id) === String(segId));
+            if (!seg || isTargetWriteProtected(seg)) return;
+            if (blockSelectionIfEditedByOthers(seg, e)) return;
+
+            const ph = tagSpan.getAttribute('data-ph');
+            if (!ph) return;
+
+            const currentText = extractTextFromEditor(targetEditor) || '';
+            const presentPhs = new Set((currentText.match(/\{\/?\d+\}/g) || []));
+            if (presentPhs.has(ph)) return;
+
+            const tagObj = (seg.sourceTags || []).find(t => t.ph === ph);
+            if (!tagObj) return;
+
+            let sameRow = false;
+            if (catFakeCaret && typeof catFakeCaret.getSaved === 'function') {
+                const saved = catFakeCaret.getSaved();
+                sameRow = !!(saved && String(saved.segId) === String(segId));
+            }
+
+            if (sameRow) {
+                const restored = restoreSavedCaretIntoEditor();
+                if (!restored || restored !== targetEditor) {
+                    setCaretAtEditorEnd(targetEditor);
+                }
+            } else {
+                setCaretAtEditorEnd(targetEditor);
+            }
+
+            const sel = window.getSelection();
+            let range = null;
+            if (sel && sel.rangeCount > 0) {
+                const r = sel.getRangeAt(0);
+                if (targetEditor.contains(r.commonAncestorContainer)) {
+                    range = r;
+                }
+            }
+            if (!range) {
+                setCaretAtEditorEnd(targetEditor);
+                const sel2 = window.getSelection();
+                if (sel2 && sel2.rangeCount > 0) {
+                    const r2 = sel2.getRangeAt(0);
+                    if (targetEditor.contains(r2.commonAncestorContainer)) range = r2;
+                }
+            }
+            if (!range || !targetEditor.contains(range.commonAncestorContainer)) return;
+
+            const span = buildTagSpan(tagObj);
+            range.insertNode(span);
+            const newRange = document.createRange();
+            newRange.setStartAfter(span);
+            newRange.collapse(true);
+            if (sel) {
+                sel.removeAllRanges();
+                sel.addRange(newRange);
+            }
+
+            const oldTarget = seg.targetText;
+            const oldMv = seg.matchValue;
+            seg.targetText = extractTextFromEditor(targetEditor);
+            const updatedRow = targetEditor.closest('.grid-data-row');
+            updateTagColors(updatedRow, seg.targetText);
+            if (oldTarget !== seg.targetText) {
+                pushEditorUndo(seg.id, oldTarget, seg.targetText, {
+                    oldMatchValue: oldMv,
+                    newMatchValue: seg.matchValue
+                });
+                editorUndoEditStart[seg.id] = seg.targetText;
+            }
+            applyUpdateSegmentTarget(seg, seg.targetText).catch(console.error);
+            refreshTagNextHighlight(updatedRow);
+            saveCatCaretFromSelection(targetEditor);
+            targetEditor.focus();
+            targetEditor.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+    }
+
     function showRealCaretScrollTipIfNeeded() {
         if (catFakeCaret) catFakeCaret.showRealCaretTipIfNeeded();
     }
