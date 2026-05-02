@@ -3578,12 +3578,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function loadViewsList(projectId) {
         const body = document.getElementById('viewsListBody');
         if (!body) return;
-        body.innerHTML = '<tr><td colspan="7" style="padding:0.75rem; color:#64748b;">載入中…</td></tr>';
+        body.innerHTML = '<tr><td colspan="8" style="padding:0.75rem; color:#64748b;">載入中…</td></tr>';
         try {
             const views = await DBService.listViews(projectId);
             _currentViewsList = views || [];
             if (!_currentViewsList.length) {
-                body.innerHTML = '<tr><td colspan="7" style="padding:0.75rem; color:#64748b; font-size:0.9rem;">目前沒有句段集。在「檔案清單」分頁勾選檔案後點擊「建立句段集」。</td></tr>';
+                body.innerHTML = '<tr><td colspan="8" style="padding:0.75rem; color:#64748b; font-size:0.9rem;">目前沒有句段集。在「檔案清單」分頁勾選檔案後點擊「建立句段集」。</td></tr>';
                 syncViewsSelectAll();
                 return;
             }
@@ -3620,6 +3620,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#475569; white-space:nowrap;">${filterText}</td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#475569;">${ownerName}</td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#64748b;">${createdAt}</td>
+                    <td class="view-progress-cell" data-view-id="${viewId}" style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#94a3b8;">—</td>
                 </tr>`;
             }).join('');
 
@@ -3645,9 +3646,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             }, { once: false });
 
             syncViewsSelectAll();
+            // 非同步載入整體進度（§4）
+            _loadViewsProgressAsync(_currentViewsList).catch(() => {});
         } catch (err) {
             console.error('[views] loadViewsList error:', err);
-            if (body) body.innerHTML = '<tr><td colspan="7" style="padding:0.75rem; color:#dc2626;">載入失敗，請重試。</td></tr>';
+            if (body) body.innerHTML = '<tr><td colspan="8" style="padding:0.75rem; color:#dc2626;">載入失敗，請重試。</td></tr>';
         }
     }
 
@@ -4072,6 +4075,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 隱藏匯出按鈕（句段集不單檔匯出）
             const btnExportFile = document.getElementById('btnExportFile');
             if (btnExportFile) btnExportFile.style.display = 'none';
+
+            // 顯示「顯示所屬檔案」checkbox（§12.3）
+            const labelToggleSourceFile = document.getElementById('labelToggleSourceFileCol');
+            const chkShowSourceFile = document.getElementById('chkShowSourceFileCol');
+            if (labelToggleSourceFile) labelToggleSourceFile.style.display = 'flex';
+            if (chkShowSourceFile) {
+                chkShowSourceFile.checked = true; // 每次進入預設勾選
+                if (!chkShowSourceFile._viewColHandler) {
+                    chkShowSourceFile._viewColHandler = () => {
+                        const col = colSettings.find(c => c.id === 'col-source-file');
+                        if (col) {
+                            col.visible = chkShowSourceFile.checked;
+                            const hdr = document.querySelector('.grid-header-cell[data-col-id="col-source-file"]');
+                            if (hdr) hdr.style.display = col.visible ? '' : 'none';
+                            applyColSettings();
+                        }
+                    };
+                    chkShowSourceFile.addEventListener('change', chkShowSourceFile._viewColHandler);
+                }
+            }
 
             // 設定格線欄位（maxKeys 從 segments 推算）
             let maxKeys = 0;
@@ -4889,6 +4912,32 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <span style="position:relative; z-index:1; font-size:0.77rem; padding:0 6px; line-height:18px; white-space:nowrap; color:#1e293b;">${pct}% (${confirmed}/${total} 字)</span>
                     </div>`;
             } catch (_) { /* team mode 或空檔案時靜默失敗 */ }
+        }));
+    }
+
+    /** 非同步計算各句段集整體進度並填入清單（§4） */
+    async function _loadViewsProgressAsync(views) {
+        if (!Array.isArray(views) || !views.length) return;
+        await Promise.all(views.map(async (v) => {
+            try {
+                const segIds = Array.isArray(v.segmentIds) ? v.segmentIds : [];
+                if (!segIds.length) {
+                    const cell = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
+                    if (cell) cell.innerHTML = '<span style="color:#94a3b8;">0 / 0</span>';
+                    return;
+                }
+                const segs = await DBService.getSegmentsByIds(segIds);
+                const total = segs.length;
+                const confirmed = segs.filter(s => s.status === 'confirmed').length;
+                const pct = total === 0 ? 0 : Math.round(confirmed / total * 100);
+                const cell = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
+                if (!cell) return;
+                cell.innerHTML = `
+                    <div style="position:relative; background:#e2e8f0; border-radius:4px; height:18px; min-width:80px;">
+                        <div style="position:absolute; top:0; left:0; bottom:0; width:${pct}%; background:var(--success-color); border-radius:4px; transition:width 0.3s;"></div>
+                        <span style="position:relative; z-index:1; font-size:0.77rem; padding:0 6px; line-height:18px; white-space:nowrap; color:#1e293b;">${pct}% (${confirmed}/${total})</span>
+                    </div>`;
+            } catch (_) { /* 靜默失敗 */ }
         }));
     }
 
@@ -10423,6 +10472,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         _viewEditorReadOnly = false;
         const readOnlyBannerEl = document.getElementById('viewReadOnlyBanner');
         if (readOnlyBannerEl) readOnlyBannerEl.style.display = 'none';
+        // 隱藏句段集專用 checkbox（§12.3）
+        const labelToggleSrcFile = document.getElementById('labelToggleSourceFileCol');
+        if (labelToggleSrcFile) labelToggleSrcFile.style.display = 'none';
         currentFileId = fileId;
         editorUndoStack = [];
         editorRedoStack = [];
@@ -10779,6 +10831,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         _viewEditorReadOnly = false;
         const readOnlyBanner = document.getElementById('viewReadOnlyBanner');
         if (readOnlyBanner) readOnlyBanner.style.display = 'none';
+        // 隱藏句段集專用 checkbox（§12.3）
+        const labelSrcFile = document.getElementById('labelToggleSourceFileCol');
+        if (labelSrcFile) labelSrcFile.style.display = 'none';
         sidebar.classList.remove('collapsed');
         await openProjectDetail(currentProjectId);
         persistCatRoute();

@@ -251,6 +251,7 @@
                                         <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">篩選條件</th>
                                         <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">建立者</th>
                                         <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:130px;">建立時間</th>
+                                        <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:130px;">整體進度</th>
                                     </tr>
                                 </thead>
                                 <tbody id="viewsListBody"></tbody>
@@ -662,6 +663,10 @@
                         <button id="btnShowNonPrint" class="icon-btn" title="顯示 / 隱藏非列印字元" style="font-size:1rem;">¶</button>
                         <button id="btnShortcuts" class="icon-btn" title="快捷鍵一覽（含說明）">⌨️</button>
                         <button id="btnColSettings" class="icon-btn" title="設定">⚙️</button>
+                        <!-- 句段集模式：顯示所屬檔案欄 toggle（§12.3） -->
+                        <label id="labelToggleSourceFileCol" style="display:none; align-items:center; gap:0.3rem; font-size:0.82rem; color:#475569; cursor:pointer; white-space:nowrap;">
+                            <input type="checkbox" id="chkShowSourceFileCol" checked> 顯示所屬檔案
+                        </label>
                         <div style="flex:1;"></div>
                         <button id="btnGsSourceLink" class="secondary-btn btn-sm" style="display:none;">原檔連結</button>
                         <div class="split-btn-group" id="inNoteGroup" style="display:none;">
