@@ -28,7 +28,9 @@
 
 ---
 
-## 3. Web Worker 架構（預定）
+## 3. Web Worker 架構（已落地）
+
+**實作狀態**：Dedicated Web Worker 見 [`cat-tool/js/word-count-worker.js`](../cat-tool/js/word-count-worker.js)，載入 [`cat-tool/word-count-engine.js`](../cat-tool/word-count-engine.js) 並呼叫 `WordCountEngine.analyzeAsync`；主執行緒以 `runWcAnalyzeWorker`／`runWcAnalyzeWithFallback`（[`cat-tool/app.js`](../cat-tool/app.js)）封裝，失敗時 fallback 至主執行緒同步 `analyze`。
 
 ### 3.1 職責切分
 
@@ -98,19 +100,59 @@
 
 ---
 
-## 7. 實作時預期會修改的檔案（僅列示，本階段不執行）
+## 7. 已修改的檔案（已落地）
 
-- 新增 Worker 檔（路徑由實作決定，例如 `cat-tool/js/...`）。  
-- [`cat-tool/word-count-engine.js`](../cat-tool/word-count-engine.js)：抽出 Worker 安全之純函式（`stripTags` 等不得依賴 `DOMParser` 於 Worker 內無法使用之假設時，需純字串實作）。  
-- [`cat-tool/app.js`](../cat-tool/app.js)：進度載入、佇列、中止、per-id 模式、點擊事件。  
-- [`cat-tool/index.html`](../cat-tool/index.html)：按鈕文案與 `title`。  
-- 完成後依專案慣例執行 `npm run sync:cat` 並提交 `public/cat/`（**於實作階段執行，非本文件建立時**）。
+- [`cat-tool/js/word-count-worker.js`](../cat-tool/js/word-count-worker.js)：Dedicated Worker，`analyzeAsync` 與句段進度 `postMessage`。  
+- [`cat-tool/word-count-engine.js`](../cat-tool/word-count-engine.js)：Worker 安全之純邏輯與 `analyzeAsync`（含分批讓出）。  
+- [`cat-tool/app.js`](../cat-tool/app.js)：進度載入、佇列、中止、per-id 模式、點擊事件；**字數分析 Modal**（`runWordCountAnalysis`、`openWordCountModalWithSelection`、句段集工具列分析等，見 §9）。  
+- [`cat-tool/index.html`](../cat-tool/index.html)：`#wordCountModal`、`#btnRunWordCount`、`#wordCountAnalysisProgress`、`#wordCountResultDisclaimer` 等 DOM；「切換字數」按鈕文案與 `title`。  
+- 變更後依專案慣例執行 `npm run sync:cat` 並提交 `public/cat/`（見根目錄 [`AGENTS.md`](../AGENTS.md)）。
 
 ---
 
 ## 8. 與其他文件
 
 - [`docs/CODEMAP.md`](CODEMAP.md) 已有一列連結至本文件；若搬移檔名請同步更新 CODEMAP。
+
+---
+
+## 9. 「字數與 TM 加權分析」Modal（`#wordCountModal`）
+
+專案詳情內可開啟之**字數與 TM 加權分析**對話框；與 §4 列表／編輯器進度條為不同場景，但加權計算同走 `runWcAnalyzeWithFallback` 與 §3 Worker。
+
+### 9.1 入口
+
+| 來源 | 行為（程式錨點） |
+|------|------------------|
+| **檔案清單** | 勾選一個或多個檔案後開啟：`openWordCountModalWithSelection`（[`cat-tool/app.js`](../cat-tool/app.js)）。 |
+| **句段集工具列** | 勾選一個或多個句段集後按「分析」：`btnViewsToolbarWordCount`。 |
+
+### 9.2 分析範圍狀態
+
+- **檔案模式**：`wordCountSelectedFileIds`（開啟自檔案清單時寫入）。  
+- **句段集模式**：`window._wordCountAnalysisViews` 為 `{ id, name, segmentIds }[]`（每個句段集一筆）；開啟時 **`wordCountSelectedFileIds` 清空**，且**不再**使用舊版整包 `_wordCountSegmentOverride` 扁平合併。  
+- 自檔案清單開啟時：**`_wordCountAnalysisViews` 清空**。  
+- **`closeWordCountModal`**：清除 `_wordCountAnalysisViews` 與 `_wordCountSegmentOverride`，避免殘留狀態。
+
+### 9.3 合併範圍與分項分析
+
+- **一律**先對「合併範圍」跑一次分析：句段集模式為各集 `segmentIds` **去重後**依序串成之句段陣列；檔案模式為依序載入各檔句段後串接。  
+- 僅當 **多檔**（`fileIds.length > 1`）或 **多句段集**（`viewUnits.length > 1`）時，**另外**對每一檔或每一句段集**各跑一次**獨立分析，並在結果表中以分區標題區隔（「【合併範圍】…」「【分項】…」）。  
+- **單檔**或**單一句段集**：不顯示分項區塊；不顯示 `#wordCountResultDisclaimer`。  
+- **標註**（`#wordCountResultDisclaimer`）：僅在「多檔或多句段集」時顯示，說明下方各分項為**分開**分析，因檔內重複與 TM 分類計算範圍與合併一次分析不同，**分項加權加總不一定等於**合併範圍總計。
+
+### 9.4 執行中 UX
+
+- **`#btnRunWordCount`**：分析進行中 **`disabled`**，完成後於 `finally` 解除（避免重複觸發）。  
+- **`#wordCountAnalysisProgress`**：`role="status"`、`aria-live="polite"`；階段文案包含讀取勾選之 TM、載入句段、合併／分項分析；分析階段並顯示 Worker 回報之**百分比與句段數**（`done/total`）。  
+- 完成後短暫顯示「完成」，約 **1.2 秒**後清空進度文字。
+
+### 9.5 本機報告 payload
+
+`DBService.addWordCountReport` 儲存之 `payload` 在既有 `fileIds`、`result`（合併範圍結果）、`includeLocked` 之外，可含：
+
+- **`viewUnitIds`**：句段集模式時各集 `id` 陣列（檔案模式可為空陣列）。  
+- **`perUnitResults`**：分項陣列 `{ label, result }[]`；無分項時為 `null` 或省略語意與舊報告相容。
 
 ---
 
@@ -121,3 +163,4 @@
 | 2026-05-02 | 初稿：納入 Worker、分批限流、載入 UI、切頁即停、單一佇列、切換字數與單列點擊規格。 |
 | 2026-05-02 | 增「決策摘要」：正式採用方案 A、單一佇列；註明程式尚未開工、CODEMAP 已連結。 |
 | 2026-05-02 | 實作補充：進專案／編輯器重置為原始字數；單列重算、全表原始並行；混合時工具列只收斂加權→原始；進度條自訂無延遲提示與游標。 |
+| 2026-05-03 | §3／§7 改為已落地敘述；新增 **§9** 字數分析 Modal（合併／分項、`_wordCountAnalysisViews`、進度列、按鈕鎖定、標註、報告 `viewUnitIds`／`perUnitResults`）。程式追溯：`3850264`。 |

@@ -96,6 +96,7 @@
 
 - 區塊：[`cat-tool/index.html`](../cat-tool/index.html) 內 `#viewProjectDetail`（專案詳細頁）。
 - 在「檔案清單」標題列（約與 `h2`「檔案清單」同一列）旁，新增**並排分頁**：「檔案清單」↔「句段集」。
+- 句段集工具列之 **「分析」** 與檔案清單勾選後之分析，皆開啟同一 **「字數與 TM 加權分析」** Modal（`#wordCountModal`）；勾選**多個**句段集時，合併範圍與各集**分開**分析之語意見 [`CAT_WORD_COUNT_WORKER_AND_UI.md`](CAT_WORD_COUNT_WORKER_AND_UI.md) **§9**。
 - 切換時顯示對應表格區塊；目前 URL 路由若以專案為錨點，可另存 `projectTab=files|views`（實作細節與 `persistCatRoute` 一併評估）。
 
 ### 3.1 譯者（團隊模式）專案與導覽
