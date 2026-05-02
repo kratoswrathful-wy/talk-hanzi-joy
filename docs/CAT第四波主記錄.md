@@ -421,6 +421,7 @@
 | 六項驗收修正 | `16d5cd5` | 進度欄改至名稱下方（字數）；`openEditorWithSegments` 補 `idValue`→`keys`；`renderEditorSegments` 補 `col-source-file` 儲存格；排序改 `filesMap.seqNo`；`ActiveWriteTms`；多處 `!currentFileId`→`!currentFileId && !_currentViewId`。 |
 | 三項根本修正 | **`3eb024a`** | 見 **§八點三**。 |
 | 編輯器字數分析 | **`5706329`** | 編輯器工具列「字數」`#btnEditorWordCount`（內部註記左側）；與專案共用 `#wordCountModal`，`window._wordCountOpenedFrom === 'editor'` 時顯示統計範圍 radio（全文／篩選快照，僅篩選模式可選後者）、隱藏本機報告區；`syncEditorWordCountToolbarBtn`、`syncWordCountEditorScopeRadios`。規格見 [`CAT_WORD_COUNT_WORKER_AND_UI.md`](CAT_WORD_COUNT_WORKER_AND_UI.md) **§9.6**。 |
+| TM 確認寫入離線效能 | **`f9f0b84`** | `_activeTmCacheReadyIds` 標記開檔已載入之寫入 TM；確認寫入時優先自 `ActiveTmCache` 比對，快取未備仍 `getTMSegments`。Dexie **`db.version(21)`**：`tmSegments` 複合索引 `[tmId+sourceText]`。詳見 [`CODEMAP.md`](CODEMAP.md) CAT 表。 |
 
 ### 八點三、本輪三項根本修正（`3eb024a`）
 
