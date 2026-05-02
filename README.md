@@ -1,5 +1,7 @@
 # Welcome to your Lovable project
 
+協作與 AI 助理的行為規範（含 CAT 單一來源、文件索引）見根目錄 [`AGENTS.md`](AGENTS.md)。
+
 ## Project info
 
 **URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID

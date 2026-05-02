@@ -1,5 +1,25 @@
 # 給 AI / 新協作者的捷徑
 
+## 文件索引
+
+### (A) 給 AI／協作者的行為規則
+
+- **本檔** — 對話語言、推送慣例、CAT 單一來源與下列章節。
+- **[`.cursor/rules/`](.cursor/rules/)** — 依你正在編輯的檔案路徑自動套用（例如 [`cat-tool-source.mdc`](.cursor/rules/cat-tool-source.mdc)、[`xliff-tag-export.mdc`](.cursor/rules/xliff-tag-export.mdc)）；預設非全域常駐，觸及對應 glob 時才注入。
+
+### (B) 功能與路徑
+
+- [`docs/HANDOFF.md`](docs/HANDOFF.md) — TMS 本體（React / Vite）、維運邊界
+- [`docs/CODEMAP.md`](docs/CODEMAP.md) — 功能與路徑對照
+- [`cat-tool/README.md`](cat-tool/README.md) — CAT 維護說明（含下拉選單樣式代號 `DD-A / DD-B / DD-C`）
+
+### (C) 領域與深文件（非「Cursor 一律遵守的編輯總規則」）
+
+- [`docs/CAT_VIEW_SPEC.md`](docs/CAT_VIEW_SPEC.md) — 介面用語與檢視行為
+- [`docs/XLIFF_TAG_PIPELINE.md`](docs/XLIFF_TAG_PIPELINE.md) — XLIFF／tag 管線（與 [`xliff-tag-export.mdc`](.cursor/rules/xliff-tag-export.mdc) 呼應）
+- [`docs/DEPLOYMENT_CHECKLIST.md`](docs/DEPLOYMENT_CHECKLIST.md) — 部署檢核
+- [`docs/CAT_AI_GUIDELINES_AND_PROJECT_RULES.md`](docs/CAT_AI_GUIDELINES_AND_PROJECT_RULES.md) — **產品**內 CAT 團隊版「AI 準則」資料與 Supabase 流程；**不是**教編輯器如何改程式的通用規範
+
 ## 回覆與推送慣例
 
 - 永遠使用標準台灣正體中文與使用者對話。
@@ -18,9 +38,3 @@
 ## 在 VS Code / Cursor 裡
 
 - **Command Palette**（`Ctrl+Shift+P` / `Cmd+Shift+P`）→ **Tasks: Run Task** → **「Sync CAT (cat-tool → public/cat)」**（定義在 [`.vscode/tasks.json`](.vscode/tasks.json)）。
-
-## 專案其他文件
-
-- [`docs/HANDOFF.md`](docs/HANDOFF.md) — TMS 本體（React / Vite）
-- [`docs/CODEMAP.md`](docs/CODEMAP.md) — 功能與路徑對照
-- [`cat-tool/README.md`](cat-tool/README.md) — CAT 維護說明（含下拉選單樣式代號 `DD-A / DD-B / DD-C`）
