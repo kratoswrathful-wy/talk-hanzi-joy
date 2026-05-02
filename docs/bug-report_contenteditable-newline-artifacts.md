@@ -1,19 +1,33 @@
 # Bug Report：CAT 譯文欄 contenteditable 換行符號異常
 
-> 調查日期：2026-05-02  
-> 專案：1UP TMS — CAT 工具（`cat-tool/app.js`）  
-> 觸發環境：Chrome／Edge 等 Blink 系瀏覽器；Windows 注音 IME 為主要重現路徑  
-> 調查者：Claude（Cowork）
+> **初稿調查日期**：2026-05-02（問題背景與根因分析）  
+> **實作完成**：2026-05-02；分支 `main`；commit `c4f865d`（訊息：`CAT: 譯文欄換行與貼上—受控 BR、Enter 政策、blur/確認前重建 DOM`）；**手動驗收已由專案擁有者確認通過**  
+> **文件更新**：2026-05-02 — 本版寫入「已落地行為」「實作摘要」「後續可選工作」，並標註初稿中哪些敘述已過時  
 
-本文採雙層結構：**Part 1** 用白話說明，給專案擁有者快速掌握問題與決策點；**Part 2** 為技術細節，供日後維運／AI 接手時查閱。
+專案：1UP TMS — CAT 工具（原始碼 `cat-tool/app.js`，同步至 `public/cat/app.js`；部署前慣例執行 `npm run sync:cat`）。  
+觸發環境：Chrome／Edge 等 Blink 系瀏覽器；Windows 注音 IME 為主要重現路徑。
+
+---
+
+## 文件用途（本版）
+
+本文同時保存：
+
+1. **問題背景與根因**（除錯與教育用，Part 1／Part 2 前段）  
+2. **已定案的產品行為**（Part 1.3）  
+3. **已落地的程式變更摘要**（Part 2.4，與 commit 對齊）  
+4. **後續可選的改進方向**（Part 2.5，非承諾）  
+5. **本聊天／實作追溯**（文末「本聊天／實作紀錄」）
+
+初稿中「僅列方案、尚未改程式」「一句譯文必須單行」等假設**已過時**；請以 **Part 1.3、Part 2.4** 為準。
 
 ---
 
 ## Part 1 — 白話摘要
 
-### 1.1 發生什麼事
+### 1.1 發生什麼事（歷史背景）
 
-在 CAT 工具編輯譯文時，會出現兩種症狀，都跟「莫名出現的換行符號」有關：
+在 CAT 工具編輯譯文時，曾出現與「莫名出現的換行符號」有關的症狀：
 
 | 你做了什麼 | 你看到什麼 |
 |------------|-----------|
@@ -21,321 +35,182 @@
 | 在含有 tag 標籤晶片（藍色／灰色那種小方塊，像 `{1}`、`{/1}`）的譯文裡繼續打字 | 中段或尾端冒出多餘的換行，刪掉後一打字又長回來 |
 | 確認句段、再重新打開 | 換行被永久存進資料庫了，每次打開都還在 |
 
-共同點：你**沒有**主動按 Enter，但編輯器自己生出換行。
+共同點：你**沒有**主動用我們後來約定的「Shift+Enter」插入換行，但編輯器或瀏覽器行為讓內容**看起來像多了一行**。
 
-### 1.2 為什麼會這樣（用比喻）
+### 1.2 為什麼會這樣（比喻）
 
-**核心原因**：瀏覽器（Chrome／Edge）為了讓「可編輯區」能正確顯示游標、能在「不能編輯的東西」旁邊塞字，會**自動**在編輯器裡放一些隱形的版面用換行（叫 `<br>`）。這些換行**不是你打的**，是瀏覽器加的。
+**核心原因**：瀏覽器（Chrome／Edge）為了讓「可編輯區」能顯示游標、在不可編輯的晶片旁塞字，會**自動**在 DOM 裡放版面用換行（`<br>`）或區塊包裝（`<div>…</div>`）。這些結構**不一定代表使用者真的要存進句段的換行字元**。
 
-可是，目前 CAT 工具讀取譯文時，**只要看到換行就一律當作你打的**，存進資料庫。下次打開時，又把這個換行畫回畫面上，於是就形成一個無止盡的循環：
+舊版讀取譯文時，**幾乎把所有 `<br>` 都當成使用者要的換行**，寫進資料庫；下次載入再畫回來，形成「幽靈結構 → 被當成真換行 → 愈存愈髒」的循環。
 
-> 瀏覽器自己加的「假換行」→ 被存成「真換行」進資料庫 → 下次打開又畫回畫面 → 看起來像是「刪不掉」
+額外因素包含：注音組字期間的裝飾節點觸發 sanitize 路徑、裸 **Enter** 觸發瀏覽器預設插入、以及從外部貼上多行純文字等。
 
-額外的雪上加霜：
-- **注音輸入時**：注音組字過程中，瀏覽器會多加一些臨時的視覺裝飾，組字結束後系統會做一次「整理」，但整理時剛好把瀏覽器的假換行一起鎖進去
-- **單獨按 Enter 沒擋**：雖然你說沒按 Enter，但目前程式碼也沒擋住裸 Enter，未來會變成另一個入口
+### 1.3 已定案的產品行為（實作後）
 
-### 1.3 要怎麼修（白話）
+| 項目 | 行為 |
+|------|------|
+| 譯文可否多行 | **可以**。一句段內允許多行，以符合地址、條列、原文帶換行等情境。 |
+| 單獨 **Enter** | **不插入換行**（攔截預設行為），減少 Blink 插入幽靈 `<br>`／多餘 `div` 的機會。 |
+| **Shift+Enter** | **唯一**鍵盤路徑，在游標處插入**語意換行**：`<br data-cat-nl="1">`，與 `buildTaggedHtml` 由 `\n` 轉出的標記一致，利於抽取與非列印 `↵` 顯示。 |
+| **Ctrl+Enter** | 維持既有：**確認句段**（不變）。 |
+| 從外部貼上 **純文字**（`text/plain`） | 將 `\r\n`、`\n`、`\r` **替換為單一空格**，避免 Word／網頁多行一次貼入弄髒 DOM。 |
+| 從本工具複製、且剪貼簿 **HTML** 含 `class="rt-tag"` | 維持既有：**可保留標籤晶片**（`insertHTML` 路徑）。 |
 
-| 編號 | 一句話說明 | 修了之後會看到什麼變化 |
-|------|----------|---------------------|
-| **修正 A** | 讀譯文時，學會分辨「瀏覽器加的假換行」和「使用者真的要的換行」 | 新打的字不會再被偷塞換行；資料庫不再被污染 |
-| **修正 B** | 在「點到別的地方」或「Ctrl+Enter 確認」時，主動把譯文格的內容「重新整理一次」 | 既有已經被污染的句段，只要重新編輯一次就會自動修好；版面也會更穩定 |
-| **修正 C** | 在譯文格裡，一般 Enter 鍵不再產生換行（Ctrl+Enter 確認句段不變） | 減少未來再產生換行的機會。CAT 一句一行的本意更明確 |
-| **修正 D** | 從外面（Word／網頁）貼上的多行文字，把換行變成空格 | 貼上後不會再把外面的多行帶進譯文格 |
+### 1.4 使用者可感受到的修復效果
 
-修正 A 與 B 必須一起做，否則：
-- 只做 A：不再「新增」假換行，但**舊資料**裡已經有的換行還是會冒出來
-- 只做 B：每次重整都救一筆舊的，但新打的字還是會繼續被污染
+- 「沒要換行卻多一行」「刪了又長回來」應**大幅減少**：抽取時會略過常見**幽靈** `<br>`，且失焦寫庫前、以及確認前會用乾淨的 `buildTaggedHtml` **重建**編輯器 DOM。  
+- **需要換行**時請用 **Shift+Enter**。  
+- 從記事本等貼上的**多行**純文字會變成**一行**（換行變空格）。
 
-### 1.4 你需要決定的事
+### 1.5 舊版文件中的「待決策」說明（已結案）
 
-1. **是否完全禁止在譯文格裡按 Enter 換行？**  
-   預設建議：**禁止**。CAT 工具的語意通常是「一個句段就是一行譯文」，硬換行很少見。  
-   例外：地址、詩歌、條列。如果這類內容很常見、且原文本來就有換行，可改為「Shift+Enter 才允許硬換行」。
-
-2. **從外面貼上多行文字時，怎麼處理？**  
-   預設建議：**換行轉成空格**。  
-   例外：如果偶爾要把整段帶換行的譯文一次貼進去，再考慮是否要保留換行，這需要與第 1 項一起想。
-
-3. **是否現在就修？**  
-   本文件**只記錄問題與方案**，沒有改任何程式碼。如果決定要修，請另外指示「依本文件 Fix A+B（必選）／C／D 進行修正」，我會切到 Agent 模式實作。
+初稿曾請產品決定：是否完全禁止 Enter 換行、貼上是否保留換行。**已定案**如上表（允許多行；有意換行用 Shift+Enter；純文字貼上換行變空格）。本節僅供追溯對話脈絡。
 
 ---
 
 ## Part 2 — 技術細節
 
-### 2.1 症狀表
+### 2.1 症狀表（與 1.1 對照；除錯參考）
 
 | 操作 | 結果 |
 |------|------|
-| 清空譯文（按「清除譯文」按鈕或全選後刪除）後，立即在該句段以注音 IME 輸入 | 譯文最前面出現一個無形的換行符號（顯示非列印字元模式可見 `↵`），後續輸入卡頓、字元位置不一致 |
-| 在已有少量譯文內容的句段繼續打字（特別是含 tag 晶片 `{1}`／`{/1}` 的句段） | 編輯器中段或尾端出現多餘的 `<br>`；按 Backspace 刪不掉，刪掉後一打字又冒出來 |
-| 將上述狀態的句段確認後重新開啟 | 多餘換行被永久寫入資料庫的 `target_text`，每次重新載入都會以 `<br>` 形式還原到畫面 |
+| 清空譯文後立即以注音 IME 輸入 | 譯文最前面出現無形換行（非列印模式可見 `↵`），字元位置與預期不符 |
+| 在含 `{1}`／`{/1}` 等 tag 晶片的譯文繼續打字 | DOM 出現多餘 `<br>` 或區塊包裝；難以用一般刪除清乾淨 |
+| 將上述狀態確認後重開 | 多餘換行寫入 `target_text`，載入後由 `buildTaggedHtml` 還原為 `<br>` |
 
-兩個症狀共同的特徵：使用者**沒有按 Enter 鍵**，但編輯器內部 DOM 卻出現了 `<br>` 節點，並透過 `extractTextFromEditor` 被誤讀為 `\n`，最後寫入資料庫，下次載入再透過 `buildTaggedHtml` 還原為 `<br>`，形成自我強化的循環。
+共同機制：Blink 自動 DOM 與 `extractTextFromEditor` 線性化不一致時，`\n` 被寫入狀態與資料庫，形成自我強化迴圈。
 
-### 2.2 根本原因
+### 2.2 根本原因（摘要）
 
-問題由四個層面交互造成。主因為瀏覽器層 + 解析層的不對齊。
+仍適用初稿結論，要點如下（不重複貼會過期的行號片段；請在 repo 內搜尋符號名稱）：
 
-#### 主因 A：Chrome／Blink 在 contenteditable 內自動插入 `<div>...<br>` 結構
+1. **Blink**：在空白 `contenteditable`、或在 `contenteditable="false"` 的 tag 晶片附近輸入時，自動插入占位 `<br>` 或 `<div>…<br>` 包裝。  
+2. **舊版抽取**：對 `<br>` 一律對應 `\n`，且對根層多個 `div` 兄弟未與「區塊間換行」對齊，與實際儲存字串語意不一致。  
+3. **sanitize 路徑**：`compositionend` 後若偵測到裝飾 junk，會以 `extractTextFromEditor` 結果重建；若抽取已含幽靈換行，會一併固化。  
+4. **裸 Enter**：舊版未攔截，瀏覽器預設可插入 `<br>`／`div`。
 
-譯文欄的 DOM 是：
+譯文欄 DOM 類別為 `.rt-editor.grid-textarea`，於建立網格列時掛上 `paste`／`input`／`blur`／`keydown` 等（見 `cat-tool/app.js` 內建立 `.grid-data-row` 的區塊）。
 
-```15073:15073:cat-tool/app.js
-                <div class="rt-editor grid-textarea" contenteditable="${effectiveLocked ? 'false' : 'true'}" spellcheck="false">${targetHtml}</div>
-```
-
-Chrome／Edge 的 contenteditable 引擎在以下兩個情境會**自動修改 DOM**，這些修改不會觸發任何使用者層級的 keydown／beforeinput 事件被現有程式碼攔截：
-
-1. **空白編輯器初次取得焦點**：Blink 會自動補一個 `<br>` 作為「行佔位符」，否則 `<div contenteditable>` 在沒有任何子節點時無法正確顯示游標。
-2. **在 `contenteditable="false"` 的內嵌節點（即 rt-tag 晶片）旁邊鍵入內容**：Blink 不會把新文字直接插入為 sibling text node，而是會把新內容包進一個 `<div>`，並在 `<div>` 結尾放一個 `<br>`（規格層面這是「強制斷行的 wrapper」）。
-
-`buildTaggedHtml` 為含 tag 的譯文產出大量 `contenteditable="false"` 的 span：
-
-```14334:14338:cat-tool/app.js
-                html += `<span class="${cls}" data-ph="${escapeHtml(tag.ph)}"${pairAttr} contenteditable="false">`;
-                if (tag.type === 'close') {
-                    html += '<span class="tag-e-pad" aria-hidden="true">\u00A0\u00A0</span>';
-                    html += `<span class="tag-content">${escapeHtml(tag.display)}</span>`;
-                    html += `<span class="tag-num">${tag.num}</span>`;
-```
-
-這正好觸發 Blink 的 `<div>...<br>` 包裝路徑，所以**愈是含 tag 的句段，這個問題愈嚴重**。
-
-#### 次因 B：`extractTextFromEditor` 把 `<div>` 內的尾端 `<br>` 誤讀為 `\n`
-
-```14382:14398:cat-tool/app.js
-    function extractTextFromEditor(editorDiv) {
-        let text = '';
-        for (const node of editorDiv.childNodes) {
-            if (node.nodeType === 3) {
-                text += node.nodeValue;
-            } else if (node.nodeType === 1) {
-                if (node.classList && node.classList.contains('non-print-marker')) {
-                    if (node.classList.contains('np-inline-char')) text += extractTextFromEditor(node);
-                    continue;
-                }
-                if (node.tagName === 'BR') {
-                    text += '\n';
-                } else if (node.classList && node.classList.contains('rt-tag')) {
-                    text += node.getAttribute('data-ph') || '';
-                } else {
-                    text += extractTextFromEditor(node);
-                }
-            }
-```
-
-當 Chrome 自動建立 `<div>新文字<br></div>` 時，外層 else 分支對 `<div>` 做遞迴處理，回傳 `"新文字\n"`。這個 `\n` 被當成「使用者輸入的真實換行」寫進 `seg.targetText` 與資料庫。
-
-下次渲染時 `buildTaggedHtml` 把 `\n` 還原為 `<br>`：
-
-```14318:14321:cat-tool/app.js
-    function buildTaggedHtml(text, tags, isSource) {
-        if (!text) return '';
-        if (!tags || !tags.length) {
-            return escapeHtml(text).replace(/\n/g, '<br>');
-        }
-```
-
-```14344:14346:cat-tool/app.js
-            } else {
-                html += escapeHtml(part).replace(/\n/g, '<br>');
-            }
-```
-
-形成「Blink 自動 `<br>` → 寫成 `\n` → 重新渲染回 `<br>`」的封閉循環，使用者按 Backspace 也只能刪除文字，無法清掉 Blink 強制重建的 `<br>`。
-
-#### 次因 C：空編輯器 + IME 組字後，ghost `<br>` 被 sanitizer 一併固化
-
-清空句段後，Blink 在編輯器初次取得焦點時插入空 `<br>` placeholder。使用者用注音輸入時，IME 組字過程中 Blink 會額外建立一個帶 inline `style` 的 `<span>` 用來顯示組字底線：
-
-```1291:1300:cat-tool/app.js
-    function targetEditorHasDecorativeInlineJunk(el) {
-        if (!el || el.nodeType !== 1) return false;
-        if (el.querySelector('font')) return true;
-        for (const s of el.querySelectorAll('span[style]')) {
-            if (s.closest('.rt-tag')) continue;
-            const st = (s.getAttribute('style') || '').toLowerCase();
-            if (/\bcolor\s*:/.test(st)) return true;
-        }
-        return false;
-    }
-```
-
-`compositionend` 時 `sanitizeTargetEditorInlineArtifacts` 偵測到這個 inline span，於是觸發以「`extractTextFromEditor` 結果重建編輯器」的 sanitize 動作：
-
-```1307:1340:cat-tool/app.js
-    function sanitizeTargetEditorInlineArtifacts(editor, seg, row, opts = {}) {
-        const restoreFocus = opts.restoreFocus !== false;
-        if (!editor || editor.contentEditable === 'false') return false;
-        if (!targetEditorHasDecorativeInlineJunk(editor)) return false;
-        const plain = extractTextFromEditor(editor);
-        let off = null;
-        try {
-            const sel = window.getSelection();
-            if (sel && sel.rangeCount && editor.contains(sel.anchorNode)) off = getNpCaretOffset(editor);
-        } catch (_) {}
-        setEditorHtml(editor, buildTaggedHtml(plain, effectiveTags(seg)));
-```
-
-關鍵在 `extractTextFromEditor` 此時已包含 placeholder `<br>` 帶來的 `\n`，於是「使用者第一次打字」就被永久寫死成 `"\n你打的字"`。
-
-#### 次因 D：裸 Enter 鍵未被攔截
-
-`targetInput` 的 keydown 監聽器（[`cat-tool/app.js`](../cat-tool/app.js) 第 15611 行起）只攔截：
-
-- `Backspace` / `Delete`（且僅在非列印字元模式下處理特殊鄰接情形）
-- 方向鍵
-- `Ctrl+Enter`（見第 15839 行）
-
-```15839:15840:cat-tool/app.js
-                    if (e.ctrlKey && e.key === 'Enter') {
-                        e.preventDefault();
-```
-
-**完全沒有攔截裸 `Enter` 鍵**。當使用者誤按 Enter（或某些 IME 在送出候選字時夾帶 Enter）時，瀏覽器預設行為直接在游標位置插入 `<br>` 或新建 `<div>`。儘管使用者主訴並非自己按 Enter，這仍是擴大攻擊面的次要漏洞，建議一併補上以收窄編輯器可能進入的異常狀態。
-
-### 2.3 資料流
+### 2.3 資料流（問題迴圈示意）
 
 ```mermaid
 flowchart TD
-    A["使用者在含 tag 的譯文欄打字"] --> B["Blink contenteditable 引擎接管輸入"]
-    B --> C{"游標旁是否為 contenteditable=false 節點?"}
-    C -->|否| D["插入 text node（正常）"]
-    C -->|是| E["自動建立 div + 文字 + br 包裝"]
-    E --> F["DOM: ...rt-tag... + div(text + br)"]
-    F --> G["input event 觸發"]
-    G --> H["extractTextFromEditor 遞迴展開 div"]
-    H --> I["BR 分支命中，回傳 text + \\n"]
-    I --> J["seg.targetText = text + \\n"]
-    J --> K["debounce 寫入 DB"]
-    K --> L["下次載入 buildTaggedHtml"]
-    L --> M["\\n 還原為 br，畫面再次出現換行符號"]
-    M --> A
-
-    P["清空後第一次以 IME 打字"] --> Q["Blink 補 ghost br + 組字 span"]
-    Q --> R["compositionend 觸發 sanitize"]
-    R --> H
+    A["使用者在含 tag 的譯文欄打字"] --> B["Blink 自動改寫 DOM"]
+    B --> C["input / compositionend"]
+    C --> D["extractTextFromEditor"]
+    D --> E["seg.targetText 含誤判 \\n"]
+    E --> F["debounce 或 blur 寫庫"]
+    F --> G["buildTaggedHtml 還原 <br>"]
+    G --> A
 ```
 
-清空場景與打字場景最終都收束到「`extractTextFromEditor` 把 Blink 自動加的 `<br>` 誤讀為 `\n`」。
+實作後在 **D** 與 **G** 兩端加上幽靈判斷、受控 `<br data-cat-nl="1">`、以及失焦／確認前 **rebuild**，以打斷迴圈。
 
-### 2.4 修正建議
+### 2.4 已實作（與 `c4f865d` 對齊）
 
-修正分四個層面，互相獨立但建議一起套用，才能完整阻斷上述循環。
+以下為行為規格；行號會隨檔案變動，請以符號名稱在 `cat-tool/app.js` 搜尋。
 
-#### Fix A（核心）：`extractTextFromEditor` 區分使用者換行 vs Blink 佔位 br
+#### Fix A — 線性化與幽靈 BR
 
-**位置：** [`cat-tool/app.js`](../cat-tool/app.js) 第 14382–14398 行  
-**動作：** 在 BR 分支加入「該 BR 是否為塊元素的尾端孤立佔位符」判斷；若是則跳過。
+- **`isGhostBr(br, root)`**  
+  - 若 `br` 帶 `data-cat-nl="1"` → **一律視為真換行**（非幽靈）。  
+  - 若為編輯器根節點**僅有的單一子節點**且為 `BR` → 視為幽靈（常見空編輯器占位）。  
+  - 若父節點為根節點的**直接子** `DIV`，且該 `div` 內**僅一個**子節點且為 `BR` → 視為幽靈（常見空區塊占位）。  
+  - 其餘裸 `BR` 仍輸出 `\n`（相容舊 DOM／舊儲存資料）。
 
-判斷準則：
+- **`extractSubtree(node, root)`**  
+  遞迴：`TEXT` 累加；`non-print-marker` 略過（`np-inline-char` 內再遞迴）；`BR` 依 `isGhostBr`；`rt-tag` 取 `data-ph`；其餘元素遞迴子節點。
 
-- BR 位於非頂層的 `<div>` 中、且為該 div 的最後一個 element child
-- 或者 BR 為頂層的最後一個 element child、且整個編輯器只有這一個 BR、文字也為空（清空後的 ghost）
+- **`extractTextFromEditor(editorDiv)`**  
+  對**根層**子節點逐一處理：當索引大於 0 且當前節點為 **`DIV`** 時，先插入 `\n`（對齊 Blink 以 sibling `div` 表達的區塊邊界），再累加 `extractSubtree`。整段邏輯須與 **`getRtEditorTextSegmentsForHighlightMap`** 一致，否則搜尋高亮長度會與 `extractTextFromEditor` 字串長度不符。
 
-實作示意（保留現有結構）：
+#### Fix B — 失焦／確認前正規化（rebuild）
 
-```js
-if (node.tagName === 'BR') {
-    const parent = node.parentNode;
-    const isPlaceholderInBlock =
-        parent && parent !== editorDiv &&
-        parent.tagName === 'DIV' &&
-        node === parent.lastElementChild;
-    const isLoneGhost =
-        parent === editorDiv &&
-        editorDiv.childNodes.length === 1 &&
-        text === '';
-    if (!isPlaceholderInBlock && !isLoneGhost) {
-        text += '\n';
-    }
-    continue;
-}
-```
+- **`rebuildTargetEditorFromExtractedPlain(editor, seg, row)`**  
+  `plain = extractTextFromEditor(editor)` → `setEditorHtml(editor, buildTaggedHtml(plain, effectiveTags(seg)))` → 若有 `row` 則 `updateTagColors(row, plain)` → 回傳 `plain`。
 
-同時，原本對 `<div>` 走遞迴的 else 分支應改為「先補一個 `\n`（如果不是第一個塊節點），再遞迴」——只有當 `<div>` 是 Blink 為了包裝新輸入而生成的中段 wrapper 時，這個 `\n` 才會出現；經過上述 BR 判斷後就不會重複加。
+- **呼叫時機**  
+  - 譯文欄 **`blur`**：`sanitizeTargetEditorInlineArtifacts` **之後**，以 rebuild 產出之 `plain` 作為寫庫與 undo 快照依據。  
+  - **`Ctrl+Enter`** 確認流程：在讀取／寫入目標文字前呼叫 rebuild。  
+  - **點狀態圖示確認**（有聚焦之 `targetTa` 時）：同樣 rebuild。  
 
-#### Fix B：normalizeBrowserBlockArtifacts() — 失焦／確認前主動清理
+- **未**在一般 `input` debounce 或每次鍵入強制 rebuild（避免 IME 與效能問題）。`compositionend` 仍主要依 **`sanitizeTargetEditorInlineArtifacts`** 處理裝飾 junk，與初稿設計一致。
 
-**位置：** [`cat-tool/app.js`](../cat-tool/app.js) 第 1307 行附近，與 `sanitizeTargetEditorInlineArtifacts` 並列  
-**動作：** 新增一個函式 `normalizeBrowserBlockArtifacts(editor, seg, row)`，在以下時機呼叫一次：
+#### Fix C — 鍵盤
 
-- `compositionend` 結束時
-- `blur` 寫庫前
-- `Ctrl+Enter` 確認流程開頭（[`cat-tool/app.js`](../cat-tool/app.js) 第 15839 行 `e.ctrlKey && e.key === 'Enter'` 分支內，現有 `extractTextFromEditor` 之前）
+- **`keydown`**：`Enter` 且未按 `Ctrl`／`Meta` 時，若 `e.isComposing` 則不攔截；否則 **`preventDefault`**；若同時按 **`Shift`** 則呼叫 **`insertCatControlledNewline`**（建立 `br[data-cat-nl="1"]`、調整選區、`dispatchEvent('input')`）。  
+- **`Ctrl+Enter`** 分支維持既有確認邏輯。
 
-行為：以 Fix A 後的 `extractTextFromEditor` 取得乾淨純文字，重建 innerHTML（透過 `setEditorHtml` + `buildTaggedHtml`），讓 DOM 結構回到「平面 text node + rt-tag span + 必要 BR」的正規狀態，徹底移除 Blink 自動建立的 `<div>` 與孤立 `<br>`。
+#### Fix D — 貼上
 
-#### Fix C：攔截裸 Enter 鍵
+- **`paste`**：`text/plain` 先 **`plain.replace(/\r\n|\n|\r/g, ' ')`** 再以 `insertText` 插入。
 
-**位置：** [`cat-tool/app.js`](../cat-tool/app.js) 第 15611 行 keydown handler 開頭  
-**動作：** 在所有現有條件之前加入：
+#### `buildTaggedHtml`／`htmlForTmPlainWithPlaceholders`
 
-```js
-if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
-    e.preventDefault();
-    return;
-}
-```
+- 將 `\n` 轉為 **`<br data-cat-nl="1">`**（取代舊版裸 `<br>`），與 Shift+Enter 插入一致，利於幽靈與語意換行分流。
 
-決策提醒：**句段內是否允許多行**為產品決策。若 CAT 模型上「一句譯文 = 一行」是硬規則（與大多數 CAT 工具一致），則這個攔截沒有負面影響。若未來要支援硬換行（例如詩歌、地址），可改為「Shift+Enter 才插入受控的 `<br>`、其餘 Enter 仍攔截」。預設建議全攔截。
+#### 搜尋高亮、字數、非列印游標
 
-#### Fix D：paste handler 清理多行純文字
+- **`getRtEditorTextSegmentsForHighlightMap`**：與 extract 相同之根層 DIV 前綴；幽靈 BR 不佔位；必要時建立 **`type: 'nl'`、`synthetic: true`** 區段以對齊「根層 div 之間的虛擬換行」長度（該類區段可能無 DOM 節點可供套 `<mark>`）。  
+- **`countEditorChars`**：改為 **`extractTextFromEditor(editorEl).length`**。  
+- **`getNpCaretOffset`／`setNpCaretOffset`**：遇 `BR` 時若 **`isGhostBr`** 則不計入字元偏移。
 
-**位置：** [`cat-tool/app.js`](../cat-tool/app.js) 第 15589 行附近的 paste 監聽器  
-**動作：** 對 `text/plain` 來源額外做換行處理：
+### 2.5 未來可進一步修改（非承諾）
 
-```js
-const plain = cd.getData('text/plain');
-if (plain) {
-    const cleaned = plain.replace(/\r\n?|\n/g, ' '); // 或保留為空格、依產品決策
-    document.execCommand('insertText', false, cleaned);
-}
-```
+1. **游標與線性化完全一致**  
+   非列印模式仍用 `TreeWalker` 近似計算 offset；若仍存在「僅根層 sibling `div`、中間無真實 `BR`」等邊界，理論上可能與 `extractTextFromEditor` 的虛擬 `\n` 不完全一致。若收到回報，可改為與 extract **共用單一走訪器**計算 caret offset。
 
-理由與 Fix C 同：預設模型為單行譯文。若產品保留多行，可改成把 `\n` 直接插入並讓 Fix A 機制保留為合法的 BR（而非 div 包裝）。
+2. **擴充幽靈 BR 規則**  
+   若實務上出現誤判（該保留的換行被吃掉，或幽靈仍寫入），可擴充 `isGhostBr` 或針對特定 Chrome 版本做補丁。
 
-### 2.5 修改優先順序
+3. **貼上政策微調**  
+   目前為「換行 → 單一空格」。可選：改為**直接刪除換行不留空白**、或對 **HTML 貼上**另做除格式（需產品決策與迴歸測試）。
 
-| 優先 | Fix | 說明 |
-|------|-----|------|
-| 立即 | **Fix A** | 直接解決「Blink 加的 BR 被當成換行寫入 DB」核心 bug，無此修正其他都治標 |
-| 立即 | **Fix B** | 在進 DB 與離開焦點時主動正規化，徹底切斷循環 |
-| 建議 | **Fix C** | 收窄編輯器可能進入異常狀態的入口（含部分 IME 送出 Enter 的情境） |
-| 建議 | **Fix D** | 防止使用者貼上多行外部文字後也踩到同一條路徑 |
+4. **搜尋高亮與 `nl` synthetic**  
+   若搜尋條件命中「僅落在 synthetic 換行位置」的字元，現況可能無法在 DOM 上套色；若產品需要，可再設計對應策略（例如鄰近文字節點範圍或特殊占位）。
 
-Fix A + Fix B 必須同時上線，否則 Fix A 只能阻止「新寫入」，DB 中既有的 `\n` 仍會在每次載入 → 編輯 → 寫回時被再次翻動。
+5. **打字中即時 canonicalize**  
+   目前刻意不在每次 debounce **強制**整段 `innerHTML` 重建；若未來要「邊打邊洗 DOM」，需重新評估 IME、效能與與協作／undo 的互動。
 
-### 2.6 驗收方式
+6. **本文件內歷史 code 引用**  
+   初稿中的行號與程式片段僅供理解問題年代；**維運時請以 repo 現況為準**。
 
-套用 Fix A + B + C 後：
+### 2.6 驗收方式（實作後）
 
-1. **清空後輸入**：開啟任一句段 → 工具列點「清除譯文」→ 立即用注音 IME 在該句段打 `測試` → 失焦／確認 → 重開該句段。預期：`target_text` 為 `測試`，無前置 `\n`；非列印字元模式不顯示 `↵`。
-2. **含 tag 句段繼續打字**：開啟一個含 `{1}`／`{/1}` 的句段 → 在 tag 之間任何位置打字 50 字以上 → 反覆失焦／重新對焦 → 確認。預期：DB 的 `target_text` 完全不含 `\n`；非列印字元模式不出現 `↵`。
-3. **裸 Enter 不換行**：在譯文欄按 Enter（單獨）。預期：完全沒有反應（不換行、不確認）。`Ctrl+Enter` 仍照常確認。
-4. **既有受污染句段自癒**：開啟先前已被寫入 `\n` 的句段 → 任意點擊一下進入編輯狀態（不打字）→ 失焦。預期：Fix B 在 blur 時呼叫 `normalizeBrowserBlockArtifacts`，將 `\n` 與多餘 BR 一併清掉並寫回 DB。
+1. **清空後 IME 輸入**：清除譯文 → 立即用注音輸入數字或短詞 → 失焦或確認 → 重開。預期：`target_text` **無**前導幽靈換行；非列印模式不應無故出現前導 `↵`。  
+2. **含 tag 句段長打**：在 `{1}`／`{/1}` 間與周邊連續輸入 → 多次失焦／確認。預期：不應因 Blink 自動包裝而**累積**無意義 `\n`（有意換行須為 Shift+Enter）。  
+3. **Enter**：單按 Enter 不應插入新行。  
+4. **Shift+Enter**：應插入可持久化的換行；重載後仍在。  
+5. **Ctrl+Enter**：仍確認句段。  
+6. **純文字多行貼上**：應合併為單行（空白取代換行）。  
+7. **搜尋**：`getRtEditorTextSegmentsForHighlightMap` 的 `totalLen` 應與用於比對的扁平字串長度一致（主控台不應出現「字元索引長度與內文不符」之類警告）。
 
-### 2.7 相關程式碼位置
+### 2.7 相關程式碼位置（以符號為準）
 
-| 內容 | 檔案 | 行號 |
-|------|------|------|
-| 譯文欄 DOM 模板（含 contenteditable） | [`cat-tool/app.js`](../cat-tool/app.js) | 15073 |
-| `buildTaggedHtml`（`\n` → `<br>`） | [`cat-tool/app.js`](../cat-tool/app.js) | 14318–14349 |
-| `extractTextFromEditor`（核心問題點，BR 處理） | [`cat-tool/app.js`](../cat-tool/app.js) | 14382–14398 |
-| `setEditorHtml` | [`cat-tool/app.js`](../cat-tool/app.js) | 1346–1354 |
-| `targetEditorHasDecorativeInlineJunk` | [`cat-tool/app.js`](../cat-tool/app.js) | 1291–1300 |
-| `sanitizeTargetEditorInlineArtifacts` | [`cat-tool/app.js`](../cat-tool/app.js) | 1307–1340 |
-| `targetInput` keydown handler 開頭 | [`cat-tool/app.js`](../cat-tool/app.js) | 15611 |
-| `Ctrl+Enter` 分支（已有攔截） | [`cat-tool/app.js`](../cat-tool/app.js) | 15839 |
-| paste handler | [`cat-tool/app.js`](../cat-tool/app.js) | 約 15589 |
-| `applySegmentTextOp`（清空譯文） | [`cat-tool/app.js`](../cat-tool/app.js) | 982–1013 |
+| 內容 | 檔案 | 符號／區塊 |
+|------|------|------------|
+| 語意換行輸出 | `cat-tool/app.js` | `buildTaggedHtml`、`htmlForTmPlainWithPlaceholders` |
+| 幽靈 BR、抽取、重建、Shift+Enter | `cat-tool/app.js` | `isGhostBr`、`extractSubtree`、`extractTextFromEditor`、`rebuildTargetEditorFromExtractedPlain`、`insertCatControlledNewline` |
+| 高亮與字數 | `cat-tool/app.js` | `getRtEditorTextSegmentsForHighlightMap`、`countEditorChars`、`applyRtEditorSearchHighlights` |
+| 非列印游標 | `cat-tool/app.js` | `getNpCaretOffset`、`setNpCaretOffset` |
+| 譯文欄事件 | `cat-tool/app.js` | 建立 `.grid-data-row` 時對 `.grid-textarea` 綁定之 `paste`、`blur`、`keydown`（含 Ctrl+Enter） |
+| 靜態同步 | 專案根 | `npm run sync:cat` → `scripts/sync-cat.mjs` → `public/cat/` |
 
-### 2.8 調查與決策記錄
+### 2.8 調查與決策記錄（精簡）
 
-- 第一輪假設「使用者誤按 Enter」→ 由使用者在對話中明確排除（「我沒有不小心按到換行」）
-- 第二輪轉向 contenteditable 自動行為層；複查 Blink 在 tag 晶片附近輸入時的 `<div>` 包裝行為，與 `extractTextFromEditor` 對 `<div>` 子樹遞迴 + BR 計為 `\n` 的組合，定位主因
-- Fix A 不能單獨解決：DB 中既有受污染資料只能透過 Fix B 在 blur／確認時主動重建，否則使用者重新編輯時，Fix A 後的 `extractTextFromEditor` 雖然不會「新增」 `\n`，但既有的 `\n` 仍會被 `buildTaggedHtml` 轉成 `<br>` 顯示在畫面上。Fix B 的「重建」會把舊 `\n` 一併清掉
-- Fix C 是否要保留 Shift+Enter：暫定全攔截，理由為 CAT 工具語意層級為「一句段一行譯文」；若產品要支援多行，可後續加白名單
+- 使用者明確排除「自己不小心按 Enter」為唯一原因 → 轉查 Blink 自動 DOM 與抽取邏輯。  
+- 技術上 **Fix A（抽取）與 Fix B（失焦／確認前 rebuild）** 併用，才較能同時處理「新寫入」與「已髒 DOM／舊資料」。  
+- 產品最終：**允許句內多行**；單 Enter 不插行；**Shift+Enter** 為有意換行；純文字貼上之換行改為**空格**。
+
+---
+
+## 本聊天／實作紀錄（供追溯）
+
+| 項目 | 說明 |
+|------|------|
+| 使用者指示 | 驗收成功後，**更新文件**，完整記錄「本聊天為止尚未記錄的修改」以及「未來可能的進一步修改」。 |
+| 程式變更（先前回合已推送） | `cat-tool/app.js`、`public/cat/app.js`；commit **`c4f865d`**（`main`）。 |
+| 本文件變更（本回合） | 重寫為「背景 + 已定案行為 + 實作摘要 + 驗收 + 未來工作 + 聊天追溯」；移除與現況矛盾的「尚未實作」「一律禁止換行」敘述。 |
+| `docs/CODEMAP.md` | 新增一列索引至本文件，方便從專案地圖跳轉。 |
+
+未在本聊天單獨開列、但與同一主題相關的慣例：**修改 `cat-tool/` 後執行 `npm run sync:cat` 並一併提交 `public/cat/`**（見根目錄 `AGENTS.md`）。
