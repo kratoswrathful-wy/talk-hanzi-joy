@@ -500,6 +500,40 @@
 | **Bug B** | `unassignView(a.id \|\| viewId, uid)` 誤傳指派列 id。 | 改為 `unassignView(viewId, uid)`。 |
 | **Bug C** | 存檔後未刷新。 | 句段集模式成功後 `await loadViewsList(currentProjectId)`。 |
 
+### 九點五、匯入後語言對提示與 mqxliff 預設身分（雲端欄位＋專案清單，2026-05-02）
+
+本節記錄 **XLIFF 類**匯入完成後之語言對提示、**memoQ XLIFF（`.mqxliff`）** 預設作業身分在雲端之持久化，以及專案詳情「檔案清單」欄位 UX。亦見 [`docs/CAT_BATCH_IMPORT_WIZARD_SESSION.md`](CAT_BATCH_IMPORT_WIZARD_SESSION.md)（DOM／commit 對照）、[`docs/CODEMAP.md`](CODEMAP.md)、[`docs/HANDOFF.md`](HANDOFF.md)。
+
+#### A. 匯入後語言對不符（不阻擋匯入）
+
+- **Commit `eff9b79`**：原始檔內建語言對與**本次任務**語言對不一致時，於 **`runBatchImport` 全部檔案處理完畢後** 統一提示；**單檔**選取亦走同一批次路徑，故行為一致。提示為頁內原生 **`<dialog>`**（`#batchImportLangMismatchDialog`），**不使用** `window.alert`。
+- **程式錨點**：[`cat-tool/app.js`](../cat-tool/app.js) — `_collectXliffLangMismatchIfAny`、`openBatchImportLangMismatchDialog`；匯入迴圈內收集、`loadFilesList()` 後若有列則 `await` 顯示。
+- **Fallback**：若缺少對應 DOM，改以 `openCatConfirmModal` 純文字多行摘要（維持非 `alert`）。
+
+#### B. 語言對不符視窗：表格呈現（檔名／原語言對）
+
+- **Commit `4afdefe`**：可捲動區改為 **`<table>`**，表頭 **檔名**、**原語言對**；內容列寫入 **`tbody#batchImportLangMismatchList`**，以 `document.createElement` + **`textContent`** 填入儲存格，避免檔名內 HTML 造成 XSS。
+- **DOM**：[`cat-tool/index.html`](../cat-tool/index.html) — `#batchImportLangMismatchDialog`。
+
+#### C. 雲端 `default_mq_role` 與一次性 backfill
+
+- **Commit `0034eb4`**（**`7525ff7`** 為同主題之專案清單欄寬微調）：
+  - **Migration** [`supabase/migrations/20260502160000_cat_files_default_mq_role.sql`](../supabase/migrations/20260502160000_cat_files_default_mq_role.sql)：新增 `public.cat_files.default_mq_role`（`text`，預設 `''`）；並以 **`UPDATE`** 將當時庫內所有檔名結尾為 **`.mqxliff`**（`lower(name)`）之列設為 **`T_ALLOW_R1`**，同時更新 `last_modified`（**一次性**；若他環境另有客製預設身分，套用 migration 前請自行評估）。
+  - **RPC** [`src/lib/cat-cloud-rpc.ts`](../src/lib/cat-cloud-rpc.ts)：`CAT_FILE_LIST_COLUMNS` 納入 `default_mq_role`；`mapFileRow` 映射 **`defaultMqRole`**；`db.updateFile` 支援 `updates.defaultMqRole` → `default_mq_role`。
+- **維運**：其他 Supabase 專案須自行 **`supabase db push`**（若遠端已有較新 migration 而本檔時間戳較早，可能需 **`--include-all`**，以 CLI 提示為準）。Vercel 須部署含新版 **`cat-cloud-rpc`** 之 build，前端才讀寫得到該欄。
+
+#### D. 專案檔案清單「預設身分」欄
+
+- **Commit `4afdefe`**（延續 `0034eb4` 兩行文案設計）：
+  - **`.mqxliff`**：`loadFilesList` 內 **`projectFilesListMqRoleCellHtml`** — 兩行 **左對齊**（第一行 `T` 或單行 `R1`／`R2`；兩種譯者身分第二行為「可編 R1」／「不可編 R1」）；內部值仍為 `T_ALLOW_R1`／`T_DENY_R1`／`R1`／`R2`（舊 `T` 視為 `T_ALLOW_R1`）。
+  - **非 mqxliff**：該欄顯示 **`N/A`**（灰色小字），與 mqxliff 無預設值時之 **`—`** 區分語意。
+
+#### E. 驗收（白話）
+
+1. 匯入與任務語言對不符之 XLIFF／sdlxliff 等 → 匯入完成後出現 **語言對不符** dialog，內為 **兩欄表格**（檔名、原語言對），長清單可捲動；按確定關閉。
+2. **團隊模式**、專案 **檔案清單**：`.mqxliff` 列「預設身分」為兩行左對齊；其餘格式為 **`N/A`**。
+3. 變更 mqxliff 預設身分後重新整理清單，雲端應仍顯示正確（確認 RPC 已部署）。
+
 ---
 
 **上一波**：第三波見 [`docs/CAT第三波主記錄.md`](CAT第三波主記錄.md)。

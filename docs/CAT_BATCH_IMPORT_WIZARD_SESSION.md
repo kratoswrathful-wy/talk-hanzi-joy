@@ -51,6 +51,7 @@
 | `#wizardStepBatchMq` | 批次 mqxliff 角色表（動態填入） |
 | `#wizardStepBatchExcel` | 批次 Excel 欄位設定 UI（動態填入）；內含 `#batchExcelSameCfg`、`#btnBatchExcelGlobalCfg`、`#spanBatchExcelGlobalStatus`、`#btnBatchExcelCancel`、`#btnBatchExcelStart`、各列 `#batchExcelStatus-{i}` |
 | `#wizardStepBatchProgress` | 批次匯入進度與摘要 |
+| `#batchImportLangMismatchDialog` | XLIFF 類匯入**全部完成後**：原始檔語言對與任務不符之提示（原生 `<dialog>`）；內嵌 **`#batchImportLangMismatchTaskPair`**、可捲動區 **`table`** + **`tbody#batchImportLangMismatchList`**（表頭：**檔名**、**原語言對**） |
 | `.wizard-step` | `showWizardStep` 以類別切換顯示／隱藏 |
 
 ### 2.2 `app.js` 函式與狀態變數（代表性）
@@ -62,6 +63,7 @@
 | 批次 mqxliff | `showBatchMqRoleModal`（及相關 `_batchMqRoles` 等，依實際宣告為準） |
 | 狀態 | `_batchExcelGlobalCfg`、`_batchExcelConfigs`（`Map`）、`_batchExcelModalExcelFiles`、`_batchExcelDataStore`、`_batchExcelConfigMode`、`_batchExcelConfigTarget`、`_batchExcelGlobalSheetMode` |
 | 匯入 | `runBatchImport`、`_importSingleExcelFile`、`xliffImportCtx({ suppressWizardHide: true })` |
+| 匯入後語言對不符 | `_collectXliffLangMismatchIfAny`（逐檔收集）、`openBatchImportLangMismatchDialog`（`runBatchImport` 收尾、`loadFilesList` 後顯示；無 DOM 時 fallback `openCatConfirmModal`） |
 
 ### 2.3 對照表（摘要）
 
@@ -176,6 +178,13 @@ flowchart TD
 - **Commit**：`9d739b4`；文件 SHA 勘誤見 `b0b54af`。  
 - **驗收狀態**：已驗收（2026-05-01）。
 
+### 5.7 匯入完成後：原始檔語言對與任務不符（`eff9b79`／`4afdefe`）
+
+- **時機**：`runBatchImport` 內每檔 XLIFF 類匯入成功後，以 `_collectXliffLangMismatchIfAny` 比對 `result` 之 `originalSourceLang`／`originalTargetLang` 與使用者選定之任務語言對；**不阻擋匯入**。全部檔案處理完並 `loadFilesList()` 後，若列不空則 **`await openBatchImportLangMismatchDialog(...)`**。
+- **UI**：頁內 **`#batchImportLangMismatchDialog`**（`method="dialog"` 確定鈕）；清單區為**表格**兩欄（**檔名**、**原語言對**），列資料以 DOM `textContent` 寫入（`4afdefe`）。單檔選取亦走同一批次路徑，故與多檔一致。
+- **規格與雲端欄位延伸**（專案清單、mqxliff `default_mq_role` 等）：見 [`CAT第四波主記錄.md`](./CAT第四波主記錄.md) **§九點五**。
+- **驗收**：依 §九點五之驗收條列；本節不另列重複步驟表。
+
 ---
 
 ## 六、手動測試建議（驗收）
@@ -206,6 +215,7 @@ flowchart TD
 - 單一來源與 sync：`AGENTS.md`、`cat-tool/README.md`。  
 - 交接摘要表：`HANDOFF.md`「其他近期落地」（含 `3348922`、`e11bbe0`、`1d82a97`、`9d739b4`、`a594f90` 等；驗收尾款見頂列「（文件）」；SHA 勘誤見 `b0b54af`）。  
 - 功能路徑：`CODEMAP.md`。  
+- **2026-05-02**：匯入後語言對不符 dialog、mqxliff **`default_mq_role`** 與專案清單 UX — [`CAT第四波主記錄.md`](./CAT第四波主記錄.md) **§九點五**。  
 - 介面用語（避免簡中「匹配」等）：`CAT_VIEW_SPEC.md`（該文件內對 TM 否定表述之約定）。
 
 ---
@@ -222,6 +232,10 @@ flowchart TD
 | `6b5e51f` | 文件 | SESSION／HANDOFF 補 `1d82a97` 對照 | 文件 |
 | `72d05e9` | 文件 | HANDOFF 列 `a594f90`；SESSION 修訂對齊 | 文件 |
 | `b0b54af` | 文件 | 更正 `9d739b4` 說明內嵌 SHA（amend 後） | 文件 |
+| `eff9b79` | 程式 | XLIFF 類：匯入**全部完成後**語言對不符以 `<dialog>` 統一提示（批次／單檔）；非 `alert` | 已推送；驗收見 [`CAT第四波主記錄.md`](./CAT第四波主記錄.md) §九點五 |
+| `0034eb4` | 程式 + DB | `cat_files.default_mq_role` migration；`cat-cloud-rpc` 列表／更新映射；專案清單 mqxliff 兩行預設身分；**一次性** UPDATE 全庫 `.mqxliff` → `T_ALLOW_R1` | 已推送；驗收見 §九點五 |
+| `7525ff7` | 程式 | 專案清單「預設身分」欄寬微調（同主題） | 已推送 |
+| `4afdefe` | 程式 | 語言對不符改**表格**（檔名／原語言對）；預設身分欄左對齊；非 mqxliff 顯示 `N/A` | 已推送；驗收見 §九點五 |
 
 驗收尾款之**僅文件**提交與 [`HANDOFF.md`](./HANDOFF.md)「其他近期落地」**頂列**為同一筆；請以 `git log -1 --oneline -- docs/CAT_BATCH_IMPORT_WIZARD_SESSION.md` 為準，勿在表內重複寫入會因 amend 而漂移的 SHA。
 
@@ -239,3 +253,4 @@ flowchart TD
 | 2026-05-01 | `style.css`：主色等按鈕 `:disabled` 反灰與游標；第五節 5.6、驗收步驟 3 補視覺說明（`9d739b4`）；SHA 勘誤 `b0b54af`。 |
 | 2026-05-01 | **驗收尾款**：第五節各小節與第六節手動測試表標註「已驗收」；第一節第 8 點改為「未採納」；第七節第 3 點條列化；新增第九節提交對照表；修訂紀錄改列第十節；HANDOFF「其他近期落地」頂列登記本批僅文件變更（主提交 `dd3a505`）。 |
 | 2026-05-01 | HANDOFF 頂列改「（文件）」標記並補 SESSION 首段說明，避免 amend 後 SHA 內文漂移（`3adad96`）。 |
+| 2026-05-02 | 第五節新增 **5.7**（匯入後語言對不符）；§2.1／§2.2 補 `batchImportLangMismatchDialog` 與 `_collectXliffLangMismatchIfAny`／`openBatchImportLangMismatchDialog`；§八 交叉引用 **CAT第四波主記錄 §九點五**；§九 commit 表追加 `eff9b79`、`0034eb4`、`7525ff7`、`4afdefe`。 |
