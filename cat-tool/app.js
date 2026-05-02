@@ -1104,7 +1104,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 editorGrid.classList.toggle('tags-expanded', tagsExpanded);
                 editorGrid.classList.toggle('tags-collapsed', !tagsExpanded);
             }
-            btnTagCollapse.title = tagsExpanded ? '收起標籤 (Ctrl+Shift+T)' : '展開標籤 (Ctrl+Shift+T)';
+            btnTagCollapse.title = tagsExpanded ? '收起標籤 (Alt+S)' : '展開標籤 (Alt+S)';
         });
     }
 
@@ -10592,8 +10592,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             e.preventDefault();
             runTextOpOnSelection('clear');
         }
-        // Ctrl+Shift+T: 切換標籤展開/收起
-        if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 't') {
+        // Alt+S：切換標籤展開/收起
+        if (!e.ctrlKey && !e.shiftKey && !e.metaKey && e.altKey && e.key.toLowerCase() === 's') {
             e.preventDefault();
             tagsExpanded = !tagsExpanded;
             const editorGrid = document.getElementById('editorGrid');
@@ -10602,7 +10602,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 editorGrid.classList.toggle('tags-collapsed', !tagsExpanded);
             }
             const tagToggleBtn = document.getElementById('btnTagCollapse');
-            if (tagToggleBtn) tagToggleBtn.title = tagsExpanded ? '收起標籤 (Ctrl+Shift+T)' : '展開標籤 (Ctrl+Shift+T)';
+            if (tagToggleBtn) tagToggleBtn.title = tagsExpanded ? '收起標籤 (Alt+S)' : '展開標籤 (Alt+S)';
         }
         if (e.ctrlKey && e.key.toLowerCase() === 'k' && currentFileId) {
             e.preventDefault();
