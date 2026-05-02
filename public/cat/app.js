@@ -4002,6 +4002,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (wcProg) wcProg.textContent = '';
             const wcDisc = document.getElementById('wordCountResultDisclaimer');
             if (wcDisc) wcDisc.classList.add('hidden');
+            window._wordCountOpenedFrom = null;
+            applyWordCountModalUiMode(false);
             await refreshWordCountReportHistory();
             wordCountModal.classList.remove('hidden');
         });
@@ -4485,6 +4487,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             activeView = 'viewEditor';
             persistCatRoute();
+            syncEditorWordCountToolbarBtn();
         } finally {
             hideCatLoadingOverlay();
         }
@@ -5474,6 +5477,90 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (wordCountModal) wordCountModal.classList.add('hidden');
         window._wordCountAnalysisViews = null;
         window._wordCountSegmentOverride = null;
+        window._wordCountOpenedFrom = null;
+        applyWordCountModalUiMode(false);
+    }
+
+    /** @param {boolean} isEditor — 編輯器開啟時隱藏儲存報告、顯示統計範圍 radio */
+    function applyWordCountModalUiMode(isEditor) {
+        const introP = document.getElementById('wordCountIntroProject');
+        const introE = document.getElementById('wordCountIntroEditor');
+        const scopeWrap = document.getElementById('wordCountEditorScopeWrap');
+        const saveBtn = document.getElementById('btnSaveWordCountReport');
+        const reportSec = document.getElementById('wordCountReportSection');
+        if (introP && introE) {
+            introP.classList.toggle('hidden', !!isEditor);
+            introE.classList.toggle('hidden', !isEditor);
+        }
+        if (scopeWrap) scopeWrap.classList.toggle('hidden', !isEditor);
+        if (saveBtn) saveBtn.style.display = isEditor ? 'none' : '';
+        if (reportSec) reportSec.style.display = isEditor ? 'none' : '';
+    }
+
+    function syncWordCountEditorScopeRadios() {
+        if (window._wordCountOpenedFrom !== 'editor') return;
+        const fullEl = document.getElementById('wordCountEditorScopeFull');
+        const filtEl = document.getElementById('wordCountEditorScopeFiltered');
+        const filtLab = document.getElementById('wordCountEditorScopeFilteredLabel');
+        if (!fullEl || !filtEl) return;
+        const inFilter = (typeof sfMode !== 'undefined' && sfMode === 'filter');
+        if (!inFilter) {
+            filtEl.disabled = true;
+            filtEl.checked = false;
+            fullEl.checked = true;
+            if (filtLab) {
+                filtLab.style.opacity = '0.5';
+                filtLab.style.cursor = 'not-allowed';
+                filtLab.title = '請先切換為「篩選」模式，才可統計目前篩選結果。';
+            }
+        } else {
+            filtEl.disabled = false;
+            if (filtLab) {
+                filtLab.style.opacity = '';
+                filtLab.style.cursor = '';
+                filtLab.title = '';
+            }
+        }
+    }
+
+    function syncEditorWordCountToolbarBtn() {
+        const btn = document.getElementById('btnEditorWordCount');
+        if (!btn) return;
+        const ok = activeView === 'viewEditor' && !!currentProjectId && (currentSegmentsList && currentSegmentsList.length > 0);
+        btn.style.display = ok ? '' : 'none';
+    }
+
+    async function openWordCountModalFromEditor() {
+        if (!currentProjectId || !wordCountModal || !wordCountTmCheckboxes) return;
+        if (activeView !== 'viewEditor' || !currentSegmentsList || !currentSegmentsList.length) {
+            alert('目前沒有可統計的句段。');
+            return;
+        }
+        window._wordCountAnalysisViews = null;
+        wordCountSelectedFileIds = [];
+        window._wordCountSegmentOverride = null;
+        window._wordCountOpenedFrom = 'editor';
+        const p = await DBService.getProject(currentProjectId);
+        const readTms = (p && p.readTms) ? p.readTms : [];
+        const allTms = await DBService.getTMs();
+        wordCountTmCheckboxes.innerHTML = readTms.length ? readTms.map((tid) => {
+            const tm = allTms.find((t) => String(t.id) === String(tid));
+            const name = tm ? (tm.name || `TM #${tid}`) : `TM #${tid}`;
+            const safe = String(name).replace(/</g, '&lt;');
+            return `<label style="display:flex; align-items:center; gap:0.35rem; font-size:0.86rem; cursor:pointer;">
+                <input type="checkbox" class="word-count-tm-cb" value="${tid}" checked> ${safe}
+            </label>`;
+        }).join('') : '<span style="color:#64748b; font-size:0.86rem;">專案尚未掛載讀取 TM（仍可依句段與檔內重複分析）</span>';
+        if (wordCountResultBody) wordCountResultBody.innerHTML = '';
+        lastWordCountResult = null;
+        lastWordCountPerUnitResults = null;
+        const wcProg = document.getElementById('wordCountAnalysisProgress');
+        if (wcProg) wcProg.textContent = '';
+        const wcDisc = document.getElementById('wordCountResultDisclaimer');
+        if (wcDisc) wcDisc.classList.add('hidden');
+        applyWordCountModalUiMode(true);
+        syncWordCountEditorScopeRadios();
+        wordCountModal.classList.remove('hidden');
     }
 
     function closeSplitAssignModal() {
@@ -5522,6 +5609,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (wcProg) wcProg.textContent = '';
         const wcDisc = document.getElementById('wordCountResultDisclaimer');
         if (wcDisc) wcDisc.classList.add('hidden');
+        window._wordCountOpenedFrom = null;
+        applyWordCountModalUiMode(false);
         await refreshWordCountReportHistory();
         wordCountModal.classList.remove('hidden');
     }
@@ -5557,13 +5646,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             return `<tr><td colspan="4" style="padding:0.4rem 0.45rem; border:1px solid #e2e8f0; background:${bg}; font-weight:600; font-size:0.82rem; line-height:1.35;">${escCell(title)}</td></tr>`;
         }
 
+        const fromEditor = window._wordCountOpenedFrom === 'editor';
         const fileIds = wordCountSelectedFileIds.slice();
         const viewUnits = (Array.isArray(window._wordCountAnalysisViews) && window._wordCountAnalysisViews.length)
             ? window._wordCountAnalysisViews
             : null;
 
-        if (!WCE || (!fileIds.length && !viewUnits)) {
+        if (!WCE) {
+            alert('字數引擎未載入。');
+            return;
+        }
+        if (!fromEditor && !fileIds.length && !viewUnits) {
             alert('無可分析的檔案。');
+            return;
+        }
+        if (fromEditor && (!currentSegmentsList || !currentSegmentsList.length)) {
+            alert('目前沒有可統計的句段。');
             return;
         }
         if (viewUnits && !viewUnits.some((u) => (u.segmentIds || []).length)) {
@@ -5571,7 +5669,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        const showSplitUi = fileIds.length > 1 || (viewUnits && viewUnits.length > 1);
+        const showSplitUi = !fromEditor && (fileIds.length > 1 || (viewUnits && viewUnits.length > 1));
         if (discEl) {
             if (showSplitUi) discEl.classList.remove('hidden');
             else discEl.classList.add('hidden');
@@ -5584,6 +5682,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             applyWcDiscountsFromInputs();
+
+            let allSegments = [];
+            if (fromEditor) {
+                const radFiltered = document.getElementById('wordCountEditorScopeFiltered');
+                const useFiltered = !!(sfMode === 'filter' && radFiltered && radFiltered.checked && !radFiltered.disabled);
+                if (useFiltered) {
+                    if (sfFilterSnapshotSegIds && sfFilterSnapshotSegIds.size > 0) {
+                        allSegments = currentSegmentsList.filter((s) => sfFilterSnapshotSegIds.has(s.id));
+                    } else {
+                        allSegments = [];
+                    }
+                } else {
+                    allSegments = currentSegmentsList.slice();
+                }
+                if (!allSegments.length) {
+                    alert(useFiltered ? '目前篩選下沒有可統計的句段。' : '目前沒有可統計的句段。');
+                    setProg('');
+                    return;
+                }
+            }
+
             let tmNormList = [];
             if (wordCountTmCheckboxes) {
                 const checked = Array.from(wordCountTmCheckboxes.querySelectorAll('.word-count-tm-cb:checked'));
@@ -5602,28 +5721,30 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
 
-            let allSegments = [];
-            if (viewUnits) {
-                const orderedIds = [];
-                const seen = new Set();
-                viewUnits.forEach((u) => {
-                    (u.segmentIds || []).forEach((id) => {
-                        const k = String(id);
-                        if (seen.has(k)) return;
-                        seen.add(k);
-                        orderedIds.push(id);
+            if (!fromEditor) {
+                if (viewUnits) {
+                    const orderedIds = [];
+                    const seen = new Set();
+                    viewUnits.forEach((u) => {
+                        (u.segmentIds || []).forEach((id) => {
+                            const k = String(id);
+                            if (seen.has(k)) return;
+                            seen.add(k);
+                            orderedIds.push(id);
+                        });
                     });
-                });
-                setProg('載入合併範圍句段…');
-                const fetched = await DBService.getSegmentsByIds(orderedIds);
-                const byId = new Map(fetched.map((s) => [String(s.id), s]));
-                allSegments = orderedIds.map((id) => byId.get(String(id))).filter(Boolean);
-            } else {
-                const n = fileIds.length;
-                for (let i = 0; i < n; i++) {
-                    setProg(`載入檔案句段…（${i + 1}/${n}）`);
-                    const segs = await DBService.getSegmentsByFile(fileIds[i]);
-                    allSegments = allSegments.concat(segs);
+                    setProg('載入合併範圍句段…');
+                    const fetched = await DBService.getSegmentsByIds(orderedIds);
+                    const byId = new Map(fetched.map((s) => [String(s.id), s]));
+                    allSegments = orderedIds.map((id) => byId.get(String(id))).filter(Boolean);
+                } else {
+                    const n = fileIds.length;
+                    allSegments = [];
+                    for (let i = 0; i < n; i++) {
+                        setProg(`載入檔案句段…（${i + 1}/${n}）`);
+                        const segs = await DBService.getSegmentsByFile(fileIds[i]);
+                        allSegments = allSegments.concat(segs);
+                    }
                 }
             }
 
@@ -5645,8 +5766,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
 
-            setProg('合併範圍分析中…');
-            lastWordCountResult = await analyzePayload(allSegments, '合併範圍分析中');
+            setProg(fromEditor ? '統計分析中…' : '合併範圍分析中…');
+            lastWordCountResult = await analyzePayload(allSegments, fromEditor ? '統計分析中' : '合併範圍分析中');
 
             const perUnit = [];
             if (showSplitUi) {
@@ -6168,6 +6289,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (btnRunWordCount) btnRunWordCount.addEventListener('click', () => { runWordCountAnalysis(); });
     if (btnSaveWordCountReport) btnSaveWordCountReport.addEventListener('click', () => { saveWordCountReport(); });
+    {
+        const btnEdWc = document.getElementById('btnEditorWordCount');
+        if (btnEdWc) btnEdWc.addEventListener('click', () => { openWordCountModalFromEditor(); });
+    }
     if (btnCloseSplitAssignModal) btnCloseSplitAssignModal.addEventListener('click', closeSplitAssignModal);
     if (btnCancelSplitAssign) btnCancelSplitAssign.addEventListener('click', closeSplitAssignModal);
     if (splitAssignModal) {
@@ -11154,6 +11279,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 closeInNoteDropdown();
             }
         }
+        syncEditorWordCountToolbarBtn();
     }
 
     async function openEditor(fileId) {
@@ -11506,6 +11632,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         activeView = 'viewEditor';
         persistCatRoute();
+        syncEditorWordCountToolbarBtn();
         } finally {
             hideCatLoadingOverlay();
         }
@@ -11530,6 +11657,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 隱藏句段集專用 checkbox（§12.3）
         const labelSrcFile = document.getElementById('labelToggleSourceFileCol');
         if (labelSrcFile) labelSrcFile.style.display = 'none';
+        const btnEdWc = document.getElementById('btnEditorWordCount');
+        if (btnEdWc) btnEdWc.style.display = 'none';
         sidebar.classList.remove('collapsed');
         await openProjectDetail(currentProjectId);
         persistCatRoute();
@@ -11825,6 +11954,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             sfModeLockInlineMsg.textContent = '';
             sfModeLockInlineMsg.classList.remove('show');
         }
+        syncWordCountEditorScopeRadios();
     }
     function updateQaScopeFilterLockState(forceLocked) {
         const qaScopeCurrentFiltered = document.getElementById('qaScopeCurrentFiltered');
@@ -11874,6 +12004,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             sfModeFilter.classList.add('active');
             sfModeSearch.classList.remove('active');
             scheduleRunSearchAndFilter();
+            syncWordCountEditorScopeRadios();
         }
     });
     /** 切到篩選模式時：複製尋找列內容到剪貼簿，並短暫提示；切到搜尋模式時：聚焦尋找列。 */
@@ -11898,6 +12029,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             sfMode = 'filter';
             sfModeFilter.classList.add('active');
             sfModeSearch.classList.remove('active');
+            syncWordCountEditorScopeRadios();
             return;
         }
         if (sfMode === 'search') { sfModeFilter.click(); return; } // Toggle behavior
@@ -11905,6 +12037,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         scheduleRunSearchAndFilter();
         onSwitchToSearchMode();
         emitCollabFocus('control', 'sfModeSearch');
+        syncWordCountEditorScopeRadios();
     });
     sfModeFilter.addEventListener('click', () => {
         // 進階篩選條件使用中時，維持在「篩選」模式且不做切換邏輯
@@ -11913,6 +12046,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             sfModeFilter.classList.add('active');
             sfModeSearch.classList.remove('active');
             scheduleRunSearchAndFilter();
+            syncWordCountEditorScopeRadios();
             return;
         }
         if (sfMode === 'filter') { sfModeSearch.click(); return; } // Toggle behavior
@@ -11921,6 +12055,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         scheduleRunSearchAndFilter();
         if (wasSearch) onSwitchToFilterMode();
         emitCollabFocus('control', 'sfModeFilter');
+        syncWordCountEditorScopeRadios();
     });
     updateSfModeToggleLockState();
     sfUseRegex.addEventListener('change', (e) => { sfUseRegexChecked = e.target.checked; scheduleRunSearchAndFilter(); });

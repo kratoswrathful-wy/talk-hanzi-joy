@@ -394,6 +394,23 @@ button:disabled { cursor: not-allowed; }
 }
 .btn-sm { padding: 0.4rem 0.8rem; font-size: 0.85rem; }
 
+/* 編輯器工具列：字數（白底黑字） */
+.btn-editor-word-count {
+    box-sizing: border-box;
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    font-family: inherit;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #0f172a;
+}
+.btn-editor-word-count:hover:not(:disabled) {
+    background: #f8fafc;
+    border-color: #94a3b8;
+}
+
 /* Split buttons（提問表單／內部註記） */
 .split-btn-group {
     display: inline-flex;

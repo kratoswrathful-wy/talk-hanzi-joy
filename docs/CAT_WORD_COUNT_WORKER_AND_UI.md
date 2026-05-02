@@ -154,6 +154,12 @@
 - **`viewUnitIds`**：句段集模式時各集 `id` 陣列（檔案模式可為空陣列）。  
 - **`perUnitResults`**：分項陣列 `{ label, result }[]`；無分項時為 `null` 或省略語意與舊報告相容。
 
+### 9.6 編輯器入口（`#btnEditorWordCount`）
+
+- 編輯器工具列「**字數**」在 `currentProjectId` 且有 `currentSegmentsList` 時顯示；開啟時設 `window._wordCountOpenedFrom === 'editor'`，句段取自編輯器記憶體（不經檔案清單／句段集陣列）。  
+- **統計範圍**（`#wordCountEditorScopeWrap`，置於「納入鎖定句段」右側）：**統計全文**／**統計現在篩選結果**互斥；僅在 **`sfMode === 'filter'`（篩選模式）** 時可選第二項，否則第二項反灰並強制「全文」。篩選結果句段集合為 `sfFilterSnapshotSegIds` 與 `currentSegmentsList` 之交集。  
+- 編輯器開啟時**隱藏**「儲存本次報告」與「報告紀錄（本機）」區塊（不寫入本機報告）。關閉 Modal 時 `applyWordCountModalUiMode(false)` 還原專案模式 UI。
+
 ---
 
 ## 修訂紀錄
@@ -163,4 +169,4 @@
 | 2026-05-02 | 初稿：納入 Worker、分批限流、載入 UI、切頁即停、單一佇列、切換字數與單列點擊規格。 |
 | 2026-05-02 | 增「決策摘要」：正式採用方案 A、單一佇列；註明程式尚未開工、CODEMAP 已連結。 |
 | 2026-05-02 | 實作補充：進專案／編輯器重置為原始字數；單列重算、全表原始並行；混合時工具列只收斂加權→原始；進度條自訂無延遲提示與游標。 |
-| 2026-05-03 | §3／§7 改為已落地敘述；新增 **§9** 字數分析 Modal（合併／分項、`_wordCountAnalysisViews`、進度列、按鈕鎖定、標註、報告 `viewUnitIds`／`perUnitResults`）。程式追溯：`3850264`。 |
+| 2026-05-03 | §3／§7 已落地；**§9** 字數 Modal（合併／分項、進度、報告 payload，`3850264`）；**§9.6** 編輯器「字數」、篩選模式二選一、不儲存報告。 |

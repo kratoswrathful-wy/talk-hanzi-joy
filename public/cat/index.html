@@ -670,6 +670,7 @@
                             <input type="checkbox" id="chkShowSourceFileCol" checked> 顯示所屬檔案
                         </label>
                         <div style="flex:1;"></div>
+                        <button type="button" id="btnEditorWordCount" class="btn-sm btn-editor-word-count" style="display:none;">字數</button>
                         <button id="btnGsSourceLink" class="secondary-btn btn-sm" style="display:none;">原檔連結</button>
                         <div class="split-btn-group" id="inNoteGroup" style="display:none;">
                             <button type="button" id="btnInternalNoteMain" class="danger-btn btn-sm split-btn-main">內部註記</button>
@@ -2041,14 +2042,28 @@
                 <button type="button" class="close-btn" id="btnCloseWordCountModal">×</button>
             </div>
             <div class="wizard-body" style="max-height:72vh; overflow:auto;">
-                <p style="margin:0 0 0.75rem 0; color:#64748b; font-size:0.88rem;">
+                <p id="wordCountIntroProject" style="margin:0 0 0.75rem 0; color:#64748b; font-size:0.88rem;">
                     以目前勾選的檔案或句段集為範圍；可選擇用於比對的讀取 TM，並決定是否納入鎖定句段。結果可儲存於本機報告紀錄。
                 </p>
-                <div style="display:flex; flex-wrap:wrap; gap:1rem; margin-bottom:0.75rem;">
+                <p id="wordCountIntroEditor" class="hidden" style="margin:0 0 0.75rem 0; color:#64748b; font-size:0.88rem;">
+                    以目前編輯器載入的句段為範圍；可選擇用於比對的讀取 TM。可統計全文，或僅在<strong>篩選模式</strong>下統計目前篩選結果。
+                </p>
+                <div id="wordCountLockedAndScopeRow" style="display:flex; flex-wrap:wrap; align-items:center; gap:1rem; margin-bottom:0.75rem;">
                     <label style="display:flex; align-items:center; gap:0.35rem; font-size:0.88rem; cursor:pointer;">
                         <input type="checkbox" id="wordCountIncludeLocked" checked>
                         納入鎖定句段
                     </label>
+                    <div id="wordCountEditorScopeWrap" class="hidden" style="display:flex; flex-wrap:wrap; align-items:center; gap:0.65rem 1rem; font-size:0.88rem;">
+                        <span style="color:#64748b; white-space:nowrap;">統計範圍：</span>
+                        <label style="display:flex; align-items:center; gap:0.35rem; cursor:pointer;">
+                            <input type="radio" name="wordCountEditorScope" id="wordCountEditorScopeFull" value="full" checked>
+                            統計全文
+                        </label>
+                        <label id="wordCountEditorScopeFilteredLabel" style="display:flex; align-items:center; gap:0.35rem; cursor:pointer;" title="">
+                            <input type="radio" name="wordCountEditorScope" id="wordCountEditorScopeFiltered" value="filtered">
+                            統計現在篩選結果
+                        </label>
+                    </div>
                 </div>
                 <div style="margin-bottom:0.75rem;">
                     <div style="font-weight:600; font-size:0.9rem; margin-bottom:0.35rem;">比對用 TM（專案已掛載讀取）</div>
@@ -2085,7 +2100,7 @@
                         <tbody id="wordCountResultBody"></tbody>
                     </table>
                 </div>
-                <div>
+                <div id="wordCountReportSection">
                     <div style="font-weight:600; font-size:0.9rem; margin-bottom:0.35rem;">報告紀錄（本機）</div>
                     <ul id="wordCountReportHistory" style="margin:0; padding-left:1.1rem; font-size:0.85rem; color:#334155; max-height:120px; overflow-y:auto;"></ul>
                 </div>
