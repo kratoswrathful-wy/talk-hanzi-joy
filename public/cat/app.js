@@ -433,6 +433,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnProjectToolbarAssign = document.getElementById('btnProjectToolbarAssign');
     const btnProjectToolbarLinkCase = document.getElementById('btnProjectToolbarLinkCase');
     const btnProjectToolbarDelete = document.getElementById('btnProjectToolbarDelete');
+    const btnProjectBatchExport = document.getElementById('btnProjectBatchExport');
     const btnProjectWordCount = document.getElementById('btnProjectWordCount');
     const btnProjectSplitAssign = document.getElementById('btnProjectSplitAssign');
     const casePickerDialog = document.getElementById('casePickerDialog');
@@ -5512,6 +5513,175 @@ document.addEventListener('DOMContentLoaded', async () => {
             .filter(Boolean);
     }
 
+    function _batchExportGetFileFormat(file) {
+        if (file.fileFormat === 'googlesheet') return 'googlesheet';
+        const lower = (file.name || '').toLowerCase();
+        if (lower.endsWith('.mqxliff'))  return 'mqxliff';
+        if (lower.endsWith('.sdlxliff')) return 'sdlxliff';
+        if (lower.endsWith('.xlf') || lower.endsWith('.xliff') || lower.endsWith('.mxliff')) return 'xliff';
+        if (lower.endsWith('.po') || lower.endsWith('.pot')) return 'po';
+        return 'excel';
+    }
+
+    function _batchExportZipFilename(f, exportedName) {
+        const src = f.sourceLang || '';
+        const tgt = f.targetLang || '';
+        const prefix = (src || tgt) ? `${src}-${tgt}_` : '';
+        return prefix + exportedName;
+    }
+
+    async function _batchExportBuildBlob(f, segs, format) {
+        if (format === 'xliff' || format === 'mqxliff' || format === 'sdlxliff') {
+            if (!Xliff || typeof Xliff.exportXliffFamilyToBlob !== 'function') {
+                throw new Error('XLIFF 匯出模組未載入');
+            }
+            return await Xliff.exportXliffFamilyToBlob(f, segs, format);
+        }
+        if (format === 'po') {
+            if (!PoImport || typeof PoImport.exportPoToBlob !== 'function') {
+                throw new Error('PO 匯出模組未載入');
+            }
+            return await PoImport.exportPoToBlob(f, segs);
+        }
+        if (format === 'googlesheet') {
+            const hasKey = segs.some(s => s.stringKey);
+            const hasExtra = segs.some(s => s.extraText);
+            const headers = [];
+            if (hasKey) headers.push('String Key');
+            headers.push('原文', '譯文');
+            if (hasExtra) headers.push('額外資訊');
+            const rowData = [headers, ...segs.map(s => {
+                const row = [];
+                if (hasKey) row.push(s.stringKey || '');
+                row.push(s.sourceText || '', s.targetText || '');
+                if (hasExtra) row.push(s.extraText || '');
+                return row;
+            })];
+            const ws = XLSX.utils.aoa_to_sheet(rowData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Translations');
+            const baseName = (f.name || 'GoogleSheet').replace(/\.xlsx$/i, '');
+            const arr = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+            const blob = new Blob([arr], { type: 'application/octet-stream' });
+            return { blob, filename: `${baseName}_Translated.xlsx` };
+        }
+        // Excel：還原原始工作簿後寫入譯文
+        if (!f.originalFileBuffer || !(f.originalFileBuffer.byteLength > 0)) {
+            throw new Error('遺失原始檔案內容，請確認檔案已自雲端完整同步');
+        }
+        const originalData = new Uint8Array(f.originalFileBuffer);
+        const wb = XLSX.read(originalData, { type: 'array' });
+        const segsBySheet = new Map();
+        segs.forEach(s => {
+            if (isTargetWriteProtected(s)) return;
+            const k = String(s.sheetName || '');
+            if (!segsBySheet.has(k)) segsBySheet.set(k, []);
+            segsBySheet.get(k).push(s);
+        });
+        for (const [segSheetName, sheetSegs] of segsBySheet) {
+            const actualName = (wb.SheetNames || []).find(n =>
+                String(n || '').trim().toLowerCase() === segSheetName.trim().toLowerCase()
+            ) || segSheetName;
+            const sheet = wb.Sheets[actualName];
+            if (!sheet) continue;
+            const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+            for (const s of sheetSegs) {
+                while (data.length <= s.rowIdx) data.push([]);
+                while (data[s.rowIdx].length <= s.colTgt) data[s.rowIdx].push('');
+                data[s.rowIdx][s.colTgt] = s.targetText || '';
+            }
+            wb.Sheets[actualName] = XLSX.utils.aoa_to_sheet(data);
+        }
+        const arr = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+        const blob = new Blob([arr], { type: 'application/octet-stream' });
+        return { blob, filename: `Translated_${f.name}` };
+    }
+
+    async function batchExportSelectedFiles() {
+        const ids = getSelectedProjectFileIds();
+        if (!ids.length) {
+            alert('請先勾選至少一個檔案。');
+            return;
+        }
+        if (currentFileId) {
+            const go = confirm('目前有檔案在編輯器中開啟，若有未儲存的譯文可能不會被納入此次匯出。\n確定繼續？');
+            if (!go) return;
+        }
+        if (typeof JSZip === 'undefined') {
+            alert('ZIP 打包函式庫尚未載入，請確認網路連線後重新整理再試。');
+            return;
+        }
+
+        const btn = btnProjectBatchExport;
+        if (btn) { btn.disabled = true; btn.textContent = `匯出中… (0/${ids.length})`; }
+
+        const zip = new JSZip();
+        const failures = [];
+        const tagWarnings = [];
+        let addedCount = 0;
+
+        for (let i = 0; i < ids.length; i++) {
+            let f = null;
+            try {
+                f = await DBService.getFile(ids[i]);
+                if (!f) throw new Error('找不到檔案紀錄');
+                const rawSegs = await DBService.getSegmentsByFile(ids[i]);
+                const format = _batchExportGetFileFormat(f);
+
+                if (Xliff && typeof Xliff.validateExportTags === 'function') {
+                    const issues = Xliff.validateExportTags(rawSegs);
+                    if (issues.length) tagWarnings.push({ name: f.name, issues });
+                }
+
+                const { blob, filename } = await _batchExportBuildBlob(f, rawSegs, format);
+                const zipName = _batchExportZipFilename(f, filename);
+                zip.file(zipName, blob);
+                addedCount++;
+            } catch (err) {
+                failures.push({ name: (f && f.name) || ids[i], msg: err.message || String(err) });
+            }
+            if (btn) btn.textContent = `匯出中… (${i + 1}/${ids.length})`;
+        }
+
+        if (addedCount > 0) {
+            const projectName = (document.getElementById('detailProjectName') || {}).textContent || '專案';
+            const now = new Date();
+            const ts = now.toLocaleString('zh-TW', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+            }).replace(/[/: ]/g, '').replace(/,/g, '-');
+            const zipFilename = `批次匯出_${projectName}_${ts}.zip`;
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(zipBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = zipFilename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+        }
+
+        const lines = [];
+        lines.push(`完成：${addedCount} 個檔案已加入 ZIP。`);
+        if (failures.length) {
+            lines.push('');
+            lines.push('以下檔案匯出失敗：');
+            failures.forEach(({ name, msg }) => lines.push(`  • ${name}：${msg}`));
+        }
+        if (tagWarnings.length) {
+            lines.push('');
+            lines.push('以下檔案有 tag 不一致（已匯出，請人工確認）：');
+            tagWarnings.forEach(({ name }) => lines.push(`  • ${name}`));
+        }
+        if (addedCount === 0 && !failures.length) {
+            lines.push('沒有可匯出的檔案。');
+        }
+        alert(lines.join('\n'));
+
+        if (btn) { btn.disabled = false; btn.textContent = '匯出所選'; }
+    }
+
     function closeWordCountModal() {
         if (wordCountModal) wordCountModal.classList.add('hidden');
         window._wordCountAnalysisViews = null;
@@ -6314,6 +6484,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             openCasePickerDialog(ids);
         });
+    }
+    if (btnProjectBatchExport) {
+        btnProjectBatchExport.addEventListener('click', () => { batchExportSelectedFiles(); });
     }
     if (btnProjectWordCount) {
         btnProjectWordCount.addEventListener('click', () => { openWordCountModalWithSelection(); });

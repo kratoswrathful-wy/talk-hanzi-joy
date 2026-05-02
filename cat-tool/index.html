@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>專業版 本機 CAT 工具</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="lib/dexie.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
@@ -196,6 +197,7 @@
                             <div id="projectFilesToolbar" style="display:flex; flex-wrap:wrap; gap:0.45rem; align-items:center;">
                                 <button type="button" class="secondary-btn btn-sm" id="btnProjectToolbarAssign" style="display:none;" data-tip="需選取一個檔案">指派</button>
                                 <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnProjectToolbarLinkCase" data-tip="為勾選檔案連結 LMS 案件">連結案件</button>
+                                <button type="button" class="secondary-btn btn-sm" id="btnProjectBatchExport" data-tip="將勾選檔案打包成 ZIP 匯出">匯出所選</button>
                                 <button type="button" class="danger-btn btn-sm pm-only-ui" id="btnProjectToolbarDelete" data-tip="從專案移除所選檔案">移除</button>
                                 <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnProjectWordCount" data-tip="字數與 TM 加權分析">分析</button>
                                 <button type="button" class="secondary-btn btn-sm pm-only-ui" id="btnProjectSplitAssign" data-tip="依份數均分句段（僅提示，不指派）">拆分</button>

@@ -289,7 +289,7 @@
      * @param {object} f      - DB 中的 file 物件（含 originalFileBuffer、name）
      * @param {object[]} segs - 句段陣列（含 idValue、targetText）
      */
-    async function exportPo(f, segs) {
+    async function exportPoToBlob(f, segs) {
         if (!f.originalFileBuffer || !(f.originalFileBuffer.byteLength > 0)) {
             throw new Error('無法匯出：找不到原始 .po 檔案內容，請確認檔案已自雲端完整同步後再試。');
         }
@@ -298,7 +298,6 @@
         const text = decoder.decode(new Uint8Array(f.originalFileBuffer));
         const entries = parsePo(text);
 
-        // 建立 idValue → targetText 的查找表
         const targetMap = new Map();
         for (const s of segs) {
             targetMap.set(String(s.idValue || ''), s.targetText || '');
@@ -314,7 +313,6 @@
             const key = entry.msgctxt !== null ? entry.msgctxt : entry.msgid;
             const newMsgstr = targetMap.has(key) ? targetMap.get(key) : entry.msgstr;
 
-            // 若現在已有譯文，自動移除 fuzzy 旗標
             let flags = entry.flags;
             if (newMsgstr && entry.isFuzzy) {
                 flags = flags.filter(f => f !== 'fuzzy');
@@ -325,10 +323,15 @@
 
         const outputText = parts.join('\n\n') + '\n';
         const blob = new Blob([outputText], { type: 'text/plain;charset=utf-8' });
+        return { blob, filename: f.name || 'export.po' };
+    }
+
+    async function exportPo(f, segs) {
+        const { blob, filename } = await exportPoToBlob(f, segs);
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = f.name || 'export.po';
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -339,6 +342,7 @@
 
     global.CatToolPoImport = {
         handlePoImport,
+        exportPoToBlob,
         exportPo
     };
 

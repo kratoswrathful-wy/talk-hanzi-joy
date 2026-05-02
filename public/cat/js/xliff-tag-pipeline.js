@@ -534,7 +534,7 @@
         return true;
     }
 
-    async function exportXliffFamily(f, segs, format) {
+    async function exportXliffFamilyToBlob(f, segs, format) {
         const decoder = new TextDecoder('utf-8');
         const xmlText = decoder.decode(f.originalFileBuffer);
         const parser = new DOMParser();
@@ -704,10 +704,15 @@
         }
 
         const blob = new Blob([outputXml], { type: 'application/xml; charset=utf-8' });
+        return { blob, filename: `Translated_${f.name}` };
+    }
+
+    async function exportXliffFamily(f, segs, format) {
+        const { blob, filename } = await exportXliffFamilyToBlob(f, segs, format);
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Translated_${f.name}`;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -748,6 +753,7 @@
         replaceEncodedItWithSourceXml,
         setXmlTargetContent,
         updateMqxliffStatus,
+        exportXliffFamilyToBlob,
         exportXliffFamily,
         validateExportTags,
         debugXliffExport: false
