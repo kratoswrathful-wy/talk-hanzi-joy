@@ -12017,7 +12017,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const tab = getActiveRightPanelTab();
         if (tab === 'tabTmSearch') {
             if (window.currentTmConcordanceMatches && window.currentTmConcordanceMatches.length && typeof window.applyTmConcordanceAtIndex === 'function') {
-                window.applyTmConcordanceAtIndex(relativeIndex);
+                window.applyTmConcordanceAtIndex(relativeIndex, true);
             }
         } else if (window.currentTmMatches && window.currentTmMatches.length && typeof window.applyCatMatchAtIndex === 'function') {
             window.applyCatMatchAtIndex(relativeIndex);
@@ -12028,15 +12028,52 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!e.ctrlKey || !/^[1-9]$/.test(e.key) || (!currentFileId && !_currentViewId)) return;
         const ve = document.getElementById('viewEditor');
         if (!ve || ve.classList.contains('hidden')) return;
+
+        const relIndex = parseInt(e.key, 10) - 1;
         const tab = getActiveRightPanelTab();
+
+        // 取出對應比對條目（用於判斷類型與取得文字）
+        let matchObj = null;
         if (tab === 'tabTmSearch') {
-            if (!window.currentTmConcordanceMatches || !window.currentTmConcordanceMatches.length) return;
+            const conc = window.currentTmConcordanceMatches;
+            if (!conc || !conc.length || relIndex >= conc.length) return;
+            matchObj = { type: 'TM', targetText: (conc[relIndex] && conc[relIndex].targetText) || '' };
         } else {
-            if (!window.currentTmMatches || !window.currentTmMatches.length) return;
+            const matches = window.currentTmMatches;
+            if (!matches || !matches.length) return;
+            const page = window.catMatchPageIndex | 0;
+            const abs = page * 9 + relIndex;
+            if (abs < 0 || abs >= matches.length) return;
+            matchObj = matches[abs];
         }
+        if (!matchObj) return;
+
+        // 依焦點位置決定行為（§5-i 規格）
+        const ae = document.activeElement;
+        const isInSfInput = ae && (ae.id === 'sfInput' || ae.id === 'sfReplaceInput');
+
+        if (isInSfInput) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (matchObj.type === 'TM') {
+                // TM 比對在搜尋列：不插入，顯示提示
+                showCatToast('目前游標在搜尋工具列，無法插入 TM 比對／搜尋結果');
+            } else {
+                // TB / Frg：以純文字插入搜尋／取代框的游標位置
+                const text = matchObj.targetText;
+                if (text) {
+                    const start = ae.selectionStart;
+                    const end = ae.selectionEnd;
+                    ae.setRangeText(text, start, end, 'end');
+                    ae.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            }
+            return;
+        }
+
         e.preventDefault();
         e.stopPropagation();
-        window.applyNumpadMatchForActiveTab(parseInt(e.key, 10) - 1);
+        window.applyNumpadMatchForActiveTab(relIndex);
     }, true);
 
     btnSfNext.addEventListener('click', () => { goToSearchMatchStep(1); });
@@ -12457,8 +12494,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    function runSearchAndFilter() {
+    function runSearchAndFilter(opts) {
         if (!currentSegmentsList.length) return;
+        // keepFilterSnapshot：由取代操作（replaceAll/replaceThis）傳入，避免因內容變動而重算篩選快照。
+        // 規格：除非使用者主動變更篩選條件，否則任何操作都不應改變篩選結果。
+        const keepFilterSnapshot = !!(opts && opts.keepFilterSnapshot);
         
         if (btnSfInvert) {
             if (sfMode === 'search') btnSfInvert.classList.add('sf-invert-disabled');
@@ -12484,7 +12524,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             sfFilterSnapshotSegIds = null;
             sfFilterLockedSpecHash = '';
         } else {
-            const needNewSnapshot = sfFilterSnapshotSegIds === null || specHash !== sfFilterLockedSpecHash;
+            // 若 keepFilterSnapshot 且已有快照，則保留快照（不因內容取代而重算）
+            const shouldKeep = keepFilterSnapshot && sfFilterSnapshotSegIds !== null;
+            const needNewSnapshot = !shouldKeep && (sfFilterSnapshotSegIds === null || specHash !== sfFilterLockedSpecHash);
             if (needNewSnapshot) {
                 const next = new Set();
                 currentSegmentsList.forEach((seg, listIdx) => {
@@ -13865,7 +13907,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         pushEditorUndo(seg.id, text, newText, { oldMatchValue: seg.matchValue, newMatchValue: seg.matchValue });
         setSegmentFieldText(seg, match.segIdx, 'target', newText);
-        runSearchAndFilter();
+        runSearchAndFilter({ keepFilterSnapshot: true });
 
         const rowsAfter = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
         const ed = rowsAfter[match.segIdx] ? rowsAfter[match.segIdx].querySelector('.grid-textarea') : null;
@@ -14082,7 +14124,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             replacedCount++;
         });
         if (bundle.length) pushUndoEntry({ kind: 'compound', entries: bundle });
-        runSearchAndFilter();
+        runSearchAndFilter({ keepFilterSnapshot: true });
         if (replacedCount > 0) {
             updateProgress();
             if (isReplaceAllRestoreFakeCaretEnabled()) {
@@ -16837,17 +16879,64 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    // 雙擊：套用該列的譯文至目前句段
+    // 雙擊或快速鍵：套用比對結果至目前句段
+    // fromKeyboard=true 時依 §5-i 規格以真游標→假游標→active-row 決定目標列，並顯示錯誤訊息。
     window.handleCatResultApply = async function(el, type, text, score, matchIndex, fromKeyboard = false) {
         if (!fromKeyboard && !isCatDblclickInsertEnabled()) return;
-        const activeRow = document.querySelector('.grid-data-row.active-row');
-        if (!activeRow) return;
-        const textarea = activeRow.querySelector('.grid-textarea');
-        if (!textarea) return;
-        const rowIdx = Array.from(document.querySelectorAll('.grid-data-row')).indexOf(activeRow);
-        if (rowIdx < 0 || !currentSegmentsList[rowIdx]) return;
+
+        let targetRow, textarea;
+        const allRows = Array.from(document.querySelectorAll('.grid-data-row'));
+        let isTrueCursorInEditor = false;
+
+        if (fromKeyboard) {
+            // 優先 1：真游標（焦點在可編輯的 grid-textarea 內）
+            const ae = document.activeElement;
+            if (ae && ae.classList.contains('grid-textarea') && ae.contentEditable !== 'false') {
+                textarea = ae;
+                targetRow = ae.closest('.grid-data-row');
+                isTrueCursorInEditor = true;
+            }
+
+            // 優先 2：假游標（儲存的游標位置）
+            if (!targetRow && catFakeCaret && catFakeCaret.getSaved) {
+                const saved = catFakeCaret.getSaved();
+                if (saved && saved.editor && document.body.contains(saved.editor)) {
+                    textarea = saved.editor;
+                    targetRow = saved.editor.closest('.grid-data-row');
+                }
+            }
+
+            // 失敗情況：錯誤訊息
+            if (!targetRow || !textarea) {
+                showCatToast('找不到游標記錄，無法插入內容', 'error');
+                return;
+            }
+            if (!isGridDataRowFilterVisible(targetRow)) {
+                showCatToast('目的句段目前隱藏（已被篩選條件排除），無法插入內容', 'error');
+                return;
+            }
+            if (textarea.contentEditable === 'false') {
+                showCatToast('目的句段無法編輯，無法插入內容', 'error');
+                return;
+            }
+        } else {
+            // 雙擊：沿用原有行為（active-row）
+            targetRow = document.querySelector('.grid-data-row.active-row');
+            if (!targetRow) return;
+            textarea = targetRow.querySelector('.grid-textarea');
+            if (!textarea) return;
+        }
+
+        const rowIdx = allRows.indexOf(targetRow);
+        if (rowIdx < 0 || !currentSegmentsList[rowIdx]) {
+            if (fromKeyboard) showCatToast('找不到對應句段，無法插入內容', 'error');
+            return;
+        }
         const seg = currentSegmentsList[rowIdx];
-        if (isTargetWriteProtected(seg)) return;
+        if (isTargetWriteProtected(seg)) {
+            if (fromKeyboard) showCatToast('目的句段受保護，無法插入內容', 'error');
+            return;
+        }
         if (segmentNeedsHighMatchGuard(seg)) {
             const ok = await showHighMatchEditConfirmModal(seg);
             if (!ok) return;
@@ -16861,9 +16950,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (type === 'TM') {
             newTarget = text;
             setEditorHtml(textarea, buildTaggedHtml(text, effectiveTags(seg)));
-            updateTagColors(activeRow, text);
+            updateTagColors(targetRow, text);
         } else {
-            textarea.focus();
+            // TB / Frg：插入在游標位置
+            // 假游標情況：先還原儲存的游標位置（還原後 editor 自動取得焦點）
+            if (fromKeyboard && !isTrueCursorInEditor) {
+                const restored = restoreSavedCaretIntoEditor();
+                if (!restored || restored !== textarea) {
+                    setCaretAtEditorEnd(textarea);
+                }
+            } else {
+                textarea.focus();
+            }
             insertPlainTextAtCaret(textarea, text);
             newTarget = extractTextFromEditor(textarea);
         }
@@ -16883,14 +16981,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         applyUpdateSegmentTarget(seg, newTarget, updatePayload || {}).catch(console.error);
 
         if (type === 'TM' && score !== undefined && score !== 'undefined') {
-            applyMatchCellVisual(activeRow, String(score));
+            applyMatchCellVisual(targetRow, String(score));
         }
 
         if (type === 'TM') {
             setCaretAtEditorEnd(textarea);
         }
         if (el && el.style) {
-        el.style.opacity = 0.5;
+            el.style.opacity = 0.5;
             setTimeout(() => { el.style.opacity = 1; }, 300);
         }
     };
@@ -18286,7 +18384,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    window.applyTmConcordanceAtIndex = function(index) {
+    window.applyTmConcordanceAtIndex = function(index, fromKeyboard = false) {
         const matches = window.currentTmConcordanceMatches;
         if (!matches || index < 0 || index >= matches.length) return;
         const m = matches[index];
@@ -18297,7 +18395,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 item.classList.toggle('tm-concordance-item--selected', i === index);
             });
         }
-        window.handleCatResultApply(el || document.body, 'TM', m.targetText || '', undefined, index);
+        window.handleCatResultApply(el || document.body, 'TM', m.targetText || '', undefined, index, fromKeyboard);
     };
 
     const btnTmSearch = document.getElementById('btnTmSearch');
