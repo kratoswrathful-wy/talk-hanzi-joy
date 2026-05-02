@@ -1,0 +1,37 @@
+---
+description: 本專案執行環境為 Windows PowerShell，shell 指令必須遵守本規則。
+alwaysApply: true
+---
+
+# Shell 執行規範（Windows PowerShell）
+
+## 語法
+
+- **禁止**使用 `&&` 串接指令（bash 語法，PowerShell 不支援，會直接語法錯誤）。
+- 多步驟指令請**分開呼叫**獨立的 shell 工具，或以 `;` 隔開（但分開呼叫更安全，可逐步確認結果）。
+
+```powershell
+# 錯誤 — PowerShell 會語法錯誤
+cd "c:\Homemade Apps\1UP TMS" && git status
+
+# 正確 — 分開呼叫，或用 ;
+Set-Location "c:\Homemade Apps\1UP TMS"; git status
+```
+
+## Git 操作
+
+- `git add`、`git commit`、`git push` **每步單獨呼叫**，確認上一步成功後再執行下一步。
+- `git push` 需要網路，`block_until_ms` 建議至少 **30000**（30 秒）。
+- 路徑含空格（例如 `c:\Homemade Apps\1UP TMS`）時，**一律用雙引號包住**。
+
+```powershell
+# 正確流程（三步分開）
+Set-Location "c:\Homemade Apps\1UP TMS"
+git add <file>
+git commit -m "message"
+git push
+```
+
+## 權限
+
+- `git push` 及其他需要網路的操作，使用 `required_permissions: ["all"]`。
