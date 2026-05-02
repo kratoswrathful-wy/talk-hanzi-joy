@@ -1,6 +1,6 @@
 # Bug Report：mqxliff／XLIFF 匯入匯出與顯示（精簡維運版）
 
-> 更新：2026（階 1–3：CSS 緩衝、零 tag 匯出、譯文 mq: 補 target_tags、**階 3 搜尋不覆寫原／譯文 tag pill**、`normalizeXmlForSig` 加強、副檔名 `.mxliff` 說明）
+> 更新：2026（階 1–3：CSS 緩衝、零 tag 匯出、譯文 mq: 補 target_tags、**階 3 搜尋不覆寫原／譯文 tag pill**、`normalizeXmlForSig` 加強、副檔名 `.mxliff` 說明；**Bug #5** 部分 targetTags 見專文）
 
 本檔在復原/重建流程中作為**對照清單**；與大改版、回溯脈絡見 [`CAT-rollback-recovery-notes-2026-04.md`](CAT-rollback-recovery-notes-2026-04.md)。
 
@@ -14,6 +14,9 @@
 | **Bug #4 搜尋** | 已實作 | 篩選/高亮前以 `buildTaggedHtml` 重畫原／譯 `.rt-editor` 並 `updateTagColors`；`applyRtEditorSearchHighlights`（`source` / `target` 範圍）在內部依與內文一致的索引只包文字／換行、不跨 tag 佔位 | [`cat-tool/app.js`](../cat-tool/app.js) `runSearchAndFilter`、`getRtEditorTextSegmentsForHighlightMap`、`collectFieldSearchRangesOwned`、`applyRtEditorSearchHighlights` |
 | **Tag 簽名正規化** | 已實作 | `normalizeXmlForSig` 去 BOM、統一斷行與可見節點內多餘空白，利於佔位成對比對 | [`cat-tool/app.js`](../cat-tool/app.js) `normalizeXmlForSig` |
 | **副檔名 `.mxliff`** | 已實作（**僅副檔名 / 路徑**） | 與 `.xlf`／`.xliff` 一樣列為可選副檔名、設 `currentFileFormat === 'xliff'`，不彈 mq 身分。**內文仍須是匯入器能解析的 XLIFF**；若 memoQ 產出格式與解析器假設不合，匯入會失敗，此屬內文相容，非本列可單獨保證 | [`cat-tool/app.js`](../cat-tool/app.js) 開檔、精靈 |
+| **Bug #5 部分 targetTags** | 未修（見專文） | memoQ「部分編輯」句段：譯文 `<target>` 僅含部分 `<ph>`，匯入後 `targetTags` 為 `sourceTags` 真子集；`effectiveTags` 全採譯文側陣列 → `buildTaggedHtml` 無法為 `{3}`… 建 pill；F8 插入後若未同步 `seg.targetTags`／寫庫，重畫即退成純文字。與 **Bug #3A**（targetTags 全空）互補 | [`xliff-import.js`](../cat-tool/js/xliff-import.js)、[`app.js`](../cat-tool/app.js) `insertNextMissingTag`、`effectiveTags` |
+
+**Bug #5 完整調查、白話摘要、修正建議與 mq:ch 換行 display 增強**：[`bug-report_mqxliff-partial-target-tags.md`](bug-report_mqxliff-partial-target-tags.md)。
 
 **靜態部署**：變更 `cat-tool/` 後執行 `node scripts/sync-cat.mjs`，使 `public/cat/` 一致。
 
