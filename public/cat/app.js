@@ -3427,8 +3427,474 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // --- Project Detail (Files CRUD) ---
+    // ── 專案詳情分頁（檔案清單 ↔ 句段集） ──────────────────────────────────────
+    let _projectDetailActiveTab = 'files';
+
+    function _switchProjectDetailTab(tab) {
+        _projectDetailActiveTab = tab;
+        const panelFiles = document.getElementById('panelProjectFiles');
+        const panelViews = document.getElementById('panelProjectViews');
+        document.querySelectorAll('.project-detail-tab').forEach((btn) => {
+            const isActive = btn.getAttribute('data-project-tab') === tab;
+            btn.classList.toggle('active', isActive);
+            btn.style.fontWeight = isActive ? '600' : '400';
+            btn.style.color = isActive ? 'var(--primary-color)' : '#64748b';
+            btn.style.borderBottom = isActive ? '2px solid var(--primary-color)' : '2px solid transparent';
+        });
+        if (panelFiles) panelFiles.style.display = tab === 'files' ? '' : 'none';
+        if (panelViews) panelViews.style.display = tab === 'views' ? '' : 'none';
+        if (tab === 'views' && currentProjectId) void loadViewsList(currentProjectId);
+    }
+
+    document.querySelectorAll('.project-detail-tab').forEach((btn) => {
+        btn.addEventListener('click', () => _switchProjectDetailTab(btn.getAttribute('data-project-tab') || 'files'));
+    });
+
+    // ── 句段集清單 ────────────────────────────────────────────────────────────
+    let _currentViewsList = [];
+
+    function _renderFilterSummaryText(fs) {
+        if (!fs || typeof fs !== 'object') return '—';
+        const { type } = fs;
+        if (type === 'quick') return '全部句段（快速結合）';
+        const lines = [];
+        if (fs.status && fs.status.length) lines.push(`句段狀態：${Array.isArray(fs.status) ? fs.status.join('、') : fs.status}`);
+        if (fs.matchMin != null || fs.matchMax != null) {
+            const lo = fs.matchMin != null ? `${Math.round(fs.matchMin * 100)}%` : '0%';
+            const hi = fs.matchMax != null ? `${Math.round(fs.matchMax * 100)}%` : '100%';
+            lines.push(`翻譯記憶相符度：${lo}–${hi}`);
+        }
+        if (fs.hasNoMatch) lines.push('翻譯記憶相符度：無相符');
+        return lines.length ? lines.join('\n') : '全部句段';
+    }
+
+    async function loadViewsList(projectId) {
+        const body = document.getElementById('viewsListBody');
+        if (!body) return;
+        body.innerHTML = '<tr><td colspan="6" style="padding:0.75rem; color:#64748b;">載入中…</td></tr>';
+        try {
+            const views = await DBService.listViews(projectId);
+            _currentViewsList = views || [];
+            if (!_currentViewsList.length) {
+                body.innerHTML = '<tr><td colspan="6" style="padding:0.75rem; color:#64748b; font-size:0.9rem;">目前沒有句段集。選取檔案後使用「快速結合建立句段集」，或點擊「自訂篩選建立句段集」。</td></tr>';
+                return;
+            }
+            const lastFilesList = window._lastFilesListForProject || [];
+            const fileMap = {};
+            lastFilesList.forEach((f, idx) => { fileMap[String(f.id)] = { name: f.name, idx: idx + 1 }; });
+            const isPm = _isCatPmOrExecutive();
+            body.innerHTML = _currentViewsList.map((v) => {
+                const viewId = String(v.id || '');
+                const nameEsc = (v.name || '未命名').replace(/</g, '&lt;');
+                const fileLines = (Array.isArray(v.fileIds) ? v.fileIds : []).map((fid) => {
+                    const info = fileMap[String(fid)];
+                    if (info) {
+                        const nameShort = info.name.length > 28 ? info.name.slice(0, 28) + '…' : info.name;
+                        return `<span title="${info.name.replace(/"/g, '&quot;')}">#${info.idx} ${nameShort.replace(/</g, '&lt;')}</span>`;
+                    }
+                    return `<span style="color:#94a3b8;">${String(fid).slice(0, 8)}…</span>`;
+                }).join('<br>') || '—';
+                const filterText = _renderFilterSummaryText(v.filterSummary).replace(/</g, '&lt;').replace(/\n/g, '<br>');
+                const ownerName = (v.ownerName || v.ownerUserId || '—').replace(/</g, '&lt;');
+                const createdAt = v.createdAt ? new Date(v.createdAt).toLocaleString('zh-TW') : '—';
+                const pmActions = isPm
+                    ? `<button type="button" class="secondary-btn btn-sm view-rename-btn" data-view-id="${viewId}" data-view-name="${nameEsc}">更名</button>
+                       <button type="button" class="danger-btn btn-sm view-delete-btn" data-view-id="${viewId}" data-view-name="${nameEsc}">刪除</button>`
+                    : '';
+                return `<tr>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0; font-weight:600;"><button type="button" class="link-btn view-open-btn" data-view-id="${viewId}" style="background:none;border:none;padding:0;color:var(--primary-color);cursor:pointer;text-decoration:underline;">${nameEsc}</button></td>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; line-height:1.5;">${fileLines}</td>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.78rem; color:#64748b; white-space:pre-line;">${filterText}</td>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#475569;">${ownerName}</td>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#64748b;">${createdAt}</td>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0; white-space:nowrap; display:flex; gap:0.3rem; flex-wrap:wrap;">
+                        <button type="button" class="primary-btn btn-sm view-open-btn" data-view-id="${viewId}">開啟</button>
+                        ${pmActions}
+                    </td>
+                </tr>`;
+            }).join('');
+
+            body.querySelectorAll('.view-open-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const vid = btn.getAttribute('data-view-id');
+                    if (vid) void openEditorFromView(vid);
+                });
+            });
+            body.querySelectorAll('.view-rename-btn').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const vid = btn.getAttribute('data-view-id');
+                    const vname = (btn.getAttribute('data-view-name') || '').replace(/&lt;/g, '<');
+                    openEditViewModal(vid, vname);
+                });
+            });
+            body.querySelectorAll('.view-delete-btn').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const vid = btn.getAttribute('data-view-id');
+                    const vname = (btn.getAttribute('data-view-name') || '').replace(/&lt;/g, '<');
+                    if (!(await openCatConfirmModal(`確定刪除句段集「${vname}」？此操作不可復原。`))) return;
+                    await DBService.deleteView(vid);
+                    await loadViewsList(currentProjectId);
+                });
+            });
+        } catch (err) {
+            console.error('[views] loadViewsList error:', err);
+            if (body) body.innerHTML = '<tr><td colspan="6" style="padding:0.75rem; color:#dc2626;">載入失敗，請重試。</td></tr>';
+        }
+    }
+
+    // ── 快速結合建立句段集 ────────────────────────────────────────────────────
+    const createViewModal = document.getElementById('createViewModal');
+    const createViewNameInput = document.getElementById('createViewNameInput');
+    const btnCreateViewModalClose = document.getElementById('btnCreateViewModalClose');
+    const btnCreateViewModalCancel = document.getElementById('btnCreateViewModalCancel');
+    const btnCreateViewModalConfirm = document.getElementById('btnCreateViewModalConfirm');
+    let _pendingCreateViewFileIds = [];
+    let _pendingCreateViewType = 'quick'; // 'quick' | 'custom'
+
+    function openCreateViewModal(fileIds, type) {
+        _pendingCreateViewFileIds = fileIds || [];
+        _pendingCreateViewType = type || 'quick';
+        if (createViewNameInput) createViewNameInput.value = '';
+        const titleEl = document.getElementById('createViewModalTitle');
+        if (titleEl) titleEl.textContent = type === 'quick' ? '快速結合建立句段集' : '建立句段集';
+        const hintEl = document.getElementById('createViewFilesHint');
+        if (hintEl) {
+            if (type === 'quick' && fileIds && fileIds.length) {
+                const lastFiles = window._lastFilesListForProject || [];
+                const nameList = fileIds.map((fid) => {
+                    const f = lastFiles.find((fl) => String(fl.id) === String(fid));
+                    return f ? f.name : String(fid).slice(0, 8) + '…';
+                }).join('、');
+                hintEl.textContent = `將結合 ${fileIds.length} 個檔案的全部句段：${nameList}`;
+                hintEl.style.display = '';
+            } else {
+                hintEl.style.display = 'none';
+            }
+        }
+        if (createViewModal) createViewModal.showModal();
+        if (createViewNameInput) createViewNameInput.focus();
+    }
+
+    if (btnCreateViewModalClose) btnCreateViewModalClose.addEventListener('click', () => { if (createViewModal) createViewModal.close(); });
+    if (btnCreateViewModalCancel) btnCreateViewModalCancel.addEventListener('click', () => { if (createViewModal) createViewModal.close(); });
+    if (btnCreateViewModalConfirm) btnCreateViewModalConfirm.addEventListener('click', async () => {
+        const name = (createViewNameInput?.value || '').trim();
+        if (!name) { alert('請填入句段集名稱。'); createViewNameInput?.focus(); return; }
+        if (!currentProjectId) return;
+        try {
+            btnCreateViewModalConfirm.disabled = true;
+            btnCreateViewModalConfirm.textContent = '建立中…';
+            const fileIds = _pendingCreateViewFileIds;
+            let segmentIds = [];
+            if (fileIds.length) {
+                const allSegs = await DBService.getSegmentsByFileForPreview(fileIds);
+                const fileOrder = fileIds.map((id) => String(id));
+                allSegs.sort((a, b) => {
+                    const ai = fileOrder.indexOf(String(a.fileId));
+                    const bi = fileOrder.indexOf(String(b.fileId));
+                    if (ai !== bi) return ai - bi;
+                    return (a.rowIdx || 0) - (b.rowIdx || 0);
+                });
+                segmentIds = allSegs.map((s) => String(s.id));
+            }
+            const filterSummary = _pendingCreateViewType === 'quick' ? { type: 'quick' } : { type: 'custom' };
+            await DBService.createView(currentProjectId, name, fileIds, segmentIds, filterSummary, {});
+            if (createViewModal) createViewModal.close();
+            _switchProjectDetailTab('views');
+            await loadViewsList(currentProjectId);
+        } catch (err) {
+            console.error('[views] createView error:', err);
+            alert('建立失敗：' + (err?.message || err));
+        } finally {
+            if (btnCreateViewModalConfirm) {
+                btnCreateViewModalConfirm.disabled = false;
+                btnCreateViewModalConfirm.textContent = '建立';
+            }
+        }
+    });
+
+    const btnCreateViewQuick = document.getElementById('btnCreateViewQuick');
+    if (btnCreateViewQuick) {
+        btnCreateViewQuick.addEventListener('click', () => {
+            if (!isTeamMode()) { alert('句段集功能目前僅在團隊線上模式下可用。'); return; }
+            const filesBody = document.getElementById('filesListBody');
+            const checked = filesBody ? Array.from(filesBody.querySelectorAll('.project-file-cb:checked')) : [];
+            const lastFiles = window._lastFilesListForProject || [];
+            let fileIds = checked.map((cb) => cb.getAttribute('data-id')).filter(Boolean);
+            if (!fileIds.length) {
+                fileIds = lastFiles.map((f) => String(f.id));
+                if (!fileIds.length) { alert('請先至少匯入一個檔案。'); return; }
+            }
+            openCreateViewModal(fileIds, 'quick');
+        });
+    }
+
+    const btnCreateViewCustom = document.getElementById('btnCreateViewCustom');
+    if (btnCreateViewCustom) {
+        btnCreateViewCustom.addEventListener('click', () => {
+            if (!isTeamMode()) { alert('句段集功能目前僅在團隊線上模式下可用。'); return; }
+            const lastFiles = window._lastFilesListForProject || [];
+            const fileIds = lastFiles.map((f) => String(f.id));
+            openCreateViewModal(fileIds, 'custom');
+        });
+    }
+
+    // ── 編輯句段集 Modal ──────────────────────────────────────────────────────
+    const editViewModal = document.getElementById('editViewModal');
+    const editViewNameInput = document.getElementById('editViewNameInput');
+    const editViewIdEl = document.getElementById('editViewId');
+    const btnEditViewModalClose = document.getElementById('btnEditViewModalClose');
+    const btnEditViewModalCancel = document.getElementById('btnEditViewModalCancel');
+    const btnEditViewModalConfirm = document.getElementById('btnEditViewModalConfirm');
+
+    function openEditViewModal(viewId, currentName) {
+        if (editViewIdEl) editViewIdEl.setAttribute('data-id', viewId || '');
+        if (editViewNameInput) editViewNameInput.value = currentName || '';
+        if (editViewModal) { editViewModal.showModal(); editViewNameInput?.focus(); }
+    }
+
+    if (btnEditViewModalClose) btnEditViewModalClose.addEventListener('click', () => { if (editViewModal) editViewModal.close(); });
+    if (btnEditViewModalCancel) btnEditViewModalCancel.addEventListener('click', () => { if (editViewModal) editViewModal.close(); });
+    if (btnEditViewModalConfirm) btnEditViewModalConfirm.addEventListener('click', async () => {
+        const viewId = editViewIdEl?.getAttribute('data-id') || '';
+        const name = (editViewNameInput?.value || '').trim();
+        if (!viewId) return;
+        if (!name) { alert('請填入句段集名稱。'); editViewNameInput?.focus(); return; }
+        try {
+            btnEditViewModalConfirm.disabled = true;
+            await DBService.updateView(viewId, { name });
+            if (editViewModal) editViewModal.close();
+            await loadViewsList(currentProjectId);
+        } catch (err) {
+            alert('更新失敗：' + (err?.message || err));
+        } finally {
+            if (btnEditViewModalConfirm) btnEditViewModalConfirm.disabled = false;
+        }
+    });
+
+    // ── 開啟句段集編輯器（viewId 入口） ──────────────────────────────────────
+    let _currentViewId = null;
+    let _currentViewFilesMap = {};
+
+    async function openEditorFromView(viewId) {
+        const view = await DBService.getView(viewId);
+        if (!view) { alert('找不到句段集，可能已被刪除。'); return; }
+        _currentViewId = String(viewId);
+        const fileIds = Array.isArray(view.fileIds) ? view.fileIds : [];
+        const segmentIds = Array.isArray(view.segmentIds) ? view.segmentIds : [];
+        const projectId = view.projectId || currentProjectId;
+        if (projectId) currentProjectId = projectId;
+
+        const lastFiles = window._lastFilesListForProject || [];
+        const filesMap = {};
+        lastFiles.forEach((f, idx) => {
+            filesMap[String(f.id)] = { ...f, seqNo: idx + 1 };
+        });
+        _currentViewFilesMap = filesMap;
+
+        // 顯示每次進入說明 modal（§6.1）
+        const introModal = document.getElementById('viewEditorIntroModal');
+        if (introModal) {
+            introModal.showModal();
+            await new Promise((resolve) => {
+                const onClose = () => { introModal.removeEventListener('close', onClose); resolve(); };
+                introModal.addEventListener('close', onClose);
+            });
+        }
+
+        // 批次載入句段並組裝
+        let segments = [];
+        if (segmentIds.length) {
+            segments = await DBService.getSegmentsByIds(segmentIds);
+            // 依 file_ids 順序 + rowIdx 排列
+            const fileOrder = fileIds.map((id) => String(id));
+            segments.sort((a, b) => {
+                const ai = fileOrder.indexOf(String(a.fileId));
+                const bi = fileOrder.indexOf(String(b.fileId));
+                if (ai !== bi) return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
+                return (a.rowIdx || 0) - (b.rowIdx || 0);
+            });
+        }
+
+        // 取得 fileRoles 以供 mqxliff 路徑
+        window._currentViewFileRoles = view.fileRoles || {};
+
+        // 進入編輯器
+        const proj = await DBService.getProject(currentProjectId);
+        const viewTitle = `句段集：（${proj?.name || '專案'} — ${view.name}）`;
+        await openEditorWithSegments(segments, {
+            title: viewTitle,
+            viewId: _currentViewId,
+            filesMap: _currentViewFilesMap,
+            fileRoles: view.fileRoles || {},
+            project: proj,
+        });
+    }
+
+    /**
+     * 以預載的句段陣列進入編輯器（句段集模式）。
+     * 設定 currentSegmentsList 後共用 renderEditorSegments / runSearchAndFilter 路徑。
+     */
+    async function openEditorWithSegments(segments, opts) {
+        const { title, viewId, filesMap, fileRoles, project } = opts || {};
+        leaveCollabForCurrentFile();
+        currentFileId = null;
+        _currentViewId = viewId || null;
+        _currentViewFilesMap = filesMap || {};
+        editorUndoStack = [];
+        editorRedoStack = [];
+        editorUndoEditStart = {};
+        editorUndoStatusStart = {};
+        editorUndoMatchStart = {};
+        emptySegUserEditedIds = new Set();
+        emptySegAutoConsumedIds = new Set();
+        pendingRemoteBySegId.clear();
+
+        beginEditorViewLoadingShell();
+        showCatLoadingOverlay('正在載入句段集…');
+
+        try {
+            currentSegmentsList = Array.isArray(segments) ? segments : [];
+            if (editorFileName) editorFileName.textContent = title || '句段集';
+
+            currentFileFormat = 'excel';
+            currentFileDefaultMqRole = null;
+            currentMqConfirmationRole = null;
+
+            // 清空 mqRoleIcon（句段集不跳身分選擇）
+            const mqRoleIcon = document.getElementById('mqRoleIcon');
+            if (mqRoleIcon) {
+                mqRoleIcon.style.display = 'none';
+                const sfCellModeRow2 = document.getElementById('sfCellModeRow2');
+                if (sfCellModeRow2) sfCellModeRow2.classList.add('mq-role-hidden');
+            }
+
+            // TM / TB
+            window.ActiveTmCache = [];
+            window.ActiveWriteTms = [];
+            window.ActiveReadTmIds = [];
+            window.ActiveReadTbIds = [];
+            window.ActiveTbTerms = [];
+            window.ActiveTbNames = {};
+            window.ActiveTmPenalties = {};
+            window.ActiveFileLangs = { sourceLang: '', targetLang: '' };
+            window.ActiveWriteTb = null;
+            if (project) {
+                window.ActiveTmPenalties = project.tmPenalties || {};
+                window.ActiveReadTmIds = project.readTms || [];
+                window.ActiveReadTbIds = project.readTbs || [];
+                for (const tmId of (project.readTms || [])) {
+                    const segs = await DBService.getTMSegments(tmId);
+                    const tm = await DBService.getTM(tmId);
+                    const tmName = tm ? tm.name : `TM #${tmId}`;
+                    segs.forEach((s) => { s._tmId = tmId; s.tmName = tmName; });
+                    window.ActiveTmCache.push(...segs);
+                }
+                for (const tbId of (project.readTbs || [])) {
+                    const full = await DBService.getTB(tbId);
+                    if (!full) continue;
+                    window.ActiveTbNames[full.id] = full.name || `TB #${full.id}`;
+                    (full.terms || []).forEach((t) => {
+                        if (t && ((t.source || '').trim() || (t.target || '').trim())) {
+                            window.ActiveTbTerms.push({ source: (t.source || '').trim(), target: (t.target || '').trim(), note: (t.note || '').trim(), tbId: full.id, tbName: full.name || `TB #${full.id}`, matchFlags: t.matchFlags || { caseInsensitive: true, wholeWord: false }, createdBy: t.createdBy || '', createdAt: t.createdAt || '' });
+                        }
+                    });
+                }
+            }
+
+            // 隱藏匯出按鈕（句段集不單檔匯出）
+            const btnExportFile = document.getElementById('btnExportFile');
+            if (btnExportFile) btnExportFile.style.display = 'none';
+
+            // 設定格線欄位（maxKeys 從 segments 推算）
+            let maxKeys = 0;
+            currentSegmentsList.forEach((seg) => {
+                if (Array.isArray(seg.keys) && seg.keys.length > maxKeys) maxKeys = seg.keys.length;
+                else if (!seg.keys) seg.keys = [];
+            });
+            const defaultCols = [];
+            defaultCols.push({ id: 'col-id', name: 'ID', visible: true, width: '50px' });
+            for (let i = 0; i < maxKeys; i++) defaultCols.push({ id: `col-key-${i}`, name: 'Key', visible: true, width: '100px' });
+            defaultCols.push({ id: 'col-source-file', name: '所屬檔案', visible: true, width: '120px' });
+            defaultCols.push({ id: 'col-source', name: '原文 (Source)', visible: true, width: '1fr' });
+            defaultCols.push({ id: 'col-target', name: '譯文 (Target)', visible: true, width: '1fr' });
+            defaultCols.push({ id: 'col-extra', name: '額外資訊', visible: true, width: '100px' });
+            defaultCols.push({ id: 'col-repetition', name: '重複', visible: true, width: '35px' });
+            defaultCols.push({ id: 'col-match', name: '相符度', visible: true, width: '35px' });
+            defaultCols.push({ id: 'col-status', name: '狀態', visible: true, width: '35px' });
+
+            const savedData = JSON.parse(localStorage.getItem('catToolColSettings') || '[]');
+            const savedColIds = savedData.map((c) => c.id);
+            const savedMap = new Map(savedData.map((c) => [c.id, c]));
+            colSettings = defaultCols.sort((a, b) => {
+                const ia = savedColIds.indexOf(a.id);
+                const ib = savedColIds.indexOf(b.id);
+                if (ia === -1 && ib === -1) return 0;
+                if (ia === -1) return 1;
+                if (ib === -1) return -1;
+                return ia - ib;
+            });
+            colSettings.forEach((c) => {
+                if (savedMap.has(c.id)) {
+                    c.visible = savedMap.get(c.id).visible;
+                    const w = savedMap.get(c.id).width;
+                    if (w && (w.includes('minmax') || (w.endsWith('px') && w !== '150px'))) c.width = w;
+                }
+            });
+            ensureStatusColumnLast();
+
+            const gridHeaderRow = document.getElementById('gridHeaderRow');
+            if (gridHeaderRow) {
+                gridHeaderRow.innerHTML = '';
+                colSettings.forEach((c, idx) => {
+                    const cell = document.createElement('div');
+                    cell.className = 'grid-header-cell';
+                    cell.setAttribute('data-col-id', c.id);
+                    if (c.name === 'Key 1') c.name = 'Key';
+                    cell.textContent = c.name;
+                    cell.style.order = idx;
+                    cell.style.display = c.visible ? '' : 'none';
+                    gridHeaderRow.appendChild(cell);
+                });
+            }
+            applyColSettings();
+
+            if (typeof sortColSelect !== 'undefined' && sortColSelect) {
+                sortColSelect.innerHTML = '';
+                colSettings.forEach((c) => {
+                    if (['col-id', 'col-source', 'col-target', 'col-source-file'].includes(c.id) || c.id.startsWith('col-key-')) {
+                        const opt = document.createElement('option');
+                        opt.value = c.id;
+                        opt.textContent = c.name;
+                        sortColSelect.appendChild(opt);
+                    }
+                });
+                sortColSelect.value = 'col-id';
+                sortColSelect.dispatchEvent(new Event('change'));
+            }
+
+            sfFilterSnapshotSegIds = null;
+            sfFilterLockedSpecHash = '';
+            if (typeof highMatchEditConfirmedIds !== 'undefined') highMatchEditConfirmedIds.clear();
+            renderEditorSegments();
+            runSearchAndFilter();
+            renderCollabPresence();
+            if (typeof refreshNewTermPanel === 'function') refreshNewTermPanel();
+
+            if (project && currentProjectId) {
+                loadEditorNotes(currentProjectId).catch(console.warn);
+            }
+
+            activeView = 'viewEditor';
+            persistCatRoute();
+        } finally {
+            hideCatLoadingOverlay();
+        }
+    }
+
     async function openProjectDetail(projectId) {
         beginOpenProjectDetailLoading(projectId);
+        _switchProjectDetailTab('files');
         const p = await DBService.getProject(projectId);
         if(!p) return switchView('viewProjects');
         detailProjectName.textContent = p.name;
@@ -4001,6 +4467,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             window._fileAssigneesByFileId = {};
         }
         const files = await DBService.getFiles(currentProjectId);
+        window._lastFilesListForProject = files;
         filesListBody.innerHTML = '';
         if(files.length === 0) {
             const tr = document.createElement('tr');
@@ -10593,7 +11060,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             runTextOpOnSelection('clear');
         }
         // Alt+S：切換標籤展開/收起
-        if (!e.ctrlKey && !e.shiftKey && !e.metaKey && e.altKey && e.key.toLowerCase() === 's') {
+        if (!e.ctrlKey && !e.shiftKey && !e.metaKey && e.altKey && e.code === 'KeyS') {
             e.preventDefault();
             tagsExpanded = !tagsExpanded;
             const editorGrid = document.getElementById('editorGrid');
