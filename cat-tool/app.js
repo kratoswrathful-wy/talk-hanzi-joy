@@ -364,6 +364,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const projectsSelectAllLabel = document.getElementById('projectsSelectAllLabel');
     const btnProjectsDeleteSelected = document.getElementById('btnProjectsDeleteSelected');
     const filesListBody = document.getElementById('filesListBody');
+    const viewsListBody = document.getElementById('viewsListBody');
     const projectFilesSelectAll = document.getElementById('projectFilesSelectAll');
     const projectFileAssignHint = document.getElementById('projectFileAssignHint');
     const btnProjectToolbarAssign = document.getElementById('btnProjectToolbarAssign');
@@ -2870,12 +2871,172 @@ document.addEventListener('DOMContentLoaded', async () => {
     let wordCountSelectedFileIds = [];
     /** 與 WordCountEngine.DEFAULT_DISCOUNTS 一致；TM 95–100%／檔內重複可由分析 Modal 覆寫 */
     let _wcDiscounts = { tm9599: 0.10, tm8594: 0.25, tm7584: 0.50, tm5074: 0.75, newWords: 1.00, repetition: 0.00 };
-    let _fileProgressMode = 'raw';
-    let _viewProgressMode = 'raw';
+    /** per fileId / viewId / editor fileId — 見 docs/CAT_WORD_COUNT_WORKER_AND_UI.md §6 */
+    const _fileProgressModeById = Object.create(null);
+    const _viewProgressModeById = Object.create(null);
+    const _editorProgressModeByFileId = Object.create(null);
     let _projectTmNormListCache = null;
-    let _editorProgressMode = 'raw';
     let _editorTmNormListCache = null;
     let _updateProgressToken = 0;
+    let _wcWorkerGen = 0;
+    let _wcActiveWorker = null;
+
+    function _abortWcWorkerJob() {
+        _wcWorkerGen++;
+        if (_wcActiveWorker) {
+            try { _wcActiveWorker.terminate(); } catch (_) { /* ignore */ }
+            _wcActiveWorker = null;
+        }
+    }
+
+    function _wcGetFileMode(fileId) {
+        return _fileProgressModeById[String(fileId)] === 'weighted' ? 'weighted' : 'raw';
+    }
+    function _wcGetViewMode(viewId) {
+        return _viewProgressModeById[String(viewId)] === 'weighted' ? 'weighted' : 'raw';
+    }
+    function _wcGetEditorModeForFile(fileId) {
+        if (fileId == null || fileId === '') return 'raw';
+        return _editorProgressModeByFileId[String(fileId)] === 'weighted' ? 'weighted' : 'raw';
+    }
+
+    function _wcStillOnProjectDetail(projectId) {
+        return activeView === 'viewProjectDetail' && String(currentProjectId || '') === String(projectId || '');
+    }
+    function _wcStillInEditor(fileId, projectId) {
+        return activeView === 'viewEditor'
+            && String(currentFileId || '') === String(fileId || '')
+            && String(currentProjectId || '') === String(projectId || '');
+    }
+
+    function _wcSerializeSegmentsForWorker(segs) {
+        return (segs || []).map((s) => ({
+            sourceText: s.sourceText,
+            targetText: s.targetText,
+            isLocked: s.isLocked,
+            isLockedUser: s.isLockedUser,
+            isLockedSystem: s.isLockedSystem,
+            status: s.status
+        }));
+    }
+
+    function runWcAnalyzeWorker(payload, onProgress) {
+        _abortWcWorkerJob();
+        const gen = _wcWorkerGen;
+        return new Promise((resolve, reject) => {
+            let worker;
+            try {
+                worker = new Worker(new URL('js/word-count-worker.js', window.location.href), { type: 'classic' });
+            } catch (e) {
+                reject(e);
+                return;
+            }
+            _wcActiveWorker = worker;
+            const jobId = 1;
+            function finish() {
+                if (_wcActiveWorker === worker) _wcActiveWorker = null;
+                try { worker.terminate(); } catch (_) { /* ignore */ }
+            }
+            worker.addEventListener('message', (ev) => {
+                if (gen !== _wcWorkerGen) return;
+                const d = ev.data || {};
+                if (d.type === 'progress' && typeof onProgress === 'function') onProgress(d.done, d.total);
+                if (d.type === 'done') {
+                    finish();
+                    resolve(d.result);
+                }
+                if (d.type === 'error') {
+                    finish();
+                    reject(new Error(d.message || 'word-count worker error'));
+                }
+            });
+            worker.addEventListener('error', (err) => {
+                if (gen !== _wcWorkerGen) return;
+                finish();
+                reject(err.error || err);
+            });
+            try {
+                worker.postMessage({ type: 'run', jobId, payload });
+            } catch (e) {
+                finish();
+                reject(e);
+            }
+        });
+    }
+
+    async function runWcAnalyzeWithFallback(payload, onProgress) {
+        if (!window.WordCountEngine) throw new Error('WordCountEngine missing');
+        try {
+            return await runWcAnalyzeWorker(payload, onProgress);
+        } catch (e) {
+            console.warn('[CAT] word-count worker failed, using main-thread analyze', e);
+            return WordCountEngine.analyze(payload);
+        }
+    }
+
+    function _wcFileListModeSummary(files) {
+        if (!files || !files.length) return { allRaw: true, allWeighted: false, mixed: false };
+        const modes = files.map((f) => _wcGetFileMode(f.id));
+        const allW = modes.every((m) => m === 'weighted');
+        const allR = modes.every((m) => m === 'raw');
+        return { allRaw: allR, allWeighted: allW, mixed: !allR && !allW };
+    }
+    function _wcViewListModeSummary(views) {
+        if (!views || !views.length) return { allRaw: true, allWeighted: false, mixed: false };
+        const modes = views.map((v) => _wcGetViewMode(v.id));
+        const allW = modes.every((m) => m === 'weighted');
+        const allR = modes.every((m) => m === 'raw');
+        return { allRaw: allR, allWeighted: allW, mixed: !allR && !allW };
+    }
+
+    function _wcRefreshFileToolbarTitle() {
+        const btn = document.getElementById('btnToggleFileProgressMode');
+        if (!btn) return;
+        const fl = window._lastFilesListForProject || [];
+        const s = _wcFileListModeSummary(fl);
+        let lab = '原始字數';
+        if (s.allWeighted) lab = '加權字數';
+        else if (s.mixed) lab = '列上不一';
+        btn.title = `一次切換所有檔案顯示的字數，目前全列表：${lab}（列上進度條可單獨切換）`;
+    }
+    function _wcRefreshViewToolbarTitle() {
+        const btn = document.getElementById('btnToggleViewProgressMode');
+        if (!btn) return;
+        const vs = _currentViewsList || [];
+        const s = _wcViewListModeSummary(vs);
+        let lab = '原始字數';
+        if (s.allWeighted) lab = '加權字數';
+        else if (s.mixed) lab = '列上不一';
+        btn.title = `一次切換所有句段集顯示的字數，目前全列表：${lab}（列上進度條可單獨切換）`;
+    }
+    function _wcRefreshEditorToolbarTitle() {
+        const btn = document.getElementById('btnToggleEditorWordMode');
+        if (!btn || currentFileId == null) return;
+        const m = _wcGetEditorModeForFile(currentFileId);
+        btn.title = `一次切換所有檔案顯示的字數，目前顯示：${m === 'weighted' ? '加權字數' : '原始字數'}（此為目前編輯檔）`;
+    }
+
+    function _wcCellLoadingBar(done, total, compact) {
+        const h = compact ? 16 : 18;
+        const fs = compact ? 0.75 : 0.77;
+        const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+        const w = compact ? 'min-width:80px; max-width:160px;' : 'min-width:80px; width:100%;';
+        return `<div style="position:relative; background:#e2e8f0; border-radius:4px; height:${h}px; ${w}">
+        <div style="position:absolute; top:0; left:0; bottom:0; width:${pct}%; background:#94a3b8; border-radius:4px; transition:width 0.15s;"></div>
+        <span style="position:relative; z-index:1; font-size:${fs}rem; padding:0 6px; line-height:${h}px; white-space:nowrap; color:#475569;">載入中… 已處理 ${done} / ${total} 個句段</span>
+    </div>`;
+    }
+
+    function _wcCellDoneBar(pct, confirmed, total, barColor, compact) {
+        const h = compact ? 16 : 18;
+        const fs = compact ? 0.75 : 0.77;
+        const w = compact ? 'min-width:80px; max-width:160px;' : 'min-width:80px; width:100%;';
+        return `<div style="position:relative; background:#e2e8f0; border-radius:4px; height:${h}px; ${w}">
+                        <div style="position:absolute; top:0; left:0; bottom:0; width:${pct}%; background:${barColor}; border-radius:4px; transition:width 0.3s;"></div>
+                        <span style="position:relative; z-index:1; font-size:${fs}rem; padding:0 6px; line-height:${h}px; white-space:nowrap; color:#1e293b;">${pct}% (${_fmtProgressNum(confirmed)}/${_fmtProgressNum(total)} 字)</span>
+                    </div>`;
+    }
+
     const collabSelfSessionId = `sess-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     let collabCurrentFileId = null;
     let collabMembers = [];
@@ -3013,6 +3174,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ROUTER
     // ==========================================
     function switchView(targetView) {
+        _abortWcWorkerJob();
         activeView = targetView;
         navItems.forEach(nav => {
             if(nav.getAttribute('data-view') === targetView) nav.classList.add('active');
@@ -3076,6 +3238,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /** 同一 view 內換 id 時，await 前先清空／顯示載入，避免上一筆 DOM 殘留 */
     function beginOpenProjectDetailLoading(projectId) {
+        _abortWcWorkerJob();
         currentProjectId = projectId;
         _projectTmNormListCache = null;
         if (detailProjectName) detailProjectName.textContent = '載入中…';
@@ -4972,29 +5135,31 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function _loadFilesProgressAsync(files) {
         if (!files || !files.length) return;
+        const pgId = currentProjectId;
         for (const f of files) {
             const cell = filesListBody?.querySelector(`.file-progress-cell[data-file-id="${f.id}"]`);
             if (cell) cell.innerHTML = '<span style="color:#94a3b8; font-size:0.76rem;">載入中…</span>';
         }
-        const mode = _fileProgressMode;
-        const pgId = currentProjectId;
+        const anyWeighted = files.some((ff) => _wcGetFileMode(ff.id) === 'weighted');
         let tmNormList = [];
-        if (mode === 'weighted' && pgId) {
+        if (anyWeighted && pgId) {
             try { tmNormList = await getProjectTmNormListCached(pgId); } catch (_) { /* ignore */ }
         }
         const discounts = readWcDiscountsFromInputs();
         const WCE = window.WordCountEngine;
-        const useWeighted = mode === 'weighted' && WCE;
-        const barColor = useWeighted ? '#ef4444' : 'var(--success-color)';
 
-        await Promise.all(files.map(async (f) => {
+        for (const f of files) {
+            if (!_wcStillOnProjectDetail(pgId)) break;
             try {
                 const cell = filesListBody?.querySelector(`.file-progress-cell[data-file-id="${f.id}"]`);
-                if (!cell) return;
+                if (!cell) continue;
+                const mode = _wcGetFileMode(f.id);
+                const useWeighted = mode === 'weighted' && WCE;
+                const barColor = useWeighted ? '#ef4444' : 'var(--success-color)';
                 const segs = await DBService.getSegmentsByFile(f.id);
                 if (!segs || !segs.length) {
                     cell.innerHTML = '<span style="color:#94a3b8; font-size:0.76rem;">0 字</span>';
-                    return;
+                    continue;
                 }
                 let total;
                 let confirmed;
@@ -5009,12 +5174,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                             .reduce((a, s) => a + countWords(s.sourceText || ''), 0);
                     }
                 } else {
-                    const res = WCE.analyze({
-                        segments: segs,
+                    const nSeg = segs.length;
+                    cell.innerHTML = _wcCellLoadingBar(0, nSeg, false);
+                    const payload = {
+                        segments: _wcSerializeSegmentsForWorker(segs),
                         tmSourcesNormalized: tmNormList,
                         includeLocked: true,
                         discounts
+                    };
+                    const res = await runWcAnalyzeWithFallback(payload, (done, tot) => {
+                        if (!_wcStillOnProjectDetail(pgId)) return;
+                        const c = filesListBody?.querySelector(`.file-progress-cell[data-file-id="${f.id}"]`);
+                        if (c) c.innerHTML = _wcCellLoadingBar(done, tot, false);
                     });
+                    if (!_wcStillOnProjectDetail(pgId)) break;
                     const per = res.perSegment || [];
                     total = 0;
                     confirmed = 0;
@@ -5026,42 +5199,42 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 }
                 const pct = total === 0 ? 0 : Math.round(confirmed / total * 100);
-                cell.innerHTML = `
-                    <div style="position:relative; background:#e2e8f0; border-radius:4px; height:18px; min-width:80px;">
-                        <div style="position:absolute; top:0; left:0; bottom:0; width:${pct}%; background:${barColor}; border-radius:4px; transition:width 0.3s;"></div>
-                        <span style="position:relative; z-index:1; font-size:0.77rem; padding:0 6px; line-height:18px; white-space:nowrap; color:#1e293b;">${pct}% (${_fmtProgressNum(confirmed)}/${_fmtProgressNum(total)} 字)</span>
-                    </div>`;
+                const cell2 = filesListBody?.querySelector(`.file-progress-cell[data-file-id="${f.id}"]`);
+                if (cell2) cell2.innerHTML = _wcCellDoneBar(pct, confirmed, total, barColor, false);
             } catch (_) { /* team mode 或空檔案時靜默失敗 */ }
-        }));
+        }
+        _wcRefreshFileToolbarTitle();
     }
 
     /** 非同步計算各句段集整體進度並填入名稱欄下方（§4，同檔案清單樣式） */
     async function _loadViewsProgressAsync(views) {
         if (!Array.isArray(views) || !views.length) return;
+        const pgId = currentProjectId;
         for (const v of views) {
             const cell = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
             if (cell) cell.innerHTML = '<span style="color:#94a3b8; font-size:0.75rem;">載入中…</span>';
         }
-        const mode = _viewProgressMode;
-        const pgId = currentProjectId;
+        const anyWeighted = views.some((vv) => _wcGetViewMode(vv.id) === 'weighted');
         let tmNormList = [];
-        if (mode === 'weighted' && pgId) {
+        if (anyWeighted && pgId) {
             try { tmNormList = await getProjectTmNormListCached(pgId); } catch (_) { /* ignore */ }
         }
         const discounts = readWcDiscountsFromInputs();
         const WCE = window.WordCountEngine;
-        const useWeighted = mode === 'weighted' && WCE;
-        const barColor = useWeighted ? '#ef4444' : 'var(--success-color)';
 
-        await Promise.all(views.map(async (v) => {
+        for (const v of views) {
+            if (!_wcStillOnProjectDetail(pgId)) break;
             try {
                 const segIds = Array.isArray(v.segmentIds) ? v.segmentIds : [];
                 const cell = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
-                if (!cell) return;
+                if (!cell) continue;
                 if (!segIds.length) {
                     cell.innerHTML = '<span style="color:#94a3b8;">0 字</span>';
-                    return;
+                    continue;
                 }
+                const mode = _wcGetViewMode(v.id);
+                const useWeighted = mode === 'weighted' && WCE;
+                const barColor = useWeighted ? '#ef4444' : 'var(--success-color)';
                 let segs = await DBService.getSegmentsByIds(segIds);
                 const orderMap = new Map(segIds.map((id, i) => [String(id), i]));
                 segs = (segs || []).slice().sort((a, b) => (orderMap.get(String(a.id)) ?? 0) - (orderMap.get(String(b.id)) ?? 0));
@@ -5078,12 +5251,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                             .reduce((a, s) => a + countWords(s.sourceText || ''), 0);
                     }
                 } else {
-                    const res = WCE.analyze({
-                        segments: segs,
+                    const nSeg = segs.length;
+                    cell.innerHTML = _wcCellLoadingBar(0, nSeg, true);
+                    const payload = {
+                        segments: _wcSerializeSegmentsForWorker(segs),
                         tmSourcesNormalized: tmNormList,
                         includeLocked: true,
                         discounts
+                    };
+                    const res = await runWcAnalyzeWithFallback(payload, (done, tot) => {
+                        if (!_wcStillOnProjectDetail(pgId)) return;
+                        const c = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
+                        if (c) c.innerHTML = _wcCellLoadingBar(done, tot, true);
                     });
+                    if (!_wcStillOnProjectDetail(pgId)) break;
                     const per = res.perSegment || [];
                     total = 0;
                     confirmed = 0;
@@ -5095,13 +5276,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 }
                 const pct = total === 0 ? 0 : Math.round(confirmed / total * 100);
-                cell.innerHTML = `
-                    <div style="position:relative; background:#e2e8f0; border-radius:4px; height:16px; min-width:80px; max-width:160px;">
-                        <div style="position:absolute; top:0; left:0; bottom:0; width:${pct}%; background:${barColor}; border-radius:4px; transition:width 0.3s;"></div>
-                        <span style="position:relative; z-index:1; font-size:0.75rem; padding:0 6px; line-height:16px; white-space:nowrap; color:#1e293b;">${pct}% (${_fmtProgressNum(confirmed)}/${_fmtProgressNum(total)} 字)</span>
-                    </div>`;
+                const cell2 = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
+                if (cell2) cell2.innerHTML = _wcCellDoneBar(pct, confirmed, total, barColor, true);
             } catch (_) { /* 靜默失敗 */ }
-        }));
+        }
+        _wcRefreshViewToolbarTitle();
     }
 
     function getSelectedProjectFileIds() {
@@ -10644,6 +10823,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function openEditor(fileId) {
         try {
+        _abortWcWorkerJob();
         if (collabCurrentFileId && String(collabCurrentFileId) !== String(fileId)) {
             leaveCollabForCurrentFile();
         }
@@ -17065,27 +17245,56 @@ document.addEventListener('DOMContentLoaded', async () => {
         const sbWords = document.getElementById('statusBarWords');
         const WCE = window.WordCountEngine;
 
-        if (_editorProgressMode === 'weighted' && WCE) {
+        const edFileId = currentFileId;
+        const edProjId = currentProjectId;
+        if (_wcGetEditorModeForFile(edFileId) === 'weighted' && WCE) {
             if (sbWords) sbWords.textContent = '載入中…';
             if (pctEl) pctEl.textContent = '…';
+            if (progressFill) {
+                progressFill.style.width = '0%';
+                progressFill.style.background = '#94a3b8';
+            }
             let norm = _editorTmNormListCache;
-            if (norm == null && currentProjectId) {
+            if (norm == null && edProjId) {
                 try {
-                    norm = await getProjectTmNormListCached(currentProjectId);
+                    norm = await getProjectTmNormListCached(edProjId);
                     _editorTmNormListCache = norm;
                 } catch (_) {
                     norm = [];
                 }
             }
             if (token !== _updateProgressToken) return;
+            if (!_wcStillInEditor(edFileId, edProjId)) return;
             const segsOrdered = [...currentSegmentsList].sort((a, b) => (a.rowIdx ?? 0) - (b.rowIdx ?? 0));
             const discounts = readWcDiscountsFromInputs();
-            const result = WCE.analyze({
-                segments: segsOrdered,
-                tmSourcesNormalized: norm || [],
-                includeLocked: true,
-                discounts
-            });
+            let result;
+            try {
+                result = await runWcAnalyzeWithFallback({
+                    segments: _wcSerializeSegmentsForWorker(segsOrdered),
+                    tmSourcesNormalized: norm || [],
+                    includeLocked: true,
+                    discounts
+                }, (done, tot) => {
+                    if (token !== _updateProgressToken) return;
+                    if (!_wcStillInEditor(edFileId, edProjId)) return;
+                    if (sbWords) sbWords.textContent = `載入中… 已處理 ${done} / ${tot} 個句段`;
+                    if (progressFill && tot > 0) {
+                        progressFill.style.width = `${Math.min(100, Math.round((done / tot) * 100))}%`;
+                        progressFill.style.background = '#94a3b8';
+                    }
+                });
+            } catch (e) {
+                if (token !== _updateProgressToken) return;
+                if (typeof console !== 'undefined' && console.warn) console.warn('[CAT] updateProgress weighted', e);
+                result = WCE.analyze({
+                    segments: segsOrdered,
+                    tmSourcesNormalized: norm || [],
+                    includeLocked: true,
+                    discounts
+                });
+            }
+            if (token !== _updateProgressToken) return;
+            if (!_wcStillInEditor(edFileId, edProjId)) return;
             const per = result.perSegment || [];
             const baselineIds = new Set(baseline.map((s) => String(s.id)));
             const sessionValidIds = new Set(sessionValid.map((s) => String(s.id)));
@@ -17106,6 +17315,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 progressFill.style.width = `${wordPct}%`;
                 progressFill.style.background = '#ef4444';
             }
+            _wcRefreshEditorToolbarTitle();
             return;
         }
 
@@ -17131,6 +17341,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const wordPct = totalWords === 0 ? 0 : (confirmedWords / totalWords) * 100;
         if (progressFill) progressFill.style.width = `${wordPct}%`;
         if (pctEl) pctEl.textContent = `${wordPct.toFixed(0)}%`;
+        _wcRefreshEditorToolbarTitle();
     }
 
     // ── 進度條統計範圍按鈕 ───────────────────────────────────────────────────
@@ -17192,34 +17403,97 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const btnToggleFileProgressMode = document.getElementById('btnToggleFileProgressMode');
     if (btnToggleFileProgressMode) {
+        btnToggleFileProgressMode.textContent = '切換字數';
+        _wcRefreshFileToolbarTitle();
         btnToggleFileProgressMode.addEventListener('click', async () => {
             btnToggleFileProgressMode.disabled = true;
-            _fileProgressMode = _fileProgressMode === 'raw' ? 'weighted' : 'raw';
-            btnToggleFileProgressMode.textContent = _fileProgressMode === 'raw' ? '原始字數' : '加權字數';
             const fl = window._lastFilesListForProject;
+            const s = _wcFileListModeSummary(fl || []);
+            const nextMode = s.allWeighted ? 'raw' : 'weighted';
+            if (fl && fl.length) {
+                for (const f of fl) {
+                    _fileProgressModeById[String(f.id)] = nextMode;
+                }
+            }
             if (fl && fl.length) await _loadFilesProgressAsync(fl);
             btnToggleFileProgressMode.disabled = false;
+            _wcRefreshFileToolbarTitle();
         });
     }
     const btnToggleViewProgressMode = document.getElementById('btnToggleViewProgressMode');
     if (btnToggleViewProgressMode) {
+        btnToggleViewProgressMode.textContent = '切換字數';
+        _wcRefreshViewToolbarTitle();
         btnToggleViewProgressMode.addEventListener('click', async () => {
             btnToggleViewProgressMode.disabled = true;
-            _viewProgressMode = _viewProgressMode === 'raw' ? 'weighted' : 'raw';
-            btnToggleViewProgressMode.textContent = _viewProgressMode === 'raw' ? '原始字數' : '加權字數';
-            if (_currentViewsList && _currentViewsList.length) {
-                await _loadViewsProgressAsync(_currentViewsList);
+            const vs = _currentViewsList || [];
+            const sum = _wcViewListModeSummary(vs);
+            const nextMode = sum.allWeighted ? 'raw' : 'weighted';
+            for (const v of vs) {
+                _viewProgressModeById[String(v.id)] = nextMode;
             }
+            if (vs.length) await _loadViewsProgressAsync(vs);
             btnToggleViewProgressMode.disabled = false;
+            _wcRefreshViewToolbarTitle();
         });
     }
     const btnToggleEditorWordMode = document.getElementById('btnToggleEditorWordMode');
     if (btnToggleEditorWordMode) {
+        btnToggleEditorWordMode.textContent = '切換字數';
         btnToggleEditorWordMode.addEventListener('click', async () => {
-            _editorProgressMode = _editorProgressMode === 'raw' ? 'weighted' : 'raw';
-            btnToggleEditorWordMode.textContent = _editorProgressMode === 'raw' ? '原始字數' : '加權字數';
+            if (currentFileId == null) return;
+            const cur = _wcGetEditorModeForFile(currentFileId);
+            _editorProgressModeByFileId[String(currentFileId)] = cur === 'raw' ? 'weighted' : 'raw';
             _editorTmNormListCache = null;
             await updateProgress();
+            _wcRefreshEditorToolbarTitle();
+        });
+    }
+
+    if (filesListBody && !filesListBody.dataset.wcFileProgressClick) {
+        filesListBody.dataset.wcFileProgressClick = '1';
+        filesListBody.addEventListener('click', async (e) => {
+            const cell = e.target.closest('.file-progress-cell');
+            if (!cell || !filesListBody.contains(cell)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const fid = cell.getAttribute('data-file-id');
+            if (!fid) return;
+            const cur = _wcGetFileMode(fid);
+            _fileProgressModeById[fid] = cur === 'raw' ? 'weighted' : 'raw';
+            _wcRefreshFileToolbarTitle();
+            const fl = window._lastFilesListForProject;
+            if (fl && fl.length) await _loadFilesProgressAsync(fl);
+        });
+    }
+    if (viewsListBody && !viewsListBody.dataset.wcViewProgressClick) {
+        viewsListBody.dataset.wcViewProgressClick = '1';
+        viewsListBody.addEventListener('click', async (e) => {
+            const cell = e.target.closest('.view-progress-cell');
+            if (!cell || !viewsListBody.contains(cell)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const vid = cell.getAttribute('data-view-id');
+            if (!vid) return;
+            const cur = _wcGetViewMode(vid);
+            _viewProgressModeById[vid] = cur === 'raw' ? 'weighted' : 'raw';
+            _wcRefreshViewToolbarTitle();
+            if (_currentViewsList && _currentViewsList.length) {
+                await _loadViewsProgressAsync(_currentViewsList);
+            }
+        });
+    }
+    const editorProgressTrack = document.querySelector('.editor-status-bar-progress-track');
+    if (editorProgressTrack && !editorProgressTrack.dataset.wcEditorProgressClick) {
+        editorProgressTrack.dataset.wcEditorProgressClick = '1';
+        editorProgressTrack.style.cursor = 'pointer';
+        editorProgressTrack.addEventListener('click', async () => {
+            if (currentFileId == null) return;
+            const cur = _wcGetEditorModeForFile(currentFileId);
+            _editorProgressModeByFileId[String(currentFileId)] = cur === 'raw' ? 'weighted' : 'raw';
+            _editorTmNormListCache = null;
+            await updateProgress();
+            _wcRefreshEditorToolbarTitle();
         });
     }
 

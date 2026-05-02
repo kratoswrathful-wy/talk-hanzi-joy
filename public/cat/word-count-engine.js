@@ -15,16 +15,14 @@
         repetition: 0.00
     };
 
+    /**
+     * 純字串剝標籤（Web Worker 可用；不依賴 DOMParser）。
+     * 與舊版以 DOM 解析後之結果在常見 XLIFF／內嵌標記情境下一致足夠作為字數基底。
+     */
     function stripTags(html) {
         if (html == null) return '';
         const s = String(html);
-        try {
-            const doc = new DOMParser().parseFromString(s, 'text/html');
-            const text = doc.body && doc.body.textContent ? doc.body.textContent : s.replace(/<[^>]+>/g, ' ');
-            return text.replace(/\s+/g, ' ').trim();
-        } catch (_) {
-            return s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        }
+        return s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     }
 
     function normKey(text) {
@@ -218,6 +216,115 @@
         };
     }
 
+    /**
+     * 與 analyze 相同結果；可分段 await 讓出 Worker 執行緒並回報進度（供 Web Worker）。
+     * @param {object} opts — 同 analyze，另可選：yieldEvery、yieldMs、onSegmentProgress(done,total)
+     */
+    async function analyzeAsync(opts) {
+        const segments = opts.segments || [];
+        const tmList = opts.tmSourcesNormalized || [];
+        const includeLocked = opts.includeLocked !== false;
+        const discounts = mergeDiscounts(opts.discounts);
+        const tmExact = new Set(tmList.filter(Boolean));
+        const yieldEvery = typeof opts.yieldEvery === 'number' ? opts.yieldEvery : 40;
+        const yieldMs = typeof opts.yieldMs === 'number' ? opts.yieldMs : 2;
+        const onSegmentProgress = typeof opts.onSegmentProgress === 'function' ? opts.onSegmentProgress : null;
+
+        const buckets = {
+            lockedSkipped: { label: '鎖定（略過）', segments: 0, raw: 0, weighted: 0 },
+            repetition: { label: '檔內重複', segments: 0, raw: 0, weighted: 0 },
+            tm9599: { label: 'TM 95–100%', segments: 0, raw: 0, weighted: 0 },
+            tm8594: { label: 'TM 85–94%', segments: 0, raw: 0, weighted: 0 },
+            tm7584: { label: 'TM 75–84%', segments: 0, raw: 0, weighted: 0 },
+            tm5074: { label: 'TM 50–74%', segments: 0, raw: 0, weighted: 0 },
+            newWords: { label: '新字／無 TM（含空白譯文）', segments: 0, raw: 0, weighted: 0 }
+        };
+
+        const seenSrc = new Set();
+        const perSegment = [];
+
+        for (let i = 0; i < segments.length; i++) {
+            const seg = segments[i];
+            const lockInfo = segLocked(seg, includeLocked);
+            const src = seg.sourceText;
+            const srcN = normKey(src);
+            const rawW = weightedUnits(src);
+
+            if (lockInfo.skip) {
+                buckets.lockedSkipped.segments += 1;
+                buckets.lockedSkipped.raw += rawW;
+                buckets.lockedSkipped.weighted += rawW;
+                perSegment.push({ skip: true, rawW, weightedW: rawW, bucketKey: 'lockedSkipped' });
+            } else {
+                let bucketKey = 'newWords';
+
+                if (seenSrc.has(srcN)) {
+                    bucketKey = 'repetition';
+                } else {
+                    seenSrc.add(srcN);
+                    if (tmExact.has(srcN)) {
+                        bucketKey = 'tm9599';
+                    } else if (tmList.length) {
+                        const sim = bestTmSimilarity(srcN, tmList);
+                        if (sim >= 0.95) bucketKey = 'tm9599';
+                        else if (sim >= 0.85) bucketKey = 'tm8594';
+                        else if (sim >= 0.75) bucketKey = 'tm7584';
+                        else if (sim >= 0.50) bucketKey = 'tm5074';
+                        else bucketKey = 'newWords';
+                    } else {
+                        bucketKey = 'newWords';
+                    }
+                }
+
+                const disc = discounts[bucketKey] != null ? discounts[bucketKey] : 1.0;
+                const weightedW = rawW * disc;
+                buckets[bucketKey].segments += 1;
+                buckets[bucketKey].raw += rawW;
+                buckets[bucketKey].weighted += weightedW;
+                perSegment.push({ skip: false, rawW, weightedW, bucketKey });
+            }
+
+            if (onSegmentProgress) onSegmentProgress(i + 1, segments.length);
+            if (yieldEvery > 0 && (i + 1) % yieldEvery === 0 && i + 1 < segments.length) {
+                await new Promise((r) => setTimeout(r, yieldMs));
+            }
+        }
+
+        const order = ['lockedSkipped', 'repetition', 'tm9599', 'tm8594', 'tm7584', 'tm5074', 'newWords'];
+        const rows = order.map((k) => ({
+            key: k,
+            label: buckets[k].label,
+            segments: buckets[k].segments,
+            raw: Math.round(buckets[k].raw * 100) / 100,
+            weighted: Math.round(buckets[k].weighted * 100) / 100
+        }));
+
+        const totalSeg = segments.filter((s) => {
+            const L = segLocked(s, includeLocked);
+            return !L.skip;
+        }).length;
+
+        const totalW = rows
+            .filter((r) => r.key !== 'lockedSkipped')
+            .reduce((a, r) => a + r.weighted, 0);
+
+        const totalR = rows
+            .filter((r) => r.key !== 'lockedSkipped')
+            .reduce((a, r) => a + r.raw, 0);
+
+        return {
+            rows,
+            totals: {
+                segmentsAnalyzed: totalSeg,
+                rawExcludingSkipped: Math.round(totalR * 100) / 100,
+                weightedExcludingSkipped: Math.round(totalW * 100) / 100
+            },
+            buckets,
+            discounts,
+            perSegment
+        };
+    }
+
     global.WordCountEngine = {
         DEFAULT_DISCOUNTS,
         stripTags,
@@ -225,6 +332,7 @@
         rawUnits,
         weightedUnits,
         analyze,
+        analyzeAsync,
         _bestTmSimilarity: bestTmSimilarity
     };
 })(typeof window !== 'undefined' ? window : globalThis);
