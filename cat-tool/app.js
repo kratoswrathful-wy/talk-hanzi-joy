@@ -204,10 +204,16 @@ function openBatchImportLangMismatchDialog(rows, langChoice) {
         pairEl.textContent = `${taskSrc} → ${taskTgt}`;
         list.innerHTML = '';
         rows.forEach((r) => {
-            const li = document.createElement('li');
-            li.style.marginBottom = '0.55rem';
-            li.textContent = `${r.fileName}：原始 ${r.originalSourceLang || '—'} → ${r.originalTargetLang || '—'}`;
-            list.appendChild(li);
+            const tr = document.createElement('tr');
+            const tdName = document.createElement('td');
+            const tdPair = document.createElement('td');
+            tdName.textContent = r.fileName || '（未命名）';
+            tdPair.textContent = `${r.originalSourceLang || '—'} → ${r.originalTargetLang || '—'}`;
+            tdName.style.cssText = 'text-align:left;vertical-align:top;padding:0.45rem 0.65rem;border-bottom:1px solid #e2e8f0;word-break:break-word;';
+            tdPair.style.cssText = 'text-align:left;vertical-align:top;padding:0.45rem 0.65rem;border-bottom:1px solid #e2e8f0;';
+            tr.appendChild(tdName);
+            tr.appendChild(tdPair);
+            list.appendChild(tr);
         });
         let settled = false;
         function finish() {
@@ -5056,20 +5062,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         const files = await DBService.getFiles(currentProjectId);
         window._lastFilesListForProject = files;
         filesListBody.innerHTML = '';
-        /** 專案檔案清單「預設身分」欄：僅此表格使用兩行（T + 第二行說明）；非 mqxliff 不顯示。 */
+        /** 專案檔案清單「預設身分」欄：mqxliff 兩行左對齊（T + 第二行說明）；非 mqxliff 顯示 N/A。 */
         function projectFilesListMqRoleCellHtml(defaultMqRole) {
             const esc = (s) => String(s).replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const norm = defaultMqRole === 'T' ? 'T_ALLOW_R1' : String(defaultMqRole || '').trim();
             const sub = (t) => '<div style="font-size:0.76rem;color:#64748b;">' + esc(t) + '</div>';
+            const wrap = (inner) => '<div style="line-height:1.25;text-align:left;">' + inner + '</div>';
             if (norm === 'T_ALLOW_R1') {
-                return '<div style="line-height:1.25;text-align:center;"><div>T</div>' + sub('可編 R1') + '</div>';
+                return wrap('<div>T</div>' + sub('可編 R1'));
             }
             if (norm === 'T_DENY_R1') {
-                return '<div style="line-height:1.25;text-align:center;"><div>T</div>' + sub('不可編 R1') + '</div>';
+                return wrap('<div>T</div>' + sub('不可編 R1'));
             }
-            if (norm === 'R1') return '<div style="text-align:center;">R1</div>';
-            if (norm === 'R2') return '<div style="text-align:center;">R2</div>';
-            if (norm) return '<div style="text-align:center;">' + esc(norm) + '</div>';
+            if (norm === 'R1') return wrap('R1');
+            if (norm === 'R2') return wrap('R2');
+            if (norm) return wrap(esc(norm));
             return '—';
         }
         if(files.length === 0) {
@@ -5085,7 +5092,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const nameEsc = (f.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const modStr = f.lastModified ? new Date(f.lastModified).toLocaleString('zh-TW', { hour12: false }) : '—';
             const isMqxliff = (f.name || '').toLowerCase().endsWith('.mqxliff');
-            const roleTdHtml = isMqxliff ? projectFilesListMqRoleCellHtml(f.defaultMqRole) : '';
+            const roleTdHtml = isMqxliff
+                ? projectFilesListMqRoleCellHtml(f.defaultMqRole)
+                : '<span style="color:#94a3b8;font-size:0.82rem;">N/A</span>';
 
             // 語言對顯示（若原始檔語言對不同則附加提示）
             const fileSrc = f.sourceLang || '';
@@ -5123,7 +5132,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; width:60px;">${idx + 1}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;"><a href="#" class="edit-file-btn" data-id="${f.id}" style="color:var(--primary-color); text-decoration:underline; cursor:pointer;">${nameEsc}</a>${progressCellHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${fileLangHtml}</td>
-                <td style="padding:0.5rem; border:1px solid #e2e8f0; min-width:5.25rem; width:5.5rem; vertical-align:middle;">${roleTdHtml}</td>
+                <td style="padding:0.5rem; border:1px solid #e2e8f0; min-width:5.25rem; width:5.5rem; vertical-align:middle; text-align:left;">${roleTdHtml}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#334155; width:120px; vertical-align:middle;" title="${assignTitle}">${assignCell}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${getFileCaseLinkHtml(f)}</td>
                 <td style="padding:0.5rem; border:1px solid #e2e8f0;">${modStr}</td>
