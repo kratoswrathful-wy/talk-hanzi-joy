@@ -1,8 +1,11 @@
 # Bug Report：mqxliff／XLIFF 匯入匯出與顯示（精簡維運版）
 
-> 更新：2026（階 1–3：CSS 緩衝、零 tag 匯出、譯文 mq: 補 target_tags、**階 3 搜尋不覆寫原／譯文 tag pill**、`normalizeXmlForSig` 加強、副檔名 `.mxliff` 說明；**Bug #5** 部分 targetTags 見專文）
+> 更新：2026（階 1–3：CSS 緩衝、零 tag 匯出、譯文 mq: 補 target_tags、**階 3 搜尋不覆寫原／譯文 tag pill**、`normalizeXmlForSig` 加強、副檔名 `.mxliff` 說明；**Bug #5** 部分 targetTags 見專文；**實作排程**見 [`CAT_MQXLIFF_TM_FIX_IMPLEMENTATION_PLAN.md`](CAT_MQXLIFF_TM_FIX_IMPLEMENTATION_PLAN.md)）  
+> **2026-05-02**：**QA Tag 檢查**已與匯出／譯文佔位對齊（見 [`bug-report_cat-qa-tag-parity.md`](bug-report_cat-qa-tag-parity.md)），避免 `targetTags[]` 但譯文已有 `{N}` 時誤報「缺少 tag」。
 
 本檔在復原/重建流程中作為**對照清單**；與大改版、回溯脈絡見 [`CAT-rollback-recovery-notes-2026-04.md`](CAT-rollback-recovery-notes-2026-04.md)。
+
+**實作排程與分階驗收**（Bug #5、TM 比對表、選做 mq:ch display、後續匯出長句）：[`CAT_MQXLIFF_TM_FIX_IMPLEMENTATION_PLAN.md`](CAT_MQXLIFF_TM_FIX_IMPLEMENTATION_PLAN.md)。
 
 ## 實作對照
 
@@ -15,6 +18,8 @@
 | **Tag 簽名正規化** | 已實作 | `normalizeXmlForSig` 去 BOM、統一斷行與可見節點內多餘空白，利於佔位成對比對 | [`cat-tool/app.js`](../cat-tool/app.js) `normalizeXmlForSig` |
 | **副檔名 `.mxliff`** | 已實作（**僅副檔名 / 路徑**） | 與 `.xlf`／`.xliff` 一樣列為可選副檔名、設 `currentFileFormat === 'xliff'`，不彈 mq 身分。**內文仍須是匯入器能解析的 XLIFF**；若 memoQ 產出格式與解析器假設不合，匯入會失敗，此屬內文相容，非本列可單獨保證 | [`cat-tool/app.js`](../cat-tool/app.js) 開檔、精靈 |
 | **Bug #5 部分 targetTags** | 未修（見專文） | memoQ「部分編輯」句段：譯文 `<target>` 僅含部分 `<ph>`，匯入後 `targetTags` 為 `sourceTags` 真子集；`effectiveTags` 全採譯文側陣列 → `buildTaggedHtml` 無法為 `{3}`… 建 pill；F8 插入後若未同步 `seg.targetTags`／寫庫，重畫即退成純文字。與 **Bug #3A**（targetTags 全空）互補 | [`xliff-import.js`](../cat-tool/js/xliff-import.js)、[`app.js`](../cat-tool/app.js) `insertNextMissingTag`、`effectiveTags` |
+| **Bug #6 TM 比對表** | 未修（見實作計畫） | 側邊欄 TM 列以 `ondblclick` 內嵌譯文；`tgtEsc` 未跳脫 `"`，譯文含 `id="…"` 時 HTML 屬性斷裂，畫面出現 `", 100, 0)">` 類殘段（多為顯示問題）。建議改 `data-*`+索引或完整屬性跳脫 | [`app.js`](../cat-tool/app.js) `buildCatMatchRowsHtml`、`handleCatResultApply` |
+| **QA Tag 檢查與佔位對齊** | 已實作 | 舊 QA 僅比 `sourceTags` vs `targetTags` 陣列；匯出／畫面在 `targetTags` 空時會用 `sourceTags` + `targetText` 佔位符。修正後自譯文純文字掃 `\{\/?(\d+)\}` 併入「已帶入」判斷，並自 `ph` 備援 id；多餘 tag 同檢陣列與譯文多出之編號。專文見下 | [`app.js`](../cat-tool/app.js) `runQaChecks`、`_qaPushSegmentRuleFindings`、`_qaTagIdForCompare`、`_qaPlainTargetTagNumSet`；說明 [`bug-report_cat-qa-tag-parity.md`](bug-report_cat-qa-tag-parity.md) |
 
 **Bug #5 完整調查、白話摘要、修正建議與 mq:ch 換行 display 增強**：[`bug-report_mqxliff-partial-target-tags.md`](bug-report_mqxliff-partial-target-tags.md)。
 
