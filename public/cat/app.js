@@ -3181,7 +3181,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         clearEditorCaretArtifacts();
         leaveCollabForCurrentFile();
         const viewEditorEl = document.getElementById('viewEditor');
-        if (!currentFileId || !viewEditorEl || viewEditorEl.classList.contains('hidden')) return;
+        if ((!currentFileId && !_currentViewId) || !viewEditorEl || viewEditorEl.classList.contains('hidden')) return;
         // Auto-save notes, no custom modal possible on beforeunload
         autoSaveAllNotes().catch(() => {});
     });
@@ -3578,12 +3578,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function loadViewsList(projectId) {
         const body = document.getElementById('viewsListBody');
         if (!body) return;
-        body.innerHTML = '<tr><td colspan="8" style="padding:0.75rem; color:#64748b;">載入中…</td></tr>';
+        body.innerHTML = '<tr><td colspan="7" style="padding:0.75rem; color:#64748b;">載入中…</td></tr>';
         try {
             const views = await DBService.listViews(projectId);
             _currentViewsList = views || [];
             if (!_currentViewsList.length) {
-                body.innerHTML = '<tr><td colspan="8" style="padding:0.75rem; color:#64748b; font-size:0.9rem;">目前沒有句段集。在「檔案清單」分頁勾選檔案後點擊「建立句段集」。</td></tr>';
+                body.innerHTML = '<tr><td colspan="7" style="padding:0.75rem; color:#64748b; font-size:0.9rem;">目前沒有句段集。在「檔案清單」分頁勾選檔案後點擊「建立句段集」。</td></tr>';
                 syncViewsSelectAll();
                 return;
             }
@@ -3614,13 +3614,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; width:52px; color:#64748b;">${rowIdx + 1}</td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; white-space:nowrap;">
                         <button type="button" class="view-open-btn" data-view-id="${viewId}" style="background:none;border:none;padding:0;color:var(--primary-color);cursor:pointer;text-decoration:underline;font-weight:600;">${nameEsc}</button>
+                        <div class="view-progress-cell" data-view-id="${viewId}" style="margin-top:0.2rem; color:#94a3b8; font-size:0.78rem;">—</div>
                         ${renameBtn}
                     </td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem;">${fileLines}</td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#475569; white-space:nowrap;">${filterText}</td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#475569;">${ownerName}</td>
                     <td style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#64748b;">${createdAt}</td>
-                    <td class="view-progress-cell" data-view-id="${viewId}" style="padding:0.5rem; border:1px solid #e2e8f0; font-size:0.82rem; color:#94a3b8;">—</td>
                 </tr>`;
             }).join('');
 
@@ -3650,7 +3650,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             _loadViewsProgressAsync(_currentViewsList).catch(() => {});
         } catch (err) {
             console.error('[views] loadViewsList error:', err);
-            if (body) body.innerHTML = '<tr><td colspan="8" style="padding:0.75rem; color:#dc2626;">載入失敗，請重試。</td></tr>';
+            if (body) body.innerHTML = '<tr><td colspan="7" style="padding:0.75rem; color:#dc2626;">載入失敗，請重試。</td></tr>';
         }
     }
 
@@ -3970,12 +3970,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         let segments = [];
         if (segmentIds.length) {
             segments = await DBService.getSegmentsByIds(segmentIds);
-            // 依 file_ids 順序 + rowIdx 排列
-            const fileOrder = fileIds.map((id) => String(id));
+            // 依專案檔案清單順序（seqNo）+ rowIdx 排列，確保跨檔案的閱讀順序正確
             segments.sort((a, b) => {
-                const ai = fileOrder.indexOf(String(a.fileId));
-                const bi = fileOrder.indexOf(String(b.fileId));
-                if (ai !== bi) return (ai < 0 ? 999 : ai) - (bi < 0 ? 999 : bi);
+                const fa = filesMap[String(a.fileId)];
+                const fb = filesMap[String(b.fileId)];
+                const ai = fa ? fa.seqNo : 9999;
+                const bi = fb ? fb.seqNo : 9999;
+                if (ai !== bi) return ai - bi;
                 return (a.rowIdx || 0) - (b.rowIdx || 0);
             });
         }
@@ -4053,6 +4054,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 window.ActiveTmPenalties = project.tmPenalties || {};
                 window.ActiveReadTmIds = project.readTms || [];
                 window.ActiveReadTbIds = project.readTbs || [];
+                window.ActiveWriteTms = project.writeTms || []; // 確認時寫入 TM（§5 fix）
                 for (const tmId of (project.readTms || [])) {
                     const segs = await DBService.getTMSegments(tmId);
                     const tm = await DBService.getTM(tmId);
@@ -4097,10 +4099,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             // 設定格線欄位（maxKeys 從 segments 推算）
+            // 同 openEditor：從 idValue 派生 keys 陣列（mqxliff / Excel 皆適用）
             let maxKeys = 0;
             currentSegmentsList.forEach((seg) => {
-                if (Array.isArray(seg.keys) && seg.keys.length > maxKeys) maxKeys = seg.keys.length;
-                else if (!seg.keys) seg.keys = [];
+                if (!seg.keys && seg.idValue) {
+                    const lines = seg.idValue.split('\n');
+                    seg.keys = lines.map(l => l.replace(/^String Key \d+: /, '').trim());
+                } else if (!seg.keys) {
+                    seg.keys = [];
+                }
+                if (seg.keys.length > maxKeys) maxKeys = seg.keys.length;
             });
             const defaultCols = [];
             defaultCols.push({ id: 'col-id', name: 'ID', visible: true, width: '50px' });
@@ -4915,27 +4923,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         }));
     }
 
-    /** 非同步計算各句段集整體進度並填入清單（§4） */
+    /** 非同步計算各句段集整體進度並填入名稱欄下方（§4，同檔案清單樣式） */
     async function _loadViewsProgressAsync(views) {
         if (!Array.isArray(views) || !views.length) return;
         await Promise.all(views.map(async (v) => {
             try {
                 const segIds = Array.isArray(v.segmentIds) ? v.segmentIds : [];
+                const cell = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
+                if (!cell) return;
                 if (!segIds.length) {
-                    const cell = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
-                    if (cell) cell.innerHTML = '<span style="color:#94a3b8;">0 / 0</span>';
+                    cell.innerHTML = '<span style="color:#94a3b8;">0 字</span>';
                     return;
                 }
                 const segs = await DBService.getSegmentsByIds(segIds);
-                const total = segs.length;
-                const confirmed = segs.filter(s => s.status === 'confirmed').length;
+                const total = segs.reduce((a, s) => a + countWords(s.sourceText || ''), 0);
+                const confirmed = segs.filter(s => s.status === 'confirmed')
+                                      .reduce((a, s) => a + countWords(s.sourceText || ''), 0);
                 const pct = total === 0 ? 0 : Math.round(confirmed / total * 100);
-                const cell = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
-                if (!cell) return;
                 cell.innerHTML = `
-                    <div style="position:relative; background:#e2e8f0; border-radius:4px; height:18px; min-width:80px;">
+                    <div style="position:relative; background:#e2e8f0; border-radius:4px; height:16px; min-width:80px; max-width:160px;">
                         <div style="position:absolute; top:0; left:0; bottom:0; width:${pct}%; background:var(--success-color); border-radius:4px; transition:width 0.3s;"></div>
-                        <span style="position:relative; z-index:1; font-size:0.77rem; padding:0 6px; line-height:18px; white-space:nowrap; color:#1e293b;">${pct}% (${confirmed}/${total})</span>
+                        <span style="position:relative; z-index:1; font-size:0.75rem; padding:0 6px; line-height:16px; white-space:nowrap; color:#1e293b;">${pct}% (${confirmed}/${total} 字)</span>
                     </div>`;
             } catch (_) { /* 靜默失敗 */ }
         }));
@@ -11634,7 +11642,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
         function editorUndoHotkeyAllowed() {
-            if (!currentFileId || !currentSegmentsList.length) return false;
+            if ((!currentFileId && !_currentViewId) || !currentSegmentsList.length) return false;
             const ve = document.getElementById('viewEditor');
             if (!ve || ve.classList.contains('hidden')) return false;
             const ae = document.activeElement;
@@ -11665,7 +11673,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     document.addEventListener('keydown', (e) => {
-        if (!e.ctrlKey || !/^[1-9]$/.test(e.key) || !currentFileId) return;
+        if (!e.ctrlKey || !/^[1-9]$/.test(e.key) || (!currentFileId && !_currentViewId)) return;
         const ve = document.getElementById('viewEditor');
         if (!ve || ve.classList.contains('hidden')) return;
         const tab = getActiveRightPanelTab();
@@ -12398,7 +12406,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function goToSearchMatchStep(delta) {
-        if (!sfSearchMatches.length || !currentFileId) return;
+        if (!sfSearchMatches.length || (!currentFileId && !_currentViewId)) return;
         const dir = delta > 0 ? 'next' : 'prev';
         const anchor = getSearchNavAnchorCollapsed(dir);
         const idx = dir === 'next'
@@ -12678,7 +12686,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 點擊原文欄 tag → 插入同列譯文（假游標位置或末尾）
     if (gridBody) {
         gridBody.addEventListener('click', function onSourceTagInsertClick(e) {
-            if (!currentFileId) return;
+            if (!currentFileId && !_currentViewId) return;
             const tagSpan = e.target.closest('.rt-tag');
             if (!tagSpan || !tagSpan.closest('.col-source')) return;
             e.preventDefault();
@@ -12799,7 +12807,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.addEventListener('keydown', (e) => {
         if (!e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
         if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-        if (!currentFileId) return;
+        if (!currentFileId && !_currentViewId) return;
         const ve = document.getElementById('viewEditor');
         if (!ve || ve.classList.contains('hidden')) return;
         e.preventDefault();
@@ -14167,7 +14175,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     /** 多選時 Ctrl+Enter：批次確認所選句段（略過鎖定／禁止），並寫入 TM／重複傳播。capture 先於 textarea。 */
     document.addEventListener('keydown', (e) => {
-        if (!e.ctrlKey || e.key !== 'Enter' || !currentFileId) return;
+        if (!e.ctrlKey || e.key !== 'Enter' || (!currentFileId && !_currentViewId)) return;
         const viewEditor = document.getElementById('viewEditor');
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
         if (!selectedRowIds || selectedRowIds.size <= 1) return;
@@ -15038,6 +15046,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const keyText = seg.keys && seg.keys[k] ? seg.keys[k] : '';
                 // Rename Key 1 logic: CSS class stays the same but UI name in colSettings is handled in the header loop
                 rowInnerContent += `<div class="col-key-${k}" style="padding:0.5rem; border-right:1px solid #e2e8f0; word-break:break-all; font-size:0.85rem; color:var(--text-main);">${keyText}</div>`;
+            }
+            // 句段集模式才渲染所屬檔案格（位置：keys 後、原文前）
+            if (_currentViewId && colSettings.some(c => c.id === 'col-source-file')) {
+                const fInfo = _currentViewFilesMap ? _currentViewFilesMap[String(seg.fileId)] : null;
+                const fName = fInfo ? (fInfo.name || '—') : (seg.fileId ? String(seg.fileId).slice(0, 8) + '…' : '—');
+                const fEsc = fName.replace(/</g, '&lt;');
+                const fQ = fName.replace(/"/g, '&quot;');
+                rowInnerContent += `<div class="col-source-file" style="padding:0.5rem; font-size:0.82rem; color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${fQ}">${fEsc}</div>`;
             }
             const sourceHtml = buildTaggedHtml(seg.sourceText, seg.sourceTags || [], true);
             rowInnerContent += `<div class="col-source"><div class="rt-editor" contenteditable="false">${sourceHtml}</div></div>`;
@@ -16542,7 +16558,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Alt+上/下：CAT 分頁比對表或 TM 搜尋 concordance 列表中移動選取（不套用譯文）
     document.addEventListener('keydown', function rightPanelMatchListAltArrow(e) {
         if (e.ctrlKey || e.metaKey || e.shiftKey || !e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
-        if (!currentFileId) return;
+        if (!currentFileId && !_currentViewId) return;
         const viewEditor = document.getElementById('viewEditor');
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
         const tabTm = document.getElementById('tabTmSearch');
@@ -16596,7 +16612,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (isCatPanelBlockWordNav()) return;
         const viewEditor = document.getElementById('viewEditor');
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
-        if (!currentFileId) return;
+        if (!currentFileId && !_currentViewId) return;
         const matches = window.currentTmMatches;
         if (!matches || matches.length <= 9) return;
         const catTab = document.getElementById('tabCAT');
@@ -16616,7 +16632,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.addEventListener('keydown', function rightPanelTabByChord(e) {
         if (!e.ctrlKey || !e.altKey || e.shiftKey || e.metaKey) return;
         if (e.code !== 'ArrowLeft' && e.code !== 'ArrowRight') return;
-        if (!currentFileId) return;
+        if (!currentFileId && !_currentViewId) return;
         const viewEditor = document.getElementById('viewEditor');
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
         const order = ['tabCAT', 'tabTmSearch', 'tabNewTerm', 'tabQA'];
@@ -16637,7 +16653,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.addEventListener('keydown', function focusFakeCaretChord(e) {
         if (!e.ctrlKey || !e.altKey || e.shiftKey || e.metaKey) return;
         if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown' && e.code !== 'ArrowUp' && e.code !== 'ArrowDown') return;
-        if (!currentFileId) return;
+        if (!currentFileId && !_currentViewId) return;
         const viewEditor = document.getElementById('viewEditor');
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
         e.preventDefault();
