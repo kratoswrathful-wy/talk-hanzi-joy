@@ -3239,6 +3239,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     /** 同一 view 內換 id 時，await 前先清空／顯示載入，避免上一筆 DOM 殘留 */
     function beginOpenProjectDetailLoading(projectId) {
         _abortWcWorkerJob();
+        Object.keys(_fileProgressModeById).forEach((k) => delete _fileProgressModeById[k]);
+        Object.keys(_viewProgressModeById).forEach((k) => delete _viewProgressModeById[k]);
         currentProjectId = projectId;
         _projectTmNormListCache = null;
         if (detailProjectName) detailProjectName.textContent = '載入中…';
@@ -4175,6 +4177,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function openEditorWithSegments(segments, opts) {
         const { title, viewId, filesMap, fileRoles, project } = opts || {};
         leaveCollabForCurrentFile();
+        Object.keys(_editorProgressModeByFileId).forEach((k) => delete _editorProgressModeByFileId[k]);
         currentFileId = null;
         _currentViewId = viewId || null;
         _currentViewFilesMap = filesMap || {};
@@ -5133,151 +5136,193 @@ document.addEventListener('DOMContentLoaded', async () => {
         return tmNormList;
     }
 
-    async function _loadFilesProgressAsync(files) {
+    async function _fillOneFileProgressCell(f, pgId, tmNormList, discounts) {
+        const WCE = window.WordCountEngine;
+        const cell = filesListBody?.querySelector(`.file-progress-cell[data-file-id="${f.id}"]`);
+        if (!cell) return;
+        const mode = _wcGetFileMode(f.id);
+        const useWeighted = mode === 'weighted' && WCE;
+        const barColor = useWeighted ? '#ef4444' : 'var(--success-color)';
+        const segs = await DBService.getSegmentsByFile(f.id);
+        if (!segs || !segs.length) {
+            cell.innerHTML = '<span style="color:#94a3b8; font-size:0.76rem;">0 字</span>';
+            return;
+        }
+        let total;
+        let confirmed;
+        if (!useWeighted) {
+            if (WCE) {
+                total = segs.reduce((a, s) => a + WCE.weightedUnits(s.sourceText || ''), 0);
+                confirmed = segs.filter((s) => s.status === 'confirmed')
+                    .reduce((a, s) => a + WCE.weightedUnits(s.sourceText || ''), 0);
+            } else {
+                total = segs.reduce((a, s) => a + countWords(s.sourceText || ''), 0);
+                confirmed = segs.filter((s) => s.status === 'confirmed')
+                    .reduce((a, s) => a + countWords(s.sourceText || ''), 0);
+            }
+        } else {
+            const nSeg = segs.length;
+            cell.innerHTML = _wcCellLoadingBar(0, nSeg, false);
+            const payload = {
+                segments: _wcSerializeSegmentsForWorker(segs),
+                tmSourcesNormalized: tmNormList,
+                includeLocked: true,
+                discounts
+            };
+            const res = await runWcAnalyzeWithFallback(payload, (done, tot) => {
+                if (!_wcStillOnProjectDetail(pgId)) return;
+                const c = filesListBody?.querySelector(`.file-progress-cell[data-file-id="${f.id}"]`);
+                if (c) c.innerHTML = _wcCellLoadingBar(done, tot, false);
+            });
+            if (!_wcStillOnProjectDetail(pgId)) return;
+            const per = res.perSegment || [];
+            total = 0;
+            confirmed = 0;
+            for (let i = 0; i < segs.length; i++) {
+                const ps = per[i];
+                if (!ps) continue;
+                total += ps.weightedW;
+                if (segs[i].status === 'confirmed') confirmed += ps.weightedW;
+            }
+        }
+        const pct = total === 0 ? 0 : Math.round(confirmed / total * 100);
+        const cell2 = filesListBody?.querySelector(`.file-progress-cell[data-file-id="${f.id}"]`);
+        if (cell2) cell2.innerHTML = _wcCellDoneBar(pct, confirmed, total, barColor, false);
+    }
+
+    /**
+     * @param {object[]} files
+     * @param {{ singleFileId?: string|number }} [opts] — 僅重算單一檔案列（不刷整表「載入中」）
+     */
+    async function _loadFilesProgressAsync(files, opts) {
+        opts = opts || {};
+        const singleId = opts.singleFileId != null ? String(opts.singleFileId) : null;
         if (!files || !files.length) return;
         const pgId = currentProjectId;
-        for (const f of files) {
-            const cell = filesListBody?.querySelector(`.file-progress-cell[data-file-id="${f.id}"]`);
-            if (cell) cell.innerHTML = '<span style="color:#94a3b8; font-size:0.76rem;">載入中…</span>';
+        let workList = files;
+        if (singleId) {
+            workList = files.filter((ff) => String(ff.id) === singleId);
+            if (!workList.length && window._lastFilesListForProject) {
+                const meta = window._lastFilesListForProject.find((x) => String(x.id) === singleId);
+                if (meta) workList = [meta];
+            }
+            if (!workList.length) return;
         }
-        const anyWeighted = files.some((ff) => _wcGetFileMode(ff.id) === 'weighted');
+        const anyWeighted = workList.some((ff) => _wcGetFileMode(ff.id) === 'weighted');
         let tmNormList = [];
         if (anyWeighted && pgId) {
             try { tmNormList = await getProjectTmNormListCached(pgId); } catch (_) { /* ignore */ }
         }
         const discounts = readWcDiscountsFromInputs();
         const WCE = window.WordCountEngine;
+        const rawList = workList.filter((ff) => !(_wcGetFileMode(ff.id) === 'weighted' && WCE));
+        const weightedList = workList.filter((ff) => _wcGetFileMode(ff.id) === 'weighted' && WCE);
 
-        for (const f of files) {
+        await Promise.all(rawList.map((f) => {
+            if (!_wcStillOnProjectDetail(pgId)) return Promise.resolve();
+            return _fillOneFileProgressCell(f, pgId, tmNormList, discounts).catch(() => {});
+        }));
+
+        for (const f of weightedList) {
             if (!_wcStillOnProjectDetail(pgId)) break;
             try {
-                const cell = filesListBody?.querySelector(`.file-progress-cell[data-file-id="${f.id}"]`);
-                if (!cell) continue;
-                const mode = _wcGetFileMode(f.id);
-                const useWeighted = mode === 'weighted' && WCE;
-                const barColor = useWeighted ? '#ef4444' : 'var(--success-color)';
-                const segs = await DBService.getSegmentsByFile(f.id);
-                if (!segs || !segs.length) {
-                    cell.innerHTML = '<span style="color:#94a3b8; font-size:0.76rem;">0 字</span>';
-                    continue;
-                }
-                let total;
-                let confirmed;
-                if (!useWeighted) {
-                    if (WCE) {
-                        total = segs.reduce((a, s) => a + WCE.weightedUnits(s.sourceText || ''), 0);
-                        confirmed = segs.filter((s) => s.status === 'confirmed')
-                            .reduce((a, s) => a + WCE.weightedUnits(s.sourceText || ''), 0);
-                    } else {
-                        total = segs.reduce((a, s) => a + countWords(s.sourceText || ''), 0);
-                        confirmed = segs.filter((s) => s.status === 'confirmed')
-                            .reduce((a, s) => a + countWords(s.sourceText || ''), 0);
-                    }
-                } else {
-                    const nSeg = segs.length;
-                    cell.innerHTML = _wcCellLoadingBar(0, nSeg, false);
-                    const payload = {
-                        segments: _wcSerializeSegmentsForWorker(segs),
-                        tmSourcesNormalized: tmNormList,
-                        includeLocked: true,
-                        discounts
-                    };
-                    const res = await runWcAnalyzeWithFallback(payload, (done, tot) => {
-                        if (!_wcStillOnProjectDetail(pgId)) return;
-                        const c = filesListBody?.querySelector(`.file-progress-cell[data-file-id="${f.id}"]`);
-                        if (c) c.innerHTML = _wcCellLoadingBar(done, tot, false);
-                    });
-                    if (!_wcStillOnProjectDetail(pgId)) break;
-                    const per = res.perSegment || [];
-                    total = 0;
-                    confirmed = 0;
-                    for (let i = 0; i < segs.length; i++) {
-                        const ps = per[i];
-                        if (!ps) continue;
-                        total += ps.weightedW;
-                        if (segs[i].status === 'confirmed') confirmed += ps.weightedW;
-                    }
-                }
-                const pct = total === 0 ? 0 : Math.round(confirmed / total * 100);
-                const cell2 = filesListBody?.querySelector(`.file-progress-cell[data-file-id="${f.id}"]`);
-                if (cell2) cell2.innerHTML = _wcCellDoneBar(pct, confirmed, total, barColor, false);
+                await _fillOneFileProgressCell(f, pgId, tmNormList, discounts);
             } catch (_) { /* team mode 或空檔案時靜默失敗 */ }
         }
         _wcRefreshFileToolbarTitle();
     }
 
-    /** 非同步計算各句段集整體進度並填入名稱欄下方（§4，同檔案清單樣式） */
-    async function _loadViewsProgressAsync(views) {
+    async function _fillOneViewProgressCell(v, pgId, tmNormList, discounts) {
+        const WCE = window.WordCountEngine;
+        const segIds = Array.isArray(v.segmentIds) ? v.segmentIds : [];
+        const cell = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
+        if (!cell) return;
+        if (!segIds.length) {
+            cell.innerHTML = '<span style="color:#94a3b8;">0 字</span>';
+            return;
+        }
+        const mode = _wcGetViewMode(v.id);
+        const useWeighted = mode === 'weighted' && WCE;
+        const barColor = useWeighted ? '#ef4444' : 'var(--success-color)';
+        let segs = await DBService.getSegmentsByIds(segIds);
+        const orderMap = new Map(segIds.map((id, i) => [String(id), i]));
+        segs = (segs || []).slice().sort((a, b) => (orderMap.get(String(a.id)) ?? 0) - (orderMap.get(String(b.id)) ?? 0));
+        let total;
+        let confirmed;
+        if (!useWeighted) {
+            if (WCE) {
+                total = segs.reduce((a, s) => a + WCE.weightedUnits(s.sourceText || ''), 0);
+                confirmed = segs.filter((s) => s.status === 'confirmed')
+                    .reduce((a, s) => a + WCE.weightedUnits(s.sourceText || ''), 0);
+            } else {
+                total = segs.reduce((a, s) => a + countWords(s.sourceText || ''), 0);
+                confirmed = segs.filter((s) => s.status === 'confirmed')
+                    .reduce((a, s) => a + countWords(s.sourceText || ''), 0);
+            }
+        } else {
+            const nSeg = segs.length;
+            cell.innerHTML = _wcCellLoadingBar(0, nSeg, true);
+            const payload = {
+                segments: _wcSerializeSegmentsForWorker(segs),
+                tmSourcesNormalized: tmNormList,
+                includeLocked: true,
+                discounts
+            };
+            const res = await runWcAnalyzeWithFallback(payload, (done, tot) => {
+                if (!_wcStillOnProjectDetail(pgId)) return;
+                const c = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
+                if (c) c.innerHTML = _wcCellLoadingBar(done, tot, true);
+            });
+            if (!_wcStillOnProjectDetail(pgId)) return;
+            const per = res.perSegment || [];
+            total = 0;
+            confirmed = 0;
+            for (let i = 0; i < segs.length; i++) {
+                const ps = per[i];
+                if (!ps) continue;
+                total += ps.weightedW;
+                if (segs[i].status === 'confirmed') confirmed += ps.weightedW;
+            }
+        }
+        const pct = total === 0 ? 0 : Math.round(confirmed / total * 100);
+        const cell2 = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
+        if (cell2) cell2.innerHTML = _wcCellDoneBar(pct, confirmed, total, barColor, true);
+    }
+
+    /** @param {{ singleViewId?: string|number }} [opts] */
+    async function _loadViewsProgressAsync(views, opts) {
+        opts = opts || {};
+        const singleVid = opts.singleViewId != null ? String(opts.singleViewId) : null;
         if (!Array.isArray(views) || !views.length) return;
         const pgId = currentProjectId;
-        for (const v of views) {
-            const cell = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
-            if (cell) cell.innerHTML = '<span style="color:#94a3b8; font-size:0.75rem;">載入中…</span>';
+        let workList = views;
+        if (singleVid) {
+            workList = views.filter((vv) => String(vv.id) === singleVid);
+            if (!workList.length && _currentViewsList && _currentViewsList.length) {
+                const meta = _currentViewsList.find((x) => String(x.id) === singleVid);
+                if (meta) workList = [meta];
+            }
+            if (!workList.length) return;
         }
-        const anyWeighted = views.some((vv) => _wcGetViewMode(vv.id) === 'weighted');
+        const anyWeighted = workList.some((vv) => _wcGetViewMode(vv.id) === 'weighted');
         let tmNormList = [];
         if (anyWeighted && pgId) {
             try { tmNormList = await getProjectTmNormListCached(pgId); } catch (_) { /* ignore */ }
         }
         const discounts = readWcDiscountsFromInputs();
         const WCE = window.WordCountEngine;
+        const rawList = workList.filter((vv) => !(_wcGetViewMode(vv.id) === 'weighted' && WCE));
+        const weightedList = workList.filter((vv) => _wcGetViewMode(vv.id) === 'weighted' && WCE);
 
-        for (const v of views) {
+        await Promise.all(rawList.map((v) => {
+            if (!_wcStillOnProjectDetail(pgId)) return Promise.resolve();
+            return _fillOneViewProgressCell(v, pgId, tmNormList, discounts).catch(() => {});
+        }));
+
+        for (const v of weightedList) {
             if (!_wcStillOnProjectDetail(pgId)) break;
             try {
-                const segIds = Array.isArray(v.segmentIds) ? v.segmentIds : [];
-                const cell = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
-                if (!cell) continue;
-                if (!segIds.length) {
-                    cell.innerHTML = '<span style="color:#94a3b8;">0 字</span>';
-                    continue;
-                }
-                const mode = _wcGetViewMode(v.id);
-                const useWeighted = mode === 'weighted' && WCE;
-                const barColor = useWeighted ? '#ef4444' : 'var(--success-color)';
-                let segs = await DBService.getSegmentsByIds(segIds);
-                const orderMap = new Map(segIds.map((id, i) => [String(id), i]));
-                segs = (segs || []).slice().sort((a, b) => (orderMap.get(String(a.id)) ?? 0) - (orderMap.get(String(b.id)) ?? 0));
-                let total;
-                let confirmed;
-                if (!useWeighted) {
-                    if (WCE) {
-                        total = segs.reduce((a, s) => a + WCE.weightedUnits(s.sourceText || ''), 0);
-                        confirmed = segs.filter((s) => s.status === 'confirmed')
-                            .reduce((a, s) => a + WCE.weightedUnits(s.sourceText || ''), 0);
-                    } else {
-                        total = segs.reduce((a, s) => a + countWords(s.sourceText || ''), 0);
-                        confirmed = segs.filter((s) => s.status === 'confirmed')
-                            .reduce((a, s) => a + countWords(s.sourceText || ''), 0);
-                    }
-                } else {
-                    const nSeg = segs.length;
-                    cell.innerHTML = _wcCellLoadingBar(0, nSeg, true);
-                    const payload = {
-                        segments: _wcSerializeSegmentsForWorker(segs),
-                        tmSourcesNormalized: tmNormList,
-                        includeLocked: true,
-                        discounts
-                    };
-                    const res = await runWcAnalyzeWithFallback(payload, (done, tot) => {
-                        if (!_wcStillOnProjectDetail(pgId)) return;
-                        const c = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
-                        if (c) c.innerHTML = _wcCellLoadingBar(done, tot, true);
-                    });
-                    if (!_wcStillOnProjectDetail(pgId)) break;
-                    const per = res.perSegment || [];
-                    total = 0;
-                    confirmed = 0;
-                    for (let i = 0; i < segs.length; i++) {
-                        const ps = per[i];
-                        if (!ps) continue;
-                        total += ps.weightedW;
-                        if (segs[i].status === 'confirmed') confirmed += ps.weightedW;
-                    }
-                }
-                const pct = total === 0 ? 0 : Math.round(confirmed / total * 100);
-                const cell2 = document.querySelector(`.view-progress-cell[data-view-id="${v.id}"]`);
-                if (cell2) cell2.innerHTML = _wcCellDoneBar(pct, confirmed, total, barColor, true);
+                await _fillOneViewProgressCell(v, pgId, tmNormList, discounts);
             } catch (_) { /* 靜默失敗 */ }
         }
         _wcRefreshViewToolbarTitle();
@@ -10824,6 +10869,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function openEditor(fileId) {
         try {
         _abortWcWorkerJob();
+        Object.keys(_editorProgressModeByFileId).forEach((k) => delete _editorProgressModeByFileId[k]);
         if (collabCurrentFileId && String(collabCurrentFileId) !== String(fileId)) {
             leaveCollabForCurrentFile();
         }
@@ -17507,6 +17553,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             btnToggleFileProgressMode.disabled = true;
             const fl = window._lastFilesListForProject;
             const s = _wcFileListModeSummary(fl || []);
+            if (s.mixed) {
+                const wasWeighted = (fl || []).filter((f) => _wcGetFileMode(f.id) === 'weighted');
+                wasWeighted.forEach((f) => { _fileProgressModeById[String(f.id)] = 'raw'; });
+                await Promise.all(wasWeighted.map((f) => _loadFilesProgressAsync(fl || [], { singleFileId: f.id }).catch(() => {})));
+                btnToggleFileProgressMode.disabled = false;
+                _wcRefreshFileToolbarTitle();
+                return;
+            }
             const nextMode = s.allWeighted ? 'raw' : 'weighted';
             if (fl && fl.length) {
                 for (const f of fl) {
@@ -17526,6 +17580,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             btnToggleViewProgressMode.disabled = true;
             const vs = _currentViewsList || [];
             const sum = _wcViewListModeSummary(vs);
+            if (sum.mixed) {
+                const wasWeighted = vs.filter((v) => _wcGetViewMode(v.id) === 'weighted');
+                wasWeighted.forEach((v) => { _viewProgressModeById[String(v.id)] = 'raw'; });
+                await Promise.all(wasWeighted.map((v) => _loadViewsProgressAsync(vs, { singleViewId: v.id }).catch(() => {})));
+                btnToggleViewProgressMode.disabled = false;
+                _wcRefreshViewToolbarTitle();
+                return;
+            }
             const nextMode = sum.allWeighted ? 'raw' : 'weighted';
             for (const v of vs) {
                 _viewProgressModeById[String(v.id)] = nextMode;
@@ -17561,7 +17623,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             _fileProgressModeById[fid] = cur === 'raw' ? 'weighted' : 'raw';
             _wcRefreshFileToolbarTitle();
             const fl = window._lastFilesListForProject;
-            if (fl && fl.length) await _loadFilesProgressAsync(fl);
+            if (fl && fl.length) await _loadFilesProgressAsync(fl, { singleFileId: fid });
         });
     }
     if (viewsListBody && !viewsListBody.dataset.wcViewProgressClick) {
@@ -17577,14 +17639,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             _viewProgressModeById[vid] = cur === 'raw' ? 'weighted' : 'raw';
             _wcRefreshViewToolbarTitle();
             if (_currentViewsList && _currentViewsList.length) {
-                await _loadViewsProgressAsync(_currentViewsList);
+                await _loadViewsProgressAsync(_currentViewsList, { singleViewId: vid });
             }
         });
     }
     const editorProgressTrack = document.querySelector('.editor-status-bar-progress-track');
     if (editorProgressTrack && !editorProgressTrack.dataset.wcEditorProgressClick) {
         editorProgressTrack.dataset.wcEditorProgressClick = '1';
-        editorProgressTrack.style.cursor = 'pointer';
         editorProgressTrack.addEventListener('click', async () => {
             if (currentFileId == null) return;
             const cur = _wcGetEditorModeForFile(currentFileId);
@@ -17594,6 +17655,97 @@ document.addEventListener('DOMContentLoaded', async () => {
             _wcRefreshEditorToolbarTitle();
         });
     }
+
+    /** 進度條上無延遲自訂提示（原生 title 有延遲）；role="tooltip" + aria-describedby */
+    (function initWcProgressModeTooltip() {
+        const TIP_ID = 'wcProgressModeTooltip';
+        let activeTrigger = null;
+        function ensureTipEl() {
+            let tip = document.getElementById(TIP_ID);
+            if (!tip) {
+                tip = document.createElement('div');
+                tip.id = TIP_ID;
+                tip.className = 'wc-progress-mode-tooltip hidden';
+                tip.setAttribute('role', 'tooltip');
+                tip.setAttribute('aria-hidden', 'true');
+                document.body.appendChild(tip);
+            }
+            return tip;
+        }
+        function tipTextFor(el) {
+            if (el.classList.contains('file-progress-cell')) {
+                const id = el.getAttribute('data-file-id');
+                const m = _wcGetFileMode(id);
+                return `切換本列字數顯示方式；目前顯示：${m === 'weighted' ? '加權字數' : '原始字數'}`;
+            }
+            if (el.classList.contains('view-progress-cell')) {
+                const id = el.getAttribute('data-view-id');
+                const m = _wcGetViewMode(id);
+                return `切換本列字數顯示方式；目前顯示：${m === 'weighted' ? '加權字數' : '原始字數'}`;
+            }
+            if (el.classList.contains('editor-status-bar-progress-track')) {
+                const m = currentFileId != null ? _wcGetEditorModeForFile(currentFileId) : 'raw';
+                return `切換本列字數顯示方式；目前顯示：${m === 'weighted' ? '加權字數' : '原始字數'}`;
+            }
+            return '';
+        }
+        function hideTip() {
+            const tip = document.getElementById(TIP_ID);
+            if (activeTrigger) {
+                activeTrigger.removeAttribute('aria-describedby');
+                activeTrigger = null;
+            }
+            if (tip) {
+                tip.classList.add('hidden');
+                tip.setAttribute('aria-hidden', 'true');
+                tip.textContent = '';
+            }
+        }
+        function showTip(el) {
+            const text = tipTextFor(el);
+            if (!text) return;
+            hideTip();
+            activeTrigger = el;
+            const tip = ensureTipEl();
+            tip.textContent = text;
+            el.setAttribute('aria-describedby', TIP_ID);
+            tip.classList.remove('hidden');
+            tip.setAttribute('aria-hidden', 'false');
+            requestAnimationFrame(() => {
+                if (!activeTrigger || activeTrigger !== el) return;
+                const r = el.getBoundingClientRect();
+                const tr = tip.getBoundingClientRect();
+                let left = r.left + (r.width - tr.width) / 2;
+                let top = r.bottom + 6;
+                if (left < 8) left = 8;
+                if (left + tr.width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - 8 - tr.width);
+                if (top + tr.height > window.innerHeight - 8) top = r.top - tr.height - 6;
+                if (top < 8) top = 8;
+                tip.style.left = `${Math.round(left)}px`;
+                tip.style.top = `${Math.round(top)}px`;
+            });
+        }
+        document.addEventListener('mouseover', (e) => {
+            const el = e.target.closest('.file-progress-cell, .view-progress-cell, .editor-status-bar-progress-track');
+            if (!el) return;
+            if (activeTrigger === el) return;
+            showTip(el);
+        }, true);
+        document.addEventListener('mouseout', (e) => {
+            if (!activeTrigger) return;
+            const rel = e.relatedTarget;
+            if (rel && activeTrigger.contains(rel)) return;
+            hideTip();
+        }, true);
+        window.addEventListener('scroll', () => {
+            const tip = document.getElementById(TIP_ID);
+            if (tip && !tip.classList.contains('hidden')) hideTip();
+        }, true);
+        window.addEventListener('resize', () => {
+            const tip = document.getElementById(TIP_ID);
+            if (tip && !tip.classList.contains('hidden')) hideTip();
+        });
+    })();
 
     // ── QA ──────────────────────────────────────────────────────────────────
 

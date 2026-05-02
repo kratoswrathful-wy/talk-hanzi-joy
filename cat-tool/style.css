@@ -3409,3 +3409,29 @@ select.cat-mutex-dd-native-hidden {
     line-height: 1;
     font-variant-numeric: tabular-nums;
 }
+
+/* 字數進度條可點擊；自訂無延遲提示 #wcProgressModeTooltip */
+.file-progress-cell,
+.view-progress-cell,
+.editor-status-bar-progress-track {
+    cursor: pointer;
+}
+
+#wcProgressModeTooltip.wc-progress-mode-tooltip {
+    position: fixed;
+    z-index: 100060;
+    max-width: min(20rem, calc(100vw - 16px));
+    padding: 0.35rem 0.55rem;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: #f8fafc;
+    background: #1e293b;
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.28);
+    pointer-events: none;
+    white-space: normal;
+    box-sizing: border-box;
+}
+#wcProgressModeTooltip.wc-progress-mode-tooltip.hidden {
+    display: none !important;
+}
