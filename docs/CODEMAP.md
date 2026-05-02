@@ -15,6 +15,7 @@
 | 項目 | 位置 |
 |------|------|
 | **唯一原始碼目錄** | `cat-tool/`（`app.js`、`db.js`、`index.html`、`js/`、`style.css` 等） |
+| 字數／TM 加權：Worker 與「切換字數」UI 規格（文件；實作待落地） | [CAT_WORD_COUNT_WORKER_AND_UI.md](./CAT_WORD_COUNT_WORKER_AND_UI.md) |
 | 靜態輸出（勿單獨當真相長改） | `public/cat/`（由 `npm run sync:cat`、腳本 `scripts/sync-cat.mjs` 覆寫；`prebuild` 會跑） |
 | 捷徑說明 | 根目錄 `AGENTS.md`、`.cursor/rules/cat-tool-source.mdc` |
 | 內聯標籤：點擊原文 tag 插入同列譯文（假游標位置或句末）、重複佔位檢查 | [`cat-tool/app.js`](../cat-tool/app.js)：`onSourceTagInsertClick`（`#gridBody` 委派）；[`cat-tool/js/cat-fake-caret.js`](../cat-tool/js/cat-fake-caret.js)：`getSaved`／`restore`；備忘見 [`cat-tool/README.md`](../cat-tool/README.md)「編輯器：內聯標籤」 |
