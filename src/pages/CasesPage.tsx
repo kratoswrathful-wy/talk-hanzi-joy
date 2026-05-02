@@ -887,12 +887,8 @@ export default function CasesPage() {
     if (rowSelection.selectedCount === 0) return;
     const idSet = rowSelection.selectedIds;
     const ordered = visibleFees.filter((c) => idSet.has(c.id));
-    const origin = window.location.origin;
     copyMultipleCaseInquiryMessagesToClipboard(
-      ordered.map((c) => ({
-        title: c.title || "（無標題）",
-        caseUrl: `${origin}/cases/${c.id}`,
-      }))
+      ordered.map((c) => ({ id: c.id, title: c.title || "（無標題）" }))
     );
   }, [visibleFees, rowSelection.selectedCount, rowSelection.selectedIds]);
 

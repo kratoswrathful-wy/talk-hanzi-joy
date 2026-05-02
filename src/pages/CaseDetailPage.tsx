@@ -2046,8 +2046,7 @@ export default function CaseDetailPage() {
                   style={uiInquiryMsg.style}
                   onClick={() => {
                     const title = caseData?.title || "（無標題）";
-                    const url = `${window.location.origin}/cases/${id}`;
-                    copyCaseInquiryMessageToClipboard(title, url);
+                    copyCaseInquiryMessageToClipboard(id, title);
                   }}
                 >
                   <UiToolbarButtonIcon uiButtonId="cases_inquiry_message" />

@@ -297,10 +297,11 @@ export const UI_BUTTON_REGISTRY: UiButtonDef[] = [
     appearance: "solid",
   },
   {
-    id: "internal_notes_link_message",
-    label: "產生連結訊息",
+    id: "internal_notes_note_reminder",
+    label: "發送註記提醒",
     module: "內部註記",
     locations: ["註記個別頁"],
+    defaultIconKey: "lucide:Bell",
     defaultBg: "hsl(240 6% 16%)",
     defaultText: "hsl(0 0% 98%)",
     appearance: "outline",

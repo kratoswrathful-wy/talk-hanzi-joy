@@ -1212,6 +1212,7 @@ export type Database = {
       internal_notes: {
         Row: {
           comments: Json
+          consultation_slack_records: Json
           created_at: string
           created_by: string | null
           creator: string
@@ -1239,6 +1240,7 @@ export type Database = {
         }
         Insert: {
           comments?: Json
+          consultation_slack_records?: Json
           created_at?: string
           created_by?: string | null
           creator?: string
@@ -1266,6 +1268,7 @@ export type Database = {
         }
         Update: {
           comments?: Json
+          consultation_slack_records?: Json
           created_at?: string
           created_by?: string | null
           creator?: string

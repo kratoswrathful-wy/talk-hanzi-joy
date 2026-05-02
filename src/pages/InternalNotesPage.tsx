@@ -53,7 +53,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useToolbarButtonUiProps, useUiButtonLabel } from "@/stores/ui-button-style-store";
-import { buildInternalNoteLinkMessagePlain } from "@/lib/internal-note-link-message";
+import { NoteReminderSlackDialog } from "@/components/NoteReminderSlackDialog";
 import { useInternalNotes, internalNotesStore } from "@/stores/internal-notes-store";
 import { useAuth } from "@/hooks/use-auth";
 import { caseStore } from "@/hooks/use-case-store";
@@ -140,18 +140,6 @@ function NoteDetailView({
   const noteLeaveRef = useRef(note);
   noteLeaveRef.current = note;
 
-  const handleCopyLinkMessage = async () => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const plain = buildInternalNoteLinkMessagePlain(origin, note.title || "（無標題）", note.id);
-    try {
-      // Plain text only — Slack pastes HTML as unfurl-able links; mrkdwn <url|label> avoids preview.
-      await navigator.clipboard.writeText(plain);
-      toast.success("已複製連結訊息至剪貼簿");
-    } catch {
-      await navigator.clipboard.writeText(plain);
-      toast.success("已複製連結訊息至剪貼簿");
-    }
-  };
   const { profile } = useAuth();
   const { checkPerm } = usePermissions();
   const visibleNoteEditLogs = useMemo(
@@ -161,14 +149,15 @@ function NoteDetailView({
   const [invalidateOpen, setInvalidateOpen] = useState(false);
   const [invalidateReason, setInvalidateReason] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [noteReminderOpen, setNoteReminderOpen] = useState(false);
   const [commentDraft, setCommentDraft] = useState("");
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
-  const uiLinkMsg = useToolbarButtonUiProps("internal_notes_link_message");
+  const uiNoteReminder = useToolbarButtonUiProps("internal_notes_note_reminder");
   const uiSameCase = useToolbarButtonUiProps("internal_notes_same_case");
   const uiDeleteNote = useToolbarButtonUiProps("internal_notes_delete");
   const uiInvalidate = useToolbarButtonUiProps("internal_notes_invalidate");
-  const lbLinkMsg = useUiButtonLabel("internal_notes_link_message") ?? "產生連結訊息";
+  const lbNoteReminder = useUiButtonLabel("internal_notes_note_reminder") ?? "發送註記提醒";
   const lbSameCase = useUiButtonLabel("internal_notes_same_case") ?? "新增同案件註記";
   const lbDeleteNote = useUiButtonLabel("internal_notes_delete") ?? "刪除";
   const lbInvalidate = useUiButtonLabel("internal_notes_invalidate") ?? "本註記已失效";
@@ -235,8 +224,8 @@ function NoteDetailView({
           <span>←</span> 返回列表
         </button>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button size="sm" className={uiLinkMsg.className} style={uiLinkMsg.style} onClick={handleCopyLinkMessage}>
-            {lbLinkMsg}
+          <Button size="sm" className={uiNoteReminder.className} style={uiNoteReminder.style} onClick={() => setNoteReminderOpen(true)}>
+            {lbNoteReminder}
           </Button>
           <Button size="sm" className={uiSameCase.className} style={uiSameCase.style} onClick={handleNewSameCaseNote}>
             {lbSameCase}
@@ -502,6 +491,8 @@ function NoteDetailView({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <NoteReminderSlackDialog open={noteReminderOpen} onOpenChange={setNoteReminderOpen} note={note} />
     </div>
   ); // end NoteDetailView return
 } // end NoteDetailView

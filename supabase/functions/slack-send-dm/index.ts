@@ -223,8 +223,10 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const caseReplyNotification = body.case_reply_notification === true;
+    /** 內部註記「發送註記提醒」：譯者等亦可使用 recipient_emails 發私訊 */
+    const noteReminderNotification = body.note_reminder_notification === true;
 
-    if (!caseReplyNotification) {
+    if (!caseReplyNotification && !noteReminderNotification) {
       const { data: roles } = await supabase
         .from("user_roles")
         .select("role")

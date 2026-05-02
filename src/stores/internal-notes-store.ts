@@ -46,6 +46,9 @@ function dbToApp(row: any): InternalNote {
     invalidationReason: row.invalidation_reason ?? undefined,
     editLogs: Array.isArray(row.edit_logs) ? (row.edit_logs as SimplePersistedLog[]) : undefined,
     editLogStartedAt: row.edit_log_started_at ?? undefined,
+    consultationSlackRecords: Array.isArray(row.consultation_slack_records)
+      ? (row.consultation_slack_records as string[])
+      : [],
   };
 }
 
@@ -71,6 +74,8 @@ function appToDb(note: Partial<InternalNote>): Record<string, any> {
   if (note.invalidationReason !== undefined) m.invalidation_reason = note.invalidationReason;
   if (note.editLogs !== undefined) m.edit_logs = note.editLogs;
   if (note.editLogStartedAt !== undefined) m.edit_log_started_at = note.editLogStartedAt;
+  if (note.consultationSlackRecords !== undefined)
+    m.consultation_slack_records = note.consultationSlackRecords;
   return m;
 }
 

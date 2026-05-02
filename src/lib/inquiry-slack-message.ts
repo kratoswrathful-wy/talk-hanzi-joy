@@ -55,3 +55,23 @@ export function buildInquirySlackNotificationFallback(cases: Pick<CaseRecord, "i
   if (n <= 1) return "請問這件可以做嗎？（含案件連結）";
   return `請問這幾件可以做嗎？（${n} 筆案件連結）`;
 }
+
+/** 內部註記「發送註記提醒」預設 mrkdwn（兩行，案件與註記皆為 `<url|標題>`） */
+export function buildNoteReminderMessageForSlack(
+  origin: string,
+  caseId: string,
+  caseTitle: string,
+  noteId: string,
+  noteTitle: string,
+): string {
+  const base = origin.replace(/\/$/, "");
+  const caseUrl = `${base}/cases/${caseId}`;
+  const noteUrl = `${base}/internal-notes/${noteId}`;
+  const ct = escapeSlackLinkLabel(caseTitle.trim() || "（無標題）");
+  const nt = escapeSlackLinkLabel(noteTitle.trim() || "（無標題）");
+  return `我為 <${caseUrl}|${ct}> 新增了註記 <${noteUrl}|${nt}>\n請來看一下喔！`;
+}
+
+export function buildNoteReminderNotificationFallback(): string {
+  return "註記提醒（含案件與註記連結）";
+}

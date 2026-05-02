@@ -47,6 +47,8 @@ export interface InternalNote {
   editLogs?: SimplePersistedLog[];
   /** 建立者首次離開詳情後才寫入變更紀錄 */
   editLogStartedAt?: string;
+  /** 已透過「發送註記提醒」成功通知過的 profiles.id（與 cases.inquiry_slack_records 語意類似） */
+  consultationSlackRecords?: string[];
 }
 
 export const internalNotesFieldMetas: FieldMeta[] = [

@@ -23,29 +23,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, MessageSquare } from "lucide-react";
+import { Loader2, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { messageFromFunctionsInvokeErrorAsync } from "@/lib/functions-invoke-error";
 import { getAccessTokenForEdgeFunctions } from "@/lib/supabase-access-token";
 import type { CaseRecord } from "@/data/case-types";
 import {
-  buildInquiryMessageForSlack,
-  buildInquirySlackNotificationFallback,
+  buildWorkloadCountByDisplayName,
+  type CaseRowForWorkload,
+} from "@/lib/inquiry-slack-workload";
+import {
+  buildNoteReminderMessageForSlack,
+  buildNoteReminderNotificationFallback,
 } from "@/lib/inquiry-slack-message";
 import { getTimezoneInfo } from "@/data/timezone-options";
-import { getEnvironment } from "@/lib/environment";
-import {
-  buildWorkloadCountByDisplayNameTranslatorReviewerOnly,
-  type CaseRowForWorkloadTranslatorReviewerOnly,
-} from "@/lib/inquiry-slack-workload";
 import { Link } from "react-router-dom";
 import { caseStore } from "@/stores/case-store";
+import { internalNotesStore } from "@/stores/internal-notes-store";
+import { getEnvironment } from "@/lib/environment";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useSelectOptions } from "@/stores/select-options-store";
+import type { InternalNote } from "@/hooks/use-internal-notes-table-views";
 
-export type RecipientRow = {
+export type NoteReminderRecipientRow = {
   userId: string;
-  /** Trimmed profile display_name; used to match cases.translator / reviewer */
   profileDisplayNameTrimmed: string;
   displayName: string;
   avatarUrl: string | null;
@@ -56,22 +57,39 @@ export type RecipientRow = {
 
 type SortMode = "workload" | "name" | "custom";
 
-export function InquirySlackDialog({
+function collectCasePersonDisplayNames(c: CaseRecord | undefined): Set<string> {
+  const s = new Set<string>();
+  if (!c) return s;
+  if (c.reviewer?.trim()) s.add(c.reviewer.trim());
+  for (const t of c.translator || []) {
+    if (typeof t === "string" && t.trim()) s.add(t.trim());
+  }
+  if (c.multiCollab && c.collabRows) {
+    for (const row of c.collabRows) {
+      if (row.reviewer?.trim()) s.add(row.reviewer.trim());
+      if (row.translator?.trim()) s.add(row.translator.trim());
+    }
+  }
+  return s;
+}
+
+export function NoteReminderSlackDialog({
   open,
   onOpenChange,
-  cases,
+  note,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  cases: CaseRecord[];
+  note: InternalNote;
 }) {
   const { user, isAdmin } = useAuth();
   const [slackConnected, setSlackConnected] = useState<boolean | null>(null);
-  const [rows, setRows] = useState<RecipientRow[]>([]);
+  const [rows, setRows] = useState<NoteReminderRecipientRow[]>([]);
   const [workloadByName, setWorkloadByName] = useState<Map<string, number>>(() => new Map());
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [messageBody, setMessageBody] = useState("");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [hideSelf, setHideSelf] = useState(true);
@@ -86,24 +104,40 @@ export function InquirySlackDialog({
     return m;
   }, [assigneeOptions]);
 
-  const [messageBody, setMessageBody] = useState("");
+  const relatedCaseRecord = useMemo(
+    () => caseStore.getAll().find((c) => c.title === note.relatedCase),
+    [note.relatedCase, open]
+  );
 
-  useEffect(() => {
-    if (!open) return;
+  const casePersonNames = useMemo(
+    () => collectCasePersonDisplayNames(relatedCaseRecord),
+    [relatedCaseRecord]
+  );
+
+  const grayedUserIds = useMemo(() => new Set(note.consultationSlackRecords || []), [note.consultationSlackRecords]);
+
+  const defaultMessage = useMemo(() => {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    setMessageBody(buildInquiryMessageForSlack(origin, cases));
-  }, [open, cases]);
+    if (!relatedCaseRecord) return "";
+    return buildNoteReminderMessageForSlack(
+      origin,
+      relatedCaseRecord.id,
+      relatedCaseRecord.title || "（無標題）",
+      note.id,
+      note.title || "（無標題）"
+    );
+  }, [relatedCaseRecord, note.id, note.title]);
 
   useEffect(() => {
     if (!open) return;
     setSearchQuery("");
     setHideSelf(true);
     setSortMode("workload");
-  }, [open]);
+    setMessageBody(defaultMessage);
+  }, [open, defaultMessage]);
 
   useEffect(() => {
     if (!open || !user?.id) return;
-
     void (async () => {
       const { data } = await supabase.from("user_slack_meta").select("user_id").eq("user_id", user.id).maybeSingle();
       setSlackConnected(!!data);
@@ -127,7 +161,7 @@ export function InquirySlackDialog({
         supabase.from("user_roles").select("user_id"),
         supabase
           .from("cases")
-          .select("translator, reviewer, updated_at")
+          .select("translator, reviewer, collab_rows, updated_at")
           .eq("env", env)
           .gte("updated_at", cutoffIso),
       ]);
@@ -137,10 +171,9 @@ export function InquirySlackDialog({
       if (casesRes.error) {
         console.error(casesRes.error);
       }
-      const wMap = buildWorkloadCountByDisplayNameTranslatorReviewerOnly(
-        (casesRes.data || []) as CaseRowForWorkloadTranslatorReviewerOnly[]
+      setWorkloadByName(
+        buildWorkloadCountByDisplayName((casesRes.data || []) as CaseRowForWorkload[])
       );
-      setWorkloadByName(wMap);
 
       if (roleErr) {
         console.error(roleErr);
@@ -173,7 +206,7 @@ export function InquirySlackDialog({
         return;
       }
 
-      const nextRows: RecipientRow[] = (data || []).map((p) => {
+      const nextRows: NoteReminderRecipientRow[] = (data || []).map((p) => {
         const profileDisplayNameTrimmed = (p.display_name || "").trim();
         return {
           userId: p.id,
@@ -186,12 +219,20 @@ export function InquirySlackDialog({
         };
       });
       setRows(nextRows);
+
+      const gray = new Set(note.consultationSlackRecords || []);
+      const pre = new Set<string>();
+      for (const r of nextRows) {
+        if (gray.has(r.userId)) continue;
+        if (casePersonNames.has(r.profileDisplayNameTrimmed)) pre.add(r.userId);
+      }
+      setSelectedUserIds(pre);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, note.consultationSlackRecords, note.id, casePersonNames]);
 
   const rowsWithWorkload = useMemo(
     () =>
@@ -219,22 +260,16 @@ export function InquirySlackDialog({
     );
   }, [afterHideSelf, searchQuery]);
 
-  /** 對所選案件皆曾發送過 Slack 詢案的使用者（僅反灰提示，不鎖定、預設不勾選） */
-  const grayedUserIds = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of rows) {
-      const allSent = (cases || []).every((c) => (c.inquirySlackRecords || []).includes(r.userId));
-      if (cases.length > 0 && allSent) set.add(r.userId);
-    }
-    return set;
-  }, [rows, cases]);
-
   const visibleRows = useMemo(() => {
     const copy = [...afterSearch];
     copy.sort((a, b) => {
-      const aGray = grayedUserIds.has(a.userId);
-      const bGray = grayedUserIds.has(b.userId);
-      if (aGray !== bGray) return aGray ? 1 : -1;
+      const ga = grayedUserIds.has(a.userId);
+      const gb = grayedUserIds.has(b.userId);
+      if (ga !== gb) return ga ? 1 : -1;
+
+      const pa = casePersonNames.has(a.profileDisplayNameTrimmed);
+      const pb = casePersonNames.has(b.profileDisplayNameTrimmed);
+      if (pa !== pb) return pa ? -1 : 1;
 
       const aChecked = selectedUserIds.has(a.userId);
       const bChecked = selectedUserIds.has(b.userId);
@@ -258,10 +293,18 @@ export function InquirySlackDialog({
       return a.displayName.localeCompare(b.displayName, "zh-Hant", { sensitivity: "base" });
     });
     return copy;
-  }, [afterSearch, grayedUserIds, sortMode, selectedUserIds, customOrderIndexByEmail]);
+  }, [
+    afterSearch,
+    grayedUserIds,
+    casePersonNames,
+    sortMode,
+    selectedUserIds,
+    customOrderIndexByEmail,
+  ]);
 
+  type RowW = NoteReminderRecipientRow & { workload30: number };
   const selectableInView = useMemo(
-    () => visibleRows.filter((r): r is (typeof r & { email: string }) => !!r.email),
+    () => (visibleRows as RowW[]).filter((r) => !!r.email),
     [visibleRows]
   );
 
@@ -283,7 +326,7 @@ export function InquirySlackDialog({
   }, [selectableInView, selectedUserIds]);
 
   const canSendNow =
-    selectableInView.some((r) => selectedUserIds.has(r.userId)) && messageBody.trim().length > 0;
+    selectableInView.some((r) => selectedUserIds.has(r.userId)) && messageBody.trim().length > 0 && !!relatedCaseRecord;
 
   const toggleUser = (userId: string) => {
     setSelectedUserIds((prev) => {
@@ -295,20 +338,22 @@ export function InquirySlackDialog({
   };
 
   const handleSend = async () => {
+    if (!relatedCaseRecord) {
+      toast.error("找不到關聯案件，無法發送");
+      return;
+    }
     if (!slackConnected) {
       toast.error("請先到「個人檔案」連結 Slack");
       return;
     }
-
-    const msg = messageBody.trim();
-    if (!msg) {
-      toast.error("訊息內容不可為空");
-      return;
-    }
-
     const checkedRecipients = selectableInView.filter((r) => selectedUserIds.has(r.userId) && r.email);
     if (checkedRecipients.length === 0) {
       toast.error("請至少勾選一位收件人");
+      return;
+    }
+    const msg = messageBody.trim();
+    if (!msg) {
+      toast.error("訊息內容不可為空");
       return;
     }
 
@@ -320,14 +365,16 @@ export function InquirySlackDialog({
         return;
       }
       const failedRecipients: { recipientLabel: string; error: string }[] = [];
+      const sentIds: string[] = [];
       const notificationFallback =
-        msg.split("\n")[0]?.slice(0, 280)?.trim() || buildInquirySlackNotificationFallback(cases);
+        msg.split("\n")[0]?.slice(0, 280)?.trim() || buildNoteReminderNotificationFallback();
 
       for (const r of checkedRecipients) {
         const { data, error } = await supabase.functions.invoke("slack-send-dm", {
           headers: { Authorization: `Bearer ${token}` },
           body: {
-            recipient_emails: [r.email!],
+            note_reminder_notification: true,
+            recipient_emails: [r.email],
             message: msg,
             notification_fallback: notificationFallback,
           },
@@ -352,50 +399,41 @@ export function InquirySlackDialog({
           });
           continue;
         }
+        sentIds.push(r.userId);
+      }
 
-        let allLocksPersisted = true;
-        for (const c of cases) {
-          const current = caseStore.getById(c.id);
-          const history = current?.inquirySlackRecords || [];
-          const nextHistory = Array.from(new Set([...history, r.userId]));
-          const err = await caseStore.update(c.id, { inquirySlackRecords: nextHistory });
-          if (err) {
-            allLocksPersisted = false;
-            failedRecipients.push({
-              recipientLabel: r.email || r.userId,
-              error: "Slack 發送成功，但寫入紀錄失敗（請確認 DB 欄位已部署）",
-            });
-            break;
-          }
-        }
-        if (!allLocksPersisted) continue;
+      if (sentIds.length > 0) {
+        const prev = internalNotesStore.getById(note.id)?.consultationSlackRecords || note.consultationSlackRecords || [];
+        const next = Array.from(new Set([...prev, ...sentIds]));
+        await internalNotesStore.update(note.id, { consultationSlackRecords: next });
       }
 
       if (failedRecipients.length === 0) {
         toast.success("已透過 Slack 私訊發送");
         onOpenChange(false);
-      } else {
+      } else if (sentIds.length > 0) {
         toast.error(`部分失敗：${failedRecipients.map((f) => `${f.recipientLabel}(${f.error})`).join("；")}`);
+      } else {
+        toast.error(`發送失敗：${failedRecipients.map((f) => `${f.recipientLabel}(${f.error})`).join("；")}`);
       }
     } finally {
       setSending(false);
     }
   };
 
-  if (!isAdmin) return null;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="max-w-lg max-h-[92vh] h-[min(88vh,860px)] flex flex-col gap-0 overflow-hidden p-6 sm:max-w-lg"
-      >
+      <DialogContent className="max-w-lg max-h-[92vh] h-[min(88vh,860px)] flex flex-col gap-0 overflow-hidden p-6 sm:max-w-lg">
         <DialogHeader className="shrink-0 space-y-1.5 pr-6">
           <DialogTitle className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5" />
-            Slack 詢案訊息
+            <Bell className="h-5 w-5" />
+            發送註記提醒
           </DialogTitle>
           <DialogDescription>
-            訊息會以您在 Slack 連結的身分發送私訊；所有勾選的收件人收到<strong>同一則</strong>訊息。已選 {cases.length} 筆案件。
+            訊息會以您在 Slack 連結的身分發送私訊。關聯案件：{note.relatedCase || "（未設定）"}
+            {!relatedCaseRecord && note.relatedCase && (
+              <span className="block mt-2 text-destructive">找不到與標題相符的案件，無法組合預設訊息。</span>
+            )}
             {slackConnected === false && (
               <span className="block mt-2 text-destructive">
                 尚未連結 Slack，請至{" "}
@@ -410,14 +448,15 @@ export function InquirySlackDialog({
 
         <div className="flex flex-1 min-h-0 flex-col gap-3 py-2 overflow-hidden">
           <div className="shrink-0 space-y-1">
-            <Label className="text-xs text-muted-foreground" htmlFor="inquiry-slack-message">
+            <Label className="text-xs text-muted-foreground" htmlFor="note-reminder-message">
               訊息（可編輯；Slack mrkdwn）
             </Label>
             <Textarea
-              id="inquiry-slack-message"
+              id="note-reminder-message"
               value={messageBody}
               onChange={(e) => setMessageBody(e.target.value)}
               className="min-h-[100px] max-h-40 text-xs font-mono"
+              disabled={!relatedCaseRecord}
             />
           </div>
 
@@ -443,7 +482,7 @@ export function InquirySlackDialog({
               </Select>
               <div className="flex items-center gap-2">
                 <Checkbox
-                  id="inquiry-slack-select-all"
+                  id="note-reminder-select-all"
                   disabled={selectableInView.length === 0}
                   checked={someVisibleSelected ? "indeterminate" : allVisibleSelected}
                   onCheckedChange={(c) => {
@@ -467,7 +506,7 @@ export function InquirySlackDialog({
                   }}
                   className="h-4 w-4"
                 />
-                <label htmlFor="inquiry-slack-select-all" className="text-xs text-muted-foreground cursor-pointer select-none">
+                <label htmlFor="note-reminder-select-all" className="text-xs text-muted-foreground cursor-pointer select-none">
                   全選
                 </label>
               </div>
@@ -530,7 +569,7 @@ export function InquirySlackDialog({
                     const title = !canSend
                       ? "個人檔案無信箱，無法發送 Slack 私訊"
                       : gray
-                        ? "曾對所選案件發送過 Slack 詢案（仍可勾選重送）"
+                        ? "曾發送過註記提醒（仍可勾選重送）"
                         : r.email || r.userId;
                     return (
                       <div
@@ -586,10 +625,7 @@ export function InquirySlackDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             取消
           </Button>
-          <Button
-            onClick={handleSend}
-            disabled={sending || !slackConnected || !canSendNow || loading || cases.length === 0}
-          >
+          <Button onClick={handleSend} disabled={sending || !slackConnected || !canSendNow || loading}>
             {sending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             發送 Slack 私訊
           </Button>
