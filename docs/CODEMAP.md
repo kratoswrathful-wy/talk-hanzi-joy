@@ -61,7 +61,7 @@
 | 項目 | 位置 |
 |------|------|
 | 專案詳情（檔案清單、LMS 案件欄位） | `cat-tool/index.html`：`#viewProjectDetail`、`#filesListBody` |
-| 專案詳情（句段集清單、涉及檔案折疊） | `cat-tool/index.html`：`#panelProjectViews`、`#viewsListBody`；[`cat-tool/app.js`](../cat-tool/app.js)：`loadViewsList`、`_renderViewFileLinesHtml`、`_ensureViewsFilesToggleDelegation`；說明見 [CAT第四波主記錄.md](./CAT第四波主記錄.md) **§八點六**、[CAT_VIEW_SPEC.md](./CAT_VIEW_SPEC.md) **§4** |
+| 專案詳情（句段集清單、涉及檔案折疊） | `cat-tool/index.html`：`#panelProjectViews`、`#viewsListBody`；[`cat-tool/app.js`](../cat-tool/app.js)：`loadViewsList`、`_renderViewFileLinesHtml`、`_ensureViewsFilesToggleDelegation`；說明見 [CAT第四波主記錄.md](./CAT第四波主記錄.md) **§八點六**、[CAT_VIEW_SPEC.md](./CAT_VIEW_SPEC.md) **§4**；建立句段集／預覽分階段決策見 [CAT_VIEW_CREATE_ROADMAP.md](./CAT_VIEW_CREATE_ROADMAP.md) |
 | 編輯器工具列（客戶表單 / 內部註記按鈕顯示） | `cat-tool/index.html`：`#viewEditor`、`.editor-toolbar` |
 | 編輯器底部資訊列（進度條與「使用者」標籤） | `cat-tool/index.html`：`.editor-status-bar` |
 | 使用者標籤渲染與顯隱 | `cat-tool/app.js`：`collabPresenceBar` 相關邏輯 |
