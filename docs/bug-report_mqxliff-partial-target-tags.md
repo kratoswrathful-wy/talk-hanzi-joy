@@ -112,7 +112,11 @@ function effectiveTags(seg) {
 
 兩項需**一併**實作，否則僅修匯入仍無法修正「已入庫資料」或 F8 後未寫回 tag 中繼的情況。
 
+**實作排程、驗收順序與建置**：見 [`CAT_MQXLIFF_TM_FIX_IMPLEMENTATION_PLAN.md`](CAT_MQXLIFF_TM_FIX_IMPLEMENTATION_PLAN.md)（階段 A 對應上表 Bug A／B）。程式完成並推送後，可於本段或上表加註 commit 短碼與日期。
+
 ### 2.5 Enhancement：換行 `mq:ch` 的 display 文案（可選）
+
+**詳見實作計畫** [`CAT_MQXLIFF_TM_FIX_IMPLEMENTATION_PLAN.md`](CAT_MQXLIFF_TM_FIX_IMPLEMENTATION_PLAN.md) **§4 階段 C**（觸發條件、窄正則、Tab／NBSP、驗收與流程圖）。
 
 **目標**：在可精準辨識時，將 pill 的 `display` 從長串 `<mq:ch val="…" />` 改為短標籤（如 `↵ 換行`），**不修改** `xml`／匯出路徑。
 

@@ -19,6 +19,41 @@
      *         ── SDL Trados 的 <g> 是文件結構包裝，翻譯者不需要看到它；
      *            匯出時由 _updateSdlxliffMrkContent 保留原始 <g>/<mrk> 結構。
      */
+    /**
+     * 階段 C：memoQ `<mq:ch />` 僅覆寫 pill 用 meaningfulRaw（不影響 xml 序列化）。
+     * 先嘗試 tc 窄正則；若 tc 為空但 ph/it/x 內含巢狀 `ch` 元素，則以 `val` 屬性比對（換行／Tab／NBSP）。
+     */
+    function findFirstMemoQChElement(container) {
+        if (!container || container.nodeType !== 1) return null;
+        const list = container.getElementsByTagName('*');
+        for (let i = 0; i < list.length; i++) {
+            if (list[i].localName === 'ch') return list[i];
+        }
+        return null;
+    }
+
+    function maybeMemoQChDisplayOnly(tc, meaningfulRaw, opts) {
+        const hadDisplayText = !!(opts && opts.hadDisplayText);
+        const hadEquivText = !!(opts && opts.hadEquivText);
+        if (hadDisplayText || hadEquivText) return meaningfulRaw;
+        const t = typeof tc === 'string' ? tc : '';
+        // 字面 tc 為整段 `<mq:ch … />`（少見但與計畫正則一致）
+        if (/^<(?:[\w-]+:)?ch\s+val="(?:\r\n|\n|\r)"\s*\/>$/.test(t)) return '↵ 換行';
+        if (/^<(?:[\w-]+:)?ch\s+val="\t"\s*\/>$/.test(t)) return '→ Tab';
+        if (/^<(?:[\w-]+:)?ch\s+val="\u00A0"\s*\/>$/.test(t)) return '[NBSP]';
+        const el = opts && opts.phElement;
+        const chEl = el && el.nodeType === 1 ? findFirstMemoQChElement(el) : null;
+        if (chEl) {
+            const v = chEl.getAttribute('val');
+            if (v != null && v !== '') {
+                if (v === '\t') return '→ Tab';
+                if (v === '\u00A0') return '[NBSP]';
+                if (/^(?:\r\n|\n|\r)$/.test(v)) return '↵ 換行';
+            }
+        }
+        return meaningfulRaw;
+    }
+
     function extractTaggedText(xmlNode, { transparentG = false } = {}) {
         const tags = [];
         let counter = 0;
@@ -46,15 +81,22 @@
                     const dtAttr = child.getAttribute('displaytext');
                     const eqAttr = child.getAttribute('equiv-text');
                     const ctypeDisplay = child.getAttribute('ctype') || child.getAttribute('type') || '';
+                    const hadDisplayText = dtAttr != null && dtAttr !== '';
+                    const hadEquivText = !hadDisplayText && eqAttr != null && eqAttr !== '';
                     let meaningfulRaw;
-                    if (dtAttr != null && dtAttr !== '') {
+                    if (hadDisplayText) {
                         meaningfulRaw = (dtAttr !== '{}') ? dtAttr : ctypeDisplay;
-                    } else if (eqAttr != null && eqAttr !== '') {
+                    } else if (hadEquivText) {
                         meaningfulRaw = eqAttr;
                     } else {
                         const tc = child.textContent || '';
                         meaningfulRaw = (tc && tc !== '{}' && tc !== '{0}') ? tc : ctypeDisplay;
                     }
+                    meaningfulRaw = maybeMemoQChDisplayOnly(child.textContent || '', meaningfulRaw, {
+                        hadDisplayText,
+                        hadEquivText,
+                        phElement: child
+                    });
                     const display = meaningfulRaw.length > 25 ? meaningfulRaw.substring(0, 25) + '…' : meaningfulRaw || ph;
                     const xml = new XMLSerializer().serializeToString(child);
                     tags.push({ ph, xml, display, type: 'standalone', pairNum: counter, num: counter });
