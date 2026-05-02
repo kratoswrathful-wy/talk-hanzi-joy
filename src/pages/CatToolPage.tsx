@@ -332,6 +332,8 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
     const assignments = data ?? [];
 
     let translatorVisibleProjectIds: string[] | undefined;
+    let viewAssignments: any[] = [];
+
     if (isTranslatorOnly) {
       // 從 cat_file_assignments 取得專案 ids
       const fileAssignProjectIds = assignments
@@ -339,21 +341,27 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
         .filter((id): id is string => !!id)
         .map((id) => String(id));
 
-      // 從 cat_view_assignments 取得句段集所屬專案 ids（§3.1）
+      // 從 cat_view_assignments 取得句段集指派（§3.1 / §13.3）
       const { data: viewAssignData } = await supabase
         .from("cat_view_assignments" as any)
         .select(`
           id,
           view_id,
           status,
+          assigned_at,
+          updated_at,
           view:cat_views!cat_view_assignments_view_id_fkey (
             id,
-            project_id
+            project_id,
+            name
           )
         `)
         .eq("assignee_user_id", user.id)
-        .neq("status", "cancelled");
-      const viewAssignProjectIds = ((viewAssignData ?? []) as any[])
+        .neq("status", "cancelled")
+        .order("assigned_at", { ascending: false });
+      viewAssignments = (viewAssignData ?? []) as any[];
+
+      const viewAssignProjectIds = viewAssignments
         .map((row: any) => row?.view?.project_id)
         .filter((id: unknown): id is string => !!id)
         .map((id: string) => String(id));
@@ -371,6 +379,8 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
           translatorOnly: isTranslatorOnly,
           /** 譯者專案清單：cat_file_assignments ∪ cat_view_assignments（非 cancelled）所屬專案（CAT_VIEW_SPEC §3.1） */
           translatorVisibleProjectIds,
+          /** 譯者句段集指派清單（§13.3）；非譯者為空陣列 */
+          viewAssignments,
         },
       },
       window.location.origin
@@ -533,6 +543,14 @@ export default function CatToolPage({ mode = "offline" }: { mode?: "offline" | "
 
         await supabase
           .from("cat_file_assignments")
+          .update({ status, updated_at: new Date().toISOString() })
+          .eq("id", assignmentId);
+      } else if (event.data?.type === "CAT_VIEW_ASSIGNMENT_STATUS") {
+        const { assignmentId, status } = event.data.payload ?? {};
+        if (!assignmentId || !status) return;
+
+        await supabase
+          .from("cat_view_assignments" as any)
           .update({ status, updated_at: new Date().toISOString() })
           .eq("id", assignmentId);
       } else if (event.data?.type === "CAT_ASSIGN_FILE") {

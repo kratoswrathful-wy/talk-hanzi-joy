@@ -70,6 +70,23 @@
                         </table>
                     </div>
                 </div>
+                <div id="dashboardAssignedViewsBlock" style="display:none; margin-bottom:2rem;">
+                    <h2 style="font-size:1.1rem; color:#1e293b; margin:0 0 0.25rem 0;">我的受派句段集</h2>
+                    <p style="margin:0 0 0.75rem 0; color:#64748b; font-size:0.9rem;">以下為目前指派給你的句段集。</p>
+                    <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px;">
+                        <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.95rem;">
+                            <thead>
+                                <tr style="background:#f1f5f9;">
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:120px;">狀態</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0;">句段集</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:180px;">更新時間</th>
+                                    <th style="text-align:left; padding:0.5rem; border:1px solid #e2e8f0; width:100px;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="assignedViewsBody"></tbody>
+                        </table>
+                    </div>
+                </div>
                 <div class="dashboard-stats">
                     <div class="stat-card"><h3>專案數量</h3><div class="stat-value" id="statProjects">0</div></div>
                     <div class="stat-card"><h3>自建 TM 數量</h3><div class="stat-value" id="statTMs">0</div></div>
@@ -675,6 +692,11 @@
                     </label>
                 </div>
 
+                <!-- 未受指派唯讀橫幅（§3.1） -->
+                <div id="viewReadOnlyBanner" style="display:none; background:#fef9c3; border-bottom:1px solid #fde047; padding:0.5rem 1rem; font-size:0.9rem; color:#713f12; align-items:center; gap:0.5rem;">
+                    <span>⚠</span>
+                    <span>你尚未受派此句段集，目前以唯讀模式開啟。如需編輯，請聯絡專案管理員。</span>
+                </div>
                 <!-- Editor Layout Wrapper -->
                 <div class="editor-layout-wrapper">
                     <!-- Left: Data Grid + Search/Filter -->

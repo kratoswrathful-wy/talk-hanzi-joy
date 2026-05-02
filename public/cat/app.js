@@ -1390,9 +1390,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- TMS 身分橋接 ---
     /** 將 TMS 傳入的身分資料套用到 CAT 工具的 UI。 */
     function applyTmsIdentityToUI(payload) {
-        const { displayName, email, avatarUrl, role } = payload || {};
+        const { displayName, email, avatarUrl, role, userId } = payload || {};
         window._tmsRole = role || '';
         window._tmsAvatarUrl = avatarUrl || null;
+        window._tmsCurrentUserId = userId || '';
 
         // 更新 localStorage（讓 getCurrentUserName() 等全部呼叫點自動生效）
         if (displayName) localStorage.setItem('localCatUserProfile', displayName);
@@ -2316,6 +2317,52 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    function renderAssignedViewsBlock(viewAssignments) {
+        const block = document.getElementById('dashboardAssignedViewsBlock');
+        const body = document.getElementById('assignedViewsBody');
+        if (!body) return;
+        const list = (viewAssignments || []).filter(a => a && a.status !== 'cancelled');
+        if (block) block.style.display = (list.length > 0 && window._tmsTranslatorOnly) ? '' : 'none';
+        if (list.length === 0) {
+            body.innerHTML = '<tr><td colspan="4" style="padding:0.75rem; color:#64748b;">目前沒有受派句段集。</td></tr>';
+            return;
+        }
+        body.innerHTML = list.map(a => {
+            const view = a.view || {};
+            const status = STATUS_LABELS_TMS[a.status] || a.status || '—';
+            const at = (a.updated_at || a.assigned_at) ? new Date(a.updated_at || a.assigned_at).toLocaleString('zh-TW', { hour12: false }) : '—';
+            const viewName = (view.name || '').replace(/</g, '&lt;') || '（未知句段集）';
+            return `
+                <tr>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0;">${status}</td>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0;">${viewName}</td>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0;">${at}</td>
+                    <td style="padding:0.5rem; border:1px solid #e2e8f0;">
+                        <button type="button" class="primary-btn btn-sm open-assigned-view-btn" data-assignment-id="${a.id}" data-view-id="${view.id || ''}" data-project-id="${view.project_id || ''}">開啟</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+        body.querySelectorAll('.open-assigned-view-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const viewId = btn.getAttribute('data-view-id');
+                const projectId = btn.getAttribute('data-project-id');
+                const assignmentId = btn.getAttribute('data-assignment-id');
+                if (!viewId) return;
+                if (projectId) currentProjectId = projectId;
+                // 先載入檔案清單以建立 filesMap
+                await loadFilesList();
+                await openEditorFromView(viewId);
+                if (assignmentId) {
+                    window.parent.postMessage({
+                        type: 'CAT_VIEW_ASSIGNMENT_STATUS',
+                        payload: { assignmentId, status: 'in_progress' }
+                    }, window.location.origin);
+                }
+            });
+        });
+    }
+
     function closeFileAssignModal() {
         if (fileAssignModal) fileAssignModal.classList.add('hidden');
         currentAssignFileIds = [];
@@ -2477,9 +2524,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             const assignments = payload.assignments || [];
             window._tmsAssignments = assignments;
             window._tmsTranslatorOnly = !!payload.translatorOnly;
+            window._tmsViewAssignments = Array.isArray(payload.viewAssignments) ? payload.viewAssignments : [];
             const tvp = payload.translatorVisibleProjectIds;
             window._tmsTranslatorVisibleProjectIds = Array.isArray(tvp) ? tvp.map((id) => String(id)) : null;
             renderAssignedFilesView(assignments);
+            renderAssignedViewsBlock(window._tmsViewAssignments);
             const ab = document.getElementById('dashboardAssignedBlock');
             if (ab && window._tmsTranslatorOnly) ab.style.display = '';
             enforceTeamRoleLayout();
@@ -3877,6 +3926,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ── 開啟句段集編輯器（viewId 入口） ──────────────────────────────────────
     let _currentViewId = null;
     let _currentViewFilesMap = {};
+    let _viewEditorReadOnly = false; // 未受指派唯讀保護（§3.1）
 
     async function openEditorFromView(viewId) {
         const view = await DBService.getView(viewId);
@@ -3886,6 +3936,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const segmentIds = Array.isArray(view.segmentIds) ? view.segmentIds : [];
         const projectId = view.projectId || currentProjectId;
         if (projectId) currentProjectId = projectId;
+
+        // §3.1 未受指派唯讀保護：譯者身分且此句段集不在本人指派清單中
+        if (window._tmsTranslatorOnly) {
+            const viewAssigns = Array.isArray(window._tmsViewAssignments) ? window._tmsViewAssignments : [];
+            const assigned = viewAssigns.some(a => String(a.view_id) === String(viewId) && a.status !== 'cancelled');
+            _viewEditorReadOnly = !assigned;
+        } else {
+            _viewEditorReadOnly = false;
+        }
 
         const lastFiles = window._lastFilesListForProject || [];
         const filesMap = {};
@@ -3951,6 +4010,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         emptySegUserEditedIds = new Set();
         emptySegAutoConsumedIds = new Set();
         pendingRemoteBySegId.clear();
+
+        // 顯示或隱藏唯讀橫幅（§3.1）
+        const readOnlyBanner = document.getElementById('viewReadOnlyBanner');
+        if (readOnlyBanner) {
+            readOnlyBanner.style.display = _viewEditorReadOnly ? 'flex' : 'none';
+        }
 
         beginEditorViewLoadingShell();
         showCatLoadingOverlay('正在載入句段集…');
@@ -9639,6 +9704,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 判斷句段是否「禁止編輯」（依當前 session 身分動態判斷）
     function isDynamicForbidden(seg) {
+        if (_viewEditorReadOnly) return true; // 未受指派句段集唯讀（§3.1）
         if (currentFileFormat !== 'mqxliff') return !!seg.isLockedSystem;
         return computeForbiddenForRole(seg, currentMqConfirmationRole);
     }
@@ -10353,6 +10419,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (collabCurrentFileId && String(collabCurrentFileId) !== String(fileId)) {
             leaveCollabForCurrentFile();
         }
+        // 切換到普通檔案時重置句段集唯讀狀態與橫幅
+        _viewEditorReadOnly = false;
+        const readOnlyBannerEl = document.getElementById('viewReadOnlyBanner');
+        if (readOnlyBannerEl) readOnlyBannerEl.style.display = 'none';
         currentFileId = fileId;
         editorUndoStack = [];
         editorRedoStack = [];
@@ -10705,6 +10775,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.ActiveTmCache = [];
         window.ActiveTbTerms = [];
         clearEditorScopedPanels();
+        // 離開編輯器時重置唯讀狀態與橫幅
+        _viewEditorReadOnly = false;
+        const readOnlyBanner = document.getElementById('viewReadOnlyBanner');
+        if (readOnlyBanner) readOnlyBanner.style.display = 'none';
         sidebar.classList.remove('collapsed');
         await openProjectDetail(currentProjectId);
         persistCatRoute();
