@@ -747,7 +747,16 @@ export default function CasesPage() {
     if (!selectedSingleCase) return;
     caseStore.update(selectedSingleCase.id, { status: "task_completed" as CaseStatus });
     toast({ title: "任務已完成" });
-  }, [selectedSingleCase]);
+    if (user?.id) {
+      void maybeSendTranslatorCaseReplySlack({
+        userId: user.id,
+        slackMessageDefaults: profile?.slack_message_defaults,
+        caseId: selectedSingleCase.id,
+        caseTitle: selectedSingleCase.title || "",
+        kind: "task_complete",
+      });
+    }
+  }, [selectedSingleCase, profile, user]);
 
   const handleFlowFeedbackComplete = useCallback(() => {
     if (!selectedSingleCase) return;

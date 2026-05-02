@@ -1696,6 +1696,15 @@ export default function CaseDetailPage() {
   const handleTaskComplete = () => {
     save({ status: "task_completed" as CaseStatus });
     toast({ title: "任務已完成" });
+    if (user?.id) {
+      void maybeSendTranslatorCaseReplySlack({
+        userId: user.id,
+        slackMessageDefaults: profile?.slack_message_defaults,
+        caseId: caseData.id,
+        caseTitle: caseData.title || "",
+        kind: "task_complete",
+      });
+    }
   };
 
   const handleCancelDispatch = () => {
@@ -2334,6 +2343,21 @@ export default function CaseDetailPage() {
                 save(updates);
                 toast({ title: "所有任務已完成" });
                 return;
+              }
+              if (isDispatched) {
+                const prevRows = caseData.collabRows || [];
+                newRows.forEach((r, i) => {
+                  if (r.taskCompleted && !prevRows[i]?.taskCompleted && user?.id) {
+                    void maybeSendTranslatorCaseReplySlack({
+                      userId: user.id,
+                      slackMessageDefaults: profile?.slack_message_defaults,
+                      caseId: caseData.id,
+                      caseTitle: caseData.title || "",
+                      kind: "task_complete",
+                      segmentTitle: r.segment || undefined,
+                    });
+                  }
+                });
               }
               if ((caseData.status === "dispatched" || caseData.status === "task_completed") && allDelivered) {
                 updates.status = "delivered" as CaseStatus;

@@ -44,6 +44,20 @@ export type DeclineFieldsForSlack = {
   message?: string | undefined;
 };
 
+function buildTaskCompleteMrkdwn(
+  caseId: string,
+  caseTitle: string,
+  segmentTitle?: string,
+): string {
+  const url = buildCaseUrl(caseId);
+  const label = sanitizeSlackLinkLabel(caseTitle.trim() || "案件");
+  const link = `<${url}|${label}>`;
+  if (segmentTitle?.trim()) {
+    return `${link} 中的分段（${segmentTitle.trim()}）完成囉！`;
+  }
+  return `${link} 完成囉！`;
+}
+
 function buildAcceptMrkdwn(
   caseId: string,
   caseTitle: string,
@@ -106,7 +120,7 @@ export async function maybeSendTranslatorCaseReplySlack(params: {
   slackMessageDefaults: unknown;
   caseId: string;
   caseTitle: string;
-  kind: "accept" | "decline";
+  kind: "accept" | "decline" | "task_complete";
   decline?: DeclineFieldsForSlack;
   /** For multi-collab partial accept: the segment label (collabRow.segment). */
   segmentTitle?: string;
@@ -127,6 +141,8 @@ export async function maybeSendTranslatorCaseReplySlack(params: {
   const message =
     kind === "accept"
       ? buildAcceptMrkdwn(caseId, caseTitle, slackMessageDefaults, segmentTitle)
+      : kind === "task_complete"
+      ? buildTaskCompleteMrkdwn(caseId, caseTitle, segmentTitle)
       : buildDeclineMrkdwn(caseId, caseTitle, slackMessageDefaults, decline || {});
 
   const notification_fallback = plainFallbackFromMrkdwn(message);
