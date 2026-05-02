@@ -3812,6 +3812,60 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Shift+click 範圍勾選 — 在 loadViewsList 每次渲染後重新綁定
     let _viewsShiftHandle = null;
+    /** 句段集清單「涉及檔案」超過 5 筆時，展開／收合其餘檔名（委派於 #panelProjectViews） */
+    let _viewsFilesToggleDelegationDone = false;
+
+    function _ensureViewsFilesToggleDelegation() {
+        if (_viewsFilesToggleDelegationDone) return;
+        const panel = document.getElementById('panelProjectViews');
+        if (!panel) return;
+        _viewsFilesToggleDelegationDone = true;
+        panel.addEventListener('click', (e) => {
+            const btn = e.target.closest('.view-files-toggle');
+            if (!btn || !panel.contains(btn)) return;
+            e.preventDefault();
+            const controls = btn.getAttribute('aria-controls');
+            const extra = controls ? document.getElementById(controls) : null;
+            const expanded = btn.getAttribute('aria-expanded') === 'true';
+            const next = !expanded;
+            btn.setAttribute('aria-expanded', next ? 'true' : 'false');
+            btn.setAttribute('aria-label', next ? '收合其餘檔案' : '展開其餘檔案');
+            if (extra) extra.style.display = next ? 'block' : 'none';
+            const ch = btn.querySelector('.view-files-chevron');
+            if (ch) ch.style.transform = next ? 'rotate(90deg)' : 'rotate(0deg)';
+        });
+    }
+
+    /** 句段集列：涉及檔案欄 HTML（≤5 全列；>5 前五行 + 「…等共 n 個檔案」與展開鈕） */
+    function _renderViewFileLinesHtml(fileMap, fileIds, viewId) {
+        const ids = Array.isArray(fileIds) ? fileIds : [];
+        const n = ids.length;
+        if (n === 0) return '—';
+        const lineFor = (fid) => {
+            const info = fileMap[String(fid)];
+            if (info) {
+                const nameEscFile = info.name.replace(/</g, '&lt;').replace(/"/g, '&quot;');
+                return `<div style="white-space:nowrap;">#${info.idx} ${nameEscFile}</div>`;
+            }
+            return `<div style="color:#94a3b8; white-space:nowrap;">${String(fid).slice(0, 8)}…</div>`;
+        };
+        if (n <= 5) return ids.map(lineFor).join('');
+        const safeId = 'vf-' + String(viewId).replace(/[^a-zA-Z0-9_-]/g, '_');
+        const extraId = `view-files-extra-${safeId}`;
+        const first5 = ids.slice(0, 5).map(lineFor).join('');
+        const rest = ids.slice(5).map(lineFor).join('');
+        return (
+            first5 +
+            `<div class="view-files-collapsible" style="margin-top:0.25rem;">` +
+            `<button type="button" class="view-files-toggle" aria-expanded="false" aria-controls="${extraId}" aria-label="展開其餘檔案" ` +
+            `style="display:flex;align-items:center;gap:0.35rem;background:none;border:none;padding:0;margin:0;cursor:pointer;color:var(--primary-color);font-size:0.82rem;text-align:left;width:100%;box-sizing:border-box;">` +
+            `<span class="view-files-chevron" aria-hidden="true" style="display:inline-block;flex-shrink:0;transition:transform 0.15s ease;transform:rotate(0deg);line-height:1;">▶</span>` +
+            `<span style="white-space:normal;">…等共 ${n} 個檔案</span>` +
+            `</button>` +
+            `<div id="${extraId}" class="view-files-extra" style="display:none;">${rest}</div>` +
+            `</div>`
+        );
+    }
 
     async function loadViewsList(projectId) {
         const body = document.getElementById('viewsListBody');
@@ -3832,15 +3886,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             body.innerHTML = _currentViewsList.map((v, rowIdx) => {
                 const viewId = String(v.id || '');
                 const nameEsc = (v.name || '未命名').replace(/</g, '&lt;');
-                // 涉及檔案：每個檔名單行，以 title 顯示全名，超出欄寬以 ellipsis 截斷（不換行）
-                const fileLines = (Array.isArray(v.fileIds) ? v.fileIds : []).map((fid) => {
-                    const info = fileMap[String(fid)];
-                    if (info) {
-                        const nameEscFile = info.name.replace(/</g, '&lt;').replace(/"/g, '&quot;');
-                        return `<div style="white-space:nowrap;">#${info.idx} ${nameEscFile}</div>`;
-                    }
-                    return `<div style="color:#94a3b8; white-space:nowrap;">${String(fid).slice(0, 8)}…</div>`;
-                }).join('') || '—';
+                // 涉及檔案：每檔單行；超過 5 筆時第六行起為「…等共 n 個檔案」+ 展開／收合（見 _renderViewFileLinesHtml）
+                const fileLines = _renderViewFileLinesHtml(fileMap, v.fileIds, viewId);
                 const filterText = _renderFilterSummaryText(v.filterSummary).replace(/</g, '&lt;').replace(/\n/g, '<br>');
                 const assignees = Array.isArray(v.assigneeNames) ? v.assigneeNames : [];
                 const assignCell = assignees.length
@@ -3889,6 +3936,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }, { once: false });
 
             syncViewsSelectAll();
+            _ensureViewsFilesToggleDelegation();
             // 非同步載入整體進度（§4）
             _loadViewsProgressAsync(_currentViewsList).catch(() => {});
         } catch (err) {
