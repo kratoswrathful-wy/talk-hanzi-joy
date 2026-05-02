@@ -41,13 +41,13 @@ batchOptions.tbTerms = options.tbTerms.filter(t =>
 );
 ```
 
-### 4. 統計行 + 每批概算 + 黃框重新排列
+### 4. 統計行 + 每批概算 + 黃框重新排列（後續調整：黃框移除）
 
 順序改為：
 
 1. 統計行（`aiBatchStats`）：範圍共 N 句、預估 N 批
-2. 每批 token 概算（`aiBatchPerBatchEst`）：System X + User Y + 400 overhead = Z tokens
-3. 黃框長度建議（`aiBatchTokenGuidance`）：對照數字看是否在建議範圍
+2. 每批 token 概算（`aiBatchPerBatchEst`）：System X + User Y + 400 overhead = Z tokens，下方加一行灰色小字「加總 = 提示語 + 翻譯內容 + 系統開銷；請以「預覽提示語」中的約略估算為準。」
+3. ~~黃框長度建議（`aiBatchTokenGuidance`）~~ → **已移除**，建議閾值改整合進「概算各批用量」表格底部的 `<tfoot>`
 
 每批 token 概算以 debounce 400ms 非同步更新（`_debouncedUpdateBatchPerBatchEst`），取第一批組真實 prompt 算字元。
 
@@ -59,6 +59,7 @@ batchOptions.tbTerms = options.tbTerms.filter(t =>
 - modal box 改為 flex row，面板展開時 max-width 從 600px 擴到 960px。
 - 點按鈕後：按鈕 disabled + 面板顯示轉圈「計算中…」。
 - 計算完成後顯示每批一列的表格（`#`, `句段`, `提示語`, `翻譯內容`），數字依閾值上色。
+- 表格底部 `<tfoot>` 以細線分隔，列出三列閾值說明，句段欄帶色點（■）標示「建議 / 可接受（可能變慢）/ 不建議」，對應欄位顯示各自的 token 上限。此設計取代原黃框。
 
 **顏色閾值**：
 
