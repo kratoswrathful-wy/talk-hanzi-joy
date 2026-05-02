@@ -2932,6 +2932,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     window._tmsTranslatorOnly = false;
     window._fileAssigneesByFileId = {};
     let lastWordCountResult = null;
+    /** @type {{ label: string, result: object }[]|null} */
+    let lastWordCountPerUnitResults = null;
     let wordCountSelectedFileIds = [];
     /** 與 WordCountEngine.DEFAULT_DISCOUNTS 一致；TM 95–100%／檔內重複可由分析 Modal 覆寫 */
     let _wcDiscounts = { tm9599: 0.10, tm8594: 0.25, tm7584: 0.50, tm5074: 0.75, newWords: 1.00, repetition: 0.00 };
@@ -3987,11 +3989,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!currentProjectId || !wordCountModal || !wordCountTmCheckboxes) return;
             // 以句段集的 segment_ids 作為分析範圍
             const selectedViews = (_currentViewsList || []).filter(v => ids.includes(String(v.id)));
-            const allSegIds = [];
-            selectedViews.forEach(v => { if (Array.isArray(v.segmentIds)) allSegIds.push(...v.segmentIds); });
-            if (!allSegIds.length) { alert('所選句段集沒有句段。'); return; }
-            // 借用 wordCountSelectedFileIds 機制，以 _overrideSegments 傳入
-            window._wordCountSegmentOverride = allSegIds;
+            const viewPayload = selectedViews.map((v) => ({
+                id: v.id,
+                name: (v.name && String(v.name).trim()) ? v.name.trim() : `句段集 #${v.id}`,
+                segmentIds: Array.isArray(v.segmentIds) ? v.segmentIds.slice() : []
+            })).filter((u) => u.segmentIds.length);
+            if (!viewPayload.length) { alert('所選句段集沒有句段。'); return; }
+            window._wordCountAnalysisViews = viewPayload;
+            wordCountSelectedFileIds = [];
+            window._wordCountSegmentOverride = null;
             const p = await DBService.getProject(currentProjectId);
             const readTms = (p && p.readTms) ? p.readTms : [];
             const allTms = await DBService.getTMs();
@@ -4002,6 +4008,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             }).join('') : '<span style="color:#64748b; font-size:0.86rem;">專案尚未掛載讀取 TM（仍可依句段與檔內重複分析）</span>';
             if (wordCountResultBody) wordCountResultBody.innerHTML = '';
             lastWordCountResult = null;
+            lastWordCountPerUnitResults = null;
+            const wcProg = document.getElementById('wordCountAnalysisProgress');
+            if (wcProg) wcProg.textContent = '';
+            const wcDisc = document.getElementById('wordCountResultDisclaimer');
+            if (wcDisc) wcDisc.classList.add('hidden');
             await refreshWordCountReportHistory();
             wordCountModal.classList.remove('hidden');
         });
@@ -5472,6 +5483,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function closeWordCountModal() {
         if (wordCountModal) wordCountModal.classList.add('hidden');
+        window._wordCountAnalysisViews = null;
+        window._wordCountSegmentOverride = null;
     }
 
     function closeSplitAssignModal() {
@@ -5499,6 +5512,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         if (!currentProjectId || !wordCountModal || !wordCountTmCheckboxes) return;
+        window._wordCountAnalysisViews = null;
+        window._wordCountSegmentOverride = null;
         wordCountSelectedFileIds = ids.slice();
         const p = await DBService.getProject(currentProjectId);
         const readTms = (p && p.readTms) ? p.readTms : [];
@@ -5513,61 +5528,192 @@ document.addEventListener('DOMContentLoaded', async () => {
         }).join('') : '<span style="color:#64748b; font-size:0.86rem;">專案尚未掛載讀取 TM（仍可依句段與檔內重複分析）</span>';
         if (wordCountResultBody) wordCountResultBody.innerHTML = '';
         lastWordCountResult = null;
+        lastWordCountPerUnitResults = null;
+        const wcProg = document.getElementById('wordCountAnalysisProgress');
+        if (wcProg) wcProg.textContent = '';
+        const wcDisc = document.getElementById('wordCountResultDisclaimer');
+        if (wcDisc) wcDisc.classList.add('hidden');
         await refreshWordCountReportHistory();
         wordCountModal.classList.remove('hidden');
     }
 
     async function runWordCountAnalysis() {
-        const segOverride = window._wordCountSegmentOverride;
-        if (!window.WordCountEngine || (!wordCountSelectedFileIds.length && !segOverride)) {
-            alert('無可分析的檔案。');
-            return;
+        const WCE = window.WordCountEngine;
+        const progEl = document.getElementById('wordCountAnalysisProgress');
+        const discEl = document.getElementById('wordCountResultDisclaimer');
+        const btnRun = document.getElementById('btnRunWordCount');
+        function setProg(text) {
+            if (progEl) progEl.textContent = text || '';
         }
-        const includeLocked = !!(wordCountIncludeLocked && wordCountIncludeLocked.checked);
-        let tmNormList = [];
-        if (wordCountTmCheckboxes) {
-            const checked = wordCountTmCheckboxes.querySelectorAll('.word-count-tm-cb:checked');
-            for (const cb of checked) {
-                const tmId = cb.value;
-                if (!tmId) continue;
-                const segs = await DBService.getTMSegments(tmId);
-                segs.forEach((s) => {
-                    const n = WordCountEngine.normKey(s.sourceText);
-                    if (n) tmNormList.push(n);
-                });
-            }
+        function escCell(s) {
+            return String(s == null ? '' : s).replace(/</g, '&lt;');
         }
-        let allSegments = [];
-        if (segOverride) {
-            // 句段集分析模式：以 segment IDs 直接載入
-            window._wordCountSegmentOverride = null;
-            allSegments = await DBService.getSegmentsByIds(segOverride);
-        } else {
-            for (const fid of wordCountSelectedFileIds) {
-                const segs = await DBService.getSegmentsByFile(fid);
-                allSegments = allSegments.concat(segs);
-            }
-        }
-        applyWcDiscountsFromInputs();
-        lastWordCountResult = WordCountEngine.analyze({
-            segments: allSegments,
-            tmSourcesNormalized: tmNormList,
-            includeLocked,
-            discounts: _wcDiscounts
-        });
-        if (wordCountResultBody) {
-            const t = lastWordCountResult.totals || {};
-            const head = `<tr style="background:#f8fafc;"><td style="padding:0.45rem; border:1px solid #e2e8f0; font-weight:600;">分析範圍總計（略過鎖定後）</td>
+        function wcTotalsRowHtml(result, firstColLabel) {
+            const t = result.totals || {};
+            const lab = firstColLabel || '分析範圍總計（略過鎖定後）';
+            return `<tr style="background:#f8fafc;"><td style="padding:0.45rem; border:1px solid #e2e8f0; font-weight:600;">${escCell(lab)}</td>
                 <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${t.segmentsAnalyzed != null ? t.segmentsAnalyzed : '—'}</td>
                 <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${t.rawExcludingSkipped != null ? t.rawExcludingSkipped : '—'}</td>
                 <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${t.weightedExcludingSkipped != null ? t.weightedExcludingSkipped : '—'}</td></tr>`;
-            const body = (lastWordCountResult.rows || []).map((r) =>
-                `<tr><td style="padding:0.45rem; border:1px solid #e2e8f0;">${r.label}</td>
+        }
+        function wcBucketRowsHtml(result) {
+            return (result.rows || []).map((r) =>
+                `<tr><td style="padding:0.45rem; border:1px solid #e2e8f0;">${escCell(r.label)}</td>
                 <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${r.segments}</td>
                 <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${r.raw}</td>
                 <td style="padding:0.45rem; border:1px solid #e2e8f0; text-align:right;">${r.weighted}</td></tr>`
             ).join('');
-            wordCountResultBody.innerHTML = head + body;
+        }
+        function wcSectionCaptionRow(title, bg) {
+            return `<tr><td colspan="4" style="padding:0.4rem 0.45rem; border:1px solid #e2e8f0; background:${bg}; font-weight:600; font-size:0.82rem; line-height:1.35;">${escCell(title)}</td></tr>`;
+        }
+
+        const fileIds = wordCountSelectedFileIds.slice();
+        const viewUnits = (Array.isArray(window._wordCountAnalysisViews) && window._wordCountAnalysisViews.length)
+            ? window._wordCountAnalysisViews
+            : null;
+
+        if (!WCE || (!fileIds.length && !viewUnits)) {
+            alert('無可分析的檔案。');
+            return;
+        }
+        if (viewUnits && !viewUnits.some((u) => (u.segmentIds || []).length)) {
+            alert('所選句段集沒有句段。');
+            return;
+        }
+
+        const showSplitUi = fileIds.length > 1 || (viewUnits && viewUnits.length > 1);
+        if (discEl) {
+            if (showSplitUi) discEl.classList.remove('hidden');
+            else discEl.classList.add('hidden');
+        }
+
+        const includeLocked = !!(wordCountIncludeLocked && wordCountIncludeLocked.checked);
+        if (btnRun) btnRun.disabled = true;
+        lastWordCountPerUnitResults = null;
+        setProg('準備中…');
+
+        try {
+            applyWcDiscountsFromInputs();
+            let tmNormList = [];
+            if (wordCountTmCheckboxes) {
+                const checked = Array.from(wordCountTmCheckboxes.querySelectorAll('.word-count-tm-cb:checked'));
+                const nTm = checked.length;
+                let ti = 0;
+                for (const cb of checked) {
+                    const tmId = cb.value;
+                    if (!tmId) continue;
+                    ti += 1;
+                    setProg(nTm ? `讀取 TM 資料…（${ti}/${nTm}）` : '讀取 TM 資料…');
+                    const segs = await DBService.getTMSegments(tmId);
+                    segs.forEach((s) => {
+                        const n = WCE.normKey(s.sourceText);
+                        if (n) tmNormList.push(n);
+                    });
+                }
+            }
+
+            let allSegments = [];
+            if (viewUnits) {
+                const orderedIds = [];
+                const seen = new Set();
+                viewUnits.forEach((u) => {
+                    (u.segmentIds || []).forEach((id) => {
+                        const k = String(id);
+                        if (seen.has(k)) return;
+                        seen.add(k);
+                        orderedIds.push(id);
+                    });
+                });
+                setProg('載入合併範圍句段…');
+                const fetched = await DBService.getSegmentsByIds(orderedIds);
+                const byId = new Map(fetched.map((s) => [String(s.id), s]));
+                allSegments = orderedIds.map((id) => byId.get(String(id))).filter(Boolean);
+            } else {
+                const n = fileIds.length;
+                for (let i = 0; i < n; i++) {
+                    setProg(`載入檔案句段…（${i + 1}/${n}）`);
+                    const segs = await DBService.getSegmentsByFile(fileIds[i]);
+                    allSegments = allSegments.concat(segs);
+                }
+            }
+
+            const basePayload = {
+                tmSourcesNormalized: tmNormList,
+                includeLocked,
+                discounts: _wcDiscounts
+            };
+
+            async function analyzePayload(segments, progPrefix) {
+                const pl = {
+                    ...basePayload,
+                    segments: _wcSerializeSegmentsForWorker(segments)
+                };
+                return runWcAnalyzeWithFallback(pl, (done, total) => {
+                    const pct = total ? Math.round((done / total) * 100) : 0;
+                    const tail = total ? ` · ${pct}%（${done}/${total} 句）` : '';
+                    setProg(`${progPrefix}${tail}`);
+                });
+            }
+
+            setProg('合併範圍分析中…');
+            lastWordCountResult = await analyzePayload(allSegments, '合併範圍分析中');
+
+            const perUnit = [];
+            if (showSplitUi) {
+                if (fileIds.length > 1) {
+                    const nf = fileIds.length;
+                    for (let i = 0; i < nf; i++) {
+                        const fid = fileIds[i];
+                        let name = `檔案 #${fid}`;
+                        try {
+                            const file = await DBService.getFile(fid);
+                            if (file && file.name) name = String(file.name);
+                        } catch (_) { /* ignore */ }
+                        setProg(`載入分項句段…（${i + 1}/${nf}）`);
+                        const segs = await DBService.getSegmentsByFile(fid);
+                        const res = await analyzePayload(segs, `分項 ${i + 1}/${nf}：${name}`);
+                        perUnit.push({ label: name, result: res });
+                    }
+                } else if (viewUnits && viewUnits.length > 1) {
+                    const nv = viewUnits.length;
+                    for (let i = 0; i < nv; i++) {
+                        const u = viewUnits[i];
+                        const vname = u.name || `句段集 #${u.id}`;
+                        setProg(`載入句段集…（${i + 1}/${nv}）`);
+                        const segs = await DBService.getSegmentsByIds(u.segmentIds || []);
+                        const res = await analyzePayload(segs, `分項 ${i + 1}/${nv}：${vname}`);
+                        perUnit.push({ label: vname, result: res });
+                    }
+                }
+            }
+            lastWordCountPerUnitResults = perUnit.length ? perUnit : null;
+
+            if (wordCountResultBody) {
+                const parts = [];
+                if (showSplitUi) {
+                    parts.push(wcSectionCaptionRow('【合併範圍】所選句段合併後一次分析', '#eef2ff'));
+                }
+                parts.push(wcTotalsRowHtml(lastWordCountResult));
+                parts.push(wcBucketRowsHtml(lastWordCountResult));
+                if (showSplitUi && perUnit.length) {
+                    parts.push(wcSectionCaptionRow('【分項】各檔／各句段集（分開分析）', '#f1f5f9'));
+                    perUnit.forEach((pu) => {
+                        parts.push(wcSectionCaptionRow(`— ${pu.label}`, '#ffffff'));
+                        parts.push(wcTotalsRowHtml(pu.result));
+                        parts.push(wcBucketRowsHtml(pu.result));
+                    });
+                }
+                wordCountResultBody.innerHTML = parts.join('');
+            }
+            setProg('完成');
+            window.setTimeout(() => { setProg(''); }, 1200);
+        } catch (e) {
+            console.error(e);
+            alert('分析失敗：' + (e && e.message ? e.message : String(e)));
+            setProg('');
+        } finally {
+            if (btnRun) btnRun.disabled = false;
         }
     }
 
@@ -5582,7 +5728,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             label,
             payload: {
                 fileIds: wordCountSelectedFileIds.slice(),
+                viewUnitIds: (window._wordCountAnalysisViews || []).map((u) => u.id),
                 result: lastWordCountResult,
+                perUnitResults: lastWordCountPerUnitResults,
                 includeLocked: !!(wordCountIncludeLocked && wordCountIncludeLocked.checked)
             }
         });

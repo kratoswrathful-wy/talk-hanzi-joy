@@ -2042,7 +2042,7 @@
             </div>
             <div class="wizard-body" style="max-height:72vh; overflow:auto;">
                 <p style="margin:0 0 0.75rem 0; color:#64748b; font-size:0.88rem;">
-                    以目前勾選的檔案為範圍；可選擇用於比對的讀取 TM，並決定是否納入鎖定句段。結果可儲存於本機報告紀錄。
+                    以目前勾選的檔案或句段集為範圍；可選擇用於比對的讀取 TM，並決定是否納入鎖定句段。結果可儲存於本機報告紀錄。
                 </p>
                 <div style="display:flex; flex-wrap:wrap; gap:1rem; margin-bottom:0.75rem;">
                     <label style="display:flex; align-items:center; gap:0.35rem; font-size:0.88rem; cursor:pointer;">
@@ -2062,9 +2062,15 @@
                         <input type="number" id="wordCountDiscountRep" class="form-input" min="0" max="100" value="0" style="width:4rem; padding:0.3rem 0.45rem; font-size:0.85rem;">
                     </label>
                 </div>
-                <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.75rem;">
-                    <button type="button" class="primary-btn btn-sm" id="btnRunWordCount">執行分析</button>
-                    <button type="button" class="secondary-btn btn-sm" id="btnSaveWordCountReport">儲存本次報告</button>
+                <div style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:center; margin-bottom:0.75rem;">
+                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+                        <button type="button" class="primary-btn btn-sm" id="btnRunWordCount">執行分析</button>
+                        <button type="button" class="secondary-btn btn-sm" id="btnSaveWordCountReport">儲存本次報告</button>
+                    </div>
+                    <div id="wordCountAnalysisProgress" role="status" aria-live="polite" style="flex:1; min-width:12rem; font-size:0.82rem; color:#475569; border:1px solid #e2e8f0; border-radius:6px; padding:0.35rem 0.55rem; min-height:1.65rem; line-height:1.35;"></div>
+                </div>
+                <div id="wordCountResultDisclaimer" class="hidden" style="font-size:0.82rem; color:#64748b; margin:0 0 0.5rem 0; line-height:1.45; padding:0.45rem 0.55rem; background:#fffbeb; border:1px solid #fde68a; border-radius:6px;">
+                    ※ 下方表格<strong>最上方</strong>為<strong>合併範圍</strong>（所選檔案或句段集句段合併後<strong>一次</strong>分析）；若勾選<strong>多個檔案</strong>或<strong>多個句段集</strong>，其下另列<strong>各檔／各句段集分開</strong>分析。因檔內重複與 TM 分類的計算範圍不同，分項加權加總<strong>不一定</strong>與合併範圍總計相同。
                 </div>
                 <div id="wordCountResultWrap" style="overflow:auto; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:1rem;">
                     <table class="resource-table" style="width:100%; border-collapse:collapse; font-size:0.85rem;">
