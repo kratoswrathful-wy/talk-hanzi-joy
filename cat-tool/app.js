@@ -3384,6 +3384,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (gridBody) gridBody.innerHTML = '';
                 window.ActiveTmCache = [];
                 window.ActiveTbTerms = [];
+                window._activeTmCacheReadyIds = new Set();
+                window._activeTmNames = {};
                 clearEditorScopedPanels();
                 sidebar.classList.remove('collapsed');
             }
@@ -4342,6 +4344,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.ActiveTbTerms = [];
             window.ActiveTbNames = {};
             window.ActiveTmPenalties = {};
+            window._activeTmCacheReadyIds = new Set();
+            window._activeTmNames = {};
             window.ActiveFileLangs = { sourceLang: '', targetLang: '' };
             window.ActiveWriteTb = null;
             if (project) {
@@ -4359,6 +4363,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const tmName = tm ? tm.name : `TM #${tmId}`;
                     segs.forEach((s) => { s._tmId = tmId; s.tmName = tmName; });
                     window.ActiveTmCache.push(...segs);
+                    window._activeTmNames[String(tmId)] = tmName;
+                    window._activeTmCacheReadyIds.add(String(tmId));
+                }
+                // 僅寫入而未在讀取清單的 TM 也需載入快取，以支援確認時快取比對去重
+                const _rdSet = new Set((project.readTms || []).map(String));
+                for (const tmId of (project.writeTms || [])) {
+                    if (_rdSet.has(String(tmId))) continue;
+                    const tm = await DBService.getTM(tmId);
+                    const tmName = tm ? tm.name : `TM #${tmId}`;
+                    const segs = await DBService.getTMSegments(tmId);
+                    segs.forEach((s) => { s._tmId = tmId; s.tmName = tmName; });
+                    window.ActiveTmCache.push(...segs);
+                    window._activeTmNames[String(tmId)] = tmName;
+                    window._activeTmCacheReadyIds.add(String(tmId));
                 }
                 for (const tbId of (project.readTbs || [])) {
                     const full = await DBService.getTB(tbId);
@@ -5027,6 +5045,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.ActiveWriteTms = writeTms.slice();
         window.ActiveReadTmIds = readTms.slice();
         closeProjectTmPickerModal();
+        // 新掛載的 TM 補載入快取（關閉 Modal 後才執行，不阻斷 UI 回應）
+        {
+            const _prevReady = window._activeTmCacheReadyIds || new Set();
+            const _allPickedIds = [...new Set([...readTms.map(String), ...writeTms.map(String)])];
+            for (const tmId of _allPickedIds) {
+                if (_prevReady.has(String(tmId))) continue;
+                try {
+                    const tm = await DBService.getTM(tmId);
+                    const tmName = tm ? tm.name : `TM #${tmId}`;
+                    if (!window._activeTmNames) window._activeTmNames = {};
+                    window._activeTmNames[String(tmId)] = tmName;
+                    const segs = await DBService.getTMSegments(tmId);
+                    segs.forEach(s => { s._tmId = tmId; s.tmName = tmName; });
+                    const existingIds = new Set((window.ActiveTmCache || []).map(s => String(s.id)));
+                    if (!window.ActiveTmCache) window.ActiveTmCache = [];
+                    window.ActiveTmCache.push(...segs.filter(s => !existingIds.has(String(s.id))));
+                    if (!window._activeTmCacheReadyIds) window._activeTmCacheReadyIds = new Set();
+                    window._activeTmCacheReadyIds.add(String(tmId));
+                } catch (_) { /* 補載失敗不阻斷；下次確認自動回退 DB 查詢 */ }
+            }
+        }
         const p = await DBService.getProject(currentProjectId);
         if (p) await loadProjectTms(p);
         if (_projectSetupMode) {
@@ -11385,15 +11424,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // Notes auto-load is handled later after editor renders
-        
-        // --- LOAD PROJECT TM CACHE ---
+        // LOAD PROJECT TM CACHE ---
         window.ActiveTmCache = [];
         window.ActiveWriteTms = [];
         window.ActiveReadTmIds = [];
         window.ActiveReadTbIds = [];
         window.ActiveTbNames = {};
         window.ActiveTmPenalties = {};
+        window._activeTmCacheReadyIds = new Set();
+        window._activeTmNames = {};
         // 記錄當前檔案的語言對，供 TM 篩選及寫入使用
         window.ActiveFileLangs = { sourceLang: file.sourceLang || '', targetLang: file.targetLang || '' };
         let project = await DBService.getProject(resolvedProjectId);
@@ -11427,9 +11466,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Stamp each segment with its source TM id + name
                 filtered.forEach(s => { s._tmId = tmId; s.tmName = tmName; });
                 window.ActiveTmCache.push(...filtered);
+                window._activeTmNames[String(tmId)] = tmName;
+                window._activeTmCacheReadyIds.add(String(tmId));
             }
         }
         if (project && project.writeTms) window.ActiveWriteTms = project.writeTms;
+        // 僅寫入而未在讀取清單的 TM 也需載入快取，以支援確認時快取比對去重
+        {
+            const _rdSet = new Set((project && project.readTms || []).map(String));
+            for (const tmId of (project && project.writeTms || [])) {
+                if (_rdSet.has(String(tmId))) continue;
+                const tm = await DBService.getTM(tmId);
+                const tmName = tm ? tm.name : `TM #${tmId}`;
+                const segs = await DBService.getTMSegments(tmId);
+                segs.forEach(s => { s._tmId = tmId; s.tmName = tmName; });
+                window.ActiveTmCache.push(...segs);
+                window._activeTmNames[String(tmId)] = tmName;
+                window._activeTmCacheReadyIds.add(String(tmId));
+            }
+        }
 
         // --- LOAD TB TERMS: only TBs listed in project.readTbs (no language fallback) ---
         window.ActiveTbTerms = [];
@@ -11649,6 +11704,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         gridBody.innerHTML = '';
         window.ActiveTmCache = [];
         window.ActiveTbTerms = [];
+        window._activeTmCacheReadyIds = new Set();
+        window._activeTmNames = {};
         clearEditorScopedPanels();
         // 離開編輯器時重置唯讀狀態與橫幅
         _viewEditorReadOnly = false;
@@ -17113,16 +17170,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
         for (const rawTmId of window.ActiveWriteTms) {
             const tmId = rawTmId;
-            const tmRow = await DBService.getTM(tmId);
-            const tmName = tmRow ? tmRow.name : `TM #${tmId}`;
-            const dbExisting = await DBService.getTMSegments(tmId);
-            // 本 session 剛加入的條目可能尚未反映在 DB 查詢結果中（PostgREST read-after-write 時序問題）
-            // 補入快取中屬於此 TM 且 DB 尚未回傳的條目，避免重複 addTMSegment
-            const dbIds = new Set(dbExisting.map(s => s.id));
-            const sessionAdds = (window.ActiveTmCache || []).filter(
-                t => t._tmId === tmId && !dbIds.has(t.id)
-            );
-            const existing = [...dbExisting, ...sessionAdds];
+            const tmIdStr = String(tmId);
+            // 快取完整路徑：開檔時已載入此 TM → 直接用快取，不查 DB（主要路徑）
+            // 快取未備路徑：TM 在開檔後才掛載（罕見）→ 回退全量 DB 查詢（舊行為）
+            // ⚠ 團隊模式已知限制：若兩位使用者在同一 session 內同時確認同一原文，
+            //   兩者快取中皆無該筆，可能各自新增造成 TM 重複條目（不影響資料正確性，
+            //   僅出現兩筆相同原文）。此場景極罕見，可於 Supabase 加唯一約束進一步防堵。
+            const isCacheReady = !!(window._activeTmCacheReadyIds && window._activeTmCacheReadyIds.has(tmIdStr));
+            let tmName;
+            if (window._activeTmNames && window._activeTmNames[tmIdStr]) {
+                tmName = window._activeTmNames[tmIdStr];
+            } else {
+                const tmRow = await DBService.getTM(tmId);
+                tmName = tmRow ? tmRow.name : `TM #${tmId}`;
+            }
+            let existing;
+            if (isCacheReady) {
+                // 快取完整：從記憶體直接篩出此 TM 的所有條目（含本 session 已新增者）
+                existing = (window.ActiveTmCache || []).filter(t => String(t._tmId) === tmIdStr);
+            } else {
+                // 快取未備：仍需查 DB，同時補入 session 內已新增但 DB 尚未回傳的條目
+                const dbExisting = await DBService.getTMSegments(tmId);
+                const dbIds = new Set(dbExisting.map(s => s.id));
+                const sessionAdds = (window.ActiveTmCache || []).filter(
+                    t => t._tmId === tmId && !dbIds.has(t.id)
+                );
+                existing = [...dbExisting, ...sessionAdds];
+            }
             const srcLang = metaBase.sourceLang.toLowerCase();
             const tgtLang = metaBase.targetLang.toLowerCase();
             const match = existing.find(tms => {
@@ -17146,7 +17220,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 redo.push({ op: 'create', tmId, sourceText: seg.sourceText, targetText: seg.targetText, meta: metaFull });
                 const full = await DBService.getTMSegmentById(newId);
                 if (full) {
-                    const dupCache = window.ActiveTmCache.some(t => t.id === full.id || (t._tmId === tmId && t.sourceText === seg.sourceText));
+                    const dupCache = window.ActiveTmCache.some(t => t.id === full.id || (String(t._tmId) === tmIdStr && t.sourceText === seg.sourceText));
                     if (!dupCache) {
                         window.ActiveTmCache.push({
                             ...full,
@@ -17176,7 +17250,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     continue;
                 }
                 window.ActiveTmCache.forEach(tms => {
-                    if (tms.id === match.id || (tms._tmId === tmId && tms.sourceText === seg.sourceText)) {
+                    if (tms.id === match.id || (String(tms._tmId) === tmIdStr && tms.sourceText === seg.sourceText)) {
                         tms.targetText = seg.targetText;
                         tms.changeLog = prevLog;
                         tms.lastModified = new Date().toISOString();
