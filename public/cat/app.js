@@ -18193,23 +18193,56 @@ document.addEventListener('DOMContentLoaded', async () => {
         return (n.match(/\d+/g) || []).slice();
     }
 
+    /**
+     * QA Tag 檢查：自 tag 物件取與 {N} 佔位對齊的編號字串；若 id/num/index 缺漏則自 ph 解析（mqxliff 常見）。
+     */
+    function _qaTagIdForCompare(t) {
+        if (!t) return '';
+        const raw = t.id ?? t.num ?? t.index;
+        if (raw !== undefined && raw !== null && String(raw).trim() !== '') return String(raw);
+        const ph = String(t.ph || '');
+        const m = ph.match(/\{\/?(\d+)\}/);
+        return m ? m[1] : '';
+    }
+
+    /**
+     * 譯文純文字中 {N}、{/N} 出現的編號集合（與 F8、xliff replacePlaceholders、匯出路徑一致）。
+     * 用於 targetTags 為空但譯文已鍵入佔位符時，避免誤報「缺少 tag」。
+     */
+    function _qaPlainTargetTagNumSet(targetText) {
+        const out = new Set();
+        const re = /\{\/?(\d+)\}/g;
+        let m;
+        const s = String(targetText || '');
+        while ((m = re.exec(s)) !== null) {
+            if (m[1]) out.add(m[1]);
+        }
+        return out;
+    }
+
     /** Tag／術語／數字（不含譯文不一致、不含錯字）— 供 runQaChecks 與確認後增量更新共用 */
     function _qaPushSegmentRuleFindings(results, s, gid, { checkTerms = true, checkTags = true, checkNumbers = true }) {
         if (checkTags) {
-            const srcIds = (s.sourceTags || []).map(t => String(t.id ?? t.num ?? t.index ?? ''));
-            const tgtIds = (s.targetTags || []).map(t => String(t.id ?? t.num ?? t.index ?? ''));
-            if (srcIds.length > 0) {
-                const srcSet = new Set(srcIds);
-                const tgtSet = new Set(tgtIds);
-                const missing = srcIds.filter(id => id && !tgtSet.has(id));
-                const extra = tgtIds.filter(id => id && !srcSet.has(id));
-                const hasMissing = [...new Set(missing)].length > 0;
-                const hasExtra = [...new Set(extra)].length > 0;
+            const srcTags = s.sourceTags || [];
+            const srcNumSet = new Set(srcTags.map(t => _qaTagIdForCompare(t)).filter(Boolean));
+            if (srcNumSet.size > 0) {
+                const tgtSet = new Set((s.targetTags || []).map(t => _qaTagIdForCompare(t)).filter(Boolean));
+                for (const n of _qaPlainTargetTagNumSet(s.targetText)) tgtSet.add(n);
+
+                const missing = [...srcNumSet].filter(id => !tgtSet.has(id))
+                    .sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0));
+                const extraMeta = (s.targetTags || []).map(t => _qaTagIdForCompare(t)).filter(id => id && !srcNumSet.has(id));
+                const extraText = [..._qaPlainTargetTagNumSet(s.targetText)].filter(n => !srcNumSet.has(n))
+                    .sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0));
+                const extraAll = [...new Set([...extraMeta.map(String), ...extraText.map(String)])]
+                    .sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0));
+                const hasMissing = missing.length > 0;
+                const hasExtra = extraAll.length > 0;
                 if (hasMissing || hasExtra) {
-                    const detail = hasMissing
-                        ? '缺少 tag：{' + [...new Set(missing)].join('}, {') + '}'
-                        : '多餘 tag：{' + [...new Set(extra)].join('}, {') + '}';
-                    results.push({ segId: s.id, gid, type: 'Tag 檢查', info: detail, key: `${gid}:tag` });
+                    const parts = [];
+                    if (hasMissing) parts.push('缺少 tag：{' + missing.join('}, {') + '}');
+                    if (hasExtra) parts.push('多餘 tag：{' + extraAll.join('}, {') + '}');
+                    results.push({ segId: s.id, gid, type: 'Tag 檢查', info: parts.join('；'), key: `${gid}:tag` });
                 }
             }
         }
