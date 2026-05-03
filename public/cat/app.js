@@ -17712,12 +17712,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }).join('')}
                     </div>` : '';
                         const isSelected = idx === window.catPanelSelectedIndex;
-                        const tgtEsc = m.targetText.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
                         return `
                     <div class="result-block">
                     <div class="result-item${isSelected ? ' result-item--selected' : ''}" data-index="${idx}" title="單擊選取；雙擊套用譯文"
                          onclick="handleCatResultClick(this, ${idx})"
-                         ondblclick="handleCatResultApply(this, '${m.type}', \`${tgtEsc}\`, ${m.type === 'TM' ? m.score : 'undefined'}, ${idx})">
+                         ondblclick="handleCatResultDblClick(this)">
                         <div class="result-cell result-cell--index">${idx + 1}</div>
                         <div class="result-cell result-cell--source">${htmlForTmPlainWithPlaceholders(m.sourceText)}</div>
                         <div class="result-cell result-cell--score" style="${scoreBg}">${scoreInner}</div>
@@ -17827,6 +17826,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.catPanelSelectedIndex = idx;
             if (typeof window.updateCatPanelSelection === 'function') window.updateCatPanelSelection();
         }
+    };
+
+    /** 雙擊比對列：由 data-index + 分頁解析絕對列，從 currentTmMatches 讀譯文（避免 ondblclick 內嵌含 " 的譯文破壞 HTML）。 */
+    window.handleCatResultDblClick = async function (el) {
+        const item = el && el.closest ? el.closest('.result-item') : null;
+        if (!item) return;
+        const rel = parseInt(item.getAttribute('data-index'), 10);
+        if (!Number.isFinite(rel) || rel < 0 || rel > 8) return;
+        const matches = window.currentTmMatches;
+        if (!matches || !matches.length) return;
+        const page = typeof window.catMatchPageIndex === 'number' ? window.catMatchPageIndex : 0;
+        const abs = page * 9 + rel;
+        if (abs < 0 || abs >= matches.length) return;
+        const m = matches[abs];
+        const scoreArg = m.type === 'TM' ? m.score : undefined;
+        await window.handleCatResultApply(item, m.type, m.targetText || '', scoreArg, rel, false);
     };
 
     // 雙擊或快速鍵：套用比對結果至目前句段
