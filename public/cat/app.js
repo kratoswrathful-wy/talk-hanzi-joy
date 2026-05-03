@@ -4494,6 +4494,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             sfFilterSnapshotSegIds = null;
             sfFilterLockedSpecHash = '';
+            _updateSfFilterCountBadge();
             if (typeof highMatchEditConfirmedIds !== 'undefined') highMatchEditConfirmedIds.clear();
             renderEditorSegments();
             runSearchAndFilter();
@@ -11846,6 +11847,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         sfFilterSnapshotSegIds = null;
         sfFilterLockedSpecHash = '';
+        _updateSfFilterCountBadge();
         highMatchEditConfirmedIds.clear();
         renderEditorSegments();
         runSearchAndFilter();
@@ -12109,6 +12111,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     let sfFilterGroups = []; // [{ op: 'AND'/'OR', term, scopes, isRegex, isInvert, statuses, tms }]
     let sfFilterSnapshotSegIds = null;
     let sfFilterLockedSpecHash = '';
+
+    function _updateSfFilterCountBadge() {
+        const badge = document.getElementById('sfFilterCountBadge');
+        const numEl = document.getElementById('sfFilterCountNum');
+        if (!badge || !numEl) return;
+        const isActive = sfMode === 'filter' && sfFilterSnapshotSegIds && sfFilterSnapshotSegIds.size > 0;
+        badge.style.display = isActive ? '' : 'none';
+        if (isActive) numEl.textContent = sfFilterSnapshotSegIds.size.toLocaleString();
+    }
     const highMatchEditConfirmedIds = new Set();
     let highMatchModalPromiseResolver = null;
     /** 「仍要編輯」確認後要還原焦點的句段 id（僅單句提示時設定；批次為 null） */
@@ -12281,6 +12292,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (sfMode === 'search') { sfModeFilter.click(); return; } // Toggle behavior
         sfMode = 'search'; sfModeSearch.classList.add('active'); sfModeFilter.classList.remove('active');
+        _updateSfFilterCountBadge();
         scheduleRunSearchAndFilter();
         onSwitchToSearchMode();
         emitCollabFocus('control', 'sfModeSearch');
@@ -12527,6 +12539,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     sfMode = 'search';
                     if (sfModeSearch) sfModeSearch.classList.add('active');
                     if (sfModeFilter) sfModeFilter.classList.remove('active');
+                    _updateSfFilterCountBadge();
                     scheduleRunSearchAndFilter();
                 }
                 sfInput.focus();
@@ -13281,6 +13294,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (sfMode !== 'filter') {
             sfFilterSnapshotSegIds = null;
             sfFilterLockedSpecHash = '';
+            _updateSfFilterCountBadge();
         } else {
             // 若 keepFilterSnapshot 且已有快照，則保留快照（不因內容取代而重算）
             const shouldKeep = keepFilterSnapshot && sfFilterSnapshotSegIds !== null;
@@ -13294,6 +13308,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 sfFilterSnapshotSegIds = next;
                 sfFilterLockedSpecHash = specHash;
                 didRebuildFilterSnapshot = true;
+                _updateSfFilterCountBadge();
             }
         }
         
@@ -15009,6 +15024,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const preserveSfInput = !!(opts && opts.preserveSfInput);
         sfFilterSnapshotSegIds = null;
         sfFilterLockedSpecHash = '';
+        _updateSfFilterCountBadge();
         if (!preserveSfInput && sfInput) sfInput.value = '';
         if (sfReplaceInput) sfReplaceInput.value = '';
         clearSfAdvancedSpecOnDom();
