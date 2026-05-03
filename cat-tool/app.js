@@ -12116,9 +12116,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const badge = document.getElementById('sfFilterCountBadge');
         const numEl = document.getElementById('sfFilterCountNum');
         if (!badge || !numEl) return;
-        const isActive = sfMode === 'filter' && sfFilterSnapshotSegIds && sfFilterSnapshotSegIds.size > 0;
+        const filteredSize = sfFilterSnapshotSegIds ? sfFilterSnapshotSegIds.size : 0;
+        const totalSize = currentSegmentsList ? currentSegmentsList.length : 0;
+        const isActive = sfMode === 'filter' && filteredSize > 0 && filteredSize < totalSize;
         badge.style.display = isActive ? '' : 'none';
-        if (isActive) numEl.textContent = sfFilterSnapshotSegIds.size.toLocaleString();
+        if (isActive) numEl.textContent = filteredSize.toLocaleString();
     }
     const highMatchEditConfirmedIds = new Set();
     let highMatchModalPromiseResolver = null;
