@@ -26059,7 +26059,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function _poolTokLine(contentStr, exList) {
         const c = _charsOfText(contentStr) + exList.reduce((sum, ex) => sum + _charsOfText(ex.src) + _charsOfText(ex.tgt) + _charsOfText(ex.note), 0);
         const tok = _estimateTokensByChars(c);
-        return `${c} 字元（約 ${tok} tokens）`;
+        return `${c} 字元（約 ${tok} token）`;
     }
 
     function _renderAiBatchCandidatePool() {
@@ -26554,7 +26554,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const sumChars = rows.reduce((sum, r) => sum + _charsOfText(r.content || ''), 0);
         const sumTok = _estimateTokensByChars(sumChars);
         if (hintEl && currentProjectId) {
-            hintEl.textContent = `建議每列 20~120 字；目前共 ${rows.length} 列，${sumChars} 字元（約 ${sumTok} tokens）；輸入即時儲存。`;
+            hintEl.textContent = `建議每列 20-120 字；目前共 ${rows.length} 列，${sumChars} 字元（約 ${sumTok} token）；輸入即時儲存。`;
         }
     }
 
@@ -26564,7 +26564,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const chars = _charsOfText(row.content || '');
         const tok = _estimateTokensByChars(chars);
         const meta = Array.from(listEl.querySelectorAll('.ai-batch-si-meta')).find((el) => String(el.getAttribute('data-si-id')) === String(sid));
-        if (meta) meta.textContent = `${chars} 字元（約 ${tok} tokens）`;
+        if (meta) meta.textContent = `${chars} 字元（約 ${tok} token）`;
         _updateAiBatchProjectInstructionsHintOnly();
         if (__aiBatchPool) _renderAiBatchCandidatePool();
     }
@@ -26588,25 +26588,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const rawIdAttr = String(row.id).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
                 return `<div style="border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; padding:0.45rem 0.5rem;">
                     <div style="display:flex; align-items:center; gap:0.45rem;">
-                        <input type="checkbox" class="ai-batch-si-enabled" data-si-id="${rawIdAttr}" ${row.enabled !== false ? 'checked' : ''}>
                         <input type="text" class="form-input ai-batch-si-input" data-si-id="${rawIdAttr}" value="${_esc(row.content || '')}" placeholder="輸入專案 AI 指示…" style="flex:1; min-width:180px;">
                         <button type="button" class="danger-btn btn-sm ai-batch-si-del" data-si-id="${rawIdAttr}">刪除</button>
                     </div>
-                    <div class="ai-batch-si-meta" data-si-id="${rawIdAttr}" style="margin-top:0.35rem; font-size:0.76rem; color:#64748b;">${chars} 字元（約 ${tok} tokens）</div>
+                    <div class="ai-batch-si-meta" data-si-id="${rawIdAttr}" style="margin-top:0.35rem; font-size:0.76rem; color:#64748b;">${chars} 字元（約 ${tok} token）</div>
                 </div>`;
             }).join('');
         }
         _updateAiBatchProjectInstructionsHintOnly();
-        listEl.querySelectorAll('.ai-batch-si-enabled').forEach((el) => {
-            el.onchange = () => {
-                const sid = String(el.getAttribute('data-si-id') || '');
-                const idx = __aiBatchProjectInstructions.findIndex((r) => String(r.id) === sid);
-                if (idx < 0) return;
-                __aiBatchProjectInstructions[idx].enabled = !!el.checked;
-                _queueSaveAiBatchProjectInstructions();
-                _refreshAiBatchCandidatePoolAfterSiEdit();
-            };
-        });
         listEl.querySelectorAll('.ai-batch-si-input').forEach((el) => {
             el.oninput = () => {
                 const sid = String(el.getAttribute('data-si-id') || '');
@@ -26797,7 +26786,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (preSys) preSys.textContent = sys;
         if (preUsr) preUsr.textContent = usr;
         if (tokEl) {
-            tokEl.innerHTML = `約略估算：提示語 <strong>${tokSys}</strong> tokens · 翻譯內容（User）<strong>${tokUsr}</strong> tokens · 假設系統開銷 ${overhead} tokens · 加總約 <strong>${tokTotal}</strong> tokens（實際依供應商計費為準）。`;
+            tokEl.innerHTML = `約略估算：提示語 <strong>${tokSys}</strong> token · 翻譯內容（User）<strong>${tokUsr}</strong> token · 假設系統開銷 ${overhead} token · 加總約 <strong>${tokTotal}</strong> token（實際依供應商計費為準）。`;
         }
         if (prevModal) prevModal.classList.remove('hidden');
         const closeBtn = document.getElementById('btnCloseAiBatchPromptPreview');
@@ -27031,7 +27020,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tokSys = _estimateTokensByChars([...sys].length);
             const tokUsr = _estimateTokensByChars([...usr].length);
             const tokTotal = tokSys + tokUsr + overhead;
-            estEl.innerHTML = `每批約 <strong>${tokTotal.toLocaleString()}</strong> tokens（提示語 ${tokSys.toLocaleString()} + 翻譯內容 ${tokUsr.toLocaleString()} + 系統開銷 ${overhead}）<br><span style="font-size:0.74rem; color:#94a3b8;">加總 = 提示語 + 翻譯內容 + 系統開銷；請以「預覽提示語」中的約略估算為準。</span>`;
+            estEl.innerHTML = `每批約 <strong>${tokTotal.toLocaleString()}</strong> token（提示語 ${tokSys.toLocaleString()} + 翻譯內容 ${tokUsr.toLocaleString()} + 系統開銷 ${overhead}）<br><span style="font-size:0.74rem; color:#94a3b8;">加總 = 提示語 + 翻譯內容 + 系統開銷；請以「預覽提示語」中的約略估算為準。</span>`;
         } catch (_) { estEl.innerHTML = ''; }
     }
 
