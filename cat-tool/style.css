@@ -701,11 +701,12 @@ button:disabled { cursor: not-allowed; }
 .editor-toolbar {
     height: 50px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; padding: 0 1rem; background: white;
 }
-.toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 1rem; }
+.toolbar-left { display: flex; align-items: center; gap: 1rem; flex: 1; min-width: 0; overflow: hidden; }
+.toolbar-right { display: flex; align-items: center; gap: 1rem; flex-shrink: 0; }
 .icon-btn { background: none; border: none; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; min-width: 2rem; min-height: 2rem; border-radius: 4px; color: var(--text-light); }
 .icon-btn:hover { background: var(--secondary-color); color: var(--text-main); }
 .mq-role-icon { font-size: 1.1rem; color: var(--success-color); display: flex; align-items: center; justify-content: center; cursor: default; width: 2rem; height: 2rem; min-width: 2rem; min-height: 2rem; border-radius: 4px; flex-shrink: 0; overflow: hidden; }
-.editor-file-title { font-weight: 600; font-size: 0.95rem; }
+.editor-file-title { font-weight: 600; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
 .editor-progress-container { display: flex; align-items: center; gap: 1rem; width: 300px; }
 .editor-progress-bar { flex: 1; height: 6px; background: var(--secondary-color); border-radius: 3px; overflow: hidden; }

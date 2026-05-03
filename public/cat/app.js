@@ -3341,7 +3341,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function beginEditorViewLoadingShell() {
         currentSegmentsList = [];
         if (gridBody) gridBody.innerHTML = '';
-        if (editorFileName) editorFileName.textContent = '載入中…';
+        if (editorFileName) { editorFileName.textContent = '載入中…'; editorFileName.title = ''; }
         sidebar.classList.add('collapsed');
         switchView('viewEditor');
     }
@@ -4323,7 +4323,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             currentSegmentsList = Array.isArray(segments) ? segments : [];
-            if (editorFileName) editorFileName.textContent = title || '句段集';
+            if (editorFileName) { editorFileName.textContent = title || '句段集'; editorFileName.title = title || '句段集'; }
 
             currentFileFormat = 'excel';
             currentFileDefaultMqRole = null;
@@ -11533,6 +11533,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (resolvedProjectId) currentProjectId = resolvedProjectId;
 
         editorFileName.textContent = file.name;
+        editorFileName.title = file.name;
 
         // 先判斷格式與 mq 身分（mqxliff 須先選身分；全螢幕載入層 z-index 高於身分視窗，會擋住操作故延後顯示）
         const lowerName = (file.name || '').toLowerCase();
