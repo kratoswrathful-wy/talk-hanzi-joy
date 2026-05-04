@@ -726,7 +726,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         catListNav: 'Alt + ↑ / ↓',
         catResultPage: 'Alt + ← / →',
         rightPanelTab: 'Ctrl + Alt + ← / →',
-        fakeCaretFocus: 'Ctrl + Alt + ↑ / ↓'
+        fakeCaretFocus: 'Ctrl + Alt + ↓'
     };
 
     function refreshFixedShortcutTitles() {
@@ -2645,6 +2645,31 @@ document.addEventListener('DOMContentLoaded', async () => {
             showRealCaretScrollTipIfNeeded();
             showCatFakeCaretFromSaved();
         });
+        /** 拖曳選取不得跨出譯文格：若 focus 落在格外則收斂到錨點（仍在格內）或格首 */
+        gridViewport.addEventListener('mouseup', () => {
+            requestAnimationFrame(() => {
+                const sel = window.getSelection();
+                if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+                const r = sel.getRangeAt(0);
+                const n = r.commonAncestorContainer;
+                const el = n.nodeType === 3 ? n.parentElement : n;
+                const ta = el && el.closest ? el.closest('.grid-textarea') : null;
+                if (!ta || ta.contentEditable === 'false') return;
+                if (ta.contains(sel.focusNode) && ta.contains(sel.anchorNode)) return;
+                try {
+                    const nr = document.createRange();
+                    if (ta.contains(sel.anchorNode)) {
+                        nr.setStart(sel.anchorNode, sel.anchorOffset);
+                    } else {
+                        nr.selectNodeContents(ta);
+                        nr.collapse(true);
+                    }
+                    nr.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(nr);
+                } catch (_) { /* ignore */ }
+            });
+        });
     }
     // 焦點移入／移出編輯格時更新真游標提示（改到正確格子時重新判斷，離開時隱藏）
     document.addEventListener('focusin', (e) => {
@@ -2774,6 +2799,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const tgtInput = document.getElementById('newTermTarget');
                         if (tgtInput && !tgtInput.value.trim()) tgtInput.value = selText;
                     }
+                }
+            }
+            if (tabId === 'tabQA' && qaLastRunSummaryHtml) {
+                renderQaRunSummary(qaLastRunSummaryHtml);
+            }
+            if (tabId === 'tabCAT' || tabId === 'tabTmSearch') {
+                const ar = document.querySelector('.grid-data-row.active-row');
+                if (ar) {
+                    const sid = ar.getAttribute('data-seg-id');
+                    const seg = getSegmentById(sid);
+                    if (seg) renderLiveTmMatches(seg);
                 }
             }
         });
@@ -4465,8 +4501,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const cell = document.createElement('div');
                     cell.className = 'grid-header-cell';
                     cell.setAttribute('data-col-id', c.id);
-                    if (c.name === 'Key 1') c.name = 'Key';
-                    cell.textContent = c.name;
+                    populateGridHeaderTitleCell(cell, c);
                     cell.style.order = idx;
                     cell.style.display = c.visible ? '' : 'none';
                     gridHeaderRow.appendChild(cell);
@@ -10795,14 +10830,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         return !!(isDynamicForbidden(seg) || seg.isLockedUser);
     }
 
-    // 計算句段在目前 session 下應使用的 confirmationRole
+    // 計算句段在目前 session 下應使用的 confirmationRole（後階段再確認時更新為目前身分；TM 不重複寫入由 sync 邏輯處理）
     function resolveConfirmationRole(seg) {
-        if (seg.originalRole) {
-            // T_ALLOW_R1 允許以 T 身分覆寫 R1 確認
-            if ((currentMqConfirmationRole === 'T_ALLOW_R1' || currentMqConfirmationRole === 'T_DENY_R1') && seg.originalRole === 'R1') {
-                return 'T';
-            }
-            return seg.originalRole; // 其他情況保留原檔身分
+        if (currentFileFormat !== 'mqxliff') return seg.confirmationRole || undefined;
+        if (seg.originalRole === 'R1' && (currentMqConfirmationRole === 'T_ALLOW_R1' || currentMqConfirmationRole === 'T_DENY_R1')) {
+            return 'T';
         }
         return getSessionConfirmRole();
     }
@@ -11761,9 +11793,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             cell.className = 'grid-header-cell';
             cell.setAttribute('data-col-id', c.id);
             
-            // Rename Key 1 -> Key
-            if (c.name === 'Key 1') c.name = 'Key';
-            cell.textContent = c.name;
+            populateGridHeaderTitleCell(cell, c);
             
             // Status, Match, and Repetition don't have resizers and are fixed/sticky
             if (c.id !== 'col-status' && c.id !== 'col-match' && c.id !== 'col-repetition') {
@@ -12104,6 +12134,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let sfUseRegexChecked = false;
     const REPLACE_ALL_RESTORE_FAKE_CARET_KEY = 'catReplaceAllRestoreFakeCaret';
     const REPLACE_ALL_LEGACY_CLEAR_JUMP_KEY = 'catReplaceAllClearAndJump';
+    const PHRASE_REPLACE_WHOLE_KEY = 'catSfPhraseReplaceWhole';
     let sfSearchMatches = [];
     let sfActiveMatchIdx = -1;
     let sfLastFocusedMatchSegIdx = null;
@@ -12142,16 +12173,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sfModeFilter = document.getElementById('sfModeFilter');
     const btnToggleAdvancedSF = document.getElementById('btnToggleAdvancedSF');
     const sfAdvancedPanel = document.getElementById('sfAdvancedPanel');
-    const sfUseRegex = document.getElementById('sfUseRegex');
     const sfActionsSearch = document.getElementById('sfActionsSearch');
     const sfActionsFilter = document.getElementById('sfActionsFilter');
     const btnSfPrev = document.getElementById('btnSfPrev');
     const btnSfNext = document.getElementById('btnSfNext');
     const sfMatchCount = document.getElementById('sfMatchCount');
     const btnSfInvert = document.getElementById('btnSfInvert');
-    const btnSfOptionsPopover = document.getElementById('btnSfOptionsPopover');
-    const sfOptionsPopover = document.getElementById('sfOptionsPopover');
-    const sfReplaceAllRestoreFakeCaret = document.getElementById('sfReplaceAllRestoreFakeCaret');
     const sfReplaceInput = document.getElementById('sfReplaceInput');
     const btnSfReplaceThis = document.getElementById('btnSfReplaceThis');
     const btnSfReplaceAll = document.getElementById('btnSfReplaceAll');
@@ -12163,6 +12190,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     const qaScopeLockHint = '已選擇以目前篩選結果為 QA 範圍，暫時不得變動篩選條件；如欲變更或清除篩選條件，請取消該 QA 範圍設定';
     let qaScopeLocksFilterUi = false;
     let qaRunInProgress = false;
+    function readPhraseReplaceWholeStored() {
+        const v = localStorage.getItem(PHRASE_REPLACE_WHOLE_KEY);
+        if (v === '0' || v === '1') return v;
+        return '1';
+    }
+    let sfPhraseReplaceWhole = readPhraseReplaceWholeStored() === '1';
+
+    function getSfScopesFromDom() {
+        return Array.from(document.querySelectorAll('.sf-scope-btn.on'))
+            .map((b) => b.getAttribute('data-scope'))
+            .filter(Boolean);
+    }
+    function refreshSfReplaceBarToggleTips() {
+        const pr = document.getElementById('btnPhraseReplace');
+        if (pr) {
+            pr.classList.toggle('on', !!sfPhraseReplaceWhole);
+            pr.dataset.tip = sfPhraseReplaceWhole
+                ? '整段取代：開啟中（點擊關閉）- 執行取代時自動對尋找詞加引號，整段視為單一片語取代'
+                : '整段取代：關閉中（點擊開啟）- 執行取代時以空格拆分各詞，各詞分別各自取代';
+        }
+        const rst = document.getElementById('btnRestoreCaretToggle');
+        if (rst) {
+            const on = isReplaceAllRestoreFakeCaretEnabled();
+            rst.classList.toggle('on', on);
+            rst.dataset.tip = on
+                ? '全部取代後回到暫存游標位置：開啟中（點擊關閉）'
+                : '全部取代後回到暫存游標位置：關閉中（點擊開啟）';
+        }
+        const rx = document.getElementById('sfUseRegexBtn');
+        if (rx) rx.classList.toggle('on', !!sfUseRegexChecked);
+    }
+    function updateSfReplaceInputPlaceholder() {
+        if (!sfReplaceInput) return;
+        if (sfPhraseReplaceWhole) {
+            sfReplaceInput.placeholder = '整段取代開啟中：取代為…（可用 Ctrl+1~9 插入 TB/Frg）';
+        } else {
+            sfReplaceInput.placeholder = '取代為…（分詞取代：依尋找詞拆詞各別取代）';
+        }
+    }
+
     function readReplaceAllRestoreFakeCaretStored() {
         const v = localStorage.getItem(REPLACE_ALL_RESTORE_FAKE_CARET_KEY);
         if (v !== null) return v;
@@ -12179,13 +12246,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         return readReplaceAllRestoreFakeCaretStored() !== '0';
     }
     function initReplaceAllRestoreFakeCaretOption() {
-        if (!sfReplaceAllRestoreFakeCaret) return;
-        sfReplaceAllRestoreFakeCaret.checked = isReplaceAllRestoreFakeCaretEnabled();
-        sfReplaceAllRestoreFakeCaret.addEventListener('change', (e) => {
-            localStorage.setItem(
-                REPLACE_ALL_RESTORE_FAKE_CARET_KEY,
-                e.target && e.target.checked ? '1' : '0'
-            );
+        const btn = document.getElementById('btnRestoreCaretToggle');
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+            const nextOn = !isReplaceAllRestoreFakeCaretEnabled();
+            localStorage.setItem(REPLACE_ALL_RESTORE_FAKE_CARET_KEY, nextOn ? '1' : '0');
+            refreshSfReplaceBarToggleTips();
         });
     }
     initReplaceAllRestoreFakeCaretOption();
@@ -12268,17 +12334,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             syncWordCountEditorScopeRadios();
         }
     });
-    /** 切到篩選模式時：複製尋找列內容到剪貼簿，並短暫提示；切到搜尋模式時：聚焦尋找列。 */
     function onSwitchToFilterMode() {
         if (sfReplaceInput) sfReplaceInput.focus();
-        const val = sfInput ? sfInput.value : '';
-        if (val) {
-            navigator.clipboard.writeText(val).then(() => {
-                showCatToast('已複製尋找列內容到剪貼簿');
-            }).catch(() => {
-                showCatToast('複製到剪貼簿失敗，請手動複製尋找列');
-            });
-        }
     }
     function onSwitchToSearchMode() {
         if (sfInput) sfInput.focus();
@@ -12320,25 +12377,39 @@ document.addEventListener('DOMContentLoaded', async () => {
         syncWordCountEditorScopeRadios();
     });
     updateSfModeToggleLockState();
-    sfUseRegex.addEventListener('change', (e) => { sfUseRegexChecked = e.target.checked; scheduleRunSearchAndFilter(); });
+    document.querySelectorAll('.sf-scope-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            btn.classList.toggle('on');
+            if (!document.querySelector('.sf-scope-btn.on')) btn.classList.add('on');
+            scheduleRunSearchAndFilter();
+        });
+    });
+    const sfUseRegexBtn = document.getElementById('sfUseRegexBtn');
+    if (sfUseRegexBtn) {
+        sfUseRegexBtn.addEventListener('click', () => {
+            sfUseRegexChecked = !sfUseRegexChecked;
+            refreshSfReplaceBarToggleTips();
+            scheduleRunSearchAndFilter();
+        });
+    }
+    const btnPhraseReplace = document.getElementById('btnPhraseReplace');
+    if (btnPhraseReplace) {
+        btnPhraseReplace.addEventListener('click', () => {
+            sfPhraseReplaceWhole = !sfPhraseReplaceWhole;
+            localStorage.setItem(PHRASE_REPLACE_WHOLE_KEY, sfPhraseReplaceWhole ? '1' : '0');
+            refreshSfReplaceBarToggleTips();
+            updateSfReplaceInputPlaceholder();
+        });
+    }
+    refreshSfReplaceBarToggleTips();
+    updateSfReplaceInputPlaceholder();
     btnSfInvert.addEventListener('click', () => {
         if (btnSfInvert.classList.contains('sf-invert-disabled')) return;
         btnSfInvert.classList.toggle('active');
         updateSfModeToggleLockState();
         scheduleRunSearchAndFilter();
     });
-    if (btnSfOptionsPopover && sfOptionsPopover) {
-        btnSfOptionsPopover.addEventListener('click', (e) => {
-            e.stopPropagation();
-            sfOptionsPopover.classList.toggle('hidden');
-        });
-        document.addEventListener('click', (e) => {
-            if (!sfOptionsPopover.classList.contains('hidden') && !sfOptionsPopover.contains(e.target) && e.target !== btnSfOptionsPopover) {
-                sfOptionsPopover.classList.add('hidden');
-            }
-        });
-    }
-    document.querySelectorAll('.sf-scope-cb, .sf-status-cb').forEach(cb => cb.addEventListener('change', () => {
+    document.querySelectorAll('.sf-status-cb').forEach((cb) => cb.addEventListener('change', () => {
         updateSfModeToggleLockState();
         scheduleRunSearchAndFilter();
     }));
@@ -12352,7 +12423,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     (function bindSfRowRangeListeners() {
-        ['sfRowRangeEnabled', 'sfRowRangeExclude', 'sfRowRangeFrom', 'sfRowRangeTo'].forEach((id) => {
+        ['sfRowRangeEnabled', 'sfRowRangeExclude', 'sfRowRangeExpr'].forEach((id) => {
             const el = document.getElementById(id);
             if (!el) return;
             const go = () => {
@@ -12379,14 +12450,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
                 return;
             }
-            if (el.type === 'number') {
-                el.addEventListener('input', () => {
-                    scheduleRunSearchAndFilter(300);
-                });
-                el.addEventListener('change', go);
-            } else {
-                el.addEventListener('change', go);
-            }
+            el.addEventListener('input', () => {
+                scheduleRunSearchAndFilter(300);
+            });
+            el.addEventListener('change', go);
         });
     })();
 
@@ -12565,6 +12632,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             updateSfReplaceAllButtonLabel();
             syncSelectedRowAbutmentTopClass();
+        }
+        // Ctrl+G：跳至句段（與 # 欄「跳至」相同；不在一般 INPUT/TEXTAREA/SELECT 內觸發以免干擾表單）
+        if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'g' && (currentFileId || _currentViewId)) {
+            const ve = document.getElementById('viewEditor');
+            if (!ve || ve.classList.contains('hidden')) return;
+            const ae = document.activeElement;
+            const tag = ae && ae.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+            e.preventDefault();
+            openJumpToSegmentPrompt();
         }
         // F8: 插入下一個缺漏標籤（只插單一 tag；有選取且下一個可成對才包一對）
         if (e.key === 'F8' && (currentFileId || _currentViewId) && !e.ctrlKey) {
@@ -12850,23 +12927,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         'tmVal',
         'statuses',
         'rowRangeEnabled',
-        'rowRangeFrom',
-        'rowRangeTo',
+        'rowRangeExpr',
         'rowRangeExclude'
     ];
+
+    function _sfExprFromLegacyRowRange(fromStr, toStr) {
+        const a = String(fromStr ?? '').trim();
+        const b = String(toStr ?? '').trim();
+        if (!a && !b) return '';
+        if (a && b) return `${a}-${b}`;
+        if (a) return `${a}-`;
+        return `1-${b}`;
+    }
 
     /** 與 scripts/test-cat-sf-row-range.mjs 一致；變更時請同步測試檔。 */
     function segmentPassesSfRowRangePure(listIndexZeroBased, rowSpec) {
         const enabled = !!(rowSpec && rowSpec.enabled);
         if (!enabled) return true;
+        const n = listIndexZeroBased + 1;
+        const exclude = !!(rowSpec && rowSpec.exclude);
+        const expr = rowSpec.expr != null ? String(rowSpec.expr).trim() : '';
+        if (expr) {
+            const inside = isTbRowInRanges(n, parseTbRowRanges(expr, 1));
+            return exclude ? !inside : inside;
+        }
         const a = parseInt(String(rowSpec.fromVal ?? ''), 10);
         const b = parseInt(String(rowSpec.toVal ?? ''), 10);
         if (!Number.isFinite(a) || !Number.isFinite(b)) return true;
         const lo = Math.min(a, b);
         const hi = Math.max(a, b);
-        const n = listIndexZeroBased + 1;
         const inside = n >= lo && n <= hi;
-        const exclude = !!(rowSpec && rowSpec.exclude);
         return exclude ? !inside : inside;
     }
 
@@ -12881,16 +12971,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     function readSfAdvancedSpecFromDom() {
         const tmEl = document.getElementById('sfTmMatch');
         const rrEn = document.getElementById('sfRowRangeEnabled');
-        const rrFrom = document.getElementById('sfRowRangeFrom');
-        const rrTo = document.getElementById('sfRowRangeTo');
+        const rrExpr = document.getElementById('sfRowRangeExpr');
         const rrEx = document.getElementById('sfRowRangeExclude');
         const rrNorm = normalizeRowRangeFlags(rrEn ? !!rrEn.checked : false, rrEx ? !!rrEx.checked : false);
         return {
             tmVal: tmEl ? String(tmEl.value || '') : '',
             statuses: Array.from(document.querySelectorAll('.sf-status-cb:checked')).map((cb) => cb.value),
             rowRangeEnabled: rrNorm.rowRangeEnabled,
-            rowRangeFrom: rrFrom ? String(rrFrom.value || '') : '',
-            rowRangeTo: rrTo ? String(rrTo.value || '') : '',
+            rowRangeExpr: rrExpr ? String(rrExpr.value || '') : '',
             rowRangeExclude: rrNorm.rowRangeExclude
         };
     }
@@ -12901,10 +12989,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (tmEl) tmEl.value = '';
         const rrEn = document.getElementById('sfRowRangeEnabled');
         if (rrEn) rrEn.checked = false;
-        const rrFrom = document.getElementById('sfRowRangeFrom');
-        if (rrFrom) rrFrom.value = '';
-        const rrTo = document.getElementById('sfRowRangeTo');
-        if (rrTo) rrTo.value = '';
+        const rrExpr = document.getElementById('sfRowRangeExpr');
+        if (rrExpr) rrExpr.value = '';
         const rrEx = document.getElementById('sfRowRangeExclude');
         if (rrEx) rrEx.checked = false;
     }
@@ -12931,13 +13017,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             const el = document.getElementById('sfRowRangeEnabled');
             if (el) el.checked = nextFlags.rowRangeEnabled;
         }
-        if (spec.rowRangeFrom !== undefined) {
-            const el = document.getElementById('sfRowRangeFrom');
-            if (el) el.value = spec.rowRangeFrom;
-        }
-        if (spec.rowRangeTo !== undefined) {
-            const el = document.getElementById('sfRowRangeTo');
-            if (el) el.value = spec.rowRangeTo;
+        if (spec.rowRangeExpr !== undefined) {
+            const el = document.getElementById('sfRowRangeExpr');
+            if (el) el.value = String(spec.rowRangeExpr ?? '');
+        } else if (spec.rowRangeFrom !== undefined || spec.rowRangeTo !== undefined) {
+            const el = document.getElementById('sfRowRangeExpr');
+            if (el) el.value = _sfExprFromLegacyRowRange(spec.rowRangeFrom, spec.rowRangeTo);
         }
         if (spec.rowRangeExclude !== undefined) {
             const el = document.getElementById('sfRowRangeExclude');
@@ -12946,28 +13031,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function sfRowSpecFromAdvancedPart(adv) {
-        if (!adv) return { enabled: false, fromVal: '', toVal: '', exclude: false };
+        if (!adv) return { enabled: false, fromVal: '', toVal: '', exclude: false, expr: '' };
         const flags = normalizeRowRangeFlags(adv.rowRangeEnabled, adv.rowRangeExclude);
+        const expr = String(adv.rowRangeExpr || '').trim();
         return {
             enabled: !!(flags.rowRangeEnabled || flags.rowRangeExclude),
-            fromVal: adv.rowRangeFrom,
-            toVal: adv.rowRangeTo,
+            fromVal: '',
+            toVal: '',
+            expr,
             exclude: !!flags.rowRangeExclude
         };
     }
 
     function sfRowSpecFromGroup(g) {
         if (!g) {
-            return { enabled: false, fromVal: '', toVal: '', exclude: false };
+            return { enabled: false, fromVal: '', toVal: '', exclude: false, expr: '' };
         }
         const flags = normalizeRowRangeFlags(g.rowRangeEnabled, g.rowRangeExclude);
         if (!flags.rowRangeEnabled && !flags.rowRangeExclude) {
-            return { enabled: false, fromVal: '', toVal: '', exclude: false };
+            return { enabled: false, fromVal: '', toVal: '', exclude: false, expr: '' };
         }
+        const rawExpr = g.rowRangeExpr != null ? String(g.rowRangeExpr).trim() : '';
+        const expr = rawExpr || _sfExprFromLegacyRowRange(g.rowRangeFrom, g.rowRangeTo);
         return {
             enabled: true,
             fromVal: String(g.rowRangeFrom ?? ''),
             toVal: String(g.rowRangeTo ?? ''),
+            expr,
             exclude: !!flags.rowRangeExclude
         };
     }
@@ -13002,10 +13092,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         lines.push(`句段狀態：${st} / 翻譯記憶相符度：${tmv}`);
         const rowSpec = sfRowSpecFromGroup(g);
         if (rowSpec.enabled) {
-            const rf = String(rowSpec.fromVal || '').trim();
-            const rt = String(rowSpec.toVal || '').trim();
+            const rex = String(rowSpec.expr || '').trim();
             const ex = rowSpec.exclude ? '（範圍外）' : '';
-            lines.push(`句段編號範圍：${rf}-${rt}${ex}`);
+            lines.push(`句段編號範圍：${rex || '（未填）'}${ex}`);
         }
         return lines;
     }
@@ -13066,16 +13155,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (term && isInvert && sfMode === 'filter') textMatch = !textMatch;
 
         let statusMatch = true;
-        if(statuses.length > 0) {
-            statusMatch = false;
+        if (statuses.length > 0) {
             const isConfirmed = seg.status === 'confirmed';
             const isEmpty = !seg.targetText || !seg.targetText.trim();
-            if(statuses.includes('empty') && isEmpty) statusMatch = true;
-            if(statuses.includes('not_empty') && !isEmpty) statusMatch = true;
-            if(statuses.includes('confirmed') && isConfirmed) statusMatch = true;
-            if(statuses.includes('unconfirmed') && !isConfirmed) statusMatch = true;
-            if(statuses.includes('locked') && seg.isLocked) statusMatch = true;
-            if(statuses.includes('unlocked') && !seg.isLocked) statusMatch = true;
+            const contentKeys = ['empty', 'not_empty'];
+            const confirmKeys = ['confirmed', 'unconfirmed'];
+            const lockKeys = ['locked', 'unlocked'];
+            const dims = [contentKeys, confirmKeys, lockKeys];
+            statusMatch = true;
+            for (const keys of dims) {
+                const picked = statuses.filter((s) => keys.includes(s));
+                if (!picked.length) continue;
+                let dimOk = false;
+                for (const s of picked) {
+                    if (s === 'empty' && isEmpty) dimOk = true;
+                    if (s === 'not_empty' && !isEmpty) dimOk = true;
+                    if (s === 'confirmed' && isConfirmed) dimOk = true;
+                    if (s === 'unconfirmed' && !isConfirmed) dimOk = true;
+                    if (s === 'locked' && seg.isLocked) dimOk = true;
+                    if (s === 'unlocked' && !seg.isLocked) dimOk = true;
+                }
+                if (!dimOk) { statusMatch = false; break; }
+            }
         }
 
         let tmMatch = true;
@@ -13124,7 +13225,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return JSON.stringify({
             mode: sfMode,
             term: sfInput ? sfInput.value : '',
-            scopes: Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map(cb => cb.value),
+            scopes: Array.from(document.querySelectorAll('.sf-scope-btn.on')).map((b) => b.getAttribute('data-scope')).filter(Boolean),
             statuses: adv.statuses,
             tmVal: adv.tmVal,
             invert: btnSfInvert ? btnSfInvert.classList.contains('active') : false,
@@ -13132,8 +13233,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             groups: sfFilterGroups,
             advHidden: advPanel ? advPanel.classList.contains('hidden') : true,
             rowRangeEnabled: adv.rowRangeEnabled,
-            rowRangeFrom: adv.rowRangeFrom,
-            rowRangeTo: adv.rowRangeTo,
+            rowRangeExpr: adv.rowRangeExpr,
             rowRangeExclude: adv.rowRangeExclude
         });
     }
@@ -13142,7 +13242,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const adv = readSfAdvancedSpecFromDom();
         return {
             term: sfInput.value,
-            scopes: Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map(cb => cb.value),
+            scopes: Array.from(document.querySelectorAll('.sf-scope-btn.on')).map((b) => b.getAttribute('data-scope')).filter(Boolean),
             statuses: adv.statuses,
             tmVal: adv.tmVal,
             isInvert: btnSfInvert.classList.contains('active'),
@@ -13395,13 +13495,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                             newHtml = newHtml.replace(regexObj, `<mark class="search-match"${styleStr}>$1</mark>`);
                             regexObj.lastIndex = 0;
                         } else {
-                            const lTerm = req.term.toLowerCase();
-                            if(rawText.toLowerCase().indexOf(lTerm) !== -1) {
+                            const parsed = parseTmConcordanceQuery(String(req.term || '').trim());
+                            const parts = [...parsed.phrases, ...parsed.tokens].filter(Boolean);
+                            const escapedRaw = isTextarea ? rawText : rawText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                            const styleStr = req.bg ? ` style="background-color:${req.bg};"` : '';
+                            for (const part of parts) {
+                                if (!part) continue;
+                                const lPart = part.toLowerCase();
+                                if (rawText.toLowerCase().indexOf(lPart) === -1) continue;
                                 matchFoundInCell = true;
-                                const escapedRaw = isTextarea ? rawText : rawText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                                const escapedTerm = req.term.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                                const escReg = new RegExp(`(${escapedTerm.replace(/[.*+?^$\\{}()|[\\]\\\\]/g, '\\$&')})`, 'gi');
-                                const styleStr = req.bg ? ` style="background-color:${req.bg};"` : '';
+                                const escPart = part.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                                const escReg = new RegExp(`(${escPart.replace(/[.*+?^$\\{}()|[\\]\\\\]/g, '\\$&')})`, 'gi');
                                 newHtml = newHtml.replace(escReg, `<mark class="search-match"${styleStr}>$1</mark>`);
                             }
                         }
@@ -14579,7 +14683,26 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return text.replace(regex, replaceTerm);
             } catch(e) { return text; }
         }
-        // 一般模式：用 AND 解析；每個詞/引號整段分別取代
+        if (sfPhraseReplaceWhole) {
+            const q = searchTerm.trim();
+            if (!q) return text;
+            const qLower = q.toLowerCase();
+            let result = text;
+            if (firstOnly) {
+                const idx = result.toLowerCase().indexOf(qLower);
+                if (idx === -1) return result;
+                return result.substring(0, idx) + replaceTerm + result.substring(idx + q.length);
+            }
+            let pos = 0;
+            for (;;) {
+                const idx = result.toLowerCase().indexOf(qLower, pos);
+                if (idx === -1) break;
+                result = result.substring(0, idx) + replaceTerm + result.substring(idx + q.length);
+                pos = idx + replaceTerm.length;
+            }
+            return result;
+        }
+        // 一般模式（整段取代關閉）：用 AND 解析；每個詞/引號整段分別取代
         const { phrases, tokens } = parseTmConcordanceQuery(searchTerm.trim());
         const parts = [
             ...phrases.map(p => p),
@@ -15022,13 +15145,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    /** @param {{ preserveSfInput?: boolean }} [opts] 有鎖定群組時保留頂層「尋找」字串（見計畫：清除與 #sfInput） */
-    function clearUIFilters(opts) {
-        const preserveSfInput = !!(opts && opts.preserveSfInput);
+    function clearUIFilters() {
         sfFilterSnapshotSegIds = null;
         sfFilterLockedSpecHash = '';
         _updateSfFilterCountBadge();
-        if (!preserveSfInput && sfInput) sfInput.value = '';
+        if (sfInput) sfInput.value = '';
         if (sfReplaceInput) sfReplaceInput.value = '';
         clearSfAdvancedSpecOnDom();
         btnSfInvert.classList.remove('active');
@@ -15041,14 +15162,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         sfFilterGroups.push({
             op: 'AND',
             term: sfInput.value,
-            scopes: Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map(cb => cb.value),
+            scopes: Array.from(document.querySelectorAll('.sf-scope-btn.on')).map((b) => b.getAttribute('data-scope')).filter(Boolean),
             isRegex: sfUseRegexChecked,
             isInvert: btnSfInvert.classList.contains('active'),
             statuses: advSnap.statuses.slice(),
             tmVal: advSnap.tmVal,
             rowRangeEnabled: advSnap.rowRangeEnabled,
-            rowRangeFrom: advSnap.rowRangeFrom,
-            rowRangeTo: advSnap.rowRangeTo,
+            rowRangeExpr: advSnap.rowRangeExpr,
             rowRangeExclude: advSnap.rowRangeExclude,
             color: getRandomGroupColor(),
             locked: false
@@ -15108,14 +15228,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             groups: JSON.parse(JSON.stringify(sfFilterGroups)),
             current: {
                 term: sfInput.value,
-                scopes: Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map(cb => cb.value),
+                scopes: Array.from(document.querySelectorAll('.sf-scope-btn.on')).map((b) => b.getAttribute('data-scope')).filter(Boolean),
                 isRegex: sfUseRegexChecked,
                 isInvert: btnSfInvert.classList.contains('active'),
                 statuses: advCur.statuses.slice(),
                 tmVal: advCur.tmVal,
                 rowRangeEnabled: advCur.rowRangeEnabled,
-                rowRangeFrom: advCur.rowRangeFrom,
-                rowRangeTo: advCur.rowRangeTo,
+                rowRangeExpr: advCur.rowRangeExpr,
                 rowRangeExclude: advCur.rowRangeExclude
             }
         };
@@ -15185,25 +15304,37 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (typeof g.rowRangeEnabled !== 'boolean') g.rowRangeEnabled = false;
             if (g.rowRangeFrom == null) g.rowRangeFrom = '';
             if (g.rowRangeTo == null) g.rowRangeTo = '';
+            if (g.rowRangeExpr == null || String(g.rowRangeExpr).trim() === '') {
+                const leg = _sfExprFromLegacyRowRange(g.rowRangeFrom, g.rowRangeTo);
+                if (leg) g.rowRangeExpr = leg;
+            }
             if (typeof g.rowRangeExclude !== 'boolean') g.rowRangeExclude = false;
             return g;
         });
         
         sfInput.value = p.current.term;
+        const presetRowExpr = p.current.rowRangeExpr != null && String(p.current.rowRangeExpr).trim()
+            ? String(p.current.rowRangeExpr)
+            : _sfExprFromLegacyRowRange(p.current.rowRangeFrom, p.current.rowRangeTo);
         applySfAdvancedSpecToDom({
             tmVal: p.current.tmVal != null ? String(p.current.tmVal) : '',
             statuses: Array.isArray(p.current.statuses) ? p.current.statuses : [],
             rowRangeEnabled: !!p.current.rowRangeEnabled,
-            rowRangeFrom: p.current.rowRangeFrom != null ? String(p.current.rowRangeFrom) : '',
-            rowRangeTo: p.current.rowRangeTo != null ? String(p.current.rowRangeTo) : '',
+            rowRangeExpr: presetRowExpr,
             rowRangeExclude: !!p.current.rowRangeExclude
         });
 
         sfUseRegexChecked = p.current.isRegex;
-        document.getElementById('sfUseRegex').checked = sfUseRegexChecked;
         if (p.current.isInvert) btnSfInvert.classList.add('active'); else btnSfInvert.classList.remove('active');
         
-        document.querySelectorAll('.sf-scope-cb').forEach(c => c.checked = p.current.scopes.includes(c.value));
+        document.querySelectorAll('.sf-scope-btn').forEach((btn) => {
+            const v = btn.getAttribute('data-scope');
+            if (!v) return;
+            btn.classList.toggle('on', Array.isArray(p.current.scopes) && p.current.scopes.includes(v));
+        });
+        const sfRxBtn = document.getElementById('sfUseRegexBtn');
+        if (sfRxBtn) sfRxBtn.classList.toggle('on', sfUseRegexChecked);
+        if (typeof refreshSfReplaceBarToggleTips === 'function') refreshSfReplaceBarToggleTips();
         
         document.getElementById('sfModeFilter').click();
         renderFilterGroups();
@@ -15220,15 +15351,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (qaScopeLocksFilterUi) return;
             sfFilterGroups = sfFilterGroups.filter((g) => !!g.locked);
             renderFilterGroups();
-            const preserveSf = sfFilterGroups.length > 0;
-            clearUIFilters({ preserveSfInput: preserveSf });
+            clearUIFilters();
             runSearchAndFilter();
-            if (lastEditedRowIdx !== null) {
-                const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
-                const targetRow = rows[lastEditedRowIdx];
-                if (targetRow) {
-                    const txt = targetRow.querySelector('.grid-textarea');
-                    if (txt && txt.contentEditable !== 'false') { txt.focus(); targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+            const rows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+            let jumpIdx = null;
+            if (sfSearchMatches && sfSearchMatches.length > 0 && sfSearchMatches[0].segIdx != null) {
+                jumpIdx = sfSearchMatches[0].segIdx;
+            } else if (lastEditedRowIdx !== null) {
+                jumpIdx = lastEditedRowIdx;
+            }
+            if (jumpIdx != null && rows[jumpIdx]) {
+                const targetRow = rows[jumpIdx];
+                const txt = targetRow.querySelector('.grid-textarea');
+                if (txt && txt.contentEditable !== 'false') {
+                    txt.focus();
+                    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else {
+                    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             }
         });
@@ -15762,18 +15901,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             } else {
                 const t = req.term;
                 if (!t) return;
+                const parsed = parseTmConcordanceQuery(String(t).trim());
+                const parts = [...parsed.phrases, ...parsed.tokens].filter(Boolean);
+                if (!parts.length) return;
                 const lFlat = flatText.toLowerCase();
-                const lTerm = t.toLowerCase();
-                let p = 0;
-                let idx;
-                while ((idx = lFlat.indexOf(lTerm, p)) !== -1) {
-                    const a = idx;
-                    const b = idx + t.length;
-                    if (b > flatText.length) break;
-                    if (isClaimed(a, b)) { p = idx + 1; continue; }
-                    ranges.push({ a, b, styleStr });
-                    markClaimed(a, b);
-                    p = idx + t.length;
+                for (const part of parts) {
+                    if (!part) continue;
+                    const lPart = part.toLowerCase();
+                    let p = 0;
+                    let idx;
+                    while ((idx = lFlat.indexOf(lPart, p)) !== -1) {
+                        const a = idx;
+                        const b = idx + part.length;
+                        if (b > flatText.length) break;
+                        if (isClaimed(a, b)) { p = idx + 1; continue; }
+                        ranges.push({ a, b, styleStr });
+                        markClaimed(a, b);
+                        p = idx + part.length;
+                    }
                 }
             }
         });
@@ -16297,7 +16442,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     updateSfReplaceAllButtonLabel();
                     syncSelectedRowAbutmentTopClass();
                 }
-                renderLiveTmMatches(seg);
+                const tabQaEl = document.getElementById('tabQA');
+                if (!tabQaEl || !tabQaEl.classList.contains('active')) {
+                    renderLiveTmMatches(seg);
+                }
                 renderSegmentComments(seg);
                 refreshTagNextHighlight(row);
                 emitCollabFocus('segment', seg.id);
@@ -16310,12 +16458,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (isConfirmed && !effectiveLocked) syncRowConfirmedStateClass(row, seg);
 
             let rowInnerContent = '';
-            rowInnerContent += `<div class="col-id" title="點擊選取 (Ctrl: 單獨加減, Shift: 連續選取)" data-idx="${i}" data-id="${seg.id}">${seg.globalId || (seg.rowIdx+1)}</div>`;
+            const dispIdStr = String(seg.globalId != null ? seg.globalId : (seg.rowIdx + 1));
+            rowInnerContent += `<div class="grid-cell-copy-host col-id" title="點擊選取 (Ctrl: 單獨加減, Shift: 連續選取)" data-idx="${i}" data-id="${seg.id}"><span class="col-id-label">${dispIdStr.replace(/</g, '&lt;')}</span><button type="button" class="cell-copy-btn secondary-btn" data-copy-role="id" title="複製句段編號" aria-label="複製句段編號">複製</button></div>`;
             const maxKeys = colSettings.filter(c => c.id.startsWith('col-key-')).length;
             for(let k=0; k<maxKeys; k++) {
                 const keyText = seg.keys && seg.keys[k] ? seg.keys[k] : '';
                 // Rename Key 1 logic: CSS class stays the same but UI name in colSettings is handled in the header loop
-                rowInnerContent += `<div class="col-key-${k}" style="padding:0.5rem; border-right:1px solid #e2e8f0; word-break:break-all; font-size:0.85rem; color:var(--text-main);">${keyText}</div>`;
+                rowInnerContent += `<div class="grid-cell-copy-host col-key-${k}" style="padding:0.5rem; border-right:1px solid #e2e8f0; word-break:break-all; font-size:0.85rem; color:var(--text-main);">${keyText}<button type="button" class="cell-copy-btn secondary-btn" data-copy-role="key" data-key-index="${k}" title="複製此 Key 純文字" aria-label="複製 Key">複製</button></div>`;
             }
             // 句段集模式才渲染所屬檔案格（位置：keys 後、原文前）
             if (_currentViewId && colSettings.some(c => c.id === 'col-source-file')) {
@@ -16326,12 +16475,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 rowInnerContent += `<div class="col-source-file" style="padding:0.5rem; font-size:0.82rem; color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${fQ}">${fEsc}</div>`;
             }
             const sourceHtml = buildTaggedHtml(seg.sourceText, seg.sourceTags || [], true);
-            rowInnerContent += `<div class="col-source"><div class="rt-editor" contenteditable="false">${sourceHtml}</div></div>`;
+            rowInnerContent += `<div class="grid-cell-copy-host col-source"><div class="rt-editor" contenteditable="false">${sourceHtml}</div><button type="button" class="cell-copy-btn secondary-btn" data-copy-role="source" title="複製原文（含佔位符標記）" aria-label="複製原文">複製</button></div>`;
             const targetHtml = buildTaggedHtml(seg.targetText, effectiveTags(seg));
             const _initCharCount = seg.targetText ? seg.targetText.replace(/\{\/?\d+\}/g, '').length : 0;
-            rowInnerContent += `<div class="col-target" style="position:relative;">
+            rowInnerContent += `<div class="grid-cell-copy-host col-target" style="position:relative;">
                 <div class="rt-editor grid-textarea" contenteditable="${effectiveLocked ? 'false' : 'true'}" spellcheck="false">${targetHtml}</div>
                 <div class="seg-char-count">${_initCharCount}</div>
+                <button type="button" class="cell-copy-btn secondary-btn" data-copy-role="target" title="複製譯文（含佔位符標記）" aria-label="複製譯文">複製</button>
             </div>`;
             rowInnerContent += `<div class="col-extra" style="padding:0.5rem; font-size:0.8rem; color:#2563eb; word-break:break-all; white-space:pre-wrap;">${seg.extraValue || ''}</div>`;
             
@@ -16390,6 +16540,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             const targetInput = row.querySelector('.grid-textarea');
             const statusIcon = row.querySelector('.status-icon');
 
+            row.querySelectorAll('.cell-copy-btn').forEach((btn) => {
+                btn.addEventListener('mousedown', (e) => e.stopPropagation());
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const role = btn.getAttribute('data-copy-role');
+                    let plain = '';
+                    if (role === 'id') plain = String(seg.globalId != null ? seg.globalId : (seg.rowIdx + 1));
+                    else if (role === 'key') {
+                        const ki = parseInt(btn.getAttribute('data-key-index') || '0', 10);
+                        plain = (seg.keys && seg.keys[ki]) ? String(seg.keys[ki]) : '';
+                    } else if (role === 'source') plain = seg.sourceText || '';
+                    else if (role === 'target') plain = seg.targetText || '';
+                    copyPlainTextToClipboard(plain).catch(() => {});
+                });
+            });
+
             // Initialise tag colour state for this row
             updateTagColors(row, seg.targetText);
 
@@ -16404,7 +16571,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             // ID 欄多選：鎖定／禁止編輯列仍可依相同方式（Ctrl／Shift）選取
             const idCell = row.querySelector('.col-id');
             if (idCell) {
-                idCell.addEventListener('mousedown', (e) => e.preventDefault());
+                idCell.addEventListener('mousedown', (e) => {
+                    if (e.target.closest('.cell-copy-btn')) return;
+                    e.preventDefault();
+                });
                 idCell.addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (blockSelectionIfEditedByOthers(seg, e)) return;
@@ -16634,7 +16804,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     saveCatCaretFromSelection(targetInput);
                 });
                 targetInput.addEventListener('blur', async () => {
-                    saveCatCaretFromSelection(targetInput);
                     requestAnimationFrame(showCatFakeCaretFromSaved);
                     scheduleLeaseReleaseTimer(seg);
                     // 在任一 await 前快照：Ctrl+Enter  await 期間可能已 isConfirming=false，仍應抑止重複寫庫
@@ -17652,7 +17821,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                         footerHtml += `<div class="cat-footer-section cat-footer-tm-meta">
                             <div><strong>TM 名稱：</strong>${escFoot(m.tmName || 'N/A')}</div>
-                            ${m.key ? `<div><strong>Key：</strong>${escFoot(m.key)}</div>` : ''}
+                            ${m.key ? `<div class="cat-footer-tm-key-wrap"><strong>Key：</strong><span class="cat-footer-tm-key">${escFoot(m.key)}</span></div>` : ''}
                             <div><strong>寫入檔案：</strong>${escFoot(m.writtenFile || 'N/A')}</div>
                             <div><strong>建立者：</strong>${escFoot(m.createdBy || 'N/A')}</div>
                             <div><strong>建立時間：</strong>${m.createdAt ? escFoot(new Date(m.createdAt).toLocaleString('zh-TW', { hour12: false })) : 'N/A'}</div>
@@ -18065,10 +18234,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }, true);
 
-    // Ctrl+Alt+上／下：還原儲存游標、捲到暫存句、顯示假游標（不限焦點位置）
+    // Ctrl+Alt+↓：還原儲存游標、捲到暫存句、顯示假游標（不限焦點位置）
     document.addEventListener('keydown', function focusFakeCaretChord(e) {
         if (!e.ctrlKey || !e.altKey || e.shiftKey || e.metaKey) return;
-        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown' && e.code !== 'ArrowUp' && e.code !== 'ArrowDown') return;
+        if (e.key !== 'ArrowDown' && e.code !== 'ArrowDown') return;
         if (!currentFileId && !_currentViewId) return;
         const viewEditor = document.getElementById('viewEditor');
         if (!viewEditor || viewEditor.classList.contains('hidden')) return;
@@ -18687,15 +18856,104 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (ta) ta.focus();
     }
 
+    function openJumpToSegmentPrompt() {
+        const ve = document.getElementById('viewEditor');
+        if (!ve || ve.classList.contains('hidden')) return;
+        if (!currentSegmentsList || currentSegmentsList.length === 0) return;
+        const raw = window.prompt('跳至句段編號（與 # 欄顯示一致）：', '');
+        if (raw == null) return;
+        const t = String(raw).trim();
+        if (!t) return;
+        let idx = -1;
+        currentSegmentsList.forEach((s, i) => {
+            if (idx >= 0) return;
+            const disp = String(s.globalId != null ? s.globalId : (i + 1));
+            if (disp === t) idx = i;
+        });
+        if (idx < 0) {
+            const n = parseInt(t, 10);
+            if (Number.isFinite(n) && n >= 1 && n <= currentSegmentsList.length) idx = n - 1;
+        }
+        if (idx < 0) {
+            alert('找不到該句段編號。');
+            return;
+        }
+        const gRows = gridBody ? gridBody.querySelectorAll('.grid-data-row') : [];
+        const row = gRows[idx];
+        if (!row || !isGridDataRowFilterVisible(row)) {
+            alert('句段目前不在可見列表中（可能被篩選隱藏），請移除篩選後再試。');
+            return;
+        }
+        _qaJumpToSegment(currentSegmentsList[idx].id);
+    }
+
+    async function copyPlainTextToClipboard(text) {
+        const s = String(text ?? '');
+        try {
+            await navigator.clipboard.writeText(s);
+        } catch (_) {
+            const ta = document.createElement('textarea');
+            ta.value = s;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch (__) { /* ignore */ }
+            document.body.removeChild(ta);
+        }
+    }
+
+    /** 表頭儲存格：一般為欄名；# 欄另附「跳至」按鈕（與 Ctrl+G 相同）。 */
+    function populateGridHeaderTitleCell(cell, c) {
+        if (c.name === 'Key 1') c.name = 'Key';
+        if (c.id === 'col-id') {
+            cell.textContent = '';
+            const lbl = document.createElement('span');
+            lbl.textContent = c.name;
+            lbl.style.flex = '1';
+            lbl.style.minWidth = '0';
+            cell.appendChild(lbl);
+            const jumpBtn = document.createElement('button');
+            jumpBtn.id = 'btnJumpToSeg';
+            jumpBtn.type = 'button';
+            jumpBtn.className = 'secondary-btn btn-sm';
+            jumpBtn.textContent = '跳至';
+            jumpBtn.setAttribute('data-tip', '跳至句段編號（Ctrl+G）');
+            jumpBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openJumpToSegmentPrompt();
+            });
+            cell.appendChild(jumpBtn);
+        } else {
+            cell.textContent = c.name;
+        }
+    }
+
+    /**
+     * QA 用：取得可比對「純數字序列」的字串。
+     * - extractTaggedText 回傳 { text }（無 .clean）；且參數須為 XML 節點，傳入一般字串會拋錯。
+     * - CAT 內文常為已展開之 `{N}`、`{/N}`，必須自字串移除，否則 tag 內數字會誤入「數字不相符」。
+     */
     function _qaStripTagsPlain(raw) {
+        const s = String(raw || '');
         const Xliff = window.CatToolXliffTags;
-        if (Xliff && raw) {
+        let text = s;
+        if (Xliff && s) {
             try {
-                const r = Xliff.extractTaggedText(raw);
-                if (r && typeof r.clean === 'string') return r.clean;
+                if (/^\s*</.test(s)) {
+                    const doc = new DOMParser().parseFromString(`<_qa_>${s}</_qa_`, 'application/xml');
+                    const root = doc.documentElement;
+                    const parseErr = root && root.getElementsByTagName('parsererror')[0];
+                    if (root && !parseErr) {
+                        const r = Xliff.extractTaggedText(root);
+                        if (r && typeof r.text === 'string') text = r.text;
+                    }
+                }
             } catch (_) { /* ignore */ }
         }
-        return raw || '';
+        return text.replace(/\{\/?\d+\}/g, '').replace(/\u00a0/g, ' ').trim();
     }
 
     function _qaNormFwDigits(s) {
@@ -18742,13 +19000,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             const srcNumSet = new Set(srcTags.map(t => _qaTagIdForCompare(t)).filter(Boolean));
             if (srcNumSet.size > 0) {
                 const tgtSet = new Set((s.targetTags || []).map(t => _qaTagIdForCompare(t)).filter(Boolean));
-                for (const n of _qaPlainTargetTagNumSet(s.targetText)) tgtSet.add(n);
+                // 譯文純文字中的 {N} 僅在 N 為來源 tag 編號時才計入，避免一般文字（如年份 {2024}）被誤判為 tag
+                for (const n of _qaPlainTargetTagNumSet(s.targetText)) {
+                    if (srcNumSet.has(n)) tgtSet.add(n);
+                }
 
                 const missing = [...srcNumSet].filter(id => !tgtSet.has(id))
                     .sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0));
                 const extraMeta = (s.targetTags || []).map(t => _qaTagIdForCompare(t)).filter(id => id && !srcNumSet.has(id));
-                const extraText = [..._qaPlainTargetTagNumSet(s.targetText)].filter(n => !srcNumSet.has(n))
-                    .sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0));
+                const extraText = [];
                 const extraAll = [...new Set([...extraMeta.map(String), ...extraText.map(String)])]
                     .sort((a, b) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0));
                 const hasMissing = missing.length > 0;
@@ -18884,7 +19144,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function runQaChecks(segs, options) {
-        const { fromIdx, toIdx, includeLocked, allowedSegIds,
+        const { fromIdx, toIdx, rowRanges, includeLocked, allowedSegIds,
                 checkTerms = true, checkTags = true, checkConsistency = true, checkNumbers = true } = options || {};
         const results = [];
 
@@ -18896,8 +19156,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         for (let oi = 0; oi < originalOrdered.length; oi++) {
             const s = originalOrdered[oi];
             const rangeIdx = oi + 1;
-            if (fromIdx != null && rangeIdx < fromIdx) continue;
-            if (toIdx != null && rangeIdx > toIdx) continue;
+            if (rowRanges && rowRanges.length) {
+                if (!isTbRowInRanges(rangeIdx, rowRanges)) continue;
+            } else {
+                if (fromIdx != null && rangeIdx < fromIdx) continue;
+                if (toIdx != null && rangeIdx > toIdx) continue;
+            }
             if (allowedSegIds && !allowedSegIds.has(s.id)) continue;
             if (!includeLocked && (isDynamicForbidden(s) || s.isLockedUser)) continue;
             if (!s.targetText || !s.targetText.trim()) continue;
@@ -19029,12 +19293,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // QA 句段範圍核取方塊（啟用/停用輸入框）
     const qaUseRangeCb = document.getElementById('qaUseRange');
-    const qaRangeFromEl = document.getElementById('qaRangeFrom');
-    const qaRangeToEl = document.getElementById('qaRangeTo');
+    const qaRangeExprEl = document.getElementById('qaRangeExpr');
     const qaScopeCurrentFilteredEl = document.getElementById('qaScopeCurrentFiltered');
     const qaConfigControls = [
         'qaCheckTerms', 'qaCheckTags', 'qaCheckConsistency', 'qaCheckNumbers', 'qaCheckTypos',
-        'qaUseRange', 'qaRangeFrom', 'qaRangeTo', 'qaIncludeLocked', 'qaScopeCurrentFiltered'
+        'qaUseRange', 'qaRangeExpr', 'qaIncludeLocked', 'qaScopeCurrentFiltered'
     ];
     function setQaControlsLocked(locked) {
         qaRunInProgress = !!locked;
@@ -19053,13 +19316,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     function resetQaScopeInputs() {
         if (qaUseRangeCb) qaUseRangeCb.checked = false;
-        if (qaRangeFromEl) {
-            qaRangeFromEl.value = '';
-            qaRangeFromEl.disabled = true;
-        }
-        if (qaRangeToEl) {
-            qaRangeToEl.value = '';
-            qaRangeToEl.disabled = true;
+        if (qaRangeExprEl) {
+            qaRangeExprEl.value = '';
+            qaRangeExprEl.disabled = true;
         }
         const qaIncludeLockedEl = document.getElementById('qaIncludeLocked');
         if (qaIncludeLockedEl) qaIncludeLockedEl.checked = false;
@@ -19082,7 +19341,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function buildQaFilterConditionsSummaryLines() {
         const lines = [];
         const q = (sfInput?.value || '').trim();
-        const scopes = Array.from(document.querySelectorAll('.sf-scope-cb:checked')).map((cb) => cb.value);
+        const scopes = Array.from(document.querySelectorAll('.sf-scope-btn.on')).map((b) => b.getAttribute('data-scope')).filter(Boolean);
         const sj = scopes.map((s) => scopeNames[s] || s).join('、');
         const isInv = !!(btnSfInvert && btnSfInvert.classList.contains('active'));
         if (q) {
@@ -19102,10 +19361,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (tm) lines.push(`TM%：${tm}`);
         const rowSpec = sfRowSpecFromAdvancedPart(adv);
         if (rowSpec.enabled) {
-            const rf = String(adv.rowRangeFrom || '').trim();
-            const rt = String(adv.rowRangeTo || '').trim();
+            const rex = String(adv.rowRangeExpr || '').trim();
             const mode = rowSpec.exclude ? '排除' : '顯示';
-            lines.push(`句段範圍：${mode} ${rf || '起'} - ${rt || '訖'}`);
+            lines.push(`句段範圍：${mode} ${rex || '（未填）'}`);
         }
         sfFilterGroups.forEach((g) => {
             getSfFilterGroupConditionLines(g).forEach((ln) => lines.push(ln));
@@ -19182,12 +19440,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (qaUseRangeCb) {
         qaUseRangeCb.addEventListener('change', () => {
             const enabled = qaUseRangeCb.checked;
-            if (qaRangeFromEl) qaRangeFromEl.disabled = !enabled;
-            if (qaRangeToEl) qaRangeToEl.disabled = !enabled;
-            if (!enabled) {
-                if (qaRangeFromEl) qaRangeFromEl.value = '';
-                if (qaRangeToEl) qaRangeToEl.value = '';
-            }
+            if (qaRangeExprEl) qaRangeExprEl.disabled = !enabled;
+            if (!enabled && qaRangeExprEl) qaRangeExprEl.value = '';
         });
     }
     if (qaScopeCurrentFilteredEl) {
@@ -19215,10 +19469,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnRunQA.addEventListener('click', async () => {
             if (qaRunInProgress) return;
             const useRange = document.getElementById('qaUseRange')?.checked ?? false;
-            const fromVal = useRange ? document.getElementById('qaRangeFrom')?.value : null;
-            const toVal = useRange ? document.getElementById('qaRangeTo')?.value : null;
-            const fromIdx = fromVal ? parseInt(fromVal, 10) : null;
-            const toIdx = toVal ? parseInt(toVal, 10) : null;
+            const rangeExprRaw = useRange ? String(document.getElementById('qaRangeExpr')?.value || '').trim() : '';
+            const qaRowRanges = rangeExprRaw ? parseTbRowRanges(rangeExprRaw, 1) : null;
+            const fromIdx = null;
+            const toIdx = null;
             const includeLocked = document.getElementById('qaIncludeLocked')?.checked ?? false;
             const checkTerms = document.getElementById('qaCheckTerms')?.checked ?? true;
             const checkTags = document.getElementById('qaCheckTags')?.checked ?? true;
@@ -19248,10 +19502,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (checkNumbers) checks.push('數字');
             if (checkTypos) checks.push('錯字（AI）');
             const scopeParts = [includeLocked ? '含鎖定' : '不含鎖定'];
-            if (useRange && (fromIdx != null || toIdx != null)) {
-                const a = Number.isFinite(fromIdx) ? fromIdx : 1;
-                const b = Number.isFinite(toIdx) ? toIdx : '末句';
-                scopeParts.push(`句段範圍 ${a} - ${b}`);
+            if (useRange && rangeExprRaw) {
+                scopeParts.push(`句段範圍 ${rangeExprRaw}`);
             }
             const condLines = buildQaFilterConditionsSummaryLines();
             const condHtml = condLines.length
@@ -19270,7 +19522,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             setQaControlsLocked(true);
             try {
                 const { results, filteredSegs } = runQaChecks(currentSegmentsList, {
-                    fromIdx, toIdx, includeLocked, allowedSegIds, checkTerms, checkTags, checkConsistency, checkNumbers
+                    fromIdx,
+                    toIdx,
+                    rowRanges: qaRowRanges,
+                    includeLocked,
+                    allowedSegIds,
+                    checkTerms,
+                    checkTags,
+                    checkConsistency,
+                    checkNumbers
                 });
                 _qaResults = results;
 
@@ -26390,21 +26650,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             return currentSegmentsList.filter(s => sfFilterSnapshotSegIds && sfFilterSnapshotSegIds.has(s.id));
         }
         const allFile = mode === 'all';
-        const start = allFile ? 1 : (parseInt(document.getElementById('aiBatchRangeStart')?.value || '1', 10) || 1);
-        const end = allFile ? currentSegmentsList.length : (parseInt(document.getElementById('aiBatchRangeEnd')?.value || String(currentSegmentsList.length), 10) || currentSegmentsList.length);
-        return currentSegmentsList.filter((s, i) => (i + 1) >= start && (i + 1) <= end);
+        if (allFile) {
+            return currentSegmentsList.slice();
+        }
+        const exprRaw = String(document.getElementById('aiBatchRangeExpr')?.value || '').trim();
+        if (!exprRaw) {
+            return [];
+        }
+        const ranges = parseTbRowRanges(exprRaw, 1);
+        return currentSegmentsList.filter((s, i) => isTbRowInRanges(i + 1, ranges));
     }
 
     function _validateAiBatchRange() {
         const mode = window.__catAiBatchRangeMode || 'all';
         const errEl = document.getElementById('aiBatchRangeError');
-        const startRaw = String(document.getElementById('aiBatchRangeStart')?.value || '').trim();
-        const endRaw = String(document.getElementById('aiBatchRangeEnd')?.value || '').trim();
+        const exprRaw = String(document.getElementById('aiBatchRangeExpr')?.value || '').trim();
         const clearErr = () => { if (errEl) errEl.textContent = ''; };
         const setErr = (msg) => { if (errEl) errEl.textContent = msg; };
         if (mode === 'all') {
             clearErr();
-            return { ok: true, allFile: true, rangeStart: 1, rangeEnd: currentSegmentsList.length, filteredIds: null };
+            return { ok: true, allFile: true, rangeStart: 1, rangeEnd: currentSegmentsList.length, rangeExpr: null, filteredIds: null };
         }
         if (mode === 'filtered') {
             const ids = sfFilterSnapshotSegIds;
@@ -26413,28 +26678,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return { ok: false };
             }
             clearErr();
-            return { ok: true, allFile: false, rangeStart: null, rangeEnd: null, filteredIds: ids };
+            return { ok: true, allFile: false, rangeStart: null, rangeEnd: null, rangeExpr: null, filteredIds: ids };
         }
-        if (!startRaw || !endRaw) {
-            setErr('指定範圍需同時填寫起始與結束句段。');
+        if (!exprRaw) {
+            setErr('請輸入句段範圍（例：1-5, 10, 26-）。');
             return { ok: false };
         }
-        const s = Number(startRaw);
-        const e = Number(endRaw);
-        if (!Number.isFinite(s) || !Number.isFinite(e) || s < 1 || e < 1 || !Number.isInteger(s) || !Number.isInteger(e)) {
-            setErr('範圍僅可輸入正整數。');
-            return { ok: false };
-        }
-        if (e < s) {
-            setErr('範圍錯誤：結束句段不可小於起始句段。');
-            return { ok: false };
-        }
-        if (e > currentSegmentsList.length) {
+        const ranges = parseTbRowRanges(exprRaw, 1);
+        let maxInRange = 0;
+        ranges.forEach((r) => {
+            const hi = r.end === Infinity ? currentSegmentsList.length : r.end;
+            if (hi > maxInRange) maxInRange = hi;
+        });
+        if (maxInRange > currentSegmentsList.length) {
             setErr(`範圍超出上限：最大句段為 ${currentSegmentsList.length}。`);
             return { ok: false };
         }
         clearErr();
-        return { ok: true, allFile: false, rangeStart: s, rangeEnd: e, filteredIds: null };
+        return { ok: true, allFile: false, rangeStart: null, rangeEnd: null, rangeExpr: exprRaw, filteredIds: null };
     }
 
     function _segmentSourceCharCount(seg) {
@@ -26586,16 +26847,31 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const chars = _charsOfText(row.content || '');
                 const tok = _estimateTokensByChars(chars);
                 const rawIdAttr = String(row.id).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-                return `<div style="border:1px solid #e2e8f0; border-radius:8px; background:#f8fafc; padding:0.45rem 0.5rem;">
-                    <div style="display:flex; align-items:center; gap:0.45rem;">
-                        <input type="text" class="form-input ai-batch-si-input" data-si-id="${rawIdAttr}" value="${_esc(row.content || '')}" placeholder="輸入專案 AI 指示…" style="flex:1; min-width:180px;">
-                        <button type="button" class="danger-btn btn-sm ai-batch-si-del" data-si-id="${rawIdAttr}">刪除</button>
+                const en = row.enabled !== false ? ' checked' : '';
+                return `<div class="ai-batch-pi-row">
+                    <label class="ai-batch-pi-enable-label" data-tip="啟用：停用後不會寫入提示語（與候選條目池勾選分開；停用列在池中會顯示為不可勾選）">
+                        <input type="checkbox" class="ai-batch-pi-enabled"${en} data-si-id="${rawIdAttr}">
+                    </label>
+                    <div class="ai-batch-pi-fields">
+                        <input type="text" class="form-input ai-batch-si-input" data-si-id="${rawIdAttr}" value="${_esc(row.content || '')}" placeholder="輸入專案 AI 指示…">
+                        <div class="ai-batch-si-meta" data-si-id="${rawIdAttr}">${chars} 字元（約 ${tok} token）</div>
                     </div>
-                    <div class="ai-batch-si-meta" data-si-id="${rawIdAttr}" style="margin-top:0.35rem; font-size:0.76rem; color:#64748b;">${chars} 字元（約 ${tok} token）</div>
+                    <button type="button" class="danger-btn btn-sm ai-batch-si-del" data-si-id="${rawIdAttr}">刪除</button>
                 </div>`;
             }).join('');
         }
         _updateAiBatchProjectInstructionsHintOnly();
+        listEl.querySelectorAll('.ai-batch-pi-enabled').forEach((cb) => {
+            cb.addEventListener('change', () => {
+                const sid = String(cb.getAttribute('data-si-id') || '');
+                const idx = __aiBatchProjectInstructions.findIndex((r) => String(r.id) === sid);
+                if (idx < 0) return;
+                __aiBatchProjectInstructions[idx].enabled = !!cb.checked;
+                _queueSaveAiBatchProjectInstructions();
+                _syncAiBatchPoolSiKeys();
+                if (__aiBatchPool) _renderAiBatchCandidatePool();
+            });
+        });
         listEl.querySelectorAll('.ai-batch-si-input').forEach((el) => {
             el.oninput = () => {
                 const sid = String(el.getAttribute('data-si-id') || '');
@@ -26828,8 +27104,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const btnAll = document.getElementById('aiBatchModeAll');
         const btnRange = document.getElementById('aiBatchModeRange');
         const btnFiltered = document.getElementById('aiBatchModeFiltered');
-        const startEl = document.getElementById('aiBatchRangeStart');
-        const endEl = document.getElementById('aiBatchRangeEnd');
+        const exprEl = document.getElementById('aiBatchRangeExpr');
         const pickExBtn = document.getElementById('btnAiBatchPickExamples');
         const addProjectSiBtn = document.getElementById('btnAiBatchAddProjectInstruction');
         const previewBtn = document.getElementById('btnAiBatchPreviewPrompt');
@@ -26839,8 +27114,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (closeBtn) closeBtn.onclick = close;
         if (btnAll) btnAll.onclick = () => {
             _setAiBatchRangeMode('all');
-            if (startEl) startEl.value = '';
-            if (endEl) endEl.value = '';
+            if (exprEl) exprEl.value = '';
             _updateBatchStats();
         };
         if (btnRange) btnRange.onclick = () => {
@@ -26857,14 +27131,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             btnFiltered.disabled = !ok;
             btnFiltered.title = ok ? '' : '請先切換至篩選模式並有篩選結果';
         }
-        if (startEl) startEl.oninput = () => {
-            if (String(startEl.value || '').trim()) _setAiBatchRangeMode('range');
+        if (exprEl) exprEl.oninput = () => {
+            if (String(exprEl.value || '').trim()) _setAiBatchRangeMode('range');
             _updateBatchStats();
         };
-        if (endEl) endEl.oninput = () => {
-            if (String(endEl.value || '').trim()) _setAiBatchRangeMode('range');
-            _updateBatchStats();
-        };
+        const introEl = document.getElementById('aiBatchIntroduction');
+        if (introEl) {
+            try {
+                introEl.value = localStorage.getItem('catAiBatchIntroduction') || '';
+            } catch (_) {}
+            introEl.oninput = () => {
+                try { localStorage.setItem('catAiBatchIntroduction', introEl.value); } catch (_) {}
+            };
+        }
         if (pickExBtn) pickExBtn.onclick = async () => {
             await _openAiBatchExamplePicker();
         };
@@ -26903,6 +27182,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 allFile: range.allFile,
                 rangeStart: range.rangeStart,
                 rangeEnd: range.rangeEnd,
+                rangeExpr: range.rangeExpr || null,
                 filteredIds: range.filteredIds || null,
                 handleConfirmed: document.getElementById('aiBatchHandleConfirmed')?.value || 'skip',
                 handleUnconfirmed: document.getElementById('aiBatchHandleUnconfirmed')?.value || 'skip',
@@ -26949,8 +27229,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     (function bindAiBatchModalRange() {
-        document.getElementById('aiBatchRangeStart')?.addEventListener('input', _updateBatchStats);
-        document.getElementById('aiBatchRangeEnd')?.addEventListener('input', _updateBatchStats);
+        document.getElementById('aiBatchRangeExpr')?.addEventListener('input', _updateBatchStats);
         document.getElementById('aiBatchLimitRows')?.addEventListener('input', _updateBatchStats);
         document.getElementById('aiBatchLimitChars')?.addEventListener('input', _updateBatchStats);
     })();
@@ -27184,7 +27463,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!seg || undoBeforeBySegId.has(seg.id)) return;
             undoBeforeBySegId.set(seg.id, snapshotSegForUndo(seg));
         };
-        const rangeLabel = config.filteredIds ? `篩選句段 (${config.filteredIds.size} 句)` : config.allFile ? '全文' : `句段 ${config.rangeStart}-${config.rangeEnd}`;
+        const rangeLabel = config.filteredIds
+            ? `篩選句段 (${config.filteredIds.size} 句)`
+            : config.allFile
+                ? '全文'
+                : (config.rangeExpr ? `句段範圍 ${config.rangeExpr}` : `句段 ${config.rangeStart}-${config.rangeEnd}`);
         const ctx = await _resolveAiTaskContext();
         let taskLogId = _startAiTaskLog({
             kind: 'batch_translate',
@@ -27210,6 +27493,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         let candidates;
         if (config.filteredIds) {
             candidates = currentSegmentsList.filter(s => config.filteredIds.has(s.id));
+        } else if (config.rangeExpr) {
+            const ranges = parseTbRowRanges(String(config.rangeExpr), 1);
+            candidates = currentSegmentsList.filter((s, i) => isTbRowInRanges(i + 1, ranges));
         } else {
             const start = config.allFile ? 0 : (config.rangeStart - 1);
             const end = config.allFile ? currentSegmentsList.length - 1 : (config.rangeEnd - 1);
@@ -27677,6 +27963,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             ? (window.ActiveTbTerms || []).map(t => ({ source: t.source, target: t.target, note: useTbNote ? t.note : '', _matchFlags: t.matchFlags }))
             : [];
         const pr = (settings && settings.prompts) ? settings.prompts : {};
+        let introText = '';
+        try {
+            const elIntro = document.getElementById('aiBatchIntroduction');
+            if (elIntro && document.body.contains(elIntro)) introText = String(elIntro.value || '').trim();
+            else introText = String(localStorage.getItem('catAiBatchIntroduction') || '').trim();
+        } catch (_) {}
+        const baseSys = (pr && pr.translateSystemPrefix) || '';
+        const systemPrefix = [introText, baseSys].filter(Boolean).join('\n\n');
         return {
             settings,
             sourceLang: fileRec?.sourceLang || '',
@@ -27687,7 +27981,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             tbTerms,
             batchNote: siPart,
             projectGuidelinesNote,
-            systemPrefix: (pr && pr.translateSystemPrefix) || '',
+            systemPrefix,
             includeKeys: refOptions.useKey !== false,
             includeExtraValue: refOptions.useExtra !== false,
             includeContext: refOptions.useConfirmedContext !== false
